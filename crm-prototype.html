@@ -1,0 +1,2515 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mr. Cha CRM Prototype</title>
+  <style>
+    :root {
+      --bg: #f7f7f6;
+      --surface: #ffffff;
+      --surface-2: #f3f3f2;
+      --line: #e5e5e3;
+      --line-soft: #eeeeec;
+      --text: #172026;
+      --muted: #687782;
+      --accent: #111111;
+      --accent-dark: #000000;
+      --accent-soft: #eeeeec;
+      --success: #15803d;
+      --success-soft: #e7f7ed;
+      --warning: #b7791f;
+      --warning-soft: #fff4d8;
+      --danger: #b42318;
+      --danger-soft: #fee4e2;
+      --ink: #101828;
+      --shadow: none;
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 238px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .shell.sidebar-collapsed {
+      grid-template-columns: 76px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 18px 10px;
+      border-right: 1px solid var(--line);
+      background: #ffffff;
+      color: #222222;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 8px 18px;
+      margin-bottom: 6px;
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: #111;
+      font-weight: 700;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 15px;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 2px;
+      color: #888888;
+      font-size: 12px;
+    }
+
+    .shell.sidebar-collapsed .brand {
+      justify-content: center;
+      padding-right: 0;
+      padding-left: 0;
+    }
+
+    .shell.sidebar-collapsed .brand > div:last-child,
+    .shell.sidebar-collapsed .nav button span,
+    .shell.sidebar-collapsed .subnav,
+    .shell.sidebar-collapsed .sidebar-foot {
+      display: none;
+    }
+
+    .shell.sidebar-collapsed .nav button {
+      justify-content: center;
+      padding: 0;
+    }
+
+    .nav {
+      display: grid;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .nav button {
+      width: 100%;
+      min-height: 42px;
+      border: 0;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px;
+      background: transparent;
+      color: #555555;
+      text-align: left;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .nav button:hover {
+      background: #f3f3f2;
+      color: #111111;
+    }
+
+    .nav button.active {
+      background: #eeeeed;
+      color: #111111;
+      box-shadow: none;
+    }
+
+    .nav-group {
+      display: grid;
+      gap: 4px;
+    }
+
+    .subnav {
+      display: grid;
+      gap: 2px;
+      margin: -2px 0 4px 31px;
+    }
+
+    .subnav button {
+      min-height: 32px;
+      border-radius: 6px;
+      padding: 0 10px;
+      color: #777;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .subnav button.active {
+      background: #f1f1f0;
+      color: #111;
+    }
+
+    .nav svg,
+    .mini-icon {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      opacity: 0.78;
+    }
+
+    .sidebar-foot {
+      position: absolute;
+      right: 10px;
+      bottom: 14px;
+      left: 10px;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      border-radius: 0;
+      background: #fff;
+    }
+
+    .sidebar-foot strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .sidebar-foot span {
+      display: block;
+      margin-top: 4px;
+      color: #888888;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 0 22px 22px;
+    }
+
+    .globalbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 48px;
+      margin: 0 -22px 22px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(10px);
+    }
+
+    .global-left,
+    .global-right,
+    .global-metrics {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: inline-grid;
+      place-items: center;
+      background: #fff;
+      color: #202020;
+    }
+
+    .icon-btn:hover {
+      background: var(--surface-2);
+    }
+
+    .icon-btn svg,
+    .global-pill svg,
+    .account-chip svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .global-divider {
+      width: 1px;
+      height: 22px;
+      background: var(--line);
+    }
+
+    .global-pill {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 11px;
+      background: #fff;
+      color: #2c2c2c;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .global-pill strong {
+      color: var(--danger);
+      font-size: 13px;
+    }
+
+    .global-pill.green strong {
+      color: var(--success);
+    }
+
+    .account-chip {
+      min-height: 36px;
+      border: 0;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 4px 0 6px;
+      background: transparent;
+      color: #1f1f1f;
+      white-space: nowrap;
+    }
+
+    .account-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: #e7e7e5;
+      color: #8a8a88;
+    }
+
+    .account-avatar svg {
+      width: 23px;
+      height: 23px;
+    }
+
+    .account-text {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: #1f1f1f;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .account-text span {
+      color: #777;
+      font-weight: 600;
+    }
+
+    .settings-btn {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 8px;
+      display: inline-grid;
+      place-items: center;
+      background: transparent;
+      color: #555;
+    }
+
+    .settings-btn:hover,
+    .account-chip:hover {
+      background: var(--surface-2);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .title p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 12px;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .btn svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .btn.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn.primary:hover {
+      background: var(--accent-dark);
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .stats {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .stat {
+      padding: 16px;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 27px;
+      line-height: 1;
+    }
+
+    .stat em {
+      display: block;
+      margin-top: 9px;
+      color: var(--success);
+      font-size: 12px;
+      font-style: normal;
+      font-weight: 700;
+    }
+
+    .dashboard-layout {
+      grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
+      margin-top: 14px;
+      align-items: start;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .bar-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 90px minmax(0, 1fr) 44px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .bar-track {
+      height: 9px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #e9edf2;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .advisor-list,
+    .brief-list,
+    .timeline,
+    .quote-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .advisor,
+    .brief,
+    .timeline-item,
+    .quote-row,
+    .mini-card {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+    }
+
+    .advisor {
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .advisor strong,
+    .brief strong,
+    .timeline-item strong,
+    .quote-row strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .advisor span,
+    .brief span,
+    .timeline-item span,
+    .quote-row span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) 150px 150px 150px 150px;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .input,
+    .select,
+    .textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    .input,
+    .select {
+      height: 38px;
+      padding: 0 11px;
+    }
+
+    .textarea {
+      min-height: 96px;
+      resize: vertical;
+      padding: 10px 11px;
+    }
+
+    .input:focus,
+    .select:focus,
+    .textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      text-align: left;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--muted);
+      background: var(--surface-2);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    tr.clickable {
+      cursor: pointer;
+    }
+
+    tr.clickable:hover {
+      background: #f4f4f3;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 0 8px;
+      background: #eef2f7;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge.blue {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .badge.green {
+      background: var(--success-soft);
+      color: var(--success);
+    }
+
+    .badge.yellow {
+      background: var(--warning-soft);
+      color: var(--warning);
+    }
+
+    .badge.red {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .profile-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .profile-name {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .profile-name .avatar {
+      width: 46px;
+      height: 46px;
+    }
+
+    .profile-name h2 {
+      margin: 0;
+      font-size: 19px;
+      letter-spacing: 0;
+    }
+
+    .profile-name p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field-card {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--surface-2);
+    }
+
+    .field-card span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .field-card strong {
+      display: block;
+      margin-top: 6px;
+      overflow-wrap: anywhere;
+      font-size: 13px;
+    }
+
+    .section-title {
+      margin: 0 0 10px;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    .ai-summary {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .timeline-item {
+      position: relative;
+      padding-left: 38px;
+    }
+
+    .timeline-item::before {
+      content: attr(data-type);
+      position: absolute;
+      top: 12px;
+      left: 10px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(220px, 1fr));
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    .lane {
+      min-height: 520px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f6f6f5;
+      padding: 10px;
+    }
+
+    .lane-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      padding: 0 2px;
+    }
+
+    .lane-head strong {
+      font-size: 13px;
+    }
+
+    .lead-card {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+      box-shadow: none;
+    }
+
+    .lead-card h3 {
+      margin: 0;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    .lead-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .mini-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .quote-layout {
+      grid-template-columns: 380px minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .form-field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .form-field label {
+      color: #344054;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .comparison {
+      min-width: 760px;
+    }
+
+    .send-box {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+      padding: 14px;
+      border: 1px dashed #b7c4d3;
+      border-radius: 8px;
+      background: #fbfdff;
+    }
+
+
+
+    .chat-layout {
+      display: grid;
+      grid-template-columns: 300px minmax(420px, 1fr) 320px;
+      gap: 14px;
+      align-items: stretch;
+      min-height: 680px;
+    }
+
+    .chat-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .chat-tab {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: #444;
+      padding: 0 13px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .chat-tab.active {
+      border-color: #222;
+      background: #222;
+      color: #fff;
+    }
+
+    .chat-panel {
+      min-height: 680px;
+      overflow: hidden;
+    }
+
+    .chat-queue {
+      max-height: 610px;
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    .chat-request {
+      width: 100%;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      display: grid;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding: 12px;
+      background: #fff;
+      color: var(--text);
+      text-align: left;
+    }
+
+    .chat-request.active {
+      border-color: #222;
+      background: #f4f4f3;
+    }
+
+    .chat-request-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .chat-request strong {
+      font-size: 14px;
+    }
+
+    .chat-request p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .chat-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chat-window {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 680px;
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .chat-header h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .chat-header span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chat-messages {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      overflow-y: auto;
+      padding: 18px;
+      background: #fbfbfa;
+    }
+
+    .message {
+      max-width: 78%;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 11px 12px;
+      background: #fff;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .message.customer {
+      justify-self: start;
+    }
+
+    .message.advisor {
+      justify-self: end;
+      border-color: #222;
+      background: #222;
+      color: #fff;
+    }
+
+    .message.ai {
+      max-width: 100%;
+      border-color: #d8e7dd;
+      background: #f4fbf6;
+      color: #1f5130;
+    }
+
+    .message small {
+      display: block;
+      margin-top: 6px;
+      color: #8a8a88;
+      font-size: 11px;
+    }
+
+    .message.advisor small {
+      color: #d0d0d0;
+    }
+
+    .chat-compose {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid var(--line-soft);
+      background: #fff;
+    }
+
+    .insight-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .insight-item {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .insight-item span {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .insight-item strong {
+      display: block;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .insight-item p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .action-stack {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .status-cell {
+      display: grid;
+      gap: 5px;
+      align-items: start;
+    }
+
+    .status-group-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .table-note {
+      display: block;
+      margin-top: 4px;
+      color: #8a8a88;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .customer-code {
+      margin-left: 5px;
+      color: #8a8a88;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .list-headbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .list-head-left,
+    .list-view-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .total-count {
+      color: #2f2f2f;
+      font-size: 20px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .total-count strong {
+      font-size: 21px;
+    }
+
+    .vertical-separator {
+      width: 1px;
+      height: 26px;
+      margin: 0 8px;
+      background: #d8d8d6;
+    }
+
+    .view-select {
+      width: 178px;
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      background: #fff;
+      color: #555;
+      padding: 0 34px 0 14px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .ai-summary-cell {
+      max-width: 260px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .row-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tiny-btn {
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: inline-grid;
+      place-items: center;
+      background: #fff;
+      color: #333;
+    }
+
+    .tiny-btn:hover {
+      background: var(--surface-2);
+    }
+
+    .tiny-btn svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .empty {
+      display: grid;
+      place-items: center;
+      min-height: 240px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 30;
+      min-width: 260px;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      background: #f0fdf4;
+      color: #166534;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      font-weight: 700;
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: 180ms ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 1180px) {
+      .stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .dashboard-layout,
+      .split,
+      .quote-layout,
+      .chat-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .chat-panel,
+      .chat-window {
+        min-height: auto;
+      }
+
+      .chat-queue {
+        max-height: none;
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .shell,
+      .shell.sidebar-collapsed {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+      }
+
+      .sidebar-foot {
+        position: static;
+        margin-top: 12px;
+      }
+
+      .nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .globalbar {
+        position: static;
+        flex-wrap: wrap;
+        margin: 0 -14px 16px;
+        padding: 10px 14px;
+      }
+
+      .global-metrics {
+        order: 3;
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+
+      .global-right {
+        margin-left: auto;
+      }
+
+      .account-chip {
+        max-width: 164px;
+      }
+
+      .list-headbar,
+      .list-head-left,
+      .list-view-controls {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .list-head-left,
+      .list-view-controls,
+      .view-select {
+        width: 100%;
+      }
+
+      .vertical-separator {
+        display: none;
+      }
+
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .top-actions {
+        flex-wrap: wrap;
+      }
+
+      .stats,
+      .detail-grid,
+      .ai-summary,
+      .form-grid,
+      .toolbar,
+      .chat-compose {
+        grid-template-columns: 1fr;
+      }
+
+      .main {
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">Mr</div>
+        <div>
+          <strong>Mr. Cha CRM</strong>
+          <span>상담 운영실 프로토타입</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="CRM 메뉴">
+        <button data-view="advisor-dashboard" class="active">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 13h7V4H4v9Zm9 7h7V4h-7v16ZM4 20h7v-5H4v5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <span>대시보드</span>
+        </button>
+        <button data-view="admin-dashboard">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 4c-3.86 0-7 2.24-7 5v1h14v-1c0-2.76-3.14-5-7-5Zm9-1 2 2 3-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>대시보드(관리자)</span>
+        </button>
+        <button data-view="chat">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <span>채팅 관리</span>
+        </button>
+        <div class="nav-group">
+          <button data-view="customers" data-customer-mode="all">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span>고객 관리</span>
+          </button>
+          <div class="subnav" aria-label="고객 관리 하위 메뉴">
+            <button data-view="customers" data-customer-mode="all">전체 보기</button>
+            <button data-view="customers" data-customer-mode="consulting">상담 필요</button>
+            <button data-view="customers" data-customer-mode="contract">계약 관리</button>
+            <button data-view="customers" data-customer-mode="delivery">출고 관리</button>
+            <button data-view="customers" data-customer-mode="settlement">출고 정산</button>
+            <button data-view="customers" data-customer-mode="hold">보류 / 이탈</button>
+          </div>
+        </div>
+        <button data-view="customer-detail">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>고객 상세</span>
+        </button>
+        <button data-view="pipeline">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>상담 파이프라인</span>
+        </button>
+        <button data-view="quotes">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>견적 관리</span>
+        </button>
+        <button data-view="delivery">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3 13h13V6H3v7Zm13 0h3l2 3v3h-5v-6ZM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm12 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <span>계약 / 출고</span>
+        </button>
+      </nav>
+      <div class="sidebar-foot">
+        <strong>오늘의 운영 원칙</strong>
+        <span>신뢰가 생기기 전에는 영업하지 않는다. 상담, 분석, 제안 순서로 움직인다.</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="globalbar" aria-label="전역 상태바">
+        <div class="global-left">
+          <button class="icon-btn" id="sidebarToggle" type="button" aria-label="사이드바 접기">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <button class="icon-btn" data-view-shortcut="advisor-dashboard" type="button" aria-label="홈">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3V10.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="icon-btn" data-global-action="알림" type="button" aria-label="알림">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="global-metrics" aria-label="오늘 운영 지표">
+          <button class="global-pill" data-view-shortcut="advisor-dashboard" type="button">오늘 업무 <strong>8</strong></button>
+          <button class="global-pill" data-view-shortcut="chat" type="button">응답 대기 <strong>3</strong></button>
+          <button class="global-pill green" data-view-shortcut="quotes" type="button">견적 요청 <strong>5</strong></button>
+          <button class="global-pill green" data-view-shortcut="delivery" type="button">출고 예정 <strong>2</strong></button>
+        </div>
+        <div class="global-right">
+          <button class="icon-btn" data-view-shortcut="chat" type="button" aria-label="채팅 알림">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="icon-btn" data-view-shortcut="quotes" type="button" aria-label="견적 문서함">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <div class="global-divider" aria-hidden="true"></div>
+          <button class="account-chip" data-global-action="계정" type="button" aria-label="계정 정보">
+            <span class="account-avatar">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+            <span class="account-text">김지안 <span>최고관리자</span></span>
+          </button>
+          <button class="settings-btn" data-global-action="설정" type="button" aria-label="설정">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .57 1.7 1.7 0 0 0-.4 1.08V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-.4-1.08 1.7 1.7 0 0 0-1-.57 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.57-1 1.7 1.7 0 0 0-1.08-.4H3a2 2 0 0 1 0-4h.09a1.7 1.7 0 0 0 1.08-.4 1.7 1.7 0 0 0 .57-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.57 1.7 1.7 0 0 0 .4-1.08V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 .4 1.08 1.7 1.7 0 0 0 1 .57 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.18.38.48.7.86.88.27.13.56.2.86.2H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.08.4c-.2.15-.35.33-.43.52Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <header class="topbar">
+        <div class="title">
+          <h1 id="pageTitle">대시보드</h1>
+          <p id="pageDesc">배정된 고객 중 오늘 처리할 업무, 우선순위, 내 실적을 한눈에 보는 상담사용 화면입니다.</p>
+        </div>
+        <div class="top-actions">
+          <button class="btn" id="noteBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            상담 메모
+          </button>
+          <button class="btn primary" id="sendQuoteTop" type="button">
+            <svg viewBox="0 0 24 24" fill="none"><path d="m22 2-7 20-4-9-9-4 20-7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            앱으로 견적 송출
+          </button>
+        </div>
+      </header>
+
+      <section class="view" id="admin-dashboard">
+        <div class="grid stats">
+          <div class="card stat"><span>신규 유입</span><strong>18</strong><em>어제보다 +4</em></div>
+          <div class="card stat"><span>상담 진행중</span><strong>46</strong><em>응답 대기 6건</em></div>
+          <div class="card stat"><span>견적 발송</span><strong>29</strong><em>전환 후보 11건</em></div>
+          <div class="card stat"><span>계약 완료</span><strong>7</strong><em>이번 주 누적</em></div>
+          <div class="card stat"><span>출고 예정</span><strong>5</strong><em>탁송 조율 2건</em></div>
+        </div>
+
+        <div class="grid dashboard-layout">
+          <section class="card">
+            <div class="panel-head">
+              <h2>브랜드별 문의 현황</h2>
+              <span class="badge blue">실시간</span>
+            </div>
+            <div class="panel-body">
+              <div class="bar-list" id="brandBars"></div>
+            </div>
+          </section>
+          <section class="card">
+            <div class="panel-head">
+              <h2>상담사 운영 현황</h2>
+              <span class="badge">오늘</span>
+            </div>
+            <div class="panel-body">
+              <div class="advisor-list" id="advisorList"></div>
+            </div>
+          </section>
+          <section class="card">
+            <div class="panel-head">
+              <h2>AI 브리핑 우선 확인</h2>
+              <span class="badge yellow">리스크 3건</span>
+            </div>
+            <div class="panel-body">
+              <div class="brief-list" id="dashboardBriefs"></div>
+            </div>
+          </section>
+          <section class="card">
+            <div class="panel-head">
+              <h2>전환 흐름</h2>
+              <span class="badge green">상담 -> 계약 15.2%</span>
+            </div>
+            <div class="panel-body">
+              <div class="bar-list">
+                <div class="bar-row"><span>상담→견적</span><div class="bar-track"><div class="bar-fill" style="width:68%"></div></div><strong>68%</strong></div>
+                <div class="bar-row"><span>견적→심사</span><div class="bar-track"><div class="bar-fill" style="width:42%"></div></div><strong>42%</strong></div>
+                <div class="bar-row"><span>심사→계약</span><div class="bar-track"><div class="bar-fill" style="width:31%"></div></div><strong>31%</strong></div>
+                <div class="bar-row"><span>계약→출고</span><div class="bar-track"><div class="bar-fill" style="width:76%"></div></div><strong>76%</strong></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view active" id="advisor-dashboard">
+        <div class="grid stats">
+          <div class="card stat"><span>오늘 처리할 고객</span><strong>12</strong><em>긴급 3건</em></div>
+          <div class="card stat"><span>응답 대기</span><strong>6</strong><em>15분 초과 2건</em></div>
+          <div class="card stat"><span>견적 작성 필요</span><strong>5</strong><em>오늘 송출 목표</em></div>
+          <div class="card stat"><span>계약 후보</span><strong>4</strong><em>우선 통화 권장</em></div>
+          <div class="card stat"><span>내 오늘 실적</span><strong>3</strong><em>견적 발송 완료</em></div>
+        </div>
+
+        <div class="grid dashboard-layout">
+          <section class="card">
+            <div class="panel-head">
+              <h2>오늘 우선순위 고객</h2>
+              <span class="badge red">상담사 배정</span>
+            </div>
+            <div class="panel-body" style="overflow-x:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>우선</th>
+                    <th>고객</th>
+                    <th>차량</th>
+                    <th>현재 이슈</th>
+                    <th>다음 액션</th>
+                    <th>마감</th>
+                  </tr>
+                </thead>
+                <tbody id="advisorTasks"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="panel-head">
+              <h2>내 업무 큐</h2>
+              <span class="badge blue">지안 계정</span>
+            </div>
+            <div class="panel-body brief-list" id="workQueue"></div>
+          </section>
+
+          <section class="card">
+            <div class="panel-head">
+              <h2>AI 브리핑</h2>
+              <span class="badge yellow">상담 전 확인</span>
+            </div>
+            <div class="panel-body brief-list" id="advisorBriefs"></div>
+          </section>
+
+          <section class="card">
+            <div class="panel-head">
+              <h2>내 실적 흐름</h2>
+              <span class="badge green">오늘 / 이번 주</span>
+            </div>
+            <div class="panel-body">
+              <div class="bar-list">
+                <div class="bar-row"><span>응답 완료</span><div class="bar-track"><div class="bar-fill" style="width:72%"></div></div><strong>18</strong></div>
+                <div class="bar-row"><span>견적 발송</span><div class="bar-track"><div class="bar-fill" style="width:48%"></div></div><strong>3</strong></div>
+                <div class="bar-row"><span>심사 진행</span><div class="bar-track"><div class="bar-fill" style="width:35%"></div></div><strong>2</strong></div>
+                <div class="bar-row"><span>계약 전환</span><div class="bar-track"><div class="bar-fill" style="width:22%"></div></div><strong>1</strong></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+
+      <section class="view" id="chat">
+        <div class="chat-tabs" aria-label="채팅 상태 필터">
+          <button class="chat-tab active" type="button">전체 12</button>
+          <button class="chat-tab" type="button">상담원 연결 요청 4</button>
+          <button class="chat-tab" type="button">AI 상담중 5</button>
+          <button class="chat-tab" type="button">응답 대기 3</button>
+          <button class="chat-tab" type="button">종료 18</button>
+        </div>
+
+        <div class="chat-layout">
+          <section class="card chat-panel">
+            <div class="panel-head">
+              <h2>상담 연결 큐</h2>
+              <span class="badge red">미배정 4</span>
+            </div>
+            <div class="chat-queue">
+              <button class="chat-request active" type="button">
+                <div class="chat-request-head">
+                  <strong>김민준</strong>
+                  <span class="badge red">긴급</span>
+                </div>
+                <p>BMW X3와 GLC 견적 비교 중. 타사 견적 2장 보유, 중도해지 조건 질문.</p>
+                <div class="chat-meta">
+                  <span class="badge">앱 상담원 연결</span>
+                  <span class="badge yellow">12분 대기</span>
+                </div>
+              </button>
+              <button class="chat-request" type="button">
+                <div class="chat-request-head">
+                  <strong>박서연</strong>
+                  <span class="badge yellow">높음</span>
+                </div>
+                <p>Model Y 장기렌트 문의. 초기비용 0원 조건과 보험 포함 여부 확인 희망.</p>
+                <div class="chat-meta">
+                  <span class="badge">AI 상담중</span>
+                  <span class="badge">5분 전</span>
+                </div>
+              </button>
+              <button class="chat-request" type="button">
+                <div class="chat-request-head">
+                  <strong>이도윤</strong>
+                  <span class="badge">보통</span>
+                </div>
+                <p>GV80 개인사업자 리스 심사 가능성 문의. 필요 서류 안내 요청.</p>
+                <div class="chat-meta">
+                  <span class="badge">상담사 배정</span>
+                  <span class="badge green">선생님</span>
+                </div>
+              </button>
+              <button class="chat-request" type="button">
+                <div class="chat-request-head">
+                  <strong>한지훈</strong>
+                  <span class="badge green">계약 후보</span>
+                </div>
+                <p>GV80 출고 일정 확인. 계약 조건 재확인 후 진행 의사 있음.</p>
+                <div class="chat-meta">
+                  <span class="badge">응답 대기</span>
+                  <span class="badge">오늘 14:05</span>
+                </div>
+              </button>
+            </div>
+          </section>
+
+          <section class="card chat-window">
+            <div class="chat-header">
+              <div>
+                <h2>김민준 · 상담원 연결 요청</h2>
+                <span>앱 AI 상담에서 실제 상담사 연결을 요청했습니다. 마지막 업데이트 12분 전</span>
+              </div>
+              <div class="top-actions">
+                <button class="btn" type="button" data-action="assign">지안에게 배정</button>
+                <button class="btn primary" type="button" data-action="start-chat">채팅 시작</button>
+              </div>
+            </div>
+            <div class="chat-messages">
+              <div class="message ai">
+                AI 상담 요약: 고객은 BMW X3와 GLC를 비교 중이며, 월 납입금보다 중도해지 리스크와 총 비용을 더 중요하게 보고 있습니다. 이미 타사 견적 2개를 받은 상태입니다.
+              </div>
+              <div class="message customer">
+                X3랑 GLC 중에 리스로 보면 뭐가 더 괜찮을까요? 월 납입금만 보면 X3가 좋아 보이긴 하는데 중도해지가 걱정돼요.
+                <small>고객 · 14:12</small>
+              </div>
+              <div class="message customer">
+                상담원 연결해서 받은 견적이 괜찮은 건지 한번 보고 싶어요.
+                <small>고객 · 14:14</small>
+              </div>
+              <div class="message advisor">
+                안녕하세요, 차선생 상담사 지안입니다. 견적은 월 납입금만 보면 판단이 어려워서 총 비용, 잔존가치, 중도해지 조건까지 같이 비교해드릴게요.
+                <small>상담사 프리뷰</small>
+              </div>
+            </div>
+            <div class="chat-compose">
+              <input class="input" value="견적서 사진이나 조건을 보내주시면 구조부터 먼저 봐드릴게요." aria-label="채팅 입력">
+              <button class="btn" type="button" data-action="load-summary">AI 요약 불러오기</button>
+              <button class="btn primary" type="button" data-action="send-chat">전송</button>
+            </div>
+          </section>
+
+          <aside class="card chat-panel">
+            <div class="panel-head">
+              <h2>고객 전환 패널</h2>
+              <span class="badge blue">AI 기반</span>
+            </div>
+            <div class="panel-body">
+              <div class="insight-stack">
+                <div class="insight-item">
+                  <span>고객 의도</span>
+                  <strong>견적 검토와 차종 비교</strong>
+                  <p>구매 결정보다 조건 신뢰도 확인이 먼저 필요한 상태입니다.</p>
+                </div>
+                <div class="insight-item">
+                  <span>관심 차량</span>
+                  <strong>BMW X3 / Mercedes-Benz GLC</strong>
+                  <p>SUV, 가족 사용, 월 90만원 이하 희망.</p>
+                </div>
+                <div class="insight-item">
+                  <span>구매 방식</span>
+                  <strong>운용리스 검토</strong>
+                  <p>잔존가치, 중도해지, 총 비용 설명 필요.</p>
+                </div>
+                <div class="insight-item">
+                  <span>상담 리스크</span>
+                  <strong>타사 견적 기준으로 비교 중</strong>
+                  <p>무리한 영업보다 구조 설명 후 차선생 비교표로 신뢰를 만드는 흐름이 적합합니다.</p>
+                </div>
+              </div>
+              <div class="action-stack">
+                <button class="btn primary" type="button" data-action="customer-detail">고객 상세 생성 / 이동</button>
+                <button class="btn" type="button" data-action="quote-from-chat">견적 작성으로 이동</button>
+                <button class="btn" type="button" data-action="assign">상담사 배정 변경</button>
+                <button class="btn" type="button" data-action="close-chat">상담 종료 처리</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="customers">
+        <div class="toolbar">
+          <input class="input" id="customerSearch" type="search" placeholder="고객명, 차량, 연락처 검색">
+          <select class="select" id="statusGroupFilter">
+            <option value="">상태 그룹 전체</option>
+          </select>
+          <select class="select" id="statusFilter">
+            <option value="">세부 상태 전체</option>
+          </select>
+          <select class="select" id="advisorFilter">
+            <option value="">담당자 전체</option>
+            <option>지안</option>
+            <option>선생님</option>
+            <option>제프</option>
+          </select>
+          <select class="select">
+            <option>최근 상담순</option>
+            <option>계약 가능성순</option>
+            <option>견적 발송순</option>
+          </select>
+        </div>
+        <section class="card">
+          <div class="list-headbar">
+            <div class="list-head-left">
+              <div class="total-count">TOTAL <strong id="customerTotal">20</strong></div>
+              <div class="vertical-separator" aria-hidden="true"></div>
+              <div class="list-view-controls">
+                <select class="select view-select" aria-label="담당자별 보기">
+                  <option>담당자별 보기</option>
+                  <option>지안</option>
+                  <option>선생님</option>
+                  <option>제프</option>
+                </select>
+                <select class="select view-select" aria-label="상담상태별 보기">
+                  <option>상담상태별 보기</option>
+                  <option>신규</option>
+                  <option>상담</option>
+                  <option>견적</option>
+                  <option>심사/계약</option>
+                  <option>출고</option>
+                  <option>재응대</option>
+                  <option>종료</option>
+                </select>
+                <select class="select view-select" aria-label="긴급순으로 보기">
+                  <option>긴급순으로 보기</option>
+                  <option>긴급</option>
+                  <option>높음</option>
+                  <option>중간</option>
+                  <option>낮음</option>
+                </select>
+              </div>
+            </div>
+            <div class="top-actions">
+              <button class="btn" type="button" id="deleteSelected" disabled>선택 삭제</button>
+              <button class="btn" type="button" id="addLead">신규 고객 등록</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead id="customerTableHead"></thead>
+              <tbody id="customerRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="customer-detail">
+        <div class="split">
+          <section class="card">
+            <div class="profile-head">
+              <div class="profile-name">
+                <div class="avatar">김</div>
+                <div>
+                  <h2>김민준 고객</h2>
+                  <p>BMW X3 / GLC 비교 · 유튜브 유입 · 견적발송 상태</p>
+                </div>
+              </div>
+              <span class="badge yellow">견적발송</span>
+            </div>
+            <div class="panel-body grid">
+              <div class="detail-grid">
+                <div class="field-card"><span>연락처</span><strong>010-4382-2190</strong></div>
+                <div class="field-card"><span>지역</span><strong>경기 성남</strong></div>
+                <div class="field-card"><span>담당자</span><strong>지안</strong></div>
+                <div class="field-card"><span>출고 희망</span><strong>6월 초</strong></div>
+              </div>
+
+              <div>
+                <h3 class="section-title">AI 상담 요약</h3>
+                <div class="ai-summary">
+                  <div class="field-card"><span>관심 차량</span><strong>BMW X3, 벤츠 GLC</strong></div>
+                  <div class="field-card"><span>구매 방식</span><strong>운용리스 우선 검토</strong></div>
+                  <div class="field-card"><span>예산</span><strong>월 90만원 이하</strong></div>
+                  <div class="field-card"><span>핵심 포인트</span><strong>중도해지 리스크, 총 비용</strong></div>
+                  <div class="field-card"><span>초기비용 성향</span><strong>보증금 낮게, 선수금 없음</strong></div>
+                  <div class="field-card"><span>브랜드 성향</span><strong>독일 SUV 선호, 패밀리 용도</strong></div>
+                </div>
+              </div>
+
+              <div>
+                <h3 class="section-title">상담 메모</h3>
+                <textarea class="textarea">경쟁사에서 X3 견적 2장 받은 상태. 월 납입금보다 총 비용과 중도해지 조건을 더 민감하게 봄. GLC는 재고 확인 필요.</textarea>
+              </div>
+
+              <div>
+                <h3 class="section-title">상담 타임라인</h3>
+                <div class="timeline" id="timeline"></div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="grid">
+            <section class="card">
+              <div class="panel-head">
+                <h2>다음 액션</h2>
+                <span class="badge red">오늘 처리</span>
+              </div>
+              <div class="panel-body brief-list">
+                <div class="brief">
+                  <strong>GLC 재고 조건 확인</strong>
+                  <span>재고가 없으면 X3 조건으로 빠르게 좁히는 편이 좋습니다.</span>
+                </div>
+                <div class="brief">
+                  <strong>중도해지 조건 설명 필요</strong>
+                  <span>월납입금보다 리스크 회피 성향이 강합니다.</span>
+                </div>
+                <button class="btn primary" type="button" data-action="send">앱으로 비교 견적 송출</button>
+              </div>
+            </section>
+            <section class="card">
+              <div class="panel-head">
+                <h2>견적 요약</h2>
+                <span class="badge blue">3개 비교</span>
+              </div>
+              <div class="panel-body quote-list" id="detailQuotes"></div>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="pipeline">
+        <div class="pipeline" id="pipelineBoard"></div>
+      </section>
+
+      <section class="view" id="quotes">
+        <div class="grid quote-layout">
+          <section class="card">
+            <div class="panel-head">
+              <h2>견적 등록</h2>
+              <span class="badge">수동 입력 MVP</span>
+            </div>
+            <div class="panel-body">
+              <div class="form-grid">
+                <div class="form-field"><label>고객</label><select class="select"><option>김민준</option><option>박서연</option><option>이도윤</option></select></div>
+                <div class="form-field"><label>차량</label><input class="input" value="BMW X3 20i"></div>
+                <div class="form-field"><label>트림 / 컬러</label><input class="input" value="M Sport / 블랙"></div>
+                <div class="form-field"><label>금융사</label><input class="input" value="A캐피탈"></div>
+                <div class="form-field"><label>계약기간</label><input class="input" value="48개월"></div>
+                <div class="form-field"><label>연간 주행거리</label><input class="input" value="20,000km"></div>
+                <div class="form-field"><label>보증금</label><input class="input" value="20%"></div>
+                <div class="form-field"><label>선수금</label><input class="input" value="0원"></div>
+                <div class="form-field"><label>잔존가치</label><input class="input" value="52%"></div>
+                <div class="form-field"><label>월 납입금</label><input class="input" value="842,000원"></div>
+                <div class="form-field"><label>만기 인수금</label><input class="input" value="38,480,000원"></div>
+                <div class="form-field"><label>출고 가능</label><select class="select"><option>가능</option><option>확인 필요</option><option>불가</option></select></div>
+              </div>
+              <div style="margin-top:10px" class="form-field">
+                <label>견적 메모</label>
+                <textarea class="textarea">월 납입금은 중간 수준이나 잔존가치가 높아 만기 인수 판단 필요. 중도해지 조건 설명 권장.</textarea>
+              </div>
+              <div style="display:flex; gap:8px; margin-top:12px">
+                <button class="btn primary" type="button" id="saveQuote">견적 저장</button>
+                <button class="btn" type="button">PDF 첨부</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="panel-head">
+              <h2>동일 고객 견적 비교</h2>
+              <span class="badge blue">김민준 고객</span>
+            </div>
+            <div class="panel-body" style="overflow-x:auto">
+              <table class="comparison">
+                <thead>
+                  <tr>
+                    <th>선택</th>
+                    <th>차량</th>
+                    <th>금융사</th>
+                    <th>기간</th>
+                    <th>초기비용</th>
+                    <th>잔존</th>
+                    <th>월납입</th>
+                    <th>출고</th>
+                    <th>판단</th>
+                  </tr>
+                </thead>
+                <tbody id="quoteCompareRows"></tbody>
+              </table>
+              <div class="send-box">
+                <strong>앱 송출 프리뷰</strong>
+                <span style="color:var(--muted); font-size:13px">고객 앱에는 “추천 견적 1개 + 비교 견적 2개 + 차선생 해석” 형태로 보여주는 방향을 제안합니다.</span>
+                <button class="btn primary" type="button" data-action="send">선택 견적 앱으로 송출</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="delivery">
+        <div class="grid dashboard-layout">
+          <section class="card">
+            <div class="panel-head">
+              <h2>계약 / 출고 보드</h2>
+              <span class="badge green">진행중 12건</span>
+            </div>
+            <div class="panel-body" style="overflow-x:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>고객</th>
+                    <th>차량</th>
+                    <th>금융사</th>
+                    <th>계약일</th>
+                    <th>출고 예정</th>
+                    <th>상태</th>
+                    <th>메모</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>최유진</td><td>테슬라 Model Y</td><td>B캐피탈</td><td>5/10</td><td>5/24</td><td><span class="badge yellow">탁송 조율</span></td><td>썬팅 예약 필요</td></tr>
+                  <tr><td>한지훈</td><td>GV80</td><td>현대캐피탈</td><td>5/08</td><td>5/29</td><td><span class="badge blue">출고 준비</span></td><td>보험 담보 확인</td></tr>
+                  <tr><td>오세린</td><td>MINI Cooper</td><td>A캐피탈</td><td>5/04</td><td>5/18</td><td><span class="badge green">배정 완료</span></td><td>PPF 일정 확정</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section class="card">
+            <div class="panel-head">
+              <h2>출고 체크리스트</h2>
+              <span class="badge">실무용</span>
+            </div>
+            <div class="panel-body brief-list">
+              <label class="mini-card"><input type="checkbox" checked> 계약서 서명 확인</label>
+              <label class="mini-card"><input type="checkbox" checked> 금융 승인 조건 확인</label>
+              <label class="mini-card"><input type="checkbox"> 보험 담보 조건 확인</label>
+              <label class="mini-card"><input type="checkbox"> 썬팅 / PPF / 블랙박스 일정</label>
+              <label class="mini-card"><input type="checkbox"> 탁송 시간 고객 안내</label>
+              <label class="mini-card"><input type="checkbox"> 출고 후 만족도 연락</label>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast">작업이 반영되었습니다.</div>
+
+  <script>
+    const views = {
+      "advisor-dashboard": ["대시보드", "배정된 고객 중 오늘 처리할 업무, 우선순위, 내 실적을 한눈에 보는 상담사용 화면입니다."],
+      "admin-dashboard": ["대시보드(관리자)", "전체 유입, 상담, 견적, 계약, 출고 흐름을 관리자가 보는 운영 화면입니다."],
+      chat: ["채팅 관리", "앱에서 상담원 연결을 요청한 고객을 접수하고, AI 상담 요약을 보며 실제 상담으로 전환합니다."],
+      customers: ["고객 관리", "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다."],
+      "customer-detail": ["고객 상세", "AI 요약, 상담 메모, 타임라인, 견적, 다음 액션을 한 화면에서 처리합니다."],
+      pipeline: ["상담 파이프라인", "상담 진행 단계를 칸반 방식으로 관리하고 상태 변경 로그를 남기는 구조입니다."],
+      quotes: ["견적 관리", "견적을 구조화 데이터로 등록하고, 비교한 뒤 앱으로 송출하는 실무 화면입니다."],
+      delivery: ["계약 / 출고", "계약 이후 출고까지 필요한 상태와 체크리스트를 관리합니다."]
+    };
+
+    const customerStatusGroups = {
+      "신규": ["신규"],
+      "상담": ["상담중", "관리중", "상담완료"],
+      "견적": ["견적준비중", "차량체크중", "견적발송"],
+      "심사/계약": ["심사서류안내", "계약완료", "계약취소"],
+      "출고": ["출고예정", "출고완료"],
+      "재응대": ["부재(1차 부재중)", "부재(카톡인사)", "부재(미응답)", "재컨택완료"],
+      "종료": ["미정", "불발"]
+    };
+
+    const customerModeMeta = {
+      all: { title: "전체 보기", desc: "모든 고객 DB를 한 화면에서 확인합니다." },
+      consulting: { title: "상담 필요", desc: "계약 전 상담, 견적, 재응대가 필요한 고객 업무함입니다." },
+      contract: { title: "계약 관리", desc: "심사, 계약 완료, 계약 취소 고객의 계약 실무를 관리합니다." },
+      delivery: { title: "출고 관리", desc: "출고 예정과 출고 완료 전후의 안내 업무를 관리합니다." },
+      settlement: { title: "출고 정산", desc: "출고 완료 이후 수수료, 비용, 마진 정산이 필요한 고객입니다." },
+      hold: { title: "보류 / 이탈", desc: "미응답, 미정, 불발, 계약취소 고객의 재컨택 여부를 관리합니다." }
+    };
+
+    let currentCustomerMode = "all";
+
+    let customers = [
+      { no: 11417, customerId: "C-000128", receivedAt: "2026-05-14 12:56", assignedAt: "오늘 13:04", team: "인천본사", name: "김민준", customerType: "개인", customerTypeDetail: "4대보험", phone: "010-4382-2190", vehicle: "BMW X3 / GLC", method: "운용리스", advisor: "지안", statusGroup: "견적", status: "견적발송", date: "오늘 14:20", source: "유튜브", talkCount: "3/1", priority: "긴급", nextAction: "GLC 재고 확인 후 비교 견적 재송출", aiSummary: "X3/GLC 비교, 중도해지 리스크와 총비용에 민감" },
+      { no: 11416, customerId: "C-000129", receivedAt: "2026-05-14 11:05", assignedAt: "오늘 11:18", team: "인천본사", name: "박서연", customerType: "개인", customerTypeDetail: "프리랜서", phone: "010-7715-0931", vehicle: "Model Y", method: "장기렌트", advisor: "선생님", statusGroup: "견적", status: "견적준비중", date: "오늘 11:05", source: "앱 AI상담", talkCount: "1/0", priority: "높음", nextAction: "보증금 0/10/20% 조건별 견적 작성", aiSummary: "초기비용 0원 선호, 보험 포함 여부를 궁금해함" },
+      { no: 11415, customerId: "C-000130", receivedAt: "2026-05-13 18:42", assignedAt: "어제 19:10", team: "견적팀", name: "이도윤", customerType: "개인사업자", customerTypeDetail: "도윤컴퍼니", phone: "010-2930-4418", vehicle: "GV80", method: "할부", advisor: "제프", statusGroup: "심사/계약", status: "심사서류안내", date: "어제 18:42", source: "검색", talkCount: "2/0", priority: "높음", nextAction: "개인사업자 심사 서류 체크리스트 발송", aiSummary: "사업자 증빙이 약해 승인 가능 금융사 우선 확인 필요" },
+      { no: 11414, customerId: "C-000131", receivedAt: "2026-05-10 16:10", assignedAt: "5/10 16:30", team: "인천본사", name: "최유진", customerType: "개인", customerTypeDetail: "4대보험", phone: "010-6251-8281", vehicle: "Model Y", method: "리스", advisor: "지안", statusGroup: "심사/계약", status: "계약완료", date: "5/10 16:10", source: "추천", talkCount: "4/1", priority: "완료", nextAction: "출고 전 시공 일정 안내", aiSummary: "계약 완료, 출고 경험 관리가 중요한 고객" },
+      { no: 11413, customerId: "C-000132", receivedAt: "2026-05-09 09:35", assignedAt: "5/09 10:02", team: "출고팀", name: "한지훈", customerType: "법인사업자", customerTypeDetail: "HJ모빌리티", phone: "010-5190-3811", vehicle: "GV80", method: "장기렌트", advisor: "선생님", statusGroup: "출고", status: "출고예정", date: "5/09 09:35", source: "카카오", talkCount: "2/2", priority: "완료", nextAction: "탁송 시간 확정 및 보험 담보 확인", aiSummary: "출고 일정 확인 단계, 계약 조건 재확인 요청 가능성" },
+      { no: 11412, customerId: "C-000133", receivedAt: "2026-05-14 09:48", assignedAt: "오늘 10:00", team: "인천본사", name: "정다은", customerType: "개인", customerTypeDetail: "주부", phone: "010-2487-7710", vehicle: "싼타페 Hybrid", method: "장기렌트", advisor: "지안", statusGroup: "재응대", status: "부재(카톡인사)", date: "오늘 09:48", source: "카카오", talkCount: "0/1", priority: "보류", nextAction: "카톡 인사 후 2차 재컨택 예약", aiSummary: "패밀리카 목적, 월 납입금 70만원 이하 희망" },
+      { no: 11411, customerId: "C-000134", receivedAt: "2026-05-13 15:12", assignedAt: "어제 15:20", team: "상담팀", name: "오세린", customerType: "개인", customerTypeDetail: "프리랜서", phone: "010-6619-3240", vehicle: "MINI Cooper", method: "운용리스", advisor: "선생님", statusGroup: "상담", status: "상담중", date: "어제 15:12", source: "앱 상담원 연결", talkCount: "3/0", priority: "중간", nextAction: "리스/렌트 차이 설명 후 선호 방식 확정", aiSummary: "첫 차 구매, 월 납입과 만기 인수 구조 이해 필요" },
+      { no: 11410, customerId: "C-000135", receivedAt: "2026-05-08 13:20", assignedAt: "5/08 13:45", team: "견적팀", name: "강현우", customerType: "개인사업자", customerTypeDetail: "현우스튜디오", phone: "010-9031-4208", vehicle: "911 Carrera", method: "리스", advisor: "제프", statusGroup: "종료", status: "불발", date: "5/08 13:20", source: "유튜브", talkCount: "1/0", priority: "낮음", nextAction: "30일 후 재컨택 후보", aiSummary: "희망 조건과 가능 금융 조건 차이가 커서 이탈" },
+      { no: 11409, customerId: "C-000136", receivedAt: "2026-05-08 10:12", assignedAt: "5/08 10:30", team: "상담팀", name: "문태호", customerType: "개인", customerTypeDetail: "4대보험", phone: "010-7130-2298", vehicle: "팰리세이드 Hybrid", method: "장기렌트", advisor: "지안", statusGroup: "신규", status: "신규", date: "5/08 10:12", source: "앱 AI상담", talkCount: "0/0", priority: "높음", nextAction: "상담 목적 확인 후 구매 방식 분류", aiSummary: "패밀리 SUV 탐색, 렌트와 리스 차이 질문" },
+      { no: 11408, customerId: "C-000137", receivedAt: "2026-05-07 17:40", assignedAt: "5/07 18:00", team: "상담팀", name: "서하영", customerType: "개인", customerTypeDetail: "무직", phone: "010-9442-0185", vehicle: "C-Class", method: "리스", advisor: "선생님", statusGroup: "상담", status: "관리중", date: "5/12 10:25", source: "소개", talkCount: "2/1", priority: "중간", nextAction: "월 납입 예산 재확인", aiSummary: "수입 세단 선호, 초기비용 최소화 희망" },
+      { no: 11407, customerId: "C-000138", receivedAt: "2026-05-07 13:05", assignedAt: "5/07 13:30", team: "견적팀", name: "장우진", customerType: "개인사업자", customerTypeDetail: "우진상사", phone: "010-8851-7202", vehicle: "K8 Hybrid", method: "장기렌트", advisor: "제프", statusGroup: "견적", status: "차량체크중", date: "5/12 09:40", source: "검색", talkCount: "2/0", priority: "높음", nextAction: "재고 가능 색상 확인", aiSummary: "빠른 출고 선호, 국산 하이브리드 비교 중" },
+      { no: 11406, customerId: "C-000139", receivedAt: "2026-05-06 16:24", assignedAt: "5/06 16:40", team: "계약팀", name: "김도현", customerType: "법인사업자", customerTypeDetail: "도현테크", phone: "010-3320-8541", vehicle: "E-Class", method: "운용리스", advisor: "지안", statusGroup: "심사/계약", status: "계약완료", date: "5/11 15:10", source: "유튜브", talkCount: "5/1", priority: "완료", nextAction: "계약서 최종본 고객 발송", aiSummary: "조건 비교 후 계약 확정, 출고 전 안내 필요" },
+      { no: 11405, customerId: "C-000140", receivedAt: "2026-05-06 11:15", assignedAt: "5/06 11:20", team: "계약팀", name: "박준영", customerType: "개인", customerTypeDetail: "4대보험", phone: "010-7624-5930", vehicle: "Sorento", method: "할부", advisor: "선생님", statusGroup: "심사/계약", status: "계약취소", date: "5/10 11:00", source: "카카오", talkCount: "3/0", priority: "보류", nextAction: "취소 사유 기록 후 재컨택 제외", aiSummary: "가족 사정으로 구매 보류, 단기 재전환 가능성 낮음" },
+      { no: 11404, customerId: "C-000141", receivedAt: "2026-05-05 14:48", assignedAt: "5/05 15:05", team: "출고팀", name: "이나경", customerType: "개인", customerTypeDetail: "프리랜서", phone: "010-5129-6734", vehicle: "Tesla Model 3", method: "리스", advisor: "지안", statusGroup: "출고", status: "출고완료", date: "5/14 13:30", source: "앱 상담원 연결", talkCount: "4/2", priority: "완료", nextAction: "정산 자료 확인", aiSummary: "출고 완료, 고객 만족도 확인 예정", settlementStatus: "정산대기", fee: "슬라이딩 118만원", cost: "시공비 42만원", margin: "예상 76만원" },
+      { no: 11403, customerId: "C-000142", receivedAt: "2026-05-04 19:22", assignedAt: "5/04 19:30", team: "출고팀", name: "최민석", customerType: "개인사업자", customerTypeDetail: "민석디자인", phone: "010-6720-4381", vehicle: "BMW 520i", method: "운용리스", advisor: "제프", statusGroup: "출고", status: "출고완료", date: "5/13 16:10", source: "소개", talkCount: "6/1", priority: "완료", nextAction: "금융사 수수료 입금 확인", aiSummary: "출고 완료 후 정산 확인 필요", settlementStatus: "입금확인", fee: "수수료 152만원", cost: "탁송비 12만원", margin: "예상 140만원" },
+      { no: 11402, customerId: "C-000143", receivedAt: "2026-05-04 12:03", assignedAt: "5/04 12:20", team: "정산팀", name: "홍유라", customerType: "법인사업자", customerTypeDetail: "유라컴퍼니", phone: "010-2950-1184", vehicle: "GV70", method: "장기렌트", advisor: "선생님", statusGroup: "출고", status: "출고완료", date: "5/12 17:00", source: "검색", talkCount: "4/0", priority: "완료", nextAction: "시공비 차감 후 마진 확정", aiSummary: "출고 완료, 시공비 정산 대기", settlementStatus: "정산중", fee: "렌트 수수료 96만원", cost: "시공비 35만원", margin: "예상 61만원" },
+      { no: 11401, customerId: "C-000144", receivedAt: "2026-05-03 15:21", assignedAt: "5/03 15:40", team: "상담팀", name: "조민재", customerType: "개인", customerTypeDetail: "4대보험", phone: "010-8701-3342", vehicle: "Carnival", method: "장기렌트", advisor: "지안", statusGroup: "재응대", status: "부재(미응답)", date: "5/10 10:10", source: "카카오", talkCount: "0/3", priority: "보류", nextAction: "3일 후 마지막 재컨택", aiSummary: "다자녀 패밀리카 문의 후 미응답" },
+      { no: 11400, customerId: "C-000145", receivedAt: "2026-05-02 09:44", assignedAt: "5/02 10:05", team: "상담팀", name: "윤세아", customerType: "개인", customerTypeDetail: "주부", phone: "010-5390-8217", vehicle: "A6", method: "리스", advisor: "선생님", statusGroup: "재응대", status: "재컨택완료", date: "5/09 18:20", source: "유튜브", talkCount: "2/2", priority: "중간", nextAction: "다음 달 프로모션 알림 예약", aiSummary: "예산 문제로 한 달 뒤 재검토 예정" },
+      { no: 11399, customerId: "C-000146", receivedAt: "2026-05-01 13:11", assignedAt: "5/01 13:25", team: "종료", name: "임채원", customerType: "개인", customerTypeDetail: "무직", phone: "010-4219-7563", vehicle: "G80", method: "현금", advisor: "제프", statusGroup: "종료", status: "미정", date: "5/07 14:00", source: "검색", talkCount: "1/0", priority: "낮음", nextAction: "장기 보류 고객으로 전환", aiSummary: "구매 시점 미정, 정보 탐색 단계" },
+      { no: 11398, customerId: "C-000147", receivedAt: "2026-04-30 16:38", assignedAt: "4/30 17:00", team: "견적팀", name: "한소희", customerType: "개인사업자", customerTypeDetail: "소희샵", phone: "010-7884-1011", vehicle: "XC60", method: "운용리스", advisor: "지안", statusGroup: "상담", status: "상담완료", date: "5/08 12:00", source: "소개", talkCount: "3/1", priority: "중간", nextAction: "고객 요청 시 견적 재오픈", aiSummary: "상담 완료, 당장 계약 의사 낮음" }
+    ];
+
+    const brands = [
+      ["BMW", 28], ["Mercedes", 22], ["Tesla", 19], ["Genesis", 15], ["Hyundai", 10], ["MINI", 6]
+    ];
+
+    const advisors = [
+      ["지안", "담당 18명 · 계약률 21% · 평균 응답 7분", "J"],
+      ["선생님", "담당 14명 · 계약률 18% · 평균 응답 11분", "S"],
+      ["제프", "담당 9명 · 견적 계산 32건 · 평균 응답 15분", "Z"]
+    ];
+
+    const briefs = [
+      ["김민준 · X3/GLC 비교", "월납입보다 중도해지 리스크를 중요하게 봅니다. 총비용 중심 설명이 필요합니다."],
+      ["박서연 · Model Y 렌트", "초기비용을 낮추고 싶어하지만 보험/정비 포함 구조를 잘 모릅니다."],
+      ["이도윤 · GV80 심사", "개인사업자 증빙이 약합니다. 승인 가능 금융사 우선순위가 필요합니다."]
+    ];
+
+    const advisorTasksData = [
+      ["긴급", "김민준", "BMW X3 / GLC", "비교 견적 확인 후 결정을 미루는 중", "GLC 재고 확인 + X3 추천 견적 송출", "오늘 16:00"],
+      ["높음", "최유진", "Model Y", "계약 완료, 출고 일정 조율 필요", "탁송 시간 확정 및 시공 일정 안내", "오늘 17:30"],
+      ["높음", "박서연", "Model Y", "렌트 견적 요청, 초기비용 민감", "보증금 0/10/20% 비교 견적 작성", "오늘 중"],
+      ["보통", "이도윤", "GV80", "개인사업자 심사 서류 부족", "필수 서류 체크리스트 발송", "내일 오전"]
+    ];
+
+    const workQueueData = [
+      ["응답 대기 6건", "15분 초과 고객 2명부터 먼저 처리합니다."],
+      ["견적 작성 5건", "오늘 송출해야 하는 비교 견적입니다. 수동 입력 후 앱으로 전달합니다."],
+      ["계약 후보 4건", "상담 신뢰가 형성된 고객입니다. 조건 제안 순서로 접근합니다."],
+      ["출고 체크 2건", "계약 이후 고객 경험이 무너지지 않도록 일정 확인이 필요합니다."]
+    ];
+
+    const advisorBriefData = [
+      ["김민준", "월 납입금보다 중도해지 리스크를 중요하게 봅니다. 총비용과 해지 조건을 먼저 설명하세요."],
+      ["박서연", "초기비용을 낮추려는 성향이 강합니다. 대신 월 납입금 상승 구조를 쉽게 설명해야 합니다."],
+      ["이도윤", "심사 민감 고객입니다. 가능한 금융사와 필요 서류를 먼저 정리하면 이탈을 줄일 수 있습니다."]
+    ];
+
+    const timeline = [
+      ["AI", "AI 상담 시작", "리스와 장기렌트 차이를 질문. 패밀리 SUV 용도와 월 90만원 이하 예산 확인."],
+      ["M", "상담사 메모", "경쟁사 X3 견적 2장 보유. 총 비용과 중도해지 조건 민감."],
+      ["Q", "견적 발송", "A캐피탈 X3 / B캐피탈 GLC / C캐피탈 X3 비교 견적 발송."],
+      ["S", "상태 변경", "견적 요청 -> 조건 비교중. GLC 재고 확인 필요."]
+    ];
+
+    const quotes = [
+      { vehicle: "BMW X3 20i", finance: "A캐피탈", period: "48개월", initial: "보증금 20%", residual: "52%", monthly: "842,000원", stock: "가능", verdict: "추천" },
+      { vehicle: "Benz GLC 300", finance: "B캐피탈", period: "48개월", initial: "보증금 20%", residual: "49%", monthly: "879,000원", stock: "확인 필요", verdict: "재고 변수" },
+      { vehicle: "BMW X3 20i", finance: "C캐피탈", period: "60개월", initial: "보증금 10%", residual: "44%", monthly: "792,000원", stock: "가능", verdict: "월납 낮음" }
+    ];
+
+    const lanes = [
+      ["신규 유입", customers.slice(1, 3)],
+      ["AI 상담 진행중", [customers[0]]],
+      ["견적 요청", [customers[1]]],
+      ["조건 비교중", [customers[0], customers[2]]],
+      ["계약 / 출고", customers.slice(3)]
+    ];
+
+    document.querySelectorAll(".nav button").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (button.dataset.customerMode) currentCustomerMode = button.dataset.customerMode;
+        setView(button.dataset.view);
+        if (button.dataset.view === "customers") renderCustomers();
+      });
+    });
+
+    document.getElementById("sidebarToggle").addEventListener("click", () => {
+      document.querySelector(".shell").classList.toggle("sidebar-collapsed");
+    });
+
+    document.querySelectorAll("[data-view-shortcut]").forEach((button) => {
+      button.addEventListener("click", () => setView(button.dataset.viewShortcut));
+    });
+
+    document.querySelectorAll("[data-global-action]").forEach((button) => {
+      button.addEventListener("click", () => showToast(`${button.dataset.globalAction} 기능이 열리는 자리입니다.`));
+    });
+
+    document.querySelectorAll("[data-action='send'], #sendQuoteTop").forEach((button) => {
+      button.addEventListener("click", () => showToast("견적 송출 프로토타입: 고객 앱에 비교 견적이 전달된 것으로 표시합니다."));
+    });
+
+    document.querySelectorAll(".chat-tab").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".chat-tab").forEach((tab) => tab.classList.toggle("active", tab === button));
+        showToast(`${button.textContent.trim()} 필터를 적용했습니다.`);
+      });
+    });
+
+    document.querySelectorAll(".chat-request").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".chat-request").forEach((item) => item.classList.toggle("active", item === button));
+        showToast("선택한 상담 요청의 상세를 확인합니다.");
+      });
+    });
+
+    document.querySelectorAll("[data-action='assign']").forEach((button) => {
+      button.addEventListener("click", () => showToast("상담사가 배정되었습니다. 상태 변경 로그가 남는 자리입니다."));
+    });
+
+    document.querySelectorAll("[data-action='start-chat']").forEach((button) => {
+      button.addEventListener("click", () => showToast("앱 고객과 실시간 상담을 시작합니다."));
+    });
+
+    document.querySelectorAll("[data-action='load-summary']").forEach((button) => {
+      button.addEventListener("click", () => showToast("AI 상담 요약을 최신 내용으로 불러왔습니다."));
+    });
+
+    document.querySelectorAll("[data-action='send-chat']").forEach((button) => {
+      button.addEventListener("click", () => showToast("상담 메시지가 앱 채팅방으로 전송되었습니다."));
+    });
+
+    document.querySelectorAll("[data-action='customer-detail']").forEach((button) => {
+      button.addEventListener("click", () => {
+        setView("customer-detail");
+        showToast("AI 상담 정보를 기반으로 고객 상세 화면으로 이동했습니다.");
+      });
+    });
+
+    document.querySelectorAll("[data-action='quote-from-chat']").forEach((button) => {
+      button.addEventListener("click", () => {
+        setView("quotes");
+        showToast("채팅 고객 기준으로 견적 작성 화면을 열었습니다.");
+      });
+    });
+
+    document.querySelectorAll("[data-action='close-chat']").forEach((button) => {
+      button.addEventListener("click", () => showToast("상담 종료 처리와 후속 액션 저장 자리입니다."));
+    });
+
+    document.getElementById("noteBtn").addEventListener("click", () => {
+      setView("customer-detail");
+      showToast("고객 상세의 상담 메모 영역으로 이동했습니다.");
+    });
+
+    document.getElementById("addLead").addEventListener("click", () => showToast("신규 고객 등록 모달이 열리는 자리입니다."));
+    document.getElementById("deleteSelected").addEventListener("click", deleteSelectedCustomers);
+    document.getElementById("saveQuote").addEventListener("click", () => showToast("견적이 구조화 데이터로 저장되었습니다."));
+    document.getElementById("customerSearch").addEventListener("input", renderCustomers);
+    document.getElementById("statusGroupFilter").addEventListener("change", () => {
+      populateStatusFilter();
+      renderCustomers();
+    });
+    document.getElementById("statusFilter").addEventListener("change", renderCustomers);
+    document.getElementById("advisorFilter").addEventListener("change", renderCustomers);
+
+    function setView(viewId) {
+      document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
+      document.querySelectorAll(".nav button").forEach((button) => {
+        const isCustomerButton = button.dataset.view === "customers";
+        const isCustomerParent = isCustomerButton && button.parentElement.classList.contains("nav-group");
+        const isActiveCustomerMode = viewId === "customers" && isCustomerButton && (isCustomerParent || button.dataset.customerMode === currentCustomerMode);
+        button.classList.toggle("active", button.dataset.view === viewId && (viewId !== "customers" || isActiveCustomerMode));
+      });
+      document.getElementById(viewId).classList.add("active");
+      if (viewId === "customers") {
+        document.getElementById("pageTitle").textContent = `고객 관리 · ${customerModeMeta[currentCustomerMode].title}`;
+        document.getElementById("pageDesc").textContent = customerModeMeta[currentCustomerMode].desc;
+      } else {
+        document.getElementById("pageTitle").textContent = views[viewId][0];
+        document.getElementById("pageDesc").textContent = views[viewId][1];
+      }
+    }
+
+    function renderBrands() {
+      const max = Math.max(...brands.map((brand) => brand[1]));
+      document.getElementById("brandBars").innerHTML = brands.map(([name, value]) => `
+        <div class="bar-row">
+          <span>${name}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round((value / max) * 100)}%"></div></div>
+          <strong>${value}</strong>
+        </div>
+      `).join("");
+    }
+
+    function renderAdvisors() {
+      document.getElementById("advisorList").innerHTML = advisors.map(([name, desc, initial]) => `
+        <div class="advisor">
+          <div class="avatar">${initial}</div>
+          <div><strong>${name}</strong><span>${desc}</span></div>
+          <span class="badge green">온라인</span>
+        </div>
+      `).join("");
+    }
+
+    function renderBriefs() {
+      document.getElementById("dashboardBriefs").innerHTML = briefs.map(([title, desc]) => `
+        <div class="brief"><strong>${title}</strong><span>${desc}</span></div>
+      `).join("");
+    }
+
+
+    function renderAdvisorDashboard() {
+      document.getElementById("advisorTasks").innerHTML = advisorTasksData.map(([level, name, vehicle, issue, action, due]) => `
+        <tr class="clickable" data-detail>
+          <td>${priorityBadge(level)}</td>
+          <td><strong>${name}</strong></td>
+          <td>${vehicle}</td>
+          <td>${issue}</td>
+          <td>${action}</td>
+          <td>${due}</td>
+        </tr>
+      `).join("");
+
+      document.getElementById("workQueue").innerHTML = workQueueData.map(([title, desc]) => `
+        <div class="brief"><strong>${title}</strong><span>${desc}</span></div>
+      `).join("");
+
+      document.getElementById("advisorBriefs").innerHTML = advisorBriefData.map(([name, desc]) => `
+        <div class="brief"><strong>${name}</strong><span>${desc}</span></div>
+      `).join("");
+
+      document.querySelectorAll("#advisorTasks [data-detail]").forEach((row) => {
+        row.addEventListener("click", () => setView("customer-detail"));
+      });
+    }
+
+    function populateStatusGroupFilter() {
+      const groupSelect = document.getElementById("statusGroupFilter");
+      groupSelect.innerHTML = '<option value="">상태 그룹 전체</option>' + Object.keys(customerStatusGroups).map((group) => `<option>${group}</option>`).join("");
+      populateStatusFilter();
+    }
+
+    function populateStatusFilter() {
+      const groupSelect = document.getElementById("statusGroupFilter");
+      const statusSelect = document.getElementById("statusFilter");
+      const selectedGroup = groupSelect.value;
+      const selectedStatus = statusSelect.value;
+      const statuses = selectedGroup ? customerStatusGroups[selectedGroup] : Object.values(customerStatusGroups).flat();
+
+      statusSelect.innerHTML = '<option value="">세부 상태 전체</option>' + statuses.map((status) => `<option>${status}</option>`).join("");
+      if (statuses.includes(selectedStatus)) statusSelect.value = selectedStatus;
+    }
+
+    function customerModeFilter(customer) {
+      if (currentCustomerMode === "consulting") return ["신규", "상담", "견적", "재응대"].includes(customer.statusGroup);
+      if (currentCustomerMode === "contract") return customer.statusGroup === "심사/계약";
+      if (currentCustomerMode === "delivery") return customer.statusGroup === "출고";
+      if (currentCustomerMode === "settlement") return customer.status === "출고완료" && customer.settlementStatus;
+      if (currentCustomerMode === "hold") return customer.statusGroup === "종료" || customer.statusGroup === "재응대" || customer.status === "계약취소";
+      return true;
+    }
+
+    function renderCustomerHead() {
+      const heads = {
+        all: ["선택", "고객", "고객유형", "상태", "차량 / 구매", "다음 액션", "AI 요약", "담당", "상담번호", "관리"],
+        consulting: ["선택", "고객", "최근 상담", "상담 상태", "AI 요약", "다음 상담 액션", "담당", "관리"],
+        contract: ["선택", "고객", "고객유형", "차량 / 구매", "계약 / 심사", "계약 조건", "담당", "다음 액션", "관리"],
+        delivery: ["선택", "고객", "차량", "출고 상태", "출고 업무", "담당", "관리"],
+        settlement: ["선택", "고객", "차량 / 구매", "출고일", "수수료", "비용", "마진", "정산 상태", "관리"],
+        hold: ["선택", "고객", "상태", "마지막 상담", "이탈 / 보류 요약", "재컨택 액션", "담당", "관리"]
+      }[currentCustomerMode];
+
+      document.getElementById("customerTableHead").innerHTML = `<tr>${heads.map((head, index) => index === 0
+        ? '<th><input type="checkbox" id="selectAllCustomers" aria-label="전체 고객 선택"></th>'
+        : `<th>${head}</th>`).join("")}</tr>`;
+      document.getElementById("selectAllCustomers").addEventListener("change", (event) => {
+        document.querySelectorAll(".customer-check").forEach((checkbox) => {
+          checkbox.checked = event.target.checked;
+        });
+        updateSelectedDeleteState();
+      });
+    }
+
+    function customerCheckCell(customer) {
+      return `<td><input class="customer-check" type="checkbox" value="${customer.no}" aria-label="${customer.name} 선택"></td>`;
+    }
+
+    function customerActionsCell() {
+      return `<td><span class="row-actions">
+        <button class="tiny-btn" type="button" data-action="row-chat" aria-label="채팅 열기"><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button class="tiny-btn" type="button" data-action="row-quote" aria-label="견적 열기"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      </span></td>`;
+    }
+
+    function customerTypeCell(customer) {
+      return `<td><strong>${customer.customerType}</strong><span class="table-note">${customer.customerTypeDetail}</span></td>`;
+    }
+
+    function renderCustomerRow(customer) {
+      if (currentCustomerMode === "consulting") return `
+        <tr class="clickable" data-detail>${customerCheckCell(customer)}
+          <td><strong>${customer.name}<span class="customer-code">(${customer.customerId})</span></strong><span class="table-note">${customer.phone}</span></td>
+          <td>${customer.date}<span class="table-note">상담 ${customer.talkCount} · ${customer.source}</span></td>
+          <td>${statusBadge(customer.status, customer.statusGroup)}<span class="table-note">${customer.statusGroup}</span></td>
+          <td><div class="ai-summary-cell">${customer.aiSummary}</div></td>
+          <td>${priorityBadge(customer.priority)}<span class="table-note">${customer.nextAction}</span></td>
+          <td><strong>${customer.advisor}</strong><span class="table-note">${customer.team}</span></td>${customerActionsCell()}
+        </tr>`;
+
+      if (currentCustomerMode === "contract") return `
+        <tr class="clickable" data-detail>${customerCheckCell(customer)}
+          <td><strong>${customer.name}<span class="customer-code">(${customer.customerId})</span></strong><span class="table-note">${customer.phone}</span></td>
+          ${customerTypeCell(customer)}
+          <td><strong>${customer.vehicle}</strong><span class="table-note">${customer.method}</span></td>
+          <td>${statusBadge(customer.status, customer.statusGroup)}<span class="table-note">${customer.date}</span></td>
+          <td>${customer.method}<span class="table-note">서류/조건 확인 필요</span></td>
+          <td><strong>${customer.advisor}</strong><span class="table-note">${customer.team}</span></td>
+          <td>${priorityBadge(customer.priority)}<span class="table-note">${customer.nextAction}</span></td>${customerActionsCell()}
+        </tr>`;
+
+      if (currentCustomerMode === "delivery") return `
+        <tr class="clickable" data-detail>${customerCheckCell(customer)}
+          <td><strong>${customer.name}<span class="customer-code">(${customer.customerId})</span></strong><span class="table-note">${customer.phone}</span></td>
+          <td><strong>${customer.vehicle}</strong><span class="table-note">${customer.method}</span></td>
+          <td>${statusBadge(customer.status, customer.statusGroup)}<span class="table-note">${customer.date}</span></td>
+          <td>${customer.nextAction}<span class="table-note">보험 / 시공 / 탁송 체크</span></td>
+          <td><strong>${customer.advisor}</strong><span class="table-note">${customer.team}</span></td>${customerActionsCell()}
+        </tr>`;
+
+      if (currentCustomerMode === "settlement") return `
+        <tr class="clickable" data-detail>${customerCheckCell(customer)}
+          <td><strong>${customer.name}<span class="customer-code">(${customer.customerId})</span></strong><span class="table-note">${customer.phone}</span></td>
+          <td><strong>${customer.vehicle}</strong><span class="table-note">${customer.method}</span></td>
+          <td>${customer.date}</td>
+          <td>${customer.fee || "확인 필요"}</td>
+          <td>${customer.cost || "확인 필요"}</td>
+          <td><strong>${customer.margin || "확정 전"}</strong></td>
+          <td>${statusBadge(customer.settlementStatus || "정산대기", "출고")}</td>${customerActionsCell()}
+        </tr>`;
+
+      if (currentCustomerMode === "hold") return `
+        <tr class="clickable" data-detail>${customerCheckCell(customer)}
+          <td><strong>${customer.name}<span class="customer-code">(${customer.customerId})</span></strong><span class="table-note">${customer.phone}</span></td>
+          <td>${statusBadge(customer.status, customer.statusGroup)}<span class="table-note">${customer.statusGroup}</span></td>
+          <td>${customer.date}<span class="table-note">상담 ${customer.talkCount}</span></td>
+          <td><div class="ai-summary-cell">${customer.aiSummary}</div></td>
+          <td>${priorityBadge(customer.priority)}<span class="table-note">${customer.nextAction}</span></td>
+          <td><strong>${customer.advisor}</strong><span class="table-note">${customer.team}</span></td>${customerActionsCell()}
+        </tr>`;
+
+      return `
+        <tr class="clickable" data-detail>${customerCheckCell(customer)}
+          <td><strong>${customer.name}<span class="customer-code">(${customer.customerId})</span></strong><span class="table-note">${customer.phone}</span></td>
+          ${customerTypeCell(customer)}
+          <td>${statusBadge(customer.status, customer.statusGroup)}<span class="table-note">${customer.statusGroup} · ${customer.date}</span></td>
+          <td><strong>${customer.vehicle}</strong><span class="table-note">${customer.method}</span></td>
+          <td>${priorityBadge(customer.priority)}<span class="table-note">${customer.nextAction}</span></td>
+          <td><div class="ai-summary-cell">${customer.aiSummary}</div></td>
+          <td><strong>${customer.advisor}</strong><span class="table-note">${customer.team} · ${customer.assignedAt}</span></td>
+          <td><strong>#${customer.no}</strong><span class="table-note">${customer.receivedAt}</span></td>${customerActionsCell()}
+        </tr>`;
+    }
+
+    function renderCustomers() {
+      const search = document.getElementById("customerSearch").value.trim().toLowerCase();
+      const statusGroup = document.getElementById("statusGroupFilter").value;
+      const status = document.getElementById("statusFilter").value;
+      const advisor = document.getElementById("advisorFilter").value;
+      const filtered = customers.filter((customer) => {
+        const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.statusGroup} ${customer.status} ${customer.aiSummary}`.toLowerCase();
+        return customerModeFilter(customer) &&
+          (!search || searchable.includes(search)) &&
+          (!statusGroup || customer.statusGroup === statusGroup) &&
+          (!status || customer.status === status) &&
+          (!advisor || customer.advisor === advisor);
+      });
+
+      renderCustomerHead();
+      document.getElementById("customerTotal").textContent = filtered.length.toLocaleString("ko-KR");
+      document.getElementById("customerRows").innerHTML = filtered.map(renderCustomerRow).join("");
+
+      document.querySelectorAll(".customer-check").forEach((checkbox) => {
+        checkbox.addEventListener("click", (event) => event.stopPropagation());
+        checkbox.addEventListener("change", updateSelectedDeleteState);
+      });
+      updateSelectedDeleteState();
+
+      document.querySelectorAll("[data-action='row-chat']").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          setView("chat");
+          showToast("선택 고객의 앱 채팅 상담으로 이동했습니다.");
+        });
+      });
+
+      document.querySelectorAll("[data-action='row-quote']").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          setView("quotes");
+          showToast("선택 고객 기준으로 견적 관리 화면을 열었습니다.");
+        });
+      });
+
+      document.querySelectorAll("[data-detail]").forEach((row) => {
+        row.addEventListener("click", () => setView("customer-detail"));
+      });
+    }
+
+    function updateSelectedDeleteState() {
+      const checks = Array.from(document.querySelectorAll(".customer-check"));
+      const selectedCount = checks.filter((checkbox) => checkbox.checked).length;
+      const deleteButton = document.getElementById("deleteSelected");
+      deleteButton.disabled = selectedCount === 0;
+      deleteButton.textContent = selectedCount ? `선택 삭제 ${selectedCount}` : "선택 삭제";
+      const selectAll = document.getElementById("selectAllCustomers");
+      selectAll.checked = checks.length > 0 && selectedCount === checks.length;
+      selectAll.indeterminate = selectedCount > 0 && selectedCount < checks.length;
+    }
+
+    function deleteSelectedCustomers() {
+      const selectedIds = Array.from(document.querySelectorAll(".customer-check:checked")).map((checkbox) => Number(checkbox.value));
+      if (!selectedIds.length) return;
+      customers = customers.filter((customer) => !selectedIds.includes(customer.no));
+      renderCustomers();
+      showToast(`${selectedIds.length}명의 고객을 목록에서 삭제했습니다.`);
+    }
+
+    function renderTimeline() {
+      document.getElementById("timeline").innerHTML = timeline.map(([type, title, desc]) => `
+        <div class="timeline-item" data-type="${type}">
+          <strong>${title}</strong>
+          <span>${desc}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderQuotes() {
+      const rows = quotes.map((quote, index) => `
+        <tr>
+          <td><input type="radio" name="quote" ${index === 0 ? "checked" : ""}></td>
+          <td><strong>${quote.vehicle}</strong></td>
+          <td>${quote.finance}</td>
+          <td>${quote.period}</td>
+          <td>${quote.initial}</td>
+          <td>${quote.residual}</td>
+          <td><strong>${quote.monthly}</strong></td>
+          <td>${quote.stock}</td>
+          <td>${quoteBadge(quote.verdict)}</td>
+        </tr>
+      `).join("");
+      document.getElementById("quoteCompareRows").innerHTML = rows;
+      document.getElementById("detailQuotes").innerHTML = quotes.map((quote) => `
+        <div class="quote-row">
+          <strong>${quote.vehicle} · ${quote.monthly}</strong>
+          <span>${quote.finance} / ${quote.period} / 잔존 ${quote.residual} / ${quote.verdict}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderPipeline() {
+      document.getElementById("pipelineBoard").innerHTML = lanes.map(([title, items]) => `
+        <section class="lane">
+          <div class="lane-head"><strong>${title}</strong><span class="badge">${items.length}</span></div>
+          ${items.map((customer) => `
+            <article class="lead-card">
+              <h3>${customer.name}</h3>
+              <p>${customer.vehicle} · ${customer.method}</p>
+              <div class="mini-meta">
+                ${statusBadge(customer.status)}
+                <span class="badge">${customer.advisor}</span>
+                <span class="badge blue">${customer.source}</span>
+              </div>
+            </article>
+          `).join("") || '<div class="empty">대기 고객 없음</div>'}
+        </section>
+      `).join("");
+    }
+
+
+    function priorityBadge(level) {
+      const color = level === "긴급" ? "red" : level === "높음" ? "yellow" : "blue";
+      return `<span class="badge ${color}">${level}</span>`;
+    }
+
+    function statusBadge(status, group = "") {
+      const color = {
+        "신규": "blue",
+        "상담": "blue",
+        "견적": "yellow",
+        "심사/계약": status === "계약완료" ? "green" : "red",
+        "출고": "green",
+        "재응대": "yellow",
+        "종료": ""
+      }[group] || "";
+      return `<span class="badge ${color}">${status}</span>`;
+    }
+
+    function quoteBadge(verdict) {
+      const color = verdict === "추천" ? "green" : verdict.includes("변수") ? "yellow" : "blue";
+      return `<span class="badge ${color}">${verdict}</span>`;
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 2300);
+    }
+
+    renderBrands();
+    renderAdvisors();
+    renderBriefs();
+    renderAdvisorDashboard();
+    populateStatusGroupFilter();
+    renderCustomers();
+    renderTimeline();
+    renderQuotes();
+    renderPipeline();
+  </script>
+</body>
+</html>
