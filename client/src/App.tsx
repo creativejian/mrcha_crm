@@ -22,7 +22,7 @@ type ViewKey = "advisor-dashboard" | "admin-dashboard" | "chat" | "customers" | 
 
 const viewMeta: Record<ViewKey, [string, string]> = {
   "advisor-dashboard": ["대시보드", "배정된 고객 중 오늘 처리할 업무, 우선순위, 내 실적을 한눈에 보는 상담사용 화면입니다."],
-  "admin-dashboard": ["리포트", "전체 운영, 상담 전환, 매출/지출, 직원 생산성 등 차선생의 주요 지표를 리포트 단위로 확인합니다."],
+  "admin-dashboard": ["경영 리포트", "전체 운영, 상담 전환, 매출/지출, 직원 생산성 등 차선생의 주요 지표를 리포트 단위로 확인합니다."],
   chat: ["실시간 상담", "앱에서 상담원 연결을 요청한 고객을 접수하고, AI 상담 요약을 보며 실시간 상담으로 전환합니다."],
   customers: ["고객 관리", "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다."],
   "customer-detail": ["고객 상세", "AI 요약, 상담 메모, 타임라인, 견적, 다음 액션을 한 화면에서 처리합니다."],

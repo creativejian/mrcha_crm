@@ -1,11 +1,7 @@
 import { Maximize2, Send, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import cjLogo from "@/assets/cj.jpeg";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
-
-
-function SolidSettingsIcon() {
-  return <svg className="topbar-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 2h3.2l.55 2.4c.48.16.94.35 1.37.58l2.08-1.32 2.27 2.26-1.32 2.08c.23.43.42.89.58 1.37l2.37.56v3.2l-2.37.55c-.16.48-.35.94-.58 1.37l1.32 2.08-2.27 2.27-2.08-1.32c-.43.23-.89.42-1.37.58L13.6 22h-3.2l-.55-2.37a7.9 7.9 0 0 1-1.37-.58L6.4 20.37 4.13 18.1l1.32-2.08a7.9 7.9 0 0 1-.58-1.37L2.5 14.1v-3.2l2.37-.56c.16-.48.35-.94.58-1.37L4.13 6.9 6.4 4.63l2.08 1.32c.43-.23.89-.42 1.37-.58L10.4 2Zm1.6 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /></svg>;
-}
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
   return (
@@ -20,19 +16,23 @@ function SolidBellIcon() {
 }
 
 function QuoteQueueIcon() {
-  return <svg className="topbar-solid-icon quote-queue-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2.5h9.4L20 8.1v13.4H5v-19Zm8.2 1.9v4.9h4.9l-4.9-4.9Z" /><path fill="#fff" d="M11.1 8.2h1.5v1.05c.72.12 1.34.38 1.84.76l-.7 1.25a2.95 2.95 0 0 0-1.67-.6c-.5 0-.8.18-.8.48 0 .86 3.48.43 3.48 2.8 0 1.1-.78 1.9-2 2.12v1.16h-1.5v-1.14a4.32 4.32 0 0 1-2.36-.94l.72-1.25c.64.48 1.39.78 2.09.78.58 0 .92-.2.92-.55 0-.91-3.42-.45-3.42-2.79 0-1.05.72-1.84 1.9-2.08V8.2Z" /></svg>;
+  return <svg className="topbar-solid-icon quote-queue-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2.5h9.4L20 8.1v13.4H5v-19Zm8.2 1.9v4.9h4.9l-4.9-4.9Z" /><text x="12.2" y="16.4" textAnchor="middle" fill="#fff" fontSize="8.6" fontWeight="900" fontFamily="Arial, sans-serif">₩</text></svg>;
 }
 
 function ChatQueueIcon() {
-  return <svg className="topbar-solid-icon chat-queue-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4V4Zm4 4v2h9V8H8Zm0 4v2h7v-2H8Z" /></svg>;
+  return <svg className="topbar-solid-icon chat-queue-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 22V2h20v16H6zm4-8h8v-2H6zm0-3h12V9H6zm0-3h12V6H6z" /></svg>;
 }
 
 function CalculatorIcon() {
-  return <svg className="topbar-solid-icon calculator-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2.5h14v19H5v-19Zm3 3v4h8v-4H8Zm0 6.5v2h2v-2H8Zm4 0v2h2v-2h-2Zm4 0v2h1v-2h-1Zm-8 4v2h2v-2H8Zm4 0v2h2v-2h-2Zm4 0v2h1v-2h-1Z" /></svg>;
+  return <svg className="topbar-solid-icon calculator-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M416 48a16 16 0 0 0-16-16H112a16 16 0 0 0-16 16v416a16 16 0 0 0 16 16h288a16 16 0 0 0 16-16ZM192 432h-48v-48h48Zm0-80h-48v-48h48Zm0-80h-48v-48h48Zm88 160h-48v-48h48Zm0-80h-48v-48h48Zm0-80h-48v-48h48Zm88 160h-48V304h48Zm0-160h-48v-48h48Zm0-96H144V80h224Z" /></svg>;
 }
 
 function WorkAiIcon() {
-  return <svg className="topbar-solid-icon work-ai-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 21h-2.154l-2-5H5.754l-2 5H1.6L8 5h2zm4.6-9v9h-2v-9zM6.554 14h4.892L9 7.885zM19.529 2.32a.507.507 0 0 1 .942 0l.253.61a4.37 4.37 0 0 0 2.25 2.327l.717.32a.53.53 0 0 1 0 .962l-.758.338a4.36 4.36 0 0 0-2.22 2.25l-.246.566a.506.506 0 0 1-.934 0l-.247-.565a4.36 4.36 0 0 0-2.219-2.251l-.76-.338a.53.53 0 0 1 0-.963l.718-.32a4.37 4.37 0 0 0 2.251-2.325z" /></svg>;
+  return <svg className="topbar-solid-icon work-ai-icon" viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-1.1 .5)"><path d="M8.6 4.2h2.2l6.25 16.6h-2.55l-1.6-4.35H6.45L4.85 20.8H2.3L8.6 4.2Zm-1.4 10.15h4.95L9.7 7.55l-2.5 6.8ZM19.55 12h2.35v8.8h-2.35V12Zm.62-9.75a.58.58 0 0 1 1.06 0l.26.63a3.75 3.75 0 0 0 1.92 1.99l.75.33a.6.6 0 0 1 0 1.09l-.78.35a3.72 3.72 0 0 0-1.89 1.92l-.27.62a.57.57 0 0 1-1.04 0l-.27-.62a3.72 3.72 0 0 0-1.89-1.92l-.78-.35a.6.6 0 0 1 0-1.09l.75-.33a3.75 3.75 0 0 0 1.92-1.99l.26-.63Z" /></g></svg>;
+}
+
+function AccountDefaultIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12.2a4.35 4.35 0 1 0 0-8.7 4.35 4.35 0 0 0 0 8.7Zm-7.6 7.3c.7-4.05 3.55-6.35 7.6-6.35s6.9 2.3 7.6 6.35H4.4Z" /></svg>;
 }
 
 function SettingSolidIcon({ name }: { name: "chat" | "insights" | "knowledge" | "mc-master" | "ai" | "org" | "partners" | "attendance" | "logout" }) {
@@ -43,10 +43,10 @@ function SettingSolidIcon({ name }: { name: "chat" | "insights" | "knowledge" | 
     return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h2v3h6V2h2v3h3v17H4V5h3V2Zm11 8H6v10h12V10Zm-9 2h3v3H9v-3Zm5 0h3v3h-3v-3ZM9 16h3v2H9v-2Z" /></svg>;
   }
   if (name === "ai") {
-    return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v3h3v10h-2v3H7v-3H5V7h3V4Zm1 5v6h6V9H9Zm1.5 1.5h1.2v1.2h-1.2v-1.2Zm2.8 0h1.2v1.2h-1.2v-1.2ZM10 13h4v1h-4v-1Z" /></svg>;
+    return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V9h-2V7a2.006 2.006 0 0 0-2-2h-2V3h-2v2h-2V3H9v2H7a2.006 2.006 0 0 0-2 2v2H3v2h2v2H3v2h2v2a2.006 2.006 0 0 0 2 2h2v2h2v-2h2v2h2v-2h2a2.006 2.006 0 0 0 2-2v-2h2v-2h-2v-2Zm-4 6H7V7h10Z" /><path d="M11.361 8h-1.345l-2.01 8h1.027l.464-1.875h2.316L12.265 16h1.062Zm-1.729 5.324L10.65 8.95h.046l.983 4.374ZM14.244 8h1v8h-1z" /></svg>;
   }
   if (name === "insights") {
-    return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5V3Zm3 4v2h8V7H8Zm0 4v2h8v-2H8Zm0 4v2h5v-2H8Z" /></svg>;
+    return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7M9 21a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1H9z" /></svg>;
   }
   if (name === "knowledge") {
     return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h12a2 2 0 0 1 2 2v14h-2V5H7v14h10v2H5V3Zm4 4h6v2H9V7Zm0 4h6v2H9v-2Zm0 4h4v2H9v-2Z" /><path d="M3 7h2v14h12v2H3V7Z" /></svg>;
@@ -55,10 +55,10 @@ function SettingSolidIcon({ name }: { name: "chat" | "insights" | "knowledge" | 
     return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m17.325 10-.275-1.175q-.275-.1-.537-.25t-.488-.35l-1.15.375-.675-1.15.875-.85q-.05-.3-.05-.6t.05-.6l-.875-.8.675-1.15L16 3.775q.225-.2.488-.35t.562-.25L17.325 2h1.325l.3 1.15q.3.125.563.275t.487.35l1.125-.325.675 1.15-.85.8q.05.3.063.613t-.063.612l.85.8-.65 1.15-1.15-.35q-.225.2-.5.35t-.55.25L18.65 10zm1.738-2.937Q19.5 6.625 19.5 6t-.437-1.062T18 4.5t-1.062.438T16.5 6t.438 1.063T18 7.5t1.063-.437M7.5 16q.625 0 1.063-.437T9 14.5t-.437-1.062T7.5 13t-1.062.438T6 14.5t.438 1.063T7.5 16m9 0q.625 0 1.063-.437T18 14.5t-.437-1.062T16.5 13t-1.062.438T15 14.5t.438 1.063T16.5 16m1.5-4q.8 0 1.563-.2T21 11.2V20q0 .425-.288.713T20 21h-1q-.425 0-.712-.288T18 20v-1H6v1q0 .425-.288.713T5 21H4q-.425 0-.712-.288T3 20v-8l2.075-6q.15-.45.538-.725T6.5 5h5.6q-.05.25-.075.488T12 6t.025.513T12.1 7H6.85L5.8 10h7.75q.875.95 2.025 1.475T18 12" /></svg>;
   }
   if (name === "org") {
-    return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7ZM5.5 14a2.75 2.75 0 1 1 0 5.5A2.75 2.75 0 0 1 5.5 14Zm13 0a2.75 2.75 0 1 1 0 5.5 2.75 2.75 0 0 1 0-5.5ZM12 12c2.9 0 5.05 1.55 5.55 4H14.8a5.2 5.2 0 0 0-5.6 0H6.45C6.95 13.55 9.1 12 12 12Z" /></svg>;
+    return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10a4 4 0 1 0 0-8a4 4 0 0 0 0 8m-6.5 3a2.5 2.5 0 1 0 0-5a2.5 2.5 0 0 0 0 5M21 10.5a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0m-9 .5a5 5 0 0 1 5 5v6H7v-6a5 5 0 0 1 5-5m-7 5c0-.693.1-1.362.288-1.994l-.17.014A3.5 3.5 0 0 0 2 17.5V22h3zm17 6v-4.5a3.5 3.5 0 0 0-3.288-3.494c.187.632.288 1.301.288 1.994v6z" /></svg>;
   }
   if (name === "partners") {
-    return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h8v6H5V4Zm10 2h4v4h-4V6ZM4 13h7v7H4v-7Zm9 1h7v6h-7v-6Zm-6-8v2h4V6H7Zm-1 9v3h3v-3H6Zm9 1v2h3v-2h-3Z" /></svg>;
+    return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.835 3.161a.8.8 0 0 0 .147-.148h2.562l.035-.001a5 5 0 0 1 .545 0h.038a3.8 3.8 0 0 1 1.646.369a5.23 5.23 0 0 1 2.34 1.822a5.2 5.2 0 0 1 .804 4.348l-3.281-3.237a.75.75 0 0 0-.527-.216h-4.775a.75.75 0 0 0-.423.152l-1.884 1.428a.97.97 0 0 1-1.358-.184a.95.95 0 0 1 .181-1.34zM7.899 14.235l-.014.013l-.974.968l-.013.012a.906.906 0 0 1-1.261-.012a.89.89 0 0 1 0-1.267l.974-.968a.906.906 0 0 1 1.275 0a.89.89 0 0 1 .013 1.254m-.291 1.698a.89.89 0 0 0 .013 1.254c.352.35.923.35 1.275 0l.974-.968a.892.892 0 0 0-.14-1.38a.906.906 0 0 0-1.122.1l-.013.014l-.974.967zM5.5 11.407a.89.89 0 0 1 0 1.267l-.974.968a.906.906 0 0 1-1.275 0a.89.89 0 0 1 0-1.267l.974-.968a.906.906 0 0 1 1.275 0m6.353 5.517a.89.89 0 0 1 0 1.267l-.974.968a.906.906 0 0 1-1.275 0a.89.89 0 0 1-.172-1.028l.001-.002a.9.9 0 0 1 .171-.237l.974-.968a.906.906 0 0 1 1.275 0M5.344 4.83a6.18 6.18 0 0 1 5.112-1.749L7.98 4.958a2.45 2.45 0 0 0-.466 3.448a2.473 2.473 0 0 0 3.454.467l1.684-1.275h4.185l3.507 3.46l.036.04l1.15 1.15a1.439 1.439 0 0 1-1.936 2.124l-.096-.096l-.06-.052l-1.093-1.092a.5.5 0 1 0-.707.707l1.15 1.15q.063.062.128.119l.044.044a1.019 1.019 0 1 1-1.441 1.441l-.17-.169a.5.5 0 0 0-.853.363a.5.5 0 0 0 .147.365l.223.223a.943.943 0 1 1-1.333 1.333h-.001l-.012-.013l-.21-.21a.497.497 0 0 0-.707 0a.5.5 0 0 0 0 .707l.218.219a.96.96 0 0 1-1.35 1.367l-1.431-1.36l.525-.522a1.884 1.884 0 0 0 0-2.677a1.9 1.9 0 0 0-1.429-.552a1.88 1.88 0 0 0-.556-1.42a1.9 1.9 0 0 0-1.428-.552a1.88 1.88 0 0 0-.556-1.419a1.91 1.91 0 0 0-1.844-.489a1.88 1.88 0 0 0-.541-1.085a1.914 1.914 0 0 0-2.514-.158A6.1 6.1 0 0 1 5.344 4.83" /></svg>;
   }
   return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h9v4h-2V5H7v14h5v-2h2v4H5V3Zm10.5 4.5 5 4.5-5 4.5v-3H10v-3h5.5v-3Z" /></svg>;
 }
@@ -86,33 +86,135 @@ const notifications = [
 
 export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar }: TopbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsClosing, setSettingsClosing] = useState(false);
   const [workAiOpen, setWorkAiOpen] = useState(false);
+  const [workAiClosing, setWorkAiClosing] = useState(false);
+  const [workAiExpanded, setWorkAiExpanded] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState<NotificationTab>("전체");
   const [aiInput, setAiInput] = useState("");
   const [selectedPrompt, setSelectedPrompt] = useState(quickAiPrompts[0]);
   const [liveConsulting, setLiveConsulting] = useState(true);
   const [confirmMode, setConfirmMode] = useState<"on" | "off" | null>(null);
+  const workAiRef = useRef<HTMLDivElement>(null);
+  const workAiCloseTimerRef = useRef<number | null>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
+  const settingsCloseTimerRef = useRef<number | null>(null);
   const accountMeta = roleAccountMeta[roleTab];
   const showAdminMetrics = roleTab === "최고관리자";
+  const isAdminRole = roleTab === "최고관리자";
+  const usesDefaultAvatar = roleTab !== "최고관리자";
+  const showAttendanceMenu = roleTab !== "딜러";
   const dealerMode = roleTab === "딜러";
+  const canManageLiveConsulting = !dealerMode;
+  const displayLiveConsulting = canManageLiveConsulting && liveConsulting;
+
+  function openSettingsMenu() {
+    if (settingsCloseTimerRef.current) {
+      window.clearTimeout(settingsCloseTimerRef.current);
+      settingsCloseTimerRef.current = null;
+    }
+    setSettingsClosing(false);
+    setSettingsOpen(true);
+    closeWorkAi();
+    setNotificationsOpen(false);
+  }
+
+  function closeSettingsMenu() {
+    if (!settingsOpen || settingsClosing) return;
+    setSettingsClosing(true);
+    if (settingsCloseTimerRef.current) window.clearTimeout(settingsCloseTimerRef.current);
+    settingsCloseTimerRef.current = window.setTimeout(() => {
+      setSettingsOpen(false);
+      setSettingsClosing(false);
+      settingsCloseTimerRef.current = null;
+    }, 110);
+  }
 
   function navigateFromSettings(view: string) {
     onNavigate(view);
-    setSettingsOpen(false);
+    closeSettingsMenu();
+  }
+
+  function openWorkAiMenu() {
+    if (workAiCloseTimerRef.current) {
+      window.clearTimeout(workAiCloseTimerRef.current);
+      workAiCloseTimerRef.current = null;
+    }
+    setWorkAiClosing(false);
+    setWorkAiOpen(true);
+    closeSettingsMenu();
+    setNotificationsOpen(false);
+  }
+
+  function closeWorkAi() {
+    if (!workAiOpen || workAiClosing) return;
+    setWorkAiClosing(true);
+    if (workAiCloseTimerRef.current) window.clearTimeout(workAiCloseTimerRef.current);
+    workAiCloseTimerRef.current = window.setTimeout(() => {
+      setWorkAiOpen(false);
+      setWorkAiClosing(false);
+      setWorkAiExpanded(false);
+      workAiCloseTimerRef.current = null;
+    }, 110);
   }
 
   function openWorkAi() {
-    setWorkAiOpen((current) => !current);
-    setSettingsOpen(false);
-    setNotificationsOpen(false);
+    if (workAiOpen) closeWorkAi();
+    else openWorkAiMenu();
   }
 
   function openNotifications() {
     setNotificationsOpen((current) => !current);
-    setSettingsOpen(false);
-    setWorkAiOpen(false);
+    closeSettingsMenu();
+    closeWorkAi();
   }
+
+  useEffect(() => {
+    return () => {
+      if (workAiCloseTimerRef.current) window.clearTimeout(workAiCloseTimerRef.current);
+      if (settingsCloseTimerRef.current) window.clearTimeout(settingsCloseTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (confirmMode) return;
+      if (!settingsMenuRef.current?.contains(event.target as Node)) closeSettingsMenu();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeSettingsMenu();
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [settingsOpen, settingsClosing, confirmMode]);
+
+  useEffect(() => {
+    if (!workAiOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!workAiRef.current?.contains(event.target as Node)) closeWorkAi();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeWorkAi();
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [workAiOpen, workAiClosing]);
 
   const visibleNotifications = notifications.filter(([type]) => notificationTab === "전체" || type === notificationTab);
 
@@ -128,13 +230,13 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
         </div>
       )}
       <div className="global-right">
-        <div className="work-ai-wrap">
-          <button className={`icon-btn work-ai-btn ${workAiOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openWorkAi} type="button" aria-label="업무 AI"><WorkAiIcon /><span className="ai-status-dot" /></button>
+        <div className="work-ai-wrap" ref={workAiRef}>
+          <button className={`icon-btn work-ai-btn ${workAiOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openWorkAi} type="button" aria-label="업무 AI" aria-expanded={workAiOpen}><WorkAiIcon /><span className="ai-status-dot" /></button>
           {workAiOpen && (
-            <section className="work-ai-panel" role="dialog" aria-label="업무 AI">
+            <section className={`work-ai-panel ${workAiExpanded ? "expanded" : ""} ${workAiClosing ? "closing" : ""}`} role="dialog" aria-label="업무 AI">
               <div className="work-ai-head">
                 <div className="work-ai-title"><span><Sparkles size={16} /></span><div><strong>업무 AI</strong><small>CRM 데이터를 기준으로 우선순위를 정리합니다.</small></div></div>
-                <div className="work-ai-actions"><button type="button" aria-label="전체 화면"><Maximize2 size={15} /></button><button onClick={() => setWorkAiOpen(false)} type="button" aria-label="닫기"><X size={16} /></button></div>
+                <div className="work-ai-actions"><button className={workAiExpanded ? "active" : ""} onClick={() => setWorkAiExpanded((current) => !current)} type="button" aria-label={workAiExpanded ? "업무 AI 축소" : "업무 AI 확대"} aria-pressed={workAiExpanded}><Maximize2 size={15} /></button><button onClick={closeWorkAi} type="button" aria-label="닫기"><X size={16} /></button></div>
               </div>
               <div className="work-ai-body">
                 <div className="work-ai-message assistant">
@@ -189,31 +291,48 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
             </section>
           )}
         </div>
-        <div className="account-chip"><span className="account-avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 11.3a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4Zm-8 9.2c.65-4.2 3.62-6.8 8-6.8s7.35 2.6 8 6.8H4Z" /></svg></span><span className="account-text">{accountMeta.name} <span>{accountMeta.title}</span></span></div>
-        <div className="settings-wrap">
-          <button className={`settings-btn ${settingsOpen ? "active" : ""}`} onClick={() => setSettingsOpen((current) => !current)} type="button" aria-label={`설정, 실시간 상담 ${liveConsulting ? "켜짐" : "꺼짐"}`}><SolidSettingsIcon /><span className={`settings-status-dot ${liveConsulting ? "on" : "off"}`} aria-hidden="true" /></button>
+        <div className="settings-wrap account-menu-wrap" ref={settingsMenuRef}>
+          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={`${accountMeta.name}, ${accountMeta.title}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{usesDefaultAvatar ? <AccountDefaultIcon /> : <img src={cjLogo} alt="" />}</span><span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" /></button>
           {settingsOpen && (
-            <div className="settings-menu" role="dialog" aria-label="계정 설정">
-              <div className="live-setting-panel">
-                <div className="live-setting-label"><span className={`setting-icon-live ${liveConsulting ? "on" : "off"}`}><SettingSolidIcon name="chat" /></span><div><strong>실시간 상담</strong><small>{liveConsulting ? "상담 요청을 받는 중" : "상담 요청을 멈춘 상태"}</small></div></div>
+            <div className={`settings-menu ${settingsClosing ? "closing" : ""}`} role="dialog" aria-label="계정 설정">
+              <div className="account-menu-head">
+                <strong>{accountMeta.name}</strong><span>{accountMeta.title}</span>
+              </div>
+              <div className="settings-menu-line account-line" />
+              <div className={`live-setting-panel ${canManageLiveConsulting ? "" : "disabled"}`}>
+                <div className="live-setting-label"><span className={`setting-icon-live ${displayLiveConsulting ? "on" : "off"}`}><SettingSolidIcon name="chat" /></span><div><strong>실시간 상담</strong><small>{canManageLiveConsulting ? (liveConsulting ? "상담 수신 중" : "상담 수신 중지") : "상담 수신 비활성화"}</small></div></div>
                 <div className="live-toggle" role="tablist" aria-label="실시간 상담 상태">
-                  <button className={liveConsulting ? "active on" : ""} onClick={() => { if (!liveConsulting) setConfirmMode("on"); }} type="button">On</button>
-                  <button className={!liveConsulting ? "active off" : ""} onClick={() => { if (liveConsulting) setConfirmMode("off"); }} type="button">Off</button>
+                  <button className={displayLiveConsulting ? "active on" : ""} disabled={!canManageLiveConsulting} onClick={() => { if (canManageLiveConsulting && !liveConsulting) setConfirmMode("on"); }} type="button">On</button>
+                  <button className={!displayLiveConsulting ? "active off" : ""} disabled={!canManageLiveConsulting} onClick={() => { if (canManageLiveConsulting && liveConsulting) setConfirmMode("off"); }} type="button">Off</button>
                 </div>
               </div>
-              <div className="settings-menu-line" />
-              <div className="settings-menu-label">운영 설정</div>
-              <button className="settings-menu-row" type="button"><span><SettingSolidIcon name="attendance" />근태관리</span></button>
-              <button className="settings-menu-row" onClick={() => navigateFromSettings("org-members")} type="button"><span><SettingSolidIcon name="org" />조직 / 구성원</span></button>
-              <button className="settings-menu-row" onClick={() => navigateFromSettings("partners")} type="button"><span><SettingSolidIcon name="partners" />딜러 / 거래처</span></button>
-              <div className="settings-menu-line" />
-              <div className="settings-menu-label">차선생 앱 설정</div>
-              <button className="settings-menu-row" onClick={() => navigateFromSettings("mc-master")} type="button"><span><SettingSolidIcon name="mc-master" />MC 마스터</span></button>
-              <button className="settings-menu-row" onClick={() => navigateFromSettings("knowledge-base")} type="button"><span><SettingSolidIcon name="knowledge" />지식 베이스</span></button>
-              <button className="settings-menu-row" onClick={() => navigateFromSettings("insights")} type="button"><span><SettingSolidIcon name="insights" />인사이트</span></button>
-              <button className="settings-menu-row" onClick={() => navigateFromSettings("ai-settings")} type="button"><span><SettingSolidIcon name="ai" />AI 커스텀</span></button>
-              <div className="settings-menu-line" />
-              <button className="settings-menu-row danger" type="button"><span><SettingSolidIcon name="logout" />로그아웃</span></button>
+              {(showAttendanceMenu || isAdminRole) && (
+                <>
+                  <div className={`settings-menu-line live-line ${isAdminRole ? "" : "compact"}`} />
+                  <div className="settings-menu-section">
+                    {isAdminRole && <div className="settings-menu-label">운영 설정</div>}
+                    {showAttendanceMenu && <button className="settings-menu-row" type="button"><span><SettingSolidIcon name="attendance" />근태관리</span></button>}
+                    {isAdminRole && <button className="settings-menu-row" onClick={() => navigateFromSettings("org-members")} type="button"><span><SettingSolidIcon name="org" />조직 / 구성원</span></button>}
+                    {isAdminRole && <button className="settings-menu-row" onClick={() => navigateFromSettings("partners")} type="button"><span><SettingSolidIcon name="partners" />딜러 / 거래처</span></button>}
+                  </div>
+                </>
+              )}
+              {isAdminRole && (
+                <>
+                  <div className="settings-menu-line section-line" />
+                  <div className="settings-menu-section">
+                    <div className="settings-menu-label">차선생 앱 설정</div>
+                    <button className="settings-menu-row" onClick={() => navigateFromSettings("mc-master")} type="button"><span><SettingSolidIcon name="mc-master" />MC 마스터</span></button>
+                    <button className="settings-menu-row" onClick={() => navigateFromSettings("knowledge-base")} type="button"><span><SettingSolidIcon name="knowledge" />지식 베이스</span></button>
+                    <button className="settings-menu-row" onClick={() => navigateFromSettings("insights")} type="button"><span><SettingSolidIcon name="insights" />인사이트</span></button>
+                    <button className="settings-menu-row" onClick={() => navigateFromSettings("ai-settings")} type="button"><span><SettingSolidIcon name="ai" />AI 커스텀</span></button>
+                  </div>
+                </>
+              )}
+              <div className={`settings-menu-line logout-line ${dealerMode ? "after-live" : ""}`}><span>Prototype by Jian</span></div>
+              <div className="settings-menu-section logout-section">
+                <button className="settings-menu-row danger" type="button"><span><SettingSolidIcon name="logout" />로그아웃</span></button>
+              </div>
             </div>
           )}
         </div>
