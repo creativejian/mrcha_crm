@@ -1,8 +1,10 @@
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
+import mrchaLogoColor from "@/assets/mrcha-logo-color.svg";
 import type { CustomerMode } from "@/data/customers";
 import type { FinanceMode } from "@/pages/FinancePage";
 import { roleTabs, type RoleTab } from "@/data/roles";
+import { cn } from "@/lib/utils";
 
 type SidebarProps = {
   activeView: string;
@@ -21,11 +23,7 @@ type MenuIconName = "dashboard" | "chat" | "users" | "detail" | "pipeline" | "qu
 
 function BrandLogo() {
   return (
-    <svg className="brand-logo" viewBox="170 170 430 430" aria-hidden="true">
-      <path d="M200 199h93l132 175-132 175h-93l104-139H200v-71h104L200 199Z" />
-      <path d="M450 199h71v350h-71V199Zm71 140h47v71h-47v-71Z" />
-      <path className="brand-logo-accent" d="M354 483h71v66h-71v-66Z" />
-    </svg>
+    <img className="brand-logo" src={mrchaLogoColor} alt="" aria-hidden="true" />
   );
 }
 
@@ -115,6 +113,32 @@ const dealerMenuItems: Array<[MenuIconName, string]> = [
   ["inventory", "재고 업로드"],
 ];
 
+type FlyoutItem = {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+};
+
+function SidebarFlyout({ items, title }: { items: FlyoutItem[]; title: string }) {
+  function handleItemClick(onClick: () => void) {
+    onClick();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }
+
+  return (
+    <div className="sidebar-flyout" role="menu" aria-label={title}>
+      <strong>{title}</strong>
+      {items.map((item) => (
+        <button className={item.active ? "active" : ""} key={item.label} onClick={() => handleItemClick(item.onClick)} type="button" role="menuitem">
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Sidebar({ activeView, collapsed, customerMode, financeMode, roleTab, onViewChange, onCustomerModeChange, onFinanceModeChange, onRoleTabChange }: SidebarProps) {
   const canViewAdminMenu = roleTab === "최고관리자";
   const canViewTeamMenu = roleTab === "최고관리자" || roleTab === "팀장";
@@ -123,6 +147,12 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
   const [financeOpen, setFinanceOpen] = useState(false);
   const [selectedDraftMenu, setSelectedDraftMenu] = useState<string | null>(null);
   const visibleActiveView = selectedDraftMenu ?? activeView;
+  const navButtonClass = (active: boolean, parentOpen = false) => cn(
+    "nav-item",
+    active && "active nav-item-active",
+    parentOpen && !active && "nav-parent-open",
+  );
+  const subnavButtonClass = (active: boolean) => cn("subnav-item", active && "active");
 
   function navigate(view: string) {
     setSelectedDraftMenu(null);
@@ -130,6 +160,11 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
   }
 
   function handleCustomersToggle() {
+    if (collapsed) {
+      onCustomerModeChange("all");
+      navigate("customers");
+      return;
+    }
     if (customersOpen) {
       setCustomersOpen(false);
       return;
@@ -140,6 +175,11 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
   }
 
   function handleFinanceToggle() {
+    if (collapsed) {
+      onFinanceModeChange("stats");
+      navigate("finance");
+      return;
+    }
     if (financeOpen) {
       setFinanceOpen(false);
       return;
@@ -150,6 +190,10 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
   }
 
   function handleAdvisorAssignmentToggle() {
+    if (collapsed) {
+      setSelectedDraftMenu("advisor-assignment-db");
+      return;
+    }
     setSelectedDraftMenu("advisor-assignment");
     if (advisorAssignmentOpen) {
       setAdvisorAssignmentOpen(false);
@@ -165,20 +209,22 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
       <nav className="nav">
         {roleTab === "딜러"
           ? dealerMenuItems.map(([icon, label], index) => (
-            <button className={index === 0 ? "active" : ""} key={label} type="button"><MenuIcon name={icon} /><span>{label}</span></button>
+            <button aria-label={label} className={navButtonClass(index === 0)} data-label={label} key={label} type="button"><MenuIcon name={icon} /><span>{label}</span></button>
           ))
           : (
             <>
-              <button className={visibleActiveView === "advisor-dashboard" ? "active" : ""} onClick={() => navigate("advisor-dashboard")} type="button"><MenuIcon name="dashboard" /><span>대시보드</span></button>
-              <button className={visibleActiveView === "chat" ? "active" : ""} onClick={() => navigate("chat")} type="button"><MenuIcon name="chat" /><span>실시간 상담</span><span className="nav-count num">4</span></button>
+              <button aria-label="대시보드" className={navButtonClass(visibleActiveView === "advisor-dashboard")} data-label="대시보드" onClick={() => navigate("advisor-dashboard")} type="button"><MenuIcon name="dashboard" /><span>대시보드</span></button>
+              <button aria-label="대시보드 공사중" className={navButtonClass(visibleActiveView === "dashboard-preview")} data-label="대시보드 (공사중)" onClick={() => navigate("dashboard-preview")} type="button"><MenuIcon name="dashboard" /><span>대시보드 <small>(공사중)</small></span></button>
+              <button aria-label="실시간 상담" className={navButtonClass(visibleActiveView === "chat")} data-label="실시간 상담" onClick={() => navigate("chat")} type="button"><MenuIcon name="chat" /><span>실시간 상담</span><span className="nav-count num">4</span></button>
               <div className="nav-group">
-                <button className={visibleActiveView === "customers" ? "active" : ""} onClick={handleCustomersToggle} type="button"><MenuIcon name="users" /><span>고객 관리</span><ChevronDown className={`nav-chevron ${customersOpen ? "open" : ""}`} size={16} /></button>
-                {customersOpen && <div className="subnav">{customerModes.map(([mode, label]) => <button className={visibleActiveView === "customers" && customerMode === mode ? "active" : ""} key={mode} onClick={() => { onCustomerModeChange(mode); navigate("customers"); }} type="button">{label}</button>)}</div>}
+                <button aria-label="고객 관리" className={cn(navButtonClass(visibleActiveView === "customers", customersOpen), collapsed && "has-flyout")} data-label="고객 관리" onClick={handleCustomersToggle} type="button"><MenuIcon name="users" /><span>고객 관리</span><ChevronDown className={`nav-chevron ${customersOpen ? "open" : ""}`} size={16} /></button>
+                {!collapsed && customersOpen && <div className="subnav">{customerModes.map(([mode, label]) => <button className={subnavButtonClass(visibleActiveView === "customers" && customerMode === mode)} key={mode} onClick={() => { onCustomerModeChange(mode); navigate("customers"); }} type="button">{label}</button>)}</div>}
+                {collapsed && <SidebarFlyout title="고객 관리" items={customerModes.map(([mode, label]) => ({ active: visibleActiveView === "customers" && customerMode === mode, label, onClick: () => { onCustomerModeChange(mode); navigate("customers"); } }))} />}
               </div>
-              <button className={visibleActiveView === "customer-detail" ? "active" : ""} onClick={() => navigate("customer-detail")} type="button"><MenuIcon name="detail" /><span>고객 상세</span></button>
-              <button className={visibleActiveView === "pipeline" ? "active" : ""} onClick={() => navigate("pipeline")} type="button"><MenuIcon name="pipeline" /><span>상담 파이프라인</span></button>
-              <button className={visibleActiveView === "quotes" ? "active" : ""} onClick={() => navigate("quotes")} type="button"><MenuIcon name="quotes" /><span>견적 관리</span></button>
-              <button className={visibleActiveView === "delivery" ? "active" : ""} onClick={() => navigate("delivery")} type="button"><MenuIcon name="delivery" /><span>계약 / 출고</span></button>
+              <button aria-label="고객 상세" className={navButtonClass(visibleActiveView === "customer-detail")} data-label="고객 상세" onClick={() => navigate("customer-detail")} type="button"><MenuIcon name="detail" /><span>고객 상세</span></button>
+              <button aria-label="상담 파이프라인" className={navButtonClass(visibleActiveView === "pipeline")} data-label="상담 파이프라인" onClick={() => navigate("pipeline")} type="button"><MenuIcon name="pipeline" /><span>상담 파이프라인</span></button>
+              <button aria-label="견적 관리" className={navButtonClass(visibleActiveView === "quotes")} data-label="견적 관리" onClick={() => navigate("quotes")} type="button"><MenuIcon name="quotes" /><span>견적 관리</span></button>
+              <button aria-label="계약 / 출고" className={navButtonClass(visibleActiveView === "delivery")} data-label="계약 / 출고" onClick={() => navigate("delivery")} type="button"><MenuIcon name="delivery" /><span>계약 / 출고</span></button>
             </>
           )}
       </nav>
@@ -186,17 +232,19 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
         <div className="sidebar-admin-section">
           <nav className="nav admin-nav">
             <div className="nav-group">
-              <button className={visibleActiveView.startsWith("advisor-assignment") ? "active" : ""} onClick={handleAdvisorAssignmentToggle} type="button"><MenuIcon name="headphones" /><span>상담사 배정</span><ChevronDown className={`nav-chevron ${advisorAssignmentOpen ? "open" : ""}`} size={16} /></button>
-              {advisorAssignmentOpen && <div className="subnav">{advisorAssignmentModes.map(([view, label]) => <button className={visibleActiveView === view ? "active" : ""} key={view} onClick={() => setSelectedDraftMenu(view)} type="button">{label}</button>)}</div>}
+              <button aria-label="상담사 배정" className={cn(navButtonClass(visibleActiveView.startsWith("advisor-assignment"), advisorAssignmentOpen), collapsed && "has-flyout")} data-label="상담사 배정" onClick={handleAdvisorAssignmentToggle} type="button"><MenuIcon name="headphones" /><span>상담사 배정</span><ChevronDown className={`nav-chevron ${advisorAssignmentOpen ? "open" : ""}`} size={16} /></button>
+              {!collapsed && advisorAssignmentOpen && <div className="subnav">{advisorAssignmentModes.map(([view, label]) => <button className={subnavButtonClass(visibleActiveView === view)} key={view} onClick={() => setSelectedDraftMenu(view)} type="button">{label}</button>)}</div>}
+              {collapsed && <SidebarFlyout title="상담사 배정" items={advisorAssignmentModes.map(([view, label]) => ({ active: visibleActiveView === view, label, onClick: () => setSelectedDraftMenu(view) }))} />}
             </div>
-            <button className={visibleActiveView === "team-members" ? "active" : ""} onClick={() => setSelectedDraftMenu("team-members")} type="button"><MenuIcon name="team" /><span>팀원 관리</span></button>
+            <button aria-label="팀원 관리" className={navButtonClass(visibleActiveView === "team-members")} data-label="팀원 관리" onClick={() => setSelectedDraftMenu("team-members")} type="button"><MenuIcon name="team" /><span>팀원 관리</span></button>
             {canViewAdminMenu && (
               <>
                 <div className="admin-nav-separator" />
-                <button className={visibleActiveView === "admin-dashboard" ? "active" : ""} onClick={() => navigate("admin-dashboard")} type="button"><MenuIcon name="report" /><span>경영 리포트</span></button>
+                <button aria-label="경영 리포트" className={navButtonClass(visibleActiveView === "admin-dashboard")} data-label="경영 리포트" onClick={() => navigate("admin-dashboard")} type="button"><MenuIcon name="report" /><span>경영 리포트</span></button>
                 <div className="nav-group">
-                  <button className={visibleActiveView === "finance" ? "active" : ""} onClick={handleFinanceToggle} type="button"><MenuIcon name="finance" /><span>재무 관리</span><ChevronDown className={`nav-chevron ${financeOpen ? "open" : ""}`} size={16} /></button>
-                  {financeOpen && <div className="subnav">{financeModes.map(([mode, label]) => <button className={visibleActiveView === "finance" && financeMode === mode ? "active" : ""} key={mode} onClick={() => { onFinanceModeChange(mode); navigate("finance"); }} type="button">{label}</button>)}</div>}
+                  <button aria-label="재무 관리" className={cn(navButtonClass(visibleActiveView === "finance", financeOpen), collapsed && "has-flyout")} data-label="재무 관리" onClick={handleFinanceToggle} type="button"><MenuIcon name="finance" /><span>재무 관리</span><ChevronDown className={`nav-chevron ${financeOpen ? "open" : ""}`} size={16} /></button>
+                  {!collapsed && financeOpen && <div className="subnav">{financeModes.map(([mode, label]) => <button className={subnavButtonClass(visibleActiveView === "finance" && financeMode === mode)} key={mode} onClick={() => { onFinanceModeChange(mode); navigate("finance"); }} type="button">{label}</button>)}</div>}
+                  {collapsed && <SidebarFlyout title="재무 관리" items={financeModes.map(([mode, label]) => ({ active: visibleActiveView === "finance" && financeMode === mode, label, onClick: () => { onFinanceModeChange(mode); navigate("finance"); } }))} />}
                 </div>
               </>
             )}

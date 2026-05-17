@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <style>
+      .cls-1 {
+        opacity: .55;
+      }
+
+      .cls-1, .cls-2 {
+        fill: #fff;
+      }
+
+      .cls-3 {
+        fill: #5836ff;
+      }
+    </style>
+  </defs>
+  <rect class="cls-3" width="1024" height="1024"/>
+  <g>
+    <polygon class="cls-2" points="765.21 459.93 700.37 459.93 700.37 258.68 604.05 258.68 604.05 765.32 700.37 765.32 700.37 564.07 765.21 564.07 765.31 564.07 765.31 459.93 765.21 459.93"/>
+    <rect class="cls-1" x="471.3" y="668.97" width="96.35" height="96.35"/>
+    <polygon class="cls-2" points="386.08 258.68 258.69 258.68 402.94 459.93 258.69 459.93 258.69 564.07 402.94 564.07 258.69 765.32 386.08 765.32 567.65 512 386.08 258.68"/>
+  </g>
+</svg>

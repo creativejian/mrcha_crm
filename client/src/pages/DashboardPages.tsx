@@ -65,6 +65,172 @@ const reportFocus: Record<ReportOption, readonly (readonly [string, string])[]> 
   "출고 / 정산": [["출고 경험", "탁송, 보험, 시공 일정이 고객에게 선명하게 안내되는지 확인합니다."], ["정산 분리", "출고 완료와 수수료 입금 확인을 분리해 미수 리스크를 줄입니다."], ["마감 체크", "계약서, 금융 승인, 세금계산서, 비용 증빙을 한 흐름으로 묶습니다."]],
 };
 
+const overviewMetrics = [
+  ["총 상담", "42", "완료 기준", "이번 달 누적"],
+  ["계약", "9", "목표 12건", "3건 남음"],
+  ["출고", "7", "이번 달 누적", "예정 2대"],
+  ["예상 실적", "1,842", "만원", "계약 완료 기준"],
+  ["전환율", "15.2", "%", "상담 대비 계약"],
+] as const;
+
+const advisorTodayMetrics = [
+  ["오늘 처리할 고객", "12", "긴급 3건", "먼저 볼 업무"],
+  ["응답 대기", "6", "15분 초과 2건", "응대 지연"],
+  ["견적 작성 필요", "5", "오늘 송출 목표", "조건 정리"],
+  ["계약 후보", "4", "우선 통화 권장", "가능성 높음"],
+  ["내 오늘 실적", "3", "견적 발송 완료", "오전 기준"],
+] as const;
+
+const advisorSignalCharts = [
+  ["상담 응답", 44, 62, 58, 73, 49, 66, 81, 54, 69, 72, 63, 78],
+  ["견적 작성", 18, 24, 20, 36, 31, 45, 28, 52, 39, 33, 42, 35],
+  ["계약 가능성", 22, 28, 34, 31, 44, 39, 57, 48, 52, 46, 61, 55],
+  ["재컨택 필요", 38, 32, 29, 42, 35, 31, 26, 34, 28, 22, 19, 24],
+] as const;
+
+const advisorPriorityCustomers = [
+  ["긴급", "김민준", "BMW X3 / GLC", "비교 견적 확인 후 18분 응답 지연", "GLC 재고 확인 후 통화"],
+  ["높음", "박서연", "Model Y", "보증금 0/10/20% 조건별 비교 필요", "조건표 완성 후 앱 송출"],
+  ["높음", "이도윤", "GV80", "앱에서 견적 열람, 심사 서류 안내 필요", "서류 체크리스트 전달"],
+  ["중간", "오세린", "MINI Cooper", "첫 차 구매, 리스/렌트 구조 이해 필요", "만기 인수 구조 설명"],
+] as const;
+
+const advisorCommandItems = [
+  ["우선 처리", "김민준 → 박서연 → 이도윤", "응답 지연과 계약 가능성이 같이 높은 고객부터 처리합니다."],
+  ["견적 큐", "오늘 5건 작성 필요", "보증금 조건, 재고 가능 색상, 총비용 기준을 먼저 맞춥니다."],
+  ["재컨택", "부재/보류 4건", "카톡 인사 후 2차 재컨택 시점을 예약합니다."],
+] as const;
+
+const advisorBriefing = [
+  ["AI 브리핑", "계약 가능 고객 우선", "오늘은 가격 비교 고객보다 계약 가능성이 높은 견적 확인 고객을 먼저 보는 편이 좋습니다."],
+  ["상담 품질", "총비용 설명 필요", "월 납입금만 답하지 말고 총비용, 중도해지, 만기 선택지를 같이 설명하세요."],
+  ["실적 포커스", "오전 견적 3건", "오후 전까지 견적 3건을 먼저 앱으로 송출하면 계약 후보 2건을 추가로 만들 수 있습니다."],
+] as const;
+
+const advisorFlow = [
+  ["응답 완료", 72, "18"],
+  ["견적 발송", 48, "3"],
+  ["심사 진행", 35, "2"],
+  ["계약 전환", 22, "1"],
+] as const;
+
+function OverviewIcon({ name }: { name: "status" | "database" | "branch" | "backup" | "ai" | "warning" }) {
+  if (name === "status") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h4v4H4V5Zm6 0h4v4h-4V5Zm6 0h4v4h-4V5ZM4 11h4v4H4v-4Zm6 0h4v4h-4v-4Zm6 0h4v4h-4v-4ZM4 17h4v4H4v-4Zm6 0h4v4h-4v-4Zm6 0h4v4h-4v-4Z" /></svg>;
+  if (name === "database") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c4.42 0 8 1.57 8 3.5v11c0 1.93-3.58 3.5-8 3.5s-8-1.57-8-3.5v-11C4 4.57 7.58 3 12 3Zm0 2c-3.3 0-6 .72-6 1.5S8.7 8 12 8s6-.72 6-1.5S15.3 5 12 5Zm-6 5.1v2.4c0 .78 2.7 1.5 6 1.5s6-.72 6-1.5v-2.4c-1.46 1.05-3.84 1.6-6 1.6s-4.54-.55-6-1.6Zm0 5.5v1.9c0 .78 2.7 1.5 6 1.5s6-.72 6-1.5v-1.9c-1.46.92-3.84 1.4-6 1.4s-4.54-.48-6-1.4Z" /></svg>;
+  if (name === "branch") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3a3 3 0 0 1 1 5.83V10a4 4 0 0 0 4 4h2.17a3 3 0 1 1 0 2H12a6 6 0 0 1-6-6V8.83A3 3 0 0 1 7 3Zm10 10a1 1 0 1 0 0 2a1 1 0 0 0 0-2ZM7 5a1 1 0 1 0 0 2a1 1 0 0 0 0-2Z" /></svg>;
+  if (name === "backup") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v4H5V4Zm1 6h12v10H6V10Zm3 2v2h6v-2H9Z" /></svg>;
+  if (name === "ai") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 2h2v3h3v2h-3v3h-2V7H8V5h3V2Zm7.5 6.5l1.2 2.4l2.3.9l-2.3.9l-1.2 2.4l-1.2-2.4l-2.3-.9l2.3-.9l1.2-2.4ZM5 11h8v8H5v-8Zm2 2v4h4v-4H7Z" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 2 21h20L12 2Zm1 15h-2v-2h2v2Zm0-4h-2V8h2v5Z" /></svg>;
+}
+
+function MiniBarChart({ values }: { values: readonly number[] }) {
+  return <div className="overview-bars" aria-hidden="true">{values.map((value, index) => <span key={`${value}-${index}`} style={{ height: `${Math.max(12, value)}%` }} />)}</div>;
+}
+
+export function DashboardPreviewPage() {
+  return (
+    <div className="overview-page">
+      <section className="overview-hero">
+        <div className="overview-project">
+          <span className="overview-kicker">ADVISOR COMMAND CENTER</span>
+          <h2>오늘 상담 우선순위</h2>
+          <p>상담사가 출근해서 바로 판단해야 하는 응답 지연, 견적 작성, 계약 후보, 재컨택 흐름을 한 화면에 모은 신규 대시보드 초안입니다.</p>
+          <div className="overview-health-grid">
+            <div><OverviewIcon name="warning" /><span>FIRST ACTION</span><strong>응답 지연 2건</strong></div>
+            <div><OverviewIcon name="branch" /><span>QUOTE QUEUE</span><strong>견적 5건 필요</strong></div>
+            <div><OverviewIcon name="ai" /><span>AI SUMMARY</span><strong>브리핑 준비됨</strong></div>
+            <div><OverviewIcon name="status" /><span>MY STATUS</span><strong>상담 수신 중</strong></div>
+          </div>
+        </div>
+        <div className="overview-map">
+          <div className="overview-node primary"><OverviewIcon name="database" /><div><strong>김민준</strong><span>18분 응답 지연 · X3/GLC</span></div><em>긴급</em></div>
+          <div className="overview-node ai"><OverviewIcon name="ai" /><div><strong>AI 요약</strong><span>총비용 민감 고객</span></div></div>
+          <div className="overview-node quote"><OverviewIcon name="branch" /><div><strong>견적 작성</strong><span>조건별 비교표 필요</span></div></div>
+          <div className="overview-node risk"><OverviewIcon name="warning" /><div><strong>계약 후보</strong><span>오늘 통화 권장</span></div></div>
+        </div>
+      </section>
+
+      <section className="overview-metrics" aria-label="이번 달 상담사 핵심 지표">
+        {overviewMetrics.map(([label, value, delta, note]) => (
+          <div className="overview-metric-card" key={label}>
+            <span>{label}</span>
+            <strong className="num">{value}</strong>
+            <div><em>{delta}</em><small>{note}</small></div>
+          </div>
+        ))}
+      </section>
+
+      <section className="overview-metrics today" aria-label="오늘 상담사 업무 지표">
+        {advisorTodayMetrics.map(([label, value, delta, note]) => (
+          <div className="overview-metric-card today" key={label}>
+            <span>{label}</span>
+            <strong className="num">{value}</strong>
+            <div><em>{delta}</em><small>{note}</small></div>
+          </div>
+        ))}
+      </section>
+
+      <section className="overview-request-section">
+        <div className="overview-section-head"><h3>오늘 업무 신호</h3><button type="button">09:00 - 현재</button></div>
+        <div className="overview-chart-grid">
+          {advisorSignalCharts.map(([label, ...values]) => (
+            <div className="overview-chart-card" key={label}>
+              <span>{label}</span>
+              <strong className="num">{values.reduce((sum, value) => sum + value, 0)}</strong>
+              <MiniBarChart values={values} />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="overview-bottom-grid">
+        <div className="overview-flow-card">
+          <div className="overview-section-head compact"><h3>오늘 우선순위 고객</h3><span>상담사 지안</span></div>
+          {advisorPriorityCustomers.map(([priority, name, vehicle, issue, action]) => (
+            <button className="overview-priority-row" key={`${name}-${vehicle}`} type="button">
+              <span className={`overview-priority-badge ${priority === "긴급" ? "urgent" : priority === "높음" ? "high" : ""}`}>{priority}</span>
+              <div><strong>{name}</strong><small>{vehicle}</small></div>
+              <p>{issue}</p>
+              <em>{action}</em>
+            </button>
+          ))}
+        </div>
+        <div className="overview-risk-card">
+          <div className="overview-section-head compact"><h3>내 업무 큐</h3><button type="button">Ask AI</button></div>
+          {advisorCommandItems.map(([type, title, desc]) => (
+            <button className="overview-risk-row" key={title} type="button">
+              <OverviewIcon name={type === "우선 처리" ? "warning" : type === "견적 큐" ? "branch" : "backup"} />
+              <div><span>{type}</span><strong>{title}</strong><small>{desc}</small></div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="overview-bottom-grid secondary">
+        <div className="overview-flow-card">
+          <div className="overview-section-head compact"><h3>내 실적 흐름</h3><span>오늘 / 이번 주</span></div>
+          {advisorFlow.map(([label, pct, value]) => (
+            <div className="overview-flow-row" key={label}>
+              <div><strong>{label}</strong><span>상담 진행 기준</span></div>
+              <em className="num">{value}</em>
+              <div className="overview-track"><span style={{ width: `${pct}%` }} /></div>
+            </div>
+          ))}
+        </div>
+        <div className="overview-risk-card">
+          <div className="overview-section-head compact"><h3>AI 브리핑</h3><button type="button">업무 정리</button></div>
+          {advisorBriefing.map(([type, title, desc]) => (
+            <button className="overview-risk-row" key={title} type="button">
+              <OverviewIcon name="ai" />
+              <div><span>{type}</span><strong>{title}</strong><small>{desc}</small></div>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function AdminDashboardPage() {
   const [activeReport, setActiveReport] = useState<ReportOption>("전체 운영");
   const max = Math.max(...brands.map(([, count]) => count));

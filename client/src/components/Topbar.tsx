@@ -1,6 +1,7 @@
-import { Maximize2, Send, Sparkles, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Maximize2, Send, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import cjLogo from "@/assets/cj.jpeg";
+import { initialCustomers, type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
@@ -25,6 +26,30 @@ function ChatQueueIcon() {
 
 function CalculatorIcon() {
   return <svg className="topbar-solid-icon calculator-icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M416 48a16 16 0 0 0-16-16H112a16 16 0 0 0-16 16v416a16 16 0 0 0 16 16h288a16 16 0 0 0 16-16ZM192 432h-48v-48h48Zm0-80h-48v-48h48Zm0-80h-48v-48h48Zm88 160h-48v-48h48Zm0-80h-48v-48h48Zm0-80h-48v-48h48Zm88 160h-48V304h48Zm0-160h-48v-48h48Zm0-96H144V80h224Z" /></svg>;
+}
+
+function GlobalSearchIcon({ compact = false }: { compact?: boolean }) {
+  return <svg className={`topbar-solid-icon global-search-icon ${compact ? "compact" : ""}`} viewBox="0 0 16 16" aria-hidden="true"><path d="M7 2a5 5 0 1 0 0 10A5 5 0 0 0 7 2M0 7a7 7 0 1 1 12.606 4.192l3.101 3.1l-1.414 1.415l-3.1-3.1A7 7 0 0 1 0 7" /></svg>;
+}
+
+function CustomerSearchResult({ customer, onOpen }: { customer: Customer; onOpen: (customer: Customer) => void }) {
+  return (
+    <button className="global-search-result" onClick={() => onOpen(customer)} type="button">
+      <span className="global-search-result-main">
+        <strong>{customer.name}</strong>
+        <em>{customer.customerId}</em>
+      </span>
+      <span className="global-search-result-meta">
+        <b>{customer.phone}</b>
+        <span>{customer.vehicle}</span>
+      </span>
+      <span className="global-search-result-foot">
+        <small>{customer.status}</small>
+        <small>{customer.advisor}</small>
+        <small>#{customer.no}</small>
+      </span>
+    </button>
+  );
 }
 
 function WorkAiIcon() {
@@ -63,7 +88,13 @@ function SettingSolidIcon({ name }: { name: "chat" | "insights" | "knowledge" | 
   return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h9v4h-2V5H7v14h5v-2h2v4H5V3Zm10.5 4.5 5 4.5-5 4.5v-3H10v-3h5.5v-3Z" /></svg>;
 }
 
-type TopbarProps = { sidebarCollapsed: boolean; roleTab: RoleTab; onNavigate: (view: string) => void; onToggleSidebar: () => void };
+type TopbarProps = {
+  sidebarCollapsed: boolean;
+  roleTab: RoleTab;
+  onNavigate: (view: string) => void;
+  onOpenCustomer: (customer: Customer) => void;
+  onToggleSidebar: () => void;
+};
 
 const quickAiPrompts = [
   "오늘 내가 먼저 처리할 일 정리해줘",
@@ -84,9 +115,16 @@ const notifications = [
   ["정산", "최민석 출고 건 입금 확인 필요", "금융사 수수료 입금 상태를 정산 관리에서 확인하세요.", "어제 17:20"],
 ] as const;
 
-export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar }: TopbarProps) {
+function normalizeSearchValue(value: string): string {
+  return value.toLowerCase().replace(/[\s-]/g, "");
+}
+
+export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, onToggleSidebar }: TopbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [recentSearchCustomers, setRecentSearchCustomers] = useState<Customer[]>([]);
   const [workAiOpen, setWorkAiOpen] = useState(false);
   const [workAiClosing, setWorkAiClosing] = useState(false);
   const [workAiExpanded, setWorkAiExpanded] = useState(false);
@@ -98,16 +136,37 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
   const [confirmMode, setConfirmMode] = useState<"on" | "off" | null>(null);
   const workAiRef = useRef<HTMLDivElement>(null);
   const workAiCloseTimerRef = useRef<number | null>(null);
+  const globalSearchRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsCloseTimerRef = useRef<number | null>(null);
   const accountMeta = roleAccountMeta[roleTab];
-  const showAdminMetrics = roleTab === "최고관리자";
+  const showAdminMetrics = roleTab === "최고관리자" || roleTab === "팀장";
   const isAdminRole = roleTab === "최고관리자";
   const usesDefaultAvatar = roleTab !== "최고관리자";
   const showAttendanceMenu = roleTab !== "딜러";
   const dealerMode = roleTab === "딜러";
   const canManageLiveConsulting = !dealerMode;
   const displayLiveConsulting = canManageLiveConsulting && liveConsulting;
+  const accountOrgLabel = dealerMode ? accountMeta.title : roleTab === "최고관리자" ? "크리에이티브지안" : "인천본사 상담팀";
+  const accountScopeLabel = roleTab === "최고관리자" ? "전체 운영 권한" : roleTab === "팀장" ? "팀 상담 관리" : roleTab === "상담사" ? "상담 업무" : "딜러 포털";
+  const normalizedGlobalSearchQuery = normalizeSearchValue(globalSearchQuery);
+  const hasGlobalSearchQuery = normalizedGlobalSearchQuery.length > 0;
+  const globalSearchResults = useMemo(() => normalizedGlobalSearchQuery
+    ? initialCustomers.filter((customer) => {
+      const haystack = normalizeSearchValue([
+        customer.name,
+        customer.phone,
+        customer.customerId,
+        String(customer.no),
+        customer.vehicle,
+        customer.status,
+        customer.statusGroup,
+        customer.advisor,
+        customer.source,
+      ].join(" "));
+      return haystack.includes(normalizedGlobalSearchQuery);
+    }).slice(0, 6)
+    : [], [normalizedGlobalSearchQuery]);
 
   function openSettingsMenu() {
     if (settingsCloseTimerRef.current) {
@@ -116,6 +175,7 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
     }
     setSettingsClosing(false);
     setSettingsOpen(true);
+    setGlobalSearchOpen(false);
     closeWorkAi();
     setNotificationsOpen(false);
   }
@@ -143,6 +203,7 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
     }
     setWorkAiClosing(false);
     setWorkAiOpen(true);
+    setGlobalSearchOpen(false);
     closeSettingsMenu();
     setNotificationsOpen(false);
   }
@@ -166,9 +227,24 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
 
   function openNotifications() {
     setNotificationsOpen((current) => !current);
+    setGlobalSearchOpen(false);
     closeSettingsMenu();
     closeWorkAi();
   }
+
+  function openGlobalSearch() {
+    setGlobalSearchOpen((current) => !current);
+    closeSettingsMenu();
+    closeWorkAi();
+    setNotificationsOpen(false);
+  }
+
+  const handleGlobalSearchCustomerOpen = useCallback((customer: Customer) => {
+    setRecentSearchCustomers((current) => [customer, ...current.filter((item) => item.customerId !== customer.customerId)].slice(0, 3));
+    onOpenCustomer(customer);
+    setGlobalSearchOpen(false);
+    setGlobalSearchQuery("");
+  }, [onOpenCustomer]);
 
   useEffect(() => {
     return () => {
@@ -196,6 +272,26 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [settingsOpen, settingsClosing, confirmMode]);
+
+  useEffect(() => {
+    if (!globalSearchOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!globalSearchRef.current?.contains(event.target as Node)) setGlobalSearchOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setGlobalSearchOpen(false);
+      if (event.key === "Enter" && globalSearchResults[0]) handleGlobalSearchCustomerOpen(globalSearchResults[0]);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [globalSearchOpen, globalSearchResults, handleGlobalSearchCustomerOpen]);
 
   useEffect(() => {
     if (!workAiOpen) return;
@@ -230,12 +326,55 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
         </div>
       )}
       <div className="global-right">
+        <div className="global-search-wrap" ref={globalSearchRef}>
+          <button className={`global-search-trigger ${globalSearchOpen ? "active" : ""}`} onClick={openGlobalSearch} type="button" aria-label="고객 통합 검색" aria-expanded={globalSearchOpen}>
+            <GlobalSearchIcon />
+          </button>
+          {globalSearchOpen && (
+            <section className="global-search-panel" role="dialog" aria-label="고객 통합 검색">
+              <div className="global-search-input-wrap">
+                <GlobalSearchIcon compact />
+                <input autoFocus value={globalSearchQuery} onChange={(event) => setGlobalSearchQuery(event.target.value)} placeholder="고객명, 연락처, 차량, 고객번호 검색" />
+              </div>
+              <div className="global-search-results">
+                {!hasGlobalSearchQuery && recentSearchCustomers.length > 0 && (
+                  <div className="global-search-recent">
+                    <div className="global-search-section-head">
+                      <strong>최근 조회 고객</strong>
+                      <span>검색어를 입력하면 결과가 바로 전환됩니다.</span>
+                    </div>
+                    {recentSearchCustomers.map((customer) => (
+                      <CustomerSearchResult customer={customer} key={customer.customerId} onOpen={handleGlobalSearchCustomerOpen} />
+                    ))}
+                  </div>
+                )}
+                {hasGlobalSearchQuery && globalSearchResults.length > 0 && (
+                  <div className="global-search-query-results">
+                    <div className="global-search-section-head">
+                      <strong>조회 결과</strong>
+                      <span>{globalSearchResults.length}명</span>
+                    </div>
+                    {globalSearchResults.map((customer) => (
+                      <CustomerSearchResult customer={customer} key={customer.customerId} onOpen={handleGlobalSearchCustomerOpen} />
+                    ))}
+                  </div>
+                )}
+                {hasGlobalSearchQuery && globalSearchResults.length === 0 && (
+                  <div className="global-search-empty">
+                    <strong>검색 결과 없음</strong>
+                    <span>고객명, 연락처, 차량명, 고객번호를 다시 확인해주세요.</span>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
         <div className="work-ai-wrap" ref={workAiRef}>
           <button className={`icon-btn work-ai-btn ${workAiOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openWorkAi} type="button" aria-label="업무 AI" aria-expanded={workAiOpen}><WorkAiIcon /><span className="ai-status-dot" /></button>
           {workAiOpen && (
             <section className={`work-ai-panel ${workAiExpanded ? "expanded" : ""} ${workAiClosing ? "closing" : ""}`} role="dialog" aria-label="업무 AI">
               <div className="work-ai-head">
-                <div className="work-ai-title"><span><Sparkles size={16} /></span><div><strong>업무 AI</strong><small>CRM 데이터를 기준으로 우선순위를 정리합니다.</small></div></div>
+                <div className="work-ai-title"><strong>업무 AI</strong><small>CRM 데이터를 기준으로 우선순위를 정리합니다.</small></div>
                 <div className="work-ai-actions"><button className={workAiExpanded ? "active" : ""} onClick={() => setWorkAiExpanded((current) => !current)} type="button" aria-label={workAiExpanded ? "업무 AI 축소" : "업무 AI 확대"} aria-pressed={workAiExpanded}><Maximize2 size={15} /></button><button onClick={closeWorkAi} type="button" aria-label="닫기"><X size={16} /></button></div>
               </div>
               <div className="work-ai-body">
@@ -273,7 +412,7 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
             <section className="notifications-panel" role="dialog" aria-label="알림">
               <div className="notifications-head">
                 <div><strong>알림</strong><small>놓치면 안 되는 업무 이벤트입니다.</small></div>
-                <button type="button">전체 읽음</button>
+                <button className="notifications-read-all" type="button">전체 읽음</button>
               </div>
               <div className="notification-tabs">
                 {notificationTabs.map((tab) => <button className={notificationTab === tab ? "active" : ""} key={tab} onClick={() => setNotificationTab(tab)} type="button">{tab}</button>)}
@@ -296,7 +435,14 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onToggleSidebar 
           {settingsOpen && (
             <div className={`settings-menu ${settingsClosing ? "closing" : ""}`} role="dialog" aria-label="계정 설정">
               <div className="account-menu-head">
-                <strong>{accountMeta.name}</strong><span>{accountMeta.title}</span>
+                <div className="account-menu-title">
+                  <strong>{accountMeta.name}</strong>
+                  <span>{roleTab}</span>
+                </div>
+                <div className="account-menu-meta" aria-label="계정 권한 정보">
+                  <span>{accountOrgLabel}</span>
+                  <span>{accountScopeLabel}</span>
+                </div>
               </div>
               <div className="settings-menu-line account-line" />
               <div className={`live-setting-panel ${canManageLiveConsulting ? "" : "disabled"}`}>

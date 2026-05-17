@@ -4,7 +4,7 @@ import { Topbar } from "@/components/Topbar";
 import { type CustomerMode, customerModeMeta } from "@/data/customers";
 import type { RoleTab } from "@/data/roles";
 import { AISettingsPage } from "@/pages/AISettingsPage";
-import { AdvisorDashboardPage, AdminDashboardPage } from "@/pages/DashboardPages";
+import { AdvisorDashboardPage, AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
 import { ChatPage } from "@/pages/ChatPage";
 import { CustomerDetailPage } from "@/pages/CustomerDetailPage";
 import { CustomerManagementPage } from "@/pages/CustomerManagementPage";
@@ -18,10 +18,11 @@ import { PartnersPage } from "@/pages/PartnersPage";
 import { PipelinePage } from "@/pages/PipelinePage";
 import { QuotesPage } from "@/pages/QuotesPage";
 
-type ViewKey = "advisor-dashboard" | "admin-dashboard" | "chat" | "customers" | "customer-detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance";
+type ViewKey = "advisor-dashboard" | "dashboard-preview" | "admin-dashboard" | "chat" | "customers" | "customer-detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance";
 
 const viewMeta: Record<ViewKey, [string, string]> = {
   "advisor-dashboard": ["대시보드", "배정된 고객 중 오늘 처리할 업무, 우선순위, 내 실적을 한눈에 보는 상담사용 화면입니다."],
+  "dashboard-preview": ["대시보드 · 공사중", "차선생 전체 운영 상태를 Supabase Overview처럼 한눈에 훑는 신규 대시보드 초안입니다."],
   "admin-dashboard": ["경영 리포트", "전체 운영, 상담 전환, 매출/지출, 직원 생산성 등 차선생의 주요 지표를 리포트 단위로 확인합니다."],
   chat: ["실시간 상담", "앱에서 상담원 연결을 요청한 고객을 접수하고, AI 상담 요약을 보며 실시간 상담으로 전환합니다."],
   customers: ["고객 관리", "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다."],
@@ -75,6 +76,7 @@ export function App() {
 
   function renderView() {
     if (activeView === "advisor-dashboard") return <AdvisorDashboardPage />;
+    if (activeView === "dashboard-preview") return <DashboardPreviewPage />;
     if (activeView === "admin-dashboard") return <AdminDashboardPage />;
     if (activeView === "chat") return <ChatPage onNavigate={(view) => setActiveView(view as ViewKey)} onToast={showToast} />;
     if (activeView === "customers") {
@@ -100,11 +102,22 @@ export function App() {
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} onCustomerModeChange={setCustomerMode} onFinanceModeChange={setFinanceMode} onRoleTabChange={handleRoleTabChange} onViewChange={(view) => setActiveView(view as ViewKey)} />
       <main className="main">
-        <Topbar sidebarCollapsed={sidebarCollapsed} roleTab={roleTab} onNavigate={(view) => setActiveView(view as ViewKey)} onToggleSidebar={() => setSidebarCollapsed((current) => !current)} />
-        <header className="topbar">
-          <div className="title"><h1>{title}</h1><p>{desc}</p></div>
-          <div className="top-actions"><button className="btn" onClick={() => showToast("고객 상세의 상담 메모 영역으로 이동합니다.")} type="button">상담 메모</button><button className="btn primary" onClick={() => showToast("견적 송출 프로토타입: 고객 앱에 비교 견적이 전달된 것으로 표시합니다.")} type="button">앱으로 견적 송출</button></div>
-        </header>
+        <Topbar
+          sidebarCollapsed={sidebarCollapsed}
+          roleTab={roleTab}
+          onNavigate={(view) => setActiveView(view as ViewKey)}
+          onOpenCustomer={(customer) => {
+            setActiveView("customer-detail");
+            showToast(`${customer.name} 고객 상세로 이동합니다.`);
+          }}
+          onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+        />
+        {activeView !== "dashboard-preview" && (
+          <header className="topbar">
+            <div className="title"><h1>{title}</h1><p>{desc}</p></div>
+            <div className="top-actions"><button className="btn" onClick={() => showToast("고객 상세의 상담 메모 영역으로 이동합니다.")} type="button">상담 메모</button><button className="btn primary" onClick={() => showToast("견적 송출 프로토타입: 고객 앱에 비교 견적이 전달된 것으로 표시합니다.")} type="button">앱으로 견적 송출</button></div>
+          </header>
+        )}
         {renderView()}
       </main>
       <div className={`toast ${toastVisible ? "show" : ""}`}>{toast}</div>
