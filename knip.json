@@ -1,0 +1,25 @@
+{
+  "entry": [
+    "src/app.ts",
+    "src/local-dev.ts",
+    "functions/[[path]].ts",
+    "client/src/main.tsx",
+    "client/src/**/*.stories.tsx",
+    "tools/**/*.ts",
+    "*.config.ts",
+    "drizzle.config.ts"
+  ],
+  "project": ["**/*.{ts,tsx,js,mjs}"],
+  "ignore": ["build/**", "client/src/components/ui/**", "client/src/lib/utils.ts"],
+  "ignoreDependencies": [
+    "@base-ui/react",
+    "@hono/zod-validator",
+    "class-variance-authority",
+    "clsx",
+    "tailwind-merge",
+    "tailwindcss",
+    "tw-animate-css",
+    "zod",
+    "wrangler"
+  ]
+}

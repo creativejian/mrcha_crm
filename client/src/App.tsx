@@ -77,7 +77,12 @@ export function App() {
     if (activeView === "advisor-dashboard") return <AdvisorDashboardPage />;
     if (activeView === "admin-dashboard") return <AdminDashboardPage />;
     if (activeView === "chat") return <ChatPage onNavigate={(view) => setActiveView(view as ViewKey)} onToast={showToast} />;
-    if (activeView === "customers") return <CustomerManagementPage mode={customerMode} />;
+    if (activeView === "customers") {
+      return <CustomerManagementPage mode={customerMode} onOpenCustomer={(customer) => {
+        setActiveView("customer-detail");
+        showToast(`${customer.name} 고객 상세로 이동합니다.`);
+      }} />;
+    }
     if (activeView === "customer-detail") return <CustomerDetailPage onToast={showToast} />;
     if (activeView === "pipeline") return <PipelinePage />;
     if (activeView === "quotes") return <QuotesPage onToast={showToast} />;

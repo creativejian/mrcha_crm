@@ -1,9 +1,10 @@
 import { FileText, MessageSquare } from "lucide-react";
-import { useMemo, useState } from "react";
-import { type Customer, type CustomerMode, customerModeMeta, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { type KeyboardEvent, type MouseEvent, useMemo, useState } from "react";
+import { type Customer, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 
 type CustomerManagementPageProps = {
   mode: CustomerMode;
+  onOpenCustomer?: (customer: Customer) => void;
 };
 
 function modeFilter(mode: CustomerMode, customer: Customer) {
@@ -23,15 +24,37 @@ function badgeClass(value: string, group?: string) {
 }
 
 const headsByMode: Record<CustomerMode, string[]> = {
-  all: ["선택", "고객", "고객유형", "상태", "차량 / 구매", "다음 액션", "AI 요약", "담당", "상담번호", "관리"],
-  consulting: ["선택", "고객", "최근 상담", "상담 상태", "AI 요약", "다음 상담 액션", "담당", "관리"],
+  all: ["선택", "고객", "단계", "담당", "차량 / 방식", "유입 / 상담", "다음 액션", "AI 요약", "가능성", "관리"],
+  consulting: ["선택", "고객", "차량 / 방식", "상담 상태", "AI 요약", "다음 액션", "담당", "관리"],
   contract: ["선택", "고객", "고객유형", "차량 / 구매", "계약 / 심사", "계약 조건", "담당", "다음 액션", "관리"],
   delivery: ["선택", "고객", "차량", "출고 상태", "출고 업무", "담당", "관리"],
-  settlement: ["선택", "고객", "차량 / 구매", "출고일", "수수료", "비용", "마진", "정산 상태", "관리"],
-  hold: ["선택", "고객", "상태", "마지막 상담", "이탈 / 보류 요약", "재컨택 액션", "담당", "관리"],
+  settlement: ["선택", "고객", "차량 / 방식", "출고일", "수수료", "비용", "마진", "정산 상태", "관리"],
+  hold: ["선택", "고객", "차량 / 방식", "상태", "이탈 / 보류 요약", "재컨택 액션", "담당", "관리"],
 };
 
-export function CustomerManagementPage({ mode }: CustomerManagementPageProps) {
+const tableColumnsByMode: Record<CustomerMode, string[]> = {
+  all: ["select", "customer", "stage", "advisor", "vehicle", "source", "action", "summary", "chance", "actions"],
+  consulting: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
+  contract: ["select", "customer", "type", "vehicle", "stage", "summary", "advisor", "action", "actions"],
+  delivery: ["select", "customer", "vehicle", "stage", "summary", "advisor", "actions"],
+  settlement: ["select", "customer", "vehicle", "date", "money", "money", "money", "stage", "actions"],
+  hold: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
+};
+
+function chanceLabel(customer: Customer) {
+  if (customer.status === "계약완료" || customer.statusGroup === "출고") return "확정";
+  if (customer.status === "계약취소" || customer.statusGroup === "종료") return "낮음";
+  if (customer.priority === "긴급" || customer.priority === "높음") return "높음";
+  if (customer.priority === "보류") return "보류";
+  if (customer.priority === "낮음") return "낮음";
+  return "중간";
+}
+
+function chanceClass(customer: Customer) {
+  return `chance-pill ${chanceLabel(customer)}`;
+}
+
+export function CustomerManagementPage({ mode, onOpenCustomer }: CustomerManagementPageProps) {
   const [customers, setCustomers] = useState(initialCustomers);
   const [search, setSearch] = useState("");
   const [statusGroup, setStatusGroup] = useState("");
@@ -43,7 +66,7 @@ export function CustomerManagementPage({ mode }: CustomerManagementPageProps) {
   const rows = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return customers.filter((customer) => {
-      const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.aiSummary}`.toLowerCase();
+      const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${customer.aiSummary}`.toLowerCase();
       return modeFilter(mode, customer) &&
         (!keyword || searchable.includes(keyword)) &&
         (!statusGroup || customer.statusGroup === statusGroup) &&
@@ -63,9 +86,21 @@ export function CustomerManagementPage({ mode }: CustomerManagementPageProps) {
     setSelected([]);
   }
 
+  function openCustomer(customer: Customer) {
+    onOpenCustomer?.(customer);
+  }
+
+  function openCustomerByKeyboard(event: KeyboardEvent<HTMLTableRowElement>, customer: Customer) {
+    if (event.key === "Enter") openCustomer(customer);
+  }
+
+  function stopRowClick(event: MouseEvent<HTMLElement>) {
+    event.stopPropagation();
+  }
+
   function renderRow(customer: Customer) {
     const check = (
-      <td>
+      <td className="select-cell" onClick={stopRowClick}>
         <input
           checked={selected.includes(customer.no)}
           onChange={(event) => {
@@ -75,21 +110,40 @@ export function CustomerManagementPage({ mode }: CustomerManagementPageProps) {
         />
       </td>
     );
-    const customerCell = <td><strong>{customer.name}<span className="customer-code num">({customer.customerId})</span></strong><span className="table-note num">{customer.phone}</span></td>;
-    const actions = <td><span className="row-actions"><button className="tiny-btn" type="button"><MessageSquare size={15} /></button><button className="tiny-btn" type="button"><FileText size={15} /></button></span></td>;
+    const customerCell = (
+      <td>
+        <strong className="customer-name">{customer.name}<span className="customer-code num">({customer.customerId})</span></strong>
+        <span className="table-note">{customer.customerType} · {customer.customerTypeDetail}</span>
+        <span className="table-note num">{customer.phone}</span>
+      </td>
+    );
+    const actions = (
+      <td className="actions-cell" onClick={stopRowClick}>
+        <span className="row-actions">
+          <button className="tiny-btn" title="상담 열기" type="button"><MessageSquare size={15} /></button>
+          <button className="tiny-btn" title="상세 문서" type="button"><FileText size={15} /></button>
+        </span>
+      </td>
+    );
+    const rowProps = {
+      className: onOpenCustomer ? "customer-row" : undefined,
+      onClick: () => openCustomer(customer),
+      onKeyDown: (event: KeyboardEvent<HTMLTableRowElement>) => openCustomerByKeyboard(event, customer),
+      tabIndex: onOpenCustomer ? 0 : undefined,
+    };
 
     if (mode === "all") {
       return (
-        <tr key={customer.no}>
+        <tr key={customer.no} {...rowProps}>
           {check}
           {customerCell}
-          <td><strong>{customer.customerType}</strong><span className="table-note">{customer.customerTypeDetail}</span></td>
           <td><span className={badgeClass(customer.status, customer.statusGroup)}>{customer.status}</span><span className="table-note">{customer.statusGroup} · {customer.date}</span></td>
-          <td><strong>{customer.vehicle}</strong><span className="table-note">{customer.method}</span></td>
-          <td><span className={badgeClass(customer.priority)}>{customer.priority}</span><span className="table-note">{customer.nextAction}</span></td>
-          <td><div className="ai-summary-cell">{customer.aiSummary}</div></td>
           <td><strong>{customer.advisor}</strong><span className="table-note">{customer.team} · {customer.assignedAt}</span></td>
-          <td><strong className="num">#{customer.no}</strong><span className="table-note num">{customer.receivedAt}</span></td>
+          <td><strong>{customer.vehicle}</strong><span className="table-note">{customer.method}</span></td>
+          <td><strong>{customer.source}</strong><span className="table-note">상담 {customer.talkCount}</span><span className="table-note num">#{customer.no}</span></td>
+          <td><div className="next-action-cell">{customer.nextAction}</div></td>
+          <td><div className="ai-summary-cell">{customer.aiSummary}</div></td>
+          <td><span className={chanceClass(customer)}>{chanceLabel(customer)}</span></td>
           {actions}
         </tr>
       );
@@ -97,7 +151,7 @@ export function CustomerManagementPage({ mode }: CustomerManagementPageProps) {
 
     if (mode === "settlement") {
       return (
-        <tr key={customer.no}>
+        <tr key={customer.no} {...rowProps}>
           {check}
           {customerCell}
           <td><strong>{customer.vehicle}</strong><span className="table-note">{customer.method}</span></td>
@@ -112,7 +166,7 @@ export function CustomerManagementPage({ mode }: CustomerManagementPageProps) {
     }
 
     return (
-      <tr key={customer.no}>
+      <tr key={customer.no} {...rowProps}>
         {check}
         {customerCell}
         {mode === "contract" && <td><strong>{customer.customerType}</strong><span className="table-note">{customer.customerTypeDetail}</span></td>}
@@ -165,7 +219,10 @@ export function CustomerManagementPage({ mode }: CustomerManagementPageProps) {
           </div>
         </div>
         <div className="table-scroll">
-          <table>
+          <table className={`customer-table mode-${mode}`}>
+            <colgroup>
+              {tableColumnsByMode[mode].map((column, index) => <col className={`col-${column}`} key={`${column}-${index}`} />)}
+            </colgroup>
             <thead>
               <tr>
                 {headsByMode[mode].map((head, index) => (

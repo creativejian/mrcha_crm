@@ -1,13 +1,9 @@
 node_modules/
 client/dist/
 build/
+coverage/
 screenshots/
 test-results/
 playwright-report/
 .wrangler/
-.dev.vars
-.env
-.env.*
-!.env.example
-.DS_Store
-*.log
+bun.lock
