@@ -137,8 +137,10 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
   const workAiRef = useRef<HTMLDivElement>(null);
   const workAiCloseTimerRef = useRef<number | null>(null);
   const globalSearchRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsCloseTimerRef = useRef<number | null>(null);
+  const suppressNotificationOutsideClickRef = useRef(false);
   const accountMeta = roleAccountMeta[roleTab];
   const showAdminMetrics = roleTab === "최고관리자" || roleTab === "팀장";
   const isAdminRole = roleTab === "최고관리자";
@@ -196,7 +198,12 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
     closeSettingsMenu();
   }
 
+  function shouldIgnoreTopbarAction() {
+    return suppressNotificationOutsideClickRef.current;
+  }
+
   function openWorkAiMenu() {
+    if (shouldIgnoreTopbarAction()) return;
     if (workAiCloseTimerRef.current) {
       window.clearTimeout(workAiCloseTimerRef.current);
       workAiCloseTimerRef.current = null;
@@ -221,11 +228,13 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
   }
 
   function openWorkAi() {
+    if (shouldIgnoreTopbarAction()) return;
     if (workAiOpen) closeWorkAi();
     else openWorkAiMenu();
   }
 
   function openNotifications() {
+    if (shouldIgnoreTopbarAction()) return;
     setNotificationsOpen((current) => !current);
     setGlobalSearchOpen(false);
     closeSettingsMenu();
@@ -233,10 +242,16 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
   }
 
   function openGlobalSearch() {
+    if (shouldIgnoreTopbarAction()) return;
     setGlobalSearchOpen((current) => !current);
     closeSettingsMenu();
     closeWorkAi();
     setNotificationsOpen(false);
+  }
+
+  function navigateFromTopbar(view: string) {
+    if (shouldIgnoreTopbarAction()) return;
+    onNavigate(view);
   }
 
   const handleGlobalSearchCustomerOpen = useCallback((customer: Customer) => {
@@ -312,6 +327,42 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
     };
   }, [workAiOpen, workAiClosing]);
 
+  useEffect(() => {
+    if (!notificationsOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (notificationsRef.current?.contains(event.target as Node)) return;
+      suppressNotificationOutsideClickRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      setNotificationsOpen(false);
+    }
+
+    function suppressOutsideClick(event: globalThis.MouseEvent) {
+      if (!suppressNotificationOutsideClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.setTimeout(() => {
+        suppressNotificationOutsideClickRef.current = false;
+      }, 0);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setNotificationsOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("click", suppressOutsideClick, true);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("click", suppressOutsideClick, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [notificationsOpen]);
+
   const visibleNotifications = notifications.filter(([type]) => notificationTab === "전체" || type === notificationTab);
 
   return (
@@ -331,155 +382,215 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
             <GlobalSearchIcon />
           </button>
           {globalSearchOpen && (
-            <section className="global-search-panel" role="dialog" aria-label="고객 통합 검색">
-              <div className="global-search-input-wrap">
-                <GlobalSearchIcon compact />
-                <input autoFocus value={globalSearchQuery} onChange={(event) => setGlobalSearchQuery(event.target.value)} placeholder="고객명, 연락처, 차량, 고객번호 검색" />
-              </div>
-              <div className="global-search-results">
-                {!hasGlobalSearchQuery && recentSearchCustomers.length > 0 && (
-                  <div className="global-search-recent">
-                    <div className="global-search-section-head">
-                      <strong>최근 조회 고객</strong>
-                      <span>검색어를 입력하면 결과가 바로 전환됩니다.</span>
+            <>
+              <div
+                aria-hidden="true"
+                className="topbar-popover-shield"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setGlobalSearchOpen(false);
+                }}
+              />
+              <section className="global-search-panel" role="dialog" aria-label="고객 통합 검색">
+                <div className="global-search-input-wrap">
+                  <GlobalSearchIcon compact />
+                  <input autoFocus value={globalSearchQuery} onChange={(event) => setGlobalSearchQuery(event.target.value)} placeholder="고객명, 연락처, 차량, 고객번호 검색" />
+                </div>
+                <div className="global-search-results">
+                  {!hasGlobalSearchQuery && recentSearchCustomers.length > 0 && (
+                    <div className="global-search-recent">
+                      <div className="global-search-section-head">
+                        <strong>최근 조회 고객</strong>
+                        <span>검색어를 입력하면 결과가 바로 전환됩니다.</span>
+                      </div>
+                      {recentSearchCustomers.map((customer) => (
+                        <CustomerSearchResult customer={customer} key={customer.customerId} onOpen={handleGlobalSearchCustomerOpen} />
+                      ))}
                     </div>
-                    {recentSearchCustomers.map((customer) => (
-                      <CustomerSearchResult customer={customer} key={customer.customerId} onOpen={handleGlobalSearchCustomerOpen} />
-                    ))}
-                  </div>
-                )}
-                {hasGlobalSearchQuery && globalSearchResults.length > 0 && (
-                  <div className="global-search-query-results">
-                    <div className="global-search-section-head">
-                      <strong>조회 결과</strong>
-                      <span>{globalSearchResults.length}명</span>
+                  )}
+                  {hasGlobalSearchQuery && globalSearchResults.length > 0 && (
+                    <div className="global-search-query-results">
+                      <div className="global-search-section-head">
+                        <strong>조회 결과</strong>
+                        <span>{globalSearchResults.length}명</span>
+                      </div>
+                      {globalSearchResults.map((customer) => (
+                        <CustomerSearchResult customer={customer} key={customer.customerId} onOpen={handleGlobalSearchCustomerOpen} />
+                      ))}
                     </div>
-                    {globalSearchResults.map((customer) => (
-                      <CustomerSearchResult customer={customer} key={customer.customerId} onOpen={handleGlobalSearchCustomerOpen} />
-                    ))}
-                  </div>
-                )}
-                {hasGlobalSearchQuery && globalSearchResults.length === 0 && (
-                  <div className="global-search-empty">
-                    <strong>검색 결과 없음</strong>
-                    <span>고객명, 연락처, 차량명, 고객번호를 다시 확인해주세요.</span>
-                  </div>
-                )}
-              </div>
-            </section>
+                  )}
+                  {hasGlobalSearchQuery && globalSearchResults.length === 0 && (
+                    <div className="global-search-empty">
+                      <strong>검색 결과 없음</strong>
+                      <span>고객명, 연락처, 차량명, 고객번호를 다시 확인해주세요.</span>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
           )}
         </div>
         <div className="work-ai-wrap" ref={workAiRef}>
           <button className={`icon-btn work-ai-btn ${workAiOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openWorkAi} type="button" aria-label="업무 AI" aria-expanded={workAiOpen}><WorkAiIcon /><span className="ai-status-dot" /></button>
           {workAiOpen && (
-            <section className={`work-ai-panel ${workAiExpanded ? "expanded" : ""} ${workAiClosing ? "closing" : ""}`} role="dialog" aria-label="업무 AI">
-              <div className="work-ai-head">
-                <div className="work-ai-title"><strong>업무 AI</strong><small>CRM 데이터를 기준으로 우선순위를 정리합니다.</small></div>
-                <div className="work-ai-actions"><button className={workAiExpanded ? "active" : ""} onClick={() => setWorkAiExpanded((current) => !current)} type="button" aria-label={workAiExpanded ? "업무 AI 축소" : "업무 AI 확대"} aria-pressed={workAiExpanded}><Maximize2 size={15} /></button><button onClick={closeWorkAi} type="button" aria-label="닫기"><X size={16} /></button></div>
-              </div>
-              <div className="work-ai-body">
-                <div className="work-ai-message assistant">
-                  <strong>오늘 브리핑</strong>
-                  <p>응답 대기 3건, 견적 요청 5건, 출고 예정 2건이 있습니다. 먼저 15분 이상 응답이 지연된 고객과 계약 가능성이 높은 견적 요청 고객을 확인하는 흐름이 좋습니다.</p>
+            <>
+              <div
+                aria-hidden="true"
+                className="topbar-popover-shield"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closeWorkAi();
+                }}
+              />
+              <section className={`work-ai-panel ${workAiExpanded ? "expanded" : ""} ${workAiClosing ? "closing" : ""}`} role="dialog" aria-label="업무 AI">
+                <div className="work-ai-head">
+                  <div className="work-ai-title"><strong>업무 AI</strong><small>CRM 데이터를 기준으로 우선순위를 정리합니다.</small></div>
+                  <div className="work-ai-actions"><button className={workAiExpanded ? "active" : ""} onClick={() => setWorkAiExpanded((current) => !current)} type="button" aria-label={workAiExpanded ? "업무 AI 축소" : "업무 AI 확대"} aria-pressed={workAiExpanded}><Maximize2 size={15} /></button><button onClick={closeWorkAi} type="button" aria-label="닫기"><X size={16} /></button></div>
                 </div>
-                <div className="work-ai-quick">
-                  <span>빠른 질문</span>
-                  <div>
-                    {quickAiPrompts.map((prompt) => (
-                      <button className={selectedPrompt === prompt ? "active" : ""} key={prompt} onClick={() => { setSelectedPrompt(prompt); setAiInput(prompt); }} type="button">{prompt}</button>
-                    ))}
+                <div className="work-ai-body">
+                  <div className="work-ai-message assistant">
+                    <strong>오늘 브리핑</strong>
+                    <p>응답 대기 3건, 견적 요청 5건, 출고 예정 2건이 있습니다. 먼저 15분 이상 응답이 지연된 고객과 계약 가능성이 높은 견적 요청 고객을 확인하는 흐름이 좋습니다.</p>
+                  </div>
+                  <div className="work-ai-quick">
+                    <span>빠른 질문</span>
+                    <div>
+                      {quickAiPrompts.map((prompt) => (
+                        <button className={selectedPrompt === prompt ? "active" : ""} key={prompt} onClick={() => { setSelectedPrompt(prompt); setAiInput(prompt); }} type="button">{prompt}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="work-ai-message user"><p>{selectedPrompt}</p></div>
+                  <div className="work-ai-message assistant">
+                    <strong>예상 답변</strong>
+                    <p>현재 기준으로는 김민준, 박서연, 이도윤 순서가 우선입니다. 김민준 고객은 X3/GLC 비교 견적 이후 계약 가능성이 높고, 박서연 고객은 보증금 조건별 견적 정리가 필요합니다.</p>
                   </div>
                 </div>
-                <div className="work-ai-message user"><p>{selectedPrompt}</p></div>
-                <div className="work-ai-message assistant">
-                  <strong>예상 답변</strong>
-                  <p>현재 기준으로는 김민준, 박서연, 이도윤 순서가 우선입니다. 김민준 고객은 X3/GLC 비교 견적 이후 계약 가능성이 높고, 박서연 고객은 보증금 조건별 견적 정리가 필요합니다.</p>
+                <div className="work-ai-compose">
+                  <input value={aiInput} onChange={(event) => setAiInput(event.target.value)} placeholder="업무 AI에게 물어보기" />
+                  <button type="button" aria-label="보내기"><Send size={16} /></button>
                 </div>
-              </div>
-              <div className="work-ai-compose">
-                <input value={aiInput} onChange={(event) => setAiInput(event.target.value)} placeholder="업무 AI에게 물어보기" />
-                <button type="button" aria-label="보내기"><Send size={16} /></button>
-              </div>
-            </section>
+              </section>
+            </>
           )}
         </div>
         <button className={`icon-btn calculator-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} type="button" aria-label="계산기"><CalculatorIcon /></button>
-        <button className={`icon-btn chat-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => onNavigate("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon /><span className="chat-queue-count num">4</span></button>
-        <button className={`icon-btn quote-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => onNavigate("quotes")} type="button" aria-label="견적 요청 큐"><QuoteQueueIcon /><span className="quote-queue-count num">5</span></button>
-        <div className="notifications-wrap">
+        <button className={`icon-btn chat-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon /><span className="chat-queue-count num">4</span></button>
+        <button className={`icon-btn quote-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("quotes")} type="button" aria-label="견적 요청 큐"><QuoteQueueIcon /><span className="quote-queue-count num">5</span></button>
+        <div className="notifications-wrap" ref={notificationsRef}>
           <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon /><span className="notification-count num">5</span></button>
           {notificationsOpen && (
-            <section className="notifications-panel" role="dialog" aria-label="알림">
-              <div className="notifications-head">
-                <div><strong>알림</strong><small>놓치면 안 되는 업무 이벤트입니다.</small></div>
-                <button className="notifications-read-all" type="button">전체 읽음</button>
-              </div>
-              <div className="notification-tabs">
-                {notificationTabs.map((tab) => <button className={notificationTab === tab ? "active" : ""} key={tab} onClick={() => setNotificationTab(tab)} type="button">{tab}</button>)}
-              </div>
-              <div className="notification-list">
-                {visibleNotifications.map(([type, title, desc, time]) => (
-                  <button className={`notification-item ${type === "긴급" ? "urgent" : ""}`} key={title} onClick={() => { if (type === "견적") onNavigate("quotes"); else if (type === "정산") onNavigate("finance"); else if (type === "계약/출고") onNavigate("delivery"); else onNavigate("customers"); setNotificationsOpen(false); }} type="button">
-                    <span className={`notification-badge ${type === "긴급" ? "urgent" : ""}`}>{type}</span>
-                    <strong>{title}</strong>
-                    <small>{desc}</small>
-                    <em>{time}</em>
-                  </button>
-                ))}
-              </div>
-            </section>
+            <>
+              <div
+                aria-hidden="true"
+                className="topbar-popover-shield"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setNotificationsOpen(false);
+                }}
+              />
+              <section className="notifications-panel" role="dialog" aria-label="알림">
+                <div className="notifications-head">
+                  <div><strong>알림</strong><small>놓치면 안 되는 업무 이벤트입니다.</small></div>
+                  <button className="notifications-read-all" type="button">전체 읽음</button>
+                </div>
+                <div className="notification-tabs">
+                  {notificationTabs.map((tab) => <button className={notificationTab === tab ? "active" : ""} key={tab} onClick={() => setNotificationTab(tab)} type="button">{tab}</button>)}
+                </div>
+                <div className="notification-list">
+                  {visibleNotifications.map(([type, title, desc, time]) => (
+                    <button className={`notification-item ${type === "긴급" ? "urgent" : ""}`} key={title} onClick={() => { if (type === "견적") onNavigate("quotes"); else if (type === "정산") onNavigate("finance"); else if (type === "계약/출고") onNavigate("delivery"); else onNavigate("customers"); setNotificationsOpen(false); }} type="button">
+                      <span className={`notification-badge ${type === "긴급" ? "urgent" : ""}`}>{type}</span>
+                      <strong>{title}</strong>
+                      <small>{desc}</small>
+                      <em>{time}</em>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </>
           )}
         </div>
         <div className="settings-wrap account-menu-wrap" ref={settingsMenuRef}>
-          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={`${accountMeta.name}, ${accountMeta.title}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{usesDefaultAvatar ? <AccountDefaultIcon /> : <img src={cjLogo} alt="" />}</span><span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" /></button>
+          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={`${accountMeta.name}, ${accountMeta.title}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{usesDefaultAvatar ? <AccountDefaultIcon /> : <img src={cjLogo} alt="" />}</span><span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" /></button>
           {settingsOpen && (
-            <div className={`settings-menu ${settingsClosing ? "closing" : ""}`} role="dialog" aria-label="계정 설정">
-              <div className="account-menu-head">
-                <div className="account-menu-title">
-                  <strong>{accountMeta.name}</strong>
-                  <span>{roleTab}</span>
-                </div>
-                <div className="account-menu-meta" aria-label="계정 권한 정보">
-                  <span>{accountOrgLabel}</span>
-                  <span>{accountScopeLabel}</span>
-                </div>
-              </div>
-              <div className="settings-menu-line account-line" />
-              <div className={`live-setting-panel ${canManageLiveConsulting ? "" : "disabled"}`}>
-                <div className="live-setting-label"><span className={`setting-icon-live ${displayLiveConsulting ? "on" : "off"}`}><SettingSolidIcon name="chat" /></span><div><strong>실시간 상담</strong><small>{canManageLiveConsulting ? (liveConsulting ? "상담 수신 중" : "상담 수신 중지") : "상담 수신 비활성화"}</small></div></div>
-                <div className="live-toggle" role="tablist" aria-label="실시간 상담 상태">
-                  <button className={displayLiveConsulting ? "active on" : ""} disabled={!canManageLiveConsulting} onClick={() => { if (canManageLiveConsulting && !liveConsulting) setConfirmMode("on"); }} type="button">On</button>
-                  <button className={!displayLiveConsulting ? "active off" : ""} disabled={!canManageLiveConsulting} onClick={() => { if (canManageLiveConsulting && liveConsulting) setConfirmMode("off"); }} type="button">Off</button>
-                </div>
-              </div>
-              {(showAttendanceMenu || isAdminRole) && (
-                <>
-                  <div className={`settings-menu-line live-line ${isAdminRole ? "" : "compact"}`} />
-                  <div className="settings-menu-section">
-                    {isAdminRole && <div className="settings-menu-label">운영 설정</div>}
-                    {showAttendanceMenu && <button className="settings-menu-row" type="button"><span><SettingSolidIcon name="attendance" />근태관리</span></button>}
-                    {isAdminRole && <button className="settings-menu-row" onClick={() => navigateFromSettings("org-members")} type="button"><span><SettingSolidIcon name="org" />조직 / 구성원</span></button>}
-                    {isAdminRole && <button className="settings-menu-row" onClick={() => navigateFromSettings("partners")} type="button"><span><SettingSolidIcon name="partners" />딜러 / 거래처</span></button>}
+            <>
+              <div
+                aria-hidden="true"
+                className="topbar-popover-shield"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (!confirmMode) closeSettingsMenu();
+                }}
+              />
+              <div className={`settings-menu ${settingsClosing ? "closing" : ""}`} role="dialog" aria-label="계정 설정">
+                <div className="account-menu-head">
+                  <div className="account-menu-title">
+                    <strong>{accountMeta.name}</strong>
+                    <span>{roleTab}</span>
                   </div>
-                </>
-              )}
-              {isAdminRole && (
-                <>
-                  <div className="settings-menu-line section-line" />
-                  <div className="settings-menu-section">
-                    <div className="settings-menu-label">차선생 앱 설정</div>
-                    <button className="settings-menu-row" onClick={() => navigateFromSettings("mc-master")} type="button"><span><SettingSolidIcon name="mc-master" />MC 마스터</span></button>
-                    <button className="settings-menu-row" onClick={() => navigateFromSettings("knowledge-base")} type="button"><span><SettingSolidIcon name="knowledge" />지식 베이스</span></button>
-                    <button className="settings-menu-row" onClick={() => navigateFromSettings("insights")} type="button"><span><SettingSolidIcon name="insights" />인사이트</span></button>
-                    <button className="settings-menu-row" onClick={() => navigateFromSettings("ai-settings")} type="button"><span><SettingSolidIcon name="ai" />AI 커스텀</span></button>
+                  <div className="account-menu-meta" aria-label="계정 권한 정보">
+                    <span>{accountOrgLabel}</span>
+                    <span>{accountScopeLabel}</span>
                   </div>
-                </>
-              )}
-              <div className={`settings-menu-line logout-line ${dealerMode ? "after-live" : ""}`}><span>Prototype by Jian</span></div>
-              <div className="settings-menu-section logout-section">
-                <button className="settings-menu-row danger" type="button"><span><SettingSolidIcon name="logout" />로그아웃</span></button>
+                </div>
+                <div className="settings-menu-line account-line" />
+                <div className={`live-setting-panel ${canManageLiveConsulting ? "" : "disabled"}`}>
+                  <div className="live-setting-label"><span className={`setting-icon-live ${displayLiveConsulting ? "on" : "off"}`}><SettingSolidIcon name="chat" /></span><div><strong>실시간 상담</strong><small>{canManageLiveConsulting ? (liveConsulting ? "상담 수신 중" : "상담 수신 중지") : "상담 수신 비활성화"}</small></div></div>
+                  <div className="live-toggle" role="tablist" aria-label="실시간 상담 상태">
+                    <button className={displayLiveConsulting ? "active on" : ""} disabled={!canManageLiveConsulting} onClick={() => { if (canManageLiveConsulting && !liveConsulting) setConfirmMode("on"); }} type="button">On</button>
+                    <button className={!displayLiveConsulting ? "active off" : ""} disabled={!canManageLiveConsulting} onClick={() => { if (canManageLiveConsulting && liveConsulting) setConfirmMode("off"); }} type="button">Off</button>
+                  </div>
+                </div>
+                {(showAttendanceMenu || isAdminRole) && (
+                  <>
+                    <div className={`settings-menu-line live-line ${isAdminRole ? "" : "compact"}`} />
+                    <div className="settings-menu-section">
+                      {isAdminRole && <div className="settings-menu-label">운영 설정</div>}
+                      {showAttendanceMenu && <button className="settings-menu-row" type="button"><span><SettingSolidIcon name="attendance" />근태관리</span></button>}
+                      {isAdminRole && <button className="settings-menu-row" onClick={() => navigateFromSettings("org-members")} type="button"><span><SettingSolidIcon name="org" />조직 / 구성원</span></button>}
+                      {isAdminRole && <button className="settings-menu-row" onClick={() => navigateFromSettings("partners")} type="button"><span><SettingSolidIcon name="partners" />딜러 / 거래처</span></button>}
+                    </div>
+                  </>
+                )}
+                {isAdminRole && (
+                  <>
+                    <div className="settings-menu-line section-line" />
+                    <div className="settings-menu-section">
+                      <div className="settings-menu-label">차선생 앱 설정</div>
+                      <button className="settings-menu-row" onClick={() => navigateFromSettings("mc-master")} type="button"><span><SettingSolidIcon name="mc-master" />MC 마스터</span></button>
+                      <button className="settings-menu-row" onClick={() => navigateFromSettings("knowledge-base")} type="button"><span><SettingSolidIcon name="knowledge" />지식 베이스</span></button>
+                      <button className="settings-menu-row" onClick={() => navigateFromSettings("insights")} type="button"><span><SettingSolidIcon name="insights" />인사이트</span></button>
+                      <button className="settings-menu-row" onClick={() => navigateFromSettings("ai-settings")} type="button"><span><SettingSolidIcon name="ai" />AI 커스텀</span></button>
+                    </div>
+                  </>
+                )}
+                <div className={`settings-menu-line logout-line ${dealerMode ? "after-live" : ""}`}><span>Prototype by Jian</span></div>
+                <div className="settings-menu-section logout-section">
+                  <button className="settings-menu-row danger" type="button"><span><SettingSolidIcon name="logout" />로그아웃</span></button>
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>

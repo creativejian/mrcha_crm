@@ -80,7 +80,7 @@ export function App() {
     if (activeView === "admin-dashboard") return <AdminDashboardPage />;
     if (activeView === "chat") return <ChatPage onNavigate={(view) => setActiveView(view as ViewKey)} onToast={showToast} />;
     if (activeView === "customers") {
-      return <CustomerManagementPage mode={customerMode} onOpenCustomer={(customer) => {
+      return <CustomerManagementPage mode={customerMode} roleTab={roleTab} onOpenCustomer={(customer) => {
         setActiveView("customer-detail");
         showToast(`${customer.name} 고객 상세로 이동합니다.`);
       }} />;
