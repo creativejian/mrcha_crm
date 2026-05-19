@@ -1,5 +1,5 @@
-import { Check, FileText, MessageSquare } from "lucide-react";
-import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
+import { type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { type Customer, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import type { RoleTab } from "@/data/roles";
 
@@ -10,18 +10,18 @@ type CustomerManagementPageProps = {
 };
 
 function modeFilter(mode: CustomerMode, customer: Customer) {
-  if (mode === "consulting") return ["신규", "상담", "견적", "재응대"].includes(customer.statusGroup);
-  if (mode === "contract") return customer.statusGroup === "심사/계약";
-  if (mode === "delivery") return customer.statusGroup === "출고";
+  if (mode === "consulting") return ["신규", "상담중", "견적", "차량체크", "심사서류", "관리중"].includes(customer.statusGroup);
+  if (mode === "contract") return ["심사서류", "계약완료"].includes(customer.statusGroup);
+  if (mode === "delivery") return customer.statusGroup === "계약완료";
   if (mode === "settlement") return customer.status === "출고완료" && customer.settlementStatus;
-  if (mode === "hold") return customer.statusGroup === "종료" || customer.statusGroup === "재응대" || customer.status === "계약취소";
+  if (mode === "hold") return ["관리중", "상담완료", "불발"].includes(customer.statusGroup);
   return true;
 }
 
 function badgeClass(value: string, group?: string) {
-  if (value === "완료" || value === "계약완료" || group === "출고") return "badge green";
-  if (value === "긴급" || value === "계약취소" || value === "심사서류안내") return "badge red";
-  if (value === "높음" || value === "보류" || group === "견적" || group === "재응대") return "badge yellow";
+  if (value === "완료" || group === "계약완료" || value === "출고완료" || value === "배정완료") return "badge green";
+  if (value === "긴급" || group === "불발" || value === "계약취소" || value === "지속적부재" || value === "재고없음") return "badge red";
+  if (value === "높음" || value === "보류" || group === "견적" || group === "차량체크" || group === "관리중") return "badge yellow";
   return "badge";
 }
 
@@ -30,16 +30,16 @@ function statusButtonClass(value: string, group?: string) {
 }
 
 const headsByMode: Record<CustomerMode, string[]> = {
-  all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "다음 액션", "AI 요약", "유입 · 상담", "담당", "계약 가능성", "관리"],
-  consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "다음 액션", "담당", "관리"],
-  contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "담당", "다음 액션", "관리"],
+  all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "유입 · 상담", "담당", "관리"],
+  consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "상담 메모", "담당", "관리"],
+  contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "담당", "상담 메모", "관리"],
   delivery: ["선택", "고객", "차량", "출고 상태", "출고 업무", "담당", "관리"],
   settlement: ["선택", "고객", "차종 · 구매방식", "출고일", "수수료", "비용", "마진", "정산 상태", "관리"],
   hold: ["선택", "고객", "차종 · 구매방식", "상태", "이탈 / 보류 요약", "재컨택 액션", "담당", "관리"],
 };
 
 const tableColumnsByMode: Record<CustomerMode, string[]> = {
-  all: ["select", "customer", "vehicle", "stage", "action", "summary", "source", "advisor", "chance", "actions"],
+  all: ["select", "customer", "vehicle", "stage", "chance", "action", "source", "advisor", "actions"],
   consulting: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
   contract: ["select", "customer", "type", "vehicle", "stage", "summary", "advisor", "action", "actions"],
   delivery: ["select", "customer", "vehicle", "stage", "summary", "advisor", "actions"],
@@ -50,6 +50,10 @@ const tableColumnsByMode: Record<CustomerMode, string[]> = {
 const pageSizeOptions = [15, 30, 50, 100] as const;
 const chanceOptions = ["높음", "중간", "낮음", "보류", "확정"] as const;
 type ChanceOption = typeof chanceOptions[number];
+type StagePickerLevel = "primary" | "secondary";
+
+const primaryStageOptions = Object.keys(customerStatusGroups);
+const secondaryStageOptionsByGroup = customerStatusGroups;
 
 const statusGroupByStatus = Object.fromEntries(
   Object.entries(customerStatusGroups).flatMap(([group, values]) => values.map((value) => [value, group])),
@@ -88,6 +92,29 @@ const extraPurchaseMethodDisplayByCustomerId: Record<string, string[]> = {
   "CU-2605-0010": ["운용리스", "할부"],
 };
 
+const aiHintDisplayByCustomerId: Record<string, { parts: { text: string; strong?: boolean }[] }> = {
+  "CU-2605-0020": { parts: [{ text: "X3 · GLC", strong: true }, { text: "를 비교 중이며 " }, { text: "중도해지, 월 납입액, 총비용", strong: true }, { text: " 차이에 민감" }] },
+  "CU-2605-0019": { parts: [{ text: "초기비용 0원", strong: true }, { text: " 선호가 강하고 " }, { text: "보험 포함, 만기 인수", strong: true }, { text: "를 함께 확인 중" }] },
+  "CU-2605-0018": { parts: [{ text: "사업자 증빙", strong: true }, { text: "이 약해 " }, { text: "승인 금융사", strong: true }, { text: "를 먼저 좁혀야 함" }] },
+  "CU-2605-0017": { parts: [{ text: "계약 완료", strong: true }, { text: " 후 " }, { text: "시공 일정, 첫 출고 경험", strong: true }, { text: " 관리가 중요" }] },
+  "CU-2605-0016": { parts: [{ text: "법인 인수자, 보험 담보", strong: true }, { text: "를 출고 전 다시 확인해야 함" }] },
+  "CU-2605-0015": { parts: [{ text: "패밀리카", strong: true }, { text: " 목적이 뚜렷하고 " }, { text: "월 70만원 이하", strong: true }, { text: " 조건을 희망" }] },
+  "CU-2605-0014": { parts: [{ text: "첫 차 구매", strong: true }, { text: "라 " }, { text: "월 납입, 만기 인수", strong: true }, { text: " 이해가 결정에 중요" }] },
+  "CU-2605-0013": { parts: [{ text: "희망 조건", strong: true }, { text: "과 " }, { text: "금융 조건 차이", strong: true }, { text: "가 커 단기 가능성은 낮음" }] },
+  "CU-2605-0012": { parts: [{ text: "패밀리 SUV", strong: true }, { text: " 탐색 중이며 " }, { text: "렌트 · 리스", strong: true }, { text: " 차이 이해가 먼저 필요" }] },
+  "CU-2605-0011": { parts: [{ text: "수입 세단", strong: true }, { text: " 선호가 강하지만 " }, { text: "초기비용", strong: true }, { text: " 상한 재확인이 필요" }] },
+  "CU-2605-0010": { parts: [{ text: "빠른 출고", strong: true }, { text: " 선호가 강해 " }, { text: "재고 색상", strong: true }, { text: " 확인이 우선" }] },
+  "CU-2605-0009": { parts: [{ text: "계약 확정", strong: true }, { text: " 건으로 " }, { text: "출고 안내, 법인 서류", strong: true }, { text: "만 남음" }] },
+  "CU-2605-0008": { parts: [{ text: "가족 반대", strong: true }, { text: "로 취소되어 " }, { text: "재컨택 명분", strong: true }, { text: " 정리가 필요" }] },
+  "CU-2605-0007": { parts: [{ text: "출고 완료", strong: true }, { text: " 후 " }, { text: "정산 입금, 후기 요청", strong: true }, { text: " 타이밍 관리 필요" }] },
+  "CU-2605-0006": { parts: [{ text: "사업자 리스", strong: true }, { text: " 출고 완료, " }, { text: "정산 확인", strong: true }, { text: "만 남음" }] },
+  "CU-2605-0005": { parts: [{ text: "법인 렌트", strong: true }, { text: " 출고 후 " }, { text: "정산 자료, 증빙 파일", strong: true }, { text: " 확인 필요" }] },
+  "CU-2605-0004": { parts: [{ text: "다자녀 패밀리카", strong: true }, { text: " 문의 후 미응답, " }, { text: "마지막 재컨택", strong: true }, { text: " 전까지 보류" }] },
+  "CU-2605-0003": { parts: [{ text: "수입 세단", strong: true }, { text: " 선호는 명확하나 " }, { text: "배우자 결정", strong: true }, { text: " 영향이 큼" }] },
+  "CU-2605-0002": { parts: [{ text: "구매 의사", strong: true }, { text: "는 있으나 " }, { text: "시점, 예산", strong: true }, { text: "이 미정이라 우선순위 낮음" }] },
+  "CU-2605-0001": { parts: [{ text: "안전성, 브랜드 이미지", strong: true }, { text: "를 중시하며 " }, { text: "6월 조건", strong: true }, { text: " 대기 중" }] },
+};
+
 function vehicleDisplay(customer: Customer) {
   const display = vehicleDisplayByVehicle[customer.vehicle] ?? { title: customer.vehicle, trim: "트림 미확인" };
   const extraVehicles = extraVehicleDisplayByCustomerId[customer.customerId] ?? [];
@@ -109,9 +136,13 @@ function extraTooltipValue(values: string[]) {
   return values.join(", ");
 }
 
+function aiHintDisplay(customer: Customer) {
+  return aiHintDisplayByCustomerId[customer.customerId] ?? { parts: [{ text: customer.aiSummary }] };
+}
+
 function chanceLabel(customer: Customer): ChanceOption {
-  if (customer.status === "계약완료" || customer.statusGroup === "출고") return "확정";
-  if (customer.status === "계약취소" || customer.statusGroup === "종료") return "낮음";
+  if (customer.statusGroup === "계약완료" || customer.status === "출고완료") return "확정";
+  if (customer.statusGroup === "불발" || customer.status === "계약취소") return "낮음";
   if (customer.priority === "긴급" || customer.priority === "높음") return "높음";
   if (customer.priority === "보류") return "보류";
   if (customer.priority === "낮음") return "낮음";
@@ -128,6 +159,18 @@ function chanceButtonClass(value: ChanceOption) {
   };
 
   return ["chance-status-button", toneByChance[value]].filter(Boolean).join(" ");
+}
+
+function chanceOptionClass(value: ChanceOption, active: boolean) {
+  const toneByChance: Record<ChanceOption, string> = {
+    높음: "purple",
+    중간: "neutral",
+    낮음: "red",
+    보류: "yellow",
+    확정: "green",
+  };
+
+  return ["chance-status-option", toneByChance[value], active ? "active" : ""].filter(Boolean).join(" ");
 }
 
 function stageSignal(customer: Customer) {
@@ -163,6 +206,17 @@ function visibleTableItems(items: string[], showAdvisorColumn: boolean) {
   return showAdvisorColumn ? items : items.filter((item) => item !== "담당" && item !== "advisor");
 }
 
+function AiHintIcon() {
+  return (
+    <svg aria-hidden="true" className="ai-hint-icon" viewBox="0 0 512 512">
+      <path
+        d="m320 192l-85.333-32L320 127.968l32-85.301l32.03 85.301L469.333 160l-85.303 32L352 277.333zM149.333 362.667L42.667 320l106.666-42.667L192 170.667l42.667 106.666L341.333 320l-106.666 42.667L192 469.333z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고관리자" }: CustomerManagementPageProps) {
   const [customers, setCustomers] = useState(initialCustomers);
   const [search, setSearch] = useState("");
@@ -173,10 +227,19 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(15);
   const [currentPage, setCurrentPage] = useState(1);
   const [openStageFor, setOpenStageFor] = useState<number | null>(null);
+  const [openStagePicker, setOpenStagePicker] = useState<{ customerNo: number; level: StagePickerLevel } | null>(null);
   const [openChanceFor, setOpenChanceFor] = useState<number | null>(null);
+  const [openExtraFor, setOpenExtraFor] = useState<string | null>(null);
   const [chanceOverrides, setChanceOverrides] = useState<Record<number, ChanceOption>>({});
+  const [editingNextAction, setEditingNextAction] = useState<{ customerNo: number; draft: string } | null>(null);
+  const [chanceNoticeFor, setChanceNoticeFor] = useState<number | null>(null);
+  const nextActionTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const nextActionEditorRef = useRef<HTMLDivElement>(null);
   const stagePopoverRef = useRef<HTMLDivElement>(null);
+  const stagePickerRef = useRef<HTMLDivElement>(null);
   const chancePopoverRef = useRef<HTMLDivElement>(null);
+  const extraPopoverRef = useRef<HTMLButtonElement>(null);
+  const chanceNoticeTimerRef = useRef<number | null>(null);
   const suppressOutsideClickRef = useRef(false);
   const showAdvisorColumn = shouldShowAdvisorColumn(roleTab);
   const tableHeads = visibleTableItems(headsByMode[mode], showAdvisorColumn);
@@ -196,30 +259,28 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   }, [advisor, customers, mode, search, status, statusGroup]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const pageStart = (currentPage - 1) * pageSize;
+  const effectivePage = Math.min(currentPage, totalPages);
+  const pageStart = (effectivePage - 1) * pageSize;
   const paginatedRows = rows.slice(pageStart, pageStart + pageSize);
   const pageEnd = rows.length === 0 ? 0 : pageStart + paginatedRows.length;
   const allSelected = paginatedRows.length > 0 && paginatedRows.every((customer) => selected.includes(customer.no));
   const visiblePages = useMemo(() => {
     const maxVisiblePages = 5;
-    const start = Math.max(1, Math.min(currentPage - 2, totalPages - maxVisiblePages + 1));
+    const start = Math.max(1, Math.min(effectivePage - 2, totalPages - maxVisiblePages + 1));
     const end = Math.min(totalPages, start + maxVisiblePages - 1);
     return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-  }, [currentPage, totalPages]);
+  }, [effectivePage, totalPages]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [advisor, mode, pageSize, search, status, statusGroup]);
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
+  function isTableControlTarget(target: EventTarget | null) {
+    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill"));
+  }
 
   useEffect(() => {
     if (openStageFor === null) return;
 
     function closeStagePopover(event: PointerEvent) {
       if (stagePopoverRef.current?.contains(event.target as Node)) return;
+      if (isTableControlTarget(event.target)) return;
       suppressOutsideClickRef.current = true;
       event.preventDefault();
       event.stopPropagation();
@@ -252,10 +313,48 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   }, [openStageFor]);
 
   useEffect(() => {
+    if (openStagePicker === null) return;
+
+    function closeStagePicker(event: PointerEvent) {
+      if (stagePickerRef.current?.contains(event.target as Node)) return;
+      if (isTableControlTarget(event.target)) return;
+      suppressOutsideClickRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      setOpenStagePicker(null);
+    }
+
+    function suppressOutsideClick(event: globalThis.MouseEvent) {
+      if (!suppressOutsideClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.setTimeout(() => {
+        suppressOutsideClickRef.current = false;
+      }, 0);
+    }
+
+    function closeStagePickerByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setOpenStagePicker(null);
+    }
+
+    document.addEventListener("pointerdown", closeStagePicker, true);
+    document.addEventListener("click", suppressOutsideClick, true);
+    document.addEventListener("keydown", closeStagePickerByKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeStagePicker, true);
+      document.removeEventListener("click", suppressOutsideClick, true);
+      document.removeEventListener("keydown", closeStagePickerByKeyboard);
+    };
+  }, [openStagePicker]);
+
+  useEffect(() => {
     if (openChanceFor === null) return;
 
     function closeChancePopover(event: PointerEvent) {
       if (chancePopoverRef.current?.contains(event.target as Node)) return;
+      if (isTableControlTarget(event.target)) return;
       suppressOutsideClickRef.current = true;
       event.preventDefault();
       event.stopPropagation();
@@ -287,6 +386,91 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     };
   }, [openChanceFor]);
 
+  useEffect(() => {
+    if (openExtraFor === null) return;
+
+    function closeExtraPopover(event: PointerEvent) {
+      if (extraPopoverRef.current?.contains(event.target as Node)) return;
+      if (isTableControlTarget(event.target)) return;
+      suppressOutsideClickRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      setOpenExtraFor(null);
+    }
+
+    function suppressOutsideClick(event: globalThis.MouseEvent) {
+      if (!suppressOutsideClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.setTimeout(() => {
+        suppressOutsideClickRef.current = false;
+      }, 0);
+    }
+
+    function closeExtraPopoverByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setOpenExtraFor(null);
+    }
+
+    document.addEventListener("pointerdown", closeExtraPopover, true);
+    document.addEventListener("click", suppressOutsideClick, true);
+    document.addEventListener("keydown", closeExtraPopoverByKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeExtraPopover, true);
+      document.removeEventListener("click", suppressOutsideClick, true);
+      document.removeEventListener("keydown", closeExtraPopoverByKeyboard);
+    };
+  }, [openExtraFor]);
+
+  useEffect(() => {
+    const textarea = nextActionTextareaRef.current;
+    if (!editingNextAction || !textarea) return;
+    const cursorPosition = textarea.value.length;
+    textarea.focus();
+    textarea.setSelectionRange(cursorPosition, cursorPosition);
+  }, [editingNextAction?.customerNo]);
+
+  useEffect(() => {
+    if (!editingNextAction) return;
+    const editingCustomerNo = editingNextAction.customerNo;
+
+    function saveNextActionFromOutsideClick(event: PointerEvent) {
+      if (nextActionEditorRef.current?.contains(event.target as Node)) return;
+      saveNextAction(editingCustomerNo);
+    }
+
+    document.addEventListener("pointerdown", saveNextActionFromOutsideClick, true);
+    return () => {
+      document.removeEventListener("pointerdown", saveNextActionFromOutsideClick, true);
+    };
+  }, [editingNextAction]);
+
+  useEffect(() => {
+    return () => {
+      if (chanceNoticeTimerRef.current !== null) window.clearTimeout(chanceNoticeTimerRef.current);
+    };
+  }, []);
+
+  function showChanceNotice(customerNo: number) {
+    if (chanceNoticeTimerRef.current !== null) window.clearTimeout(chanceNoticeTimerRef.current);
+    setChanceNoticeFor(customerNo);
+    chanceNoticeTimerRef.current = window.setTimeout(() => {
+      setChanceNoticeFor(null);
+      chanceNoticeTimerRef.current = null;
+    }, 2200);
+  }
+
+  function syncChanceWithStageGroup(customerNo: number, nextGroup: string) {
+    setChanceOverrides((current) => {
+      if (nextGroup === "계약완료") return { ...current, [customerNo]: "확정" };
+      if (current[customerNo] !== "확정") return current;
+      const next = { ...current };
+      delete next[customerNo];
+      return next;
+    });
+  }
+
   function toggleAll(checked: boolean) {
     const pageIds = paginatedRows.map((customer) => customer.no);
     setSelected((current) => checked
@@ -304,12 +488,93 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     setCustomers((current) => current.map((customer) => customer.no === customerNo
       ? { ...customer, status: nextStatus, statusGroup: nextGroup }
       : customer));
+    syncChanceWithStageGroup(customerNo, nextGroup);
     setOpenStageFor(null);
+    setOpenStagePicker(null);
+    setOpenExtraFor(null);
+  }
+
+  function openTwoStepStagePicker(customerNo: number, level: StagePickerLevel) {
+    setOpenStageFor(null);
+    setOpenChanceFor(null);
+    setOpenExtraFor(null);
+    setOpenStagePicker((current) => current?.customerNo === customerNo && current.level === level ? null : { customerNo, level });
+  }
+
+  function changeTwoStepPrimaryStage(customerNo: number, nextGroup: string) {
+    const nextStatus = secondaryStageOptionsByGroup[nextGroup]?.[0] ?? customerStatusGroups[nextGroup]?.[0] ?? nextGroup;
+    setCustomers((current) => current.map((customer) => customer.no === customerNo
+      ? { ...customer, statusGroup: nextGroup, status: nextStatus }
+      : customer));
+    syncChanceWithStageGroup(customerNo, nextGroup);
+    setOpenStagePicker({ customerNo, level: "secondary" });
+    setOpenStageFor(null);
+    setOpenExtraFor(null);
+  }
+
+  function changeTwoStepSecondaryStage(customerNo: number, nextStatus: string) {
+    setCustomers((current) => current.map((customer) => customer.no === customerNo
+      ? { ...customer, status: nextStatus }
+      : customer));
+    setOpenStagePicker(null);
+    setOpenStageFor(null);
+    setOpenExtraFor(null);
   }
 
   function changeCustomerChance(customerNo: number, nextChance: ChanceOption) {
+    const customer = customers.find((item) => item.no === customerNo);
+    if (nextChance === "확정" && customer?.statusGroup !== "계약완료") {
+      showChanceNotice(customerNo);
+      return;
+    }
     setChanceOverrides((current) => ({ ...current, [customerNo]: nextChance }));
     setOpenChanceFor(null);
+    setOpenExtraFor(null);
+  }
+
+  function startEditingNextAction(customer: Customer) {
+    setOpenStageFor(null);
+    setOpenStagePicker(null);
+    setOpenChanceFor(null);
+    setOpenExtraFor(null);
+    setEditingNextAction({ customerNo: customer.no, draft: customer.nextAction });
+  }
+
+  function changeNextActionDraft(customerNo: number, draft: string) {
+    setEditingNextAction((current) => current?.customerNo === customerNo ? { ...current, draft } : current);
+  }
+
+  function saveNextAction(customerNo: number) {
+    if (editingNextAction?.customerNo !== customerNo) return;
+    const nextAction = editingNextAction.draft.trim();
+    setCustomers((current) => current.map((customer) => customer.no === customerNo ? { ...customer, nextAction } : customer));
+    setEditingNextAction(null);
+  }
+
+  function cancelNextActionEdit() {
+    setEditingNextAction(null);
+  }
+
+  function clearNextActionDraft(customerNo: number) {
+    setEditingNextAction((current) => current?.customerNo === customerNo ? { ...current, draft: "" } : current);
+    window.setTimeout(() => {
+      const textarea = nextActionTextareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(0, 0);
+    }, 0);
+  }
+
+  function handleNextActionEditKeyDown(event: KeyboardEvent<HTMLTextAreaElement>, customerNo: number) {
+    event.stopPropagation();
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      saveNextAction(customerNo);
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelNextActionEdit();
+    }
   }
 
   function openCustomer(customer: Customer) {
@@ -323,6 +588,18 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
 
   function stopRowClick(event: MouseEvent<HTMLElement>) {
     event.stopPropagation();
+  }
+
+  function stopTableControlPointer(event: ReactPointerEvent<HTMLElement>) {
+    event.stopPropagation();
+  }
+
+  function toggleExtraPopover(event: MouseEvent<HTMLButtonElement>, extraId: string) {
+    event.stopPropagation();
+    setOpenStageFor(null);
+    setOpenStagePicker(null);
+    setOpenChanceFor(null);
+    setOpenExtraFor((current) => current === extraId ? null : extraId);
   }
 
   function renderRow(customer: Customer) {
@@ -344,9 +621,20 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
         <span className="customer-phone num">{customer.phone}</span>
       </td>
     );
+    const hint = aiHintDisplay(customer);
     const actions = (
       <td className="actions-cell" onClick={stopRowClick}>
         <span className="row-actions">
+          <span className="ai-hint-wrap">
+            <button aria-label="AI 힌트" className="tiny-btn ai-hint-btn" title="AI 힌트" type="button">
+              <AiHintIcon />
+            </button>
+            <span className="ai-hint-tooltip">
+              {hint.parts.map((part, index) => (
+                part.strong ? <strong key={`${part.text}-${index}`}>{part.text}</strong> : <span key={`${part.text}-${index}`}>{part.text}</span>
+              ))}
+            </span>
+          </span>
           <button className="tiny-btn" title="상담 열기" type="button"><MessageSquare size={15} /></button>
           <button className="tiny-btn" title="상세 문서" type="button"><FileText size={15} /></button>
         </span>
@@ -359,88 +647,246 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
       tabIndex: onOpenCustomer ? 0 : undefined,
     };
     const vehicle = vehicleDisplay(customer);
+    const vehicleExtraId = `${customer.no}:vehicle`;
+    const methodExtraId = `${customer.no}:method`;
     const vehicleCell = (
       <td>
         <strong className="vehicle-title">
           <span className="vehicle-line-text">{vehicle.title}</span>
           {vehicle.extraVehicles.length > 0 && (
-            <span className="extra-count-pill">
+            <button
+              aria-expanded={openExtraFor === vehicleExtraId}
+              aria-label={`${vehicle.title} 추가 차종 보기`}
+              className={openExtraFor === vehicleExtraId ? "extra-count-pill active" : "extra-count-pill"}
+              onClick={(event) => toggleExtraPopover(event, vehicleExtraId)}
+              ref={openExtraFor === vehicleExtraId ? extraPopoverRef : undefined}
+              type="button"
+            >
               +{vehicle.extraVehicles.length}
               <span className="extra-tooltip">
                 <strong>{extraTooltipValue(vehicle.extraVehicles)}</strong>
                 <span>도 고민 · 비교 중..</span>
               </span>
-            </span>
+            </button>
           )}
         </strong>
         <span className="vehicle-trim" title={vehicle.trim}>{vehicle.trimLabel}</span>
         <span className="vehicle-method">
           <span className="vehicle-line-text">{vehicle.method}</span>
           {vehicle.extraMethods.length > 0 && (
-            <span className="extra-count-pill">
+            <button
+              aria-expanded={openExtraFor === methodExtraId}
+              aria-label={`${vehicle.method} 추가 구매방식 보기`}
+              className={openExtraFor === methodExtraId ? "extra-count-pill active" : "extra-count-pill"}
+              onClick={(event) => toggleExtraPopover(event, methodExtraId)}
+              ref={openExtraFor === methodExtraId ? extraPopoverRef : undefined}
+              type="button"
+            >
               +{vehicle.extraMethods.length}
               <span className="extra-tooltip">
                 <strong>{extraTooltipValue(vehicle.extraMethods)}</strong>
                 <span>도 고민 · 비교 중..</span>
               </span>
-            </span>
+            </button>
           )}
         </span>
       </td>
     );
+    const previewTwoStepStage = true;
+    const twoStepPickerOpen = openStagePicker?.customerNo === customer.no ? openStagePicker.level : null;
+    const secondaryStageOptions = secondaryStageOptionsByGroup[customer.statusGroup] ?? customerStatusGroups[customer.statusGroup] ?? [customer.status];
+    const showNewLeadBadge = customer.statusGroup === "신규" && customer.status === "상담접수";
+    const stageControl = (
+      <div className="stage-control" ref={openStageFor === customer.no ? stagePopoverRef : undefined}>
+        <button
+          aria-expanded={openStageFor === customer.no}
+          aria-haspopup="listbox"
+          aria-label={`진행 상태 변경: ${customer.status}`}
+          className={statusButtonClass(customer.status, customer.statusGroup)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpenChanceFor(null);
+            setOpenStagePicker(null);
+            setOpenStageFor((current) => current === customer.no ? null : customer.no);
+          }}
+          onPointerDown={stopTableControlPointer}
+          type="button"
+        >
+          <span>{customer.status}</span>
+        </button>
+        {openStageFor === customer.no && (
+          <div aria-label="진행 상태 선택" className="stage-status-popover" role="listbox">
+            {Object.entries(customerStatusGroups).map(([group, values]) => (
+              <div className="stage-status-group" key={group}>
+                <div className="stage-status-group-label">{group}</div>
+                <div className="stage-status-options">
+                  {values.map((value) => {
+                    const selectedStatus = value === customer.status;
+                    return (
+                      <button
+                        aria-selected={selectedStatus}
+                        className={selectedStatus ? "stage-status-option active" : "stage-status-option"}
+                        key={value}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          changeCustomerStatus(customer.no, value);
+                        }}
+                        role="option"
+                        type="button"
+                      >
+                        <span>{value}</span>
+                        {selectedStatus && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
     const stageCell = (
-      <td className="stage-cell" onClick={stopRowClick}>
-        <div className="stage-control" ref={openStageFor === customer.no ? stagePopoverRef : undefined}>
-          <button
-            aria-expanded={openStageFor === customer.no}
-            aria-haspopup="listbox"
-            aria-label={`진행 상태 변경: ${customer.status}`}
-            className={statusButtonClass(customer.status, customer.statusGroup)}
-            onClick={(event) => {
-              event.stopPropagation();
-              setOpenChanceFor(null);
-              setOpenStageFor((current) => current === customer.no ? null : customer.no);
-            }}
-            type="button"
-          >
-            <span>{customer.status}</span>
-          </button>
-          {openStageFor === customer.no && (
-            <div aria-label="진행 상태 선택" className="stage-status-popover" role="listbox">
-              {Object.entries(customerStatusGroups).map(([group, values]) => (
-                <div className="stage-status-group" key={group}>
-                  <div className="stage-status-group-label">{group}</div>
-                  <div className="stage-status-options">
-                    {values.map((value) => {
-                      const selectedStatus = value === customer.status;
+      <td className={previewTwoStepStage ? "stage-cell stage-cell-two-step-preview" : "stage-cell"} onClick={stopRowClick}>
+        {previewTwoStepStage ? (
+          <div className="stage-two-step-stack" ref={twoStepPickerOpen ? stagePickerRef : undefined}>
+            <div className="stage-control">
+              <button
+                aria-expanded={twoStepPickerOpen === "primary"}
+                aria-haspopup="listbox"
+                aria-label={`진행 1단계 변경: ${customer.statusGroup}`}
+                className="stage-step-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openTwoStepStagePicker(customer.no, "primary");
+                }}
+                onPointerDown={stopTableControlPointer}
+                type="button"
+              >
+                <span>{customer.statusGroup}</span>
+              </button>
+              {twoStepPickerOpen === "primary" && (
+                <div aria-label="진행 1단계 선택" className="stage-two-step-popover level-primary" role="listbox">
+                  <div className="stage-two-step-options">
+                    {primaryStageOptions.map((value) => {
+                      const selected = value === customer.statusGroup;
                       return (
                         <button
-                          aria-selected={selectedStatus}
-                          className={selectedStatus ? "stage-status-option active" : "stage-status-option"}
+                          aria-selected={selected}
+                          className={selected ? "stage-two-step-option level-primary active" : "stage-two-step-option level-primary"}
                           key={value}
                           onClick={(event) => {
                             event.stopPropagation();
-                            changeCustomerStatus(customer.no, value);
+                            changeTwoStepPrimaryStage(customer.no, value);
                           }}
                           role="option"
                           type="button"
                         >
                           <span>{value}</span>
-                          {selectedStatus && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
+                          {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
                         </button>
                       );
                     })}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-        <span className="stage-meta">{customer.statusGroup} · {customer.date}</span>
-        <span className="stage-signal">{stageSignal(customer)}</span>
+            <span aria-hidden="true" className="stage-step-connector">›</span>
+            <div className="stage-control">
+              <button
+                aria-expanded={twoStepPickerOpen === "secondary"}
+                aria-haspopup="listbox"
+                aria-label={`진행 2단계 변경: ${customer.status}`}
+                className={statusButtonClass(customer.status, customer.statusGroup)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openTwoStepStagePicker(customer.no, "secondary");
+                }}
+                onPointerDown={stopTableControlPointer}
+                type="button"
+              >
+                <span>{customer.status}</span>
+                {showNewLeadBadge && <span className="stage-new-badge">NEW</span>}
+              </button>
+              {twoStepPickerOpen === "secondary" && (
+                <div aria-label="진행 2단계 선택" className="stage-two-step-popover level-secondary" role="listbox">
+                  <div className="stage-two-step-options">
+                    {secondaryStageOptions.map((value) => {
+                      const selected = value === customer.status;
+                      return (
+                        <button
+                          aria-selected={selected}
+                          className={[statusButtonClass(value, customer.statusGroup), "stage-two-step-option level-secondary", selected ? "active" : ""].filter(Boolean).join(" ")}
+                          key={value}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            changeTwoStepSecondaryStage(customer.no, value);
+                          }}
+                          role="option"
+                          type="button"
+                        >
+                          <span>{value}</span>
+                          {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {stageControl}
+            <span className="stage-meta">{customer.statusGroup} · {customer.date}</span>
+            <span className="stage-signal">{stageSignal(customer)}</span>
+          </>
+        )}
       </td>
     );
-    const chance = chanceOverrides[customer.no] ?? chanceLabel(customer);
+    const nextActionEditing = editingNextAction?.customerNo === customer.no;
+    const nextActionCell = (
+      <td className="text-block-cell" onClick={stopRowClick}>
+        {nextActionEditing ? (
+          <div className="next-action-editor" ref={nextActionEditorRef}>
+            <textarea
+              aria-label={`${customer.name} 상담 메모 수정`}
+              autoFocus
+              onChange={(event) => changeNextActionDraft(customer.no, event.target.value)}
+              onKeyDown={(event) => handleNextActionEditKeyDown(event, customer.no)}
+              ref={nextActionTextareaRef}
+              rows={3}
+              value={editingNextAction.draft}
+            />
+            <span className="next-action-editor-actions">
+              <button aria-label="상담 메모 저장" className="inline-edit-control save" onClick={() => saveNextAction(customer.no)} type="button">
+                <Check size={12} strokeWidth={2.8} />
+              </button>
+              <button aria-label="상담 메모 수정 취소" className="inline-edit-control cancel" onClick={cancelNextActionEdit} type="button">
+                <X size={12} strokeWidth={2.8} />
+              </button>
+              <button aria-label="상담 메모 비우기" className="inline-edit-control reset" onClick={() => clearNextActionDraft(customer.no)} type="button">
+                <Eraser size={11} strokeWidth={2.6} />
+              </button>
+            </span>
+          </div>
+        ) : (
+          <div className="next-action-display">
+            <div className="next-action-cell">{customer.nextAction}</div>
+            <button
+              aria-label={`${customer.name} 상담 메모 수정`}
+              className="next-action-edit-pill"
+              onClick={() => startEditingNextAction(customer)}
+              title="상담 메모 수정"
+              type="button"
+            >
+              <Pencil size={10} strokeWidth={2.6} />
+            </button>
+          </div>
+        )}
+      </td>
+    );
+    const chance = customer.statusGroup === "계약완료" ? "확정" : chanceOverrides[customer.no] ?? chanceLabel(customer);
     const chanceCell = (
       <td className="chance-cell" onClick={stopRowClick}>
         <div className="chance-control" ref={openChanceFor === customer.no ? chancePopoverRef : undefined}>
@@ -452,12 +898,20 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             onClick={(event) => {
               event.stopPropagation();
               setOpenStageFor(null);
+              setOpenStagePicker(null);
               setOpenChanceFor((current) => current === customer.no ? null : customer.no);
             }}
+            onPointerDown={stopTableControlPointer}
             type="button"
           >
             <span>{chance}</span>
           </button>
+          {chanceNoticeFor === customer.no && (
+            <div className="chance-inline-notice" role="status">
+              <span className="chance-inline-notice-mark" aria-hidden="true">!</span>
+              <span><strong>계약완료 시</strong> 자동 확정됩니다</span>
+            </div>
+          )}
           {openChanceFor === customer.no && (
             <div aria-label="가능성 선택" className="chance-status-popover" role="listbox">
               {chanceOptions.map((value) => {
@@ -465,7 +919,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
                 return (
                   <button
                     aria-selected={selectedChance}
-                    className={selectedChance ? "stage-status-option active" : "stage-status-option"}
+                    className={chanceOptionClass(value, selectedChance)}
                     key={value}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -492,11 +946,10 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
           {customerCell}
           {vehicleCell}
           {stageCell}
-          <td><div className="next-action-cell">{customer.nextAction}</div></td>
-          <td><div className="ai-summary-cell">{customer.aiSummary}</div></td>
+          {chanceCell}
+          {nextActionCell}
           <td><strong>{customer.source}</strong><span className="table-note">상담 {customer.talkCount}</span><span className="table-note num">#{customer.no}</span></td>
           {showAdvisorColumn && <td><strong>{customer.advisor}</strong><span className="table-note">{customer.team} · {customer.assignedAt}</span></td>}
-          {chanceCell}
           {actions}
         </tr>
       );
@@ -536,16 +989,16 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   return (
     <section>
       <div className="toolbar">
-        <input className="input" onChange={(event) => setSearch(event.target.value)} placeholder="고객명, 차량, 연락처 검색" value={search} />
-        <select className="select" onChange={(event) => { setStatusGroup(event.target.value); setStatus(""); }} value={statusGroup}>
+        <input className="input" onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 차량, 연락처 검색" value={search} />
+        <select className="select" onChange={(event) => { setStatusGroup(event.target.value); setStatus(""); setCurrentPage(1); }} value={statusGroup}>
           <option value="">상태 그룹 전체</option>
           {Object.keys(customerStatusGroups).map((group) => <option key={group}>{group}</option>)}
         </select>
-        <select className="select" onChange={(event) => setStatus(event.target.value)} value={status}>
+        <select className="select" onChange={(event) => { setStatus(event.target.value); setCurrentPage(1); }} value={status}>
           <option value="">세부 상태 전체</option>
           {statuses.map((item) => <option key={item}>{item}</option>)}
         </select>
-        <select className="select" onChange={(event) => setAdvisor(event.target.value)} value={advisor}>
+        <select className="select" onChange={(event) => { setAdvisor(event.target.value); setCurrentPage(1); }} value={advisor}>
           <option value="">담당자 전체</option>
           <option>지안</option>
           <option>선생님</option>
@@ -596,7 +1049,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
           <div className="pagination-controls" aria-label="고객 목록 페이지 이동">
             <button
               className="page-btn"
-              disabled={currentPage === 1}
+              disabled={effectivePage === 1}
               onClick={() => setCurrentPage(1)}
               type="button"
             >
@@ -604,7 +1057,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             </button>
             <button
               className="page-btn compact"
-              disabled={currentPage === 1}
+              disabled={effectivePage === 1}
               onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
               type="button"
             >
@@ -612,7 +1065,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             </button>
             {visiblePages.map((page) => (
               <button
-                aria-current={currentPage === page ? "page" : undefined}
+                aria-current={effectivePage === page ? "page" : undefined}
                 className="page-btn num"
                 key={page}
                 onClick={() => setCurrentPage(page)}
@@ -623,7 +1076,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             ))}
             <button
               className="page-btn compact"
-              disabled={currentPage === totalPages}
+              disabled={effectivePage === totalPages}
               onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
               type="button"
             >
@@ -631,7 +1084,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             </button>
             <button
               className="page-btn"
-              disabled={currentPage === totalPages}
+              disabled={effectivePage === totalPages}
               onClick={() => setCurrentPage(totalPages)}
               type="button"
             >
@@ -642,7 +1095,10 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             <span>페이지당</span>
             <select
               className="select page-size-select"
-              onChange={(event) => setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number])}
+              onChange={(event) => {
+                setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number]);
+                setCurrentPage(1);
+              }}
               value={pageSize}
             >
               {pageSizeOptions.map((option) => <option key={option} value={option}>{option}</option>)}

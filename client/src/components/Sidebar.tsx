@@ -41,7 +41,7 @@ function MenuIcon({ name }: { name: MenuIconName }) {
     return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1c-5 0-9 4-9 9v7a3 3 0 0 0 3 3h3v-8H5v-2a7 7 0 0 1 7-7a7 7 0 0 1 7 7v2h-4v8h3a3 3 0 0 0 3-3v-7c0-5-4.03-9-9-9" /></svg>;
   }
   if (name === "detail") {
-    return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Zm8 1.8V8h3.2L14 4.8ZM9 11h7v2H9v-2Zm0 4h7v2H9v-2Z" /><path d="M3 7h2v14h11v2H3V7Z" /></svg>;
+    return <svg className="menu-icon detail-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Zm8 1.8V8h3.2L14 4.8ZM9 11h7v2H9v-2Zm0 4h7v2H9v-2Z" /><path d="M3 7h2v14h11v2H3V7Z" /></svg>;
   }
   if (name === "pipeline") {
     return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 9v2H8V9h2V8H4v2H2V2h2v2h8a2 2 0 0 1 2 2v3zm-6 6v3a2 2 0 0 0 2 2h8v2h2v-8h-2v2h-6v-1h2v-2H8v2z" /></svg>;
@@ -204,7 +204,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
 
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-      <div className="brand"><div className="brand-mark"><BrandLogo /></div><div><strong>Mr. Cha CRM</strong><span>상담부터 출고까지 통합 관리</span></div></div>
+      <div className="brand"><div className="brand-mark"><BrandLogo /></div><div><strong>Mr. Cha CRM</strong><span><mark>이것은 CRM인가 혁명인가</mark></span></div></div>
       <div className="nav-separator" />
       <nav className="nav">
         {roleTab === "딜러"
