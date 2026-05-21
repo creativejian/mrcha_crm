@@ -106,6 +106,10 @@ describe("CustomerManagementPage", () => {
     const row = screen.getByText("박서연").closest("tr") as HTMLTableRowElement;
     await user.click(within(row).getByRole("checkbox"));
     expect(onOpenCustomer).toHaveBeenCalledTimes(1);
+
+    await user.click(within(row).getByText("보증금 0/10/20% 월납입표와 보험 포함 여부 확인"));
+    expect(onOpenCustomer).toHaveBeenLastCalledWith(expect.objectContaining({ name: "박서연" }));
+    expect(onOpenCustomer).toHaveBeenCalledTimes(2);
   });
 
   it("changes a two-step row stage without opening the customer", async () => {

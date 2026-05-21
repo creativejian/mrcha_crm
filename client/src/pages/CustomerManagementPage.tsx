@@ -4,6 +4,7 @@ import { type Customer, type CustomerMode, customerStatusGroups, initialCustomer
 import type { RoleTab } from "@/data/roles";
 
 type CustomerManagementPageProps = {
+  activeCustomerId?: string | null;
   mode: CustomerMode;
   onOpenCustomer?: (customer: Customer) => void;
   roleTab?: RoleTab;
@@ -326,7 +327,7 @@ function AiHintIcon() {
   );
 }
 
-export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고관리자" }: CustomerManagementPageProps) {
+export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCustomer, roleTab = "최고관리자" }: CustomerManagementPageProps) {
   const [customers, setCustomers] = useState(initialCustomers);
   const [search, setSearch] = useState("");
   const [statusGroup, setStatusGroup] = useState("");
@@ -832,10 +833,6 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     if (event.key === "Enter") openCustomer(customer);
   }
 
-  function stopRowClick(event: MouseEvent<HTMLElement>) {
-    event.stopPropagation();
-  }
-
   function stopTableControlPointer(event: ReactPointerEvent<HTMLElement>) {
     event.stopPropagation();
   }
@@ -851,12 +848,14 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
 
   function renderRow(customer: Customer) {
     const check = (
-      <td className="select-cell" onClick={stopRowClick}>
+      <td className="select-cell">
         <input
           checked={selected.includes(customer.no)}
           onChange={(event) => {
             setSelected((current) => event.target.checked ? [...current, customer.no] : current.filter((id) => id !== customer.no));
           }}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={stopTableControlPointer}
           type="checkbox"
         />
       </td>
@@ -870,8 +869,8 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     );
     const hint = aiHintDisplay(customer);
     const actions = (
-      <td className="actions-cell" onClick={stopRowClick}>
-        <span className="row-actions">
+      <td className="actions-cell">
+        <span className="row-actions" onClick={(event) => event.stopPropagation()} onPointerDown={stopTableControlPointer}>
           <span
             className="ai-hint-wrap"
             onFocus={() => setOpenFinalUpdateFor(null)}
@@ -898,7 +897,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
       </td>
     );
     const rowProps = {
-      className: onOpenCustomer ? "customer-row" : undefined,
+      className: [onOpenCustomer ? "customer-row" : "", activeCustomerId === customer.customerId ? "detail-open" : ""].filter(Boolean).join(" ") || undefined,
       onClick: () => openCustomer(customer),
       onKeyDown: (event: KeyboardEvent<HTMLTableRowElement>) => openCustomerByKeyboard(event, customer),
       tabIndex: onOpenCustomer ? 0 : undefined,
@@ -1005,7 +1004,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
       </div>
     );
     const stageCell = (
-      <td className={previewTwoStepStage ? "stage-cell stage-cell-two-step-preview" : "stage-cell"} onClick={stopRowClick}>
+      <td className={previewTwoStepStage ? "stage-cell stage-cell-two-step-preview" : "stage-cell"}>
         {previewTwoStepStage ? (
           <div className="stage-two-step-stack" ref={twoStepPickerOpen ? stagePickerRef : undefined}>
             <div className="stage-control">
@@ -1104,9 +1103,9 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     );
     const nextActionEditing = editingNextAction?.customerNo === customer.no;
     const nextActionCell = (
-      <td className="text-block-cell" onClick={stopRowClick}>
+      <td className="text-block-cell">
         {nextActionEditing ? (
-          <div className="next-action-editor" ref={nextActionEditorRef}>
+          <div className="next-action-editor" onClick={(event) => event.stopPropagation()} onPointerDown={stopTableControlPointer} ref={nextActionEditorRef}>
             <textarea
               aria-label={`${customer.name} 상담 메모 수정`}
               autoFocus
@@ -1134,7 +1133,11 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             <button
               aria-label={`${customer.name} 상담 메모 수정`}
               className="next-action-edit-pill"
-              onClick={() => startEditingNextAction(customer)}
+              onClick={(event) => {
+                event.stopPropagation();
+                startEditingNextAction(customer);
+              }}
+              onPointerDown={stopTableControlPointer}
               title="상담 메모 수정"
               type="button"
             >
@@ -1146,7 +1149,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     );
     const chance = customer.statusGroup === "계약완료" ? "확정" : chanceOverrides[customer.no] ?? chanceLabel(customer);
     const chanceCell = (
-      <td className="chance-cell" onClick={stopRowClick}>
+      <td className="chance-cell">
         <div className="chance-control" ref={openChanceFor === customer.no ? chancePopoverRef : undefined}>
           <button
             aria-expanded={openChanceFor === customer.no}
@@ -1201,7 +1204,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     const updateStatus = updateInfo ? finalUpdateStatus(updateInfo) : null;
     const operationResponseValue = showAdvisorColumn ? firstResponseDisplay(customer.assignedAt, updateInfo) : "담당 배정 후 표시";
     const finalUpdateCell = (
-      <td className="final-update-cell" onClick={stopRowClick}>
+      <td className="final-update-cell">
         {updateInfo && updateStatus ? (
           <div
             className={openFinalUpdateFor === customer.no ? "final-update-control pinned" : "final-update-control"}
@@ -1232,7 +1235,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
       </td>
     );
     const operationCell = (
-      <td className="operation-cell" onClick={showAdvisorColumn ? stopRowClick : undefined}>
+      <td className="operation-cell">
         <div className={showAdvisorColumn ? "operation-stack" : "operation-stack source-only"}>
           <div className="operation-lines">
             <div className="operation-line">
@@ -1260,7 +1263,10 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             <button
               aria-label={roleTab === "최고관리자" ? `${customer.name} 접수·담당 변경` : `${customer.name} 담당자 변경`}
               className="next-action-edit-pill operation-change-pill"
-              onClick={() => changeCustomerAdvisor(customer.no)}
+              onClick={(event) => {
+                event.stopPropagation();
+                changeCustomerAdvisor(customer.no);
+              }}
               onPointerDown={stopTableControlPointer}
               title={roleTab === "최고관리자" ? "접수·담당 변경" : "담당자 변경"}
               type="button"

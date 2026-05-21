@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { type CustomerMode, customerModeMeta } from "@/data/customers";
+import { type Customer, type CustomerMode, customerModeMeta, initialCustomers } from "@/data/customers";
 import type { RoleTab } from "@/data/roles";
 import { AISettingsPage } from "@/pages/AISettingsPage";
 import { AdvisorDashboardPage, AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
@@ -55,16 +55,21 @@ export function App() {
   const [toastVisible, setToastVisible] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [roleTab, setRoleTab] = useState<RoleTab>("최고관리자");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer>(initialCustomers[0]);
+  const [customerDetailPanelOpen, setCustomerDetailPanelOpen] = useState(false);
 
   const [title, desc] = activeView === "customers"
     ? [
       customerMode === "allDraft" ? "고객 관리 > 전체 보기" : `고객 관리 · ${customerModeMeta[customerMode].title}`,
       customerModeMeta[customerMode].desc,
     ]
+    : activeView === "customer-detail"
+      ? [`고객 관리 > 전체 보기 > ${selectedCustomer.name}`, `${selectedCustomer.customerId} 고객의 상담 기록, 상태, 견적 조건, 다음 액션을 한 화면에서 처리합니다.`]
     : activeView === "finance"
       ? financeModeMeta[financeMode]
     : viewMeta[activeView];
   const isCustomerLineDraft = activeView === "customers" && customerMode === "allDraft";
+  const isCustomerConsole = isCustomerLineDraft || activeView === "customer-detail";
 
   function showToast(message: string) {
     setToast(message);
@@ -79,18 +84,43 @@ export function App() {
     }
   }
 
+  function handleViewChange(view: string) {
+    setCustomerDetailPanelOpen(false);
+    setActiveView(view as ViewKey);
+  }
+
+  function openCustomerDetailPanel(customer: Customer) {
+    setSelectedCustomer(customer);
+    setActiveView("customers");
+    setCustomerDetailPanelOpen(true);
+    showToast(`${customer.name} 고객 상세 패널을 열었습니다.`);
+  }
+
+  function openCustomerDetailFullScreen() {
+    setCustomerDetailPanelOpen(false);
+    setActiveView("customer-detail");
+  }
+
+  useEffect(() => {
+    if (!customerDetailPanelOpen) return;
+
+    function closeByEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setCustomerDetailPanelOpen(false);
+    }
+
+    document.addEventListener("keydown", closeByEscape);
+    return () => document.removeEventListener("keydown", closeByEscape);
+  }, [customerDetailPanelOpen]);
+
   function renderView() {
     if (activeView === "advisor-dashboard") return <AdvisorDashboardPage />;
     if (activeView === "dashboard-preview") return <DashboardPreviewPage />;
     if (activeView === "admin-dashboard") return <AdminDashboardPage />;
     if (activeView === "chat") return <ChatPage onNavigate={(view) => setActiveView(view as ViewKey)} onToast={showToast} />;
     if (activeView === "customers") {
-      return <CustomerManagementPage mode={customerMode} roleTab={roleTab} onOpenCustomer={(customer) => {
-        setActiveView("customer-detail");
-        showToast(`${customer.name} 고객 상세로 이동합니다.`);
-      }} />;
+      return <CustomerManagementPage activeCustomerId={customerDetailPanelOpen ? selectedCustomer.customerId : null} mode={customerMode} roleTab={roleTab} onOpenCustomer={openCustomerDetailPanel} />;
     }
-    if (activeView === "customer-detail") return <CustomerDetailPage onToast={showToast} />;
+    if (activeView === "customer-detail") return <CustomerDetailPage customer={selectedCustomer} onBack={() => setActiveView("customers")} onToast={showToast} variant="page" />;
     if (activeView === "pipeline") return <PipelinePage />;
     if (activeView === "quotes") return <QuotesPage onToast={showToast} />;
     if (activeView === "insights") return <InsightsPage />;
@@ -105,39 +135,56 @@ export function App() {
 
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} onCustomerModeChange={setCustomerMode} onFinanceModeChange={setFinanceMode} onRoleTabChange={handleRoleTabChange} onViewChange={(view) => setActiveView(view as ViewKey)} />
-      <main className={`main ${isCustomerLineDraft ? "customer-line-draft" : ""}`}>
+      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} onCustomerModeChange={setCustomerMode} onFinanceModeChange={setFinanceMode} onRoleTabChange={handleRoleTabChange} onViewChange={handleViewChange} />
+      <main className={`main ${isCustomerConsole ? "customer-line-draft" : ""}`}>
         <Topbar
           sidebarCollapsed={sidebarCollapsed}
           roleTab={roleTab}
-          onNavigate={(view) => setActiveView(view as ViewKey)}
-          onOpenCustomer={(customer) => {
-            setActiveView("customer-detail");
-            showToast(`${customer.name} 고객 상세로 이동합니다.`);
-          }}
+          onNavigate={handleViewChange}
+          onOpenCustomer={openCustomerDetailPanel}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         />
         {activeView !== "dashboard-preview" && (
-          <header className={`topbar ${isCustomerLineDraft ? "page-heading-console" : ""}`}>
+          <header className={`topbar ${isCustomerConsole ? "page-heading-console" : ""}`}>
             <div className="title">
               <h1>
-                {isCustomerLineDraft ? (
+                {isCustomerConsole ? (
                   <span className="customer-title-breadcrumb">
                     <span>고객 관리</span>
                     <ChevronRight aria-hidden="true" size={18} strokeWidth={2.2} />
                     <span>전체 보기</span>
+                    {activeView === "customer-detail" && (
+                      <>
+                        <ChevronRight aria-hidden="true" size={18} strokeWidth={2.2} />
+                        <span>{selectedCustomer.name}</span>
+                      </>
+                    )}
                   </span>
                 ) : title}
               </h1>
               <p>{desc}</p>
             </div>
-            {!isCustomerLineDraft && (
+            {!isCustomerConsole && (
               <div className="top-actions"><button className="btn" onClick={() => showToast("고객 상세의 상담 메모 영역으로 이동합니다.")} type="button">상담 메모</button><button className="btn primary" onClick={() => showToast("견적 송출 프로토타입: 고객 앱에 비교 견적이 전달된 것으로 표시합니다.")} type="button">앱으로 견적 송출</button></div>
             )}
           </header>
         )}
         {renderView()}
       </main>
+      {customerDetailPanelOpen && (
+        <div className="customer-detail-drawer-overlay" role="presentation">
+          <button aria-label="고객 상세 닫기" className="customer-detail-drawer-backdrop" onClick={() => setCustomerDetailPanelOpen(false)} type="button" />
+          <aside aria-label={`${selectedCustomer.name} 고객 상세 패널`} className="customer-detail-drawer" role="dialog" aria-modal="true">
+            <CustomerDetailPage
+              customer={selectedCustomer}
+              onBack={() => setCustomerDetailPanelOpen(false)}
+              onFullScreen={openCustomerDetailFullScreen}
+              onToast={showToast}
+              variant="drawer"
+            />
+          </aside>
+        </div>
+      )}
       <div className={`toast ${toastVisible ? "show" : ""}`}>{toast}</div>
     </div>
   );

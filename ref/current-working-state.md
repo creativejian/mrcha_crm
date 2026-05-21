@@ -204,6 +204,7 @@ Last updated: 2026-05-21
 
 ## 다음에 이어갈 만한 작업
 
+0. 2026-05-22 고객 관리 `전체 보기` 행 클릭 시 열리는 고객 상세 화면 1차 시각화 초안을 구현했다. 첫 구현은 페이지 전환형이었으나, 여러 고객을 연속 확인하는 상담사 실무 흐름에서는 피로도가 높다고 판단해 기본 동작을 `오른쪽 슬라이드 상세 패널`로 변경했다. `App.tsx`에서 선택 고객과 패널 open 상태를 보관하고, 행 클릭/상단 통합검색 고객 클릭 시 `전체 보기` 위에 dim backdrop + 우측 drawer가 열린다. 왼쪽 dim 영역 클릭, `닫기`, `Esc`로 닫히며, 패널 안의 `전체 화면` 버튼을 누르면 기존 페이지형 상세로 전환된다. `CustomerDetailPage`는 `drawer/page` variant를 지원한다. drawer 폭은 1440px 기준 약 1260px로 넓혔고, 데스크톱에서는 내부를 좌측 상담 타임라인/메모/탭 + 우측 고객 스냅샷/차량·구매방식/AI 힌트 2열 구조로 보여준다. 1280px 이하에서는 1열로 내려간다. 행 클릭 영역은 체크박스, 상태/가능성/최종 업데이트/담당 변경/상담 메모 수정/액션 버튼 같은 조작 컨트롤만 제외하고, 텍스트와 빈 셀 영역은 모두 고객 상세 패널을 열도록 조정했다. 전체 보기의 라인 기반 콘솔 문법을 유지하기 위해 흰 바닥, 얇은 border, 6px radius, 28px 액션 레일, 낮은 대비 섹션 구분, 제한적 `#5836ff` 포인트를 사용했다. 검증은 `bun run typecheck`, `bun run test:unit client/src/pages/CustomerManagementPage.test.tsx`, `bun run build`, `bun run lint`, `bunx playwright test tools/customer-detail-screenshot.spec.ts --project=chromium` 통과. 최신 캡처는 `screenshots/customer-detail-drawer-kimminjun-1440.png`, `screenshots/customer-detail-fullscreen-kimminjun-1440.png`다.
 1. 2026-05-21 라인 기반 외곽 레이아웃 실험이 이사님 기준을 통과해 정식 `전체 보기`로 승격했다. 사이드바의 기존 카드형 `전체 보기` 메뉴는 제거했고, 고객관리 기본 진입도 새 `전체 보기`로 연결한다.
 2. 기존 카드형 `전체 보기` 코드는 비교/회귀 참고를 위해 내부 `all` 모드로 남아 있을 수 있지만, 사용자 메뉴에서는 노출하지 않는다.
 3. 정식 `전체 보기`는 `그레이 배경 + 화이트 카드 컨테이너` 느낌을 줄이고, 검색/필터/TOTAL/테이블/페이지네이션을 얇은 라인으로 연결한 Supabase식 콘솔 방향의 화면이다.
