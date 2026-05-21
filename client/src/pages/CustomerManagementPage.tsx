@@ -1,4 +1,4 @@
-import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
+import { Check, Eraser, FileText, MessageSquare, Pencil, RefreshCcw, X } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { type Customer, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import type { RoleTab } from "@/data/roles";
@@ -30,7 +30,7 @@ function statusButtonClass(value: string, group?: string) {
 }
 
 const headsByMode: Record<CustomerMode, string[]> = {
-  all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "유입 · 상담", "담당", "관리"],
+  all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
   consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "상담 메모", "담당", "관리"],
   contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "담당", "상담 메모", "관리"],
   delivery: ["선택", "고객", "차량", "출고 상태", "출고 업무", "담당", "관리"],
@@ -39,7 +39,7 @@ const headsByMode: Record<CustomerMode, string[]> = {
 };
 
 const tableColumnsByMode: Record<CustomerMode, string[]> = {
-  all: ["select", "customer", "vehicle", "stage", "chance", "action", "source", "advisor", "actions"],
+  all: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
   consulting: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
   contract: ["select", "customer", "type", "vehicle", "stage", "summary", "advisor", "action", "actions"],
   delivery: ["select", "customer", "vehicle", "stage", "summary", "advisor", "actions"],
@@ -49,8 +49,21 @@ const tableColumnsByMode: Record<CustomerMode, string[]> = {
 
 const pageSizeOptions = [15, 30, 50, 100] as const;
 const chanceOptions = ["높음", "중간", "낮음", "보류", "확정"] as const;
+const advisorRotation = ["김지안", "이주선", "이건수"] as const;
 type ChanceOption = typeof chanceOptions[number];
 type StagePickerLevel = "primary" | "secondary";
+type FinalUpdateInfo = {
+  action: string;
+  field: string;
+  label: string;
+  days: number;
+  customerRecontacted?: boolean;
+};
+
+type FinalUpdateStatus = {
+  className: string;
+  label: string;
+};
 
 const primaryStageOptions = Object.keys(customerStatusGroups);
 const secondaryStageOptionsByGroup = customerStatusGroups;
@@ -58,6 +71,21 @@ const secondaryStageOptionsByGroup = customerStatusGroups;
 const statusGroupByStatus = Object.fromEntries(
   Object.entries(customerStatusGroups).flatMap(([group, values]) => values.map((value) => [value, group])),
 );
+
+const initialFinalUpdateByCustomerId: Record<string, FinalUpdateInfo> = {
+  "CU-2605-0020": { action: "상담 메모 업데이트", field: "상담 메모", label: "5월 19일 13:42", days: 0 },
+  "CU-2605-0019": { action: "진행 상태 준비중으로 변경", field: "진행 상태", label: "5월 19일 11:18", days: 0 },
+  "CU-2605-0018": { action: "계약 가능성 높음으로 변경", field: "계약 가능성", label: "5월 18일 19:10", days: 1 },
+  "CU-2605-0017": { action: "진행 상태 출고완료로 변경", field: "진행 상태", label: "5월 14일 16:30", days: 5 },
+  "CU-2605-0016": { action: "상담 메모 업데이트", field: "상담 메모", label: "5월 11일 10:02", days: 8 },
+  "CU-2605-0015": { action: "고객이 카카오로 먼저 재문의", field: "유입 경로", label: "5월 19일 10:00", days: 0, customerRecontacted: true },
+  "CU-2605-0014": { action: "상담 메모 업데이트", field: "상담 메모", label: "5월 13일 15:20", days: 6 },
+  "CU-2605-0013": { action: "진행 상태 추후재컨택으로 변경", field: "진행 상태", label: "5월 1일 13:45", days: 18 },
+  "CU-2605-0011": { action: "계약 가능성 중간으로 변경", field: "계약 가능성", label: "5월 7일 18:00", days: 12 },
+  "CU-2605-0010": { action: "차종 · 구매방식 재고확인중으로 변경", field: "차종 · 구매방식", label: "5월 4일 13:30", days: 15 },
+  "CU-2605-0009": { action: "진행 상태 딜러사계약중으로 변경", field: "진행 상태", label: "5월 16일 16:40", days: 3 },
+  "CU-2605-0008": { action: "상담 메모 업데이트", field: "상담 메모", label: "4월 18일 11:10", days: 31 },
+};
 
 const vehicleDisplayByVehicle: Record<string, { title: string; trim: string; trimShort?: string }> = {
   "Maybach S-Class": { title: "Maybach S-Class", trim: "S 500 4M Long" },
@@ -140,6 +168,70 @@ function aiHintDisplay(customer: Customer) {
   return aiHintDisplayByCustomerId[customer.customerId] ?? { parts: [{ text: customer.aiSummary }] };
 }
 
+function compactOperationDate(year: string, month: string, day: string, time: string) {
+  return `${year.slice(-2)}/${month}/${day} ${time}`;
+}
+
+function receivedAtDisplay(value: string) {
+  const matched = value.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})$/);
+  if (!matched) return value;
+  const [, year, month, day, time] = matched;
+  if (month === "05" && day === "14") return `오늘 ${time}`;
+  if (month === "05" && day === "13") return `어제 ${time}`;
+  return compactOperationDate(year, month, day, time);
+}
+
+function assignedAtDisplay(value: string) {
+  const relativeMatched = value.match(/^(오늘|어제) (\d{2}:\d{2})$/);
+  if (relativeMatched) return value;
+
+  const shortDateMatched = value.match(/^(\d{1,2})\/(\d{2}) (\d{2}:\d{2})$/);
+  if (shortDateMatched) {
+    const [, month, day, time] = shortDateMatched;
+    return compactOperationDate("2026", month.padStart(2, "0"), day, time);
+  }
+
+  return value;
+}
+
+function operationDateValue(value: string): number | null {
+  const todayMatched = value.match(/^오늘 (\d{2}):(\d{2})$/);
+  if (todayMatched) return new Date(2026, 4, 19, Number(todayMatched[1]), Number(todayMatched[2])).getTime();
+
+  const yesterdayMatched = value.match(/^어제 (\d{2}):(\d{2})$/);
+  if (yesterdayMatched) return new Date(2026, 4, 18, Number(yesterdayMatched[1]), Number(yesterdayMatched[2])).getTime();
+
+  const shortDateMatched = value.match(/^(\d{1,2})\/(\d{2}) (\d{2}):(\d{2})$/);
+  if (shortDateMatched) return new Date(2026, Number(shortDateMatched[1]) - 1, Number(shortDateMatched[2]), Number(shortDateMatched[3]), Number(shortDateMatched[4])).getTime();
+
+  const compactDateMatched = value.match(/^(\d{2})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2})$/);
+  if (compactDateMatched) return new Date(2000 + Number(compactDateMatched[1]), Number(compactDateMatched[2]) - 1, Number(compactDateMatched[3]), Number(compactDateMatched[4]), Number(compactDateMatched[5])).getTime();
+
+  const koreanDateMatched = value.match(/^(\d{1,2})월 (\d{1,2})일 (\d{2}):(\d{2})$/);
+  if (koreanDateMatched) return new Date(2026, Number(koreanDateMatched[1]) - 1, Number(koreanDateMatched[2]), Number(koreanDateMatched[3]), Number(koreanDateMatched[4])).getTime();
+
+  return null;
+}
+
+function firstResponseDisplay(assignedAt: string, updateInfo: FinalUpdateInfo | null) {
+  if (!updateInfo) return "대기 중";
+
+  const assignedTime = operationDateValue(assignedAt);
+  const firstActionTime = operationDateValue(updateInfo.label);
+  if (!assignedTime || !firstActionTime || firstActionTime < assignedTime) return "기록 확인";
+
+  const minutes = Math.round((firstActionTime - assignedTime) / 60_000);
+  if (minutes <= 0) return "즉시";
+  if (minutes < 60) return `배정 후 ${minutes}분`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours < 24) return remainingMinutes > 0 ? `배정 후 ${hours}시간 ${remainingMinutes}분` : `배정 후 ${hours}시간`;
+
+  const days = Math.floor(hours / 24);
+  return `배정 후 ${days}일`;
+}
+
 function chanceLabel(customer: Customer): ChanceOption {
   if (customer.statusGroup === "계약완료" || customer.status === "출고완료") return "확정";
   if (customer.statusGroup === "불발" || customer.status === "계약취소") return "낮음";
@@ -198,6 +290,14 @@ function stageSignal(customer: Customer) {
   return signalsByStatus[customer.status] ?? (customer.priority === "긴급" ? "우선 처리" : "후속 확인");
 }
 
+function finalUpdateStatus(info: FinalUpdateInfo): FinalUpdateStatus {
+  if (info.customerRecontacted) return { className: "recontact", label: "재문의" };
+  if (info.days >= 30) return { className: "stale", label: "장기방치" };
+  if (info.days >= 15) return { className: "delay", label: "지연" };
+  if (info.days >= 7) return { className: "check", label: "확인필요" };
+  return { className: "normal", label: "정상" };
+}
+
 function shouldShowAdvisorColumn(roleTab: RoleTab) {
   return roleTab === "최고관리자" || roleTab === "팀장";
 }
@@ -230,7 +330,10 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   const [openStagePicker, setOpenStagePicker] = useState<{ customerNo: number; level: StagePickerLevel } | null>(null);
   const [openChanceFor, setOpenChanceFor] = useState<number | null>(null);
   const [openExtraFor, setOpenExtraFor] = useState<string | null>(null);
+  const [openFinalUpdateFor, setOpenFinalUpdateFor] = useState<number | null>(null);
   const [chanceOverrides, setChanceOverrides] = useState<Record<number, ChanceOption>>({});
+  const [finalUpdateOverrides, setFinalUpdateOverrides] = useState<Record<number, FinalUpdateInfo>>({});
+  const [advisorAssignmentLabels, setAdvisorAssignmentLabels] = useState<Record<number, string>>({});
   const [editingNextAction, setEditingNextAction] = useState<{ customerNo: number; draft: string } | null>(null);
   const [chanceNoticeFor, setChanceNoticeFor] = useState<number | null>(null);
   const nextActionTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -239,6 +342,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   const stagePickerRef = useRef<HTMLDivElement>(null);
   const chancePopoverRef = useRef<HTMLDivElement>(null);
   const extraPopoverRef = useRef<HTMLButtonElement>(null);
+  const finalUpdatePopoverRef = useRef<HTMLDivElement>(null);
   const chanceNoticeTimerRef = useRef<number | null>(null);
   const suppressOutsideClickRef = useRef(false);
   const showAdvisorColumn = shouldShowAdvisorColumn(roleTab);
@@ -272,7 +376,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   }, [effectivePage, totalPages]);
 
   function isTableControlTarget(target: EventTarget | null) {
-    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill"));
+    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .advisor-change-pill"));
   }
 
   useEffect(() => {
@@ -424,6 +528,51 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   }, [openExtraFor]);
 
   useEffect(() => {
+    if (openFinalUpdateFor === null) return;
+
+    function closeFinalUpdatePopoverFromAiHint(event: PointerEvent) {
+      if (event.target instanceof Element && event.target.closest(".ai-hint-wrap")) {
+        setOpenFinalUpdateFor(null);
+      }
+    }
+
+    function closeFinalUpdatePopover(event: PointerEvent) {
+      if (finalUpdatePopoverRef.current?.contains(event.target as Node)) return;
+      if (isTableControlTarget(event.target)) return;
+      suppressOutsideClickRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      setOpenFinalUpdateFor(null);
+    }
+
+    function suppressOutsideClick(event: globalThis.MouseEvent) {
+      if (!suppressOutsideClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.setTimeout(() => {
+        suppressOutsideClickRef.current = false;
+      }, 0);
+    }
+
+    function closeFinalUpdatePopoverByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setOpenFinalUpdateFor(null);
+    }
+
+    document.addEventListener("pointerover", closeFinalUpdatePopoverFromAiHint, true);
+    document.addEventListener("pointerdown", closeFinalUpdatePopover, true);
+    document.addEventListener("click", suppressOutsideClick, true);
+    document.addEventListener("keydown", closeFinalUpdatePopoverByKeyboard);
+    return () => {
+      document.removeEventListener("pointerover", closeFinalUpdatePopoverFromAiHint, true);
+      document.removeEventListener("pointerdown", closeFinalUpdatePopover, true);
+      document.removeEventListener("click", suppressOutsideClick, true);
+      document.removeEventListener("keydown", closeFinalUpdatePopoverByKeyboard);
+    };
+  }, [openFinalUpdateFor]);
+
+  useEffect(() => {
     const textarea = nextActionTextareaRef.current;
     if (!editingNextAction || !textarea) return;
     const cursorPosition = textarea.value.length;
@@ -471,6 +620,38 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     });
   }
 
+  function markFinalUpdate(customerNo: number, field: string, action = `${field} 업데이트`) {
+    setFinalUpdateOverrides((current) => ({
+      ...current,
+      [customerNo]: { action, field, label: "방금 전", days: 0 },
+    }));
+  }
+
+  function changeCustomerAdvisor(customerNo: number) {
+    setCustomers((current) => current.map((customer) => {
+      if (customer.no !== customerNo) return customer;
+      const currentIndex = advisorRotation.findIndex((name) => name === customer.advisor);
+      const nextAdvisor = advisorRotation[(currentIndex + 1 + advisorRotation.length) % advisorRotation.length];
+      return { ...customer, advisor: nextAdvisor, assignedAt: "방금 전" };
+    }));
+    setAdvisorAssignmentLabels((current) => ({ ...current, [customerNo]: "담당자 변경" }));
+    markFinalUpdate(customerNo, "담당", "담당자 변경");
+    setOpenStageFor(null);
+    setOpenStagePicker(null);
+    setOpenChanceFor(null);
+    setOpenExtraFor(null);
+    setOpenFinalUpdateFor(null);
+  }
+
+  function toggleFinalUpdatePopover(event: MouseEvent<HTMLButtonElement>, customerNo: number) {
+    event.stopPropagation();
+    setOpenStageFor(null);
+    setOpenStagePicker(null);
+    setOpenChanceFor(null);
+    setOpenExtraFor(null);
+    setOpenFinalUpdateFor((current) => current === customerNo ? null : customerNo);
+  }
+
   function toggleAll(checked: boolean) {
     const pageIds = paginatedRows.map((customer) => customer.no);
     setSelected((current) => checked
@@ -489,6 +670,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
       ? { ...customer, status: nextStatus, statusGroup: nextGroup }
       : customer));
     syncChanceWithStageGroup(customerNo, nextGroup);
+    markFinalUpdate(customerNo, "진행 상태");
     setOpenStageFor(null);
     setOpenStagePicker(null);
     setOpenExtraFor(null);
@@ -498,6 +680,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     setOpenStageFor(null);
     setOpenChanceFor(null);
     setOpenExtraFor(null);
+    setOpenFinalUpdateFor(null);
     setOpenStagePicker((current) => current?.customerNo === customerNo && current.level === level ? null : { customerNo, level });
   }
 
@@ -507,6 +690,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
       ? { ...customer, statusGroup: nextGroup, status: nextStatus }
       : customer));
     syncChanceWithStageGroup(customerNo, nextGroup);
+    markFinalUpdate(customerNo, "진행 상태");
     setOpenStagePicker({ customerNo, level: "secondary" });
     setOpenStageFor(null);
     setOpenExtraFor(null);
@@ -516,6 +700,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     setCustomers((current) => current.map((customer) => customer.no === customerNo
       ? { ...customer, status: nextStatus }
       : customer));
+    markFinalUpdate(customerNo, "진행 상태");
     setOpenStagePicker(null);
     setOpenStageFor(null);
     setOpenExtraFor(null);
@@ -528,6 +713,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
       return;
     }
     setChanceOverrides((current) => ({ ...current, [customerNo]: nextChance }));
+    markFinalUpdate(customerNo, "계약 가능성");
     setOpenChanceFor(null);
     setOpenExtraFor(null);
   }
@@ -537,6 +723,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     setOpenStagePicker(null);
     setOpenChanceFor(null);
     setOpenExtraFor(null);
+    setOpenFinalUpdateFor(null);
     setEditingNextAction({ customerNo: customer.no, draft: customer.nextAction });
   }
 
@@ -548,6 +735,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     if (editingNextAction?.customerNo !== customerNo) return;
     const nextAction = editingNextAction.draft.trim();
     setCustomers((current) => current.map((customer) => customer.no === customerNo ? { ...customer, nextAction } : customer));
+    markFinalUpdate(customerNo, "상담 메모");
     setEditingNextAction(null);
   }
 
@@ -599,6 +787,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     setOpenStageFor(null);
     setOpenStagePicker(null);
     setOpenChanceFor(null);
+    setOpenFinalUpdateFor(null);
     setOpenExtraFor((current) => current === extraId ? null : extraId);
   }
 
@@ -625,8 +814,18 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     const actions = (
       <td className="actions-cell" onClick={stopRowClick}>
         <span className="row-actions">
-          <span className="ai-hint-wrap">
-            <button aria-label="AI 힌트" className="tiny-btn ai-hint-btn" title="AI 힌트" type="button">
+          <span
+            className="ai-hint-wrap"
+            onFocus={() => setOpenFinalUpdateFor(null)}
+            onMouseEnter={() => setOpenFinalUpdateFor(null)}
+            onPointerEnter={() => setOpenFinalUpdateFor(null)}
+          >
+            <button
+              aria-label="AI 힌트"
+              className="tiny-btn ai-hint-btn"
+              title="AI 힌트"
+              type="button"
+            >
               <AiHintIcon />
             </button>
             <span className="ai-hint-tooltip">
@@ -707,6 +906,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             event.stopPropagation();
             setOpenChanceFor(null);
             setOpenStagePicker(null);
+            setOpenFinalUpdateFor(null);
             setOpenStageFor((current) => current === customer.no ? null : customer.no);
           }}
           onPointerDown={stopTableControlPointer}
@@ -899,6 +1099,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
               event.stopPropagation();
               setOpenStageFor(null);
               setOpenStagePicker(null);
+              setOpenFinalUpdateFor(null);
               setOpenChanceFor((current) => current === customer.no ? null : customer.no);
             }}
             onPointerDown={stopTableControlPointer}
@@ -938,6 +1139,103 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
         </div>
       </td>
     );
+    const updateInfo = finalUpdateOverrides[customer.no] ?? initialFinalUpdateByCustomerId[customer.customerId] ?? null;
+    const updateStatus = updateInfo ? finalUpdateStatus(updateInfo) : null;
+    const operationResponseValue = showAdvisorColumn ? firstResponseDisplay(customer.assignedAt, updateInfo) : "담당 배정 후 표시";
+    const finalUpdateCell = (
+      <td className="final-update-cell" onClick={stopRowClick}>
+        {updateInfo && updateStatus ? (
+          <div
+            className={openFinalUpdateFor === customer.no ? "final-update-control pinned" : "final-update-control"}
+            ref={openFinalUpdateFor === customer.no ? finalUpdatePopoverRef : undefined}
+          >
+            <button
+              aria-expanded={openFinalUpdateFor === customer.no}
+              aria-label={`최종 업데이트: ${updateStatus.label}`}
+              className={`final-update-status ${updateStatus.className}`}
+              onClick={(event) => toggleFinalUpdatePopover(event, customer.no)}
+              onPointerDown={stopTableControlPointer}
+              type="button"
+            >
+              <span>{updateStatus.label}</span>
+            </button>
+            <div
+              aria-hidden={openFinalUpdateFor === customer.no ? undefined : true}
+              className="final-update-popover"
+              role={openFinalUpdateFor === customer.no ? "status" : undefined}
+            >
+              <span className="final-update-popover-date">{updateInfo.label}</span>
+              <span className="final-update-popover-action">{updateInfo.action}</span>
+            </div>
+          </div>
+        ) : (
+          <span className="final-update-empty" aria-label="최종 업데이트 없음" />
+        )}
+      </td>
+    );
+    const advisorCell = showAdvisorColumn ? (
+      <td className="advisor-cell" onClick={stopRowClick}>
+        <div className="advisor-display">
+          <div className="advisor-copy">
+            <strong className="advisor-name">
+              {customer.advisor}
+              <span className="advisor-team">{customer.team}</span>
+            </strong>
+            <span className="advisor-assigned-at">{assignedAtDisplay(customer.assignedAt)} {advisorAssignmentLabels[customer.no] ?? "배정"}</span>
+          </div>
+          <button
+            aria-label={`${customer.name} 담당자 변경`}
+            className="next-action-edit-pill advisor-change-pill"
+            onClick={() => changeCustomerAdvisor(customer.no)}
+            onPointerDown={stopTableControlPointer}
+            title="담당자 변경"
+            type="button"
+          >
+            <RefreshCcw size={10} strokeWidth={2.6} />
+          </button>
+        </div>
+      </td>
+    ) : null;
+    const operationCell = (
+      <td className="operation-cell" onClick={showAdvisorColumn ? stopRowClick : undefined}>
+        <div className={showAdvisorColumn ? "operation-stack" : "operation-stack source-only"}>
+          <div className="operation-lines">
+            <div className="operation-line">
+              <span className="operation-label">접수</span>
+              <strong className="operation-main">
+                <span className="operation-main-text">{customer.source}</span>
+                <span className="operation-line-time">{receivedAtDisplay(customer.receivedAt)}</span>
+              </strong>
+            </div>
+            {showAdvisorColumn ? (
+              <div className="operation-line">
+                <span className="operation-label">배정</span>
+                <strong className="operation-main">
+                  <span className="operation-main-text">{customer.advisor}</span>
+                  <span className="operation-line-time">{assignedAtDisplay(customer.assignedAt)}</span>
+                </strong>
+              </div>
+            ) : null}
+            <div className="operation-line operation-response-line">
+              <span className="operation-label">응답</span>
+              <span className="operation-response-main">{operationResponseValue}</span>
+            </div>
+          </div>
+          {showAdvisorColumn ? (
+            <button
+              aria-label={roleTab === "최고관리자" ? `${customer.name} 접수·담당 변경` : `${customer.name} 담당자 변경`}
+              className="next-action-edit-pill operation-change-pill"
+              onClick={() => changeCustomerAdvisor(customer.no)}
+              onPointerDown={stopTableControlPointer}
+              title={roleTab === "최고관리자" ? "접수·담당 변경" : "담당자 변경"}
+              type="button"
+            >
+              <RefreshCcw size={10} strokeWidth={2.6} />
+            </button>
+          ) : null}
+        </div>
+      </td>
+    );
 
     if (mode === "all") {
       return (
@@ -948,8 +1246,8 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
           {stageCell}
           {chanceCell}
           {nextActionCell}
-          <td><strong>{customer.source}</strong><span className="table-note">상담 {customer.talkCount}</span><span className="table-note num">#{customer.no}</span></td>
-          {showAdvisorColumn && <td><strong>{customer.advisor}</strong><span className="table-note">{customer.team} · {customer.assignedAt}</span></td>}
+          {operationCell}
+          {finalUpdateCell}
           {actions}
         </tr>
       );
@@ -996,13 +1294,13 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
         </select>
         <select className="select" onChange={(event) => { setStatus(event.target.value); setCurrentPage(1); }} value={status}>
           <option value="">세부 상태 전체</option>
-          {statuses.map((item) => <option key={item}>{item}</option>)}
+          {statuses.map((item, index) => <option key={`${item}-${index}`}>{item}</option>)}
         </select>
         <select className="select" onChange={(event) => { setAdvisor(event.target.value); setCurrentPage(1); }} value={advisor}>
           <option value="">담당자 전체</option>
-          <option>지안</option>
-          <option>선생님</option>
-          <option>제프</option>
+          <option>김지안</option>
+          <option>이주선</option>
+          <option>이건수</option>
         </select>
       </div>
 
@@ -1032,7 +1330,15 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             <thead>
               <tr>
                 {tableHeads.map((head, index) => (
-                  <th className={`head-${tableColumns[index]}`} key={head}>{index === 0 ? <input checked={allSelected} onChange={(event) => toggleAll(event.target.checked)} type="checkbox" /> : head}</th>
+                  <th className={`head-${tableColumns[index]}`} key={head}>
+                    {index === 0 ? (
+                      <input checked={allSelected} onChange={(event) => toggleAll(event.target.checked)} type="checkbox" />
+                    ) : tableColumns[index] === "actions" ? (
+                      <span className="head-actions-label">{head}</span>
+                    ) : (
+                      head
+                    )}
+                  </th>
                 ))}
               </tr>
             </thead>
