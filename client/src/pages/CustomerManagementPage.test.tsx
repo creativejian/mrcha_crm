@@ -15,10 +15,25 @@ describe("CustomerManagementPage", () => {
       "진행 상태",
       "계약 가능성",
       "상담 메모 · 문의 사항",
-      "유입 경로",
-      "담당",
+      "접수 · 배정",
       "관리 상태",
-      "관리",
+      "액션",
+    ]);
+  });
+
+  it("renders the draft all-customer list with the same finished column rhythm", () => {
+    render(<CustomerManagementPage mode="allDraft" />);
+
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      "",
+      "고객",
+      "차종 · 구매방식",
+      "진행 상태",
+      "계약 가능성",
+      "상담 메모 · 문의 사항",
+      "접수 · 배정",
+      "관리 상태",
+      "액션",
     ]);
   });
 
@@ -35,10 +50,34 @@ describe("CustomerManagementPage", () => {
     const user = userEvent.setup();
     render(<CustomerManagementPage mode="all" />);
 
-    await user.type(screen.getByPlaceholderText("고객명, 차량, 연락처 검색"), "Maybach");
+    await user.type(screen.getByPlaceholderText("고객명, 연락처, 차종 검색"), "Maybach");
 
     expect(screen.getByText("김민준")).toBeInTheDocument();
     expect(screen.queryByText("박서연")).not.toBeInTheDocument();
+  });
+
+  it("keeps draft filter controls visually active until they return to their default value", async () => {
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="allDraft" />);
+
+    const primaryStatusFilter = screen.getByRole("button", { name: /진행 상태 · 1차/ });
+    await user.click(primaryStatusFilter);
+    await user.click(within(screen.getByRole("listbox", { name: "진행 상태 · 1차 선택" })).getByRole("option", { name: "신규" }));
+
+    expect(primaryStatusFilter).toHaveClass("filter-active");
+
+    await user.click(screen.getByRole("button", { name: /담당자/ }));
+    expect(primaryStatusFilter).toHaveClass("filter-active");
+
+    await user.click(primaryStatusFilter);
+    await user.click(within(screen.getByRole("listbox", { name: "진행 상태 · 1차 선택" })).getByRole("option", { name: "진행 상태 · 1차" }));
+    expect(primaryStatusFilter).not.toHaveClass("filter-active");
+
+    const chanceFilter = screen.getByRole("button", { name: /계약 가능성/ });
+    await user.click(chanceFilter);
+    await user.click(within(screen.getByRole("listbox", { name: "계약 가능성 선택" })).getByRole("option", { name: "높음" }));
+
+    expect(chanceFilter).toHaveClass("filter-active");
   });
 
   it("paginates the customer list with 15 rows by default and supports page size changes", async () => {
@@ -208,7 +247,7 @@ describe("CustomerManagementPage", () => {
     const fourthInput = within(row).getByRole("textbox", { name: "김민준 상담 메모 수정" });
     await user.clear(fourthInput);
     await user.type(fourthInput, "외부 클릭 저장 확인");
-    await user.click(screen.getByPlaceholderText("고객명, 차량, 연락처 검색"));
+    await user.click(screen.getByPlaceholderText("고객명, 연락처, 차종 검색"));
 
     expect(within(row).getByText("외부 클릭 저장 확인")).toBeInTheDocument();
   });

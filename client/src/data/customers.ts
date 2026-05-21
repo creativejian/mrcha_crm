@@ -1,4 +1,4 @@
-export type CustomerMode = "all" | "consulting" | "contract" | "delivery" | "settlement" | "hold";
+export type CustomerMode = "all" | "allDraft" | "consulting" | "contract" | "delivery" | "settlement" | "hold";
 
 export type Customer = {
   no: number;
@@ -41,6 +41,7 @@ export const customerStatusGroups: Record<string, string[]> = {
 
 export const customerModeMeta: Record<CustomerMode, { title: string; desc: string }> = {
   all: { title: "전체 보기", desc: "모든 고객 DB를 한 화면에서 확인합니다." },
+  allDraft: { title: "전체 보기", desc: "카드형 외곽을 걷어낸 라인 기반 고객 관리 화면을 검토합니다." },
   consulting: { title: "상담 필요", desc: "계약 전 상담, 견적, 재응대가 필요한 고객 업무함입니다." },
   contract: { title: "계약 관리", desc: "심사, 계약 완료, 계약 취소 고객의 계약 실무를 관리합니다." },
   delivery: { title: "출고 관리", desc: "출고 예정과 출고 완료 전후의 안내 업무를 관리합니다." },

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { type CustomerMode, customerModeMeta } from "@/data/customers";
@@ -48,7 +49,7 @@ const financeModeMeta: Record<FinanceMode, [string, string]> = {
 
 export function App() {
   const [activeView, setActiveView] = useState<ViewKey>("advisor-dashboard");
-  const [customerMode, setCustomerMode] = useState<CustomerMode>("all");
+  const [customerMode, setCustomerMode] = useState<CustomerMode>("allDraft");
   const [financeMode, setFinanceMode] = useState<FinanceMode>("stats");
   const [toast, setToast] = useState("작업이 반영되었습니다.");
   const [toastVisible, setToastVisible] = useState(false);
@@ -56,10 +57,14 @@ export function App() {
   const [roleTab, setRoleTab] = useState<RoleTab>("최고관리자");
 
   const [title, desc] = activeView === "customers"
-    ? [`고객 관리 · ${customerModeMeta[customerMode].title}`, customerModeMeta[customerMode].desc]
+    ? [
+      customerMode === "allDraft" ? "고객 관리 > 전체 보기" : `고객 관리 · ${customerModeMeta[customerMode].title}`,
+      customerModeMeta[customerMode].desc,
+    ]
     : activeView === "finance"
       ? financeModeMeta[financeMode]
     : viewMeta[activeView];
+  const isCustomerLineDraft = activeView === "customers" && customerMode === "allDraft";
 
   function showToast(message: string) {
     setToast(message);
@@ -101,7 +106,7 @@ export function App() {
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} onCustomerModeChange={setCustomerMode} onFinanceModeChange={setFinanceMode} onRoleTabChange={handleRoleTabChange} onViewChange={(view) => setActiveView(view as ViewKey)} />
-      <main className="main">
+      <main className={`main ${isCustomerLineDraft ? "customer-line-draft" : ""}`}>
         <Topbar
           sidebarCollapsed={sidebarCollapsed}
           roleTab={roleTab}
@@ -113,9 +118,22 @@ export function App() {
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         />
         {activeView !== "dashboard-preview" && (
-          <header className="topbar">
-            <div className="title"><h1>{title}</h1><p>{desc}</p></div>
-            <div className="top-actions"><button className="btn" onClick={() => showToast("고객 상세의 상담 메모 영역으로 이동합니다.")} type="button">상담 메모</button><button className="btn primary" onClick={() => showToast("견적 송출 프로토타입: 고객 앱에 비교 견적이 전달된 것으로 표시합니다.")} type="button">앱으로 견적 송출</button></div>
+          <header className={`topbar ${isCustomerLineDraft ? "page-heading-console" : ""}`}>
+            <div className="title">
+              <h1>
+                {isCustomerLineDraft ? (
+                  <span className="customer-title-breadcrumb">
+                    <span>고객 관리</span>
+                    <ChevronRight aria-hidden="true" size={18} strokeWidth={2.2} />
+                    <span>전체 보기</span>
+                  </span>
+                ) : title}
+              </h1>
+              <p>{desc}</p>
+            </div>
+            {!isCustomerLineDraft && (
+              <div className="top-actions"><button className="btn" onClick={() => showToast("고객 상세의 상담 메모 영역으로 이동합니다.")} type="button">상담 메모</button><button className="btn primary" onClick={() => showToast("견적 송출 프로토타입: 고객 앱에 비교 견적이 전달된 것으로 표시합니다.")} type="button">앱으로 견적 송출</button></div>
+            )}
           </header>
         )}
         {renderView()}

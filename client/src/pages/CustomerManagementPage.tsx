@@ -1,4 +1,4 @@
-import { Check, Eraser, FileText, MessageSquare, Pencil, RefreshCcw, X } from "lucide-react";
+import { Check, ChevronsUpDown, Eraser, FileText, MessageSquare, Minus, Pencil, Plus, RefreshCcw, Search, X } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { type Customer, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import type { RoleTab } from "@/data/roles";
@@ -31,6 +31,7 @@ function statusButtonClass(value: string, group?: string) {
 
 const headsByMode: Record<CustomerMode, string[]> = {
   all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
+  allDraft: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
   consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "상담 메모", "담당", "관리"],
   contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "담당", "상담 메모", "관리"],
   delivery: ["선택", "고객", "차량", "출고 상태", "출고 업무", "담당", "관리"],
@@ -40,6 +41,7 @@ const headsByMode: Record<CustomerMode, string[]> = {
 
 const tableColumnsByMode: Record<CustomerMode, string[]> = {
   all: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
+  allDraft: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
   consulting: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
   contract: ["select", "customer", "type", "vehicle", "stage", "summary", "advisor", "action", "actions"],
   delivery: ["select", "customer", "vehicle", "stage", "summary", "advisor", "actions"],
@@ -49,9 +51,12 @@ const tableColumnsByMode: Record<CustomerMode, string[]> = {
 
 const pageSizeOptions = [15, 30, 50, 100] as const;
 const chanceOptions = ["높음", "중간", "낮음", "보류", "확정"] as const;
+const finalUpdateFilterOptions = ["정상", "확인필요", "재문의", "지연", "장기방치"] as const;
 const advisorRotation = ["김지안", "이주선", "이건수"] as const;
 type ChanceOption = typeof chanceOptions[number];
+type FinalUpdateFilterOption = typeof finalUpdateFilterOptions[number];
 type StagePickerLevel = "primary" | "secondary";
+type DraftFilterKey = "statusGroup" | "status" | "advisor" | "chance" | "finalUpdate";
 type FinalUpdateInfo = {
   action: string;
   field: string;
@@ -306,6 +311,10 @@ function visibleTableItems(items: string[], showAdvisorColumn: boolean) {
   return showAdvisorColumn ? items : items.filter((item) => item !== "담당" && item !== "advisor");
 }
 
+function filterSelectClass(active: boolean, extraClassName?: string) {
+  return ["select", extraClassName, active ? "filter-active" : ""].filter(Boolean).join(" ");
+}
+
 function AiHintIcon() {
   return (
     <svg aria-hidden="true" className="ai-hint-icon" viewBox="0 0 512 512">
@@ -323,6 +332,8 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   const [statusGroup, setStatusGroup] = useState("");
   const [status, setStatus] = useState("");
   const [advisor, setAdvisor] = useState("");
+  const [chanceFilter, setChanceFilter] = useState<"" | ChanceOption>("");
+  const [finalUpdateFilter, setFinalUpdateFilter] = useState<"" | FinalUpdateFilterOption>("");
   const [selected, setSelected] = useState<number[]>([]);
   const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(15);
   const [currentPage, setCurrentPage] = useState(1);
@@ -333,7 +344,6 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   const [openFinalUpdateFor, setOpenFinalUpdateFor] = useState<number | null>(null);
   const [chanceOverrides, setChanceOverrides] = useState<Record<number, ChanceOption>>({});
   const [finalUpdateOverrides, setFinalUpdateOverrides] = useState<Record<number, FinalUpdateInfo>>({});
-  const [advisorAssignmentLabels, setAdvisorAssignmentLabels] = useState<Record<number, string>>({});
   const [editingNextAction, setEditingNextAction] = useState<{ customerNo: number; draft: string } | null>(null);
   const [chanceNoticeFor, setChanceNoticeFor] = useState<number | null>(null);
   const nextActionTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -343,24 +353,33 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
   const chancePopoverRef = useRef<HTMLDivElement>(null);
   const extraPopoverRef = useRef<HTMLButtonElement>(null);
   const finalUpdatePopoverRef = useRef<HTMLDivElement>(null);
+  const draftFilterRailRef = useRef<HTMLDivElement>(null);
+  const pageSizeControlRef = useRef<HTMLDivElement>(null);
   const chanceNoticeTimerRef = useRef<number | null>(null);
   const suppressOutsideClickRef = useRef(false);
   const showAdvisorColumn = shouldShowAdvisorColumn(roleTab);
   const tableHeads = visibleTableItems(headsByMode[mode], showAdvisorColumn);
   const tableColumns = visibleTableItems(tableColumnsByMode[mode], showAdvisorColumn);
+  const [openDraftFilter, setOpenDraftFilter] = useState<DraftFilterKey | null>(null);
+  const [openPageSize, setOpenPageSize] = useState(false);
 
   const statuses = statusGroup ? customerStatusGroups[statusGroup] : Object.values(customerStatusGroups).flat();
   const rows = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return customers.filter((customer) => {
       const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${customer.aiSummary}`.toLowerCase();
+      const chance = customer.statusGroup === "계약완료" ? "확정" : chanceOverrides[customer.no] ?? chanceLabel(customer);
+      const updateInfo = finalUpdateOverrides[customer.no] ?? initialFinalUpdateByCustomerId[customer.customerId] ?? null;
+      const updateStatus = updateInfo ? finalUpdateStatus(updateInfo).label : "";
       return modeFilter(mode, customer) &&
         (!keyword || searchable.includes(keyword)) &&
         (!statusGroup || customer.statusGroup === statusGroup) &&
         (!status || customer.status === status) &&
-        (!advisor || customer.advisor === advisor);
+        (!advisor || customer.advisor === advisor) &&
+        (!chanceFilter || chance === chanceFilter) &&
+        (!finalUpdateFilter || updateStatus === finalUpdateFilter);
     });
-  }, [advisor, customers, mode, search, status, statusGroup]);
+  }, [advisor, chanceFilter, chanceOverrides, customers, finalUpdateFilter, finalUpdateOverrides, mode, search, status, statusGroup]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const effectivePage = Math.min(currentPage, totalPages);
@@ -374,6 +393,46 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     const end = Math.min(totalPages, start + maxVisiblePages - 1);
     return Array.from({ length: end - start + 1 }, (_, index) => start + index);
   }, [effectivePage, totalPages]);
+
+  useEffect(() => {
+    if (openDraftFilter === null) return;
+
+    function closeDraftFilter(event: PointerEvent) {
+      if (draftFilterRailRef.current?.contains(event.target as Node)) return;
+      setOpenDraftFilter(null);
+    }
+
+    function closeDraftFilterByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setOpenDraftFilter(null);
+    }
+
+    document.addEventListener("pointerdown", closeDraftFilter, true);
+    document.addEventListener("keydown", closeDraftFilterByKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeDraftFilter, true);
+      document.removeEventListener("keydown", closeDraftFilterByKeyboard);
+    };
+  }, [openDraftFilter]);
+
+  useEffect(() => {
+    if (!openPageSize) return;
+
+    function closePageSize(event: PointerEvent) {
+      if (pageSizeControlRef.current?.contains(event.target as Node)) return;
+      setOpenPageSize(false);
+    }
+
+    function closePageSizeByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setOpenPageSize(false);
+    }
+
+    document.addEventListener("pointerdown", closePageSize, true);
+    document.addEventListener("keydown", closePageSizeByKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closePageSize, true);
+      document.removeEventListener("keydown", closePageSizeByKeyboard);
+    };
+  }, [openPageSize]);
 
   function isTableControlTarget(target: EventTarget | null) {
     return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .advisor-change-pill"));
@@ -634,7 +693,6 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
       const nextAdvisor = advisorRotation[(currentIndex + 1 + advisorRotation.length) % advisorRotation.length];
       return { ...customer, advisor: nextAdvisor, assignedAt: "방금 전" };
     }));
-    setAdvisorAssignmentLabels((current) => ({ ...current, [customerNo]: "담당자 변경" }));
     markFinalUpdate(customerNo, "담당", "담당자 변경");
     setOpenStageFor(null);
     setOpenStagePicker(null);
@@ -1173,29 +1231,6 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
         )}
       </td>
     );
-    const advisorCell = showAdvisorColumn ? (
-      <td className="advisor-cell" onClick={stopRowClick}>
-        <div className="advisor-display">
-          <div className="advisor-copy">
-            <strong className="advisor-name">
-              {customer.advisor}
-              <span className="advisor-team">{customer.team}</span>
-            </strong>
-            <span className="advisor-assigned-at">{assignedAtDisplay(customer.assignedAt)} {advisorAssignmentLabels[customer.no] ?? "배정"}</span>
-          </div>
-          <button
-            aria-label={`${customer.name} 담당자 변경`}
-            className="next-action-edit-pill advisor-change-pill"
-            onClick={() => changeCustomerAdvisor(customer.no)}
-            onPointerDown={stopTableControlPointer}
-            title="담당자 변경"
-            type="button"
-          >
-            <RefreshCcw size={10} strokeWidth={2.6} />
-          </button>
-        </div>
-      </td>
-    ) : null;
     const operationCell = (
       <td className="operation-cell" onClick={showAdvisorColumn ? stopRowClick : undefined}>
         <div className={showAdvisorColumn ? "operation-stack" : "operation-stack source-only"}>
@@ -1237,7 +1272,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
       </td>
     );
 
-    if (mode === "all") {
+    if (mode === "all" || mode === "allDraft") {
       return (
         <tr key={customer.no} {...rowProps}>
           {check}
@@ -1284,45 +1319,187 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
     );
   }
 
-  return (
-    <section>
-      <div className="toolbar">
-        <input className="input" onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 차량, 연락처 검색" value={search} />
-        <select className="select" onChange={(event) => { setStatusGroup(event.target.value); setStatus(""); setCurrentPage(1); }} value={statusGroup}>
-          <option value="">상태 그룹 전체</option>
-          {Object.keys(customerStatusGroups).map((group) => <option key={group}>{group}</option>)}
-        </select>
-        <select className="select" onChange={(event) => { setStatus(event.target.value); setCurrentPage(1); }} value={status}>
-          <option value="">세부 상태 전체</option>
-          {statuses.map((item, index) => <option key={`${item}-${index}`}>{item}</option>)}
-        </select>
-        <select className="select" onChange={(event) => { setAdvisor(event.target.value); setCurrentPage(1); }} value={advisor}>
-          <option value="">담당자 전체</option>
-          <option>김지안</option>
-          <option>이주선</option>
-          <option>이건수</option>
-        </select>
-      </div>
+  const isLineDraft = mode === "allDraft";
+  const draftFilterOptions = {
+    statusGroup: Object.keys(customerStatusGroups).map((group) => ({ value: group, label: group })),
+    status: statuses.map((item) => ({ value: item, label: item })),
+    advisor: ["김지안", "이주선", "이건수"].map((name) => ({ value: name, label: name })),
+    chance: chanceOptions.map((option) => ({ value: option, label: option })),
+    finalUpdate: finalUpdateFilterOptions.map((option) => ({ value: option, label: option })),
+  };
 
-      <section className="card">
-        <div className="list-headbar">
-          <div className="list-head-left">
-            <div className="total-count">TOTAL <strong className="num">{rows.length}</strong></div>
-            <div className="vertical-separator" />
-            <div className="list-view-controls">
-              <select className="select view-select"><option>담당자별 보기</option></select>
-              <select className="select view-select"><option>상담상태별 보기</option></select>
-              <select className="select view-select"><option>긴급순으로 보기</option></select>
+  function renderDraftFilter(options: {
+    id: DraftFilterKey;
+    label: string;
+    value: string;
+    items: { value: string; label: string }[];
+    onChange: (value: string) => void;
+    extraClassName?: string;
+  }) {
+    const active = Boolean(options.value);
+    const open = openDraftFilter === options.id;
+    const selectedLabel = options.items.find((item) => item.value === options.value)?.label ?? options.label;
+    const allItems = [{ value: "", label: options.label }, ...options.items];
+
+    return (
+      <div className="draft-filter">
+        <button
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          className={filterSelectClass(active, ["draft-filter-button", options.extraClassName].filter(Boolean).join(" "))}
+          onClick={() => setOpenDraftFilter((current) => current === options.id ? null : options.id)}
+          type="button"
+        >
+          <span>{selectedLabel}</span>
+          <ChevronsUpDown aria-hidden="true" className="draft-filter-chevron" size={14} strokeWidth={2.1} />
+        </button>
+        {open && (
+          <div aria-label={`${options.label} 선택`} className="draft-filter-popover" role="listbox">
+            {allItems.map((item) => {
+              const selected = item.value === options.value;
+              const isDefaultOption = item.value === "";
+              return (
+                <button
+                  aria-selected={selected}
+                  className={[
+                    "draft-filter-option",
+                    selected ? "active" : "",
+                    isDefaultOption ? "default-option" : "",
+                  ].filter(Boolean).join(" ")}
+                  key={`${options.id}-${item.value || "default"}`}
+                  onClick={() => {
+                    options.onChange(item.value);
+                    setCurrentPage(1);
+                    setOpenDraftFilter(null);
+                  }}
+                  role="option"
+                  type="button"
+                >
+                  <span>{item.label}</span>
+                  {selected && <Check aria-hidden="true" className="draft-filter-check" size={14} strokeWidth={2.6} />}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <section className={isLineDraft ? "customer-console-page" : undefined}>
+      <section className={isLineDraft ? "card customer-console-card" : "card"}>
+        <div className={isLineDraft ? "customer-console-control-rail" : undefined} ref={isLineDraft ? draftFilterRailRef : undefined}>
+          <div className={isLineDraft ? "toolbar customer-console-toolbar" : "toolbar"}>
+            {isLineDraft && <div className="total-count">전체 <strong className="num">{rows.length}</strong><span>명</span></div>}
+            {isLineDraft ? (
+              <label className="customer-console-search">
+                <Search aria-hidden="true" size={15} strokeWidth={2.4} />
+                <input onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
+              </label>
+            ) : (
+              <input className="input" onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
+            )}
+            {isLineDraft ? (
+              <>
+                {renderDraftFilter({
+                  id: "advisor",
+                  label: "담당자",
+                  value: advisor,
+                  items: draftFilterOptions.advisor,
+                  onChange: setAdvisor,
+                  extraClassName: "filter-advisor",
+                })}
+                {renderDraftFilter({
+                  id: "statusGroup",
+                  label: "진행 상태 · 1차",
+                  value: statusGroup,
+                  items: draftFilterOptions.statusGroup,
+                  onChange: (value) => {
+                    setStatusGroup(value);
+                    setStatus("");
+                  },
+                  extraClassName: "filter-stage",
+                })}
+                {renderDraftFilter({
+                  id: "status",
+                  label: "진행 상태 · 2차",
+                  value: status,
+                  items: draftFilterOptions.status,
+                  onChange: setStatus,
+                  extraClassName: "filter-stage",
+                })}
+              </>
+            ) : (
+              <>
+                <select className="select" onChange={(event) => { setStatusGroup(event.target.value); setStatus(""); setCurrentPage(1); }} value={statusGroup}>
+                  <option value="">진행 상태 · 1차</option>
+                  {Object.keys(customerStatusGroups).map((group) => <option key={group}>{group}</option>)}
+                </select>
+                <select className="select" onChange={(event) => { setStatus(event.target.value); setCurrentPage(1); }} value={status}>
+                  <option value="">진행 상태 · 2차</option>
+                  {statuses.map((item, index) => <option key={`${item}-${index}`}>{item}</option>)}
+                </select>
+                <select className="select" onChange={(event) => { setAdvisor(event.target.value); setCurrentPage(1); }} value={advisor}>
+                  <option value="">담당자</option>
+                  <option>김지안</option>
+                  <option>이주선</option>
+                  <option>이건수</option>
+                </select>
+              </>
+            )}
+            {isLineDraft && (
+              <div className="list-view-controls">
+                {renderDraftFilter({
+                  id: "chance",
+                  label: "계약 가능성",
+                  value: chanceFilter,
+                  items: draftFilterOptions.chance,
+                  onChange: (value) => setChanceFilter(value as "" | ChanceOption),
+                  extraClassName: "view-select filter-compact",
+                })}
+                {renderDraftFilter({
+                  id: "finalUpdate",
+                  label: "관리 상태",
+                  value: finalUpdateFilter,
+                  items: draftFilterOptions.finalUpdate,
+                  onChange: (value) => setFinalUpdateFilter(value as "" | FinalUpdateFilterOption),
+                  extraClassName: "view-select filter-compact",
+                })}
+              </div>
+            )}
+          </div>
+          <div className={isLineDraft ? "list-headbar customer-console-headbar" : "list-headbar"}>
+            <div className="list-head-left">
+              {!isLineDraft && (
+                <>
+                  <div className="total-count">TOTAL <strong className="num">{rows.length}</strong></div>
+                  <div className="vertical-separator" />
+                  <div className="list-view-controls">
+                    <select className="select view-select"><option>담당자별 보기</option></select>
+                    <select className="select view-select"><option>상담상태별 보기</option></select>
+                    <select className="select view-select"><option>긴급순으로 보기</option></select>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="top-actions">
+              <button aria-label="선택 고객 배정 변경" className="btn advisor-change-btn" disabled={selected.length === 0} type="button">
+                <RefreshCcw aria-hidden="true" size={12} strokeWidth={2.25} />
+                <span>담당자 변경</span>
+              </button>
+              <button className="btn bulk-delete-btn" disabled={selected.length === 0} onClick={deleteSelected} type="button">
+                <Minus aria-hidden="true" size={14} strokeWidth={2.6} />
+                <span>{selected.length ? `${selected.length}명 고객 삭제` : "고객 삭제"}</span>
+              </button>
+              <button className="btn primary-register-btn" type="button">
+                <Plus aria-hidden="true" size={14} strokeWidth={2.4} />
+                <span>고객 등록</span>
+              </button>
             </div>
           </div>
-          <div className="top-actions">
-            <button className="btn" disabled={selected.length === 0} onClick={deleteSelected} type="button">
-              {selected.length ? `선택 삭제 ${selected.length}` : "선택 삭제"}
-            </button>
-            <button className="btn" type="button">신규 고객 등록</button>
-          </div>
         </div>
-        <div className="table-scroll">
+        <div className={isLineDraft ? "table-scroll customer-console-table-scroll" : "table-scroll"}>
           <table className={`customer-table mode-${mode}`}>
             <colgroup>
               {tableColumns.map((column, index) => <col className={`col-${column}`} key={`${column}-${index}`} />)}
@@ -1345,7 +1522,7 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
             <tbody>{paginatedRows.map(renderRow)}</tbody>
           </table>
         </div>
-        <div className="pagination-bar">
+        <div className={isLineDraft ? "pagination-bar customer-console-pagination" : "pagination-bar"}>
           <div className="pagination-summary">
             <span className="num">{rows.length === 0 ? 0 : pageStart + 1}-{pageEnd}</span>
             <span> / </span>
@@ -1397,20 +1574,67 @@ export function CustomerManagementPage({ mode, onOpenCustomer, roleTab = "최고
               마지막
             </button>
           </div>
-          <label className="page-size-control">
-            <span>페이지당</span>
-            <select
-              className="select page-size-select"
-              onChange={(event) => {
-                setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number]);
-                setCurrentPage(1);
-              }}
-              value={pageSize}
-            >
-              {pageSizeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <span>개</span>
-          </label>
+          {isLineDraft ? (
+            <div className="page-size-control" ref={pageSizeControlRef}>
+              <span>페이지당</span>
+              <div className="draft-filter page-size-filter">
+                <button
+                  aria-expanded={openPageSize}
+                  aria-haspopup="listbox"
+                  className={filterSelectClass(pageSize !== 15, "draft-filter-button page-size-select page-size-button")}
+                  onClick={() => setOpenPageSize((current) => !current)}
+                  type="button"
+                >
+                  <span>{pageSize}</span>
+                  <ChevronsUpDown aria-hidden="true" className="draft-filter-chevron" size={14} strokeWidth={2.1} />
+                </button>
+                {openPageSize && (
+                  <div aria-label="페이지당 개수 선택" className="draft-filter-popover page-size-popover" role="listbox">
+                    {pageSizeOptions.map((option) => {
+                      const selected = option === pageSize;
+                      return (
+                        <button
+                          aria-selected={selected}
+                          className={[
+                            "draft-filter-option",
+                            selected ? "active" : "",
+                            option === 15 ? "default-option" : "",
+                          ].filter(Boolean).join(" ")}
+                          key={option}
+                          onClick={() => {
+                            setPageSize(option);
+                            setCurrentPage(1);
+                            setOpenPageSize(false);
+                          }}
+                          role="option"
+                          type="button"
+                        >
+                          <span>{option}</span>
+                          {selected && <Check aria-hidden="true" className="draft-filter-check" size={14} strokeWidth={2.6} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <span>명</span>
+            </div>
+          ) : (
+            <label className="page-size-control">
+              <span>페이지당</span>
+              <select
+                className="select page-size-select"
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number]);
+                  setCurrentPage(1);
+                }}
+                value={pageSize}
+              >
+                {pageSizeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+              <span>개</span>
+            </label>
+          )}
         </div>
       </section>
     </section>

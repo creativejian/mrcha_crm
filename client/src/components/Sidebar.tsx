@@ -86,7 +86,7 @@ function MenuIcon({ name }: { name: MenuIconName }) {
 }
 
 const customerModes: Array<[CustomerMode, string]> = [
-  ["all", "전체 보기"],
+  ["allDraft", "전체 보기"],
   ["consulting", "상담 필요"],
   ["contract", "계약 관리"],
   ["delivery", "출고 관리"],
@@ -161,7 +161,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
 
   function handleCustomersToggle() {
     if (collapsed) {
-      onCustomerModeChange("all");
+      onCustomerModeChange("allDraft");
       navigate("customers");
       return;
     }
@@ -170,7 +170,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
       return;
     }
     setCustomersOpen(true);
-    onCustomerModeChange("all");
+    onCustomerModeChange("allDraft");
     navigate("customers");
   }
 
