@@ -1,6 +1,6 @@
 # 차선생 CRM Current Working State
 
-Last updated: 2026-05-19
+Last updated: 2026-05-21
 
 이 문서는 새 세션에서 `영실아 이어가자`라고 했을 때, 현재 CRM 작업 지점을 빠르게 복원하기 위한 최신 작업 상태 문서다.
 
@@ -212,5 +212,6 @@ Last updated: 2026-05-19
 
 ## 세션 인계 문서
 
+- 2026-05-21 최신 인계문서: `/Users/jian/Documents/creativejian/mrcha/crm/ref/next-session-handoff-2026-05-21.md`
 - 2026-05-19 최신 인계문서: `/Users/jian/Documents/creativejian/mrcha/crm/ref/next-session-handoff-2026-05-19.md`
 - 2026-05-18 최신 인계문서: `/Users/jian/Documents/creativejian/mrcha/crm/ref/next-session-handoff-2026-05-18.md`
