@@ -4343,7 +4343,7 @@ th input:focus-visible {
   border-left: 0;
 }
 
-.advisor-performance-item span,
+.advisor-performance-item > span,
 .advisor-performance-item em {
   color: var(--muted);
   font-size: 12px;
