@@ -15,11 +15,12 @@
     "format:check": "prettier --check package.json tsconfig.json \"*.config.{js,ts}\" \".ladle/config.mjs\" \"test/**/*.ts\" \"tools/**/*.ts\" \"client/src/**/*.test.tsx\" \"client/src/**/*.stories.tsx\"",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
+    "test:server": "bun test",
     "knip": "knip --no-config-hints",
     "screenshot:crm": "playwright test tools/crm-screenshot.spec.ts --project=chromium",
     "visual:crm": "playwright test tools/crm-visual.spec.ts --project=chromium",
     "visual:crm:update": "playwright test tools/crm-visual.spec.ts --project=chromium --update-snapshots",
-    "test": "vitest run",
+    "test": "bun run test:server && bun run test:unit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push"
