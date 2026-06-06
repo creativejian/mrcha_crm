@@ -19,7 +19,7 @@
     "screenshot:crm": "playwright test tools/crm-screenshot.spec.ts --project=chromium",
     "visual:crm": "playwright test tools/crm-visual.spec.ts --project=chromium",
     "visual:crm:update": "playwright test tools/crm-visual.spec.ts --project=chromium --update-snapshots",
-    "test": "bun test",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push"
