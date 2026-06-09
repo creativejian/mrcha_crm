@@ -1,6 +1,6 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-05-26
+Last updated: 2026-06-09
 
 Purpose: 새 Codex 세션에서 `영실아 이어가자`라고 했을 때 대형 문서 전체를 매번 읽지 않고 현재 작업을 빠르게 복구하기 위한 초압축 인계문서다.
 
@@ -19,8 +19,8 @@ Purpose: 새 Codex 세션에서 `영실아 이어가자`라고 했을 때 대형
 - Current focus: 고객 관리 > 전체 보기에서 김민준(`CU-2605-0020`) 행 클릭 시 열리는 고객 상세 drawer 시범 UI.
 - `전체 보기` 1차 전체 레이아웃은 이사님 기준 완료. 이 화면의 라인 기반 콘솔 문법이 초기 MVP 페이지 기준이다.
 - 고객 상세는 페이지 전환보다 우측 slide drawer가 기본이다. 상단의 전체화면/닫기 버튼은 제거했고, dim 클릭과 Esc로 닫는다.
-- 최근 기준 커밋: `30ede5b feat: implement customer detail slide panel`.
-- 현재 작업트리에는 미커밋 변경이 있다.
+- 최근 기준 커밋: `4f5dd2a feat: refine Kim customer detail dashboard`.
+- 현재 작업트리에는 김민준 drawer 업무 상태 동기화 관련 미커밋 변경이 있다.
 
 ## UI Direction
 
@@ -65,6 +65,7 @@ Purpose: 새 Codex 세션에서 `영실아 이어가자`라고 했을 때 대형
   - `.kim-customer-dashboard`, `.kim-status-dashboard`, `.kim-status-grid`, `.kim-status-field`, `.kim-needs-dashboard*` 계열 스타일 작업 중.
 - `tools/customer-detail-screenshot.spec.ts`
   - 김민준 drawer 열기, 상단 heading, 주요 텍스트, screenshot 검증.
+  - drawer에서 진행상태/계약가능성/관리상태를 수정한 뒤 닫으면 전체보기 김민준 row에 반영되는지 검증한다.
 
 ## Immediate Next Step
 
@@ -90,16 +91,30 @@ Purpose: 새 Codex 세션에서 `영실아 이어가자`라고 했을 때 대형
 - 2026-05-27 추가 구현: 상단 고객 정보/니즈 아래, 운영 섹션 위에 `상세 구매조건` full-width 패널을 추가했다. 항목은 구매방식/구매시기/월 예산/계약기간/보증금/선수금/주행거리/보험 포함 여부/심사 특이사항 9개이며, 3열 key-value grid로 표시한다.
 - 2026-05-27 추가 조정: `상세 구매조건`을 왼쪽 2fr, `견적함`을 오른쪽 1fr로 같은 줄에 배치했다. 아래 줄은 `상담 기록` 2fr + `다음 일정` 1fr, `서류함`은 그 아래 full-width로 둔다. 1fr 견적함의 첨부 버튼은 `첨부`로 압축했다.
 - 2026-05-29 추가 구현: `상세 구매조건`은 고정값이 아니라 local state 기반 편집 가능 섹션으로 전환했다. 제목 옆 연필 버튼 또는 조건 셀 클릭 시 9개 항목을 한 번에 수정하는 popover가 열리고 저장 시 drawer 내부 상태에 반영된다.
+- 2026-06-09 추가 구현: `App`이 고객 배열, 계약 가능성 override, 관리상태 override의 임시 단일 출처가 되도록 올렸다. `CustomerManagementPage`는 기존 테스트용 standalone 동작을 유지하면서 controlled props도 받는다. 김민준 drawer의 진행상태/계약가능성/관리상태 수정은 전체보기 리스트와 동기화된다.
+- 2026-06-09 결정: `확정` 계약 가능성은 전체보기와 동일하게 `계약완료` 단계에서만 허용한다.
+- 2026-06-09 추가 조정: 상세 구매조건과 상담 기록을 같은 1/2 + 1/2 row로 올리고, 그 아래에 견적함/서류함/다음 일정을 1/3 + 1/3 + 1/3 row로 재배치했다. 서류함 full-width 예외는 제거했다.
+- 2026-06-09 시도 후 제거: 상단 고객 상태/니즈, 중단 상담 판단, 하단 실행 업무의 세로 3단계 구분을 위해 `상담 판단`, `실행 업무` band label과 얇은 top divider를 추가해봤지만 화면 잡음이 늘어 별로라고 판단해 제거했다. 현재는 라벨/구분선 없이 배치와 여백 리듬만으로 정리한다.
+- 2026-06-09 추가 조정: 하단 운영 영역을 2열 2행으로 변경했다. 첫 줄은 신규 `확인할 일` 1/2 + `다음 일정` 1/2, 둘째 줄은 `견적함` 1/2 + `서류함` 1/2이다. `확인할 일`은 GLC 재고, X3 총비용 비교, 보험 포함 여부, 중도해지 안내 같은 미결 확인 항목을 local state 체크 토글로 표시한다. 견적/서류는 실행 후 결과물/자료 보관 성격이라 맨 아래로 내렸다.
+- 2026-06-09 방향 수정: 이사님 의도는 drawer 전체 배경이나 하단 band를 회색으로 분리하는 것이 아니라, 화이트 화면 안에서 `상세 구매조건/상담 기록/확인할 일/다음 일정/견적함/서류함` 섹션 내부를 전체보기처럼 플랫한 line-list 문법으로 맞추는 것이다. `kim-workspace-band`는 구조용 wrapper만 남기고 회색 배경/negative margin/padding은 제거했다. 실무 섹션 body radius는 4px로 낮추고 row hover/divider 중심으로 정리했다.
+- 2026-06-09 추가 조정: 상단 고객 정보/니즈 영역은 그대로 두고, 하단 6개 실무 섹션(`상세 구매조건/상담 기록/확인할 일/다음 일정/견적함/서류함`)만 전체보기 테이블에 가까운 독립 패널 문법으로 맞췄다. 각 섹션은 얇은 외곽선, 흰색 헤더, 옅은 `#fbfbfa` 본문/row, 내부 row divider 구조다. 큰 회색 band나 별도 구분 라벨은 사용하지 않는다.
+- 2026-06-09 추가 조정: 하단 6개 실무 섹션의 헤더 제목은 `14px/700`으로 낮추고, 숫자 배지와 추가/수정 버튼은 제목 옆이 아니라 우측 액션 영역으로 정렬했다.
+- 2026-06-09 추가 조정: 하단 6개 실무 섹션 헤더 제목 앞에 무채색 lucide 아이콘을 추가했다. 섹션별 아이콘은 `ListChecks`, `MessageSquareText`, `Check`, `CalendarClock`, `FileText`, `FolderOpen`이며, 아이콘은 작은 보조 시각 신호로만 쓰고 보라 강조/아이콘 박스는 쓰지 않는다.
+- 2026-06-09 추가 조정: 김민준 drawer 상단 연락처 수정 input은 label을 `연락처 수정`으로 표시한다. 열렸을 때 기존 번호를 연한 preview 톤으로 보여주고 커서는 왼쪽 시작점에 둔다. 첫 숫자 입력/붙여넣기/삭제 입력 순간 기존값을 대체하며, 숫자만 입력해도 `010-0000-0000` 형태로 자동 하이픈 포맷한다. Playwright spec에 label, 커서 위치, preview class, `01012345678` 입력 시 `010-1234-5678` 저장 검증을 추가했다.
+- 2026-06-09 추가 조정: 김민준 drawer 상단 `직군` 수정은 단일 input이 아니라 2단계 구조로 바꿨다. 1차 분류는 `개인/개인사업자/법인사업자`, 개인 상세는 `4대보험/프리랜서/무직/주부/기타` select, 개인사업자는 `사업자명` input, 법인사업자는 `법인명` input이다. 저장 표시값은 `개인 · 프리랜서`, `개인사업자 · 사업자명`, `법인사업자 · 법인명` 조합을 유지한다. Playwright spec에 `개인 · 4대보험`을 `개인 · 프리랜서`로 바꾸는 검증을 추가했다.
+- 2026-06-09 추가 조정: 김민준 drawer 상단 `거주지` 수정도 단일 input이 아니라 2단계 구조로 바꿨다. 1차는 `확인 필요/서울특별시/경기도/인천광역시/.../제주`, 2차는 광역시의 구/군 또는 도의 주요 시 선택이다. 2차가 `확인 필요`면 `인천광역시`처럼 1차만 표시하고, 구/시를 선택하면 `인천광역시 · 연수구`처럼 표시한다. Playwright spec에 `인천광역시`를 `인천광역시 · 연수구`로 바꾸는 검증을 추가했다.
+- 2026-06-09 추가 조정: 김민준 drawer 상단 `상담경로` 수정은 옵션 선택형으로 만들었지만, 자동 접수 원본값은 권한과 무관하게 수정 불가로 잠갔다. 자동 접수는 `앱 견적비교/앱 AI상담/앱 상담원 연결/디엘(상담)/디엘(견적서)`이며, legacy `디엘홈페이지`는 `디엘(상담)`으로 해석한다. 수동 접수는 `대표전화/카카오/소개/추천/재구매/유튜브/검색/기타`다. `기타` 선택 시 `기타 경로` input을 열고, 입력값이 있으면 그 값을 표시값으로 저장한다. 앱 상담 큐 버튼은 경로명에 `앱`이 포함될 때만 노출하는 아이콘 전용 보라색 액션 버튼이다. Playwright spec은 김민준의 자동 접수 `앱 견적비교` 클릭 시 수정 dialog가 열리지 않고 앱 큐 버튼이 유지되는지 검증한다.
 - dev server는 `http://127.0.0.1:5173/`에서 확인 가능하다.
 - 다음 구현 대상:
   - 실제 customer data/server 저장 구조와 연결할지 결정.
-  - 상세 drawer에서 수정한 진행상태/계약가능성/관리상태를 전체보기 리스트 상태와 동기화할지 결정.
+  - 상세 구매조건/니즈/상담기록/일정/견적/서류 상태도 같은 방식으로 어느 저장 모델에 붙일지 결정.
   - 필요하면 Playwright screenshot으로 popover 위치와 모바일/좁은 drawer overflow 확인.
 - 매 작은 CSS 수정마다 Playwright를 돌리지 말고, 묶어서 확인한다.
 - 기능 구현 전 판단 포인트:
   - DOM/기능 변경 후 `bun run typecheck`; 고객관리 로직 변경이 커지면 `bun run test:unit client/src/pages/CustomerManagementPage.test.tsx`.
-  - 2026-05-26 이번 변경 후 `bun run typecheck` 통과.
-  - 2026-05-26 이번 변경 후 `bunx playwright test tools/customer-detail-screenshot.spec.ts --project=chromium` 통과.
+  - 2026-06-09 이번 변경 후 `bun run typecheck` 통과.
+  - 2026-06-09 이번 변경 후 `bun run test:unit client/src/pages/CustomerManagementPage.test.tsx` 통과.
+  - 2026-06-09 이번 변경 후 `bunx playwright test tools/customer-detail-screenshot.spec.ts --project=chromium` 통과.
 
 ## Operating Rules
 

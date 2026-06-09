@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { type Customer, type CustomerMode, customerModeMeta, initialCustomers } from "@/data/customers";
+import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups, initialCustomers } from "@/data/customers";
 import type { RoleTab } from "@/data/roles";
 import { AISettingsPage } from "@/pages/AISettingsPage";
 import { AdvisorDashboardPage, AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
@@ -47,6 +47,10 @@ const financeModeMeta: Record<FinanceMode, [string, string]> = {
   payroll: ["재무 관리 · 급여 관리", "구성원별 급여, 성과급, 지급 기준을 관리합니다."],
 };
 
+const statusGroupByStatus = Object.fromEntries(
+  Object.entries(customerStatusGroups).flatMap(([group, values]) => values.map((value) => [value, group])),
+);
+
 export function App() {
   const [activeView, setActiveView] = useState<ViewKey>("advisor-dashboard");
   const [customerMode, setCustomerMode] = useState<CustomerMode>("allDraft");
@@ -55,8 +59,12 @@ export function App() {
   const [toastVisible, setToastVisible] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [roleTab, setRoleTab] = useState<RoleTab>("최고관리자");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer>(initialCustomers[0]);
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+  const [selectedCustomerNo, setSelectedCustomerNo] = useState(initialCustomers[0].no);
+  const [chanceOverrides, setChanceOverrides] = useState<Record<number, CustomerChanceOption>>({});
+  const [manageStatusOverrides, setManageStatusOverrides] = useState<Record<number, CustomerManageStatus>>({});
   const [customerDetailPanelOpen, setCustomerDetailPanelOpen] = useState(false);
+  const selectedCustomer = customers.find((customer) => customer.no === selectedCustomerNo) ?? customers[0] ?? initialCustomers[0];
 
   const [title, desc] = activeView === "customers"
     ? [
@@ -90,7 +98,7 @@ export function App() {
   }
 
   function openCustomerDetailPanel(customer: Customer) {
-    setSelectedCustomer(customer);
+    setSelectedCustomerNo(customer.no);
     setActiveView("customers");
     setCustomerDetailPanelOpen(true);
     showToast(`${customer.name} 고객 상세 패널을 열었습니다.`);
@@ -99,6 +107,38 @@ export function App() {
   function openCustomerDetailFullScreen() {
     setCustomerDetailPanelOpen(false);
     setActiveView("customer-detail");
+  }
+
+  function syncChanceWithStageGroup(customerNo: number, nextGroup: string) {
+    setChanceOverrides((current) => {
+      if (nextGroup === "계약완료") return { ...current, [customerNo]: "확정" };
+      if (current[customerNo] !== "확정") return current;
+      const next = { ...current };
+      delete next[customerNo];
+      return next;
+    });
+  }
+
+  function updateCustomerWorkflow(customerNo: number, next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus }) {
+    if (next.statusGroup || next.status) {
+      const currentCustomer = customers.find((customer) => customer.no === customerNo);
+      const nextStageGroup = next.statusGroup ?? currentCustomer?.statusGroup ?? statusGroupByStatus[next.status ?? ""] ?? "";
+      setCustomers((current) => current.map((customer) => {
+        if (customer.no !== customerNo) return customer;
+        const statusGroup = next.statusGroup ?? customer.statusGroup;
+        const status = next.status ?? customer.status;
+        return { ...customer, statusGroup, status, date: "방금 전" };
+      }));
+      syncChanceWithStageGroup(customerNo, nextStageGroup);
+    }
+
+    if (next.chance) {
+      setChanceOverrides((current) => ({ ...current, [customerNo]: next.chance as CustomerChanceOption }));
+    }
+
+    if (next.manageStatus) {
+      setManageStatusOverrides((current) => ({ ...current, [customerNo]: next.manageStatus as CustomerManageStatus }));
+    }
   }
 
   useEffect(() => {
@@ -118,9 +158,33 @@ export function App() {
     if (activeView === "admin-dashboard") return <AdminDashboardPage />;
     if (activeView === "chat") return <ChatPage onNavigate={(view) => setActiveView(view as ViewKey)} onToast={showToast} />;
     if (activeView === "customers") {
-      return <CustomerManagementPage activeCustomerId={customerDetailPanelOpen ? selectedCustomer.customerId : null} mode={customerMode} roleTab={roleTab} onOpenCustomer={openCustomerDetailPanel} />;
+      return (
+        <CustomerManagementPage
+          activeCustomerId={customerDetailPanelOpen ? selectedCustomer.customerId : null}
+          chanceOverrides={chanceOverrides}
+          customers={customers}
+          manageStatusOverrides={manageStatusOverrides}
+          mode={customerMode}
+          roleTab={roleTab}
+          onChanceOverridesChange={setChanceOverrides}
+          onCustomersChange={setCustomers}
+          onOpenCustomer={openCustomerDetailPanel}
+        />
+      );
     }
-    if (activeView === "customer-detail") return <CustomerDetailPage customer={selectedCustomer} onBack={() => setActiveView("customers")} onToast={showToast} variant="page" />;
+    if (activeView === "customer-detail") {
+      return (
+        <CustomerDetailPage
+          chanceOverride={chanceOverrides[selectedCustomer.no]}
+          customer={selectedCustomer}
+          manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
+          onBack={() => setActiveView("customers")}
+          onToast={showToast}
+          onWorkflowChange={updateCustomerWorkflow}
+          variant="page"
+        />
+      );
+    }
     if (activeView === "pipeline") return <PipelinePage />;
     if (activeView === "quotes") return <QuotesPage onToast={showToast} />;
     if (activeView === "insights") return <InsightsPage />;
@@ -176,10 +240,13 @@ export function App() {
           <button aria-label="고객 상세 닫기" className="customer-detail-drawer-backdrop" onClick={() => setCustomerDetailPanelOpen(false)} type="button" />
           <aside aria-label={`${selectedCustomer.name} 고객 상세 패널`} className="customer-detail-drawer" role="dialog" aria-modal="true">
             <CustomerDetailPage
+              chanceOverride={chanceOverrides[selectedCustomer.no]}
               customer={selectedCustomer}
+              manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
               onBack={() => setCustomerDetailPanelOpen(false)}
               onFullScreen={openCustomerDetailFullScreen}
               onToast={showToast}
+              onWorkflowChange={updateCustomerWorkflow}
               variant="drawer"
             />
           </aside>

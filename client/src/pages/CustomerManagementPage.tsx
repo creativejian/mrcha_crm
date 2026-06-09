@@ -1,11 +1,16 @@
 import { Check, ChevronsUpDown, Eraser, FileText, MessageSquare, Minus, Pencil, Plus, RefreshCcw, Search, X } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { type Customer, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import type { RoleTab } from "@/data/roles";
 
 type CustomerManagementPageProps = {
   activeCustomerId?: string | null;
+  customers?: Customer[];
   mode: CustomerMode;
+  chanceOverrides?: Record<number, CustomerChanceOption>;
+  manageStatusOverrides?: Record<number, CustomerManageStatus>;
+  onChanceOverridesChange?: (overrides: Record<number, CustomerChanceOption>) => void;
+  onCustomersChange?: (customers: Customer[]) => void;
   onOpenCustomer?: (customer: Customer) => void;
   roleTab?: RoleTab;
 };
@@ -54,7 +59,8 @@ const pageSizeOptions = [15, 30, 50, 100] as const;
 const chanceOptions = ["높음", "중간", "낮음", "보류", "확정"] as const;
 const finalUpdateFilterOptions = ["정상", "확인필요", "재문의", "지연", "장기방치"] as const;
 const advisorRotation = ["김지안", "이주선", "이건수"] as const;
-type ChanceOption = typeof chanceOptions[number];
+type ChanceOption = CustomerChanceOption;
+type ManageStatusOption = CustomerManageStatus;
 type FinalUpdateFilterOption = typeof finalUpdateFilterOptions[number];
 type StagePickerLevel = "primary" | "secondary";
 type DraftFilterKey = "statusGroup" | "status" | "advisor" | "chance" | "finalUpdate";
@@ -304,6 +310,18 @@ function finalUpdateStatus(info: FinalUpdateInfo): FinalUpdateStatus {
   return { className: "normal", label: "정상" };
 }
 
+function finalUpdateStatusFromManage(value: ManageStatusOption): FinalUpdateStatus {
+  const classByStatus: Record<ManageStatusOption, string> = {
+    정상: "normal",
+    확인필요: "check",
+    재문의: "recontact",
+    지연: "delay",
+    장기방치: "stale",
+  };
+
+  return { className: classByStatus[value], label: value };
+}
+
 function shouldShowAdvisorColumn(roleTab: RoleTab) {
   return roleTab === "최고관리자" || roleTab === "팀장";
 }
@@ -327,8 +345,18 @@ function AiHintIcon() {
   );
 }
 
-export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCustomer, roleTab = "최고관리자" }: CustomerManagementPageProps) {
-  const [customers, setCustomers] = useState(initialCustomers);
+export function CustomerManagementPage({
+  activeCustomerId = null,
+  customers: controlledCustomers,
+  mode,
+  chanceOverrides: controlledChanceOverrides,
+  manageStatusOverrides = {},
+  onChanceOverridesChange,
+  onCustomersChange,
+  onOpenCustomer,
+  roleTab = "최고관리자",
+}: CustomerManagementPageProps) {
+  const [internalCustomers, setInternalCustomers] = useState(initialCustomers);
   const [search, setSearch] = useState("");
   const [statusGroup, setStatusGroup] = useState("");
   const [status, setStatus] = useState("");
@@ -343,7 +371,7 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
   const [openChanceFor, setOpenChanceFor] = useState<number | null>(null);
   const [openExtraFor, setOpenExtraFor] = useState<string | null>(null);
   const [openFinalUpdateFor, setOpenFinalUpdateFor] = useState<number | null>(null);
-  const [chanceOverrides, setChanceOverrides] = useState<Record<number, ChanceOption>>({});
+  const [internalChanceOverrides, setInternalChanceOverrides] = useState<Record<number, ChanceOption>>({});
   const [finalUpdateOverrides, setFinalUpdateOverrides] = useState<Record<number, FinalUpdateInfo>>({});
   const [editingNextAction, setEditingNextAction] = useState<{ customerNo: number; draft: string } | null>(null);
   const [chanceNoticeFor, setChanceNoticeFor] = useState<number | null>(null);
@@ -363,6 +391,20 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
   const tableColumns = visibleTableItems(tableColumnsByMode[mode], showAdvisorColumn);
   const [openDraftFilter, setOpenDraftFilter] = useState<DraftFilterKey | null>(null);
   const [openPageSize, setOpenPageSize] = useState(false);
+  const customers = controlledCustomers ?? internalCustomers;
+  const chanceOverrides = controlledChanceOverrides ?? internalChanceOverrides;
+
+  function updateCustomers(next: Customer[] | ((current: Customer[]) => Customer[])) {
+    const nextCustomers = typeof next === "function" ? next(customers) : next;
+    if (onCustomersChange) onCustomersChange(nextCustomers);
+    else setInternalCustomers(nextCustomers);
+  }
+
+  function updateChanceOverrides(next: Record<number, ChanceOption> | ((current: Record<number, ChanceOption>) => Record<number, ChanceOption>)) {
+    const nextOverrides = typeof next === "function" ? next(chanceOverrides) : next;
+    if (onChanceOverridesChange) onChanceOverridesChange(nextOverrides);
+    else setInternalChanceOverrides(nextOverrides);
+  }
 
   const statuses = statusGroup ? customerStatusGroups[statusGroup] : Object.values(customerStatusGroups).flat();
   const rows = useMemo(() => {
@@ -371,7 +413,7 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
       const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${customer.aiSummary}`.toLowerCase();
       const chance = customer.statusGroup === "계약완료" ? "확정" : chanceOverrides[customer.no] ?? chanceLabel(customer);
       const updateInfo = finalUpdateOverrides[customer.no] ?? initialFinalUpdateByCustomerId[customer.customerId] ?? null;
-      const updateStatus = updateInfo ? finalUpdateStatus(updateInfo).label : "";
+      const updateStatus = manageStatusOverrides[customer.no] ?? (updateInfo ? finalUpdateStatus(updateInfo).label : "");
       return modeFilter(mode, customer) &&
         (!keyword || searchable.includes(keyword)) &&
         (!statusGroup || customer.statusGroup === statusGroup) &&
@@ -671,7 +713,7 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
   }
 
   function syncChanceWithStageGroup(customerNo: number, nextGroup: string) {
-    setChanceOverrides((current) => {
+    updateChanceOverrides((current) => {
       if (nextGroup === "계약완료") return { ...current, [customerNo]: "확정" };
       if (current[customerNo] !== "확정") return current;
       const next = { ...current };
@@ -688,7 +730,7 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
   }
 
   function changeCustomerAdvisor(customerNo: number) {
-    setCustomers((current) => current.map((customer) => {
+    updateCustomers((current) => current.map((customer) => {
       if (customer.no !== customerNo) return customer;
       const currentIndex = advisorRotation.findIndex((name) => name === customer.advisor);
       const nextAdvisor = advisorRotation[(currentIndex + 1 + advisorRotation.length) % advisorRotation.length];
@@ -719,13 +761,13 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
   }
 
   function deleteSelected() {
-    setCustomers((current) => current.filter((customer) => !selected.includes(customer.no)));
+    updateCustomers((current) => current.filter((customer) => !selected.includes(customer.no)));
     setSelected([]);
   }
 
   function changeCustomerStatus(customerNo: number, nextStatus: string) {
     const nextGroup = statusGroupByStatus[nextStatus] ?? "";
-    setCustomers((current) => current.map((customer) => customer.no === customerNo
+    updateCustomers((current) => current.map((customer) => customer.no === customerNo
       ? { ...customer, status: nextStatus, statusGroup: nextGroup }
       : customer));
     syncChanceWithStageGroup(customerNo, nextGroup);
@@ -745,7 +787,7 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
 
   function changeTwoStepPrimaryStage(customerNo: number, nextGroup: string) {
     const nextStatus = secondaryStageOptionsByGroup[nextGroup]?.[0] ?? customerStatusGroups[nextGroup]?.[0] ?? nextGroup;
-    setCustomers((current) => current.map((customer) => customer.no === customerNo
+    updateCustomers((current) => current.map((customer) => customer.no === customerNo
       ? { ...customer, statusGroup: nextGroup, status: nextStatus }
       : customer));
     syncChanceWithStageGroup(customerNo, nextGroup);
@@ -756,7 +798,7 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
   }
 
   function changeTwoStepSecondaryStage(customerNo: number, nextStatus: string) {
-    setCustomers((current) => current.map((customer) => customer.no === customerNo
+    updateCustomers((current) => current.map((customer) => customer.no === customerNo
       ? { ...customer, status: nextStatus }
       : customer));
     markFinalUpdate(customerNo, "진행 상태");
@@ -771,7 +813,7 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
       showChanceNotice(customerNo);
       return;
     }
-    setChanceOverrides((current) => ({ ...current, [customerNo]: nextChance }));
+    updateChanceOverrides((current) => ({ ...current, [customerNo]: nextChance }));
     markFinalUpdate(customerNo, "계약 가능성");
     setOpenChanceFor(null);
     setOpenExtraFor(null);
@@ -793,7 +835,7 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
   function saveNextAction(customerNo: number) {
     if (editingNextAction?.customerNo !== customerNo) return;
     const nextAction = editingNextAction.draft.trim();
-    setCustomers((current) => current.map((customer) => customer.no === customerNo ? { ...customer, nextAction } : customer));
+    updateCustomers((current) => current.map((customer) => customer.no === customerNo ? { ...customer, nextAction } : customer));
     markFinalUpdate(customerNo, "상담 메모");
     setEditingNextAction(null);
   }
@@ -1201,7 +1243,9 @@ export function CustomerManagementPage({ activeCustomerId = null, mode, onOpenCu
       </td>
     );
     const updateInfo = finalUpdateOverrides[customer.no] ?? initialFinalUpdateByCustomerId[customer.customerId] ?? null;
-    const updateStatus = updateInfo ? finalUpdateStatus(updateInfo) : null;
+    const updateStatus = manageStatusOverrides[customer.no]
+      ? finalUpdateStatusFromManage(manageStatusOverrides[customer.no])
+      : updateInfo ? finalUpdateStatus(updateInfo) : null;
     const operationResponseValue = showAdvisorColumn ? firstResponseDisplay(customer.assignedAt, updateInfo) : "담당 배정 후 표시";
     const finalUpdateCell = (
       <td className="final-update-cell">

@@ -1,12 +1,15 @@
-import { ArrowLeft, Bot, BriefcaseBusiness, CalendarClock, CarFront, Check, ChevronRight, FileText, History, MapPin, Maximize2, MessageSquareText, Pencil, Phone, RefreshCcw, Route, Send, Trash2, UserRound, Upload, X } from "lucide-react";
-import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { customerStatusGroups, type Customer } from "@/data/customers";
+import { ArrowLeft, Bot, BriefcaseBusiness, CalendarClock, CarFront, Check, ChevronRight, FileText, FolderOpen, History, ListChecks, MapPin, Maximize2, MessageSquareText, Pencil, Phone, RefreshCcw, Route, Send, Trash2, UserRound, Upload, X } from "lucide-react";
+import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 
 type CustomerDetailPageProps = {
   customer: Customer;
+  chanceOverride?: CustomerChanceOption;
+  manageStatusOverride?: CustomerManageStatus;
   onBack: () => void;
   onFullScreen?: () => void;
   onToast: (message: string) => void;
+  onWorkflowChange?: (customerNo: number, next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus }) => void;
   variant?: "page" | "drawer";
 };
 
@@ -18,6 +21,7 @@ type DetailMetric = {
 
 type KimStatusFieldKey = "phone" | "job" | "location" | "source" | "advisor" | "assignedAt";
 type KimWorkflowKey = "stage" | "chance" | "manage";
+type KimCustomerType = "개인" | "개인사업자" | "법인사업자";
 type KimOpenEditor =
   | { kind: "status"; key: KimStatusFieldKey }
   | { kind: "workflow"; key: KimWorkflowKey }
@@ -187,9 +191,33 @@ const kimMinjunWorkflowMeta = [
   { key: "manage", label: "관리 상태", tone: "normal" },
 ] satisfies { key: KimWorkflowKey; label: string; tone: string }[];
 
-const kimChanceOptions = ["높음", "중간", "낮음", "보류", "확정"];
-const kimManageOptions = ["정상", "확인필요", "재문의", "지연", "장기방치"];
+const kimChanceOptions: CustomerChanceOption[] = ["높음", "중간", "낮음", "보류", "확정"];
+const kimManageOptions: CustomerManageStatus[] = ["정상", "확인필요", "재문의", "지연", "장기방치"];
 const kimMethodOptions = ["운용리스", "장기렌트", "할부", "현금"];
+const kimCustomerTypeOptions: KimCustomerType[] = ["개인", "개인사업자", "법인사업자"];
+const kimPersonalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];
+const kimAutomaticSourceOptions = ["앱 견적비교", "앱 AI상담", "앱 상담원 연결", "디엘(상담)", "디엘(견적서)"];
+const kimLegacyAutomaticSourceOptions = ["디엘홈페이지"];
+const kimManualSourceOptions = ["대표전화", "카카오", "소개", "추천", "재구매", "유튜브", "검색", "기타"];
+const kimRegionOptions: Record<string, string[]> = {
+  "확인 필요": ["확인 필요"],
+  서울특별시: ["확인 필요", "강남구", "강동구", "강북구", "강서구", "관악구", "광진구", "구로구", "금천구", "노원구", "도봉구", "동대문구", "동작구", "마포구", "서대문구", "서초구", "성동구", "성북구", "송파구", "양천구", "영등포구", "용산구", "은평구", "종로구", "중구", "중랑구"],
+  경기도: ["확인 필요", "수원시", "성남시", "고양시", "용인시", "부천시", "안산시", "안양시", "남양주시", "화성시", "평택시", "의정부시", "시흥시", "파주시", "김포시", "광명시", "광주시", "군포시", "하남시", "오산시", "이천시", "안성시", "구리시", "의왕시", "양주시", "포천시", "여주시", "동두천시", "과천시"],
+  인천광역시: ["확인 필요", "중구", "동구", "미추홀구", "연수구", "남동구", "부평구", "계양구", "서구", "강화군", "옹진군"],
+  대전광역시: ["확인 필요", "동구", "중구", "서구", "유성구", "대덕구"],
+  대구광역시: ["확인 필요", "중구", "동구", "서구", "남구", "북구", "수성구", "달서구", "달성군", "군위군"],
+  울산광역시: ["확인 필요", "중구", "남구", "동구", "북구", "울주군"],
+  부산광역시: ["확인 필요", "중구", "서구", "동구", "영도구", "부산진구", "동래구", "남구", "북구", "해운대구", "사하구", "금정구", "강서구", "연제구", "수영구", "사상구", "기장군"],
+  광주광역시: ["확인 필요", "동구", "서구", "남구", "북구", "광산구"],
+  강원도: ["확인 필요", "춘천시", "원주시", "강릉시", "동해시", "태백시", "속초시", "삼척시"],
+  충북: ["확인 필요", "청주시", "충주시", "제천시"],
+  "충남(세종)": ["확인 필요", "천안시", "공주시", "보령시", "아산시", "서산시", "논산시", "계룡시", "당진시", "세종시"],
+  경북: ["확인 필요", "포항시", "경주시", "김천시", "안동시", "구미시", "영주시", "영천시", "상주시", "문경시", "경산시"],
+  경남: ["확인 필요", "창원시", "진주시", "통영시", "사천시", "김해시", "밀양시", "거제시", "양산시"],
+  전북: ["확인 필요", "전주시", "군산시", "익산시", "정읍시", "남원시", "김제시"],
+  전남: ["확인 필요", "목포시", "여수시", "순천시", "나주시", "광양시"],
+  제주: ["확인 필요", "제주시", "서귀포시"],
+};
 
 const kimInitialNeeds: KimNeedsState = {
   model: "Maybach S-Class",
@@ -209,6 +237,13 @@ const kimMinjunDocumentVault = [
   { title: "재직/소득 서류", status: "미수령" },
   { title: "심사 신청서", status: "준비 전" },
   { title: "계약 서류", status: "준비 전" },
+];
+
+const kimMinjunCheckItems = [
+  { label: "확인", title: "GLC 재고 가능 여부 확인", memo: "비교 견적 전 재고와 출고 가능 시점 확인" },
+  { label: "견적", title: "X3 조건과 총비용 비교", memo: "월 납입액보다 총비용과 해지 조건 중심" },
+  { label: "조건", title: "보험 포함 여부 확인", memo: "고객이 실제 부담할 월 비용 기준 정리" },
+  { label: "안내", title: "중도해지 조건 설명", memo: "리스 해지 리스크를 견적 안내에 포함" },
 ];
 
 const kimInitialSchedules: KimScheduleItem[] = [
@@ -257,16 +292,259 @@ function scheduleRecordKey(item: KimScheduleItem) {
   return `${item.date}-${item.time}-${item.type}-${item.memo}`;
 }
 
-function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onToast: (message: string) => void }) {
+function formatKoreanPhoneInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+
+function parseKimJobValue(value: string): { type: KimCustomerType; detail: string } {
+  const [typeValue, detailValue] = value.split("·").map((part) => part.trim());
+  const type = kimCustomerTypeOptions.includes(typeValue as KimCustomerType) ? typeValue as KimCustomerType : "개인";
+  const fallbackDetail = type === "개인" ? "4대보험" : "";
+  return { type, detail: detailValue || fallbackDetail };
+}
+
+function formatKimJobValue(type: KimCustomerType, detail: string) {
+  const normalizedDetail = detail.trim() || (type === "개인" ? "4대보험" : "미입력");
+  return `${type} · ${normalizedDetail}`;
+}
+
+function parseKimLocationValue(value: string) {
+  const [provinceValue, detailValue] = value.split("·").map((part) => part.trim());
+  const province = kimRegionOptions[provinceValue] ? provinceValue : "확인 필요";
+  const detailOptions = kimRegionOptions[province];
+  const detail = detailOptions.includes(detailValue) ? detailValue : "확인 필요";
+  return { province, detail };
+}
+
+function formatKimLocationValue(province: string, detail: string) {
+  if (province === "확인 필요") return "확인 필요";
+  if (!detail || detail === "확인 필요") return province;
+  return `${province} · ${detail}`;
+}
+
+function parseKimSourceValue(value: string) {
+  const allOptions = [...kimAutomaticSourceOptions, ...kimManualSourceOptions];
+  if (allOptions.includes(value)) return { selected: value, custom: "" };
+  if (value === "디엘홈페이지") return { selected: "디엘(상담)", custom: "" };
+  return { selected: "기타", custom: value };
+}
+
+function isKimAutomaticSource(value: string) {
+  return kimAutomaticSourceOptions.includes(value) || kimLegacyAutomaticSourceOptions.includes(value);
+}
+
+function hasKimAppSourceQueue(value: string) {
+  return value.includes("앱");
+}
+
+function KimPhoneStatusInput({ initialValue }: { initialValue: string }) {
+  const [value, setValue] = useState(initialValue);
+  const [replaceOnInput, setReplaceOnInput] = useState(true);
+
+  function replaceInitialValue(nextValue: string) {
+    setValue(formatKoreanPhoneInput(nextValue));
+    setReplaceOnInput(false);
+  }
+
+  return (
+    <input
+      autoComplete="tel"
+      autoFocus
+      className={replaceOnInput ? "is-preview-value" : ""}
+      inputMode="numeric"
+      name="value"
+      onBeforeInput={(event) => {
+        if (!replaceOnInput || event.nativeEvent.inputType !== "insertText") return;
+        event.preventDefault();
+        replaceInitialValue(event.nativeEvent.data ?? "");
+      }}
+      onChange={(event) => {
+        setValue(formatKoreanPhoneInput(event.currentTarget.value));
+        setReplaceOnInput(false);
+      }}
+      onFocus={(event) => {
+        event.currentTarget.setSelectionRange(0, 0);
+      }}
+      onKeyDown={(event) => {
+        if (!replaceOnInput) return;
+        if (/^\d$/.test(event.key)) {
+          event.preventDefault();
+          replaceInitialValue(event.key);
+          return;
+        }
+        if (event.key !== "Backspace" && event.key !== "Delete") return;
+        event.preventDefault();
+        replaceInitialValue("");
+      }}
+      onPaste={(event: ReactClipboardEvent<HTMLInputElement>) => {
+        if (!replaceOnInput) return;
+        event.preventDefault();
+        replaceInitialValue(event.clipboardData.getData("text"));
+      }}
+      placeholder="010-0000-0000"
+      type="tel"
+      value={value}
+    />
+  );
+}
+
+function KimJobStatusEditor({
+  initialValue,
+  onCancel,
+  onSubmit,
+}: {
+  initialValue: string;
+  onCancel: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const initialJob = parseKimJobValue(initialValue);
+  const [customerType, setCustomerType] = useState<KimCustomerType>(initialJob.type);
+
+  return (
+    <form className="kim-edit-form" onSubmit={onSubmit}>
+      <label>
+        <span>직군 분류</span>
+        <select
+          autoFocus
+          defaultValue={initialJob.type}
+          name="customerType"
+          onChange={(event) => setCustomerType(event.currentTarget.value as KimCustomerType)}
+        >
+          {kimCustomerTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+      {customerType === "개인" ? (
+        <label>
+          <span>상세 분류</span>
+          <select defaultValue={kimPersonalJobDetailOptions.includes(initialJob.detail) ? initialJob.detail : "4대보험"} name="customerTypeDetail">
+            {kimPersonalJobDetailOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </label>
+      ) : (
+        <label>
+          <span>{customerType === "개인사업자" ? "사업자명" : "법인명"}</span>
+          <input defaultValue={initialJob.type === customerType ? initialJob.detail : ""} name="customerTypeDetail" placeholder={customerType === "개인사업자" ? "예: 도윤컴퍼니" : "예: HJ모빌리티"} />
+        </label>
+      )}
+      <div className="kim-edit-actions">
+        <button type="button" onClick={onCancel}>취소</button>
+        <button className="primary" type="submit">저장</button>
+      </div>
+    </form>
+  );
+}
+
+function KimLocationStatusEditor({
+  initialValue,
+  onCancel,
+  onSubmit,
+}: {
+  initialValue: string;
+  onCancel: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const initialLocation = parseKimLocationValue(initialValue);
+  const [province, setProvince] = useState(initialLocation.province);
+  const detailOptions = kimRegionOptions[province] ?? kimRegionOptions["확인 필요"];
+  const detailValue = detailOptions.includes(initialLocation.detail) ? initialLocation.detail : "확인 필요";
+
+  return (
+    <form className="kim-edit-form" onSubmit={onSubmit}>
+      <label>
+        <span>거주지 수정</span>
+        <select
+          autoFocus
+          defaultValue={initialLocation.province}
+          name="province"
+          onChange={(event) => setProvince(event.currentTarget.value)}
+        >
+          {Object.keys(kimRegionOptions).map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+      <label>
+        <span>구/시 선택</span>
+        <select key={province} defaultValue={detailValue} name="detail">
+          {detailOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+      <div className="kim-edit-actions">
+        <button type="button" onClick={onCancel}>취소</button>
+        <button className="primary" type="submit">저장</button>
+      </div>
+    </form>
+  );
+}
+
+function KimSourceStatusEditor({
+  initialValue,
+  onCancel,
+  onSubmit,
+}: {
+  initialValue: string;
+  onCancel: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const initialSource = parseKimSourceValue(initialValue);
+  const [selectedSource, setSelectedSource] = useState(initialSource.selected);
+
+  return (
+    <form className="kim-edit-form" onSubmit={onSubmit}>
+      <label>
+        <span>상담경로 수정</span>
+        <select
+          autoFocus
+          defaultValue={initialSource.selected}
+          name="source"
+          onChange={(event) => setSelectedSource(event.currentTarget.value)}
+        >
+          <optgroup label="자동 접수">
+            {kimAutomaticSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </optgroup>
+          <optgroup label="수동 접수">
+            {kimManualSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </optgroup>
+        </select>
+      </label>
+      {selectedSource === "기타" ? (
+        <label>
+          <span>기타 경로</span>
+          <input defaultValue={initialSource.custom} name="customSource" placeholder="예: 블로그, 전시장 방문, 딜러 소개" />
+        </label>
+      ) : null}
+      <div className="kim-edit-actions">
+        <button type="button" onClick={onCancel}>취소</button>
+        <button className="primary" type="submit">저장</button>
+      </div>
+    </form>
+  );
+}
+
+function KimMinjunDetailContent({
+  chanceOverride,
+  customer,
+  manageStatusOverride,
+  onToast,
+  onWorkflowChange,
+}: {
+  chanceOverride?: CustomerChanceOption;
+  customer: Customer;
+  manageStatusOverride?: CustomerManageStatus;
+  onToast: (message: string) => void;
+  onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
+}) {
   const [statusValues, setStatusValues] = useState(kimMinjunInitialStatusValues);
-  const [stageGroup, setStageGroup] = useState("견적");
-  const [stageStatus, setStageStatus] = useState("발송완료");
-  const [chance, setChance] = useState("높음");
-  const [manage, setManage] = useState("정상");
+  const [stageGroup, setStageGroup] = useState(customer.statusGroup);
+  const [stageStatus, setStageStatus] = useState(customer.status);
+  const [chance, setChance] = useState<CustomerChanceOption>(chanceOverride ?? chanceLabel(customer) as CustomerChanceOption);
+  const [manage, setManage] = useState<CustomerManageStatus>(manageStatusOverride ?? "정상");
   const [needs, setNeeds] = useState<KimNeedsState>(kimInitialNeeds);
   const [purchaseFields, setPurchaseFields] = useState(kimMinjunPurchaseFields);
   const [schedules, setSchedules] = useState<KimScheduleItem[]>(kimInitialSchedules);
   const [completedScheduleKeys, setCompletedScheduleKeys] = useState<string[]>([]);
+  const [completedCheckItems, setCompletedCheckItems] = useState<string[]>([]);
   const [timelineAdditions, setTimelineAdditions] = useState<KimTimelineItem[]>([]);
   const [deletedTimelineKeys, setDeletedTimelineKeys] = useState<string[]>([]);
   const [addingTimelineRecord, setAddingTimelineRecord] = useState(false);
@@ -274,6 +552,20 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
   const editorRef = useRef<HTMLDivElement>(null);
   const consultBodyRef = useRef<HTMLDivElement>(null);
   const timelineItems = [...timelineRows(customer), ...timelineAdditions].filter((item) => !deletedTimelineKeys.includes(timelineRecordKey(item)));
+  const remainingCheckCount = kimMinjunCheckItems.filter((item) => !completedCheckItems.includes(item.title)).length;
+
+  useEffect(() => {
+    setStageGroup(customer.statusGroup);
+    setStageStatus(customer.status);
+  }, [customer.status, customer.statusGroup]);
+
+  useEffect(() => {
+    setChance(chanceOverride ?? chanceLabel(customer) as CustomerChanceOption);
+  }, [chanceOverride, customer]);
+
+  useEffect(() => {
+    setManage(manageStatusOverride ?? "정상");
+  }, [manageStatusOverride]);
 
   useEffect(() => {
     const container = consultBodyRef.current;
@@ -308,10 +600,19 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
     setOpenEditor((current) => kimEditorMatches(current, next) ? null : next);
   }
 
+  function openStatusEditor(next: KimOpenEditor) {
+    if (next.kind === "status" && next.key === "source" && isKimAutomaticSource(statusValues.source)) {
+      setOpenEditor(null);
+      onToast("자동 접수 경로는 수정할 수 없습니다.");
+      return;
+    }
+    toggleEditor(next);
+  }
+
   function openSourceEditorByKeyboard(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
-    toggleEditor({ kind: "status", key: "source" });
+    openStatusEditor({ kind: "status", key: "source" });
   }
 
   function saveStatusField(event: FormEvent<HTMLFormElement>, key: KimStatusFieldKey) {
@@ -324,14 +625,51 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
     onToast(`${fieldLabel(key)} 수정 완료`);
   }
 
+  function saveJobField(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const customerType = String(formData.get("customerType") ?? "개인") as KimCustomerType;
+    const customerTypeDetail = String(formData.get("customerTypeDetail") ?? "").trim();
+    const nextJobValue = formatKimJobValue(customerType, customerTypeDetail);
+    setStatusValues((current) => ({ ...current, job: nextJobValue }));
+    setOpenEditor(null);
+    onToast("직군 수정 완료");
+  }
+
+  function saveLocationField(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const province = String(formData.get("province") ?? "확인 필요");
+    const detail = String(formData.get("detail") ?? "확인 필요");
+    setStatusValues((current) => ({ ...current, location: formatKimLocationValue(province, detail) }));
+    setOpenEditor(null);
+    onToast("거주지 수정 완료");
+  }
+
+  function saveSourceField(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const source = String(formData.get("source") ?? "").trim();
+    const customSource = String(formData.get("customSource") ?? "").trim();
+    const nextSource = source === "기타" ? customSource || "기타" : source;
+    if (!nextSource) return;
+    setStatusValues((current) => ({ ...current, source: nextSource }));
+    setOpenEditor(null);
+    onToast("상담경로 수정 완료");
+  }
+
   function selectStageGroup(nextGroup: string) {
+    const nextStatus = customerStatusGroups[nextGroup]?.[0] ?? nextGroup;
     setStageGroup(nextGroup);
-    setStageStatus(customerStatusGroups[nextGroup]?.[0] ?? nextGroup);
+    setStageStatus(nextStatus);
+    onWorkflowChange?.(customer.no, { statusGroup: nextGroup, status: nextStatus });
+    onToast("진행 상태 수정 완료");
   }
 
   function selectStageStatus(nextStatus: string) {
     setStageStatus(nextStatus);
     setOpenEditor(null);
+    onWorkflowChange?.(customer.no, { statusGroup: stageGroup, status: nextStatus });
     onToast("진행 상태 수정 완료");
   }
 
@@ -411,6 +749,12 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
     ));
   }
 
+  function toggleCheckItem(title: string) {
+    setCompletedCheckItems((current) => (
+      current.includes(title) ? current.filter((itemTitle) => itemTitle !== title) : [...current, title]
+    ));
+  }
+
   function workflowValue(key: KimWorkflowKey) {
     if (key === "stage") return `${stageGroup} · ${stageStatus}`;
     if (key === "chance") return chance;
@@ -420,16 +764,40 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
   function renderStatusEditor(key: KimStatusFieldKey) {
     return (
       <div className="kim-edit-popover compact" role="dialog" aria-label={`${fieldLabel(key)} 수정`}>
+        {key === "job" ? (
+          <KimJobStatusEditor
+            initialValue={statusValues.job}
+            onCancel={() => setOpenEditor(null)}
+            onSubmit={saveJobField}
+          />
+        ) : key === "location" ? (
+          <KimLocationStatusEditor
+            initialValue={statusValues.location}
+            onCancel={() => setOpenEditor(null)}
+            onSubmit={saveLocationField}
+          />
+        ) : key === "source" ? (
+          <KimSourceStatusEditor
+            initialValue={statusValues.source}
+            onCancel={() => setOpenEditor(null)}
+            onSubmit={saveSourceField}
+          />
+        ) : (
         <form className="kim-edit-form" onSubmit={(event) => saveStatusField(event, key)}>
           <label>
-            <span>{fieldLabel(key)}</span>
-            <input autoFocus defaultValue={statusValues[key]} name="value" />
+            <span>{key === "phone" ? "연락처 수정" : fieldLabel(key)}</span>
+            {key === "phone" ? (
+              <KimPhoneStatusInput initialValue={statusValues[key]} />
+            ) : (
+              <input autoFocus defaultValue={statusValues[key]} name="value" />
+            )}
           </label>
           <div className="kim-edit-actions">
             <button type="button" onClick={() => setOpenEditor(null)}>취소</button>
             <button className="primary" type="submit">저장</button>
           </div>
         </form>
+        )}
       </div>
     );
   }
@@ -467,21 +835,42 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
       );
     }
 
-    const options = key === "chance" ? kimChanceOptions : kimManageOptions;
     return (
       <div className="kim-edit-popover compact" role="dialog" aria-label={`${key === "chance" ? "계약 가능성" : "관리 상태"} 수정`}>
         <div className="kim-choice-list single">
-          {options.map((option) => {
-            const selected = option === (key === "chance" ? chance : manage);
+          {key === "chance" ? kimChanceOptions.map((option) => {
+            const selected = option === chance;
             return (
               <button
                 className={selected ? "active" : ""}
                 key={option}
                 onClick={() => {
-                  if (key === "chance") setChance(option);
-                  else setManage(option);
+                  if (option === "확정" && stageGroup !== "계약완료") {
+                    onToast("계약완료 단계에서만 확정으로 변경할 수 있습니다.");
+                    return;
+                  }
+                  setChance(option);
+                  onWorkflowChange?.(customer.no, { chance: option });
                   setOpenEditor(null);
-                  onToast(`${key === "chance" ? "계약 가능성" : "관리 상태"} 수정 완료`);
+                  onToast("계약 가능성 수정 완료");
+                }}
+                type="button"
+              >
+                <span>{option}</span>
+                {selected && <Check size={13} strokeWidth={2.7} />}
+              </button>
+            );
+          }) : kimManageOptions.map((option) => {
+            const selected = option === manage;
+            return (
+              <button
+                className={selected ? "active" : ""}
+                key={option}
+                onClick={() => {
+                  setManage(option);
+                  onWorkflowChange?.(customer.no, { manageStatus: option });
+                  setOpenEditor(null);
+                  onToast("관리 상태 수정 완료");
                 }}
                 type="button"
               >
@@ -597,12 +986,13 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
               if (field.key === "source") {
                 return (
                   <div className="kim-edit-anchor" key={field.key} ref={openEditor?.kind === "status" && openEditor.key === field.key ? editorRef : undefined}>
-                    <div className="kim-status-field" onClick={() => toggleEditor({ kind: "status", key: field.key })} onKeyDown={openSourceEditorByKeyboard} role="button" tabIndex={0}>
+                    <div className="kim-status-field" onClick={() => openStatusEditor({ kind: "status", key: field.key })} onKeyDown={openSourceEditorByKeyboard} role="button" tabIndex={0}>
                       <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                       <span className="kim-status-copy">
                       <span>{field.label}</span>
                       <strong>
                         {statusValues[field.key]}
+                        {hasKimAppSourceQueue(statusValues[field.key]) ? (
                         <button
                           aria-label="앱 상담 큐 보기"
                           className="kim-app-queue-button"
@@ -614,6 +1004,7 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
                         >
                           <MessageSquareText size={13} strokeWidth={2.4} />
                         </button>
+                        ) : null}
                       </strong>
                       </span>
                     </div>
@@ -623,7 +1014,7 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
               }
               return (
                 <div className="kim-edit-anchor" key={field.key} ref={openEditor?.kind === "status" && openEditor.key === field.key ? editorRef : undefined}>
-                  <button className="kim-status-field" onClick={() => toggleEditor({ kind: "status", key: field.key })} type="button">
+                  <button className="kim-status-field" onClick={() => openStatusEditor({ kind: "status", key: field.key })} type="button">
                     <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                     <span className="kim-status-copy">
                     <span>{field.label}</span>
@@ -672,117 +1063,128 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
         </div>
       </section>
 
-      <section className="kim-condition-quote-grid" aria-label="김민준 구매조건과 견적">
-        <section className="detail-section kim-purchase-conditions" aria-label="상세 구매조건" ref={openEditor?.kind === "purchase" ? editorRef : undefined}>
-          <div className="kim-mvp-card-head">
-            <div className="kim-mvp-title-row">
-              <h3>상세 구매조건</h3>
-              <button aria-label="상세 구매조건 수정" className="kim-mvp-add-circle" onClick={() => toggleEditor({ kind: "purchase" })} type="button">
-                <Pencil size={12} strokeWidth={2.4} />
-              </button>
+      <section className="kim-workspace-band" aria-label="김민준 실무 영역">
+        <section className="kim-condition-consult-grid" aria-label="김민준 구매조건과 상담 기록">
+          <section className="detail-section kim-purchase-conditions" aria-label="상세 구매조건" ref={openEditor?.kind === "purchase" ? editorRef : undefined}>
+            <div className="kim-mvp-card-head">
+              <div className="kim-mvp-title-row">
+                <i aria-hidden="true" className="kim-mvp-title-icon"><ListChecks size={14} strokeWidth={2.2} /></i>
+                <h3>상세 구매조건</h3>
+                <button aria-label="상세 구매조건 수정" className="kim-mvp-add-circle" onClick={() => toggleEditor({ kind: "purchase" })} type="button">
+                  <Pencil size={12} strokeWidth={2.4} />
+                </button>
+              </div>
             </div>
-          </div>
-          <div className="kim-purchase-condition-body">
-            {purchaseFields.map((field) => (
-              <button className="kim-purchase-condition-item" key={field.label} onClick={() => toggleEditor({ kind: "purchase" })} type="button">
-                <span>{field.label}</span>
-                <strong className={field.value === "미정" ? "is-empty" : ""}>{field.value}</strong>
-              </button>
-            ))}
-          </div>
-          {openEditor?.kind === "purchase" ? renderPurchaseEditor() : null}
+            <div className="kim-purchase-condition-body">
+              {purchaseFields.map((field) => (
+                <button className="kim-purchase-condition-item" key={field.label} onClick={() => toggleEditor({ kind: "purchase" })} type="button">
+                  <span>{field.label}</span>
+                  <strong className={field.value === "미정" ? "is-empty" : ""}>{field.value}</strong>
+                </button>
+              ))}
+            </div>
+            {openEditor?.kind === "purchase" ? renderPurchaseEditor() : null}
+          </section>
+
+          <section className="detail-section kim-mvp-section kim-consult-log">
+            <div className="kim-mvp-section-head">
+              <div className="kim-mvp-title-row">
+                <i aria-hidden="true" className="kim-mvp-title-icon"><MessageSquareText size={14} strokeWidth={2.2} /></i>
+                <h3>상담 기록</h3>
+                <span>{timelineItems.length}</span>
+                <button aria-label="상담 기록 추가" className="kim-mvp-add-circle" onClick={() => setAddingTimelineRecord((current) => !current)} type="button">{addingTimelineRecord ? "×" : "+"}</button>
+              </div>
+            </div>
+            <div className="kim-consult-body" ref={consultBodyRef}>
+              {addingTimelineRecord ? (
+                <form className="kim-consult-composer" onSubmit={saveTimelineRecord}>
+                  <label>
+                    <span>유형</span>
+                    <select defaultValue="메모" name="kind">
+                      {["메모", "통화", "카톡", "앱상담", "상태변경"].map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>내용</span>
+                    <textarea autoFocus defaultValue="GLC 재고 확인 후 X3 조건과 총비용 비교 견적 다시 안내 예정" name="body" rows={3} />
+                  </label>
+                  <div className="kim-consult-composer-actions">
+                    <button type="button" onClick={() => setAddingTimelineRecord(false)}>취소</button>
+                    <button className="primary" type="submit">저장</button>
+                  </div>
+                </form>
+              ) : null}
+              <div className="kim-consult-timeline">
+                {timelineItems.map((item, index) => {
+                  const isLatestMemo = item.kind === "메모" && !timelineItems.slice(index + 1).some((nextItem) => nextItem.kind === "메모");
+                  return (
+                    <article
+                      className={`kim-consult-event${isLatestMemo ? " is-latest-memo" : " is-muted-history"}`}
+                      key={`${item.kind}-${item.title}-${item.meta}-${index}`}
+                    >
+                      <span>{item.kind}</span>
+                      <div>
+                        <div className="kim-consult-event-head">
+                          <div>
+                            <strong>{item.title}</strong>
+                            <em>{item.meta}</em>
+                          </div>
+                          {item.kind === "메모" ? (
+                            <button aria-label="상담 메모 삭제" onClick={() => deleteTimelineRecord(item)} type="button">
+                              <Trash2 size={13} strokeWidth={2.3} />
+                            </button>
+                          ) : null}
+                        </div>
+                        <p>{item.body}</p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
         </section>
 
-        <article className="detail-section kim-mvp-card kim-quote-card compact">
+        <section className="kim-mvp-ops-grid" aria-label="김민준 고객 운영 기능">
+        <article className="detail-section kim-mvp-card kim-check-card">
           <div className="kim-mvp-card-head">
             <div className="kim-mvp-title-row">
-              <h3>견적함</h3>
-              <span>{kimMinjunQuoteHistory.length}</span>
-              <button aria-label="견적함 추가" className="kim-mvp-add-circle" onClick={() => onToast("견적함 추가 자리입니다.")} type="button">+</button>
+              <i aria-hidden="true" className="kim-mvp-title-icon"><Check size={14} strokeWidth={2.2} /></i>
+              <h3>확인할 일</h3>
+              <span>{remainingCheckCount}</span>
+              <button aria-label="확인할 일 추가" className="kim-mvp-add-circle" onClick={() => onToast("확인할 일 추가 자리입니다.")} type="button">+</button>
             </div>
           </div>
           <div className="kim-mvp-card-body">
-            <div className="kim-quote-list">
-              {kimMinjunQuoteHistory.map((quote) => (
-                <div className="kim-quote-row" key={quote.title}>
-                  <span>{quote.status}</span>
-                  <div>
-                    <strong>{quote.title}</strong>
-                    <p>{quote.meta}</p>
-                  </div>
-                  <label aria-label={`${quote.title} 원본 첨부`}>
-                    <Upload size={12} strokeWidth={2.4} />
-                    첨부
-                    <input accept="image/*,.pdf" onChange={(event) => attachQuoteFile(event, quote.title)} type="file" />
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="kim-mvp-ops-grid" aria-label="김민준 고객 운영 기능">
-        <section className="detail-section kim-mvp-section kim-consult-log">
-          <div className="kim-mvp-section-head">
-            <div className="kim-mvp-title-row">
-              <h3>상담 기록</h3>
-              <span>{timelineItems.length}</span>
-              <button aria-label="상담 기록 추가" className="kim-mvp-add-circle" onClick={() => setAddingTimelineRecord((current) => !current)} type="button">{addingTimelineRecord ? "×" : "+"}</button>
-            </div>
-          </div>
-          <div className="kim-consult-body" ref={consultBodyRef}>
-            {addingTimelineRecord ? (
-              <form className="kim-consult-composer" onSubmit={saveTimelineRecord}>
-                <label>
-                  <span>유형</span>
-                  <select defaultValue="메모" name="kind">
-                    {["메모", "통화", "카톡", "앱상담", "상태변경"].map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span>내용</span>
-                  <textarea autoFocus defaultValue="GLC 재고 확인 후 X3 조건과 총비용 비교 견적 다시 안내 예정" name="body" rows={3} />
-                </label>
-                <div className="kim-consult-composer-actions">
-                  <button type="button" onClick={() => setAddingTimelineRecord(false)}>취소</button>
-                  <button className="primary" type="submit">저장</button>
-                </div>
-              </form>
-            ) : null}
-            <div className="kim-consult-timeline">
-              {timelineItems.map((item, index) => {
-                const isLatestMemo = item.kind === "메모" && !timelineItems.slice(index + 1).some((nextItem) => nextItem.kind === "메모");
+            <div className="kim-check-list">
+              {kimMinjunCheckItems.map((item) => {
+                const isCompleted = completedCheckItems.includes(item.title);
                 return (
-                  <article
-                    className={`kim-consult-event${isLatestMemo ? " is-latest-memo" : " is-muted-history"}`}
-                    key={`${item.kind}-${item.title}-${item.meta}-${index}`}
-                  >
-                    <span>{item.kind}</span>
+                  <div className={`kim-check-row${isCompleted ? " is-completed" : ""}`} key={item.title}>
+                    <span>{item.label}</span>
                     <div>
-                      <div className="kim-consult-event-head">
-                        <div>
-                          <strong>{item.title}</strong>
-                          <em>{item.meta}</em>
-                        </div>
-                        {item.kind === "메모" ? (
-                          <button aria-label="상담 메모 삭제" onClick={() => deleteTimelineRecord(item)} type="button">
-                            <Trash2 size={13} strokeWidth={2.3} />
-                          </button>
-                        ) : null}
-                      </div>
-                      <p>{item.body}</p>
+                      <strong>{item.title}</strong>
+                      <p>{item.memo}</p>
                     </div>
-                  </article>
+                    <button
+                      aria-label={isCompleted ? "확인할 일 완료 취소" : "확인할 일 완료"}
+                      aria-pressed={isCompleted}
+                      onClick={() => toggleCheckItem(item.title)}
+                      type="button"
+                    >
+                      <Check size={13} strokeWidth={2.6} />
+                    </button>
+                  </div>
                 );
               })}
             </div>
           </div>
-        </section>
+        </article>
 
         <article className="detail-section kim-mvp-card kim-schedule-card" ref={openEditor?.kind === "schedule" ? editorRef : undefined}>
           <div className="kim-mvp-card-head">
             <div className="kim-mvp-title-row">
+              <i aria-hidden="true" className="kim-mvp-title-icon"><CalendarClock size={14} strokeWidth={2.2} /></i>
               <h3>다음 일정</h3>
               <span>{schedules.length}</span>
               <button aria-label="다음 일정 추가" className="kim-mvp-add-circle" onClick={() => toggleEditor({ kind: "schedule" })} type="button">+</button>
@@ -815,9 +1217,39 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
           {openEditor?.kind === "schedule" ? renderScheduleEditor() : null}
         </article>
 
+        <article className="detail-section kim-mvp-card kim-quote-card compact">
+          <div className="kim-mvp-card-head">
+            <div className="kim-mvp-title-row">
+              <i aria-hidden="true" className="kim-mvp-title-icon"><FileText size={14} strokeWidth={2.2} /></i>
+              <h3>견적함</h3>
+              <span>{kimMinjunQuoteHistory.length}</span>
+              <button aria-label="견적함 추가" className="kim-mvp-add-circle" onClick={() => onToast("견적함 추가 자리입니다.")} type="button">+</button>
+            </div>
+          </div>
+          <div className="kim-mvp-card-body">
+            <div className="kim-quote-list">
+              {kimMinjunQuoteHistory.map((quote) => (
+                <div className="kim-quote-row" key={quote.title}>
+                  <span>{quote.status}</span>
+                  <div>
+                    <strong>{quote.title}</strong>
+                    <p>{quote.meta}</p>
+                  </div>
+                  <label aria-label={`${quote.title} 원본 첨부`}>
+                    <Upload size={12} strokeWidth={2.4} />
+                    첨부
+                    <input accept="image/*,.pdf" onChange={(event) => attachQuoteFile(event, quote.title)} type="file" />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        </article>
+
         <article className="detail-section kim-mvp-card kim-doc-card">
           <div className="kim-mvp-card-head">
             <div className="kim-mvp-title-row">
+              <i aria-hidden="true" className="kim-mvp-title-icon"><FolderOpen size={14} strokeWidth={2.2} /></i>
               <h3>서류함</h3>
               <span>0</span>
               <button aria-label="서류 추가" className="kim-mvp-add-circle" onClick={() => onToast("서류 추가 자리입니다.")} type="button">+</button>
@@ -834,12 +1266,22 @@ function KimMinjunDetailContent({ customer, onToast }: { customer: Customer; onT
             </div>
           </div>
         </article>
+        </section>
       </section>
     </div>
   );
 }
 
-export function CustomerDetailPage({ customer, onBack, onFullScreen, onToast, variant = "page" }: CustomerDetailPageProps) {
+export function CustomerDetailPage({
+  chanceOverride,
+  customer,
+  manageStatusOverride,
+  onBack,
+  onFullScreen,
+  onToast,
+  onWorkflowChange,
+  variant = "page",
+}: CustomerDetailPageProps) {
   const chance = chanceLabel(customer);
   const phone = phoneChunks(customer.phone);
   const isContracted = chance === "확정";
@@ -847,7 +1289,7 @@ export function CustomerDetailPage({ customer, onBack, onFullScreen, onToast, va
   const isKimMinjun = customer.customerId === "CU-2605-0020";
 
   return (
-    <div className={`customer-detail-console-page ${drawerMode ? "drawer" : ""}`}>
+    <div className={`customer-detail-console-page ${drawerMode ? "drawer" : ""} ${isKimMinjun ? "kim-detail-mode" : ""}`}>
       {isKimMinjun ? null : (
         <>
       <section className="customer-detail-summary">
@@ -898,7 +1340,13 @@ export function CustomerDetailPage({ customer, onBack, onFullScreen, onToast, va
       )}
 
       {isKimMinjun ? (
-        <KimMinjunDetailContent customer={customer} onToast={onToast} />
+        <KimMinjunDetailContent
+          chanceOverride={chanceOverride}
+          customer={customer}
+          manageStatusOverride={manageStatusOverride}
+          onToast={onToast}
+          onWorkflowChange={onWorkflowChange}
+        />
       ) : (
       <div className="customer-detail-layout">
         <main className="customer-detail-main">

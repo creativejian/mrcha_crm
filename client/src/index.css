@@ -5960,24 +5960,27 @@ th input:focus-visible {
 }
 
 .kim-status-copy strong .kim-app-queue-button {
-  width: 24px;
-  height: 24px;
-  border: 1px solid #dededb;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #5836ff;
   border-radius: 6px;
-  display: inline-grid;
+  display: inline-flex;
   flex: 0 0 auto;
-  place-items: center;
-  background: #fbfbfa;
-  color: #68717b;
+  align-items: center;
+  justify-content: center;
+  background: #5836ff;
+  color: #fff;
   padding: 0;
+  font: inherit;
+  box-shadow: 0 7px 16px rgba(88, 54, 255, 0.2);
   transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
 }
 
 .kim-status-copy strong .kim-app-queue-button:hover {
-  border-color: rgba(88, 54, 255, 0.34);
-  background: #fff;
-  color: #5836ff;
-  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.06);
+  border-color: #4424df;
+  background: #4424df;
+  color: #fff;
+  box-shadow: 0 9px 18px rgba(88, 54, 255, 0.26);
 }
 
 .kim-status-field:hover {
@@ -6111,6 +6114,11 @@ th input:focus-visible {
   border-color: rgba(88, 54, 255, 0.5);
   background: #fff;
   box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.07);
+}
+
+.kim-edit-form input.is-preview-value {
+  color: #6f7780;
+  font-weight: 560;
 }
 
 .kim-edit-actions {
@@ -6392,6 +6400,8 @@ th input:focus-visible {
 
 .kim-mvp-ops-grid,
 .kim-condition-quote-grid,
+.kim-condition-consult-grid,
+.kim-workspace-band,
 .kim-purchase-conditions,
 .kim-mvp-feature-row,
 .kim-mvp-section,
@@ -6399,13 +6409,32 @@ th input:focus-visible {
   grid-column: 1 / -1;
 }
 
+.kim-workspace-band {
+  display: grid;
+  gap: 30px;
+}
+
 .kim-condition-quote-grid,
+.kim-condition-consult-grid,
 .kim-mvp-ops-grid,
 .kim-mvp-feature-row {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
-  gap: 30px 10px;
+  gap: 10px;
   align-items: stretch;
+}
+
+.kim-condition-consult-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.kim-condition-quote-grid,
+.kim-mvp-feature-row {
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+}
+
+.kim-mvp-ops-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  row-gap: 30px;
 }
 
 .kim-mvp-feature-row .kim-mvp-section {
@@ -6418,12 +6447,10 @@ th input:focus-visible {
 }
 
 .kim-condition-quote-grid .kim-purchase-conditions,
+.kim-condition-consult-grid .kim-purchase-conditions,
+.kim-condition-consult-grid .kim-consult-log,
 .kim-condition-quote-grid .kim-quote-card {
   grid-column: auto;
-}
-
-.kim-mvp-ops-grid .kim-doc-card {
-  grid-column: 1 / -1;
 }
 
 .kim-customer-dashboard .kim-consult-log {
@@ -6532,7 +6559,7 @@ th input:focus-visible {
 
 .kim-purchase-condition-body {
   border: 1px solid #e4e4e2;
-  border-radius: 6px;
+  border-radius: 4px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
@@ -6851,7 +6878,7 @@ th input:focus-visible {
 
 .kim-mvp-card-body {
   border: 1px solid #e4e4e2;
-  border-radius: 6px;
+  border-radius: 4px;
   display: grid;
   align-content: start;
   gap: 12px;
@@ -6863,7 +6890,8 @@ th input:focus-visible {
 
 .kim-schedule-card .kim-mvp-card-body,
 .kim-quote-card .kim-mvp-card-body,
-.kim-doc-card .kim-mvp-card-body {
+.kim-doc-card .kim-mvp-card-body,
+.kim-check-card .kim-mvp-card-body {
   gap: 0;
   min-height: 236px;
   height: 236px;
@@ -6877,8 +6905,80 @@ th input:focus-visible {
   margin-top: 2px;
 }
 
+.kim-workspace-band .kim-purchase-conditions,
+.kim-workspace-band .kim-consult-log,
+.kim-workspace-band .kim-mvp-card {
+  border: 1px solid #e4e4e2;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+  gap: 0;
+}
+
+.kim-workspace-band .kim-mvp-card-head,
+.kim-workspace-band .kim-mvp-section-head {
+  min-height: 40px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  background: #fff;
+  padding: 8px 14px;
+  box-sizing: border-box;
+}
+
+.kim-workspace-band .kim-mvp-title-row {
+  width: 100%;
+}
+
+.kim-workspace-band .kim-mvp-title-row h3 {
+  margin-right: auto;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.kim-mvp-title-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #68717b;
+  font-style: normal;
+}
+
+.kim-workspace-band .kim-purchase-condition-body,
+.kim-workspace-band .kim-consult-body,
+.kim-workspace-band .kim-mvp-card-body {
+  border: 0;
+  border-radius: 0;
+  background: #fbfbfa;
+}
+
+.kim-workspace-band .kim-purchase-condition-item,
+.kim-workspace-band .kim-consult-event,
+.kim-workspace-band .kim-quote-row,
+.kim-workspace-band .kim-doc-row,
+.kim-workspace-band .kim-check-row,
+.kim-workspace-band .kim-schedule-row {
+  background: #fbfbfa;
+}
+
+.kim-workspace-band .kim-purchase-condition-item:hover,
+.kim-workspace-band .kim-quote-row:hover,
+.kim-workspace-band .kim-doc-row:hover,
+.kim-workspace-band .kim-check-row:hover {
+  background: #fff;
+}
+
+.kim-workspace-band .kim-consult-event.is-muted-history,
+.kim-workspace-band .kim-consult-event.is-latest-memo,
+.kim-workspace-band .kim-check-row.is-completed,
+.kim-workspace-band .kim-schedule-row.is-completed {
+  background: #fbfbfa;
+}
+
 .kim-quote-list,
-.kim-doc-list {
+.kim-doc-list,
+.kim-check-list {
   display: grid;
   gap: 0;
   padding: 4px 0;
@@ -6893,6 +6993,11 @@ th input:focus-visible {
   align-items: start;
   padding: 11px 14px;
   box-sizing: border-box;
+  transition: background 0.14s ease;
+}
+
+.kim-quote-row:hover {
+  background: #fafafa;
 }
 
 .kim-quote-card.compact .kim-quote-row {
@@ -6911,7 +7016,8 @@ th input:focus-visible {
 }
 
 .kim-quote-row > span,
-.kim-doc-row > span {
+.kim-doc-row > span,
+.kim-check-row > span {
   align-self: start;
   height: 22px;
   border: 1px solid rgba(88, 54, 255, 0.18);
@@ -6927,7 +7033,8 @@ th input:focus-visible {
 }
 
 .kim-quote-row strong,
-.kim-doc-row strong {
+.kim-doc-row strong,
+.kim-check-row strong {
   overflow: hidden;
   color: #30363d;
   font-size: 12.5px;
@@ -7002,6 +7109,77 @@ th input:focus-visible {
 
 .kim-doc-row:hover {
   background: #fafafa;
+}
+
+.kim-check-row {
+  border: 0;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 26px;
+  gap: 10px;
+  min-height: 76px;
+  background: transparent;
+  padding: 11px 14px;
+  box-sizing: border-box;
+  transition: background 0.14s ease;
+}
+
+.kim-check-row:hover {
+  background: #fafafa;
+}
+
+.kim-check-row.is-completed {
+  background: #fafafa;
+}
+
+.kim-check-row:last-child {
+  border-bottom: 0;
+}
+
+.kim-check-row.is-completed strong {
+  color: #737a82;
+}
+
+.kim-check-row p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 4px 0 0;
+  color: #58636e;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.kim-check-row.is-completed p {
+  color: #8f969c;
+}
+
+.kim-check-row > button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  display: inline-grid;
+  align-self: start;
+  place-items: center;
+  background: #fff;
+  color: #8f969c;
+  padding: 0;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-check-row > button:hover {
+  border-color: rgba(88, 54, 255, 0.34);
+  color: #5836ff;
+  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.06);
+}
+
+.kim-check-row > button[aria-pressed="true"] {
+  border-color: rgba(88, 54, 255, 0.2);
+  background: #f4f1ff;
+  color: #5836ff;
 }
 
 .kim-schedule-card {
@@ -7805,6 +7983,8 @@ th input:focus-visible {
   .kim-customer-dashboard,
   .kim-minjun-detail-layout,
   .detail-work-grid,
+  .kim-condition-consult-grid,
+  .kim-mvp-ops-grid,
   .detail-form-grid,
   .detail-form-grid.focus,
   .customer-needs-body,
