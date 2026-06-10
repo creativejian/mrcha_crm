@@ -5433,6 +5433,15 @@ th input:focus-visible {
   white-space: nowrap;
 }
 
+.kim-header-received-text {
+  color: #a8afb6;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .kim-header-actions {
   display: flex;
   align-items: center;
@@ -5959,6 +5968,10 @@ th input:focus-visible {
   min-width: 0;
 }
 
+.kim-status-copy strong.is-unassigned {
+  color: #c24132;
+}
+
 .kim-status-copy strong .kim-app-queue-button {
   width: 28px;
   height: 28px;
@@ -5977,6 +5990,53 @@ th input:focus-visible {
 }
 
 .kim-status-copy strong .kim-app-queue-button:hover {
+  border-color: #4424df;
+  background: #4424df;
+  color: #fff;
+  box-shadow: 0 9px 18px rgba(88, 54, 255, 0.26);
+}
+
+.kim-quote-attachment-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.kim-status-copy strong .kim-quote-attachment-button {
+  height: 28px;
+  min-width: 34px;
+  border: 1px solid #5836ff;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #5836ff;
+  color: #fff;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 780;
+  line-height: 1;
+  box-shadow: 0 7px 16px rgba(88, 54, 255, 0.2);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-status-copy strong .kim-quote-attachment-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.kim-status-copy strong .kim-quote-attachment-button span {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 820;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.kim-status-copy strong .kim-quote-attachment-button:hover {
   border-color: #4424df;
   background: #4424df;
   color: #fff;
@@ -6045,6 +6105,83 @@ th input:focus-visible {
   top: 40px;
   left: 0;
   width: min(720px, 100%);
+}
+
+.kim-edit-popover.purchase-method {
+  top: calc(100% + 7px);
+  left: 10px;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 340px));
+}
+
+.kim-edit-popover.purchase-term {
+  top: calc(100% + 7px);
+  left: 10px;
+  width: max-content;
+  max-width: min(500px, calc(100vw - 340px));
+}
+
+.kim-edit-popover.purchase-initial-cost {
+  top: calc(100% + 7px);
+  left: 10px;
+  width: 330px;
+}
+
+.kim-edit-popover.purchase-annual-mileage {
+  top: calc(100% + 7px);
+  left: 10px;
+  width: 360px;
+}
+
+.kim-edit-popover.purchase-delivery-method {
+  top: calc(100% + 7px);
+  left: 10px;
+  width: 340px;
+}
+
+.kim-edit-popover.purchase-timing {
+  top: calc(100% + 7px);
+  left: 10px;
+  width: max-content;
+  min-width: 318px;
+  max-width: min(390px, calc(100vw - 340px));
+}
+
+.kim-edit-popover.purchase-cost-focus {
+  top: calc(100% + 7px);
+  left: auto;
+  right: 10px;
+  width: 360px;
+}
+
+.kim-edit-popover.purchase-customer-notes {
+  top: calc(100% + 7px);
+  left: auto;
+  right: 10px;
+  width: 380px;
+}
+
+.kim-edit-popover.purchase-review-notes {
+  top: calc(100% + 7px);
+  left: auto;
+  right: 10px;
+  width: 380px;
+}
+
+.kim-purchase-floating-popover {
+  position: fixed;
+  z-index: 280;
+}
+
+.kim-purchase-floating-popover.align-right {
+  transform: translateX(-100%);
+}
+
+.kim-purchase-floating-popover .kim-edit-popover {
+  position: static;
+  top: auto;
+  right: auto;
+  left: auto;
 }
 
 .kim-edit-form {
@@ -6121,6 +6258,266 @@ th input:focus-visible {
   font-weight: 560;
 }
 
+.kim-method-segmented {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 7px;
+  white-space: nowrap;
+}
+
+.kim-method-segmented button {
+  height: 30px;
+  border: 1px solid #e2e2df;
+  border-radius: 6px;
+  background: #f7f7f6;
+  color: #3f474f;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 28px;
+  white-space: nowrap;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, color 0.14s ease;
+}
+
+.kim-method-segmented button:hover,
+.kim-method-segmented button.active {
+  border-color: rgba(88, 54, 255, 0.36);
+  background: #f4f1ff;
+  color: #5836ff;
+  box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.055);
+}
+
+.kim-timing-picker {
+  display: grid;
+  gap: 6px;
+  padding: 7px;
+}
+
+.kim-timing-options {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.kim-month-options {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 318px;
+}
+
+.kim-timing-options button,
+.kim-month-options button,
+.kim-timing-month-trigger {
+  height: 28px;
+  border: 1px solid #e2e2df;
+  border-radius: 6px;
+  background: #f7f7f6;
+  color: #3f474f;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 26px;
+  white-space: nowrap;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, color 0.14s ease;
+}
+
+.kim-timing-month-trigger {
+  width: fit-content;
+}
+
+.kim-month-options {
+  border-top: 1px solid #eee;
+  padding-top: 6px;
+}
+
+.kim-month-options button {
+  padding: 0;
+}
+
+.kim-timing-options button:hover,
+.kim-timing-options button.active,
+.kim-timing-month-trigger:hover,
+.kim-timing-month-trigger.active,
+.kim-month-options button:hover,
+.kim-month-options button.active {
+  border-color: rgba(88, 54, 255, 0.36);
+  background: #f4f1ff;
+  color: #5836ff;
+  box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.055);
+}
+
+.kim-cost-focus-picker,
+.kim-customer-note-picker,
+.kim-review-note-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  padding: 7px;
+}
+
+.kim-cost-focus-picker button,
+.kim-customer-note-picker button,
+.kim-review-note-picker button {
+  min-height: 30px;
+  border: 1px solid #e2e2df;
+  border-radius: 6px;
+  background: #f7f7f6;
+  color: #3f474f;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 1.2;
+  text-align: center;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, color 0.14s ease;
+}
+
+.kim-cost-focus-picker button:hover,
+.kim-cost-focus-picker button.active,
+.kim-customer-note-picker button:hover,
+.kim-customer-note-picker button.active,
+.kim-review-note-picker button:hover,
+.kim-review-note-picker button.active {
+  border-color: rgba(88, 54, 255, 0.36);
+  background: #f4f1ff;
+  color: #5836ff;
+  box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.055);
+}
+
+.kim-initial-cost-editor {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+.kim-initial-cost-group,
+.kim-initial-cost-unit {
+  display: grid;
+  gap: 5px;
+}
+
+.kim-initial-cost-group {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.kim-initial-cost-unit {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.kim-initial-cost-group button,
+.kim-initial-cost-unit button {
+  height: 30px;
+  border: 1px solid #e2e2df;
+  border-radius: 6px;
+  background: #f7f7f6;
+  color: #3f474f;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 28px;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, color 0.14s ease;
+}
+
+.kim-initial-cost-group button:hover,
+.kim-initial-cost-group button.active,
+.kim-initial-cost-unit button:hover,
+.kim-initial-cost-unit button.active {
+  border-color: rgba(88, 54, 255, 0.36);
+  background: #f4f1ff;
+  color: #5836ff;
+  box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.055);
+}
+
+.kim-initial-cost-entry {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 7px;
+  align-items: end;
+}
+
+.kim-initial-cost-input {
+  display: grid;
+  gap: 4px;
+}
+
+.kim-initial-cost-input span {
+  color: #8f969e;
+  font-size: 10.5px;
+  font-weight: 760;
+}
+
+.kim-initial-cost-input div {
+  height: 30px;
+  border: 1px solid #e2e2df;
+  border-radius: 6px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  background: #fff;
+  overflow: hidden;
+}
+
+.kim-initial-cost-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #30363d;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 760;
+  outline: none;
+}
+
+.kim-initial-cost-input em {
+  padding-right: 8px;
+  color: #8f969e;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 760;
+}
+
+.kim-mileage-picker,
+.kim-delivery-method-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  padding: 7px;
+}
+
+.kim-mileage-picker button,
+.kim-delivery-method-picker button {
+  min-height: 30px;
+  border: 1px solid #e2e2df;
+  border-radius: 6px;
+  background: #f7f7f6;
+  color: #3f474f;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, color 0.14s ease;
+}
+
+.kim-mileage-picker button:hover,
+.kim-mileage-picker button.active,
+.kim-delivery-method-picker button:hover,
+.kim-delivery-method-picker button.active {
+  border-color: rgba(88, 54, 255, 0.36);
+  background: #f4f1ff;
+  color: #5836ff;
+  box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.055);
+}
+
 .kim-edit-actions {
   display: flex;
   justify-content: flex-end;
@@ -6138,6 +6535,17 @@ th input:focus-visible {
   font-size: 11.5px;
   font-weight: 760;
   line-height: 26px;
+}
+
+.kim-edit-actions.compact {
+  gap: 6px;
+}
+
+.kim-edit-actions.compact button {
+  height: 30px;
+  min-width: 54px;
+  border-radius: 7px;
+  font-size: 11.5px;
 }
 
 .kim-edit-actions button:hover {
@@ -6202,6 +6610,37 @@ th input:focus-visible {
   background: #f4f1ff;
   color: #5836ff;
   box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.06);
+}
+
+.kim-choice-list button.kim-chance-option.chance-purple {
+  background: #ece8ff;
+  color: #5836ff;
+}
+
+.kim-choice-list button.kim-chance-option.chance-neutral {
+  background: #eef2f6;
+  color: #344051;
+}
+
+.kim-choice-list button.kim-chance-option.chance-red {
+  background: #ffdeda;
+  color: #b42318;
+}
+
+.kim-choice-list button.kim-chance-option.chance-yellow {
+  background: #ffedc2;
+  color: #a86106;
+}
+
+.kim-choice-list button.kim-chance-option.chance-green {
+  background: #d9f3e4;
+  color: #08783b;
+}
+
+.kim-choice-list button.kim-chance-option:hover,
+.kim-choice-list button.kim-chance-option.active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.08), 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
 .kim-workflow-strip {
@@ -6557,6 +6996,10 @@ th input:focus-visible {
   position: relative;
 }
 
+.kim-customer-dashboard .kim-purchase-conditions:has(.kim-edit-popover) {
+  z-index: 20;
+}
+
 .kim-purchase-condition-body {
   border: 1px solid #e4e4e2;
   border-radius: 4px;
@@ -6564,15 +7007,45 @@ th input:focus-visible {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
   min-height: 236px;
-  overflow: hidden;
+  overflow: visible;
   background: #fff;
 }
 
-.kim-purchase-condition-item {
-  min-height: 58px;
-  border: 0;
+.kim-purchase-condition-anchor {
+  position: relative;
+  min-width: 0;
   border-right: 1px solid rgba(17, 17, 17, 0.055);
   border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+}
+
+.kim-purchase-condition-anchor:nth-child(3n) {
+  border-right: 0;
+}
+
+.kim-purchase-condition-anchor:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.kim-purchase-condition-anchor.judgment {
+  background: #fcfcfb;
+}
+
+.kim-purchase-condition-anchor.judgment::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: rgba(17, 17, 17, 0.035);
+  pointer-events: none;
+}
+
+.kim-purchase-condition-item {
+  width: 100%;
+  height: 100%;
+  min-height: 58px;
+  border: 0;
   display: grid;
   align-content: center;
   gap: 7px;
@@ -6590,12 +7063,29 @@ th input:focus-visible {
   background: #fafafa;
 }
 
-.kim-purchase-condition-item:nth-child(3n) {
-  border-right: 0;
+.kim-purchase-condition-anchor.editable {
+  z-index: 1;
 }
 
-.kim-purchase-condition-item:nth-last-child(-n + 3) {
-  border-bottom: 0;
+.kim-purchase-condition-anchor.editable:hover,
+.kim-purchase-condition-anchor.editable:focus-within {
+  z-index: 3;
+  box-shadow: inset 0 0 0 1px rgba(88, 54, 255, 0.42), 0 0 0 2px rgba(88, 54, 255, 0.055);
+}
+
+.kim-purchase-condition-anchor.editable.active {
+  z-index: 90;
+  box-shadow: inset 0 0 0 1px rgba(88, 54, 255, 0.42), 0 0 0 2px rgba(88, 54, 255, 0.055);
+}
+
+.kim-purchase-condition-anchor.editable.active .kim-edit-popover {
+  z-index: 200;
+}
+
+.kim-purchase-condition-anchor.editable:hover .kim-purchase-condition-item,
+.kim-purchase-condition-anchor.editable:focus-within .kim-purchase-condition-item,
+.kim-purchase-condition-anchor.editable.active .kim-purchase-condition-item {
+  background: #fff;
 }
 
 .kim-purchase-condition-item span {
@@ -6606,18 +7096,39 @@ th input:focus-visible {
 }
 
 .kim-purchase-condition-item strong {
-  overflow: hidden;
   color: #30363d;
   font-size: 13px;
   font-weight: 720;
   line-height: 1.25;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+
+.kim-purchase-condition-item strong.is-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 5px;
+  align-items: baseline;
+  color: #30363d;
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.35;
+  overflow-wrap: normal;
+}
+
+.kim-purchase-condition-item strong.is-tag-list span {
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
   white-space: nowrap;
 }
 
 .kim-purchase-condition-item strong.is-empty {
   color: #9aa1a8;
   font-weight: 650;
+}
+
+.kim-purchase-condition-item strong.needs-confirmation {
+  color: #c24132;
 }
 
 .kim-consult-body {
@@ -7942,7 +8453,7 @@ th input:focus-visible {
   position: fixed;
   right: 22px;
   bottom: 22px;
-  z-index: 100;
+  z-index: 320;
   transform: translateY(16px);
   opacity: 0;
   pointer-events: none;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
@@ -57,6 +57,7 @@ export function App() {
   const [financeMode, setFinanceMode] = useState<FinanceMode>("stats");
   const [toast, setToast] = useState("작업이 반영되었습니다.");
   const [toastVisible, setToastVisible] = useState(false);
+  const toastTimerRef = useRef<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [roleTab, setRoleTab] = useState<RoleTab>("최고관리자");
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
@@ -64,6 +65,7 @@ export function App() {
   const [chanceOverrides, setChanceOverrides] = useState<Record<number, CustomerChanceOption>>({});
   const [manageStatusOverrides, setManageStatusOverrides] = useState<Record<number, CustomerManageStatus>>({});
   const [customerDetailPanelOpen, setCustomerDetailPanelOpen] = useState(false);
+  const [customerDetailEditorOpen, setCustomerDetailEditorOpen] = useState(false);
   const selectedCustomer = customers.find((customer) => customer.no === selectedCustomerNo) ?? customers[0] ?? initialCustomers[0];
 
   const [title, desc] = activeView === "customers"
@@ -80,10 +82,18 @@ export function App() {
   const isCustomerConsole = isCustomerLineDraft || activeView === "customer-detail";
 
   function showToast(message: string) {
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
     setToast(message);
     setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 1800);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastVisible(false);
+      toastTimerRef.current = null;
+    }, 1800);
   }
+
+  useEffect(() => () => {
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+  }, []);
 
   function handleRoleTabChange(role: RoleTab) {
     setRoleTab(role);
@@ -94,18 +104,21 @@ export function App() {
 
   function handleViewChange(view: string) {
     setCustomerDetailPanelOpen(false);
+    setCustomerDetailEditorOpen(false);
     setActiveView(view as ViewKey);
   }
 
   function openCustomerDetailPanel(customer: Customer) {
     setSelectedCustomerNo(customer.no);
     setActiveView("customers");
+    setCustomerDetailEditorOpen(false);
     setCustomerDetailPanelOpen(true);
     showToast(`${customer.name} 고객 상세 패널을 열었습니다.`);
   }
 
   function openCustomerDetailFullScreen() {
     setCustomerDetailPanelOpen(false);
+    setCustomerDetailEditorOpen(false);
     setActiveView("customer-detail");
   }
 
@@ -145,12 +158,14 @@ export function App() {
     if (!customerDetailPanelOpen) return;
 
     function closeByEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setCustomerDetailPanelOpen(false);
+      if (event.key !== "Escape") return;
+      if (customerDetailEditorOpen) return;
+      setCustomerDetailPanelOpen(false);
     }
 
     document.addEventListener("keydown", closeByEscape);
     return () => document.removeEventListener("keydown", closeByEscape);
-  }, [customerDetailPanelOpen]);
+  }, [customerDetailEditorOpen, customerDetailPanelOpen]);
 
   function renderView() {
     if (activeView === "advisor-dashboard") return <AdvisorDashboardPage />;
@@ -244,6 +259,7 @@ export function App() {
               customer={selectedCustomer}
               manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
               onBack={() => setCustomerDetailPanelOpen(false)}
+              onEditorOpenChange={setCustomerDetailEditorOpen}
               onFullScreen={openCustomerDetailFullScreen}
               onToast={showToast}
               onWorkflowChange={updateCustomerWorkflow}

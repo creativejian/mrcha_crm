@@ -1,5 +1,5 @@
-import { ArrowLeft, Bot, BriefcaseBusiness, CalendarClock, CarFront, Check, ChevronRight, FileText, FolderOpen, History, ListChecks, MapPin, Maximize2, MessageSquareText, Pencil, Phone, RefreshCcw, Route, Send, Trash2, UserRound, Upload, X } from "lucide-react";
-import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { ArrowLeft, Bot, BriefcaseBusiness, CalendarClock, CarFront, Check, ChevronRight, FileText, FolderOpen, History, ListChecks, MapPin, Maximize2, MessageSquareText, Phone, RefreshCcw, Route, Send, Trash2, UserRound, Upload, X } from "lucide-react";
+import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type FormEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 
 type CustomerDetailPageProps = {
@@ -8,6 +8,7 @@ type CustomerDetailPageProps = {
   manageStatusOverride?: CustomerManageStatus;
   onBack: () => void;
   onFullScreen?: () => void;
+  onEditorOpenChange?: (open: boolean) => void;
   onToast: (message: string) => void;
   onWorkflowChange?: (customerNo: number, next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus }) => void;
   variant?: "page" | "drawer";
@@ -22,11 +23,26 @@ type DetailMetric = {
 type KimStatusFieldKey = "phone" | "job" | "location" | "source" | "advisor" | "assignedAt";
 type KimWorkflowKey = "stage" | "chance" | "manage";
 type KimCustomerType = "개인" | "개인사업자" | "법인사업자";
+type KimAdvisorTeam = "인천본사" | "상담팀" | "견적팀" | "계약팀" | "출고팀";
+type KimInitialCostKind = "무보증" | "보증금" | "선수금";
+type KimInitialCostSelection = KimInitialCostKind | "";
+type KimInitialCostUnit = "%" | "금액";
+type KimPurchaseFloatingKind = "purchaseMethod" | "purchaseTiming" | "purchaseCostFocus" | "purchaseTerm" | "purchaseInitialCost" | "purchaseAnnualMileage" | "purchaseDeliveryMethod" | "purchaseCustomerNotes" | "purchaseReviewNotes";
+type KimPurchasePopoverFrame = { align?: "left" | "right"; top: number; left: number };
 type KimOpenEditor =
   | { kind: "status"; key: KimStatusFieldKey }
   | { kind: "workflow"; key: KimWorkflowKey }
   | { kind: "needs" }
   | { kind: "purchase" }
+  | { kind: "purchaseMethod" }
+  | { kind: "purchaseTiming" }
+  | { kind: "purchaseCostFocus" }
+  | { kind: "purchaseTerm" }
+  | { kind: "purchaseInitialCost" }
+  | { kind: "purchaseAnnualMileage" }
+  | { kind: "purchaseDeliveryMethod" }
+  | { kind: "purchaseCustomerNotes" }
+  | { kind: "purchaseReviewNotes" }
   | { kind: "schedule" };
 
 type KimNeedsState = {
@@ -135,20 +151,20 @@ const kimMinjunCustomerFields = [
   { label: "연락처", value: "010-9588-0812" },
   { label: "거주지", value: "인천 · 상세 미확인" },
   { label: "고객유형", value: "개인 · 4대보험" },
-  { label: "상담경로", value: "앱 견적비교" },
-  { label: "담당자", value: "김지안 · 인천본사" },
+  { label: "상담경로", value: "디엘(견적서)" },
+  { label: "담당자", value: "미배정" },
 ];
 
 const kimMinjunPurchaseFields = [
   { label: "구매방식", value: "운용리스" },
-  { label: "구매시기", value: "좋은 조건 즉시" },
-  { label: "월 예산", value: "월 납입액 비교 필요" },
   { label: "계약기간", value: "60개월" },
-  { label: "보증금", value: "30%" },
-  { label: "선수금", value: "없음" },
-  { label: "주행거리", value: "확인 필요" },
-  { label: "보험 포함 여부", value: "확인 필요" },
-  { label: "심사 특이사항", value: "개인 4대보험 · 재직 확인 전" },
+  { label: "초기비용", value: "보증금 30%" },
+  { label: "연간 주행거리", value: "확인 필요" },
+  { label: "인도 방식", value: "협의 필요" },
+  { label: "출고 희망 시기", value: "좋은 조건 즉시" },
+  { label: "계약 포커스", value: "#월 납입 최소 #총 비용 최소 #빠른 출고" },
+  { label: "고객 특이사항", value: "#카톡 선호 #가족과 상의" },
+  { label: "심사 특이사항", value: "#4대보험 확인 #재직 확인 전" },
 ];
 
 const kimMinjunCoreConditionFields = [
@@ -180,9 +196,9 @@ const kimMinjunInitialStatusValues: Record<KimStatusFieldKey, string> = {
   phone: "010-9588-0812",
   job: "개인 · 4대보험",
   location: "인천광역시",
-  source: "앱 견적비교",
-  advisor: "김지안",
-  assignedAt: "오늘 13:04",
+  source: "디엘(견적서)",
+  advisor: "미배정",
+  assignedAt: "미배정",
 };
 
 const kimMinjunWorkflowMeta = [
@@ -192,13 +208,30 @@ const kimMinjunWorkflowMeta = [
 ] satisfies { key: KimWorkflowKey; label: string; tone: string }[];
 
 const kimChanceOptions: CustomerChanceOption[] = ["높음", "중간", "낮음", "보류", "확정"];
-const kimManageOptions: CustomerManageStatus[] = ["정상", "확인필요", "재문의", "지연", "장기방치"];
-const kimMethodOptions = ["운용리스", "장기렌트", "할부", "현금"];
+const kimMethodOptions = ["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"];
+const kimContractTermOptions = ["12개월", "24개월", "36개월", "48개월", "60개월"];
+const kimInitialCostKindOptions: KimInitialCostKind[] = ["무보증", "보증금", "선수금"];
+const kimInitialCostUnitOptions: KimInitialCostUnit[] = ["%", "금액"];
+const kimAnnualMileageOptions = ["10,000km", "15,000km", "20,000km", "25,000km", "30,000km", "35,000km", "40,000km", "무제한"];
+const kimDeliveryMethodOptions = ["탁송 요청", "매장 출고", "직접 수령", "협의 필요"];
+const kimTimingPresetOptions = ["좋은 조건 즉시", "이번 달", "다음 달", "3개월 이후"];
+const kimTimingMonthOptions = Array.from({ length: 12 }, (_, index) => `${index + 1}월`);
+const kimContractFocusOptions = ["무보증 선호", "월 납입 최소", "총 비용 최소", "반납 확정", "인수 확정", "승계 고려", "빠른 출고", "할인 민감", "승인 여부"];
+const kimCustomerNoteOptions = ["연락 잘 됨", "연락 어려움", "특정 시간 연락", "카톡 선호", "통화 선호", "문자 선호", "가족과 상의", "비교 많음", "결정 빠름", "조건 수용 빠름", "신중함", "진행 잘 따라옴"];
+const kimReviewNoteOptions = ["4대보험 확인", "재직 확인 전", "소득 증빙 필요", "신용점수 확인", "기대출 확인", "연체 이력 확인", "사업자 매출 확인", "공동명의 검토", "승인 우선"];
+const kimPurchaseTagSelectionLimit = 4;
 const kimCustomerTypeOptions: KimCustomerType[] = ["개인", "개인사업자", "법인사업자"];
 const kimPersonalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];
 const kimAutomaticSourceOptions = ["앱 견적비교", "앱 AI상담", "앱 상담원 연결", "디엘(상담)", "디엘(견적서)"];
 const kimLegacyAutomaticSourceOptions = ["디엘홈페이지"];
 const kimManualSourceOptions = ["대표전화", "카카오", "소개", "추천", "재구매", "유튜브", "검색", "기타"];
+const kimAdvisorOptions: Record<KimAdvisorTeam, string[]> = {
+  인천본사: ["김지안", "이주선"],
+  상담팀: ["이주선", "김지안", "문태호"],
+  견적팀: ["이건수", "김지안"],
+  계약팀: ["김지안", "이주선"],
+  출고팀: ["한지훈", "김지안"],
+};
 const kimRegionOptions: Record<string, string[]> = {
   "확인 필요": ["확인 필요"],
   서울특별시: ["확인 필요", "강남구", "강동구", "강북구", "강서구", "관악구", "광진구", "구로구", "금천구", "노원구", "도봉구", "동대문구", "동작구", "마포구", "서대문구", "서초구", "성동구", "성북구", "송파구", "양천구", "영등포구", "용산구", "은평구", "종로구", "중구", "중랑구"],
@@ -261,6 +294,7 @@ function KimMinjunDetailHeader() {
               <ChevronRight size={18} strokeWidth={2.2} />
               <span>김민준</span>
               <em className="kim-header-code-text num">CU-2605-0020</em>
+              <em className="kim-header-received-text">· 오늘 12:56 접수</em>
             </h2>
             <p>방금 전 상담 메모 업데이트</p>
           </div>
@@ -274,6 +308,15 @@ function kimEditorMatches(openEditor: KimOpenEditor | null, next: KimOpenEditor)
   if (!openEditor || openEditor.kind !== next.kind) return false;
   if (openEditor.kind === "needs" && next.kind === "needs") return true;
   if (openEditor.kind === "purchase" && next.kind === "purchase") return true;
+  if (openEditor.kind === "purchaseMethod" && next.kind === "purchaseMethod") return true;
+  if (openEditor.kind === "purchaseTiming" && next.kind === "purchaseTiming") return true;
+  if (openEditor.kind === "purchaseCostFocus" && next.kind === "purchaseCostFocus") return true;
+  if (openEditor.kind === "purchaseTerm" && next.kind === "purchaseTerm") return true;
+  if (openEditor.kind === "purchaseInitialCost" && next.kind === "purchaseInitialCost") return true;
+  if (openEditor.kind === "purchaseAnnualMileage" && next.kind === "purchaseAnnualMileage") return true;
+  if (openEditor.kind === "purchaseDeliveryMethod" && next.kind === "purchaseDeliveryMethod") return true;
+  if (openEditor.kind === "purchaseCustomerNotes" && next.kind === "purchaseCustomerNotes") return true;
+  if (openEditor.kind === "purchaseReviewNotes" && next.kind === "purchaseReviewNotes") return true;
   if (openEditor.kind === "schedule" && next.kind === "schedule") return true;
   if (openEditor.kind === "status" && next.kind === "status") return openEditor.key === next.key;
   if (openEditor.kind === "workflow" && next.kind === "workflow") return openEditor.key === next.key;
@@ -282,6 +325,92 @@ function kimEditorMatches(openEditor: KimOpenEditor | null, next: KimOpenEditor)
 
 function fieldLabel(key: KimStatusFieldKey) {
   return kimMinjunStatusFieldMeta.find((field) => field.key === key)?.label ?? "항목";
+}
+
+function formatKimNumberWithCommas(value: string) {
+  const digits = value.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  return Number(digits).toLocaleString("ko-KR");
+}
+
+function parseKimInitialCost(value: string) {
+  if (value === "확인 필요") {
+    return { kind: "" as KimInitialCostSelection, unit: "%" as KimInitialCostUnit, amount: "" };
+  }
+  if (value.includes("무보증")) {
+    return { kind: "무보증" as KimInitialCostKind, unit: "%" as KimInitialCostUnit, amount: "" };
+  }
+  const kind = value.includes("선수금") ? "선수금" : "보증금";
+  const amount = value.replace(kind, "").replace("만원", "").replace("%", "").replace(/,/g, "").trim();
+  const unit = value.includes("만원") ? "금액" : "%";
+  return { kind: kind as KimInitialCostKind, unit: unit as KimInitialCostUnit, amount: amount || "30" };
+}
+
+function kimPurchaseValueClass(value: string) {
+  if (value === "미정") return "is-empty";
+  if (value === "확인 필요") return "needs-confirmation";
+  return "";
+}
+
+function isKimPurchaseTagField(label: string) {
+  return label === "계약 포커스" || label === "고객 특이사항" || label === "심사 특이사항";
+}
+
+function kimPurchaseTags(value: string) {
+  return value.split("#").map((tag) => tag.trim()).filter(Boolean).map((tag) => `#${tag}`);
+}
+
+function isKimPurchaseFloatingKind(kind: KimOpenEditor["kind"]): kind is KimPurchaseFloatingKind {
+  return ["purchaseMethod", "purchaseTiming", "purchaseCostFocus", "purchaseTerm", "purchaseInitialCost", "purchaseAnnualMileage", "purchaseDeliveryMethod", "purchaseCustomerNotes", "purchaseReviewNotes"].includes(kind);
+}
+
+function kimPurchasePopoverSize(kind: KimPurchaseFloatingKind) {
+  switch (kind) {
+    case "purchaseMethod":
+      return { width: 390, height: 48 };
+    case "purchaseTiming":
+      return { width: 318, height: 108 };
+    case "purchaseCostFocus":
+      return { width: 360, height: 118 };
+    case "purchaseTerm":
+      return { width: 352, height: 48 };
+    case "purchaseInitialCost":
+      return { width: 330, height: 146 };
+    case "purchaseAnnualMileage":
+      return { width: 360, height: 88 };
+    case "purchaseDeliveryMethod":
+      return { width: 340, height: 48 };
+    case "purchaseCustomerNotes":
+      return { width: 380, height: 154 };
+    case "purchaseReviewNotes":
+      return { width: 380, height: 118 };
+    default:
+      return { width: 340, height: 120 };
+  }
+}
+
+function calculateKimPurchasePopoverFrame(target: HTMLElement, kind: KimPurchaseFloatingKind): KimPurchasePopoverFrame {
+  const rect = target.getBoundingClientRect();
+  const gap = 8;
+  const margin = 14;
+  const { width, height } = kimPurchasePopoverSize(kind);
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const alignRight = kind === "purchaseInitialCost" || kind === "purchaseTiming" || kind === "purchaseReviewNotes";
+  const preferredLeft = alignRight
+    ? rect.right
+    : kind === "purchaseMethod" || kind === "purchaseTerm" || kind === "purchaseAnnualMileage" || kind === "purchaseDeliveryMethod" || kind === "purchaseCostFocus" || kind === "purchaseCustomerNotes"
+    ? rect.left
+    : rect.left + rect.width / 2 - width / 2;
+  const maxLeft = alignRight ? viewportWidth - margin : Math.max(margin, viewportWidth - width - margin);
+  const left = Math.min(Math.max(preferredLeft, margin), maxLeft);
+  const belowTop = rect.bottom + gap;
+  const aboveTop = rect.top - height - gap;
+  const preferAbove = false;
+  const top = (preferAbove || belowTop + height > viewportHeight - margin) && aboveTop >= margin
+    ? aboveTop
+    : Math.min(belowTop, Math.max(margin, viewportHeight - height - margin));
+  return { align: alignRight ? "right" : "left", top, left };
 }
 
 function timelineRecordKey(item: KimTimelineItem) {
@@ -332,6 +461,41 @@ function parseKimSourceValue(value: string) {
   return { selected: "기타", custom: value };
 }
 
+function parseKimAdvisorValue(value: string): { team: KimAdvisorTeam; advisor: string } {
+  const [advisorValue, teamValue] = value.split("·").map((part) => part.trim());
+  const fallbackTeam: KimAdvisorTeam = "인천본사";
+  const team = kimAdvisorOptions[teamValue as KimAdvisorTeam] ? teamValue as KimAdvisorTeam : fallbackTeam;
+  const advisors = kimAdvisorOptions[team];
+  const advisor = advisors.includes(advisorValue) ? advisorValue : advisors[0];
+  return { team, advisor };
+}
+
+function formatKimAdvisorValue(team: KimAdvisorTeam, advisor: string) {
+  if (!advisor || advisor === "미배정") return "미배정";
+  return `${advisor} · ${team}`;
+}
+
+function formatKimAssignmentTime(date = new Date()) {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `오늘 ${hours}:${minutes}`;
+}
+
+function kimChanceOptionClass(option: CustomerChanceOption, selected: boolean) {
+  const toneByChance: Record<CustomerChanceOption, string> = {
+    높음: "chance-purple",
+    중간: "chance-neutral",
+    낮음: "chance-red",
+    보류: "chance-yellow",
+    확정: "chance-green",
+  };
+  return ["kim-chance-option", toneByChance[option], selected ? "active" : ""].filter(Boolean).join(" ");
+}
+
+function isKimUnassignedStatus(key: KimStatusFieldKey, value: string) {
+  return (key === "advisor" || key === "assignedAt") && value === "미배정";
+}
+
 function isKimAutomaticSource(value: string) {
   return kimAutomaticSourceOptions.includes(value) || kimLegacyAutomaticSourceOptions.includes(value);
 }
@@ -339,6 +503,15 @@ function isKimAutomaticSource(value: string) {
 function hasKimAppSourceQueue(value: string) {
   return value.includes("앱");
 }
+
+function hasKimQuoteAttachments(value: string) {
+  return value === "디엘(견적서)";
+}
+
+const kimMockQuoteAttachments = [
+  { label: "첨부 견적서 1", fileName: "첨부파일1" },
+  { label: "첨부 견적서 2", fileName: "첨부파일2" },
+];
 
 function KimPhoneStatusInput({ initialValue }: { initialValue: string }) {
   const [value, setValue] = useState(initialValue);
@@ -522,16 +695,59 @@ function KimSourceStatusEditor({
   );
 }
 
+function KimAdvisorStatusEditor({
+  initialValue,
+  onCancel,
+  onSubmit,
+}: {
+  initialValue: string;
+  onCancel: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const initialAdvisor = parseKimAdvisorValue(initialValue);
+  const [team, setTeam] = useState<KimAdvisorTeam>(initialAdvisor.team);
+  const advisorOptions = kimAdvisorOptions[team];
+  const advisorValue = advisorOptions.includes(initialAdvisor.advisor) ? initialAdvisor.advisor : advisorOptions[0];
+
+  return (
+    <form className="kim-edit-form" onSubmit={onSubmit}>
+      <label>
+        <span>팀 선택</span>
+        <select
+          autoFocus
+          defaultValue={initialAdvisor.team}
+          name="team"
+          onChange={(event) => setTeam(event.currentTarget.value as KimAdvisorTeam)}
+        >
+          {Object.keys(kimAdvisorOptions).map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+      <label>
+        <span>담당자 선택</span>
+        <select key={team} defaultValue={advisorValue} name="advisor">
+          {advisorOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+      <div className="kim-edit-actions">
+        <button type="button" onClick={onCancel}>취소</button>
+        <button className="primary" type="submit">배정</button>
+      </div>
+    </form>
+  );
+}
+
 function KimMinjunDetailContent({
   chanceOverride,
   customer,
   manageStatusOverride,
+  onEditorOpenChange,
   onToast,
   onWorkflowChange,
 }: {
   chanceOverride?: CustomerChanceOption;
   customer: Customer;
   manageStatusOverride?: CustomerManageStatus;
+  onEditorOpenChange?: CustomerDetailPageProps["onEditorOpenChange"];
   onToast: (message: string) => void;
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
 }) {
@@ -542,6 +758,11 @@ function KimMinjunDetailContent({
   const [manage, setManage] = useState<CustomerManageStatus>(manageStatusOverride ?? "정상");
   const [needs, setNeeds] = useState<KimNeedsState>(kimInitialNeeds);
   const [purchaseFields, setPurchaseFields] = useState(kimMinjunPurchaseFields);
+  const [showTimingMonths, setShowTimingMonths] = useState(false);
+  const [initialCostKind, setInitialCostKind] = useState<KimInitialCostSelection>("보증금");
+  const [initialCostUnit, setInitialCostUnit] = useState<KimInitialCostUnit>("%");
+  const [initialCostAmount, setInitialCostAmount] = useState("30");
+  const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<KimPurchasePopoverFrame | null>(null);
   const [schedules, setSchedules] = useState<KimScheduleItem[]>(kimInitialSchedules);
   const [completedScheduleKeys, setCompletedScheduleKeys] = useState<string[]>([]);
   const [completedCheckItems, setCompletedCheckItems] = useState<string[]>([]);
@@ -568,6 +789,11 @@ function KimMinjunDetailContent({
   }, [manageStatusOverride]);
 
   useEffect(() => {
+    onEditorOpenChange?.(openEditor !== null);
+    return () => onEditorOpenChange?.(false);
+  }, [onEditorOpenChange, openEditor]);
+
+  useEffect(() => {
     const container = consultBodyRef.current;
     if (!container) return;
     const frame = window.requestAnimationFrame(() => {
@@ -582,10 +808,14 @@ function KimMinjunDetailContent({
     function closeEditor(event: PointerEvent) {
       if (editorRef.current?.contains(event.target as Node)) return;
       setOpenEditor(null);
+      setPurchasePopoverFrame(null);
     }
 
     function closeEditorByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpenEditor(null);
+      if (event.key === "Escape") {
+        setOpenEditor(null);
+        setPurchasePopoverFrame(null);
+      }
     }
 
     document.addEventListener("pointerdown", closeEditor, true);
@@ -597,13 +827,31 @@ function KimMinjunDetailContent({
   }, [openEditor]);
 
   function toggleEditor(next: KimOpenEditor) {
+    if (!isKimPurchaseFloatingKind(next.kind)) {
+      setPurchasePopoverFrame(null);
+    }
     setOpenEditor((current) => kimEditorMatches(current, next) ? null : next);
+  }
+
+  function openPurchaseFloatingEditor(event: ReactMouseEvent<HTMLButtonElement>, next: Extract<KimOpenEditor, { kind: KimPurchaseFloatingKind }>) {
+    if (openEditor && kimEditorMatches(openEditor, next)) {
+      setOpenEditor(null);
+      setPurchasePopoverFrame(null);
+      return;
+    }
+    setPurchasePopoverFrame(calculateKimPurchasePopoverFrame(event.currentTarget, next.kind));
+    setOpenEditor(next);
   }
 
   function openStatusEditor(next: KimOpenEditor) {
     if (next.kind === "status" && next.key === "source" && isKimAutomaticSource(statusValues.source)) {
       setOpenEditor(null);
       onToast("자동 접수 경로는 수정할 수 없습니다.");
+      return;
+    }
+    if (next.kind === "status" && next.key === "assignedAt") {
+      setOpenEditor(null);
+      onToast("배정시간은 담당자 배정 시 자동 기록됩니다.");
       return;
     }
     toggleEditor(next);
@@ -658,6 +906,17 @@ function KimMinjunDetailContent({
     onToast("상담경로 수정 완료");
   }
 
+  function saveAdvisorField(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const team = String(formData.get("team") ?? "인천본사") as KimAdvisorTeam;
+    const advisor = String(formData.get("advisor") ?? "").trim();
+    const nextAdvisor = formatKimAdvisorValue(team, advisor);
+    setStatusValues((current) => ({ ...current, advisor: nextAdvisor, assignedAt: formatKimAssignmentTime() }));
+    setOpenEditor(null);
+    onToast("담당자 배정 완료");
+  }
+
   function selectStageGroup(nextGroup: string) {
     const nextStatus = customerStatusGroups[nextGroup]?.[0] ?? nextGroup;
     setStageGroup(nextGroup);
@@ -696,6 +955,195 @@ function KimMinjunDetailContent({
     }));
     setOpenEditor(null);
     onToast("상세 구매조건 수정 완료");
+  }
+
+  function togglePurchaseMethod(option: string) {
+    const currentMethodField = purchaseFields.find((field) => field.label === "구매방식");
+    const selectedMethods = new Set((currentMethodField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => kimMethodOptions.includes(value)));
+    if (selectedMethods.has(option)) {
+      selectedMethods.delete(option);
+    } else {
+      selectedMethods.add(option);
+    }
+    const orderedMethods = kimMethodOptions.filter((method) => selectedMethods.has(method));
+    const nextValue = orderedMethods.length > 0 ? orderedMethods.join(" · ") : "확인 필요";
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "구매방식" ? { ...field, value: nextValue } : field
+    )));
+    onToast("구매방식 수정 완료");
+  }
+
+  function togglePurchaseTerm(option: string) {
+    const currentTermField = purchaseFields.find((field) => field.label === "계약기간");
+    const selectedTerms = new Set((currentTermField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => kimContractTermOptions.includes(value)));
+    if (selectedTerms.has(option)) {
+      selectedTerms.delete(option);
+    } else {
+      selectedTerms.add(option);
+    }
+    const orderedTerms = kimContractTermOptions.filter((term) => selectedTerms.has(term));
+    const nextValue = orderedTerms.length > 0 ? orderedTerms.join(" · ") : "확인 필요";
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "계약기간" ? { ...field, value: nextValue } : field
+    )));
+    onToast("계약기간 수정 완료");
+  }
+
+  function openPurchaseInitialCostEditor(event: ReactMouseEvent<HTMLButtonElement>) {
+    const nextEditor = { kind: "purchaseInitialCost" } as const;
+    if (openEditor && kimEditorMatches(openEditor, nextEditor)) {
+      setOpenEditor(null);
+      setPurchasePopoverFrame(null);
+      return;
+    }
+    const currentInitialCostField = purchaseFields.find((field) => field.label === "초기비용");
+    const parsedInitialCost = parseKimInitialCost(currentInitialCostField?.value ?? "보증금 30%");
+    setInitialCostKind(parsedInitialCost.kind);
+    setInitialCostUnit(parsedInitialCost.unit);
+    setInitialCostAmount(parsedInitialCost.amount);
+    setPurchasePopoverFrame(calculateKimPurchasePopoverFrame(event.currentTarget, "purchaseInitialCost"));
+    setOpenEditor(nextEditor);
+  }
+
+  function selectInitialCostKind(option: KimInitialCostKind) {
+    const nextKind: KimInitialCostSelection = initialCostKind === option ? "" : option;
+    setInitialCostKind(nextKind);
+    if (!nextKind || nextKind === "무보증") {
+      setInitialCostAmount("");
+    } else if (!initialCostAmount) {
+      setInitialCostAmount(initialCostUnit === "%" ? "30" : "");
+    }
+  }
+
+  function applyPurchaseInitialCost() {
+    const trimmedAmount = initialCostAmount.replace(/[^\d]/g, "");
+    if (initialCostKind && initialCostKind !== "무보증" && !trimmedAmount) {
+      onToast("초기비용 값을 입력해 주세요.");
+      return;
+    }
+    const formattedAmount = initialCostUnit === "금액" ? formatKimNumberWithCommas(trimmedAmount) : trimmedAmount;
+    const nextValue = !initialCostKind
+      ? "확인 필요"
+      : initialCostKind === "무보증"
+      ? "무보증"
+      : `${initialCostKind} ${formattedAmount}${initialCostUnit === "%" ? "%" : "만원"}`;
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "초기비용" ? { ...field, value: nextValue } : field
+    )));
+    setOpenEditor(null);
+    setPurchasePopoverFrame(null);
+    onToast("초기비용 수정 완료");
+  }
+
+  function selectPurchaseTiming(option: string) {
+    if (option === "특정 월") {
+      setShowTimingMonths(true);
+      return;
+    }
+    const currentTimingField = purchaseFields.find((field) => field.label === "출고 희망 시기");
+    const nextValue = currentTimingField?.value === option ? "확인 필요" : option;
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "출고 희망 시기" ? { ...field, value: nextValue } : field
+    )));
+    setShowTimingMonths(false);
+    setOpenEditor(null);
+    setPurchasePopoverFrame(null);
+    onToast("출고 희망 시기 수정 완료");
+  }
+
+  function selectPurchaseTimingMonth(month: string) {
+    const currentTimingField = purchaseFields.find((field) => field.label === "출고 희망 시기");
+    const monthValue = `${month} 출고 희망`;
+    const nextValue = currentTimingField?.value === monthValue ? "확인 필요" : monthValue;
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "출고 희망 시기" ? { ...field, value: nextValue } : field
+    )));
+    setShowTimingMonths(false);
+    setOpenEditor(null);
+    setPurchasePopoverFrame(null);
+    onToast("출고 희망 시기 수정 완료");
+  }
+
+  function togglePurchaseCostFocus(option: string) {
+    const currentCostFocusField = purchaseFields.find((field) => field.label === "계약 포커스");
+    const selectedFocuses = new Set((currentCostFocusField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimContractFocusOptions.includes(value)));
+    if (selectedFocuses.has(option)) {
+      selectedFocuses.delete(option);
+    } else {
+      if (selectedFocuses.size >= kimPurchaseTagSelectionLimit) {
+        onToast("최대 4개까지만 선택 가능합니다.");
+        return;
+      }
+      selectedFocuses.add(option);
+    }
+    const orderedFocuses = kimContractFocusOptions.filter((focus) => selectedFocuses.has(focus));
+    const nextValue = orderedFocuses.length > 0 ? orderedFocuses.map((focus) => `#${focus}`).join(" ") : "확인 필요";
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "계약 포커스" ? { ...field, value: nextValue } : field
+    )));
+    onToast("계약 포커스 수정 완료");
+  }
+
+  function togglePurchaseCustomerNote(option: string) {
+    const currentCustomerNoteField = purchaseFields.find((field) => field.label === "고객 특이사항");
+    const selectedNotes = new Set((currentCustomerNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimCustomerNoteOptions.includes(value)));
+    if (selectedNotes.has(option)) {
+      selectedNotes.delete(option);
+    } else {
+      if (selectedNotes.size >= kimPurchaseTagSelectionLimit) {
+        onToast("최대 4개까지만 선택 가능합니다.");
+        return;
+      }
+      selectedNotes.add(option);
+    }
+    const orderedNotes = kimCustomerNoteOptions.filter((note) => selectedNotes.has(note));
+    const nextValue = orderedNotes.length > 0 ? orderedNotes.map((note) => `#${note}`).join(" ") : "확인 필요";
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "고객 특이사항" ? { ...field, value: nextValue } : field
+    )));
+    onToast("고객 특이사항 수정 완료");
+  }
+
+  function togglePurchaseReviewNote(option: string) {
+    const currentReviewNoteField = purchaseFields.find((field) => field.label === "심사 특이사항");
+    const selectedNotes = new Set((currentReviewNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimReviewNoteOptions.includes(value)));
+    if (selectedNotes.has(option)) {
+      selectedNotes.delete(option);
+    } else {
+      if (selectedNotes.size >= kimPurchaseTagSelectionLimit) {
+        onToast("최대 4개까지만 선택 가능합니다.");
+        return;
+      }
+      selectedNotes.add(option);
+    }
+    const orderedNotes = kimReviewNoteOptions.filter((note) => selectedNotes.has(note));
+    const nextValue = orderedNotes.length > 0 ? orderedNotes.map((note) => `#${note}`).join(" ") : "확인 필요";
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "심사 특이사항" ? { ...field, value: nextValue } : field
+    )));
+    onToast("심사 특이사항 수정 완료");
+  }
+
+  function selectPurchaseAnnualMileage(option: string) {
+    const currentMileageField = purchaseFields.find((field) => field.label === "연간 주행거리");
+    const nextValue = currentMileageField?.value === option ? "확인 필요" : option;
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "연간 주행거리" ? { ...field, value: nextValue } : field
+    )));
+    setOpenEditor(null);
+    setPurchasePopoverFrame(null);
+    onToast("연간 주행거리 수정 완료");
+  }
+
+  function selectPurchaseDeliveryMethod(option: string) {
+    const currentDeliveryField = purchaseFields.find((field) => field.label === "인도 방식");
+    const nextValue = currentDeliveryField?.value === option ? "확인 필요" : option;
+    setPurchaseFields((current) => current.map((field) => (
+      field.label === "인도 방식" ? { ...field, value: nextValue } : field
+    )));
+    setOpenEditor(null);
+    setPurchasePopoverFrame(null);
+    onToast("인도 방식 수정 완료");
   }
 
   function attachQuoteFile(event: ChangeEvent<HTMLInputElement>, quoteTitle: string) {
@@ -761,6 +1209,15 @@ function KimMinjunDetailContent({
     return manage;
   }
 
+  function openWorkflowEditor(key: KimWorkflowKey) {
+    if (key === "manage") {
+      setOpenEditor(null);
+      onToast("관리 상태는 상담 메모와 최근 업데이트 기준으로 자동 반영됩니다.");
+      return;
+    }
+    toggleEditor({ kind: "workflow", key });
+  }
+
   function renderStatusEditor(key: KimStatusFieldKey) {
     return (
       <div className="kim-edit-popover compact" role="dialog" aria-label={`${fieldLabel(key)} 수정`}>
@@ -781,6 +1238,12 @@ function KimMinjunDetailContent({
             initialValue={statusValues.source}
             onCancel={() => setOpenEditor(null)}
             onSubmit={saveSourceField}
+          />
+        ) : key === "advisor" ? (
+          <KimAdvisorStatusEditor
+            initialValue={statusValues.advisor}
+            onCancel={() => setOpenEditor(null)}
+            onSubmit={saveAdvisorField}
           />
         ) : (
         <form className="kim-edit-form" onSubmit={(event) => saveStatusField(event, key)}>
@@ -835,14 +1298,16 @@ function KimMinjunDetailContent({
       );
     }
 
+    if (key !== "chance") return null;
+
     return (
       <div className="kim-edit-popover compact" role="dialog" aria-label={`${key === "chance" ? "계약 가능성" : "관리 상태"} 수정`}>
         <div className="kim-choice-list single">
-          {key === "chance" ? kimChanceOptions.map((option) => {
+          {kimChanceOptions.map((option) => {
             const selected = option === chance;
             return (
               <button
-                className={selected ? "active" : ""}
+                className={kimChanceOptionClass(option, selected)}
                 key={option}
                 onClick={() => {
                   if (option === "확정" && stageGroup !== "계약완료") {
@@ -853,24 +1318,6 @@ function KimMinjunDetailContent({
                   onWorkflowChange?.(customer.no, { chance: option });
                   setOpenEditor(null);
                   onToast("계약 가능성 수정 완료");
-                }}
-                type="button"
-              >
-                <span>{option}</span>
-                {selected && <Check size={13} strokeWidth={2.7} />}
-              </button>
-            );
-          }) : kimManageOptions.map((option) => {
-            const selected = option === manage;
-            return (
-              <button
-                className={selected ? "active" : ""}
-                key={option}
-                onClick={() => {
-                  setManage(option);
-                  onWorkflowChange?.(customer.no, { manageStatus: option });
-                  setOpenEditor(null);
-                  onToast("관리 상태 수정 완료");
                 }}
                 type="button"
               >
@@ -942,6 +1389,296 @@ function KimMinjunDetailContent({
     );
   }
 
+  function renderPurchaseMethodEditor() {
+    const currentMethodField = purchaseFields.find((field) => field.label === "구매방식");
+    const selectedMethods = new Set((currentMethodField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => kimMethodOptions.includes(value)));
+
+    return (
+      <div className="kim-edit-popover purchase-method" role="dialog" aria-label="구매방식 수정">
+        <div className="kim-method-segmented" role="group" aria-label="구매방식 선택">
+          {kimMethodOptions.map((option) => (
+            <button
+              aria-pressed={selectedMethods.has(option)}
+              className={selectedMethods.has(option) ? "active" : ""}
+              key={option}
+              onClick={() => togglePurchaseMethod(option)}
+              type="button"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPurchaseTermEditor() {
+    const currentTermField = purchaseFields.find((field) => field.label === "계약기간");
+    const selectedTerms = new Set((currentTermField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => kimContractTermOptions.includes(value)));
+
+    return (
+      <div className="kim-edit-popover purchase-term" role="dialog" aria-label="계약기간 수정">
+        <div className="kim-method-segmented" role="group" aria-label="계약기간 선택">
+          {kimContractTermOptions.map((option) => (
+            <button
+              aria-pressed={selectedTerms.has(option)}
+              className={selectedTerms.has(option) ? "active" : ""}
+              key={option}
+              onClick={() => togglePurchaseTerm(option)}
+              type="button"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPurchaseInitialCostEditor() {
+    return (
+      <div className="kim-edit-popover purchase-initial-cost" role="dialog" aria-label="초기비용 수정">
+        <div className="kim-initial-cost-editor">
+          <div className="kim-initial-cost-group" role="group" aria-label="초기비용 유형 선택">
+            {kimInitialCostKindOptions.map((option) => (
+              <button
+                aria-pressed={initialCostKind === option}
+                className={initialCostKind === option ? "active" : ""}
+                key={option}
+                onClick={() => selectInitialCostKind(option)}
+                type="button"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          {initialCostKind && initialCostKind !== "무보증" ? (
+            <div className="kim-initial-cost-entry">
+              <div className="kim-initial-cost-unit" role="group" aria-label="초기비용 입력 방식">
+                {kimInitialCostUnitOptions.map((option) => (
+                  <button
+                    aria-pressed={initialCostUnit === option}
+                    className={initialCostUnit === option ? "active" : ""}
+                    key={option}
+                    onClick={() => setInitialCostUnit(option)}
+                    type="button"
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+              <label className="kim-initial-cost-input">
+                <span>{initialCostUnit === "%" ? "비율" : "금액"}</span>
+                <div>
+                  <input
+                    inputMode="numeric"
+                    onChange={(event) => setInitialCostAmount(event.target.value.replace(/[^\d]/g, ""))}
+                    placeholder={initialCostUnit === "%" ? "30" : "1000"}
+                    value={initialCostUnit === "금액" ? formatKimNumberWithCommas(initialCostAmount) : initialCostAmount}
+                  />
+                  <em>{initialCostUnit === "%" ? "%" : "만원"}</em>
+                </div>
+              </label>
+            </div>
+          ) : null}
+          <div className="kim-edit-actions compact">
+            <button type="button" onClick={() => setOpenEditor(null)}>취소</button>
+            <button className="primary" type="button" onClick={applyPurchaseInitialCost}>적용</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderPurchaseAnnualMileageEditor() {
+    const currentMileageField = purchaseFields.find((field) => field.label === "연간 주행거리");
+    const currentValue = currentMileageField?.value ?? "확인 필요";
+
+    return (
+      <div className="kim-edit-popover purchase-annual-mileage" role="dialog" aria-label="연간 주행거리 수정">
+        <div className="kim-mileage-picker" role="group" aria-label="연간 주행거리 선택">
+          {kimAnnualMileageOptions.map((option) => (
+            <button
+              aria-pressed={currentValue === option}
+              className={currentValue === option ? "active" : ""}
+              key={option}
+              onClick={() => selectPurchaseAnnualMileage(option)}
+              type="button"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPurchaseDeliveryMethodEditor() {
+    const currentDeliveryField = purchaseFields.find((field) => field.label === "인도 방식");
+    const currentValue = currentDeliveryField?.value ?? "확인 필요";
+
+    return (
+      <div className="kim-edit-popover purchase-delivery-method" role="dialog" aria-label="인도 방식 수정">
+        <div className="kim-delivery-method-picker" role="group" aria-label="인도 방식 선택">
+          {kimDeliveryMethodOptions.map((option) => (
+            <button
+              aria-pressed={currentValue === option}
+              className={currentValue === option ? "active" : ""}
+              key={option}
+              onClick={() => selectPurchaseDeliveryMethod(option)}
+              type="button"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPurchaseTimingEditor() {
+    const currentTimingField = purchaseFields.find((field) => field.label === "출고 희망 시기");
+    const currentValue = currentTimingField?.value ?? "좋은 조건 즉시";
+    const selectedOption = currentValue.endsWith("출고 희망") ? "특정 월" : currentValue;
+    const selectedMonth = currentValue.endsWith("출고 희망") ? currentValue.replace(" 출고 희망", "") : "";
+    const showMonthPicker = showTimingMonths || selectedOption === "특정 월";
+
+    return (
+      <div className="kim-edit-popover purchase-timing" role="dialog" aria-label="출고 희망 시기 수정">
+        <div className="kim-timing-picker">
+          <div className="kim-timing-options" role="group" aria-label="출고 희망 시기 선택">
+            {kimTimingPresetOptions.map((option) => (
+              <button
+                aria-pressed={selectedOption === option}
+                className={selectedOption === option ? "active" : ""}
+                key={option}
+                onClick={() => selectPurchaseTiming(option)}
+                type="button"
+              >
+                {option}
+              </button>
+            ))}
+            <button
+              aria-expanded={showMonthPicker}
+              aria-pressed={selectedOption === "특정 월"}
+              className={`kim-timing-month-trigger${showMonthPicker ? " active" : ""}`}
+              onClick={() => selectPurchaseTiming("특정 월")}
+              type="button"
+            >
+              특정 월
+            </button>
+          </div>
+          {showMonthPicker ? (
+            <div className="kim-month-options" role="group" aria-label="특정 월 선택">
+              {kimTimingMonthOptions.map((month) => (
+                <button
+                  aria-pressed={selectedMonth === month}
+                  className={selectedMonth === month ? "active" : ""}
+                  key={month}
+                  onClick={() => selectPurchaseTimingMonth(month)}
+                  type="button"
+                >
+                  {month}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPurchaseCostFocusEditor() {
+    const currentCostFocusField = purchaseFields.find((field) => field.label === "계약 포커스");
+    const selectedFocuses = new Set((currentCostFocusField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimContractFocusOptions.includes(value)));
+
+    return (
+      <div className="kim-edit-popover purchase-cost-focus" role="dialog" aria-label="계약 포커스 수정">
+        <div className="kim-cost-focus-picker" role="group" aria-label="계약 포커스 선택">
+          {kimContractFocusOptions.map((option) => (
+            <button
+              aria-pressed={selectedFocuses.has(option)}
+              className={selectedFocuses.has(option) ? "active" : ""}
+              key={option}
+              onClick={() => togglePurchaseCostFocus(option)}
+              type="button"
+            >
+              #{option}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPurchaseCustomerNotesEditor() {
+    const currentCustomerNoteField = purchaseFields.find((field) => field.label === "고객 특이사항");
+    const selectedNotes = new Set((currentCustomerNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimCustomerNoteOptions.includes(value)));
+
+    return (
+      <div className="kim-edit-popover purchase-customer-notes" role="dialog" aria-label="고객 특이사항 수정">
+        <div className="kim-customer-note-picker" role="group" aria-label="고객 특이사항 선택">
+          {kimCustomerNoteOptions.map((option) => (
+            <button
+              aria-pressed={selectedNotes.has(option)}
+              className={selectedNotes.has(option) ? "active" : ""}
+              key={option}
+              onClick={() => togglePurchaseCustomerNote(option)}
+              type="button"
+            >
+              #{option}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPurchaseReviewNotesEditor() {
+    const currentReviewNoteField = purchaseFields.find((field) => field.label === "심사 특이사항");
+    const selectedNotes = new Set((currentReviewNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimReviewNoteOptions.includes(value)));
+
+    return (
+      <div className="kim-edit-popover purchase-review-notes" role="dialog" aria-label="심사 특이사항 수정">
+        <div className="kim-review-note-picker" role="group" aria-label="심사 특이사항 선택">
+          {kimReviewNoteOptions.map((option) => (
+            <button
+              aria-pressed={selectedNotes.has(option)}
+              className={selectedNotes.has(option) ? "active" : ""}
+              key={option}
+              onClick={() => togglePurchaseReviewNote(option)}
+              type="button"
+            >
+              #{option}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderFloatingPurchaseEditor() {
+    if (!openEditor || !isKimPurchaseFloatingKind(openEditor.kind) || !purchasePopoverFrame) return null;
+
+    return (
+      <div
+        className={`kim-purchase-floating-popover align-${purchasePopoverFrame.align ?? "left"}`}
+        ref={editorRef}
+        style={{ left: purchasePopoverFrame.left, top: purchasePopoverFrame.top }}
+      >
+        {openEditor.kind === "purchaseMethod" ? renderPurchaseMethodEditor() : null}
+        {openEditor.kind === "purchaseTiming" ? renderPurchaseTimingEditor() : null}
+        {openEditor.kind === "purchaseCostFocus" ? renderPurchaseCostFocusEditor() : null}
+        {openEditor.kind === "purchaseTerm" ? renderPurchaseTermEditor() : null}
+        {openEditor.kind === "purchaseInitialCost" ? renderPurchaseInitialCostEditor() : null}
+        {openEditor.kind === "purchaseAnnualMileage" ? renderPurchaseAnnualMileageEditor() : null}
+        {openEditor.kind === "purchaseDeliveryMethod" ? renderPurchaseDeliveryMethodEditor() : null}
+        {openEditor.kind === "purchaseCustomerNotes" ? renderPurchaseCustomerNotesEditor() : null}
+        {openEditor.kind === "purchaseReviewNotes" ? renderPurchaseReviewNotesEditor() : null}
+      </div>
+    );
+  }
+
   function renderScheduleEditor() {
     return (
       <div className="kim-edit-popover schedule" role="dialog" aria-label="일정 추가">
@@ -990,7 +1727,7 @@ function KimMinjunDetailContent({
                       <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                       <span className="kim-status-copy">
                       <span>{field.label}</span>
-                      <strong>
+                      <strong className={isKimUnassignedStatus(field.key, statusValues[field.key]) ? "is-unassigned" : undefined}>
                         {statusValues[field.key]}
                         {hasKimAppSourceQueue(statusValues[field.key]) ? (
                         <button
@@ -1005,6 +1742,25 @@ function KimMinjunDetailContent({
                           <MessageSquareText size={13} strokeWidth={2.4} />
                         </button>
                         ) : null}
+                        {hasKimQuoteAttachments(statusValues[field.key]) ? (
+                          <span className="kim-quote-attachment-actions" aria-label="첨부 견적서">
+                            {kimMockQuoteAttachments.map((attachment, index) => (
+                              <button
+                                aria-label={`${attachment.label} 보기`}
+                                className="kim-quote-attachment-button"
+                                key={attachment.label}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onToast(`${attachment.fileName} 팝업 자리입니다.`);
+                                }}
+                                type="button"
+                              >
+                                <FileText size={12} strokeWidth={2.3} />
+                                <span>{index + 1}</span>
+                              </button>
+                            ))}
+                          </span>
+                        ) : null}
                       </strong>
                       </span>
                     </div>
@@ -1018,7 +1774,7 @@ function KimMinjunDetailContent({
                     <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                     <span className="kim-status-copy">
                     <span>{field.label}</span>
-                    <strong>{statusValues[field.key]}</strong>
+                    <strong className={isKimUnassignedStatus(field.key, statusValues[field.key]) ? "is-unassigned" : undefined}>{statusValues[field.key]}</strong>
                     </span>
                   </button>
                   {openEditor?.kind === "status" && openEditor.key === field.key ? renderStatusEditor(field.key) : null}
@@ -1029,7 +1785,7 @@ function KimMinjunDetailContent({
           <div className="kim-workflow-strip" aria-label="김민준 업무 상태">
             {kimMinjunWorkflowMeta.map((field) => (
               <div className="kim-edit-anchor workflow" key={field.key} ref={openEditor?.kind === "workflow" && openEditor.key === field.key ? editorRef : undefined}>
-                <button className={`kim-workflow-card ${field.tone}`} onClick={() => toggleEditor({ kind: "workflow", key: field.key })} type="button">
+                <button className={`kim-workflow-card ${field.tone}`} onClick={() => openWorkflowEditor(field.key)} type="button">
                   <span>{field.label}</span>
                   <strong>{workflowValue(field.key)}</strong>
                 </button>
@@ -1070,18 +1826,75 @@ function KimMinjunDetailContent({
               <div className="kim-mvp-title-row">
                 <i aria-hidden="true" className="kim-mvp-title-icon"><ListChecks size={14} strokeWidth={2.2} /></i>
                 <h3>상세 구매조건</h3>
-                <button aria-label="상세 구매조건 수정" className="kim-mvp-add-circle" onClick={() => toggleEditor({ kind: "purchase" })} type="button">
-                  <Pencil size={12} strokeWidth={2.4} />
-                </button>
               </div>
             </div>
             <div className="kim-purchase-condition-body">
-              {purchaseFields.map((field) => (
-                <button className="kim-purchase-condition-item" key={field.label} onClick={() => toggleEditor({ kind: "purchase" })} type="button">
-                  <span>{field.label}</span>
-                  <strong className={field.value === "미정" ? "is-empty" : ""}>{field.value}</strong>
-                </button>
-              ))}
+              {purchaseFields.map((field) => {
+                const itemButton = (
+                  <button
+                    className="kim-purchase-condition-item"
+                    onClick={(event) => {
+                      if (field.label === "구매방식") {
+                        openPurchaseFloatingEditor(event, { kind: "purchaseMethod" });
+                        return;
+                      }
+                      if (field.label === "출고 희망 시기") {
+                        setShowTimingMonths(field.value.endsWith("출고 희망"));
+                        openPurchaseFloatingEditor(event, { kind: "purchaseTiming" });
+                        return;
+                      }
+                      if (field.label === "계약 포커스") {
+                        openPurchaseFloatingEditor(event, { kind: "purchaseCostFocus" });
+                        return;
+                      }
+                      if (field.label === "계약기간") {
+                        openPurchaseFloatingEditor(event, { kind: "purchaseTerm" });
+                        return;
+                      }
+                      if (field.label === "초기비용") {
+                        openPurchaseInitialCostEditor(event);
+                        return;
+                      }
+                      if (field.label === "연간 주행거리") {
+                        openPurchaseFloatingEditor(event, { kind: "purchaseAnnualMileage" });
+                        return;
+                      }
+                      if (field.label === "인도 방식") {
+                        openPurchaseFloatingEditor(event, { kind: "purchaseDeliveryMethod" });
+                        return;
+                      }
+                      if (field.label === "고객 특이사항") {
+                        openPurchaseFloatingEditor(event, { kind: "purchaseCustomerNotes" });
+                        return;
+                      }
+                      if (field.label === "심사 특이사항") {
+                        openPurchaseFloatingEditor(event, { kind: "purchaseReviewNotes" });
+                        return;
+                      }
+                      onToast(`${field.label} 수정은 다음 단계에서 연결합니다.`);
+                    }}
+                    type="button"
+                  >
+                    <span>{field.label}</span>
+                    {isKimPurchaseTagField(field.label) && field.value !== "확인 필요" ? (
+                      <strong className="is-tag-list">
+                        {kimPurchaseTags(field.value).map((tag) => <span key={tag}>{tag}</span>)}
+                      </strong>
+                    ) : (
+                      <strong className={kimPurchaseValueClass(field.value)}>{field.value}</strong>
+                    )}
+                  </button>
+                );
+
+                return (
+                  <div
+                    className={`kim-purchase-condition-anchor editable${isKimPurchaseTagField(field.label) ? " judgment" : ""}${(field.label === "구매방식" && openEditor?.kind === "purchaseMethod") || (field.label === "출고 희망 시기" && openEditor?.kind === "purchaseTiming") || (field.label === "계약 포커스" && openEditor?.kind === "purchaseCostFocus") || (field.label === "계약기간" && openEditor?.kind === "purchaseTerm") || (field.label === "초기비용" && openEditor?.kind === "purchaseInitialCost") || (field.label === "연간 주행거리" && openEditor?.kind === "purchaseAnnualMileage") || (field.label === "인도 방식" && openEditor?.kind === "purchaseDeliveryMethod") || (field.label === "고객 특이사항" && openEditor?.kind === "purchaseCustomerNotes") || (field.label === "심사 특이사항" && openEditor?.kind === "purchaseReviewNotes") ? " active" : ""}`}
+                    key={field.label}
+                  >
+                    {itemButton}
+                  </div>
+                );
+              })}
             </div>
             {openEditor?.kind === "purchase" ? renderPurchaseEditor() : null}
           </section>
@@ -1268,6 +2081,7 @@ function KimMinjunDetailContent({
         </article>
         </section>
       </section>
+      {renderFloatingPurchaseEditor()}
     </div>
   );
 }
@@ -1278,6 +2092,7 @@ export function CustomerDetailPage({
   manageStatusOverride,
   onBack,
   onFullScreen,
+  onEditorOpenChange,
   onToast,
   onWorkflowChange,
   variant = "page",
@@ -1344,6 +2159,7 @@ export function CustomerDetailPage({
           chanceOverride={chanceOverride}
           customer={customer}
           manageStatusOverride={manageStatusOverride}
+          onEditorOpenChange={onEditorOpenChange}
           onToast={onToast}
           onWorkflowChange={onWorkflowChange}
         />
