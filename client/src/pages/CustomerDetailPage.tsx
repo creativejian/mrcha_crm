@@ -1,5 +1,5 @@
-import { ArrowLeft, Bot, BriefcaseBusiness, CalendarClock, CarFront, Check, ChevronRight, FileText, FolderOpen, History, ListChecks, MapPin, Maximize2, MessageSquareText, Phone, RefreshCcw, Route, Send, Trash2, UserRound, Upload, X } from "lucide-react";
-import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type FormEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
+import { ArrowLeft, Bot, BriefcaseBusiness, CalendarClock, CarFront, Check, ChevronRight, Download, Eye, FileText, FileUp, FolderOpen, GripVertical, History, ListChecks, MapPin, Maximize2, MessageSquareText, Paperclip, Phone, RefreshCcw, Route, Send, Trash2, UserRound, Upload, X } from "lucide-react";
+import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FormEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 
 type CustomerDetailPageProps = {
@@ -81,6 +81,25 @@ type KimCustomerMemoItem = {
   id: string;
   body: string;
   createdAt: string;
+};
+
+type KimQuoteItem = {
+  id: string;
+  title: string;
+  meta: string;
+  status: string;
+  fileName?: string;
+};
+
+type KimDocumentItem = {
+  id: string;
+  title: string;
+  status: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+  objectUrl?: string;
+  file?: File;
 };
 
 type KimRecentUpdate = {
@@ -280,21 +299,35 @@ const kimInitialNeeds: KimNeedsState = {
   memo: "월 납입액, 총비용, 중도해지 조건 차이를 비교하고 싶어함. GLC 재고 확인 후 X3 조건과 함께 다시 정리 필요.",
 };
 
-const kimMinjunQuoteHistory = [
-  { title: "Maybach S 500 운용리스 1차 견적", meta: "오늘 14:20 · 앱 발송완료", status: "고객 확인 전" },
-  { title: "GLC 재고 확인 후 비교 견적 예정", meta: "오늘 16:00 전 · 준비 필요", status: "대기" },
+const kimMinjunQuoteHistory: KimQuoteItem[] = [
+  { id: "maybach-first-quote", title: "Maybach S 500 운용리스 1차 견적", meta: "오늘 14:20 · 앱 발송완료", status: "고객 확인 전" },
+  { id: "glc-compare-quote", title: "GLC 재고 확인 후 비교 견적 예정", meta: "오늘 16:00 전 · 준비 필요", status: "대기" },
 ];
 
-const kimMinjunDocumentVault = [
-  { title: "운전면허증", status: "미수령" },
-  { title: "재직/소득 서류", status: "미수령" },
-  { title: "심사 신청서", status: "준비 전" },
-  { title: "계약 서류", status: "준비 전" },
+const kimMinjunDocumentVault: KimDocumentItem[] = [
+  {
+    id: "resident-register-ham-seungwoo",
+    title: "심사서류",
+    status: "자동인식",
+    fileName: "등본_함승우.pdf",
+    fileSize: 962512,
+    mimeType: "application/pdf",
+  },
+  {
+    id: "business-registration-creative-jian",
+    title: "사업자등록증",
+    status: "자동인식",
+    fileName: "사업자등록증_크리에이티브지안.png",
+    fileSize: 7031251,
+    mimeType: "image/png",
+  },
 ];
 
 const kimCheckCategoryOptions = ["체크", "견적", "안내", "요청", "내부", "심사"];
 const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
 const kimScheduleTypeOptions = ["재연락", "결정확인", "체크", "견적", "안내", "요청", "내부", "심사"];
+const kimQuoteStatusOptions = ["대기", "작성중", "발송완료", "고객 확인 전"];
+const kimDocumentTypeOptions = ["운전면허증", "부가세과세증명원", "소득금액증명원", "사업자등록증", "재무제표", "재직/소득 서류", "심사서류", "계약 서류", "기타 서류"];
 const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
 
@@ -508,6 +541,66 @@ function formatDateInputValue(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function formatKimFileSize(size?: number) {
+  if (!size) return "크기 확인 전";
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))}KB`;
+  return `${(size / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function classifyKimDocumentFile(fileName: string) {
+  const normalized = fileName.normalize("NFC").toLowerCase().replace(/\s|_|-/g, "");
+  if (/운전면허|면허|driver.?license|license/.test(normalized)) return "운전면허증";
+  if (/부가세|부가가치|과세|vat/.test(normalized)) return "부가세과세증명원";
+  if (/소득금액|소득증명|income/.test(normalized)) return "소득금액증명원";
+  if (/사업자등록|사업자|businessregistration/.test(normalized)) return "사업자등록증";
+  if (/재무제표|표준재무|financialstatement|financial/.test(normalized)) return "재무제표";
+  if (/재직|소득|근로|건강보험|4대보험/.test(normalized)) return "재직/소득 서류";
+  if (/등본|초본|주민등록|가족관계|인감|본인서명|심사/.test(normalized)) return "심사서류";
+  if (/계약|contract/.test(normalized)) return "계약 서류";
+  return "기타 서류";
+}
+
+function kimDocumentFileKind(mimeType?: string, fileName = "") {
+  if (mimeType?.startsWith("image/")) return "이미지";
+  if (mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) return "PDF";
+  return "파일";
+}
+
+function escapePdfText(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
+function downloadTextAsPdf(title: string, lines: string[]) {
+  const contentLines = lines.map((line, index) => `BT /F1 11 Tf 40 ${760 - index * 18} Td (${escapePdfText(line)}) Tj ET`).join("\n");
+  const stream = `${contentLines}\n`;
+  const objects = [
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj",
+    "4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
+    `5 0 obj << /Length ${stream.length} >> stream\n${stream}endstream endobj`,
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object) => {
+    offsets.push(body.length);
+    body += `${object}\n`;
+  });
+  const xrefOffset = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    body += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  body += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  const blob = new Blob([body], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = title;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function parseScheduleTimeParts(value?: string) {
   const [rawHour, rawMinute] = (value || "10:00").split(":");
   const hour = kimScheduleHourOptions.includes(rawHour) ? rawHour : "10";
@@ -521,6 +614,66 @@ function scheduleTimeFromFormData(formData: FormData) {
   const safeHour = kimScheduleHourOptions.includes(hour) ? hour : "10";
   const safeMinute = kimScheduleMinuteOptions.includes(minute) ? minute : "00";
   return `${safeHour}:${safeMinute}`;
+}
+
+function kimTimeLabelMinutes(value: string) {
+  const [, time = ""] = value.split(" ");
+  const [rawHour, rawMinute] = time.split(":");
+  const hour = Number(rawHour);
+  const minute = Number(rawMinute);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return Number.MAX_SAFE_INTEGER;
+  return hour * 60 + minute;
+}
+
+function sortKimCustomerMemosByCreatedAt(items: KimCustomerMemoItem[]) {
+  return [...items].sort((left, right) => {
+    const minuteDiff = kimTimeLabelMinutes(left.createdAt) - kimTimeLabelMinutes(right.createdAt);
+    if (minuteDiff !== 0) return minuteDiff;
+    return left.id.localeCompare(right.id);
+  });
+}
+
+function kimCheckDueRank(value: string) {
+  if (value === "급함") return 0;
+  if (value === "오늘") return 1;
+  if (value === "내일") return 2;
+  if (value === "이번 주") return 3;
+  return 4;
+}
+
+function kimCheckDueDateRank(value: string) {
+  const [month, day] = value.split("/").map(Number);
+  if (!Number.isFinite(month) || !Number.isFinite(day)) return Number.MAX_SAFE_INTEGER;
+  return month * 100 + day;
+}
+
+function sortKimCheckItemsByWorkRule(items: KimCheckItem[], completedItemIds: string[]) {
+  const completedSet = new Set(completedItemIds);
+  return [...items].sort((left, right) => {
+    const leftCompleted = completedSet.has(left.id);
+    const rightCompleted = completedSet.has(right.id);
+    if (leftCompleted !== rightCompleted) return leftCompleted ? -1 : 1;
+    if (leftCompleted && rightCompleted) return items.indexOf(left) - items.indexOf(right);
+    const dueDiff = kimCheckDueRank(left.due) - kimCheckDueRank(right.due);
+    if (dueDiff !== 0) return dueDiff;
+    const dateDiff = kimCheckDueDateRank(left.due) - kimCheckDueDateRank(right.due);
+    if (dateDiff !== 0) return dateDiff;
+    return items.indexOf(left) - items.indexOf(right);
+  });
+}
+
+function kimScheduleSortValue(item: KimScheduleItem) {
+  const dateValue = item.date || "9999-12-31";
+  const timeValue = item.time || "23:59";
+  return `${dateValue}T${timeValue}`;
+}
+
+function sortKimSchedulesByDateTime(items: KimScheduleItem[]) {
+  return [...items].sort((left, right) => {
+    const dateTimeDiff = kimScheduleSortValue(left).localeCompare(kimScheduleSortValue(right));
+    if (dateTimeDiff !== 0) return dateTimeDiff;
+    return items.indexOf(left) - items.indexOf(right);
+  });
 }
 
 function kimCheckDueSelection(value: string) {
@@ -897,6 +1050,15 @@ function KimMinjunDetailContent({
   const [addingCustomerMemo, setAddingCustomerMemo] = useState(false);
   const [editingCustomerMemoId, setEditingCustomerMemoId] = useState<string | null>(null);
   const [confirmingCustomerMemoDeleteId, setConfirmingCustomerMemoDeleteId] = useState<string | null>(null);
+  const [quotes, setQuotes] = useState<KimQuoteItem[]>(kimMinjunQuoteHistory);
+  const [addingQuoteItem, setAddingQuoteItem] = useState(false);
+  const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<KimDocumentItem[]>(kimMinjunDocumentVault);
+  const [isDocumentDragActive, setIsDocumentDragActive] = useState(false);
+  const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
+  const [documentDropTargetId, setDocumentDropTargetId] = useState<string | null>(null);
+  const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
+  const [confirmingDocumentDeleteId, setConfirmingDocumentDeleteId] = useState<string | null>(null);
   const [openEditor, setOpenEditor] = useState<KimOpenEditor | null>(null);
   const [recentUpdate, setRecentUpdate] = useState<KimRecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
   const [recentUpdateNow, setRecentUpdateNow] = useState(() => Date.now());
@@ -909,12 +1071,21 @@ function KimMinjunDetailContent({
   const scheduleEditRef = useRef<HTMLFormElement>(null);
   const customerMemoDeleteRef = useRef<HTMLDivElement>(null);
   const customerMemoEditRef = useRef<HTMLFormElement>(null);
+  const quoteDeleteRef = useRef<HTMLDivElement>(null);
+  const documentDeleteRef = useRef<HTMLDivElement>(null);
   const consultBodyRef = useRef<HTMLDivElement>(null);
   const customerMemoBodyRef = useRef<HTMLDivElement>(null);
   const checkBodyRef = useRef<HTMLDivElement>(null);
   const scheduleBodyRef = useRef<HTMLDivElement>(null);
+  const quoteBodyRef = useRef<HTMLDivElement>(null);
+  const documentBodyRef = useRef<HTMLDivElement>(null);
   const timelineItems = timelineRows(customer);
   const remainingCheckCount = checkItems.filter((item) => !completedCheckItems.includes(item.id)).length;
+  const receivedDocumentCount = documents.length;
+  const previewDocument = documents.find((documentItem) => documentItem.id === previewDocumentId) ?? null;
+  const sortedCustomerMemos = sortKimCustomerMemosByCreatedAt(customerMemos);
+  const sortedCheckItems = sortKimCheckItemsByWorkRule(checkItems, completedCheckItems);
+  const sortedSchedules = sortKimSchedulesByDateTime(schedules);
 
   function markRecentUpdate(section: string) {
     const updatedAt = Date.now();
@@ -955,9 +1126,9 @@ function KimMinjunDetailContent({
   }, []);
 
   useEffect(() => {
-    onEditorOpenChange?.(openEditor !== null || addingCustomerMemo || addingCheckItem || addingScheduleItem || editingCheckItemId !== null || editingCustomerMemoId !== null || editingScheduleId !== null || confirmingCustomerMemoDeleteId !== null || confirmingScheduleDeleteId !== null);
+    onEditorOpenChange?.(openEditor !== null || addingCustomerMemo || addingCheckItem || addingScheduleItem || addingQuoteItem || previewDocumentId !== null || editingCheckItemId !== null || editingCustomerMemoId !== null || editingScheduleId !== null || confirmingCustomerMemoDeleteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingDocumentDeleteId !== null);
     return () => onEditorOpenChange?.(false);
-  }, [addingCheckItem, addingCustomerMemo, addingScheduleItem, confirmingCustomerMemoDeleteId, confirmingScheduleDeleteId, editingCheckItemId, editingCustomerMemoId, editingScheduleId, onEditorOpenChange, openEditor]);
+  }, [addingCheckItem, addingCustomerMemo, addingQuoteItem, addingScheduleItem, confirmingCustomerMemoDeleteId, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingScheduleDeleteId, editingCheckItemId, editingCustomerMemoId, editingScheduleId, onEditorOpenChange, openEditor, previewDocumentId]);
 
   useEffect(() => {
     const container = consultBodyRef.current;
@@ -979,7 +1150,7 @@ function KimMinjunDetailContent({
   }, [customerMemos.length, addingCustomerMemo]);
 
   useEffect(() => {
-    const containers = [checkBodyRef.current, scheduleBodyRef.current];
+    const containers = [quoteBodyRef.current];
     const frame = window.requestAnimationFrame(() => {
       containers.forEach((container) => {
         if (!container) return;
@@ -987,7 +1158,7 @@ function KimMinjunDetailContent({
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [addingCheckItem, addingScheduleItem, checkItems.length, schedules.length]);
+  }, [addingQuoteItem, quotes.length]);
 
   useEffect(() => {
     if (!openEditor) return;
@@ -1165,6 +1336,46 @@ function KimMinjunDetailContent({
       document.removeEventListener("keydown", closeScheduleDeleteByKeyboard);
     };
   }, [confirmingScheduleDeleteId]);
+
+  useEffect(() => {
+    if (!confirmingQuoteDeleteId) return;
+
+    function closeQuoteDelete(event: PointerEvent) {
+      if (quoteDeleteRef.current?.contains(event.target as Node)) return;
+      setConfirmingQuoteDeleteId(null);
+    }
+
+    function closeQuoteDeleteByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setConfirmingQuoteDeleteId(null);
+    }
+
+    document.addEventListener("pointerdown", closeQuoteDelete, true);
+    document.addEventListener("keydown", closeQuoteDeleteByKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeQuoteDelete, true);
+      document.removeEventListener("keydown", closeQuoteDeleteByKeyboard);
+    };
+  }, [confirmingQuoteDeleteId]);
+
+  useEffect(() => {
+    if (!confirmingDocumentDeleteId) return;
+
+    function closeDocumentDelete(event: PointerEvent) {
+      if (documentDeleteRef.current?.contains(event.target as Node)) return;
+      setConfirmingDocumentDeleteId(null);
+    }
+
+    function closeDocumentDeleteByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setConfirmingDocumentDeleteId(null);
+    }
+
+    document.addEventListener("pointerdown", closeDocumentDelete, true);
+    document.addEventListener("keydown", closeDocumentDeleteByKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeDocumentDelete, true);
+      document.removeEventListener("keydown", closeDocumentDeleteByKeyboard);
+    };
+  }, [confirmingDocumentDeleteId]);
 
   useEffect(() => {
     if (!editingScheduleId) return;
@@ -1538,12 +1749,161 @@ function KimMinjunDetailContent({
     onToast("인도 방식 수정 완료");
   }
 
-  function attachQuoteFile(event: ChangeEvent<HTMLInputElement>, quoteTitle: string) {
+  function saveQuote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const title = String(formData.get("title") ?? "").trim();
+    const status = String(formData.get("status") ?? "대기");
+    const meta = String(formData.get("meta") ?? "").trim();
+    if (!title) return;
+    setQuotes((current) => [...current, {
+      id: `kim-quote-${Date.now()}`,
+      title,
+      status,
+      meta: meta || `${formatKoreanShortTime()} · 내부 작성`,
+    }]);
+    setAddingQuoteItem(false);
+    setConfirmingQuoteDeleteId(null);
+    markRecentUpdate("견적함");
+    onToast("견적 항목이 추가되었습니다.");
+  }
+
+  function attachQuoteFile(event: ChangeEvent<HTMLInputElement>, quoteId: string) {
     const fileName = event.target.files?.[0]?.name;
     if (!fileName) return;
+    const quoteTitle = quotes.find((quote) => quote.id === quoteId)?.title ?? "견적";
+    setQuotes((current) => current.map((quote) => (
+      quote.id === quoteId ? { ...quote, fileName, status: quote.status === "대기" ? "작성중" : quote.status } : quote
+    )));
     markRecentUpdate("견적함");
     onToast(`${quoteTitle} 원본 첨부: ${fileName}`);
     event.target.value = "";
+  }
+
+  function deleteQuote(id: string) {
+    setQuotes((current) => current.filter((quote) => quote.id !== id));
+    setConfirmingQuoteDeleteId(null);
+    markRecentUpdate("견적함");
+    onToast("견적 항목을 삭제했습니다.");
+  }
+
+  function addDocumentFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList).filter((file) => file.type.startsWith("image/") || file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+    if (files.length === 0) {
+      onToast("이미지 또는 PDF 파일만 등록할 수 있습니다.");
+      return;
+    }
+    const nextDocuments = files.map((file, index) => ({
+      id: `kim-document-${Date.now()}-${index}`,
+      title: classifyKimDocumentFile(file.name),
+      status: "자동인식",
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
+      objectUrl: URL.createObjectURL(file),
+      file,
+    }));
+    setDocuments((current) => [...current, ...nextDocuments]);
+    setConfirmingDocumentDeleteId(null);
+    markRecentUpdate("서류함");
+    onToast(`${files.length}개 서류를 자동 인식했습니다.`);
+  }
+
+  function addDocumentFilesFromInput(event: ChangeEvent<HTMLInputElement>) {
+    if (event.target.files) addDocumentFiles(event.target.files);
+    event.target.value = "";
+  }
+
+  function addDocumentFilesFromDrop(event: ReactDragEvent<HTMLElement>) {
+    event.preventDefault();
+    setIsDocumentDragActive(false);
+    addDocumentFiles(event.dataTransfer.files);
+  }
+
+  function updateDocumentType(id: string, title: string) {
+    setDocuments((current) => current.map((documentItem) => (
+      documentItem.id === id ? { ...documentItem, title, status: "수동분류" } : documentItem
+    )));
+    markRecentUpdate("서류함");
+  }
+
+  function isDocumentFileDrag(event: ReactDragEvent<HTMLElement>) {
+    return Array.from(event.dataTransfer.types).includes("Files");
+  }
+
+  function clearDocumentRowDrag() {
+    setDraggedDocumentId(null);
+    setDocumentDropTargetId(null);
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && activeElement.classList.contains("kim-doc-drag-handle")) {
+      activeElement.blur();
+    }
+  }
+
+  function startDocumentRowDrag(event: ReactDragEvent<HTMLElement>, id: string) {
+    setDraggedDocumentId(id);
+    setDocumentDropTargetId(null);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-kim-document-id", id);
+  }
+
+  function moveDocumentToTarget(sourceId: string, targetId: string) {
+    if (sourceId === targetId) return;
+    setDocuments((current) => {
+      const sourceIndex = current.findIndex((documentItem) => documentItem.id === sourceId);
+      const targetIndex = current.findIndex((documentItem) => documentItem.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return current;
+      const nextDocuments = [...current];
+      const [target] = nextDocuments.splice(sourceIndex, 1);
+      nextDocuments.splice(targetIndex, 0, target);
+      return nextDocuments;
+    });
+    markRecentUpdate("서류함");
+  }
+
+  function dragDocumentRowOver(event: ReactDragEvent<HTMLElement>, targetId: string) {
+    if (!draggedDocumentId || draggedDocumentId === targetId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setDocumentDropTargetId(targetId);
+  }
+
+  function dropDocumentRow(event: ReactDragEvent<HTMLElement>, targetId: string) {
+    const sourceId = event.dataTransfer.getData("application/x-kim-document-id") || draggedDocumentId;
+    if (!sourceId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    moveDocumentToTarget(sourceId, targetId);
+    clearDocumentRowDrag();
+  }
+
+  function deleteDocument(id: string) {
+    const targetDocument = documents.find((documentItem) => documentItem.id === id);
+    if (targetDocument?.objectUrl) URL.revokeObjectURL(targetDocument.objectUrl);
+    setDocuments((current) => current.filter((documentItem) => documentItem.id !== id));
+    setPreviewDocumentId((current) => (current === id ? null : current));
+    setConfirmingDocumentDeleteId(null);
+    markRecentUpdate("서류함");
+    onToast("서류 항목을 삭제했습니다.");
+  }
+
+  function exportDocumentBundleAsPdf() {
+    if (documents.length === 0) {
+      onToast("내보낼 서류가 없습니다.");
+      return;
+    }
+    const hasPdfOriginal = documents.some((documentItem) => kimDocumentFileKind(documentItem.mimeType, documentItem.fileName) === "PDF");
+    const lines = [
+      "Mr. Cha CRM 서류함",
+      `고객: 김민준 CU-2605-0020`,
+      `생성: ${formatKoreanShortTime()}`,
+      "",
+      ...documents.map((documentItem, index) => `${index + 1}. ${documentItem.title} / ${documentItem.fileName ?? "파일명 없음"} / ${formatKimFileSize(documentItem.fileSize)}`),
+    ];
+    downloadTextAsPdf("kim-minjun-documents.pdf", lines);
+    markRecentUpdate("서류함");
+    onToast(hasPdfOriginal ? "PDF 원본 병합은 다음 단계에서 서버 병합으로 연결합니다. 우선 서류 목록 PDF를 내려받았습니다." : "서류 목록 PDF를 내려받았습니다.");
   }
 
   function saveSchedule(event: FormEvent<HTMLFormElement>) {
@@ -2604,8 +2964,8 @@ function KimMinjunDetailContent({
             </div>
             <div className="kim-customer-memo-body" ref={customerMemoBodyRef}>
               <div className="kim-customer-memo-list">
-                {customerMemos.map((item, index) => {
-                  const shouldOpenDeletePopoverAbove = !addingCustomerMemo && index === customerMemos.length - 1;
+                {sortedCustomerMemos.map((item, index) => {
+                  const shouldOpenDeletePopoverAbove = !addingCustomerMemo && index === sortedCustomerMemos.length - 1;
 
                   if (editingCustomerMemoId === item.id) {
                     return (
@@ -2724,10 +3084,10 @@ function KimMinjunDetailContent({
           </div>
           <div className="kim-mvp-card-body" ref={checkBodyRef}>
             <div className="kim-check-list">
-              {checkItems.map((item, index) => {
+              {sortedCheckItems.map((item, index) => {
                 const isCompleted = completedCheckItems.includes(item.id);
-                const shouldOpenCheckConfirmAbove = !addingCheckItem && index === checkItems.length - 1;
-                const shouldOpenCheckDeleteAbove = !addingCheckItem && index === checkItems.length - 1;
+                const shouldOpenCheckConfirmAbove = !addingCheckItem && index === sortedCheckItems.length - 1;
+                const shouldOpenCheckDeleteAbove = !addingCheckItem && index === sortedCheckItems.length - 1;
                 const isEditing = editingCheckItemId === item.id;
                 if (isEditing) return renderCheckItemEditForm(item);
 
@@ -2864,11 +3224,11 @@ function KimMinjunDetailContent({
           </div>
           <div className="kim-mvp-card-body" ref={scheduleBodyRef}>
             <div className="kim-schedule-list">
-              {schedules.map((schedule, index) => {
+              {sortedSchedules.map((schedule, index) => {
                 const isCompleted = completedScheduleKeys.includes(scheduleRecordKey(schedule));
                 const isEditing = editingScheduleId === schedule.id;
-                const shouldOpenScheduleCompleteAbove = !addingScheduleItem && index > 0 && index === schedules.length - 1;
-                const shouldOpenScheduleDeleteAbove = !addingScheduleItem && index > 0 && index === schedules.length - 1;
+                const shouldOpenScheduleCompleteAbove = !addingScheduleItem && index > 0 && index === sortedSchedules.length - 1;
+                const shouldOpenScheduleDeleteAbove = !addingScheduleItem && index > 0 && index === sortedSchedules.length - 1;
                 if (isEditing) return renderScheduleInlineForm(schedule);
                 return (
                   <div
@@ -2952,52 +3312,222 @@ function KimMinjunDetailContent({
             <div className="kim-mvp-title-row">
               <i aria-hidden="true" className="kim-mvp-title-icon"><FileText size={14} strokeWidth={2.2} /></i>
               <h3>견적함</h3>
-              <span>{kimMinjunQuoteHistory.length}개</span>
+              <span>{quotes.length}개</span>
+              <em>고객에게 나간 조건</em>
             </div>
-            <button aria-label="견적함 추가" className="kim-mvp-add-circle" onClick={() => onToast("견적함 추가 자리입니다.")} type="button">+</button>
+            <button
+              aria-label="견적함 추가"
+              className="kim-mvp-add-circle"
+              onClick={() => {
+                setConfirmingQuoteDeleteId(null);
+                setAddingQuoteItem((current) => !current);
+              }}
+              type="button"
+            >{addingQuoteItem ? "×" : "+"}</button>
           </div>
-          <div className="kim-mvp-card-body">
+          <div className="kim-mvp-card-body" ref={quoteBodyRef}>
             <div className="kim-quote-list">
-              {kimMinjunQuoteHistory.map((quote) => (
-                <div className="kim-quote-row" key={quote.title}>
+              {quotes.map((quote, index) => {
+                const shouldOpenQuoteDeleteAbove = !addingQuoteItem && index > 0 && index === quotes.length - 1;
+                return (
+                <div className="kim-quote-row" key={quote.id}>
                   <span>{quote.status}</span>
                   <div>
                     <strong>{quote.title}</strong>
-                    <p>{quote.meta}</p>
+                    <p>{quote.fileName ? `${quote.meta} · 원본 ${quote.fileName}` : quote.meta}</p>
                   </div>
-                  <label aria-label={`${quote.title} 원본 첨부`}>
-                    <Upload size={12} strokeWidth={2.4} />
-                    첨부
-                    <input accept="image/*,.pdf" onChange={(event) => attachQuoteFile(event, quote.title)} type="file" />
-                  </label>
+                  <div className="kim-quote-row-actions">
+                    <label aria-label={`${quote.title} 원본 첨부`}>
+                      <Upload size={12} strokeWidth={2.4} />
+                      첨부
+                      <input accept="image/*,.pdf" onChange={(event) => attachQuoteFile(event, quote.id)} type="file" />
+                    </label>
+                    <button
+                      aria-label="견적 항목 삭제"
+                      className="delete"
+                      onClick={() => setConfirmingQuoteDeleteId((current) => (current === quote.id ? null : quote.id))}
+                      type="button"
+                    >
+                      <Trash2 size={13} strokeWidth={2.3} />
+                    </button>
+                  </div>
+                  {confirmingQuoteDeleteId === quote.id ? (
+                    <div className={`kim-check-confirm-popover delete${shouldOpenQuoteDeleteAbove ? " is-above" : ""}`} ref={quoteDeleteRef} role="dialog" aria-label="견적 항목 삭제 확인" onClick={(event) => event.stopPropagation()}>
+                      <p>해당 견적을 삭제하시겠습니까?</p>
+                      <div>
+                        <button type="button" onClick={() => setConfirmingQuoteDeleteId(null)}>아니요</button>
+                        <button className="danger" type="button" onClick={() => deleteQuote(quote.id)}>삭제</button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              ))}
+                );
+              })}
             </div>
+            {addingQuoteItem ? (
+              <form className="kim-check-composer kim-quote-composer" onSubmit={saveQuote}>
+                <div className="kim-check-composer-pickers">
+                  <div className="kim-check-composer-controls" aria-label="견적 상태">
+                    {kimQuoteStatusOptions.map((option) => (
+                      <label key={option}>
+                        <input defaultChecked={option === "대기"} name="status" type="radio" value={option} />
+                        <span>{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="kim-quote-composer-fields">
+                  <input aria-label="견적 제목" autoFocus name="title" placeholder="견적 제목" />
+                  <input aria-label="견적 메모" name="meta" placeholder="발송 시점 · 준비 메모" />
+                </div>
+                <div className="kim-check-composer-actions">
+                  <button type="button" onClick={() => setAddingQuoteItem(false)}>취소</button>
+                  <button className="primary" type="submit">저장</button>
+                </div>
+              </form>
+            ) : null}
           </div>
         </article>
 
-        <article className="detail-section kim-mvp-card kim-doc-card">
+        <article
+          className={`detail-section kim-mvp-card kim-doc-card${isDocumentDragActive ? " is-drop-active" : ""}`}
+          onDragEnter={(event) => {
+            if (!isDocumentFileDrag(event)) return;
+            event.preventDefault();
+            setIsDocumentDragActive(true);
+          }}
+          onDragLeave={(event) => {
+            if (!isDocumentFileDrag(event)) return;
+            event.preventDefault();
+            const nextTarget = event.relatedTarget;
+            if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+            setIsDocumentDragActive(false);
+          }}
+          onDragOver={(event) => {
+            if (!isDocumentFileDrag(event)) return;
+            event.preventDefault();
+          }}
+          onDrop={(event) => {
+            if (!isDocumentFileDrag(event)) return;
+            addDocumentFilesFromDrop(event);
+          }}
+        >
           <div className="kim-mvp-card-head">
             <div className="kim-mvp-title-row">
               <i aria-hidden="true" className="kim-mvp-title-icon"><FolderOpen size={14} strokeWidth={2.2} /></i>
               <h3>서류함</h3>
-              <span>0개</span>
+              <span>{receivedDocumentCount}개</span>
+              <em>자동 분류 파일 캐비닛</em>
             </div>
-            <button aria-label="서류 추가" className="kim-mvp-add-circle" onClick={() => onToast("서류 추가 자리입니다.")} type="button">+</button>
+            <div className="kim-doc-head-actions">
+              <label aria-label="서류 파일 첨부" className="kim-mvp-add-circle kim-doc-upload-trigger">
+                <Paperclip size={13} strokeWidth={2.4} />
+                <input accept="image/*,.pdf,application/pdf" multiple onChange={addDocumentFilesFromInput} type="file" />
+              </label>
+              <button
+                aria-label="서류 PDF 내보내기"
+                className="kim-mvp-add-circle"
+                onClick={exportDocumentBundleAsPdf}
+                type="button"
+              ><Download size={13} strokeWidth={2.4} /></button>
+            </div>
           </div>
-          <div className="kim-mvp-card-body">
+          <div className="kim-mvp-card-body" ref={documentBodyRef}>
             <div className="kim-doc-list">
-              {kimMinjunDocumentVault.map((doc) => (
-                <button className="kim-doc-row" key={doc.title} onClick={() => onToast(`${doc.title} 업로드 공간입니다.`)} type="button">
-                  <span>{doc.status}</span>
-                  <strong>{doc.title}</strong>
-                </button>
-              ))}
+              {documents.length === 0 ? (
+                <div className="kim-doc-empty">
+                  <strong>등록된 서류가 없습니다.</strong>
+                  <p>면허증, 사업자등록증, 재직 및 소득서류, 심사서류 등 이미지, PDF 파일을 올리면 자동으로 분류됩니다.</p>
+                </div>
+              ) : documents.map((doc, index) => {
+                const shouldOpenDocumentDeleteAbove = index > 0 && index === documents.length - 1;
+                return (
+                <div
+                  className={`kim-doc-row${draggedDocumentId === doc.id ? " is-dragging" : ""}${documentDropTargetId === doc.id ? " is-drop-target" : ""}`}
+                  key={doc.id}
+                  onDragEnd={clearDocumentRowDrag}
+                  onDragLeave={(event) => {
+                    const nextTarget = event.relatedTarget;
+                    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+                    if (documentDropTargetId === doc.id) setDocumentDropTargetId(null);
+                  }}
+                  onDragOver={(event) => dragDocumentRowOver(event, doc.id)}
+                  onDrop={(event) => dropDocumentRow(event, doc.id)}
+                >
+                  <span>{kimDocumentFileKind(doc.mimeType, doc.fileName)}</span>
+                  <div>
+                    <select className="kim-doc-type-native-select" aria-label={`${doc.fileName} 문서 종류 변경`} value={doc.title} onChange={(event) => updateDocumentType(doc.id, event.target.value)}>
+                      {kimDocumentTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                    <p>{doc.status} · {doc.fileName} · {formatKimFileSize(doc.fileSize)}</p>
+                  </div>
+                  <div className="kim-doc-row-actions">
+                    <span
+                      aria-label={`${doc.title} 순서 이동`}
+                      className="kim-doc-drag-handle"
+                      draggable
+                      onDragStart={(event) => startDocumentRowDrag(event, doc.id)}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <GripVertical size={13} strokeWidth={2.2} />
+                    </span>
+                    <button aria-label={`${doc.title} 미리보기`} onClick={() => setPreviewDocumentId(doc.id)} type="button">
+                      <Eye size={13} strokeWidth={2.3} />
+                    </button>
+                    <button
+                      aria-label="서류 항목 삭제"
+                      className="delete"
+                      onClick={() => setConfirmingDocumentDeleteId((current) => (current === doc.id ? null : doc.id))}
+                      type="button"
+                    >
+                      <Trash2 size={13} strokeWidth={2.3} />
+                    </button>
+                  </div>
+                  {confirmingDocumentDeleteId === doc.id ? (
+                    <div className={`kim-check-confirm-popover delete${shouldOpenDocumentDeleteAbove ? " is-above" : ""}`} ref={documentDeleteRef} role="dialog" aria-label="서류 항목 삭제 확인">
+                      <p>해당 서류를 삭제하시겠습니까?</p>
+                      <div>
+                        <button type="button" onClick={() => setConfirmingDocumentDeleteId(null)}>아니요</button>
+                        <button className="danger" type="button" onClick={() => deleteDocument(doc.id)}>삭제</button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                );
+              })}
             </div>
+          </div>
+          <div className="kim-doc-drop-overlay" aria-hidden="true">
+            <FileUp size={30} strokeWidth={1.9} />
+            <strong>Drop to Attach</strong>
+            <span>이미지와 PDF를 자동 분류합니다</span>
           </div>
         </article>
         </section>
       </section>
+      {previewDocument ? (
+        <div className="kim-document-preview-backdrop" role="dialog" aria-label={`${previewDocument.title} 미리보기`} onClick={() => setPreviewDocumentId(null)}>
+          <div className="kim-document-preview-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="kim-document-preview-head">
+              <div>
+                <strong>{previewDocument.title}</strong>
+                <span>{previewDocument.fileName} · {formatKimFileSize(previewDocument.fileSize)}</span>
+              </div>
+              <button aria-label="서류 미리보기 닫기" onClick={() => setPreviewDocumentId(null)} type="button"><X size={15} strokeWidth={2.4} /></button>
+            </div>
+            <div className="kim-document-preview-body">
+              {previewDocument.objectUrl && previewDocument.mimeType?.startsWith("image/") ? (
+                <img alt={previewDocument.title} src={previewDocument.objectUrl} />
+              ) : previewDocument.objectUrl && kimDocumentFileKind(previewDocument.mimeType, previewDocument.fileName) === "PDF" ? (
+                <iframe src={previewDocument.objectUrl} title={previewDocument.title} />
+              ) : (
+                <p>미리보기를 지원하지 않는 파일입니다.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {renderFloatingPurchaseEditor()}
     </div>
   );

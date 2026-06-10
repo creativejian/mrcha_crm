@@ -9,8 +9,8 @@ test("opens customer detail from the all-customer list", async ({ page }) => {
 
   const drawer = page.getByRole("dialog", { name: "김민준 고객 상세 패널" });
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByRole("heading", { name: /고객 관리.*김민준.*CU-2605-0020.*오늘 12:56 접수/ })).toBeVisible();
-  await expect(drawer.getByText("방금 전 상담 메모 업데이트")).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: /고객 관리.*김민준.*CU-2605-0020.*2026\/06\/09 12:56:39 접수/ })).toBeVisible();
+  await expect(drawer.getByText("방금 전 고객 메모 업데이트")).toBeVisible();
   await expect(drawer.getByText("010-9588-0812")).toBeVisible();
   await expect(drawer.getByText("개인 · 4대보험")).toBeVisible();
   await expect(drawer.getByRole("button", { name: /담당자.*미배정/ })).toBeVisible();
@@ -66,6 +66,10 @@ test("opens customer detail from the all-customer list", async ({ page }) => {
   await expect(drawer.getByRole("heading", { name: "견적함" })).toBeVisible();
   await expect(drawer.getByText("첨부").first()).toBeVisible();
   await expect(drawer.getByRole("heading", { name: "서류함" })).toBeVisible();
+  await expect(drawer.getByLabel("서류 파일 첨부")).toBeVisible();
+  await expect(drawer.getByText("서류함").locator("..").getByText("2개")).toBeVisible();
+  await expect(drawer.getByLabel("등본_함승우.pdf 문서 종류 변경")).toHaveValue("심사서류");
+  await expect(drawer.getByLabel("사업자등록증_크리에이티브지안.png 문서 종류 변경")).toHaveValue("사업자등록증");
   await expect(drawer.getByRole("heading", { name: "해야 할 일" })).toBeVisible();
   await expect(drawer.getByText("GLC 재고 가능 여부 확인")).toBeVisible();
   await expect(drawer.getByRole("heading", { name: "예정 일정" })).toBeVisible();
