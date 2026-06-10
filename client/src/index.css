@@ -198,7 +198,7 @@ button:disabled {
 .sidebar-role-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  gap: 7px;
   border: 1px solid rgba(229, 229, 227, 0.88);
   border-radius: 10px;
   background: #f7f7f6;
@@ -5424,6 +5424,12 @@ th input:focus-visible {
   line-height: 1.5;
 }
 
+.kim-header-update-mark {
+  background: linear-gradient(to top, rgba(88, 54, 255, 0.16) 38%, transparent 38%);
+  color: inherit;
+  font-weight: 520;
+}
+
 .kim-header-code-text {
   color: #a8afb6;
   font-size: 12px;
@@ -5954,9 +5960,9 @@ th input:focus-visible {
 .kim-status-field strong {
   overflow: hidden;
   color: #30363d;
-  font-size: 15px;
-  font-weight: 720;
-  line-height: 1.35;
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.22;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5966,6 +5972,13 @@ th input:focus-visible {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.kim-status-copy strong.has-inline-actions {
+  position: relative;
+  display: inline-block;
+  justify-self: start;
+  overflow: visible;
 }
 
 .kim-status-copy strong.is-unassigned {
@@ -5997,50 +6010,49 @@ th input:focus-visible {
 }
 
 .kim-quote-attachment-actions {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 8px);
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 6px;
+  transform: translateY(-50%);
 }
 
 .kim-status-copy strong .kim-quote-attachment-button {
-  height: 28px;
-  min-width: 34px;
-  border: 1px solid #5836ff;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border: 1px solid rgba(88, 54, 255, 0.22);
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  background: #5836ff;
-  color: #fff;
-  padding: 0 8px;
+  background: rgba(88, 54, 255, 0.08);
+  color: #5836ff;
+  padding: 0;
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 780;
   line-height: 1;
-  box-shadow: 0 7px 16px rgba(88, 54, 255, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
   transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
 }
 
-.kim-status-copy strong .kim-quote-attachment-button svg {
-  width: 14px;
-  height: 14px;
-}
-
 .kim-status-copy strong .kim-quote-attachment-button span {
-  color: #fff;
-  font-size: 14px;
-  font-weight: 820;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 780;
   letter-spacing: 0;
   line-height: 1;
 }
 
 .kim-status-copy strong .kim-quote-attachment-button:hover {
-  border-color: #4424df;
-  background: #4424df;
+  border-color: rgba(88, 54, 255, 0.34);
+  background: #5836ff;
   color: #fff;
-  box-shadow: 0 9px 18px rgba(88, 54, 255, 0.26);
+  box-shadow: 0 4px 10px rgba(88, 54, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .kim-status-field:hover {
@@ -6645,7 +6657,7 @@ th input:focus-visible {
 
 .kim-workflow-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 58px;
   gap: 10px;
 }
 
@@ -6680,21 +6692,28 @@ th input:focus-visible {
   white-space: nowrap;
 }
 
-.kim-workflow-card.stage strong {
-  color: #9a6100;
+.kim-workflow-card.normal strong {
+  color: #5f6872;
 }
 
-.kim-workflow-card.chance {
-  border-color: rgba(88, 54, 255, 0.18);
-  background: #fbfaff;
-}
-
-.kim-workflow-card.chance strong {
+.kim-workflow-card strong.kim-chance-value.chance-purple {
   color: #5836ff;
 }
 
-.kim-workflow-card.normal strong {
-  color: #5f6872;
+.kim-workflow-card strong.kim-chance-value.chance-neutral {
+  color: #344051;
+}
+
+.kim-workflow-card strong.kim-chance-value.chance-red {
+  color: #b42318;
+}
+
+.kim-workflow-card strong.kim-chance-value.chance-yellow {
+  color: #a86106;
+}
+
+.kim-workflow-card strong.kim-chance-value.chance-green {
+  color: #08783b;
 }
 
 .kim-workflow-card:hover {
@@ -6702,6 +6721,103 @@ th input:focus-visible {
   background: #fff;
   box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.045), 0 2px 4px rgba(15, 23, 42, 0.055);
   transform: translateY(-1px);
+}
+
+.kim-timeline-open-button {
+  min-height: 58px;
+  border: 1px solid rgba(88, 54, 255, 0.22);
+  border-radius: 7px;
+  display: inline-grid;
+  grid-template-rows: 1fr auto;
+  place-items: center;
+  gap: 3px;
+  background: rgba(88, 54, 255, 0.08);
+  color: #5836ff;
+  padding: 8px 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, transform 0.14s ease;
+}
+
+.kim-timeline-open-button span {
+  min-width: 21px;
+  height: 21px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #5836ff;
+  font-size: 11px;
+  font-weight: 820;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(88, 54, 255, 0.16);
+}
+
+.kim-timeline-open-button:hover {
+  border-color: rgba(88, 54, 255, 0.34);
+  background: rgba(88, 54, 255, 0.12);
+  box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.055), 0 2px 5px rgba(15, 23, 42, 0.07);
+  transform: translateY(-1px);
+}
+
+.kim-timeline-popover {
+  position: absolute;
+  right: -144px;
+  top: calc(100% + 10px);
+  z-index: 95;
+  width: min(739px, calc(100vw - 86px));
+  border: 1px solid #e4e4e2;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.025);
+}
+
+.kim-timeline-popover-head {
+  min-height: 40px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff;
+  padding: 8px 14px;
+  box-sizing: border-box;
+}
+
+.kim-timeline-popover-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kim-timeline-popover-title i {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #68717b;
+  font-style: normal;
+}
+
+.kim-timeline-popover-title h3 {
+  margin: 0;
+  color: #172026;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.kim-timeline-popover-body {
+  border: 0;
+  border-radius: 0;
+}
+
+.kim-timeline-popover-body .kim-consult-timeline {
+  padding: 0;
 }
 
 .kim-needs-dashboard {
@@ -6888,11 +7004,13 @@ th input:focus-visible {
 .kim-condition-quote-grid .kim-purchase-conditions,
 .kim-condition-consult-grid .kim-purchase-conditions,
 .kim-condition-consult-grid .kim-consult-log,
+.kim-condition-consult-grid .kim-customer-memo-section,
 .kim-condition-quote-grid .kim-quote-card {
   grid-column: auto;
 }
 
-.kim-customer-dashboard .kim-consult-log {
+.kim-customer-dashboard .kim-consult-log,
+.kim-customer-dashboard .kim-customer-memo-section {
   border: 0;
   border-radius: 0;
   display: grid;
@@ -6921,6 +7039,11 @@ th input:focus-visible {
   min-height: 34px;
   border-bottom: 0;
   padding: 0;
+}
+
+.kim-customer-memo-section .kim-mvp-section-head,
+.kim-mvp-card-head {
+  justify-content: space-between;
 }
 
 .kim-mvp-section-head h3,
@@ -6958,28 +7081,76 @@ th input:focus-visible {
 }
 
 .kim-mvp-section-head .kim-mvp-add-circle,
-.kim-mvp-card-head .kim-mvp-add-circle {
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  border-radius: 999px;
+.kim-mvp-card-head .kim-mvp-add-circle,
+.kim-mvp-section-head .kim-customer-memo-add-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-color: rgba(88, 54, 255, 0.2);
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(88, 54, 255, 0.08);
+  color: #5836ff;
   padding: 0;
-  color: #68717b;
-  font-size: 14px;
-  font-weight: 780;
+  font-size: 18px;
+  font-weight: 360;
   line-height: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .kim-mvp-section-head .kim-mvp-add-circle:hover,
-.kim-mvp-card-head .kim-mvp-add-circle:hover {
+.kim-mvp-card-head .kim-mvp-add-circle:hover,
+.kim-mvp-section-head .kim-customer-memo-add-button:hover {
   border-color: rgba(88, 54, 255, 0.34);
-  background: #fff;
-  color: #5836ff;
-  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.06);
+  background: #5836ff;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(88, 54, 255, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
 }
 
-.kim-mvp-section-head button:hover,
-.kim-mvp-card-head button:hover,
+.kim-mvp-title-row > span,
+.kim-mvp-title-row > .kim-customer-memo-count {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  margin-left: -2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #8b9299;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.kim-mvp-title-row > em {
+  overflow: hidden;
+  color: #a0a6ad;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 560;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kim-mvp-section-head .kim-customer-memo-add-button > span {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  display: block;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.kim-mvp-section-head button:not(.kim-customer-memo-add-button):not(.kim-mvp-add-circle):hover,
+.kim-mvp-card-head button:not(.kim-mvp-add-circle):hover,
 .kim-mvp-card-body > button:hover {
   border-color: rgba(88, 54, 255, 0.34);
   background: #fff;
@@ -7005,8 +7176,8 @@ th input:focus-visible {
   border-radius: 4px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-  min-height: 236px;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr);
+  min-height: 196px;
   overflow: visible;
   background: #fff;
 }
@@ -7030,17 +7201,6 @@ th input:focus-visible {
   background: #fcfcfb;
 }
 
-.kim-purchase-condition-anchor.judgment::before {
-  content: "";
-  position: absolute;
-  top: 1px;
-  right: 0;
-  left: 0;
-  height: 1px;
-  background: rgba(17, 17, 17, 0.035);
-  pointer-events: none;
-}
-
 .kim-purchase-condition-item {
   width: 100%;
   height: 100%;
@@ -7052,11 +7212,15 @@ th input:focus-visible {
   background: transparent;
   color: inherit;
   font: inherit;
-  padding: 11px 14px;
+  padding: 5px 14px;
   text-align: left;
   box-sizing: border-box;
   cursor: pointer;
   transition: background 0.14s ease;
+}
+
+.kim-purchase-condition-anchor.judgment .kim-purchase-condition-item {
+  padding-block: 8px;
 }
 
 .kim-purchase-condition-item:hover {
@@ -7098,8 +7262,8 @@ th input:focus-visible {
 .kim-purchase-condition-item strong {
   color: #30363d;
   font-size: 13px;
-  font-weight: 720;
-  line-height: 1.25;
+  font-weight: 760;
+  line-height: 1.22;
   overflow-wrap: anywhere;
 }
 
@@ -7140,6 +7304,19 @@ th input:focus-visible {
   max-height: 236px;
   overflow-y: auto;
   background: #fff;
+}
+
+.kim-timeline-popover .kim-timeline-popover-body {
+  border: 0;
+  border-radius: 0;
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
+}
+
+.kim-timeline-popover .kim-timeline-popover-body.is-scrollable {
+  max-height: min(580px, calc(100vh - 260px));
+  overflow-y: auto;
 }
 
 .kim-consult-composer {
@@ -7225,15 +7402,17 @@ th input:focus-visible {
 
 .kim-consult-timeline {
   display: grid;
-  padding: 4px 0;
+  padding: 0;
 }
 
 .kim-consult-event {
+  position: relative;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
   gap: 10px;
-  min-height: 76px;
-  padding: 11px 14px;
+  align-items: start;
+  min-height: 58px;
+  padding: 5px 14px;
   border-bottom: 1px solid rgba(17, 17, 17, 0.055);
   background: #fff;
   box-sizing: border-box;
@@ -7247,12 +7426,22 @@ th input:focus-visible {
   background: #fff;
 }
 
+.kim-consult-event.is-latest-memo::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 2px;
+  border-radius: 999px;
+  background: #5836ff;
+}
+
 .kim-consult-event:last-child {
   border-bottom: 0;
 }
 
 .kim-consult-event > span {
   align-self: start;
+  transform: translateY(5px);
   height: 22px;
   border: 1px solid #e5e5e3;
   border-radius: 6px;
@@ -7263,6 +7452,30 @@ th input:focus-visible {
   color: #737a82;
   font-size: 10.5px;
   font-weight: 780;
+}
+
+.kim-consult-event.memo > span {
+  border-color: rgba(88, 54, 255, 0.22);
+  background: rgba(88, 54, 255, 0.055);
+  color: #5836ff;
+}
+
+.kim-consult-event.call > span {
+  border-color: rgba(15, 118, 110, 0.2);
+  background: rgba(15, 118, 110, 0.055);
+  color: #0f766e;
+}
+
+.kim-consult-event.chat > span {
+  border-color: rgba(37, 99, 235, 0.2);
+  background: rgba(37, 99, 235, 0.055);
+  color: #2563eb;
+}
+
+.kim-consult-event.status > span {
+  border-color: rgba(180, 83, 9, 0.22);
+  background: rgba(180, 83, 9, 0.06);
+  color: #9a5a05;
 }
 
 .kim-consult-event-head {
@@ -7322,6 +7535,329 @@ th input:focus-visible {
   line-height: 1.5;
 }
 
+.kim-customer-memo-body {
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  display: grid;
+  align-content: start;
+  height: 196px;
+  max-height: 196px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.kim-customer-memo-composer {
+  position: relative;
+  border-top: 1px solid rgba(88, 54, 255, 0.16);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px 14px;
+  background: #f8f7ff;
+}
+
+.kim-customer-memo-composer::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(88, 54, 255, 0.72);
+}
+
+.kim-customer-memo-composer label {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.kim-customer-memo-composer label > span {
+  color: #8f969c;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.kim-customer-memo-composer input,
+.kim-customer-memo-composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  outline: 0;
+}
+
+.kim-customer-memo-composer input {
+  height: 34px;
+  padding: 0 9px;
+}
+
+.kim-customer-memo-composer textarea {
+  min-height: 72px;
+  resize: vertical;
+  padding: 8px 9px;
+  line-height: 1.48;
+}
+
+.kim-customer-memo-composer input:focus,
+.kim-customer-memo-composer textarea:focus {
+  border-color: rgba(88, 54, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.08);
+}
+
+.kim-customer-memo-composer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 1px;
+}
+
+.kim-customer-memo-composer-actions button {
+  height: 30px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 28px;
+}
+
+.kim-customer-memo-composer-actions button.primary {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+.kim-customer-memo-list {
+  display: grid;
+  padding: 0;
+}
+
+.kim-customer-memo-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) 24px;
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  background: #fff;
+  padding: 5px 14px;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-customer-memo-row:last-child {
+  border-bottom: 0;
+}
+
+.kim-customer-memo-row:hover {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(88, 54, 255, 0.18);
+}
+
+.kim-customer-memo-row p {
+  margin: 0;
+  color: #4f5862;
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 1.5;
+}
+
+.kim-customer-memo-row > span {
+  min-height: 22px;
+  border: 1px solid #d7e0eb;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef4fa;
+  color: #607087;
+  padding: 0 7px;
+  font-size: 10.5px;
+  font-weight: 760;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.kim-customer-memo-row button {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  background: #fbfbfa;
+  color: #8f969c;
+  padding: 0;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-customer-memo-row button:hover {
+  border-color: rgba(180, 35, 24, 0.28);
+  background: #fff;
+  color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.06);
+}
+
+.kim-customer-memo-delete-popover {
+  position: absolute;
+  top: calc(50% + 18px);
+  right: 14px;
+  z-index: 8;
+  width: 172px;
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  background: #fff;
+  padding: 9px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1), 0 0 0 1px rgba(15, 23, 42, 0.02);
+}
+
+.kim-customer-memo-delete-popover.is-above {
+  top: auto;
+  bottom: calc(50% + 18px);
+}
+
+.kim-customer-memo-delete-popover p {
+  margin: 0;
+  color: #30363d;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.kim-customer-memo-delete-popover > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.kim-customer-memo-delete-popover button {
+  width: auto;
+  height: 26px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 24px;
+  box-shadow: none;
+}
+
+.kim-customer-memo-delete-popover button:hover {
+  border-color: #c9c9c6;
+  background: #f7f7f6;
+  color: #30363d;
+  box-shadow: none;
+}
+
+.kim-customer-memo-delete-popover button.danger {
+  border-color: rgba(180, 35, 24, 0.26);
+  background: #fff;
+  color: #b42318;
+}
+
+.kim-customer-memo-delete-popover button.danger:hover {
+  border-color: rgba(180, 35, 24, 0.36);
+  background: rgba(180, 35, 24, 0.1);
+  color: #b42318;
+}
+
+.kim-customer-memo-edit-row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  background: #fff;
+  padding: 8px 14px;
+  box-sizing: border-box;
+  box-shadow: inset 0 0 0 1px rgba(88, 54, 255, 0.18);
+}
+
+.kim-customer-memo-edit-row textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 560;
+  outline: 0;
+}
+
+.kim-customer-memo-edit-row textarea {
+  min-height: 52px;
+  resize: vertical;
+  padding: 7px 8px;
+  line-height: 1.45;
+}
+
+.kim-customer-memo-edit-row textarea:focus {
+  border-color: rgba(88, 54, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.08);
+}
+
+.kim-customer-memo-edit-row > span {
+  min-height: 22px;
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f7f6;
+  color: #7c858d;
+  padding: 0 7px;
+  font-size: 10.5px;
+  font-weight: 760;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.kim-customer-memo-edit-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kim-customer-memo-edit-actions button {
+  height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 26px;
+}
+
+.kim-customer-memo-edit-actions button.primary {
+  border-color: rgba(88, 54, 255, 0.24);
+  background: rgba(88, 54, 255, 0.08);
+  color: #5836ff;
+}
+
 .kim-mvp-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -7350,7 +7886,7 @@ th input:focus-visible {
   min-height: 34px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 10px;
 }
 
@@ -7361,7 +7897,6 @@ th input:focus-visible {
   min-width: 0;
 }
 
-.kim-mvp-title-row span,
 .kim-mvp-card-head > span {
   width: 22px;
   height: 22px;
@@ -7411,6 +7946,13 @@ th input:focus-visible {
   padding: 0;
 }
 
+.kim-check-card .kim-mvp-card-body,
+.kim-schedule-card .kim-mvp-card-body {
+  min-height: 196px;
+  height: 196px;
+  max-height: 196px;
+}
+
 .kim-mvp-card-body > button {
   justify-self: start;
   margin-top: 2px;
@@ -7418,6 +7960,7 @@ th input:focus-visible {
 
 .kim-workspace-band .kim-purchase-conditions,
 .kim-workspace-band .kim-consult-log,
+.kim-workspace-band .kim-customer-memo-section,
 .kim-workspace-band .kim-mvp-card {
   border: 1px solid #e4e4e2;
   border-radius: 4px;
@@ -7436,11 +7979,11 @@ th input:focus-visible {
 }
 
 .kim-workspace-band .kim-mvp-title-row {
-  width: 100%;
+  width: auto;
 }
 
 .kim-workspace-band .kim-mvp-title-row h3 {
-  margin-right: auto;
+  margin-right: 0;
   font-size: 14px;
   font-weight: 700;
 }
@@ -7458,6 +8001,7 @@ th input:focus-visible {
 
 .kim-workspace-band .kim-purchase-condition-body,
 .kim-workspace-band .kim-consult-body,
+.kim-workspace-band .kim-customer-memo-body,
 .kim-workspace-band .kim-mvp-card-body {
   border: 0;
   border-radius: 0;
@@ -7466,6 +8010,8 @@ th input:focus-visible {
 
 .kim-workspace-band .kim-purchase-condition-item,
 .kim-workspace-band .kim-consult-event,
+.kim-workspace-band .kim-customer-memo-row,
+.kim-workspace-band .kim-customer-memo-edit-row,
 .kim-workspace-band .kim-quote-row,
 .kim-workspace-band .kim-doc-row,
 .kim-workspace-band .kim-check-row,
@@ -7476,15 +8022,27 @@ th input:focus-visible {
 .kim-workspace-band .kim-purchase-condition-item:hover,
 .kim-workspace-band .kim-quote-row:hover,
 .kim-workspace-band .kim-doc-row:hover,
-.kim-workspace-band .kim-check-row:hover {
+.kim-workspace-band .kim-check-row:hover,
+.kim-workspace-band .kim-customer-memo-row:hover {
   background: #fff;
 }
 
 .kim-workspace-band .kim-consult-event.is-muted-history,
-.kim-workspace-band .kim-consult-event.is-latest-memo,
-.kim-workspace-band .kim-check-row.is-completed,
-.kim-workspace-band .kim-schedule-row.is-completed {
+.kim-workspace-band .kim-consult-event.is-latest-memo {
   background: #fbfbfa;
+}
+
+.kim-workspace-band .kim-check-row.is-completed,
+.kim-workspace-band .kim-check-row.is-completed:hover,
+.kim-workspace-band .kim-check-row.is-completed:focus-within,
+.kim-workspace-band .kim-schedule-row.is-completed,
+.kim-workspace-band .kim-schedule-row.is-completed:hover,
+.kim-workspace-band .kim-schedule-row.is-completed:focus-within {
+  background: #ededeb;
+}
+
+.kim-workspace-band .kim-consult-event.is-latest-memo {
+  background: #fff;
 }
 
 .kim-quote-list,
@@ -7492,7 +8050,7 @@ th input:focus-visible {
 .kim-check-list {
   display: grid;
   gap: 0;
-  padding: 4px 0;
+  padding: 0;
 }
 
 .kim-quote-row {
@@ -7500,9 +8058,9 @@ th input:focus-visible {
   display: grid;
   grid-template-columns: 84px minmax(0, 1fr) auto;
   gap: 12px;
-  min-height: 76px;
+  min-height: 58px;
   align-items: start;
-  padding: 11px 14px;
+  padding: 5px 14px;
   box-sizing: border-box;
   transition: background 0.14s ease;
 }
@@ -7526,10 +8084,24 @@ th input:focus-visible {
   border-bottom: 0;
 }
 
-.kim-quote-row > span,
-.kim-doc-row > span,
-.kim-check-row > span {
+.kim-quote-row > span {
   align-self: start;
+  transform: translateY(5px);
+  height: 22px;
+  border: 1px solid rgba(88, 54, 255, 0.18);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f1ff;
+  color: #5836ff;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.kim-doc-row > span {
+  align-self: center;
   height: 22px;
   border: 1px solid rgba(88, 54, 255, 0.18);
   border-radius: 6px;
@@ -7602,12 +8174,12 @@ th input:focus-visible {
   display: grid;
   grid-template-columns: 60px minmax(0, 1fr);
   gap: 10px;
-  min-height: 76px;
-  align-items: start;
+  min-height: 58px;
+  align-items: center;
   background: transparent;
   color: inherit;
   font: inherit;
-  padding: 11px 14px;
+  padding: 5px 14px;
   text-align: left;
   box-sizing: border-box;
   cursor: pointer;
@@ -7623,24 +8195,34 @@ th input:focus-visible {
 }
 
 .kim-check-row {
+  position: relative;
   border: 0;
   border-bottom: 1px solid rgba(17, 17, 17, 0.055);
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 26px;
-  gap: 10px;
-  min-height: 76px;
-  background: transparent;
-  padding: 11px 14px;
+  grid-template-columns: 82px minmax(0, 1fr) 54px;
+  gap: 12px;
+  min-height: 58px;
+  align-items: center;
+  background: #fff;
+  padding: 5px 14px;
   box-sizing: border-box;
-  transition: background 0.14s ease;
+  transition: background 0.14s ease, box-shadow 0.14s ease;
 }
 
-.kim-check-row:hover {
-  background: #fafafa;
+.kim-check-row:hover,
+.kim-check-row:focus-within {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(88, 54, 255, 0.18);
 }
 
 .kim-check-row.is-completed {
-  background: #fafafa;
+  background: #ededeb;
+}
+
+.kim-check-row.is-completed:hover,
+.kim-check-row.is-completed:focus-within {
+  background: #ededeb;
+  box-shadow: inset 0 0 0 1px rgba(104, 113, 123, 0.14);
 }
 
 .kim-check-row:last-child {
@@ -7648,7 +8230,17 @@ th input:focus-visible {
 }
 
 .kim-check-row.is-completed strong {
-  color: #737a82;
+  color: #7c858d;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(104, 113, 123, 0.65);
+}
+
+.kim-check-row strong {
+  color: #4f5862;
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 1.5;
 }
 
 .kim-check-row p {
@@ -7664,33 +8256,371 @@ th input:focus-visible {
 }
 
 .kim-check-row.is-completed p {
-  color: #8f969c;
+  color: #9aa1a8;
 }
 
-.kim-check-row > button {
-  width: 26px;
-  height: 26px;
+.kim-check-row.is-completed > span {
+  border-color: #d8d8d5;
+  background: #ededeb;
+  color: #7c858d;
+}
+
+.kim-check-row > span {
+  border: 1px solid #ddd8f1;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f2f0fb;
+  color: #675f91;
+  min-width: 0;
+  align-self: center;
+  transform: none;
+  min-height: 22px;
+  width: 82px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.kim-check-row-actions {
+  display: inline-flex;
+  align-self: center;
+  justify-self: end;
+  gap: 6px;
+  width: 54px;
+}
+
+.kim-check-row-actions > button {
+  width: 24px;
+  height: 24px;
   border: 1px solid #dededb;
   border-radius: 6px;
   display: inline-grid;
-  align-self: start;
   place-items: center;
-  background: #fff;
+  background: #fbfbfa;
   color: #8f969c;
   padding: 0;
   transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
 }
 
-.kim-check-row > button:hover {
+.kim-check-row-actions > button:hover {
   border-color: rgba(88, 54, 255, 0.34);
   color: #5836ff;
   box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.06);
 }
 
-.kim-check-row > button[aria-pressed="true"] {
-  border-color: rgba(88, 54, 255, 0.2);
-  background: #f4f1ff;
+.kim-check-row-actions > button.delete:hover {
+  border-color: rgba(180, 35, 24, 0.28);
+  background: #fff;
+  color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.06);
+}
+
+.kim-check-row-actions > button[aria-pressed="true"] {
+  border-color: #30363d;
+  background: #30363d;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(48, 54, 61, 0.18);
+}
+
+.kim-check-confirm-popover {
+  position: absolute;
+  top: calc(50% + 18px);
+  right: 14px;
+  z-index: 8;
+  width: 236px;
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  background: #fff;
+  padding: 9px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1), 0 0 0 1px rgba(15, 23, 42, 0.02);
+}
+
+.kim-check-confirm-popover.delete {
+  width: 178px;
+}
+
+.kim-check-confirm-popover.is-above {
+  top: auto;
+  bottom: calc(50% + 18px);
+}
+
+.kim-check-confirm-popover p {
+  margin: 0;
+  color: #30363d;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.kim-check-row.is-completed .kim-check-confirm-popover p {
+  color: #30363d;
+}
+
+.kim-check-confirm-popover > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.kim-check-confirm-popover button {
+  height: 26px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 24px;
+  box-shadow: none;
+}
+
+.kim-check-confirm-popover button:hover {
+  border-color: #c9c9c6;
+  background: #f7f7f6;
+  color: #30363d;
+  box-shadow: none;
+}
+
+.kim-check-confirm-popover button.primary {
+  border-color: rgba(88, 54, 255, 0.24);
+  background: rgba(88, 54, 255, 0.08);
   color: #5836ff;
+}
+
+.kim-check-confirm-popover button.primary:hover {
+  border-color: rgba(88, 54, 255, 0.34);
+  background: rgba(88, 54, 255, 0.12);
+  color: #5836ff;
+}
+
+.kim-check-confirm-popover button.neutral {
+  border-color: #c9c9c6;
+  background: #f7f7f6;
+  color: #30363d;
+}
+
+.kim-check-confirm-popover button.danger {
+  border-color: rgba(180, 35, 24, 0.26);
+  background: #fff;
+  color: #b42318;
+}
+
+.kim-check-confirm-popover button.danger:hover {
+  border-color: rgba(180, 35, 24, 0.36);
+  background: rgba(180, 35, 24, 0.1);
+  color: #b42318;
+}
+
+.kim-check-composer {
+  position: relative;
+  border-top: 1px solid rgba(88, 54, 255, 0.16);
+  display: grid;
+  gap: 7px;
+  background: #f8f7ff;
+  padding: 9px 14px 10px;
+}
+
+.kim-check-composer::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(88, 54, 255, 0.72);
+}
+
+.kim-check-edit-row {
+  position: relative;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  display: grid;
+  gap: 7px;
+  background: #f8f7ff;
+  padding: 9px 14px 10px;
+  box-shadow: inset 0 0 0 1px rgba(88, 54, 255, 0.18);
+}
+
+.kim-check-edit-row::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(88, 54, 255, 0.72);
+}
+
+.kim-check-composer-pickers {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kim-check-composer-controls {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.kim-check-due-stack {
+  display: grid;
+  gap: 7px;
+  justify-items: end;
+}
+
+.kim-check-composer-controls label {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.kim-check-composer-controls input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  opacity: 0;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.kim-check-composer-controls span {
+  min-height: 24px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #68717b;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 780;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.kim-check-composer-controls input:checked + span {
+  border-color: #5836ff;
+  background: #5836ff;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(88, 54, 255, 0.2);
+}
+
+.kim-check-composer-controls input:focus-visible + span {
+  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.08);
+}
+
+.kim-check-date-field {
+  display: inline-grid;
+  grid-template-columns: auto 132px;
+  align-items: center;
+  gap: 8px;
+}
+
+.kim-check-date-field.compact {
+  justify-self: end;
+}
+
+.kim-check-date-field > span {
+  color: #8f969c;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.kim-check-date-field input {
+  height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  outline: 0;
+}
+
+.kim-check-date-field input:focus {
+  border-color: rgba(88, 54, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.08);
+}
+
+.kim-check-composer-main {
+  display: block;
+  min-width: 0;
+}
+
+.kim-check-composer-main textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  padding: 8px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 1.45;
+  outline: 0;
+  resize: vertical;
+}
+
+.kim-check-composer-main textarea:focus {
+  border-color: rgba(88, 54, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.08);
+}
+
+.kim-check-composer-actions {
+  display: inline-flex;
+  justify-self: end;
+  gap: 7px;
+}
+
+.kim-check-composer-actions button {
+  height: 30px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 28px;
+}
+
+.kim-check-composer-actions button.primary {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+@media (max-width: 900px) {
+  .kim-check-composer-pickers {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .kim-check-composer-controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 
 .kim-schedule-card {
@@ -7700,23 +8630,38 @@ th input:focus-visible {
 .kim-schedule-list {
   display: grid;
   gap: 0;
-  padding: 4px 0;
+  padding: 0;
 }
 
 .kim-schedule-row {
+  position: relative;
   border: 0;
   border-bottom: 1px solid rgba(17, 17, 17, 0.055);
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 26px;
-  gap: 10px;
-  min-height: 76px;
-  background: transparent;
-  padding: 11px 14px;
+  grid-template-columns: 82px minmax(0, 1fr) 54px;
+  gap: 12px;
+  min-height: 58px;
+  align-items: center;
+  background: #fff;
+  padding: 5px 14px;
   box-sizing: border-box;
+  transition: background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-schedule-row:hover,
+.kim-schedule-row:focus-within {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(88, 54, 255, 0.18);
 }
 
 .kim-schedule-row.is-completed {
-  background: #fafafa;
+  background: #ededeb;
+}
+
+.kim-schedule-row.is-completed:hover,
+.kim-schedule-row.is-completed:focus-within {
+  background: #ededeb;
+  box-shadow: inset 0 0 0 1px rgba(104, 113, 123, 0.14);
 }
 
 .kim-schedule-row:last-child {
@@ -7724,69 +8669,230 @@ th input:focus-visible {
 }
 
 .kim-schedule-row > span {
-  height: 22px;
-  border: 1px solid rgba(88, 54, 255, 0.18);
+  min-height: 22px;
+  border: 1px solid #d9e4d9;
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #f4f1ff;
-  color: #5836ff;
-  font-size: 10.5px;
-  font-weight: 800;
+  background: #eff4ef;
+  color: #637463;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .kim-schedule-row strong {
   color: #30363d;
-  font-size: 12.5px;
-  font-weight: 720;
-  line-height: 1.35;
+  font: inherit;
+  font-weight: 740;
 }
 
 .kim-schedule-row.is-completed strong {
-  color: #737a82;
+  color: #7c858d;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(104, 113, 123, 0.65);
 }
 
 .kim-schedule-row p {
-  display: -webkit-box;
+  display: block;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  margin: 4px 0 0;
-  color: #58636e;
-  font-size: 12px;
-  font-weight: 500;
+  margin: 0;
+  color: #4f5862;
+  font-size: 12.5px;
+  font-weight: 560;
   line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.kim-schedule-row.is-completed p {
-  color: #8f969c;
+.kim-schedule-row p em {
+  margin: 0 6px;
+  color: #a0a6ad;
+  font-style: normal;
+  font-weight: 650;
 }
 
-.kim-schedule-row > button {
-  width: 26px;
-  height: 26px;
+.kim-schedule-row.is-completed > div > p {
+  color: #9aa1a8;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(104, 113, 123, 0.65);
+}
+
+.kim-schedule-row.is-completed .kim-check-confirm-popover p {
+  color: #30363d;
+  text-decoration: none;
+}
+
+.kim-schedule-row.is-completed > span {
+  border-color: #d8d8d5;
+  background: #ededeb;
+  color: #7c858d;
+}
+
+.kim-schedule-row-actions {
+  display: inline-flex;
+  align-self: center;
+  justify-self: end;
+  gap: 6px;
+  width: 54px;
+}
+
+.kim-schedule-row-actions > button {
+  width: 24px;
+  height: 24px;
   border: 1px solid #dededb;
   border-radius: 6px;
   display: inline-grid;
-  align-self: start;
   place-items: center;
-  background: #fff;
+  background: #fbfbfa;
   color: #8f969c;
   padding: 0;
   transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
 }
 
-.kim-schedule-row > button:hover {
+.kim-schedule-row-actions > button:hover {
   border-color: rgba(88, 54, 255, 0.34);
   color: #5836ff;
   box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.06);
 }
 
-.kim-schedule-row > button[aria-pressed="true"] {
-  border-color: rgba(88, 54, 255, 0.2);
-  background: #f4f1ff;
-  color: #5836ff;
+.kim-schedule-row-actions > button.delete:hover {
+  border-color: rgba(180, 35, 24, 0.28);
+  background: #fff;
+  color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.06);
+}
+
+.kim-schedule-row-actions > button[aria-pressed="true"] {
+  border-color: #30363d;
+  background: #30363d;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(48, 54, 61, 0.18);
+}
+
+.kim-schedule-composer {
+  position: relative;
+  border-top: 1px solid rgba(88, 54, 255, 0.16);
+  display: grid;
+  gap: 7px;
+  background: #f8f7ff;
+  padding: 9px 14px 10px;
+  box-shadow: inset 0 0 0 1px rgba(88, 54, 255, 0.12);
+}
+
+.kim-schedule-composer::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(88, 54, 255, 0.72);
+}
+
+.kim-schedule-composer-top {
+  display: grid;
+  gap: 8px;
+}
+
+.kim-schedule-datetime-group {
+  display: grid;
+  grid-template-columns: 136px 88px;
+  gap: 8px;
+  max-width: 232px;
+}
+
+.kim-schedule-date-field,
+.kim-schedule-time-field {
+  display: grid;
+  gap: 0;
+}
+
+.kim-schedule-date-field > span,
+.kim-schedule-time-field > span {
+  color: #8f969c;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.kim-schedule-date-field input {
+  height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  padding: 0 7px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  outline: 0;
+}
+
+.kim-schedule-date-field input:focus,
+.kim-schedule-time-picker select:focus {
+  border-color: rgba(88, 54, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.08);
+}
+
+.kim-schedule-time-picker {
+  height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  display: grid;
+  grid-template-columns: 36px 10px 36px;
+  justify-content: center;
+  align-items: center;
+  background: #fff;
+  overflow: hidden;
+}
+
+.kim-schedule-time-picker select {
+  min-width: 0;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  color: #30363d;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  outline: 0;
+  appearance: none;
+  text-align: center;
+}
+
+.kim-schedule-time-picker b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #8f969c;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.kim-schedule-time-picker select:last-child {
+  border-left: 0;
+  text-align: center;
+}
+
+.kim-schedule-type-controls {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 5px;
+}
+
+.kim-schedule-type-controls label {
+  flex: 0 0 auto;
+}
+
+.kim-schedule-type-controls span {
+  min-width: 52px;
 }
 
 .kim-work-hero {
@@ -8451,22 +9557,25 @@ th input:focus-visible {
 
 .toast {
   position: fixed;
-  right: 22px;
-  bottom: 22px;
+  left: 50%;
+  bottom: 24px;
   z-index: 320;
-  transform: translateY(16px);
+  transform: translate(-50%, 14px);
   opacity: 0;
   pointer-events: none;
-  border-radius: 8px;
-  background: #111;
+  border: 1px solid rgba(88, 54, 255, 0.34);
+  border-radius: 9px;
+  background: #5836ff;
   color: #fff;
-  padding: 12px 14px;
+  padding: 11px 14px;
   font-size: 13px;
+  font-weight: 720;
+  box-shadow: 0 14px 34px rgba(88, 54, 255, 0.24), 0 0 0 1px rgba(255, 255, 255, 0.18) inset;
   transition: 0.18s ease;
 }
 
 .toast.show {
-  transform: translateY(0);
+  transform: translate(-50%, 0);
   opacity: 1;
 }
 
