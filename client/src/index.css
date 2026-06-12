@@ -9182,6 +9182,18 @@ th input:focus-visible {
   flex: 0 0 auto;
 }
 
+.kim-quote-solution-entry {
+  background: #fff;
+  color: #53606c;
+  border-color: #d7d9df;
+}
+
+.kim-quote-solution-entry:hover {
+  color: #5836ff;
+  border-color: #c8bdff;
+  background: #f8f6ff;
+}
+
 .kim-quote-drop-head {
   position: relative;
   transition: background 0.14s ease, box-shadow 0.14s ease;
@@ -9199,6 +9211,13 @@ th input:focus-visible {
   place-items: center;
   background: rgba(15, 23, 42, 0.2);
   padding: 26px;
+}
+
+.kim-quote-workbench-backdrop {
+  display: block;
+  background: rgba(15, 23, 42, 0.34);
+  padding: 0;
+  animation: kim-workbench-backdrop-in 0.22s ease-out both;
 }
 
 .kim-quote-modal {
@@ -9220,6 +9239,54 @@ th input:focus-visible {
 .kim-quote-builder-modal {
   width: min(1160px, calc(100vw - 52px));
   background: #fbfbfa;
+}
+
+.kim-quote-solution-modal {
+  position: fixed;
+  inset: 0 0 0 234px;
+  width: auto;
+  height: auto;
+  max-height: none;
+  border-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-left-color: rgba(17, 17, 17, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fbfbfa;
+  transform-origin: 100% 100%;
+  animation: kim-workbench-sheet-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes kim-workbench-backdrop-in {
+  from { background: rgba(15, 23, 42, 0); }
+  to { background: rgba(15, 23, 42, 0.34); }
+}
+
+@keyframes kim-workbench-sheet-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(22px, 78px, 0) scale(0.972);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  }
+  58% {
+    opacity: 1;
+    transform: translate3d(0, -4px, 0) scale(1.002);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kim-quote-workbench-backdrop,
+  .kim-quote-solution-modal {
+    animation: none;
+  }
 }
 
 .kim-quote-modal-head {
@@ -9265,6 +9332,276 @@ th input:focus-visible {
   line-height: 1.3;
 }
 
+.kim-quote-workbench-head {
+  flex: 0 0 85px;
+  position: relative;
+  height: 85px;
+  min-height: 85px;
+  display: block;
+  padding: 0 14px;
+  isolation: isolate;
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+
+.kim-quote-workbench-head > * {
+  position: relative;
+  z-index: 1;
+}
+
+.kim-quote-workbench-original-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.kim-quote-workbench-head-copy {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  right: 570px;
+  flex: 0 1 auto;
+  gap: 3px;
+  min-width: 0;
+  transform: translateY(-50%);
+}
+
+.kim-quote-workbench-head-copy h2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: #172026;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+.kim-quote-workbench-head-copy h2 svg {
+  flex: 0 0 auto;
+  color: #a7afb8;
+  width: 16px;
+  height: 16px;
+}
+
+.kim-quote-workbench-head-copy h2 span,
+.kim-quote-workbench-head-copy h2 strong {
+  color: #111827;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+.kim-quote-workbench-head-copy h2 em {
+  color: #a8afb6;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.kim-quote-workbench-head-copy p {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 0;
+  color: #788087;
+  font-size: 13px;
+  font-weight: 430;
+  line-height: 1.5;
+}
+
+.kim-quote-workbench-head-copy p span {
+  color: #69727c;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.kim-quote-workbench-head-copy p mark {
+  background: linear-gradient(to top, rgba(88, 54, 255, 0.16) 38%, transparent 38%);
+  color: inherit;
+  font-weight: 520;
+}
+
+.kim-quote-workbench-head-copy p i {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: #aeb6bf;
+}
+
+.kim-quote-workbench-head .kim-quote-workbench-drop-overlay {
+  position: absolute;
+  inset: 5px;
+  z-index: 12;
+  border: 2px dashed rgba(88, 54, 255, 0.58);
+  border-radius: 6px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.kim-quote-workbench-head.is-original-drop-active .kim-quote-workbench-drop-overlay {
+  opacity: 1;
+}
+
+.kim-quote-workbench-drop-overlay strong {
+  color: #30363d;
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 1.05;
+}
+
+.kim-quote-workbench-drop-overlay span {
+  color: #68717b;
+  font-size: 11px;
+  font-weight: 560;
+  line-height: 1.15;
+}
+
+.kim-quote-workbench-head > .kim-quote-workbench-head-tools {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  white-space: nowrap;
+}
+
+.kim-quote-workbench-mode-select {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.kim-quote-workbench-mode-select + .kim-quote-workbench-mode-select {
+  position: relative;
+  margin-left: 7px;
+}
+
+.kim-quote-workbench-mode-select + .kim-quote-workbench-mode-select::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -11px;
+  width: 1px;
+  height: 22px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  transform: translateY(-50%);
+}
+
+.kim-quote-workbench-mode-select > span {
+  color: #8a949f;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.kim-quote-workbench-mode-control {
+  position: relative;
+}
+
+.kim-quote-workbench-mode-control > button {
+  width: auto;
+  min-width: 128px;
+  height: 34px;
+  border: 1px solid #dfe3e8;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  color: #303a46;
+  padding: 0 10px 0 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.kim-quote-workbench-mode-control > button[aria-expanded="true"] {
+  border-color: rgba(47, 61, 82, 0.34);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(47, 61, 82, 0.08), 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.kim-quote-workbench-mode-control > button svg {
+  color: #8f969c;
+}
+
+.kim-quote-workbench-mode-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  width: auto;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  display: grid;
+  overflow: hidden;
+  background: #fff;
+  padding: 4px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
+}
+
+.kim-quote-workbench-mode-menu.narrow {
+  width: auto;
+}
+
+.kim-quote-workbench-mode-menu button {
+  width: 100%;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: transparent;
+  color: #4f5862;
+  padding: 0 8px 0 9px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 780;
+}
+
+.kim-quote-workbench-mode-menu button:hover,
+.kim-quote-workbench-mode-menu button[aria-checked="true"] {
+  background: #f4f6f8;
+  color: #172026;
+}
+
+.kim-quote-workbench-mode-menu button[aria-checked="true"] {
+  font-weight: 880;
+}
+
+.kim-quote-workbench-mode-menu button:disabled {
+  color: #b5bbc1;
+  cursor: not-allowed;
+}
+
+.kim-quote-workbench-mode-menu button svg {
+  color: #5836ff;
+}
+
 .kim-quote-modal-head button {
   width: 34px;
   height: 34px;
@@ -9281,6 +9618,73 @@ th input:focus-visible {
   border-color: rgba(88, 54, 255, 0.34);
   color: #5836ff;
   box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.06);
+}
+
+.kim-quote-workbench-head .kim-quote-workbench-mode-control > button {
+  width: auto;
+  min-width: 120px;
+  height: 30px;
+  border: 1px solid #dfe3e8;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  color: #303a46;
+  padding: 0 9px 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.kim-quote-workbench-head .kim-quote-workbench-mode-control > button:hover,
+.kim-quote-workbench-head .kim-quote-workbench-mode-control > button[aria-expanded="true"] {
+  border-color: rgba(88, 54, 255, 0.28);
+  color: #5836ff;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.08), 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.kim-quote-workbench-head .kim-quote-workbench-mode-menu button {
+  width: 100%;
+  height: 31px;
+  border: 0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  background: transparent;
+  color: #4f5862;
+  padding: 0 8px 0 9px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 780;
+  box-shadow: none;
+}
+
+.kim-quote-workbench-head .kim-quote-workbench-mode-menu button:hover {
+  background: rgba(88, 54, 255, 0.06);
+  color: #5836ff;
+  box-shadow: 0 0 0 1px rgba(88, 54, 255, 0.06) inset;
+}
+
+.kim-quote-workbench-head .kim-quote-workbench-mode-menu button[aria-checked="true"] {
+  background: rgba(88, 54, 255, 0.085);
+  color: #5836ff;
+  box-shadow: 0 0 0 1px rgba(88, 54, 255, 0.1) inset;
+}
+
+.kim-quote-workbench-head .kim-quote-workbench-mode-menu button[aria-checked="true"] {
+  font-weight: 880;
+}
+
+.kim-quote-workbench-head .kim-quote-workbench-mode-menu button[aria-checked="true"]:hover {
+  background: rgba(88, 54, 255, 0.105);
+  color: #5836ff;
+  box-shadow: 0 0 0 1px rgba(88, 54, 255, 0.12) inset;
 }
 
 .kim-quote-solution-grid {
@@ -9517,6 +9921,16 @@ th input:focus-visible {
   padding: 12px 16px;
 }
 
+.kim-quote-solution-modal .kim-quote-modal-actions {
+  position: relative;
+  bottom: auto;
+  flex: 0 0 auto;
+  z-index: 4;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 -10px 22px rgba(15, 23, 42, 0.06);
+}
+
 .kim-quote-modal-actions button {
   height: 34px;
   border: 1px solid #dededb;
@@ -9588,6 +10002,453 @@ th input:focus-visible {
 }
 
 .kim-quote-builder-fields {
+  grid-column: 1 / -1;
+}
+
+.kim-quote-solution-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  overflow: auto;
+  padding: 14px 14px 18px;
+}
+
+.kim-quote-workbench-nav {
+  border: 1px solid rgba(17, 17, 17, 0.075);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 14px;
+  background: #fff;
+  padding: 12px;
+}
+
+.kim-quote-workbench-nav > div {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.kim-quote-workbench-nav span {
+  color: #68717b;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.kim-quote-workbench-tabs {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.kim-quote-workbench-tabs button {
+  width: auto;
+  height: 34px;
+  border: 0;
+  border-right: 1px solid #dfe3e8;
+  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: #69727c;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.kim-quote-workbench-tabs button:last-child {
+  border-right: 0;
+}
+
+.kim-quote-workbench-tool-group:not(:last-child) .kim-quote-workbench-tabs button:last-child {
+  border-right: 1px solid #dfe3e8;
+}
+
+.kim-quote-workbench-tabs.compact button {
+  min-width: 78px;
+}
+
+.kim-quote-workbench-tabs button[aria-pressed="true"] {
+  border-radius: 5px;
+  background: #2f3d52;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(15, 23, 42, 0.1);
+}
+
+.kim-quote-workbench-tabs button:disabled {
+  background: transparent;
+  color: #b5bbc1;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.kim-quote-workbench-common {
+  min-height: 378px;
+  border: 1px solid rgba(17, 17, 17, 0.075);
+  border-radius: 8px;
+  display: grid;
+  grid-auto-rows: auto;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.kim-quote-common-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.82fr;
+}
+
+.kim-quote-cost-grid {
+  border-top: 1px solid #e5e8ec;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+}
+
+.kim-quote-common-block {
+  min-width: 0;
+  border-right: 1px solid #e5e8ec;
+  display: grid;
+  align-content: start;
+}
+
+.kim-quote-common-block:last-child,
+.kim-quote-common-block.final {
+  border-right: 0;
+}
+
+.kim-quote-common-block h4 {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  background: #2f3d52;
+  color: #fff;
+  padding: 0 14px;
+  font-size: 12.5px;
+  font-weight: 880;
+}
+
+.kim-quote-common-block label,
+.kim-quote-common-block strong {
+  min-height: 38px;
+  border-bottom: 1px solid #edf0f2;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0 14px;
+}
+
+.kim-quote-common-block.discount label,
+.kim-quote-common-block.cost label {
+  grid-template-columns: 88px auto minmax(120px, 1fr);
+}
+
+.kim-quote-common-block.final label,
+.kim-quote-common-block.final strong {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.kim-quote-common-block strong {
+  background: #eef1f4;
+}
+
+.kim-quote-common-block label > span,
+.kim-quote-common-block strong > span {
+  color: #5f6975;
+  font-size: 11.5px;
+  font-weight: 850;
+}
+
+.kim-quote-common-block button,
+.kim-quote-common-block input,
+.kim-quote-common-block select {
+  min-width: 0;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: #30363d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 740;
+  text-align: left;
+}
+
+.kim-quote-common-block input {
+  border: 1px solid #e1e4e8;
+  border-radius: 5px;
+  background: #fff;
+  padding: 0 9px;
+  text-align: right;
+}
+
+.kim-quote-common-block b {
+  color: #263241;
+  font-size: 12.5px;
+  font-weight: 880;
+  text-align: right;
+}
+
+.kim-mini-switch {
+  width: fit-content;
+  border: 1px solid #dfe3e8;
+  border-radius: 6px;
+  display: inline-flex;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.kim-mini-switch button {
+  height: 28px;
+  border: 0;
+  border-right: 1px solid #e5e8ec;
+  border-radius: 0;
+  background: transparent;
+  color: #8b95a1;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.kim-mini-switch button:last-child {
+  border-right: 0;
+}
+
+.kim-mini-switch button.active {
+  background: #2f3d52;
+  color: #fff;
+}
+
+.kim-mini-switch.wide {
+  width: 100%;
+}
+
+.kim-mini-switch.wide button {
+  flex: 1 1 0;
+}
+
+.kim-quote-workbench-compare {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.kim-quote-compare-card {
+  min-width: 0;
+  border: 1px solid rgba(17, 17, 17, 0.075);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.kim-quote-compare-card header {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #2f3d52;
+  padding: 0 12px;
+}
+
+.kim-quote-compare-card header strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 880;
+}
+
+.kim-quote-compare-card header span {
+  min-width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  display: inline-grid;
+  place-items: center;
+  background: #8fb1ce;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+.kim-quote-compare-card header button {
+  height: 26px;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 830;
+}
+
+.kim-quote-mode-segment {
+  margin: 14px 14px 10px;
+  border: 1px solid #dfe3e8;
+  border-radius: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  background: #e8ecf1;
+}
+
+.kim-quote-mode-segment button {
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: #354154;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 850;
+}
+
+.kim-quote-mode-segment button.active {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #d7dce3;
+}
+
+.kim-quote-mode-alert {
+  margin: 0 14px 10px;
+  border: 1px solid #f4c56a;
+  border-radius: 6px;
+  background: #fff9e8;
+  color: #c04f0c;
+  padding: 9px 10px;
+  font-size: 11.5px;
+  font-weight: 760;
+}
+
+.kim-quote-condition-table {
+  display: grid;
+  padding: 0 14px;
+}
+
+.kim-quote-condition-table label {
+  min-height: 45px;
+  border-top: 1px solid #edf0f2;
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr) minmax(90px, 0.55fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.kim-quote-condition-table label > span {
+  color: #677284;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.kim-quote-condition-table input,
+.kim-quote-condition-table select {
+  min-width: 0;
+  height: 30px;
+  border: 1px solid #dfe3e8;
+  border-radius: 6px;
+  background: #fbfcfd;
+  color: #30363d;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 760;
+  text-align: right;
+}
+
+.kim-quote-condition-table b {
+  color: #6b7480;
+  font-size: 11.5px;
+  font-weight: 850;
+}
+
+.kim-quote-query-button {
+  width: calc(100% - 28px);
+  height: 36px;
+  border: 0;
+  border-radius: 6px;
+  display: block;
+  margin: 12px 14px 8px;
+  background: #2f3d52;
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 870;
+}
+
+.kim-quote-query-button:disabled {
+  background: #c9ced6;
+  cursor: not-allowed;
+}
+
+.kim-quote-compare-card > p {
+  min-height: 18px;
+  margin: 0 14px 14px;
+  color: #8f969c;
+  font-size: 11px;
+  font-weight: 680;
+  text-align: center;
+}
+
+.kim-quote-workbench-results {
+  border: 1px solid rgba(17, 17, 17, 0.075);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  background: #fff;
+}
+
+.kim-quote-workbench-results > div {
+  display: grid;
+  gap: 4px;
+  padding: 13px 16px;
+}
+
+.kim-quote-workbench-results > div + div {
+  border-left: 1px solid #edf0f2;
+}
+
+.kim-quote-workbench-results span {
+  color: #8f969c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.kim-quote-workbench-results strong {
+  color: #25282c;
+  font-size: 13px;
+  font-weight: 880;
+}
+
+.kim-quote-workbench-results p {
+  margin: 0;
+  color: #69727c;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.kim-quote-solution-panel {
+  border: 1px solid rgba(17, 17, 17, 0.075);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.kim-quote-solution-panel.wide {
   grid-column: 1 / -1;
 }
 
@@ -9933,6 +10794,78 @@ th input:focus-visible {
 .kim-quote-manual-grid label.wide {
   grid-column: span 3;
   grid-template-columns: 82px minmax(0, 1fr);
+}
+
+.kim-quote-solution-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+  padding: 14px 16px 16px;
+}
+
+.kim-quote-solution-form-grid label {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.kim-quote-solution-form-grid label span {
+  color: #8f969c;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.kim-quote-solution-form-grid input,
+.kim-quote-solution-form-grid select {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #25282c;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 680;
+  outline: none;
+  padding: 0 10px;
+}
+
+.kim-quote-solution-form-grid input:focus,
+.kim-quote-solution-form-grid select:focus {
+  border-color: #7c5cff;
+  box-shadow: 0 0 0 3px rgba(88, 54, 255, 0.1);
+}
+
+.kim-quote-solution-placeholder {
+  min-height: 168px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 28px;
+  color: #69727c;
+  text-align: center;
+}
+
+.kim-quote-solution-placeholder svg {
+  color: #5836ff;
+}
+
+.kim-quote-solution-placeholder strong {
+  color: #25282c;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.kim-quote-solution-placeholder p {
+  max-width: 520px;
+  margin: 0;
+  color: #8f969c;
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.55;
 }
 
 .kim-document-preview-backdrop {

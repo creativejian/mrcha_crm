@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, Route, Send, Sparkles, Trash2, UserRound, X } from "lucide-react";
+import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, Route, Send, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FormEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 
@@ -809,6 +809,10 @@ function normalizeKimQuotePurchaseMethod(value?: string): KimQuotePurchaseMethod
   return "운용리스";
 }
 
+function primaryKimQuotePurchaseMethod(fields: { label: string; value: string }[]) {
+  return normalizeKimQuotePurchaseMethod(fields.find((field) => field.label === "구매방식")?.value);
+}
+
 function kimQuoteManualFieldConfig(method: KimQuotePurchaseMethod) {
   if (method === "장기렌트") {
     return {
@@ -1378,12 +1382,17 @@ function KimMinjunDetailContent({
   const [confirmingCustomerMemoDeleteId, setConfirmingCustomerMemoDeleteId] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<KimQuoteItem[]>(kimMinjunQuoteHistory);
   const [quoteComposerMode, setQuoteComposerMode] = useState<KimQuoteComposerMode | null>(null);
+  const [isQuoteSolutionWorkbenchOpen, setIsQuoteSolutionWorkbenchOpen] = useState(false);
+  const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(kimMinjunPurchaseFields));
+  const [solutionWorkbenchEntryMode, setSolutionWorkbenchEntryMode] = useState<KimQuoteEntryMode>("manual");
+  const [solutionWorkbenchModeMenu, setSolutionWorkbenchModeMenu] = useState<"purchase" | "entry" | null>(null);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [selectedQuotePurchaseMethod, setSelectedQuotePurchaseMethod] = useState<KimQuotePurchaseMethod>("운용리스");
   const [quoteEntryMode, setQuoteEntryMode] = useState<KimQuoteEntryMode>("solution");
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<KimRecognizedQuoteFile | null>(null);
   const [isQuoteHeaderDragActive, setIsQuoteHeaderDragActive] = useState(false);
   const [isQuoteModalDragActive, setIsQuoteModalDragActive] = useState(false);
+  const [isQuoteWorkbenchOriginalDragActive, setIsQuoteWorkbenchOriginalDragActive] = useState(false);
   const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
   const [confirmingQuoteSendId, setConfirmingQuoteSendId] = useState<string | null>(null);
   const [confirmingQuoteContractId, setConfirmingQuoteContractId] = useState<string | null>(null);
@@ -1421,6 +1430,7 @@ function KimMinjunDetailContent({
   const scheduleBodyRef = useRef<HTMLDivElement>(null);
   const quoteBodyRef = useRef<HTMLDivElement>(null);
   const documentBodyRef = useRef<HTMLDivElement>(null);
+  const quoteWorkbenchOriginalInputRef = useRef<HTMLInputElement>(null);
   const timelineItems = timelineRows(customer);
   const remainingCheckCount = checkItems.filter((item) => !completedCheckItems.includes(item.id)).length;
   const receivedDocumentCount = documents.length;
@@ -1434,6 +1444,9 @@ function KimMinjunDetailContent({
   const previewDocument = documents.find((documentItem) => documentItem.id === previewDocumentId) ?? null;
   const quoteManualFieldConfig = kimQuoteManualFieldConfig(selectedQuotePurchaseMethod);
   const quoteSolutionAvailable = selectedQuotePurchaseMethod === "운용리스" || selectedQuotePurchaseMethod === "장기렌트";
+  const solutionWorkbenchIsRent = solutionWorkbenchPurchaseMethod === "장기렌트";
+  const solutionWorkbenchIsLease = solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "금융리스" || solutionWorkbenchPurchaseMethod === "중고리스";
+  const solutionWorkbenchCanQuery = solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
   const sortedCustomerMemos = sortKimCustomerMemosByCreatedAt(customerMemos);
   const sortedCheckItems = sortKimCheckItemsByWorkRule(checkItems, completedCheckItems);
   const sortedSchedules = sortKimSchedulesByDateTime(schedules);
@@ -1477,15 +1490,48 @@ function KimMinjunDetailContent({
   }, []);
 
   useEffect(() => {
-    onEditorOpenChange?.(openEditor !== null || addingCustomerMemo || addingCheckItem || addingScheduleItem || quoteComposerMode !== null || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingCheckItemId !== null || editingCustomerMemoId !== null || editingScheduleId !== null || editingQuoteId !== null || confirmingCustomerMemoDeleteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
+    onEditorOpenChange?.(openEditor !== null || addingCustomerMemo || addingCheckItem || addingScheduleItem || quoteComposerMode !== null || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingCheckItemId !== null || editingCustomerMemoId !== null || editingScheduleId !== null || editingQuoteId !== null || confirmingCustomerMemoDeleteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
     return () => onEditorOpenChange?.(false);
-  }, [addingCheckItem, addingCustomerMemo, addingScheduleItem, confirmingCustomerMemoDeleteId, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, confirmingScheduleDeleteId, editingCheckItemId, editingCustomerMemoId, editingScheduleId, editingQuoteId, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId, quoteComposerMode]);
+  }, [addingCheckItem, addingCustomerMemo, addingScheduleItem, confirmingCustomerMemoDeleteId, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, confirmingScheduleDeleteId, editingCheckItemId, editingCustomerMemoId, editingScheduleId, editingQuoteId, isQuoteSolutionWorkbenchOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId, quoteComposerMode]);
 
   useEffect(() => {
     if (!quoteSolutionAvailable && (quoteEntryMode === "solution" || quoteEntryMode === "original")) {
       setQuoteEntryMode("manual");
     }
   }, [quoteEntryMode, quoteSolutionAvailable]);
+
+  useEffect(() => {
+    if (!solutionWorkbenchCanQuery && solutionWorkbenchEntryMode === "solution") {
+      setSolutionWorkbenchEntryMode("manual");
+    }
+  }, [solutionWorkbenchCanQuery, solutionWorkbenchEntryMode]);
+
+  useEffect(() => {
+    if (!isQuoteSolutionWorkbenchOpen) return;
+
+    function closeQuoteSolutionWorkbenchByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (solutionWorkbenchModeMenu) {
+        setSolutionWorkbenchModeMenu(null);
+        return;
+      }
+      setIsQuoteSolutionWorkbenchOpen(false);
+    }
+
+    function closeQuoteSolutionWorkbenchMenu(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (solutionWorkbenchModeMenu && target.closest(`[data-workbench-mode="${solutionWorkbenchModeMenu}"]`)) return;
+      setSolutionWorkbenchModeMenu(null);
+    }
+
+    document.addEventListener("keydown", closeQuoteSolutionWorkbenchByKeyboard);
+    document.addEventListener("pointerdown", closeQuoteSolutionWorkbenchMenu, true);
+    return () => {
+      document.removeEventListener("keydown", closeQuoteSolutionWorkbenchByKeyboard);
+      document.removeEventListener("pointerdown", closeQuoteSolutionWorkbenchMenu, true);
+    };
+  }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu]);
 
   useEffect(() => {
     const container = consultBodyRef.current;
@@ -2307,6 +2353,22 @@ function KimMinjunDetailContent({
     onToast("견적 원본을 인식해 작성창을 열었습니다.");
   }
 
+  function recognizeQuoteOriginalForWorkbench(file: File) {
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      onToast("견적 원본은 이미지 또는 PDF 파일만 인식할 수 있습니다.");
+      return;
+    }
+    setRecognizedQuoteFile({
+      file,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
+    });
+    setSolutionWorkbenchEntryMode("original");
+    setSolutionWorkbenchModeMenu(null);
+    onToast("견적 원본을 인식해 워크벤치에 반영했습니다.");
+  }
+
   function dropQuoteOriginalToComposer(event: ReactDragEvent<HTMLElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -2322,6 +2384,22 @@ function KimMinjunDetailContent({
     if (!file) return;
     startQuoteFromOriginalFile(file);
     event.target.value = "";
+  }
+
+  function selectQuoteWorkbenchOriginalFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    recognizeQuoteOriginalForWorkbench(file);
+    event.target.value = "";
+  }
+
+  function dropQuoteOriginalToWorkbench(event: ReactDragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsQuoteWorkbenchOriginalDragActive(false);
+    const file = event.dataTransfer.files[0];
+    if (!file) return;
+    recognizeQuoteOriginalForWorkbench(file);
   }
 
   function deleteQuote(id: string) {
@@ -3905,6 +3983,21 @@ function KimMinjunDetailContent({
             </div>
             <div className="kim-quote-head-actions">
               <button
+                aria-label="솔루션 견적 워크벤치"
+                className="kim-mvp-add-circle kim-quote-head-action kim-quote-solution-entry"
+                onClick={() => {
+                  setConfirmingQuoteDeleteId(null);
+                  setEditingQuoteId(null);
+                  setRecognizedQuoteFile(null);
+                  setQuoteComposerMode(null);
+                  setSolutionWorkbenchPurchaseMethod(primaryKimQuotePurchaseMethod(purchaseFields));
+                  setSolutionWorkbenchEntryMode("manual");
+                  setSolutionWorkbenchModeMenu(null);
+                  setIsQuoteSolutionWorkbenchOpen(true);
+                }}
+                type="button"
+              ><Calculator size={13} strokeWidth={2.35} /></button>
+              <button
                 aria-label="견적 작성"
                 className="kim-mvp-add-circle kim-quote-head-action"
                 onClick={() => {
@@ -4414,6 +4507,249 @@ function KimMinjunDetailContent({
                 <button className="primary" type="submit">{quoteComposerMode === "edit" ? "수정 후 발송" : "견적함에 저장"}</button>
               </div>
             </form>
+          </div>
+        ) : null}
+        {isQuoteSolutionWorkbenchOpen ? (
+          <div className="kim-quote-modal-backdrop kim-quote-workbench-backdrop" onClick={() => setIsQuoteSolutionWorkbenchOpen(false)} role="presentation">
+            <div
+              className="kim-quote-modal kim-quote-solution-modal"
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => {
+                const target = event.target;
+                if (!(target instanceof Element)) return;
+                if (solutionWorkbenchModeMenu && target.closest(`[data-workbench-mode="${solutionWorkbenchModeMenu}"]`)) return;
+                setSolutionWorkbenchModeMenu(null);
+              }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="솔루션 견적 워크벤치"
+            >
+              <div
+                className={`kim-quote-modal-head kim-quote-workbench-head${solutionWorkbenchEntryMode === "original" ? " is-original-input" : ""}${isQuoteWorkbenchOriginalDragActive ? " is-original-drop-active" : ""}${recognizedQuoteFile ? " has-original-file" : ""}`}
+                onDragEnter={(event) => {
+                  if (!isDocumentFileDrag(event)) return;
+                  event.preventDefault();
+                  setIsQuoteWorkbenchOriginalDragActive(true);
+                }}
+                onDragLeave={(event) => {
+                  const nextTarget = event.relatedTarget;
+                  if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+                  setIsQuoteWorkbenchOriginalDragActive(false);
+                }}
+                onDragOver={(event) => {
+                  if (!isDocumentFileDrag(event)) return;
+                  event.preventDefault();
+                  setIsQuoteWorkbenchOriginalDragActive(true);
+                }}
+                onDrop={dropQuoteOriginalToWorkbench}
+              >
+                <input
+                  accept="image/*,application/pdf"
+                  aria-label="원본 견적서 첨부"
+                  className="kim-quote-workbench-original-input"
+                  onChange={selectQuoteWorkbenchOriginalFile}
+                  ref={quoteWorkbenchOriginalInputRef}
+                  type="file"
+                />
+                <div className="kim-quote-workbench-head-copy">
+                  <h2>
+                    <span>고객 관리</span>
+                    <ChevronRight size={18} strokeWidth={2.4} />
+                    <span>김민준</span>
+                    <em className="num">CU-2605-0020</em>
+                    <ChevronRight size={18} strokeWidth={2.4} />
+                    <strong>새 견적 작성</strong>
+                  </h2>
+                  <p><span>최근 견적 {quotes.length}개</span><i aria-hidden="true" /><mark>Maybach S 500 · {solutionWorkbenchPurchaseMethod} 60개월</mark><span>견적 작성 필요</span></p>
+                </div>
+                <div className="kim-quote-workbench-head-tools" aria-label="견적 작성 모드">
+                  <div className="kim-quote-workbench-mode-select" data-workbench-mode="purchase">
+                    <span>구매방식</span>
+                    <div className="kim-quote-workbench-mode-control">
+                      <button
+                        aria-expanded={solutionWorkbenchModeMenu === "purchase"}
+                        aria-haspopup="menu"
+                        onClick={() => setSolutionWorkbenchModeMenu((current) => (current === "purchase" ? null : "purchase"))}
+                        type="button"
+                      >
+                        {solutionWorkbenchPurchaseMethod}
+                        <ChevronDown size={14} strokeWidth={2.3} />
+                      </button>
+                      {solutionWorkbenchModeMenu === "purchase" ? (
+                        <div className="kim-quote-workbench-mode-menu" role="menu">
+                          {kimQuotePurchaseMethodOptions.filter((option) => option !== solutionWorkbenchPurchaseMethod).map((option) => (
+                            <button
+                              key={option}
+                              onClick={() => {
+                                setSolutionWorkbenchPurchaseMethod(option);
+                                if (option !== "운용리스" && option !== "장기렌트" && solutionWorkbenchEntryMode === "solution") {
+                                  setSolutionWorkbenchEntryMode("manual");
+                                }
+                                setSolutionWorkbenchModeMenu(null);
+                              }}
+                              role="menuitem"
+                              type="button"
+                            >
+                              <span>{option}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="kim-quote-workbench-mode-select" data-workbench-mode="entry">
+                    <span>작성방식</span>
+                    <div className="kim-quote-workbench-mode-control">
+                      <button
+                        aria-expanded={solutionWorkbenchModeMenu === "entry"}
+                        aria-haspopup="menu"
+                        onClick={() => setSolutionWorkbenchModeMenu((current) => (current === "entry" ? null : "entry"))}
+                        type="button"
+                      >
+                        {solutionWorkbenchEntryMode === "solution" ? "솔루션 조회" : solutionWorkbenchEntryMode === "original" ? "원본 인식" : "직접 입력"}
+                        <ChevronDown size={14} strokeWidth={2.3} />
+                      </button>
+                      {solutionWorkbenchModeMenu === "entry" ? (
+                        <div className="kim-quote-workbench-mode-menu narrow" role="menu">
+                          {[
+                            { key: "manual" as const, label: "직접 입력", disabled: false },
+                            { key: "solution" as const, label: "솔루션 조회", disabled: !solutionWorkbenchCanQuery },
+                            { key: "original" as const, label: "원본 인식", disabled: false },
+                          ].filter((option) => option.key !== solutionWorkbenchEntryMode).map((option) => (
+                            <button
+                              disabled={option.disabled}
+                              key={option.key}
+                              onClick={() => {
+                                if (option.disabled) return;
+                                setSolutionWorkbenchEntryMode(option.key);
+                                if (option.key === "original") {
+                                  window.requestAnimationFrame(() => quoteWorkbenchOriginalInputRef.current?.click());
+                                }
+                                setSolutionWorkbenchModeMenu(null);
+                              }}
+                              role="menuitem"
+                              type="button"
+                            >
+                              <span>{option.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                <div className="kim-file-drop-overlay kim-quote-workbench-drop-overlay" aria-hidden="true">
+                  <FileUp size={22} strokeWidth={1.9} />
+                  <strong>원본 견적서 인식</strong>
+                  <span>첨부한 견적서의 값으로 자동 입력합니다</span>
+                </div>
+              </div>
+              <div className="kim-quote-solution-shell">
+                <section className="kim-quote-workbench-common">
+                  <div className="kim-quote-common-grid">
+                    <div className="kim-quote-common-block vehicle">
+                      <h4><CarFront size={13} strokeWidth={2.3} /> 차량 선택</h4>
+                      <label><span>제조사</span><button type="button">벤츠</button></label>
+                      <label><span>모델</span><button type="button">Maybach S-Class</button></label>
+                      <label><span>트림</span><button type="button">S 500 4M Long</button></label>
+                      <strong><span>기본 가격</span><input defaultValue="243,000,000원" /></strong>
+                    </div>
+                    <div className="kim-quote-common-block options">
+                      <h4><Sparkles size={13} strokeWidth={2.3} /> 옵션 / 컬러</h4>
+                      <label><span>옵션</span><button type="button">트림 기본 옵션</button></label>
+                      <label><span>외장</span><button type="button">옵시디언 블랙</button></label>
+                      <label><span>내장</span><button type="button">마누팍투어 베이지</button></label>
+                      <strong><span>(+) 옵션 금액</span><input defaultValue="0원" /></strong>
+                    </div>
+                    <div className="kim-quote-common-block discount">
+                      <h4><Download size={13} strokeWidth={2.3} /> 할인</h4>
+                      <label><span>할인 금액</span><div className="kim-mini-switch"><button className="active" type="button">금액</button><button type="button">%</button></div><input defaultValue="6,500,000원" /></label>
+                      <strong><span>(-) 최종 할인</span><input defaultValue="6,500,000원" /></strong>
+                    </div>
+                  </div>
+                  <div className="kim-quote-cost-grid">
+                    <div className="kim-quote-common-block cost">
+                      <h4><RefreshCcw size={13} strokeWidth={2.3} /> 취득원가 설정</h4>
+                      <label><span>취득세</span><div className="kim-mini-switch"><button className="active" type="button">일반</button><button type="button">감면</button></div><input defaultValue="13,531,000원" /></label>
+                      <label><span>공채</span><div className="kim-mini-switch"><button className="active" type="button">포함</button><button type="button">불포함</button></div><input defaultValue="0원" /></label>
+                      <label><span>탁송료</span><div className="kim-mini-switch"><button type="button">포함</button><button className="active" type="button">불포함</button></div><input defaultValue="0원" /></label>
+                      <label><span>부대비용</span><div className="kim-mini-switch"><button type="button">포함</button><button className="active" type="button">불포함</button></div><input defaultValue="0원" /></label>
+                    </div>
+                    <div className="kim-quote-common-block final">
+                      <h4><FileText size={13} strokeWidth={2.3} /> 최종 가격</h4>
+                      <label><span>최종 차량가</span><b>236,500,000원</b></label>
+                      <label><span>등록비용</span><b>13,531,000원</b></label>
+                      <label><span>기타비용</span><b>0원</b></label>
+                      <strong><span>취득원가</span><b>250,031,000원</b></strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="kim-quote-workbench-compare" aria-label="견적 비교 조건">
+                  {[1, 2, 3].map((quoteIndex) => (
+                    <div className="kim-quote-compare-card" key={quoteIndex}>
+                      <header>
+                        <strong>견적비교 <span>{quoteIndex}</span></strong>
+                        <button type="button">{quoteIndex === 1 ? "재입력" : `${quoteIndex - 1}번 조건 복사`}</button>
+                      </header>
+                      <div className="kim-quote-mode-segment" aria-label="리스 렌트 선택">
+                        <button className={!solutionWorkbenchIsRent ? "active" : ""} type="button">리스</button>
+                        <button className={solutionWorkbenchIsRent ? "active" : ""} type="button">렌트</button>
+                      </div>
+                      {solutionWorkbenchIsRent ? (
+                        <div className="kim-quote-mode-alert">렌트 상품은 준비 중입니다. 현재는 리스 견적만 조회 가능합니다.</div>
+                      ) : null}
+                      <div className="kim-quote-condition-table">
+                        <label><span>기간</span><div className="kim-mini-switch wide"><button type="button">24</button><button type="button">36</button><button type="button">48</button><button className="active" type="button">60개월</button></div></label>
+                        <label><span>선수금</span><div className="kim-mini-switch"><button className="active" type="button">없음</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="0" /></label>
+                        <label><span>보증금</span><div className="kim-mini-switch"><button type="button">없음</button><button type="button">금액</button><button className="active" type="button">%</button></div><input defaultValue="30" /></label>
+                        <label><span>잔존가치</span><div className="kim-mini-switch"><button className="active" type="button">최대</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="71,853,240" /></label>
+                        <label><span>약정거리</span><div className="kim-mini-switch"><button className="active" type="button">기본</button><button type="button">변경</button></div><select defaultValue="20,000km / 년"><option>20,000km / 년</option><option>30,000km / 년</option></select></label>
+                        {solutionWorkbenchIsRent ? (
+                          <>
+                            <label><span>운전연령</span><div className="kim-mini-switch"><button type="button">만 21세</button><button className="active" type="button">만 26세</button></div></label>
+                            <label><span>대물한도</span><div className="kim-mini-switch"><button className="active" type="button">1억</button><button type="button">2억</button><button type="button">3억</button><button type="button">5억</button></div></label>
+                          </>
+                        ) : (
+                          <label><span>자동차세</span><div className="kim-mini-switch"><button className="active" type="button">불포함</button><button type="button">리스료에 포함</button></div></label>
+                        )}
+                        <label><span>{solutionWorkbenchEntryMode === "manual" ? "견적 출처" : "금융사"}</span><div className="kim-mini-switch"><button className="active" type="button">{solutionWorkbenchEntryMode === "manual" ? "수기" : "자동선택"}</button><button type="button">직접선택</button></div><select defaultValue={quoteIndex === 2 ? "우리금융캐피탈" : quoteIndex === 3 ? "하나캐피탈" : "iM캐피탈"}><option>iM캐피탈</option><option>우리금융캐피탈</option><option>하나캐피탈</option></select></label>
+                        {solutionWorkbenchEntryMode === "manual" ? (
+                          <label><span>월 납입금</span><input defaultValue={quoteIndex === 1 ? "2,473,200" : quoteIndex === 2 ? "2,398,000" : "2,512,000"} /><b>원</b></label>
+                        ) : (
+                          <>
+                            <label><span>CM수수료</span><input defaultValue="0" /><b>%</b><input defaultValue="0원" /></label>
+                            <label><span>AG수수료</span><input defaultValue="0" /><b>%</b><input defaultValue="0원" /></label>
+                          </>
+                        )}
+                      </div>
+                      <button className="kim-quote-query-button" disabled={!solutionWorkbenchCanQuery && solutionWorkbenchEntryMode === "solution"} type="button">
+                        {solutionWorkbenchEntryMode === "manual" ? "수기 견적 반영" : "견적 조회"}
+                      </button>
+                      <p>{solutionWorkbenchEntryMode === "manual" ? "판매사/수수료 대신 실제 고객 제안값을 입력합니다" : solutionWorkbenchIsLease ? "차량/취득원가 기준으로 금융사 조건을 조회합니다" : "렌트 조건은 제프 솔루션 이전 후 연결합니다"}</p>
+                    </div>
+                  ))}
+                </section>
+
+                <section className="kim-quote-workbench-results">
+                  <div>
+                    <span>추천 조건</span>
+                    <strong>우리금융캐피탈 · 월 2,398,000원</strong>
+                    <p>보증금 30% · 60개월 · 잔존가치 최대 · D-6</p>
+                  </div>
+                  <div>
+                    <span>CRM 저장 메모</span>
+                    <strong>{solutionWorkbenchEntryMode === "manual" ? "수기 입력 조건" : solutionWorkbenchEntryMode === "original" ? "원본 인식 후 보정" : "솔루션 조회 조건"}</strong>
+                    <p>견적함 row에는 차량/방식/기간/월 납입금/금융사/유효기간만 압축 표시합니다.</p>
+                  </div>
+                </section>
+              </div>
+              <div className="kim-quote-modal-actions">
+                <button type="button" onClick={() => setIsQuoteSolutionWorkbenchOpen(false)}>닫기</button>
+                <button type="button" onClick={() => onToast("financial-dolim-solution 연결 전 임시 워크벤치입니다.")}>솔루션 조회</button>
+                <button className="primary" type="button" onClick={() => onToast("새 솔루션 견적 저장 흐름은 다음 단계에서 연결합니다.")}>견적함에 저장</button>
+              </div>
+            </div>
           </div>
         ) : null}
 
