@@ -1,5 +1,5 @@
-import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, Route, Send, Sparkles, Trash2, UserRound, X } from "lucide-react";
-import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FormEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
+import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
+import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type FormEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 
 type CustomerDetailPageProps = {
@@ -1386,6 +1386,9 @@ function KimMinjunDetailContent({
   const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(kimMinjunPurchaseFields));
   const [solutionWorkbenchEntryMode, setSolutionWorkbenchEntryMode] = useState<KimQuoteEntryMode>("manual");
   const [solutionWorkbenchModeMenu, setSolutionWorkbenchModeMenu] = useState<"purchase" | "entry" | null>(null);
+  const [isQuoteAppCardPreviewOpen, setIsQuoteAppCardPreviewOpen] = useState(false);
+  const [isQuoteDraftSaved, setIsQuoteDraftSaved] = useState(false);
+  const [isQuoteDraftDirty, setIsQuoteDraftDirty] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [selectedQuotePurchaseMethod, setSelectedQuotePurchaseMethod] = useState<KimQuotePurchaseMethod>("운용리스");
   const [quoteEntryMode, setQuoteEntryMode] = useState<KimQuoteEntryMode>("solution");
@@ -1431,6 +1434,7 @@ function KimMinjunDetailContent({
   const quoteBodyRef = useRef<HTMLDivElement>(null);
   const documentBodyRef = useRef<HTMLDivElement>(null);
   const quoteWorkbenchOriginalInputRef = useRef<HTMLInputElement>(null);
+  const quoteDetailFormRef = useRef<HTMLDivElement>(null);
   const timelineItems = timelineRows(customer);
   const remainingCheckCount = checkItems.filter((item) => !completedCheckItems.includes(item.id)).length;
   const receivedDocumentCount = documents.length;
@@ -1447,9 +1451,132 @@ function KimMinjunDetailContent({
   const solutionWorkbenchIsRent = solutionWorkbenchPurchaseMethod === "장기렌트";
   const solutionWorkbenchIsLease = solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "금융리스" || solutionWorkbenchPurchaseMethod === "중고리스";
   const solutionWorkbenchCanQuery = solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
+  const quoteDraftReady = isQuoteDraftSaved && !isQuoteDraftDirty;
   const sortedCustomerMemos = sortKimCustomerMemosByCreatedAt(customerMemos);
   const sortedCheckItems = sortKimCheckItemsByWorkRule(checkItems, completedCheckItems);
   const sortedSchedules = sortKimSchedulesByDateTime(schedules);
+
+  function jeffMoneyInputFromTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLInputElement) || !target.closest(".kim-jeff-money-input")) return null;
+    return target;
+  }
+
+  function clearJeffMoneyInputPreview(input: HTMLInputElement) {
+    delete input.dataset.replaceOnInput;
+    input.classList.remove("is-replace-preview");
+  }
+
+  function handleJeffMoneyInputFocus(event: ReactFocusEvent<HTMLDivElement>) {
+    const target = jeffMoneyInputFromTarget(event.target);
+    if (!target) return;
+    target.dataset.replaceOnInput = "true";
+    target.classList.add("is-replace-preview");
+    target.setSelectionRange(0, 0);
+  }
+
+  function handleJeffMoneyInputBeforeInput(event: FormEvent<HTMLDivElement>) {
+    const target = jeffMoneyInputFromTarget(event.target);
+    if (!target || target.dataset.replaceOnInput !== "true") return;
+    const nativeEvent = event.nativeEvent as InputEvent;
+    if (nativeEvent.inputType !== "insertText" || !nativeEvent.data) return;
+    event.preventDefault();
+    target.value = nativeEvent.data;
+    clearJeffMoneyInputPreview(target);
+    markQuoteDraftChanged();
+    target.setSelectionRange(target.value.length, target.value.length);
+  }
+
+  function handleJeffMoneyInputBlur(event: ReactFocusEvent<HTMLDivElement>) {
+    const target = jeffMoneyInputFromTarget(event.target);
+    if (!target) return;
+    clearJeffMoneyInputPreview(target);
+    markQuoteDraftChanged();
+  }
+
+  function handleJeffMoneyInputChange(event: ChangeEvent<HTMLDivElement>) {
+    const target = jeffMoneyInputFromTarget(event.target);
+    if (!target) return;
+    clearJeffMoneyInputPreview(target);
+  }
+
+  function handleJeffMoneyInputPaste(event: ReactClipboardEvent<HTMLDivElement>) {
+    const target = jeffMoneyInputFromTarget(event.target);
+    if (!target || target.dataset.replaceOnInput !== "true") return;
+    event.preventDefault();
+    target.value = event.clipboardData.getData("text");
+    clearJeffMoneyInputPreview(target);
+    markQuoteDraftChanged();
+    target.setSelectionRange(target.value.length, target.value.length);
+  }
+
+  function handleJeffMoneyInputKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const target = jeffMoneyInputFromTarget(event.target);
+    if (!target || target.dataset.replaceOnInput !== "true") return;
+    if (event.key !== "Backspace" && event.key !== "Delete") return;
+    event.preventDefault();
+    target.value = "";
+    clearJeffMoneyInputPreview(target);
+    markQuoteDraftChanged();
+  }
+
+  function handleJeffMoneyInputMouseUp(event: ReactMouseEvent<HTMLDivElement>) {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || !target.closest(".kim-jeff-money-input") || target.dataset.replaceOnInput !== "true") return;
+    event.preventDefault();
+    target.setSelectionRange(0, 0);
+  }
+
+  function markQuoteDraftChanged() {
+    if (!isQuoteDraftSaved) return;
+    setIsQuoteDraftDirty(true);
+    setIsQuoteAppCardPreviewOpen(false);
+  }
+
+  function quoteDraftSaveButtonLabel() {
+    if (isQuoteDraftSaved && isQuoteDraftDirty) return "변경된 조건으로 저장";
+    if (isQuoteDraftSaved) return "저장 완료";
+    return "견적 저장";
+  }
+
+  function validateQuoteDetailDraft() {
+    const form = quoteDetailFormRef.current;
+    if (!form) return ["세부 견적 작성 영역을 확인해 주세요."];
+    const missing: string[] = [];
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((field) => {
+      const label = field.closest("label")?.querySelector("span")?.textContent?.trim() ?? "필수 항목";
+      const value = field.value.trim();
+      if (!value) {
+        missing.push(`${label} 입력이 필요합니다.`);
+        return;
+      }
+      if (field.dataset.rejectValue && value === field.dataset.rejectValue) {
+        missing.push(`${label}가 ${field.dataset.rejectValue} 상태입니다.`);
+      }
+    });
+    return missing;
+  }
+
+  function saveQuoteDetailDraft() {
+    const missing = validateQuoteDetailDraft();
+    if (missing.length > 0) {
+      onToast(missing.slice(0, 3).join(" "));
+      return;
+    }
+    setIsQuoteDraftSaved(true);
+    setIsQuoteDraftDirty(false);
+    onToast("작성한 견적이 저장되었습니다. 우측 상단의 견적함에 저장 버튼을 눌러 마무리하세요.");
+  }
+
+  function guardQuoteDraftOutput(outputLabel: string) {
+    if (quoteDraftReady) return true;
+    const missing = validateQuoteDetailDraft();
+    if (missing.length > 0) {
+      onToast(missing.slice(0, 3).join(" "));
+      return false;
+    }
+    onToast(`${outputLabel} 전에 먼저 세부 견적을 저장해 주세요.`);
+    return false;
+  }
 
   function markRecentUpdate(section: string) {
     const updatedAt = Date.now();
@@ -2192,7 +2319,7 @@ function KimMinjunDetailContent({
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get("title") ?? "").trim();
     const status = String(formData.get("status") ?? "대기");
-    const sourceLabel = String(formData.get("source") ?? (quoteEntryMode === "solution" ? "견적 조회" : quoteEntryMode === "original" ? "원본 인식" : "직접 입력"));
+    const sourceLabel = String(formData.get("source") ?? (quoteEntryMode === "solution" ? "견적 조회" : quoteEntryMode === "original" ? "원본 인식" : "수기 작성"));
     const source: KimQuoteItem["source"] = sourceLabel === "견적 조회" ? "solution" : sourceLabel === "원본 인식" ? "original" : "manual";
     const brand = String(formData.get("brand") ?? "").trim();
     const model = String(formData.get("model") ?? "").trim();
@@ -2293,6 +2420,63 @@ function KimMinjunDetailContent({
     setConfirmingQuoteContractId(null);
     markRecentUpdate("견적함");
     onToast("견적 항목이 추가되었습니다.");
+  }
+
+  function saveQuoteFromWorkbench() {
+    if (!guardQuoteDraftOutput("견적함 저장")) return;
+    const source: KimQuoteItem["source"] = solutionWorkbenchEntryMode === "solution" ? "solution" : solutionWorkbenchEntryMode === "original" ? "original" : "manual";
+    const sourceLabel = source === "solution" ? "솔루션 조회 조건" : source === "original" ? "원본 인식 후 보정" : "수기 입력 조건";
+    const savedAt = formatKoreanShortTime();
+    setQuotes((current) => {
+      const quoteCode = createKimQuoteCode(current);
+      const maybachQuoteCount = current.filter((quote) => quote.model === "Maybach S-Class" || quote.vehicleName?.includes("Maybach S 500")).length;
+      const quoteRound = `${maybachQuoteCount + 1}차`;
+      return [...current, {
+        id: `kim-quote-workbench-${Date.now()}`,
+        quoteCode,
+        title: `Maybach S 500 ${solutionWorkbenchPurchaseMethod} ${quoteRound} 견적`,
+        meta: `${savedAt} · ${sourceLabel}`,
+        status: "작성중",
+        source,
+        appStatus: "draft",
+        brand: "벤츠",
+        model: "Maybach S-Class",
+        trim: "S 500 4M Long",
+        quoteRound,
+        vehicleName: "Maybach S 500 4M Long",
+        financeType: solutionWorkbenchPurchaseMethod,
+        term: "60개월",
+        monthlyPayment: "월 2,398,000원",
+        lender: "우리금융캐피탈",
+        stockStatus: "재고확인중",
+        validLabel: "D-6",
+        note: sourceLabel,
+        decisionStatus: "none",
+        ...(recognizedQuoteFile ? {
+          fileName: recognizedQuoteFile.fileName,
+          fileSize: recognizedQuoteFile.fileSize,
+          mimeType: recognizedQuoteFile.mimeType,
+          file: recognizedQuoteFile.file,
+        } : {}),
+      }];
+    });
+    setIsQuoteSolutionWorkbenchOpen(false);
+    setSolutionWorkbenchModeMenu(null);
+    setRecognizedQuoteFile(null);
+    markRecentUpdate("견적함");
+    onToast("워크벤치 견적을 견적함에 저장했습니다.");
+  }
+
+  function resetQuoteWorkbench() {
+    setSolutionWorkbenchPurchaseMethod(primaryKimQuotePurchaseMethod(purchaseFields));
+    setSolutionWorkbenchEntryMode("manual");
+    setSolutionWorkbenchModeMenu(null);
+    setRecognizedQuoteFile(null);
+    setIsQuoteWorkbenchOriginalDragActive(false);
+    setIsQuoteDraftSaved(false);
+    setIsQuoteDraftDirty(false);
+    setIsQuoteAppCardPreviewOpen(false);
+    onToast("워크벤치 입력값을 초기화했습니다.");
   }
 
   function attachQuoteFileToQuote(quoteId: string, file: File) {
@@ -4356,9 +4540,9 @@ function KimMinjunDetailContent({
             <form className="kim-quote-modal kim-quote-builder-modal" key={`${quoteComposerMode === "edit" ? editingQuote?.id ?? "edit" : "builder"}-${recognizedQuoteFile?.fileName ?? "no-original"}-${selectedQuotePurchaseMethod}`} onSubmit={saveQuote} role="dialog" aria-modal="true" aria-label={quoteComposerMode === "edit" ? "견적 수정" : "견적 작성"}>
               <div className="kim-quote-modal-head">
                 <div>
-                  <span>{quoteComposerMode === "edit" ? `${editingQuote?.quoteCode ?? "QT"} · 수정 후 고객 앱 재발송` : "차량 DB · 솔루션 조회 · 직접 입력"}</span>
+                  <span>{quoteComposerMode === "edit" ? `${editingQuote?.quoteCode ?? "QT"} · 수정 후 고객 앱 재발송` : "차량 DB · 솔루션 조회 · 수기 작성"}</span>
                   <strong>{quoteComposerMode === "edit" ? "견적 수정" : "견적 작성"}</strong>
-                  <p>{quoteComposerMode === "edit" ? "기존 조건을 수정하고 고객 앱 견적함으로 다시 발송합니다." : "차량을 고르고, 솔루션 조회 또는 직접 입력으로 견적 조건을 완성합니다."}</p>
+                  <p>{quoteComposerMode === "edit" ? "기존 조건을 수정하고 고객 앱 견적함으로 다시 발송합니다." : "차량을 고르고, 솔루션 조회 또는 수기 작성으로 견적 조건을 완성합니다."}</p>
                 </div>
                 <button aria-label={quoteComposerMode === "edit" ? "견적 수정 닫기" : "견적 작성 닫기"} type="button" onClick={() => {
                   setQuoteComposerMode(null);
@@ -4366,7 +4550,7 @@ function KimMinjunDetailContent({
                   setRecognizedQuoteFile(null);
                 }}><X size={18} strokeWidth={2.4} /></button>
               </div>
-              <input name="source" type="hidden" value={quoteEntryMode === "original" ? "원본 인식" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "견적 조회" : "직접 입력"} />
+              <input name="source" type="hidden" value={quoteEntryMode === "original" ? "원본 인식" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "견적 조회" : "수기 작성"} />
               <input name="status" type="hidden" value={quoteComposerMode === "edit" ? "고객 확인 전" : "작성중"} />
               <input name="financeType" type="hidden" value={selectedQuotePurchaseMethod} />
 
@@ -4392,7 +4576,7 @@ function KimMinjunDetailContent({
                 <section className="kim-quote-builder-method">
                   <div className="kim-quote-builder-section-head">
                     <span><Route size={13} strokeWidth={2.3} /> 구매방식</span>
-                    <em>{quoteSolutionAvailable ? "솔루션 조회 가능" : "직접 입력 방식"}</em>
+                    <em>{quoteSolutionAvailable ? "솔루션 조회 가능" : "수기 작성 방식"}</em>
                   </div>
                   <div className="kim-quote-method-tabs" aria-label="구매 방식">
                     {kimQuotePurchaseMethodOptions.map((option) => (
@@ -4413,7 +4597,7 @@ function KimMinjunDetailContent({
                   <div className="kim-quote-entry-switch" aria-label="견적 작성 방식">
                     <button aria-pressed={quoteEntryMode === "solution"} disabled={!quoteSolutionAvailable} onClick={() => setQuoteEntryMode("solution")} type="button"><Calculator size={13} strokeWidth={2.3} /> 솔루션 조회</button>
                     <button aria-pressed={quoteEntryMode === "original"} disabled={!quoteSolutionAvailable} onClick={() => setQuoteEntryMode("original")} type="button"><FileText size={13} strokeWidth={2.3} /> 원본 인식</button>
-                    <button aria-pressed={quoteEntryMode === "manual" || !quoteSolutionAvailable} onClick={() => setQuoteEntryMode("manual")} type="button"><PencilLine size={13} strokeWidth={2.3} /> 직접 입력</button>
+                    <button aria-pressed={quoteEntryMode === "manual" || !quoteSolutionAvailable} onClick={() => setQuoteEntryMode("manual")} type="button"><PencilLine size={13} strokeWidth={2.3} /> 수기 작성</button>
                   </div>
                 </section>
 
@@ -4477,7 +4661,7 @@ function KimMinjunDetailContent({
 
                 <section className="kim-quote-builder-fields">
                   <div className="kim-quote-builder-section-head">
-                    <span>{quoteEntryMode === "original" ? "원본 인식값 보정" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "선택 결과 보정" : "직접 입력"}</span>
+                    <span>{quoteEntryMode === "original" ? "원본 인식값 보정" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "선택 결과 보정" : "수기 작성"}</span>
                     <em>{quoteEntryMode === "original" ? "OCR 인식값을 상담사가 확인합니다" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "조회값을 상담사가 수정할 수 있습니다" : "외부 견적/전화 조건을 정리합니다"}</em>
                   </div>
                   <div className="kim-quote-manual-grid">
@@ -4582,6 +4766,7 @@ function KimMinjunDetailContent({
                               key={option}
                               onClick={() => {
                                 setSolutionWorkbenchPurchaseMethod(option);
+                                markQuoteDraftChanged();
                                 if (option !== "운용리스" && option !== "장기렌트" && solutionWorkbenchEntryMode === "solution") {
                                   setSolutionWorkbenchEntryMode("manual");
                                 }
@@ -4606,13 +4791,13 @@ function KimMinjunDetailContent({
                         onClick={() => setSolutionWorkbenchModeMenu((current) => (current === "entry" ? null : "entry"))}
                         type="button"
                       >
-                        {solutionWorkbenchEntryMode === "solution" ? "솔루션 조회" : solutionWorkbenchEntryMode === "original" ? "원본 인식" : "직접 입력"}
+                        {solutionWorkbenchEntryMode === "solution" ? "솔루션 조회" : solutionWorkbenchEntryMode === "original" ? "원본 인식" : "수기 작성"}
                         <ChevronDown size={14} strokeWidth={2.3} />
                       </button>
                       {solutionWorkbenchModeMenu === "entry" ? (
                         <div className="kim-quote-workbench-mode-menu narrow" role="menu">
                           {[
-                            { key: "manual" as const, label: "직접 입력", disabled: false },
+                            { key: "manual" as const, label: "수기 작성", disabled: false },
                             { key: "solution" as const, label: "솔루션 조회", disabled: !solutionWorkbenchCanQuery },
                             { key: "original" as const, label: "원본 인식", disabled: false },
                           ].filter((option) => option.key !== solutionWorkbenchEntryMode).map((option) => (
@@ -4622,6 +4807,7 @@ function KimMinjunDetailContent({
                               onClick={() => {
                                 if (option.disabled) return;
                                 setSolutionWorkbenchEntryMode(option.key);
+                                markQuoteDraftChanged();
                                 if (option.key === "original") {
                                   window.requestAnimationFrame(() => quoteWorkbenchOriginalInputRef.current?.click());
                                 }
@@ -4637,6 +4823,54 @@ function KimMinjunDetailContent({
                       ) : null}
                     </div>
                   </div>
+                  <div className="kim-quote-workbench-actions" aria-label="견적 실행">
+                    <button
+                      className="kim-quote-workbench-action ghost"
+                      onClick={resetQuoteWorkbench}
+                      type="button"
+                    >
+                      <RotateCcw size={13} strokeWidth={2.2} />
+                      초기화
+                    </button>
+                    <button
+                      className="kim-quote-workbench-action muted"
+                      onClick={() => onToast("financial-dolim-solution 연결 전 임시 워크벤치입니다.")}
+                      type="button"
+                    >
+                      <Calculator size={13} strokeWidth={2.2} />
+                      솔루션조회
+                    </button>
+                    <button
+                      className={`kim-quote-workbench-action muted quote-doc${quoteDraftReady ? " is-ready-blue" : " is-disabled"}`}
+                      onClick={() => {
+                        if (!guardQuoteDraftOutput("견적서 보기")) return;
+                        onToast("견적서 보기 화면은 다음 단계에서 연결합니다.");
+                      }}
+                      type="button"
+                    >
+                      <FileText size={13} strokeWidth={2.2} />
+                      견적서보기
+                    </button>
+                    <button
+                      className={`kim-quote-workbench-action muted app-card${quoteDraftReady ? " is-ready-green" : " is-disabled"}`}
+                      onClick={() => {
+                        if (!guardQuoteDraftOutput("앱카드 보기")) return;
+                        setIsQuoteAppCardPreviewOpen(true);
+                      }}
+                      type="button"
+                    >
+                      <Smartphone size={13} strokeWidth={2.2} />
+                      앱카드보기
+                    </button>
+                    <button
+                      className={`kim-quote-workbench-action primary${quoteDraftReady ? "" : " is-disabled"}`}
+                      onClick={saveQuoteFromWorkbench}
+                      type="button"
+                    >
+                      <FilePlus2 size={13} strokeWidth={2.2} />
+                      견적함에 저장
+                    </button>
+                  </div>
                 </div>
                 <div className="kim-file-drop-overlay kim-quote-workbench-drop-overlay" aria-hidden="true">
                   <FileUp size={22} strokeWidth={1.9} />
@@ -4644,111 +4878,291 @@ function KimMinjunDetailContent({
                   <span>첨부한 견적서의 값으로 자동 입력합니다</span>
                 </div>
               </div>
-              <div className="kim-quote-solution-shell">
-                <section className="kim-quote-workbench-common">
-                  <div className="kim-quote-common-grid">
-                    <div className="kim-quote-common-block vehicle">
-                      <h4><CarFront size={13} strokeWidth={2.3} /> 차량 선택</h4>
-                      <label><span>제조사</span><button type="button">벤츠</button></label>
-                      <label><span>모델</span><button type="button">Maybach S-Class</button></label>
-                      <label><span>트림</span><button type="button">S 500 4M Long</button></label>
-                      <strong><span>기본 가격</span><input defaultValue="243,000,000원" /></strong>
+              <div
+                className="kim-quote-solution-shell kim-jeff-quote-body"
+                onBeforeInput={handleJeffMoneyInputBeforeInput}
+                onBlur={handleJeffMoneyInputBlur}
+                onChange={handleJeffMoneyInputChange}
+                onFocus={handleJeffMoneyInputFocus}
+                onKeyDown={handleJeffMoneyInputKeyDown}
+                onMouseUp={handleJeffMoneyInputMouseUp}
+                onPaste={handleJeffMoneyInputPaste}
+              >
+                <section className="kim-jeff-top-panel">
+                  <div className="kim-jeff-top-grid">
+                    <div className="kim-jeff-section">
+                      <h4>🚘 차량 선택</h4>
+                      <button className="kim-jeff-picker-row" type="button"><span>제조사</span><b>벤츠</b><ChevronDown size={15} /></button>
+                      <button className="kim-jeff-picker-row" type="button"><span>모델</span><b>Maybach S-Class</b><ChevronDown size={15} /></button>
+                      <button className="kim-jeff-picker-row" type="button"><span>트림</span><b>S 500 4M Long</b><ChevronDown size={15} /></button>
                     </div>
-                    <div className="kim-quote-common-block options">
-                      <h4><Sparkles size={13} strokeWidth={2.3} /> 옵션 / 컬러</h4>
-                      <label><span>옵션</span><button type="button">트림 기본 옵션</button></label>
-                      <label><span>외장</span><button type="button">옵시디언 블랙</button></label>
-                      <label><span>내장</span><button type="button">마누팍투어 베이지</button></label>
-                      <strong><span>(+) 옵션 금액</span><input defaultValue="0원" /></strong>
+                    <div className="kim-jeff-section">
+                      <h4>🎨 옵션 / 컬러</h4>
+                      <button className="kim-jeff-picker-row" type="button"><span>옵션</span><b>기본 제공 옵션</b><ChevronDown size={15} /></button>
+                      <button className="kim-jeff-picker-row" type="button"><span>외장</span><b className="muted">미선택</b><ChevronDown size={15} /></button>
+                      <button className="kim-jeff-picker-row" type="button"><span>내장</span><b className="muted">미선택</b><ChevronDown size={15} /></button>
                     </div>
-                    <div className="kim-quote-common-block discount">
-                      <h4><Download size={13} strokeWidth={2.3} /> 할인</h4>
-                      <label><span>할인 금액</span><div className="kim-mini-switch"><button className="active" type="button">금액</button><button type="button">%</button></div><input defaultValue="6,500,000원" /></label>
-                      <strong><span>(-) 최종 할인</span><input defaultValue="6,500,000원" /></strong>
+                    <div className="kim-jeff-section">
+                      <h4>💰 할인</h4>
+                      <div className="kim-jeff-form-row">
+                        <span>할인 금액</span>
+                        <div className="kim-jeff-segment"><button className="active" type="button">금액</button><button type="button">%</button></div>
+                        <div className="kim-jeff-money-input"><input defaultValue="6,500,000" /><em>원</em></div>
+                      </div>
                     </div>
                   </div>
-                  <div className="kim-quote-cost-grid">
-                    <div className="kim-quote-common-block cost">
-                      <h4><RefreshCcw size={13} strokeWidth={2.3} /> 취득원가 설정</h4>
-                      <label><span>취득세</span><div className="kim-mini-switch"><button className="active" type="button">일반</button><button type="button">감면</button></div><input defaultValue="13,531,000원" /></label>
-                      <label><span>공채</span><div className="kim-mini-switch"><button className="active" type="button">포함</button><button type="button">불포함</button></div><input defaultValue="0원" /></label>
-                      <label><span>탁송료</span><div className="kim-mini-switch"><button type="button">포함</button><button className="active" type="button">불포함</button></div><input defaultValue="0원" /></label>
-                      <label><span>부대비용</span><div className="kim-mini-switch"><button type="button">포함</button><button className="active" type="button">불포함</button></div><input defaultValue="0원" /></label>
+
+                  <div className="kim-jeff-price-grid">
+                    <div className="kim-jeff-price-cell"><strong>기본 가격</strong><div className="kim-jeff-money-input"><input defaultValue="243,000,000" /><em>원</em></div></div>
+                    <div className="kim-jeff-price-cell"><strong>(+) 옵션 금액</strong><div className="kim-jeff-money-input"><input defaultValue="0" /><em>원</em></div></div>
+                    <div className="kim-jeff-price-cell"><strong>(-) 최종 할인</strong><div className="kim-jeff-money-input"><input defaultValue="6,500,000" /><em>원</em></div></div>
+                  </div>
+
+                  <div className="kim-jeff-cost-grid">
+                    <div className="kim-jeff-section kim-jeff-cost-section">
+                      <h4>⚙️ 취득원가 설정</h4>
+                      <div className="kim-jeff-form-row"><span>취득세</span><div className="kim-jeff-segment"><button className="active" type="button">일반</button><button type="button">하이브리드 감면</button><button type="button">전기차 감면</button></div><div className="kim-jeff-money-input"><input defaultValue="13,531,000" /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>공채</span><div className="kim-jeff-segment"><button className="active" type="button">포함</button><button type="button">불포함</button></div><div className="kim-jeff-money-input"><input defaultValue="0" /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>탁송료</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input defaultValue="0" /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>부대비용</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input defaultValue="0" /><em>원</em></div></div>
                     </div>
-                    <div className="kim-quote-common-block final">
-                      <h4><FileText size={13} strokeWidth={2.3} /> 최종 가격</h4>
-                      <label><span>최종 차량가</span><b>236,500,000원</b></label>
-                      <label><span>등록비용</span><b>13,531,000원</b></label>
-                      <label><span>기타비용</span><b>0원</b></label>
-                      <strong><span>취득원가</span><b>250,031,000원</b></strong>
+                    <div className="kim-jeff-section kim-jeff-summary-section">
+                      <h4>📋 최종 가격</h4>
+                      <div className="kim-jeff-summary-row"><span>최종 차량가(계산서 발행금액)</span><b><span>236,500,000</span><em>원</em></b></div>
+                      <div className="kim-jeff-summary-row"><span>등록비용(취득원가 포함)</span><b><span>13,531,000</span><em>원</em></b></div>
+                      <div className="kim-jeff-summary-row no-divider"><span>기타비용(취득원가 불포함, 고객 부담)</span><b><span>0</span><em>원</em></b></div>
+                      <div className="kim-jeff-summary-row emphasized"><span>취득원가</span><b><span>250,031,000</span><em>원</em></b></div>
                     </div>
                   </div>
                 </section>
 
-                <section className="kim-quote-workbench-compare" aria-label="견적 비교 조건">
-                  {[1, 2, 3].map((quoteIndex) => (
-                    <div className="kim-quote-compare-card" key={quoteIndex}>
-                      <header>
-                        <strong>견적비교 <span>{quoteIndex}</span></strong>
-                        <button type="button">{quoteIndex === 1 ? "재입력" : `${quoteIndex - 1}번 조건 복사`}</button>
-                      </header>
-                      <div className="kim-quote-mode-segment" aria-label="리스 렌트 선택">
-                        <button className={!solutionWorkbenchIsRent ? "active" : ""} type="button">리스</button>
-                        <button className={solutionWorkbenchIsRent ? "active" : ""} type="button">렌트</button>
+                <section className="kim-app-quote-builder" aria-label="앱 견적카드 수기 작성">
+                  <div
+                    className="kim-app-quote-form"
+                    key="quote-detail-manual-v2"
+                    onChange={markQuoteDraftChanged}
+                    onInput={markQuoteDraftChanged}
+                    ref={quoteDetailFormRef}
+                  >
+                    <header>
+                      <div>
+                        <strong>🧾 세부 견적 수기 입력</strong>
                       </div>
-                      {solutionWorkbenchIsRent ? (
-                        <div className="kim-quote-mode-alert">렌트 상품은 준비 중입니다. 현재는 리스 견적만 조회 가능합니다.</div>
-                      ) : null}
-                      <div className="kim-quote-condition-table">
-                        <label><span>기간</span><div className="kim-mini-switch wide"><button type="button">24</button><button type="button">36</button><button type="button">48</button><button className="active" type="button">60개월</button></div></label>
-                        <label><span>선수금</span><div className="kim-mini-switch"><button className="active" type="button">없음</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="0" /></label>
-                        <label><span>보증금</span><div className="kim-mini-switch"><button type="button">없음</button><button type="button">금액</button><button className="active" type="button">%</button></div><input defaultValue="30" /></label>
-                        <label><span>잔존가치</span><div className="kim-mini-switch"><button className="active" type="button">최대</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="71,853,240" /></label>
-                        <label><span>약정거리</span><div className="kim-mini-switch"><button className="active" type="button">기본</button><button type="button">변경</button></div><select defaultValue="20,000km / 년"><option>20,000km / 년</option><option>30,000km / 년</option></select></label>
-                        {solutionWorkbenchIsRent ? (
-                          <>
-                            <label><span>운전연령</span><div className="kim-mini-switch"><button type="button">만 21세</button><button className="active" type="button">만 26세</button></div></label>
-                            <label><span>대물한도</span><div className="kim-mini-switch"><button className="active" type="button">1억</button><button type="button">2억</button><button type="button">3억</button><button type="button">5억</button></div></label>
-                          </>
-                        ) : (
-                          <label><span>자동차세</span><div className="kim-mini-switch"><button className="active" type="button">불포함</button><button type="button">리스료에 포함</button></div></label>
-                        )}
-                        <label><span>{solutionWorkbenchEntryMode === "manual" ? "견적 출처" : "금융사"}</span><div className="kim-mini-switch"><button className="active" type="button">{solutionWorkbenchEntryMode === "manual" ? "수기" : "자동선택"}</button><button type="button">직접선택</button></div><select defaultValue={quoteIndex === 2 ? "우리금융캐피탈" : quoteIndex === 3 ? "하나캐피탈" : "iM캐피탈"}><option>iM캐피탈</option><option>우리금융캐피탈</option><option>하나캐피탈</option></select></label>
-                        {solutionWorkbenchEntryMode === "manual" ? (
-                          <label><span>월 납입금</span><input defaultValue={quoteIndex === 1 ? "2,473,200" : quoteIndex === 2 ? "2,398,000" : "2,512,000"} /><b>원</b></label>
-                        ) : (
-                          <>
-                            <label><span>CM수수료</span><input defaultValue="0" /><b>%</b><input defaultValue="0원" /></label>
-                            <label><span>AG수수료</span><input defaultValue="0" /><b>%</b><input defaultValue="0원" /></label>
-                          </>
-                        )}
-                      </div>
-                      <button className="kim-quote-query-button" disabled={!solutionWorkbenchCanQuery && solutionWorkbenchEntryMode === "solution"} type="button">
-                        {solutionWorkbenchEntryMode === "manual" ? "수기 견적 반영" : "견적 조회"}
+                      <button
+                        className={isQuoteDraftSaved && !isQuoteDraftDirty ? "is-saved" : ""}
+                        onClick={saveQuoteDetailDraft}
+                        type="button"
+                      >
+                        {quoteDraftSaveButtonLabel()}
                       </button>
-                      <p>{solutionWorkbenchEntryMode === "manual" ? "판매사/수수료 대신 실제 고객 제안값을 입력합니다" : solutionWorkbenchIsLease ? "차량/취득원가 기준으로 금융사 조건을 조회합니다" : "렌트 조건은 제프 솔루션 이전 후 연결합니다"}</p>
-                    </div>
-                  ))}
-                </section>
+                    </header>
 
-                <section className="kim-quote-workbench-results">
-                  <div>
-                    <span>추천 조건</span>
-                    <strong>우리금융캐피탈 · 월 2,398,000원</strong>
-                    <p>보증금 30% · 60개월 · 잔존가치 최대 · D-6</p>
+                    <div className="kim-app-form-split">
+                      <div className="kim-app-form-section">
+                        <div className="kim-app-condition-grid">
+                          <label><span>구매방식</span><div className="kim-jeff-segment"><button className="active" type="button">운용리스</button></div></label>
+                          <label><span>자동차세</span><div className="kim-jeff-segment"><button className="active" type="button">불포함</button><button type="button">포함</button></div></label>
+                          <label><span>금융사</span><select defaultValue="우리금융캐피탈"><option>우리금융캐피탈</option><option>iM캐피탈</option><option>하나캐피탈</option></select></label>
+                          <label><span>전기차 보조금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">비해당</button><button type="button">해당</button></div><input disabled defaultValue="0" /></div></label>
+                          <label><span>리스기간</span><div className="kim-jeff-segment wide"><button type="button">12개월</button><button type="button">24개월</button><button type="button">36개월</button><button type="button">48개월</button><button className="active" type="button">60개월</button></div></label>
+                          <label><span>금리</span><input readOnly value="5.32%" /></label>
+                          <label><span>보증금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button type="button">없음</button><button type="button">금액</button><button className="active" type="button">%</button></div><input defaultValue="30" /></div></label>
+                          <label><span>반납까지 총 비용</span><input readOnly value="167,652,170원" /></label>
+                          <label><span>선수금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">없음</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="0" /></div></label>
+                          <label><span>인수까지 총 비용</span><input readOnly value="239,505,410원" /></label>
+                          <label><span>잔존가치</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">최대</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="71,853,240" /></div></label>
+                          <label><span>출고 전 납입 금액</span><input readOnly value="72,900,000원" /></label>
+                          <label><span>약정주행거리</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">기본</button><button type="button">변경</button></div><select defaultValue="20,000km / 년"><option>20,000km / 년</option><option>30,000km / 년</option></select></div></label>
+                          <label><span>월 납입금</span><input defaultValue="2,398,000원" /></label>
+                        </div>
+                      </div>
+
+                      <div className="kim-app-form-section">
+                        <h4>출고 시기 정보</h4>
+                        <div className="kim-app-form-grid">
+                          <label><span>외장 컬러</span><input data-reject-value="미선택" defaultValue="미선택" /></label>
+                          <label><span>내장 컬러</span><input data-reject-value="미선택" defaultValue="미선택" /></label>
+                          <label><span>재고 여부</span><input defaultValue="재고 확인 필요" /></label>
+                          <label><span>예상 출고</span><input defaultValue="확인 후 안내" /></label>
+                          <label><span>고객 지역</span><input defaultValue="인천" /></label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="kim-app-form-section">
+                      <h4>앱 상세 펼침 문구</h4>
+                      <div className="kim-app-copy-list">
+                        <label><span>핵심 포인트 1</span><input defaultValue="잔존가치 최대 조건으로 월 납입금을 낮춘 조건입니다." /></label>
+                        <label><span>핵심 포인트 2</span><input defaultValue="보증금 30% 기준으로 초기 부담과 월 납입금 균형을 맞췄습니다." /></label>
+                        <label><span>추천 이유</span><textarea defaultValue={"현재 조건에서는 월 납입금과 취득원가 균형이 가장 안정적인 운용리스 조건입니다.\n금리와 잔존가치 조건은 상담 중 추가 협상 여지가 있습니다."} rows={3} /></label>
+                        <label><span>서비스</span><textarea defaultValue={"썬팅: 후퍼옵틱 KBR 전면 + 측후면 제공\n블랙박스: 기본 제공\n출고 기념품: 키케이스, 주차번호판, 머그컵"} rows={3} /></label>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span>CRM 저장 메모</span>
-                    <strong>{solutionWorkbenchEntryMode === "manual" ? "수기 입력 조건" : solutionWorkbenchEntryMode === "original" ? "원본 인식 후 보정" : "솔루션 조회 조건"}</strong>
-                    <p>견적함 row에는 차량/방식/기간/월 납입금/금융사/유효기간만 압축 표시합니다.</p>
-                  </div>
+
+                  <aside className="kim-app-card-preview" aria-label="앱 견적카드 미리보기">
+                    <div className="kim-app-card">
+                      <div className="kim-app-card-status">
+                        <strong>🔔 미확인 견적</strong>
+                        <span>● D-6</span>
+                      </div>
+                      <div className="kim-app-card-body">
+                        <div className="kim-app-card-hero">
+                          <div>
+                            <span>벤츠</span>
+                            <strong>Maybach S-Class<br />S 500 4M Long</strong>
+                            <p>2026년식 ㅣ 243,000,000원 ㅣ 기본 제공 옵션</p>
+                          </div>
+                          <div>
+                            <b>운용리스</b>
+                            <b>60개월</b>
+                          </div>
+                        </div>
+
+                        <div className="kim-app-pay-box">
+                          <span>월 납입금</span>
+                          <strong>2,398,000원</strong>
+                          <em>금리 5.32%</em>
+                          <p>잔존가치 71,853,240원 · 총 비용 167,652,170원</p>
+                        </div>
+
+                        <div className="kim-app-discount-box">
+                          <span>최대 할인 적용</span>
+                          <strong>-6,500,000원</strong>
+                        </div>
+
+                        <div className="kim-app-mini-grid">
+                          <div><span>보증금</span><strong>30% · 72,900,000원</strong></div>
+                          <div><span>주행거리</span><strong>연 20,000km</strong></div>
+                        </div>
+
+                        <div className="kim-app-detail-block">
+                          <header>🚗 출고 시기 정보</header>
+                          <dl>
+                            <dt>외장 컬러</dt><dd>미선택</dd>
+                            <dt>내장 컬러</dt><dd>미선택</dd>
+                            <dt>재고 여부</dt><dd className="green">확인 필요</dd>
+                            <dt>예상 출고</dt><dd>확인 후 안내</dd>
+                            <dt>고객 지역</dt><dd>인천</dd>
+                          </dl>
+                        </div>
+
+                        <div className="kim-app-detail-block">
+                          <header>📌 취득원가 구성</header>
+                          <dl>
+                            <dt>최종 차량가</dt><dd className="green">236,500,000원</dd>
+                            <dt>등록비용 합계</dt><dd className="green">13,531,000원</dd>
+                            <dt>취득원가</dt><dd className="blue">250,031,000원</dd>
+                          </dl>
+                        </div>
+
+                        <div className="kim-app-detail-block">
+                          <header>🧾 추천 견적 조건</header>
+                          <dl>
+                            <dt>금융사</dt><dd>우리금융캐피탈</dd>
+                            <dt>보증금</dt><dd>30%</dd>
+                            <dt>선수금</dt><dd>0원</dd>
+                            <dt>최종 월 납입금</dt><dd className="blue">2,398,000원</dd>
+                          </dl>
+                        </div>
+                      </div>
+                    </div>
+                  </aside>
                 </section>
               </div>
-              <div className="kim-quote-modal-actions">
-                <button type="button" onClick={() => setIsQuoteSolutionWorkbenchOpen(false)}>닫기</button>
-                <button type="button" onClick={() => onToast("financial-dolim-solution 연결 전 임시 워크벤치입니다.")}>솔루션 조회</button>
-                <button className="primary" type="button" onClick={() => onToast("새 솔루션 견적 저장 흐름은 다음 단계에서 연결합니다.")}>견적함에 저장</button>
-              </div>
+              {isQuoteAppCardPreviewOpen ? (
+                <div
+                  className="kim-app-card-preview-modal"
+                  onClick={() => setIsQuoteAppCardPreviewOpen(false)}
+                  role="presentation"
+                >
+                  <div
+                    className="kim-app-card-preview-dialog"
+                    onClick={(event) => event.stopPropagation()}
+                    role="dialog"
+                    aria-label="앱카드 미리보기"
+                    aria-modal="true"
+                  >
+                    <header>
+                      <div>
+                        <span>고객 견적함 화면</span>
+                        <strong>앱카드 미리보기</strong>
+                      </div>
+                      <button aria-label="앱카드 미리보기 닫기" onClick={() => setIsQuoteAppCardPreviewOpen(false)} type="button">
+                        <X size={18} strokeWidth={2.2} />
+                      </button>
+                    </header>
+                    <aside className="kim-app-card-preview in-modal" aria-label="앱 견적카드 미리보기">
+                      <div className="kim-app-card">
+                        <div className="kim-app-card-status">
+                          <strong>🔔 미확인 견적</strong>
+                          <span>● D-6</span>
+                        </div>
+                        <div className="kim-app-card-body">
+                          <div className="kim-app-card-hero">
+                            <div>
+                              <span>벤츠</span>
+                              <strong>Maybach S-Class<br />S 500 4M Long</strong>
+                              <p>2026년식 ㅣ 243,000,000원 ㅣ 기본 제공 옵션</p>
+                            </div>
+                            <div>
+                              <b>운용리스</b>
+                              <b>60개월</b>
+                            </div>
+                          </div>
+
+                          <div className="kim-app-pay-box">
+                            <span>월 납입금</span>
+                            <strong>2,398,000원</strong>
+                            <em>금리 5.32%</em>
+                            <p>잔존가치 71,853,240원 · 총 비용 167,652,170원</p>
+                          </div>
+
+                          <div className="kim-app-discount-box">
+                            <span>최대 할인 적용</span>
+                            <strong>-6,500,000원</strong>
+                          </div>
+
+                          <div className="kim-app-mini-grid">
+                            <div><span>보증금</span><strong>30% · 72,900,000원</strong></div>
+                            <div><span>주행거리</span><strong>연 20,000km</strong></div>
+                          </div>
+
+                          <div className="kim-app-detail-block">
+                            <header>🚗 출고 시기 정보</header>
+                            <dl>
+                              <dt>외장 컬러</dt><dd>미선택</dd>
+                              <dt>내장 컬러</dt><dd>미선택</dd>
+                              <dt>재고 여부</dt><dd className="green">확인 필요</dd>
+                              <dt>예상 출고</dt><dd>확인 후 안내</dd>
+                              <dt>고객 지역</dt><dd>인천</dd>
+                            </dl>
+                          </div>
+
+                          <div className="kim-app-detail-block">
+                            <header>📌 취득원가 구성</header>
+                            <dl>
+                              <dt>최종 차량가</dt><dd className="green">236,500,000원</dd>
+                              <dt>등록비용 합계</dt><dd className="green">13,531,000원</dd>
+                              <dt>취득원가</dt><dd className="blue">250,031,000원</dd>
+                            </dl>
+                          </div>
+
+                          <div className="kim-app-detail-block">
+                            <header>🧾 추천 견적 조건</header>
+                            <dl>
+                              <dt>금융사</dt><dd>우리금융캐피탈</dd>
+                              <dt>보증금</dt><dd>30%</dd>
+                              <dt>선수금</dt><dd>0원</dd>
+                              <dt>최종 월 납입금</dt><dd className="blue">2,398,000원</dd>
+                            </dl>
+                          </div>
+                        </div>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
