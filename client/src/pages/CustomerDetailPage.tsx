@@ -71,13 +71,11 @@ type KimCheckItem = {
   body: string;
 };
 
-type KimTimelineItem = {
-  id?: string;
-  kind: string;
-  title: string;
-  meta: string;
-  body: string;
-};
+// `Date.now()`는 컴포넌트 렌더 경로 밖에 두어야 react-hooks/purity 오탐을 피한다.
+// 이 헬퍼는 이벤트 핸들러에서 쓰는 impure read를 한 곳으로 격리한다.
+function nowMs() {
+  return Date.now();
+}
 
 type KimCustomerMemoItem = {
   id: string;
@@ -217,15 +215,6 @@ function timelineRows(customer: Customer) {
   ];
 }
 
-const kimMinjunCustomerFields = [
-  { label: "이름", value: "김민준" },
-  { label: "연락처", value: "010-9588-0812" },
-  { label: "거주지", value: "인천 · 상세 미확인" },
-  { label: "고객유형", value: "개인 · 4대보험" },
-  { label: "상담경로", value: "디엘(견적서)" },
-  { label: "담당자", value: "미배정" },
-];
-
 const kimMinjunPurchaseFields = [
   { label: "구매방식", value: "운용리스" },
   { label: "계약기간", value: "60개월" },
@@ -236,22 +225,6 @@ const kimMinjunPurchaseFields = [
   { label: "계약 포커스", value: "#월 납입 최소 #총 비용 최소 #빠른 출고" },
   { label: "고객 특이사항", value: "#카톡 선호 #가족과 상의" },
   { label: "심사 특이사항", value: "#4대보험 확인 #재직 확인 전" },
-];
-
-const kimMinjunCoreConditionFields = [
-  { label: "관심 차종", value: "Maybach S-Class" },
-  { label: "비교 차종", value: "GLC · X3" },
-  { label: "구매방식", value: "운용리스" },
-  { label: "구매시기", value: "좋은 조건 즉시" },
-  { label: "예산 기준", value: "월 납입액 비교 필요" },
-  { label: "확인 필요", value: "GLC 재고 · 보험 포함 · 해지 조건" },
-];
-
-const kimMinjunActionFields = [
-  { label: "다음 액션", value: "GLC 재고 확인 후 X3 조건과 총비용 비교 견적 재발송" },
-  { label: "처리 기한", value: "오늘 16:00 전" },
-  { label: "담당", value: "김지안" },
-  { label: "상태", value: "견적 재정리 필요" },
 ];
 
 const kimMinjunStatusFieldMeta = [
@@ -725,16 +698,6 @@ function kimQuoteAppSendLabel(status: KimQuoteItem["appStatus"], quote?: KimQuot
   if (status === "viewed") return "고객 열람";
   if (status === "sent") return "발송 완료";
   return "발송 전";
-}
-
-function kimQuoteStatusDetail(quote: KimQuoteItem) {
-  if (quote.appStatus === "viewed") {
-    return `${quote.viewedAt ?? "열람 시각 확인 전"} 고객이 견적 열람 완료`;
-  }
-  if (quote.appStatus === "sent") {
-    return `${quote.sentAt ?? "발송 시각 확인 전"} 앱 견적함으로 발송 완료`;
-  }
-  return "";
 }
 
 function kimQuoteStatusDetailParts(quote: KimQuoteItem) {
@@ -1448,9 +1411,7 @@ function KimMinjunDetailContent({
   const previewDocument = documents.find((documentItem) => documentItem.id === previewDocumentId) ?? null;
   const quoteManualFieldConfig = kimQuoteManualFieldConfig(selectedQuotePurchaseMethod);
   const quoteSolutionAvailable = selectedQuotePurchaseMethod === "운용리스" || selectedQuotePurchaseMethod === "장기렌트";
-  const solutionWorkbenchIsRent = solutionWorkbenchPurchaseMethod === "장기렌트";
-  const solutionWorkbenchIsLease = solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "금융리스" || solutionWorkbenchPurchaseMethod === "중고리스";
-  const solutionWorkbenchCanQuery = solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
+  const solutionWorkbenchCanQuery =solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
   const quoteDraftReady = isQuoteDraftSaved && !isQuoteDraftDirty;
   const sortedCustomerMemos = sortKimCustomerMemosByCreatedAt(customerMemos);
   const sortedCheckItems = sortKimCheckItemsByWorkRule(checkItems, completedCheckItems);
@@ -1579,7 +1540,7 @@ function KimMinjunDetailContent({
   }
 
   function markRecentUpdate(section: string) {
-    const updatedAt = Date.now();
+    const updatedAt = nowMs();
     setRecentUpdate({ section, updatedAt });
     setRecentUpdateNow(updatedAt);
   }
@@ -1597,15 +1558,18 @@ function KimMinjunDetailContent({
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- customer prop이 바뀔 때 진행 상태를 외부 값과 동기화하는 의도된 effect
     setStageGroup(customer.statusGroup);
     setStageStatus(customer.status);
   }, [customer.status, customer.statusGroup]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- chanceOverride/customer 변경 시 계약 가능성을 동기화하는 의도된 effect
     setChance(chanceOverride ?? chanceLabel(customer) as CustomerChanceOption);
   }, [chanceOverride, customer]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- manageStatusOverride 변경 시 관리 상태를 동기화하는 의도된 effect
     setManage(manageStatusOverride ?? "정상");
   }, [manageStatusOverride]);
 
@@ -1623,12 +1587,14 @@ function KimMinjunDetailContent({
 
   useEffect(() => {
     if (!quoteSolutionAvailable && (quoteEntryMode === "solution" || quoteEntryMode === "original")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 미지원 구매방식에서 작성 방식을 수기로 되돌리는 의도된 가드 effect
       setQuoteEntryMode("manual");
     }
   }, [quoteEntryMode, quoteSolutionAvailable]);
 
   useEffect(() => {
     if (!solutionWorkbenchCanQuery && solutionWorkbenchEntryMode === "solution") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 솔루션 조회 불가 구매방식에서 작성 방식을 수기로 되돌리는 의도된 가드 effect
       setSolutionWorkbenchEntryMode("manual");
     }
   }, [solutionWorkbenchCanQuery, solutionWorkbenchEntryMode]);
@@ -2743,7 +2709,7 @@ function KimMinjunDetailContent({
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const nextSchedule = {
-      id: `kim-schedule-${Date.now()}`,
+      id: `kim-schedule-${nowMs()}`,
       date: String(formData.get("date") ?? ""),
       time: scheduleTimeFromFormData(formData),
       type: String(formData.get("type") ?? "재연락"),
@@ -3540,39 +3506,6 @@ function KimMinjunDetailContent({
         {openEditor.kind === "purchaseDeliveryMethod" ? renderPurchaseDeliveryMethodEditor() : null}
         {openEditor.kind === "purchaseCustomerNotes" ? renderPurchaseCustomerNotesEditor() : null}
         {openEditor.kind === "purchaseReviewNotes" ? renderPurchaseReviewNotesEditor() : null}
-      </div>
-    );
-  }
-
-  function renderScheduleEditor() {
-    return (
-      <div className="kim-edit-popover schedule" role="dialog" aria-label="일정 추가">
-        <form className="kim-edit-form schedule" onSubmit={saveSchedule}>
-          <div className="kim-edit-grid">
-            <label>
-              <span>날짜</span>
-              <input autoFocus defaultValue="2026-05-26" name="date" type="date" />
-            </label>
-            <label>
-              <span>시간</span>
-              <input defaultValue="16:00" name="time" type="time" />
-            </label>
-            <label>
-              <span>유형</span>
-              <select defaultValue="통화" name="type">
-                {["통화", "할 일", "재연락", "견적", "서류"].map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-            </label>
-          </div>
-          <label>
-            <span>메모</span>
-            <textarea defaultValue="GLC 재고 확인 후 비교 견적 재안내" name="memo" rows={3} />
-          </label>
-          <div className="kim-edit-actions">
-            <button type="button" onClick={() => setOpenEditor(null)}>취소</button>
-            <button className="primary" type="submit">생성</button>
-          </div>
-        </form>
       </div>
     );
   }
