@@ -13,3 +13,6 @@ playwright-report/
 *.log
 supabase/.temp/
 docs/
+
+# 차량 거울 DB import 자산 (대용량 dump + CRM 전용 publishable 키 포함, 공유 금지)
+ref/db_import/
