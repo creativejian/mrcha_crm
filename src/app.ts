@@ -1,5 +1,7 @@
 import { Hono } from "hono";
 
+import { vehicles } from "./routes/vehicles";
+
 export const app = new Hono();
 
 app.get("/api/health", (c) =>
@@ -8,6 +10,8 @@ app.get("/api/health", (c) =>
     service: "mrcha-crm",
   }),
 );
+
+app.route("/api/vehicles", vehicles);
 
 app.notFound((c) =>
   c.json(
