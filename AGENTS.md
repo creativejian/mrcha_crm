@@ -47,6 +47,7 @@ Default handoff behavior:
 
 - Small CSS/type/spacing changes: do not run the full test suite after every change. Batch verification.
 - DOM or TypeScript changes: run `bun run typecheck`.
+- Any change: keep `bun run lint` at 0 problems (the repo is currently lint-clean).
 - Customer management logic changes: run `bun run test:unit client/src/pages/CustomerManagementPage.test.tsx`.
 - Large visual layout changes: run Playwright screenshot once, not after every minor tweak.
 
@@ -55,3 +56,9 @@ Default handoff behavior:
 - Work is centered on 김민준(`CU-2605-0020`) customer detail drawer only.
 - Other customer detail screens and the customer list should stay unchanged unless explicitly requested.
 - The target direction is a customer state dashboard, not a dense task-entry form.
+
+## Toolchain / State
+
+- TypeScript **6.0.3**. `tsconfig` uses `paths` without `baseUrl` (removed; `baseUrl` is deprecated in TS6). Prefer `SyntheticEvent` over deprecated React types like `FormEvent`.
+- Keep the repo lint-clean (`bun run lint` is currently at 0 problems).
+- DB: Supabase project is connected via MCP, but has **0 tables / 0 migrations**. The Drizzle schema (`customers`, `consultations`) is only defined in `src/db/schema.ts`; there is no `drizzle/` folder and the app has no DB connection layer yet. `DATABASE_URL` lives in `.env.local` (the docs still reference `.dev.vars`).
