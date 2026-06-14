@@ -15,13 +15,12 @@ export function VehiclePicker({ onChange }: { onChange?: (selection: VehicleSele
   const [model, setModel] = useState<Model>();
   const [trim, setTrim] = useState<Trim>();
   const [open, setOpen] = useState<Level | null>(null);
-  const [loading, setLoading] = useState<Level | null>(null);
+  // 초기값을 "brand"로 둬서 마운트 effect 안에서 동기 setState(set-state-in-effect)를 피한다.
+  const [loading, setLoading] = useState<Level | null>("brand");
   const [errored, setErrored] = useState<Level | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setLoading("brand");
-    setErrored(null);
     fetchBrands()
       .then((data) => setBrands(data))
       .catch(() => setErrored("brand"))
