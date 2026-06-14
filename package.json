@@ -23,7 +23,8 @@
     "test": "bun run test:server && bun run test:unit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:pull:catalog": "drizzle-kit pull --config=drizzle.config.catalog.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
