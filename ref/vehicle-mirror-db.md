@@ -47,9 +47,14 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 - conflict target: 대부분 `id`, **단 `trim_no_options`는 `trim_id`**.
 - 10K+ 테이블(trim_options/colors/relations)은 Range 페이징, total 일치 확인 후에만 soft-delete 마킹.
 
-## 다음 작업 순서
+## 진행 상황 / 다음 작업
 
-1. DB 연결 레이어 (postgres.js + drizzle client)
-2. catalog 차량 타입 확보 (drizzle introspect, 별도 파일 — drizzle 관리 밖 read-only)
-3. sync 스크립트 (위 PostgREST 규칙)
-4. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate)
+완료:
+1. ✅ DB 연결 레이어 (`src/db/client.ts`, postgres.js + drizzle, PR #9)
+2. ✅ catalog 차량 타입 (`src/db/catalog.ts`, drizzle introspect, drizzle 관리 밖 read-only, PR #9)
+3. ✅ 차량 조회 API (`/api/vehicles` brands/models/trims/trims:id — `src/db/queries/vehicles.ts` + `src/routes/vehicles.ts`, PR #10). `deleted_at IS NULL` 필터, sort_order, 화이트리스트, zod 검증.
+
+다음:
+4. 프론트 연결 — 견적 workbench mock 차량 선택을 `/api/vehicles`로 교체
+5. sync 스크립트 (위 PostgREST 규칙)
+6. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
