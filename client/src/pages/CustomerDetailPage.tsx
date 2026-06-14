@@ -1,6 +1,7 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
+import { VehiclePicker } from "@/components/VehiclePicker";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -4825,9 +4826,7 @@ function KimMinjunDetailContent({
                   <div className="kim-jeff-top-grid">
                     <div className="kim-jeff-section">
                       <h4>🚘 차량 선택</h4>
-                      <button className="kim-jeff-picker-row" type="button"><span>제조사</span><b>벤츠</b><ChevronDown size={15} /></button>
-                      <button className="kim-jeff-picker-row" type="button"><span>모델</span><b>Maybach S-Class</b><ChevronDown size={15} /></button>
-                      <button className="kim-jeff-picker-row" type="button"><span>트림</span><b>S 500 4M Long</b><ChevronDown size={15} /></button>
+                      <VehiclePicker />
                     </div>
                     <div className="kim-jeff-section">
                       <h4>🎨 옵션 / 컬러</h4>
