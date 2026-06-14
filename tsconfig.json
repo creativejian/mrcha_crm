@@ -20,6 +20,7 @@
     "tools",
     "test",
     "drizzle.config.ts",
+    "drizzle.config.catalog.ts",
     "client/vite.config.ts",
     "playwright.config.ts",
     "vitest.config.ts"

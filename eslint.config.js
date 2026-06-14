@@ -6,7 +6,8 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["node_modules/", "client/dist/", "build/", "coverage/", "screenshots/", "test-results/", "playwright-report/", ".wrangler/"],
+    // src/db/catalog.ts 는 catalog(차량 거울) introspect 자동생성물 — 수동 수정 금지, `bun run db:pull:catalog`로 재생성하므로 lint 제외.
+    ignores: ["node_modules/", "client/dist/", "build/", "coverage/", "screenshots/", "test-results/", "playwright-report/", ".wrangler/", "src/db/catalog.ts"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
