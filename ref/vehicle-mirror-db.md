@@ -54,7 +54,11 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 2. ✅ catalog 차량 타입 (`src/db/catalog.ts`, drizzle introspect, drizzle 관리 밖 read-only, PR #9)
 3. ✅ 차량 조회 API (`/api/vehicles` brands/models/trims/trims:id — `src/db/queries/vehicles.ts` + `src/routes/vehicles.ts`, PR #10). `deleted_at IS NULL` 필터, sort_order, 화이트리스트, zod 검증.
 
+4. ✅ 프론트 연결 — `VehiclePicker`(브랜드→모델→트림 드롭다운, `client/src/lib/vehicles.ts` 순수 fetch)를 김민준 견적 workbench(Jeff body)에 연결, PR #11. 실데이터 선택 동작 확인.
+
 다음:
-4. 프론트 연결 — 견적 workbench mock 차량 선택을 `/api/vehicles`로 교체
-5. sync 스크립트 (위 PostgREST 규칙)
-6. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
+5. VehiclePicker 선택값 → 가격/옵션/색상 자동 반영 (견적 가격 계산)
+6. sync 스크립트 (위 PostgREST 규칙)
+7. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
+
+참고: 로컬 실행은 `bun run dev`로 API(8788)+client(5173) 둘 다 띄워야 `/api/vehicles`가 동작한다. (PORT 빈값 함정은 `src/local-dev.ts`에서 `Number(process.env.PORT) || 8788`로 견고화됨, PR #12)
