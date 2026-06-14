@@ -14977,3 +14977,53 @@ th input:focus-visible {
   background: #dc2626;
   color: #fff;
 }
+
+/* VehiclePicker (차량 선택 드롭다운) */
+.kim-vehicle-picker {
+  display: flex;
+  flex-direction: column;
+}
+.kim-vehicle-picker-anchor {
+  position: relative;
+}
+.kim-vehicle-picker-anchor:last-child .kim-jeff-picker-row::after {
+  display: none;
+}
+.kim-jeff-picker-row:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.kim-vehicle-picker-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e4e4e2;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 4px;
+}
+.kim-vehicle-picker-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kim-vehicle-picker-option:hover {
+  background: #f4f1ff;
+}
+.kim-vehicle-picker-msg {
+  display: block;
+  padding: 10px;
+  font-size: 12px;
+  color: #7f858c;
+}
