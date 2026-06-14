@@ -422,7 +422,7 @@ export function CustomerManagementPage({
         (!chanceFilter || chance === chanceFilter) &&
         (!finalUpdateFilter || updateStatus === finalUpdateFilter);
     });
-  }, [advisor, chanceFilter, chanceOverrides, customers, finalUpdateFilter, finalUpdateOverrides, mode, search, status, statusGroup]);
+  }, [advisor, chanceFilter, chanceOverrides, customers, finalUpdateFilter, finalUpdateOverrides, manageStatusOverrides, mode, search, status, statusGroup]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const effectivePage = Math.min(currentPage, totalPages);
@@ -680,6 +680,7 @@ export function CustomerManagementPage({
     const cursorPosition = textarea.value.length;
     textarea.focus();
     textarea.setSelectionRange(cursorPosition, cursorPosition);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- customerNo가 바뀔 때만 textarea 포커스를 옮기는 의도된 effect
   }, [editingNextAction?.customerNo]);
 
   useEffect(() => {
@@ -695,6 +696,7 @@ export function CustomerManagementPage({
     return () => {
       document.removeEventListener("pointerdown", saveNextActionFromOutsideClick, true);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- editingNextAction이 켜질 때만 외부 클릭 저장 리스너를 등록; saveNextAction(일반 함수)은 의도적으로 deps에서 제외
   }, [editingNextAction]);
 
   useEffect(() => {

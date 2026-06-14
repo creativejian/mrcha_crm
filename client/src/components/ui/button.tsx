@@ -55,4 +55,5 @@ function Button({
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- shadcn 컴포넌트는 variants(cva)를 함께 export한다 (HMR 전용 경고, 빌드/런타임 무관)
 export { Button, buttonVariants }

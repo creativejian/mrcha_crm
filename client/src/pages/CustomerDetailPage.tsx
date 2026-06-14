@@ -1,5 +1,5 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
-import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type FormEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 
 type CustomerDetailPageProps = {
@@ -1133,7 +1133,7 @@ function KimJobStatusEditor({
 }: {
   initialValue: string;
   onCancel: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
   const initialJob = parseKimJobValue(initialValue);
   const [customerType, setCustomerType] = useState<KimCustomerType>(initialJob.type);
@@ -1179,7 +1179,7 @@ function KimLocationStatusEditor({
 }: {
   initialValue: string;
   onCancel: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
   const initialLocation = parseKimLocationValue(initialValue);
   const [province, setProvince] = useState(initialLocation.province);
@@ -1220,7 +1220,7 @@ function KimSourceStatusEditor({
 }: {
   initialValue: string;
   onCancel: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
   const initialSource = parseKimSourceValue(initialValue);
   const [selectedSource, setSelectedSource] = useState(initialSource.selected);
@@ -1264,7 +1264,7 @@ function KimAdvisorStatusEditor({
 }: {
   initialValue: string;
   onCancel: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
   const initialAdvisor = parseKimAdvisorValue(initialValue);
   const [team, setTeam] = useState<KimAdvisorTeam>(initialAdvisor.team);
@@ -1435,7 +1435,7 @@ function KimMinjunDetailContent({
     target.setSelectionRange(0, 0);
   }
 
-  function handleJeffMoneyInputBeforeInput(event: FormEvent<HTMLDivElement>) {
+  function handleJeffMoneyInputBeforeInput(event: SyntheticEvent<HTMLDivElement>) {
     const target = jeffMoneyInputFromTarget(event.target);
     if (!target || target.dataset.replaceOnInput !== "true") return;
     const nativeEvent = event.nativeEvent as InputEvent;
@@ -1978,7 +1978,7 @@ function KimMinjunDetailContent({
     openStatusEditor({ kind: "status", key: "source" });
   }
 
-  function saveStatusField(event: FormEvent<HTMLFormElement>, key: KimStatusFieldKey) {
+  function saveStatusField(event: SyntheticEvent<HTMLFormElement>, key: KimStatusFieldKey) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const value = String(formData.get("value") ?? "").trim();
@@ -1989,7 +1989,7 @@ function KimMinjunDetailContent({
     onToast(`${fieldLabel(key)} 수정 완료`);
   }
 
-  function saveJobField(event: FormEvent<HTMLFormElement>) {
+  function saveJobField(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const customerType = String(formData.get("customerType") ?? "개인") as KimCustomerType;
@@ -2001,7 +2001,7 @@ function KimMinjunDetailContent({
     onToast("직군 수정 완료");
   }
 
-  function saveLocationField(event: FormEvent<HTMLFormElement>) {
+  function saveLocationField(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const province = String(formData.get("province") ?? "확인 필요");
@@ -2012,7 +2012,7 @@ function KimMinjunDetailContent({
     onToast("거주지 수정 완료");
   }
 
-  function saveSourceField(event: FormEvent<HTMLFormElement>) {
+  function saveSourceField(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const source = String(formData.get("source") ?? "").trim();
@@ -2025,7 +2025,7 @@ function KimMinjunDetailContent({
     onToast("상담경로 수정 완료");
   }
 
-  function saveAdvisorField(event: FormEvent<HTMLFormElement>) {
+  function saveAdvisorField(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const team = String(formData.get("team") ?? "인천본사") as KimAdvisorTeam;
@@ -2054,7 +2054,7 @@ function KimMinjunDetailContent({
     onToast("진행 상태 수정 완료");
   }
 
-  function saveNeeds(event: FormEvent<HTMLFormElement>) {
+  function saveNeeds(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     setNeeds({
@@ -2069,7 +2069,7 @@ function KimMinjunDetailContent({
     onToast("고객 니즈 수정 완료");
   }
 
-  function savePurchaseConditions(event: FormEvent<HTMLFormElement>) {
+  function savePurchaseConditions(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     setPurchaseFields((current) => current.map((field) => {
@@ -2280,7 +2280,7 @@ function KimMinjunDetailContent({
     onToast("인도 방식 수정 완료");
   }
 
-  function saveQuote(event: FormEvent<HTMLFormElement>) {
+  function saveQuote(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get("title") ?? "").trim();
@@ -2705,7 +2705,7 @@ function KimMinjunDetailContent({
     onToast(hasPdfOriginal ? "PDF 원본 병합은 다음 단계에서 서버 병합으로 연결합니다. 우선 서류 목록 PDF를 내려받았습니다." : "서류 목록 PDF를 내려받았습니다.");
   }
 
-  function saveSchedule(event: FormEvent<HTMLFormElement>) {
+  function saveSchedule(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const nextSchedule = {
@@ -2727,7 +2727,7 @@ function KimMinjunDetailContent({
     onToast("예정 일정이 생성되었습니다.");
   }
 
-  function updateSchedule(event: FormEvent<HTMLFormElement>, id: string) {
+  function updateSchedule(event: SyntheticEvent<HTMLFormElement>, id: string) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const date = String(formData.get("date") ?? "");
@@ -2756,7 +2756,7 @@ function KimMinjunDetailContent({
     onToast("예정 일정을 삭제했습니다.");
   }
 
-  function saveCheckItem(event: FormEvent<HTMLFormElement>) {
+  function saveCheckItem(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const body = String(formData.get("body") ?? "").trim();
@@ -2781,7 +2781,7 @@ function KimMinjunDetailContent({
     onToast("해야 할 일이 추가되었습니다.");
   }
 
-  function updateCheckItem(event: FormEvent<HTMLFormElement>, id: string, currentDue: string) {
+  function updateCheckItem(event: SyntheticEvent<HTMLFormElement>, id: string, currentDue: string) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const body = String(formData.get("body") ?? "").trim();
@@ -2803,7 +2803,7 @@ function KimMinjunDetailContent({
     onToast("해야 할 일을 수정했습니다.");
   }
 
-  function saveCustomerMemo(event: FormEvent<HTMLFormElement>) {
+  function saveCustomerMemo(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const body = String(formData.get("body") ?? "").trim();
@@ -2820,7 +2820,7 @@ function KimMinjunDetailContent({
     onToast("고객 메모가 추가되었습니다.");
   }
 
-  function updateCustomerMemo(event: FormEvent<HTMLFormElement>, id: string) {
+  function updateCustomerMemo(event: SyntheticEvent<HTMLFormElement>, id: string) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const body = String(formData.get("body") ?? "").trim();

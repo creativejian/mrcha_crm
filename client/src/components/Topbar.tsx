@@ -286,6 +286,7 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- settingsOpen 동안만 외부 클릭/Esc 리스너를 등록하는 effect; closeSettingsMenu(일반 함수)는 의도적으로 deps에서 제외
   }, [settingsOpen, settingsClosing, confirmMode]);
 
   useEffect(() => {
@@ -325,6 +326,7 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- workAiOpen 동안만 외부 클릭/Esc 리스너를 등록하는 effect; closeWorkAi(일반 함수)는 의도적으로 deps에서 제외
   }, [workAiOpen, workAiClosing]);
 
   useEffect(() => {
