@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchBrands, fetchModels, fetchTrims } from "./vehicles";
+import { fetchBrands, fetchModels, fetchTrims, fetchTrimDetail } from "./vehicles";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -25,6 +25,26 @@ describe("vehicles api", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
     await fetchTrims(7);
     expect(fetch).toHaveBeenCalledWith("/api/vehicles/trims?modelId=7");
+  });
+
+  it("fetchTrimDetail GETs /api/vehicles/trims/:id", async () => {
+    const detail = {
+      id: 100,
+      modelId: 10,
+      name: "S 500",
+      price: 50000000,
+      financialDiscountAmount: 1000000,
+      partnerDiscountAmount: null,
+      cashDiscountAmount: null,
+      options: [],
+      optionRelations: [],
+      colors: [],
+      noOptions: null,
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(detail), { status: 200 })));
+    const result = await fetchTrimDetail(100);
+    expect(fetch).toHaveBeenCalledWith("/api/vehicles/trims/100");
+    expect(result).toEqual(detail);
   });
 
   it("throws on non-ok response", async () => {

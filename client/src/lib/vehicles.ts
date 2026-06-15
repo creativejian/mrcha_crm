@@ -37,6 +37,27 @@ export type Trim = {
   sortOrder: number | null;
 };
 
+export type TrimOption = { id: number; type: "basic" | "tuning"; name: string; price: number | null };
+export type TrimOptionRelation = { id: number; optionId: number; relatedOptionId: number; type: "includes" | "excludes" };
+export type TrimColor = {
+  id: number;
+  colorType: "exterior" | "interior";
+  name: string;
+  code: string | null;
+  hexValue: string | null;
+  sortOrder: number;
+};
+export type TrimDetail = Trim & {
+  specs: unknown;
+  financialDiscountAmount: number | null;
+  partnerDiscountAmount: number | null;
+  cashDiscountAmount: number | null;
+  options: TrimOption[];
+  optionRelations: TrimOptionRelation[];
+  colors: TrimColor[];
+  noOptions: { note: string | null; checkedAt: string } | null;
+};
+
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) {
@@ -55,4 +76,8 @@ export function fetchModels(brandId: number): Promise<Model[]> {
 
 export function fetchTrims(modelId: number): Promise<Trim[]> {
   return getJson<Trim[]>(`/api/vehicles/trims?modelId=${modelId}`);
+}
+
+export function fetchTrimDetail(trimId: number): Promise<TrimDetail> {
+  return getJson<TrimDetail>(`/api/vehicles/trims/${trimId}`);
 }
