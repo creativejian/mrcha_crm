@@ -219,6 +219,17 @@ function timelineRows(customer: Customer) {
   ];
 }
 
+const kimMaybachQuotePricingMock: PricingInputs = {
+  basePrice: 243000000,
+  optionPrice: 0,
+  discount: 6500000,
+  acquisitionTax: 13531000,
+  bond: 0,
+  delivery: 0,
+  incidental: 0,
+};
+const kimMaybachQuotePricingResult = computePricing(kimMaybachQuotePricingMock);
+
 const kimMinjunPurchaseFields = [
   { label: "구매방식", value: "운용리스" },
   { label: "계약기간", value: "60개월" },
@@ -1375,12 +1386,7 @@ function KimMinjunDetailContent({
   const [quoteDropTargetId, setQuoteDropTargetId] = useState<string | null>(null);
   const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
   const [previewSentQuoteId, setPreviewSentQuoteId] = useState<string | null>(null);
-  const [pricing, setPricing] = useState<PricingResult>({
-    finalVehiclePrice: 236500000,
-    registrationCost: 13531000,
-    otherCost: 0,
-    acquisitionCost: 250031000,
-  });
+  const [pricing, setPricing] = useState<PricingResult>(kimMaybachQuotePricingResult);
   const pricingPanelRef = useRef<HTMLElement>(null);
   const [trimDetail, setTrimDetail] = useState<TrimDetail | null>(null);
   const [documents, setDocuments] = useState<KimDocumentItem[]>(kimMinjunDocumentVault);
@@ -4902,24 +4908,24 @@ function KimMinjunDetailContent({
                       <div className="kim-jeff-form-row">
                         <span>할인 금액</span>
                         <div className="kim-jeff-segment"><button className="active" type="button">금액</button><button type="button">%</button></div>
-                        <div className="kim-jeff-money-input"><input defaultValue="6,500,000" /><em>원</em></div>
+                        <div className="kim-jeff-money-input"><input defaultValue={formatMoney(kimMaybachQuotePricingMock.discount)} /><em>원</em></div>
                       </div>
                     </div>
                   </div>
 
                   <div className="kim-jeff-price-grid">
-                    <div className="kim-jeff-price-cell"><strong>기본 가격</strong><div className="kim-jeff-money-input"><input data-pricing="base" defaultValue="243,000,000" /><em>원</em></div></div>
-                    <div className="kim-jeff-price-cell"><strong>(+) 옵션 금액</strong><div className="kim-jeff-money-input"><input data-pricing="option" defaultValue="0" /><em>원</em></div></div>
-                    <div className="kim-jeff-price-cell"><strong>(-) 최종 할인</strong><div className="kim-jeff-money-input"><input data-pricing="discount" defaultValue="6,500,000" /><em>원</em></div></div>
+                    <div className="kim-jeff-price-cell"><strong>기본 가격</strong><div className="kim-jeff-money-input"><input data-pricing="base" defaultValue={formatMoney(kimMaybachQuotePricingMock.basePrice)} /><em>원</em></div></div>
+                    <div className="kim-jeff-price-cell"><strong>(+) 옵션 금액</strong><div className="kim-jeff-money-input"><input data-pricing="option" defaultValue={formatMoney(kimMaybachQuotePricingMock.optionPrice)} /><em>원</em></div></div>
+                    <div className="kim-jeff-price-cell"><strong>(-) 최종 할인</strong><div className="kim-jeff-money-input"><input data-pricing="discount" defaultValue={formatMoney(kimMaybachQuotePricingMock.discount)} /><em>원</em></div></div>
                   </div>
 
                   <div className="kim-jeff-cost-grid">
                     <div className="kim-jeff-section kim-jeff-cost-section">
                       <h4>⚙️ 취득원가 설정</h4>
-                      <div className="kim-jeff-form-row"><span>취득세</span><div className="kim-jeff-segment"><button className="active" type="button">일반</button><button type="button">하이브리드 감면</button><button type="button">전기차 감면</button></div><div className="kim-jeff-money-input"><input data-pricing="acquisitionTax" defaultValue="13,531,000" /><em>원</em></div></div>
-                      <div className="kim-jeff-form-row"><span>공채</span><div className="kim-jeff-segment"><button className="active" type="button">포함</button><button type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="bond" defaultValue="0" /><em>원</em></div></div>
-                      <div className="kim-jeff-form-row"><span>탁송료</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="delivery" defaultValue="0" /><em>원</em></div></div>
-                      <div className="kim-jeff-form-row"><span>부대비용</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="incidental" defaultValue="0" /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>취득세</span><div className="kim-jeff-segment"><button className="active" type="button">일반</button><button type="button">하이브리드 감면</button><button type="button">전기차 감면</button></div><div className="kim-jeff-money-input"><input data-pricing="acquisitionTax" defaultValue={formatMoney(kimMaybachQuotePricingMock.acquisitionTax)} /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>공채</span><div className="kim-jeff-segment"><button className="active" type="button">포함</button><button type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="bond" defaultValue={formatMoney(kimMaybachQuotePricingMock.bond)} /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>탁송료</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="delivery" defaultValue={formatMoney(kimMaybachQuotePricingMock.delivery)} /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>부대비용</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="incidental" defaultValue={formatMoney(kimMaybachQuotePricingMock.incidental)} /><em>원</em></div></div>
                     </div>
                     <div className="kim-jeff-section kim-jeff-summary-section">
                       <h4>📋 최종 가격</h4>
@@ -5006,7 +5012,7 @@ function KimMinjunDetailContent({
                           <div>
                             <span>벤츠</span>
                             <strong>Maybach S-Class<br />S 500 4M Long</strong>
-                            <p>2026년식 ㅣ 243,000,000원 ㅣ 기본 제공 옵션</p>
+                            <p>2026년식 ㅣ {formatMoney(kimMaybachQuotePricingMock.basePrice)}원 ㅣ 기본 제공 옵션</p>
                           </div>
                           <div>
                             <b>운용리스</b>
@@ -5023,7 +5029,7 @@ function KimMinjunDetailContent({
 
                         <div className="kim-app-discount-box">
                           <span>최대 할인 적용</span>
-                          <strong>-6,500,000원</strong>
+                          <strong>-{formatMoney(kimMaybachQuotePricingMock.discount)}원</strong>
                         </div>
 
                         <div className="kim-app-mini-grid">
@@ -5045,9 +5051,9 @@ function KimMinjunDetailContent({
                         <div className="kim-app-detail-block">
                           <header>📌 취득원가 구성</header>
                           <dl>
-                            <dt>최종 차량가</dt><dd className="green">236,500,000원</dd>
-                            <dt>등록비용 합계</dt><dd className="green">13,531,000원</dd>
-                            <dt>취득원가</dt><dd className="blue">250,031,000원</dd>
+                            <dt>최종 차량가</dt><dd className="green">{formatMoney(kimMaybachQuotePricingResult.finalVehiclePrice)}원</dd>
+                            <dt>등록비용 합계</dt><dd className="green">{formatMoney(kimMaybachQuotePricingResult.registrationCost)}원</dd>
+                            <dt>취득원가</dt><dd className="blue">{formatMoney(kimMaybachQuotePricingResult.acquisitionCost)}원</dd>
                           </dl>
                         </div>
 
@@ -5098,7 +5104,7 @@ function KimMinjunDetailContent({
                             <div>
                               <span>벤츠</span>
                               <strong>Maybach S-Class<br />S 500 4M Long</strong>
-                              <p>2026년식 ㅣ 243,000,000원 ㅣ 기본 제공 옵션</p>
+                              <p>2026년식 ㅣ {formatMoney(kimMaybachQuotePricingMock.basePrice)}원 ㅣ 기본 제공 옵션</p>
                             </div>
                             <div>
                               <b>운용리스</b>
@@ -5115,7 +5121,7 @@ function KimMinjunDetailContent({
 
                           <div className="kim-app-discount-box">
                             <span>최대 할인 적용</span>
-                            <strong>-6,500,000원</strong>
+                            <strong>-{formatMoney(kimMaybachQuotePricingMock.discount)}원</strong>
                           </div>
 
                           <div className="kim-app-mini-grid">
@@ -5137,9 +5143,9 @@ function KimMinjunDetailContent({
                           <div className="kim-app-detail-block">
                             <header>📌 취득원가 구성</header>
                             <dl>
-                              <dt>최종 차량가</dt><dd className="green">236,500,000원</dd>
-                              <dt>등록비용 합계</dt><dd className="green">13,531,000원</dd>
-                              <dt>취득원가</dt><dd className="blue">250,031,000원</dd>
+                              <dt>최종 차량가</dt><dd className="green">{formatMoney(kimMaybachQuotePricingResult.finalVehiclePrice)}원</dd>
+                              <dt>등록비용 합계</dt><dd className="green">{formatMoney(kimMaybachQuotePricingResult.registrationCost)}원</dd>
+                              <dt>취득원가</dt><dd className="blue">{formatMoney(kimMaybachQuotePricingResult.acquisitionCost)}원</dd>
                             </dl>
                           </div>
 
