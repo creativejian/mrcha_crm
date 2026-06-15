@@ -25,6 +25,8 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 - 코드생성 트리거 12 + 함수 12 DROP(거울은 master 코드값을 보존).
 - import 후 `public`에 들어간 차량 테이블을 `ALTER ... SET SCHEMA catalog`로 통째 이동(데이터 오염 0).
 - 행수: brands 33 / models 265 / trims 1,669 / trim_options 10,495 / trim_option_relations 6,236 / trim_no_options 57 / colors 10,483.
+- **`trim_options.type` 의미** (2026-06-15 실데이터 확인): `basic`(제조사 정규 옵션 — 6,737개 중 99.6%가 **유료**, 선루프·패키지·외장컬러 등) / `tuning`(애프터마켓, 3,758개, 더 저렴). **둘 다 유료 선택·합산 대상** — "basic=무료 기본사양"은 오해이니 주의.
+- **`trim_option_relations.type` 의미**: `excludes`(중복 선택 불가, 5,862개 — 외장컬러·패키지군 등 배타. 견적 UI는 미스터차 앱처럼 비활성화+색그룹으로 처리) / `includes`(A 선택 시 B 자동 포함, 374개, 한 단계). 견적 옵션 UX 상세: `ref/specs/2026-06-15-quote-option-selection-design.md`, `…-quote-option-exclude-ux-design.md`.
 
 ## ⚠️ RLS 주의 (핸드오프 불일치 — 파트너 통보 필요)
 
@@ -56,9 +58,11 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 
 4. ✅ 프론트 연결 — `VehiclePicker`(브랜드→모델→트림 드롭다운, `client/src/lib/vehicles.ts` 순수 fetch)를 김민준 견적 workbench(Jeff body)에 연결, PR #11. 실데이터 선택 동작 확인.
 
+5. ✅ 가격/옵션 반영 — 가격 패널(PR #13), 옵션 선택+합산(PR #14), excludes 비활성화 UX(PR #15), 가격 mock 상수화(PR #16). 김민준 workbench 한정.
+
 다음:
-5. VehiclePicker 선택값 → 가격/옵션/색상 자동 반영 (견적 가격 계산)
-6. sync 스크립트 (위 PostgREST 규칙)
-7. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
+6. 색상(외장/내장) 선택 — `colors`(10,483행, exterior/interior + hex) 선택 UI. 이후 구매방식별 할인 매핑(financial/partner/cash) + 취득세 공식.
+7. sync 스크립트 (위 PostgREST 규칙)
+8. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
 
 참고: 로컬 실행은 `bun run dev`로 API(8788)+client(5173) 둘 다 띄워야 `/api/vehicles`가 동작한다. (PORT 빈값 함정은 `src/local-dev.ts`에서 `Number(process.env.PORT) || 8788`로 견고화됨, PR #12)
