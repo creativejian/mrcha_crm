@@ -34,7 +34,7 @@ describe("OptionPicker", () => {
     render(
       <OptionPicker
         options={options}
-        relations={[{ optionId: 2, relatedOptionId: 3, type: "excludes" }]}
+        relations={[{ id: 1, optionId: 2, relatedOptionId: 3, type: "excludes" }]}
         onChange={onChange}
       />,
     );

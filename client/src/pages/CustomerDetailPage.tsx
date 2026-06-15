@@ -1,9 +1,10 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
+import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
-import { fetchTrimDetail } from "@/lib/vehicles";
+import { fetchTrimDetail, type TrimDetail } from "@/lib/vehicles";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -1381,6 +1382,7 @@ function KimMinjunDetailContent({
     acquisitionCost: 250031000,
   });
   const pricingPanelRef = useRef<HTMLElement>(null);
+  const [trimDetail, setTrimDetail] = useState<TrimDetail | null>(null);
   const [documents, setDocuments] = useState<KimDocumentItem[]>(kimMinjunDocumentVault);
   const [isDocumentDragActive, setIsDocumentDragActive] = useState(false);
   const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
@@ -1529,6 +1531,7 @@ function KimMinjunDetailContent({
     if (!trim) return;
     try {
       const detail = await fetchTrimDetail(trim.id);
+      setTrimDetail(detail);
       const root = pricingPanelRef.current;
       if (!root) return;
       const setInput = (key: string, value: number) => {
@@ -1543,6 +1546,15 @@ function KimMinjunDetailContent({
     } catch (error) {
       console.warn("트림 상세 로드 실패", error);
     }
+  }
+
+  function applyOptionTotal(next: { selectedIds: number[]; total: number }) {
+    const root = pricingPanelRef.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLInputElement>('input[data-pricing="option"]');
+    if (el) el.value = formatMoney(next.total);
+    recomputePricing();
+    markQuoteDraftChanged();
   }
 
   function quoteDraftSaveButtonLabel() {
@@ -4881,7 +4893,7 @@ function KimMinjunDetailContent({
                     </div>
                     <div className="kim-jeff-section">
                       <h4>🎨 옵션 / 컬러</h4>
-                      <button className="kim-jeff-picker-row" type="button"><span>옵션</span><b>기본 제공 옵션</b><ChevronDown size={15} /></button>
+                      <OptionPicker key={trimDetail?.id ?? "none"} options={trimDetail?.options ?? []} relations={trimDetail?.optionRelations ?? []} onChange={applyOptionTotal} />
                       <button className="kim-jeff-picker-row" type="button"><span>외장</span><b className="muted">미선택</b><ChevronDown size={15} /></button>
                       <button className="kim-jeff-picker-row" type="button"><span>내장</span><b className="muted">미선택</b><ChevronDown size={15} /></button>
                     </div>

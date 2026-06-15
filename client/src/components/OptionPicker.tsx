@@ -16,11 +16,7 @@ export function OptionPicker({ options, relations, onChange }: OptionPickerProps
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // 트림(options 레퍼런스)이 바뀌면 선택 초기화
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [options]);
-
+  // 트림이 바뀌면 부모가 key로 재마운트 → 선택은 자연히 초기화(effect 내 setState 회피).
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: PointerEvent) {

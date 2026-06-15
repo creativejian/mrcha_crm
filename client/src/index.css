@@ -15027,3 +15027,69 @@ th input:focus-visible {
   font-size: 12px;
   color: #7f858c;
 }
+.kim-option-picker {
+  position: relative;
+}
+.kim-option-picker-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e4e4e2;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+}
+.kim-option-picker-group + .kim-option-picker-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f0f0ee;
+}
+.kim-option-picker-label {
+  display: block;
+  padding: 2px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9298a0;
+}
+.kim-option-picker-basic {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: #7f858c;
+}
+.kim-option-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kim-option-picker-option:hover {
+  background: #f4f1ff;
+}
+.kim-option-picker-option.is-selected {
+  background: #ece8ff;
+  font-weight: 600;
+}
+.kim-option-picker-option em {
+  font-style: normal;
+  font-size: 12px;
+  color: #5f6872;
+}
+.kim-option-picker-msg {
+  display: block;
+  padding: 10px;
+  font-size: 12px;
+  color: #7f858c;
+}
