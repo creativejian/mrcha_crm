@@ -31,6 +31,10 @@ type KimAdvisorTeam = "인천본사" | "상담팀" | "견적팀" | "계약팀" |
 type KimInitialCostKind = "무보증" | "보증금" | "선수금";
 type KimInitialCostSelection = KimInitialCostKind | "";
 type KimInitialCostUnit = "%" | "금액";
+type KimDiscountUnit = "amount" | "percent";
+type KimDiscountLine = { id: string; label: string; amount: string; unit: KimDiscountUnit };
+const kimDiscountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
+type KimAcquisitionTaxMode = "normal" | "hybrid" | "electric" | "manual";
 type KimPurchaseFloatingKind = "purchaseMethod" | "purchaseTiming" | "purchaseCostFocus" | "purchaseTerm" | "purchaseInitialCost" | "purchaseAnnualMileage" | "purchaseDeliveryMethod" | "purchaseCustomerNotes" | "purchaseReviewNotes";
 type KimPurchasePopoverFrame = { align?: "left" | "right"; top: number; left: number };
 type KimQuoteActionFrame = { top: number; left: number };
@@ -229,6 +233,51 @@ const kimMaybachQuotePricingMock: PricingInputs = {
   incidental: 0,
 };
 const kimMaybachQuotePricingResult = computePricing(kimMaybachQuotePricingMock);
+
+const kimManualQuoteConditionCards = [
+  {
+    id: "manual-condition-1",
+    title: "견적 작성",
+    round: "1",
+    copyLabel: "",
+    lender: "우리금융캐피탈",
+    monthlyPayment: "2,398,000",
+    totalReturn: "167,652,170",
+    totalTakeover: "239,505,410",
+    dueAtDelivery: "72,900,000",
+    interestRate: "5.32",
+    depositValue: "30",
+    residualValue: "71,853,240",
+  },
+  {
+    id: "manual-condition-2",
+    title: "견적 작성",
+    round: "2",
+    copyLabel: "1번 복사",
+    lender: "iM캐피탈",
+    monthlyPayment: "2,473,200",
+    totalReturn: "171,354,000",
+    totalTakeover: "243,207,240",
+    dueAtDelivery: "72,900,000",
+    interestRate: "5.18",
+    depositValue: "30",
+    residualValue: "71,853,240",
+  },
+  {
+    id: "manual-condition-3",
+    title: "견적 작성",
+    round: "3",
+    copyLabel: "2번 복사",
+    lender: "하나캐피탈",
+    monthlyPayment: "2,512,000",
+    totalReturn: "173,682,000",
+    totalTakeover: "245,535,240",
+    dueAtDelivery: "72,900,000",
+    interestRate: "5.41",
+    depositValue: "30",
+    residualValue: "71,853,240",
+  },
+] as const;
 
 const kimMinjunPurchaseFields = [
   { label: "구매방식", value: "운용리스" },
@@ -1367,6 +1416,7 @@ function KimMinjunDetailContent({
   const [isQuoteAppCardPreviewOpen, setIsQuoteAppCardPreviewOpen] = useState(false);
   const [isQuoteDraftSaved, setIsQuoteDraftSaved] = useState(false);
   const [isQuoteDraftDirty, setIsQuoteDraftDirty] = useState(false);
+  const [savedManualQuoteConditionIds, setSavedManualQuoteConditionIds] = useState<string[]>([]);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [selectedQuotePurchaseMethod, setSelectedQuotePurchaseMethod] = useState<KimQuotePurchaseMethod>("운용리스");
   const [quoteEntryMode, setQuoteEntryMode] = useState<KimQuoteEntryMode>("solution");
@@ -1388,6 +1438,9 @@ function KimMinjunDetailContent({
   const [previewSentQuoteId, setPreviewSentQuoteId] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PricingResult>(kimMaybachQuotePricingResult);
   const pricingPanelRef = useRef<HTMLElement>(null);
+  const [primaryDiscountUnit, setPrimaryDiscountUnit] = useState<KimDiscountUnit>("amount");
+  const [discountLines, setDiscountLines] = useState<KimDiscountLine[]>([]);
+  const [acquisitionTaxMode, setAcquisitionTaxMode] = useState<KimAcquisitionTaxMode>("normal");
   const [trimDetail, setTrimDetail] = useState<TrimDetail | null>(null);
   const [documents, setDocuments] = useState<KimDocumentItem[]>(kimMinjunDocumentVault);
   const [isDocumentDragActive, setIsDocumentDragActive] = useState(false);
@@ -1437,6 +1490,7 @@ function KimMinjunDetailContent({
 
   function jeffMoneyInputFromTarget(target: EventTarget | null) {
     if (!(target instanceof HTMLInputElement) || !target.closest(".kim-jeff-money-input")) return null;
+    if (target.readOnly) return null;
     return target;
   }
 
@@ -1445,12 +1499,35 @@ function KimMinjunDetailContent({
     input.classList.remove("is-replace-preview");
   }
 
+  function formatJeffMoneyInput(input: HTMLInputElement) {
+    if (input.dataset.discountUnit === "percent") return;
+    const value = parseMoney(input.value);
+    input.value = value ? formatMoney(value) : "0";
+  }
+
+  function parsePercent(value: string) {
+    const normalized = value.replace(/[^\d.]/g, "");
+    const [head = "", ...rest] = normalized.split(".");
+    const n = Number(rest.length ? `${head}.${rest.join("")}` : head);
+    return Number.isFinite(n) ? n : 0;
+  }
+
   function handleJeffMoneyInputFocus(event: ReactFocusEvent<HTMLDivElement>) {
     const target = jeffMoneyInputFromTarget(event.target);
     if (!target) return;
     target.dataset.replaceOnInput = "true";
     target.classList.add("is-replace-preview");
-    target.setSelectionRange(0, 0);
+    target.setSelectionRange(target.value.length, target.value.length);
+  }
+
+  function handleJeffMoneyInputMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || !target.closest(".kim-jeff-money-input")) return;
+    event.preventDefault();
+    target.focus();
+    target.dataset.replaceOnInput = "true";
+    target.classList.add("is-replace-preview");
+    target.setSelectionRange(target.value.length, target.value.length);
   }
 
   function handleJeffMoneyInputBeforeInput(event: SyntheticEvent<HTMLDivElement>) {
@@ -1460,6 +1537,7 @@ function KimMinjunDetailContent({
     if (nativeEvent.inputType !== "insertText" || !nativeEvent.data) return;
     event.preventDefault();
     target.value = nativeEvent.data;
+    formatJeffMoneyInput(target);
     clearJeffMoneyInputPreview(target);
     markQuoteDraftChanged();
     target.setSelectionRange(target.value.length, target.value.length);
@@ -1469,6 +1547,7 @@ function KimMinjunDetailContent({
     const target = jeffMoneyInputFromTarget(event.target);
     if (!target) return;
     clearJeffMoneyInputPreview(target);
+    formatJeffMoneyInput(target);
     markQuoteDraftChanged();
     recomputePricing();
   }
@@ -1477,6 +1556,9 @@ function KimMinjunDetailContent({
     const target = jeffMoneyInputFromTarget(event.target);
     if (!target) return;
     clearJeffMoneyInputPreview(target);
+    if (target.dataset.discountUnit !== "percent") {
+      window.requestAnimationFrame(() => formatJeffMoneyInput(target));
+    }
   }
 
   function handleJeffMoneyInputPaste(event: ReactClipboardEvent<HTMLDivElement>) {
@@ -1484,6 +1566,7 @@ function KimMinjunDetailContent({
     if (!target || target.dataset.replaceOnInput !== "true") return;
     event.preventDefault();
     target.value = event.clipboardData.getData("text");
+    formatJeffMoneyInput(target);
     clearJeffMoneyInputPreview(target);
     markQuoteDraftChanged();
     target.setSelectionRange(target.value.length, target.value.length);
@@ -1492,18 +1575,41 @@ function KimMinjunDetailContent({
   function handleJeffMoneyInputKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const target = jeffMoneyInputFromTarget(event.target);
     if (!target || target.dataset.replaceOnInput !== "true") return;
-    if (event.key !== "Backspace" && event.key !== "Delete") return;
+    if (event.key === "Backspace" || event.key === "Delete") {
+      event.preventDefault();
+      target.value = "";
+      clearJeffMoneyInputPreview(target);
+      markQuoteDraftChanged();
+      window.requestAnimationFrame(handlePricingPanelInput);
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey || event.key.length !== 1) return;
     event.preventDefault();
-    target.value = "";
+    target.value = event.key;
+    formatJeffMoneyInput(target);
     clearJeffMoneyInputPreview(target);
     markQuoteDraftChanged();
+    target.setSelectionRange(target.value.length, target.value.length);
+    window.requestAnimationFrame(handlePricingPanelInput);
   }
 
   function handleJeffMoneyInputMouseUp(event: ReactMouseEvent<HTMLDivElement>) {
     const target = event.target;
     if (!(target instanceof HTMLInputElement) || !target.closest(".kim-jeff-money-input") || target.dataset.replaceOnInput !== "true") return;
     event.preventDefault();
-    target.setSelectionRange(0, 0);
+    target.setSelectionRange(target.value.length, target.value.length);
+  }
+
+  function saveManualQuoteCondition(conditionId: string, conditionRound: string) {
+    setSavedManualQuoteConditionIds((current) => (
+      current.includes(conditionId) ? current : [...current, conditionId]
+    ));
+    onToast(`${conditionRound}번 조건을 저장했습니다.`);
+  }
+
+  function editManualQuoteCondition(conditionId: string, conditionRound: string) {
+    setSavedManualQuoteConditionIds((current) => current.filter((id) => id !== conditionId));
+    onToast(`${conditionRound}번 조건을 수정할 수 있습니다.`);
   }
 
   function markQuoteDraftChanged() {
@@ -1532,6 +1638,91 @@ function KimMinjunDetailContent({
     setPricing(computePricing(readPricingInputs(root)));
   }
 
+  function syncDiscountTotalFromRows(root: HTMLElement) {
+    const discountInputs = Array.from(root.querySelectorAll<HTMLInputElement>('input[data-discount-line="true"]'));
+    if (!discountInputs.length) return;
+    const basePrice = parseMoney(root.querySelector<HTMLInputElement>('input[data-pricing="base"]')?.value ?? "");
+    const optionPrice = parseMoney(root.querySelector<HTMLInputElement>('input[data-pricing="option"]')?.value ?? "");
+    const discountBasis = basePrice + optionPrice;
+    const total = discountInputs.reduce((sum, input) => {
+      const value = input.dataset.discountUnit === "percent" ? parsePercent(input.value) : parseMoney(input.value);
+      return sum + (input.dataset.discountUnit === "percent" ? Math.round(discountBasis * value / 100) : value);
+    }, 0);
+    const discountTotal = root.querySelector<HTMLInputElement>('input[data-pricing="discount"]');
+    if (discountTotal) discountTotal.value = formatMoney(total);
+  }
+
+  function discountBasis(root: HTMLElement) {
+    return parseMoney(root.querySelector<HTMLInputElement>('input[data-pricing="base"]')?.value ?? "") +
+      parseMoney(root.querySelector<HTMLInputElement>('input[data-pricing="option"]')?.value ?? "");
+  }
+
+  function formatPercent(value: number) {
+    return value.toFixed(2).replace(/\.?0+$/, "");
+  }
+
+  function convertDiscountInputUnit(input: HTMLInputElement, from: KimDiscountUnit, to: KimDiscountUnit, basis: number) {
+    if (from === to) return;
+    const value = from === "percent" ? parsePercent(input.value) : parseMoney(input.value);
+    if (!value || !basis) {
+      input.value = "0";
+      return;
+    }
+    input.value = to === "percent" ? formatPercent(value / basis * 100) : formatMoney(Math.round(basis * value / 100));
+  }
+
+  function handlePricingPanelInput() {
+    const root = pricingPanelRef.current;
+    if (!root) return;
+    syncDiscountTotalFromRows(root);
+    recomputePricing();
+  }
+
+  function addDiscountLine() {
+    setDiscountLines((prev) => [...prev, { id: `discount-${nowMs()}`, label: "재구매 할인", amount: "0", unit: "amount" }]);
+    markQuoteDraftChanged();
+  }
+
+  function removeDiscountLine(id: string) {
+    setDiscountLines((prev) => prev.filter((line) => line.id !== id));
+    window.requestAnimationFrame(() => {
+      const root = pricingPanelRef.current;
+      if (!root) return;
+      syncDiscountTotalFromRows(root);
+      recomputePricing();
+    });
+    markQuoteDraftChanged();
+  }
+
+  function setPrimaryDiscountMode(unit: KimDiscountUnit) {
+    const root = pricingPanelRef.current;
+    const input = root?.querySelector<HTMLInputElement>('input[data-discount-primary="true"]');
+    if (root && input) convertDiscountInputUnit(input, primaryDiscountUnit, unit, discountBasis(root));
+    setPrimaryDiscountUnit(unit);
+    window.requestAnimationFrame(() => {
+      const root = pricingPanelRef.current;
+      if (!root) return;
+      syncDiscountTotalFromRows(root);
+      recomputePricing();
+    });
+    markQuoteDraftChanged();
+  }
+
+  function setDiscountLineMode(id: string, unit: KimDiscountUnit) {
+    const current = discountLines.find((line) => line.id === id);
+    const root = pricingPanelRef.current;
+    const input = root?.querySelector<HTMLInputElement>(`input[data-discount-id="${id}"]`);
+    if (root && input && current) convertDiscountInputUnit(input, current.unit, unit, discountBasis(root));
+    setDiscountLines((prev) => prev.map((line) => line.id === id ? { ...line, unit } : line));
+    window.requestAnimationFrame(() => {
+      const root = pricingPanelRef.current;
+      if (!root) return;
+      syncDiscountTotalFromRows(root);
+      recomputePricing();
+    });
+    markQuoteDraftChanged();
+  }
+
   async function applyTrimToPricing(selection: VehicleSelection) {
     const trim = selection.trim;
     if (!trim) return;
@@ -1547,6 +1738,9 @@ function KimMinjunDetailContent({
       setInput("base", detail.price);
       setInput("option", 0);
       setInput("discount", detail.financialDiscountAmount ?? 0);
+      setPrimaryDiscountUnit("amount");
+      const primaryDiscount = root.querySelector<HTMLInputElement>('input[data-discount-primary="true"]');
+      if (primaryDiscount) primaryDiscount.value = formatMoney(detail.financialDiscountAmount ?? 0);
       recomputePricing();
       markQuoteDraftChanged();
     } catch (error) {
@@ -1561,12 +1755,6 @@ function KimMinjunDetailContent({
     if (el) el.value = formatMoney(next.total);
     recomputePricing();
     markQuoteDraftChanged();
-  }
-
-  function quoteDraftSaveButtonLabel() {
-    if (isQuoteDraftSaved && isQuoteDraftDirty) return "변경된 조건으로 저장";
-    if (isQuoteDraftSaved) return "저장 완료";
-    return "견적 저장";
   }
 
   function validateQuoteDetailDraft() {
@@ -2511,6 +2699,7 @@ function KimMinjunDetailContent({
     setIsQuoteWorkbenchOriginalDragActive(false);
     setIsQuoteDraftSaved(false);
     setIsQuoteDraftDirty(false);
+    setSavedManualQuoteConditionIds([]);
     setIsQuoteAppCardPreviewOpen(false);
     onToast("워크벤치 입력값을 초기화했습니다.");
   }
@@ -4170,7 +4359,7 @@ function KimMinjunDetailContent({
             </div>
             <div className="kim-quote-head-actions">
               <button
-                aria-label="솔루션 견적 워크벤치"
+                aria-label="견적 작성"
                 className="kim-mvp-add-circle kim-quote-head-action kim-quote-solution-entry"
                 onClick={() => {
                   setConfirmingQuoteDeleteId(null);
@@ -4181,19 +4370,6 @@ function KimMinjunDetailContent({
                   setSolutionWorkbenchEntryMode("manual");
                   setSolutionWorkbenchModeMenu(null);
                   setIsQuoteSolutionWorkbenchOpen(true);
-                }}
-                type="button"
-              ><Calculator size={13} strokeWidth={2.35} /></button>
-              <button
-                aria-label="견적 작성"
-                className="kim-mvp-add-circle kim-quote-head-action"
-                onClick={() => {
-                  setConfirmingQuoteDeleteId(null);
-                  setEditingQuoteId(null);
-                  setRecognizedQuoteFile(null);
-                  setSelectedQuotePurchaseMethod("운용리스");
-                  setQuoteEntryMode("solution");
-                  setQuoteComposerMode("manual");
                 }}
                 type="button"
               ><FilePlus2 size={13} strokeWidth={2.35} /></button>
@@ -4827,52 +5003,64 @@ function KimMinjunDetailContent({
                     </div>
                   </div>
                   <div className="kim-quote-workbench-actions" aria-label="견적 실행">
-                    <button
-                      className="kim-quote-workbench-action ghost"
-                      onClick={resetQuoteWorkbench}
-                      type="button"
-                    >
-                      <RotateCcw size={13} strokeWidth={2.2} />
-                      초기화
-                    </button>
-                    <button
-                      className="kim-quote-workbench-action muted"
-                      onClick={() => onToast("financial-dolim-solution 연결 전 임시 워크벤치입니다.")}
-                      type="button"
-                    >
-                      <Calculator size={13} strokeWidth={2.2} />
-                      솔루션조회
-                    </button>
-                    <button
-                      className={`kim-quote-workbench-action muted quote-doc${quoteDraftReady ? " is-ready-blue" : " is-disabled"}`}
-                      onClick={() => {
-                        if (!guardQuoteDraftOutput("견적서 보기")) return;
-                        onToast("견적서 보기 화면은 다음 단계에서 연결합니다.");
-                      }}
-                      type="button"
-                    >
-                      <FileText size={13} strokeWidth={2.2} />
-                      견적서보기
-                    </button>
-                    <button
-                      className={`kim-quote-workbench-action muted app-card${quoteDraftReady ? " is-ready-green" : " is-disabled"}`}
-                      onClick={() => {
-                        if (!guardQuoteDraftOutput("앱카드 보기")) return;
-                        setIsQuoteAppCardPreviewOpen(true);
-                      }}
-                      type="button"
-                    >
-                      <Smartphone size={13} strokeWidth={2.2} />
-                      앱카드보기
-                    </button>
-                    <button
-                      className={`kim-quote-workbench-action primary${quoteDraftReady ? "" : " is-disabled"}`}
-                      onClick={saveQuoteFromWorkbench}
-                      type="button"
-                    >
-                      <FilePlus2 size={13} strokeWidth={2.2} />
-                      견적함에 저장
-                    </button>
+                    <div className="kim-quote-workbench-action-group">
+                      <button
+                        className="kim-quote-workbench-action ghost"
+                        onClick={resetQuoteWorkbench}
+                        type="button"
+                      >
+                        <RotateCcw size={13} strokeWidth={2.2} />
+                        초기화
+                      </button>
+                      <button
+                        className={`kim-quote-workbench-action complete${isQuoteDraftSaved && !isQuoteDraftDirty ? " is-saved" : ""}`}
+                        onClick={saveQuoteDetailDraft}
+                        type="button"
+                      >
+                        <Check size={13} strokeWidth={2.35} />
+                        작성완료
+                      </button>
+                    </div>
+                    <div className="kim-quote-workbench-action-group output">
+                      <button
+                        className="kim-quote-workbench-action muted"
+                        onClick={() => onToast("financial-dolim-solution 연결 전 임시 워크벤치입니다.")}
+                        type="button"
+                      >
+                        <Calculator size={13} strokeWidth={2.2} />
+                        솔루션조회
+                      </button>
+                      <button
+                        className={`kim-quote-workbench-action muted quote-doc${quoteDraftReady ? " is-ready-blue" : " is-disabled"}`}
+                        onClick={() => {
+                          if (!guardQuoteDraftOutput("견적서 보기")) return;
+                          onToast("견적서 보기 화면은 다음 단계에서 연결합니다.");
+                        }}
+                        type="button"
+                      >
+                        <FileText size={13} strokeWidth={2.2} />
+                        견적서보기
+                      </button>
+                      <button
+                        className={`kim-quote-workbench-action muted app-card${quoteDraftReady ? " is-ready-green" : " is-disabled"}`}
+                        onClick={() => {
+                          if (!guardQuoteDraftOutput("앱카드 보기")) return;
+                          setIsQuoteAppCardPreviewOpen(true);
+                        }}
+                        type="button"
+                      >
+                        <Smartphone size={13} strokeWidth={2.2} />
+                        앱카드보기
+                      </button>
+                      <button
+                        className={`kim-quote-workbench-action primary${quoteDraftReady ? "" : " is-disabled"}`}
+                        onClick={saveQuoteFromWorkbench}
+                        type="button"
+                      >
+                        <FilePlus2 size={13} strokeWidth={2.2} />
+                        견적함에 저장
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="kim-file-drop-overlay kim-quote-workbench-drop-overlay" aria-hidden="true">
@@ -4888,10 +5076,11 @@ function KimMinjunDetailContent({
                 onChange={handleJeffMoneyInputChange}
                 onFocus={handleJeffMoneyInputFocus}
                 onKeyDown={handleJeffMoneyInputKeyDown}
+                onMouseDown={handleJeffMoneyInputMouseDown}
                 onMouseUp={handleJeffMoneyInputMouseUp}
                 onPaste={handleJeffMoneyInputPaste}
               >
-                <section className="kim-jeff-top-panel" ref={pricingPanelRef} onInput={recomputePricing}>
+                <section className="kim-jeff-top-panel" ref={pricingPanelRef} onInput={handlePricingPanelInput}>
                   <div className="kim-jeff-top-grid">
                     <div className="kim-jeff-section">
                       <h4>🚘 차량 선택</h4>
@@ -4905,11 +5094,30 @@ function KimMinjunDetailContent({
                     </div>
                     <div className="kim-jeff-section">
                       <h4>💰 할인</h4>
-                      <div className="kim-jeff-form-row">
-                        <span>할인 금액</span>
-                        <div className="kim-jeff-segment"><button className="active" type="button">금액</button><button type="button">%</button></div>
-                        <div className="kim-jeff-money-input"><input defaultValue={formatMoney(kimMaybachQuotePricingMock.discount)} /><em>원</em></div>
+                      <div className="kim-jeff-form-row kim-jeff-discount-row">
+                        <span>기본 할인</span>
+                        <span className="kim-jeff-discount-label-placeholder" aria-hidden="true" />
+                        <div className="kim-jeff-segment">
+                          <button className={primaryDiscountUnit === "amount" ? "active" : ""} onClick={() => setPrimaryDiscountMode("amount")} type="button">금액</button>
+                          <button className={primaryDiscountUnit === "percent" ? "active" : ""} onClick={() => setPrimaryDiscountMode("percent")} type="button">%</button>
+                        </div>
+                        <div className="kim-jeff-money-input"><input data-discount-line="true" data-discount-primary="true" data-discount-unit={primaryDiscountUnit} defaultValue={formatMoney(kimMaybachQuotePricingMock.discount)} /><em>{primaryDiscountUnit === "percent" ? "%" : "원"}</em></div>
+                        <button className="kim-jeff-discount-add" aria-label="할인 항목 추가" onClick={addDiscountLine} type="button">+</button>
                       </div>
+                      {discountLines.map((line) => (
+                        <div className="kim-jeff-form-row kim-jeff-discount-row" key={line.id}>
+                          <span>추가 할인</span>
+                          <select className="kim-jeff-discount-label" aria-label="할인 항목명" defaultValue={line.label}>
+                            {kimDiscountLabelOptions.map((option) => <option key={option}>{option}</option>)}
+                          </select>
+                          <div className="kim-jeff-segment">
+                            <button className={line.unit === "amount" ? "active" : ""} onClick={() => setDiscountLineMode(line.id, "amount")} type="button">금액</button>
+                            <button className={line.unit === "percent" ? "active" : ""} onClick={() => setDiscountLineMode(line.id, "percent")} type="button">%</button>
+                          </div>
+                          <div className="kim-jeff-money-input"><input data-discount-id={line.id} data-discount-line="true" data-discount-unit={line.unit} defaultValue={line.amount} /><em>{line.unit === "percent" ? "%" : "원"}</em></div>
+                          <button className="kim-jeff-discount-remove" aria-label="할인 항목 삭제" onClick={() => removeDiscountLine(line.id)} type="button"><Trash2 size={13} strokeWidth={2.1} /></button>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -4922,10 +5130,19 @@ function KimMinjunDetailContent({
                   <div className="kim-jeff-cost-grid">
                     <div className="kim-jeff-section kim-jeff-cost-section">
                       <h4>⚙️ 취득원가 설정</h4>
-                      <div className="kim-jeff-form-row"><span>취득세</span><div className="kim-jeff-segment"><button className="active" type="button">일반</button><button type="button">하이브리드 감면</button><button type="button">전기차 감면</button></div><div className="kim-jeff-money-input"><input data-pricing="acquisitionTax" defaultValue={formatMoney(kimMaybachQuotePricingMock.acquisitionTax)} /><em>원</em></div></div>
-                      <div className="kim-jeff-form-row"><span>공채</span><div className="kim-jeff-segment"><button className="active" type="button">포함</button><button type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="bond" defaultValue={formatMoney(kimMaybachQuotePricingMock.bond)} /><em>원</em></div></div>
-                      <div className="kim-jeff-form-row"><span>탁송료</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="delivery" defaultValue={formatMoney(kimMaybachQuotePricingMock.delivery)} /><em>원</em></div></div>
-                      <div className="kim-jeff-form-row"><span>부대비용</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="incidental" defaultValue={formatMoney(kimMaybachQuotePricingMock.incidental)} /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row kim-jeff-acquisition-tax-row">
+                        <span>취득세</span>
+                        <div className="kim-jeff-segment">
+                          <button className={acquisitionTaxMode === "normal" ? "active" : ""} onClick={() => setAcquisitionTaxMode("normal")} type="button">일반</button>
+                          <button className={acquisitionTaxMode === "hybrid" ? "active" : ""} onClick={() => setAcquisitionTaxMode("hybrid")} type="button">하이브리드 감면</button>
+                          <button className={acquisitionTaxMode === "electric" ? "active" : ""} onClick={() => setAcquisitionTaxMode("electric")} type="button">전기차 감면</button>
+                          <button className={acquisitionTaxMode === "manual" ? "active" : ""} onClick={() => setAcquisitionTaxMode("manual")} type="button">직접 입력</button>
+                        </div>
+                        <div className="kim-jeff-money-input"><input data-pricing="acquisitionTax" defaultValue={formatMoney(kimMaybachQuotePricingMock.acquisitionTax)} readOnly={acquisitionTaxMode !== "manual"} /><em>원</em></div>
+                      </div>
+                      <div className="kim-jeff-form-row kim-jeff-cost-toggle-row"><span>공채</span><div className="kim-jeff-segment"><button className="active" type="button">포함</button><button type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="bond" defaultValue={formatMoney(kimMaybachQuotePricingMock.bond)} /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row kim-jeff-cost-toggle-row"><span>탁송료</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="delivery" defaultValue={formatMoney(kimMaybachQuotePricingMock.delivery)} /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row kim-jeff-cost-toggle-row"><span>부대비용</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="incidental" defaultValue={formatMoney(kimMaybachQuotePricingMock.incidental)} /><em>원</em></div></div>
                     </div>
                     <div className="kim-jeff-section kim-jeff-summary-section">
                       <h4>📋 최종 가격</h4>
@@ -4945,58 +5162,147 @@ function KimMinjunDetailContent({
                     onInput={markQuoteDraftChanged}
                     ref={quoteDetailFormRef}
                   >
-                    <header>
-                      <div>
-                        <strong>🧾 세부 견적 수기 입력</strong>
-                      </div>
-                      <button
-                        className={isQuoteDraftSaved && !isQuoteDraftDirty ? "is-saved" : ""}
-                        onClick={saveQuoteDetailDraft}
-                        type="button"
-                      >
-                        {quoteDraftSaveButtonLabel()}
-                      </button>
-                    </header>
+                    <section className="kim-app-form-section kim-manual-compare-section">
+                      <div className="kim-manual-compare-grid">
+                        {kimManualQuoteConditionCards.map((condition) => {
+                          const isConditionSaved = savedManualQuoteConditionIds.includes(condition.id);
 
-                    <div className="kim-app-form-split">
-                      <div className="kim-app-form-section">
-                        <div className="kim-app-condition-grid">
-                          <label><span>구매방식</span><div className="kim-jeff-segment"><button className="active" type="button">운용리스</button></div></label>
-                          <label><span>자동차세</span><div className="kim-jeff-segment"><button className="active" type="button">불포함</button><button type="button">포함</button></div></label>
-                          <label><span>금융사</span><select defaultValue="우리금융캐피탈"><option>우리금융캐피탈</option><option>iM캐피탈</option><option>하나캐피탈</option></select></label>
-                          <label><span>전기차 보조금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">비해당</button><button type="button">해당</button></div><input disabled defaultValue="0" /></div></label>
-                          <label><span>리스기간</span><div className="kim-jeff-segment wide"><button type="button">12개월</button><button type="button">24개월</button><button type="button">36개월</button><button type="button">48개월</button><button className="active" type="button">60개월</button></div></label>
-                          <label><span>금리</span><input readOnly value="5.32%" /></label>
-                          <label><span>보증금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button type="button">없음</button><button type="button">금액</button><button className="active" type="button">%</button></div><input defaultValue="30" /></div></label>
-                          <label><span>반납까지 총 비용</span><input readOnly value="167,652,170원" /></label>
-                          <label><span>선수금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">없음</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="0" /></div></label>
-                          <label><span>인수까지 총 비용</span><input readOnly value="239,505,410원" /></label>
-                          <label><span>잔존가치</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">최대</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="71,853,240" /></div></label>
-                          <label><span>출고 전 납입 금액</span><input readOnly value="72,900,000원" /></label>
-                          <label><span>약정주행거리</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">기본</button><button type="button">변경</button></div><select defaultValue="20,000km / 년"><option>20,000km / 년</option><option>30,000km / 년</option></select></div></label>
-                          <label><span>월 납입금</span><input defaultValue="2,398,000원" /></label>
+                          return (
+                            <section className={`kim-manual-compare-card${isConditionSaved ? " is-saved" : ""}`} key={condition.id}>
+                              <header>
+                                <strong>{condition.title} <span>{condition.round}</span></strong>
+                                <div>
+                                  {condition.copyLabel ? <button className="copy" type="button">{condition.copyLabel}</button> : null}
+                                  {isConditionSaved ? (
+                                    <button className="edit" onClick={() => editManualQuoteCondition(condition.id, condition.round)} type="button">수정</button>
+                                  ) : null}
+                                  <button type="button">재입력</button>
+                                </div>
+                              </header>
+                              <div className="kim-manual-compare-body">
+                                <label className="select-value"><span>금융사</span><select defaultValue={condition.lender} disabled={isConditionSaved}><option>우리금융캐피탈</option><option>iM캐피탈</option><option>하나캐피탈</option></select></label>
+                                <label><span>기간</span><div className="kim-jeff-segment wide"><button disabled={isConditionSaved} type="button">12개월</button><button disabled={isConditionSaved} type="button">24개월</button><button disabled={isConditionSaved} type="button">36개월</button><button disabled={isConditionSaved} type="button">48개월</button><button className="active" disabled={isConditionSaved} type="button">60개월</button></div></label>
+                                <label><span>보증금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button disabled={isConditionSaved} type="button">없음</button><button disabled={isConditionSaved} type="button">금액</button><button className="active" disabled={isConditionSaved} type="button">%</button></div><div className="kim-jeff-money-input"><input data-discount-unit="percent" defaultValue={condition.depositValue} disabled={isConditionSaved} /><em>%</em></div></div></label>
+                                <label><span>선수금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className="active" disabled={isConditionSaved} type="button">없음</button><button disabled={isConditionSaved} type="button">금액</button><button disabled={isConditionSaved} type="button">%</button></div><div className="kim-jeff-money-input"><input defaultValue="0" disabled={isConditionSaved} /><em>원</em></div></div></label>
+                                <label><span>잔존가치</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className="active" disabled={isConditionSaved} type="button">최대</button><button disabled={isConditionSaved} type="button">금액</button><button disabled={isConditionSaved} type="button">%</button></div><div className="kim-jeff-money-input"><input defaultValue={condition.residualValue} disabled={isConditionSaved} /><em>원</em></div></div></label>
+                                <label><span>약정거리</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className="active" disabled={isConditionSaved} type="button">기본</button><button disabled={isConditionSaved} type="button">변경</button></div><select className="kim-manual-value-select" defaultValue="20,000km / 년" disabled={isConditionSaved}><option>20,000km / 년</option><option>30,000km / 년</option></select></div></label>
+                                <label><span>자동차세</span><div className="kim-jeff-segment"><button className="active" disabled={isConditionSaved} type="button">불포함</button><button disabled={isConditionSaved} type="button">포함</button></div></label>
+                                <label className="before-emphasis"><span>보조금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className="active" disabled={isConditionSaved} type="button">비해당</button><button disabled={isConditionSaved} type="button">해당</button></div><div className="kim-jeff-money-input"><input defaultValue="0" disabled={isConditionSaved} readOnly /><em>원</em></div></div></label>
+                                <div className="kim-manual-compare-row amount emphasis"><span>월 납입금</span><div className="kim-jeff-money-input"><input aria-label="월 납입금" defaultValue={condition.monthlyPayment} disabled={isConditionSaved} /><em>원</em></div></div>
+                                <div className="kim-manual-result-grid">
+                                  <label><span>반납 총비용</span><div className="kim-jeff-money-input"><input disabled={isConditionSaved} readOnly value={condition.totalReturn} /><em>원</em></div></label>
+                                  <label><span>인수 총비용</span><div className="kim-jeff-money-input"><input disabled={isConditionSaved} readOnly value={condition.totalTakeover} /><em>원</em></div></label>
+                                  <label><span>출고 전 납입</span><div className="kim-jeff-money-input"><input disabled={isConditionSaved} readOnly value={condition.dueAtDelivery} /><em>원</em></div></label>
+                                  <label><span>금리</span><div className="kim-jeff-money-input"><input disabled={isConditionSaved} readOnly value={condition.interestRate} /><em>%</em></div></label>
+                                </div>
+                                <button
+                                  className="kim-manual-condition-save"
+                                  disabled={isConditionSaved}
+                                  onClick={() => saveManualQuoteCondition(condition.id, condition.round)}
+                                  type="button"
+                                >
+                                  {isConditionSaved ? (
+                                    <>
+                                      <Check size={14} strokeWidth={2.4} />
+                                      {condition.round}번 조건 저장됨
+                                    </>
+                                  ) : `${condition.round}번 조건 저장`}
+                                </button>
+                              </div>
+                            </section>
+                          );
+                        })}
+                      </div>
+                    </section>
+
+                    <div className="kim-app-form-split kim-app-legacy-form-split">
+                      <div className="kim-app-form-section kim-app-core-section">
+                        <header>
+                          <strong>🧾 기존 세부 견적 수기 입력</strong>
+                        </header>
+                        <div className="kim-app-form-section-body">
+                          <div className="kim-app-condition-grid">
+                            <label><span>구매방식</span><div className="kim-jeff-segment"><button className="active" type="button">운용리스</button></div></label>
+                            <label><span>자동차세</span><div className="kim-jeff-segment"><button className="active" type="button">불포함</button><button type="button">포함</button></div></label>
+                            <label><span>금융사</span><select defaultValue="우리금융캐피탈"><option>우리금융캐피탈</option><option>iM캐피탈</option><option>하나캐피탈</option></select></label>
+                            <label><span>전기차 보조금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">비해당</button><button type="button">해당</button></div><input disabled defaultValue="0" /></div></label>
+                            <label><span>리스기간</span><div className="kim-jeff-segment wide"><button type="button">12개월</button><button type="button">24개월</button><button type="button">36개월</button><button type="button">48개월</button><button className="active" type="button">60개월</button></div></label>
+                            <label><span>금리</span><input readOnly value="5.32%" /></label>
+                            <label><span>보증금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button type="button">없음</button><button type="button">금액</button><button className="active" type="button">%</button></div><input defaultValue="30" /></div></label>
+                            <label><span>반납까지 총 비용</span><input readOnly value="167,652,170원" /></label>
+                            <label><span>선수금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">없음</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="0" /></div></label>
+                            <label><span>인수까지 총 비용</span><input readOnly value="239,505,410원" /></label>
+                            <label><span>잔존가치</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">최대</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="71,853,240" /></div></label>
+                            <label><span>출고 전 납입 금액</span><input readOnly value="72,900,000원" /></label>
+                            <label><span>약정주행거리</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">기본</button><button type="button">변경</button></div><select defaultValue="20,000km / 년"><option>20,000km / 년</option><option>30,000km / 년</option></select></div></label>
+                            <label><span>월 납입금</span><input defaultValue="2,398,000원" /></label>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="kim-app-form-section">
-                        <h4>출고 시기 정보</h4>
-                        <div className="kim-app-form-grid">
-                          <label><span>외장 컬러</span><input data-reject-value="미선택" defaultValue="미선택" /></label>
-                          <label><span>내장 컬러</span><input data-reject-value="미선택" defaultValue="미선택" /></label>
-                          <label><span>재고 여부</span><input defaultValue="재고 확인 필요" /></label>
-                          <label><span>예상 출고</span><input defaultValue="확인 후 안내" /></label>
-                          <label><span>고객 지역</span><input defaultValue="인천" /></label>
+                      <div className="kim-app-form-section kim-app-delivery-section">
+                        <header>
+                          <strong>📋 추가 안내 사항</strong>
+                        </header>
+                        <div className="kim-app-form-section-body">
+                          <div className="kim-app-guidance-grid">
+                            <label>
+                              <span>출고시기 코멘트</span>
+                              <select defaultValue="이 차량은 1주일 내 출고 가능해요">
+                                <option>이 차량은 1주일 내 출고 가능해요</option>
+                                <option>배정 확인 후 출고 일정을 안내드릴게요</option>
+                                <option>주문 후 생산 일정 확인이 필요해요</option>
+                                <option>색상 확정 후 출고 가능 시점을 안내드릴게요</option>
+                              </select>
+                            </label>
+                            <label><span>서비스 1</span><input defaultValue="썬팅: 후퍼옵틱 KBR 전면 + 측후면 제공" /></label>
+                            <label>
+                              <span>재고여부</span>
+                              <select defaultValue="재고 확인 필요">
+                                <option>재고 확인 필요</option>
+                                <option>즉시 출고 가능</option>
+                                <option>배정 대기</option>
+                                <option>주문 필요</option>
+                              </select>
+                            </label>
+                            <label><span>서비스 2</span><input defaultValue="블랙박스: 기본 제공" /></label>
+                            <label>
+                              <span>예상 출고 기간</span>
+                              <select defaultValue="확인 후 안내">
+                                <option>확인 후 안내</option>
+                                <option>1주일 이내</option>
+                                <option>2주 이내</option>
+                                <option>1개월 이내</option>
+                                <option>1개월 이상</option>
+                              </select>
+                            </label>
+                            <label><span>서비스 3</span><input defaultValue="출고 기념품: 키케이스, 주차번호판, 머그컵" /></label>
+                            <label>
+                              <span>고객 지역</span>
+                              <select defaultValue="인천">
+                                <option>서울</option>
+                                <option>인천</option>
+                                <option>경기</option>
+                                <option>부산</option>
+                                <option>대구</option>
+                                <option>광주</option>
+                                <option>대전</option>
+                                <option>기타</option>
+                              </select>
+                            </label>
+                            <label><span>서비스 4</span><input defaultValue="담당 카매니저 출고 일정 개별 안내" /></label>
+                            <label className="wide">
+                              <span>핵심포인트</span>
+                              <select defaultValue="잔존가치 최대 조건으로 월 납입금을 낮춘 조건입니다.">
+                                <option>잔존가치 최대 조건으로 월 납입금을 낮춘 조건입니다.</option>
+                                <option>초기 부담을 낮추는 조건입니다.</option>
+                                <option>월 납입금과 초기 비용 균형을 맞춘 조건입니다.</option>
+                                <option>인수 선택까지 고려한 안정적인 조건입니다.</option>
+                              </select>
+                            </label>
+                            <label className="wide"><span>추천이유</span><textarea defaultValue={"현재 조건에서는 월 납입금과 취득원가 균형이 가장 안정적인 운용리스 조건입니다.\n금리와 잔존가치 조건은 상담 중 추가 협상 여지가 있습니다."} rows={1} /></label>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="kim-app-form-section">
-                      <h4>앱 상세 펼침 문구</h4>
-                      <div className="kim-app-copy-list">
-                        <label><span>핵심 포인트 1</span><input defaultValue="잔존가치 최대 조건으로 월 납입금을 낮춘 조건입니다." /></label>
-                        <label><span>핵심 포인트 2</span><input defaultValue="보증금 30% 기준으로 초기 부담과 월 납입금 균형을 맞췄습니다." /></label>
-                        <label><span>추천 이유</span><textarea defaultValue={"현재 조건에서는 월 납입금과 취득원가 균형이 가장 안정적인 운용리스 조건입니다.\n금리와 잔존가치 조건은 상담 중 추가 협상 여지가 있습니다."} rows={3} /></label>
-                        <label><span>서비스</span><textarea defaultValue={"썬팅: 후퍼옵틱 KBR 전면 + 측후면 제공\n블랙박스: 기본 제공\n출고 기념품: 키케이스, 주차번호판, 머그컵"} rows={3} /></label>
                       </div>
                     </div>
                   </div>
