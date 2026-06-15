@@ -103,14 +103,15 @@ Purpose: `영실아 이어가자` 이후 현재 작업만 빠르게 복구하기
 - Quote output actions are draft-gated. Until `세부 견적 작성` is saved, header `견적서보기`/`앱카드보기`/`견적함에 저장` stay disabled-feeling and show validation/save guidance. `견적 저장` validates missing/placeholder fields such as exterior/interior `미선택`; after save, `앱카드보기` turns green and opens the app-card modal. Any later top/body input change marks the draft dirty and changes the form button to `변경된 조건으로 저장`.
 - `핵심 견적 값` in manual 운용리스 now uses Jeff-style condition controls instead of plain inputs: fixed purchase method, finance select, lease term segmented control, deposit/down payment/residual segmented+input, mileage segmented+select, tax/subsidy segmented controls, readonly calculated totals/rate, and manual monthly payment.
 - 2026-06-15 (PR #13, branch `feat/quote-price-injection`): 트림 선택 → 가격 패널 **1단계 연결 완료**. `VehiclePicker onChange` → `fetchTrimDetail`로 기본가←`trim.price`, 할인←`financialDiscountAmount`, 옵션←0 자동 채움. 최종차량가/등록비용/기타비용/취득원가 합산은 `client/src/lib/quote-pricing.ts`(순수함수, `computePricing`) 자동 재계산, summary는 React state 파생. 입력 input은 uncontrolled 유지(Jeff money UX 보존), 재계산 트리거는 패널 `onInput` + money `blur` + 자동채움 직후. 식별자는 `data-pricing="base|option|discount|acquisitionTax|bond|delivery|incidental"`. DB 변경 0 (catalog read-only SELECT만). 취득세 공식·옵션/컬러 선택·구매방식별 할인 매핑·segment 토글은 2단계. 설계/계획: `ref/specs/2026-06-15-quote-price-injection-design.md`, `ref/plans/2026-06-15-quote-price-injection.md`.
+- 2026-06-15 (PR #14, #15): 옵션 선택 **2단계 + excludes UX 완료**. `OptionPicker`(다중선택 드롭다운)로 trim의 basic/tuning 옵션 선택 → `option-selection.ts`(`resolveSelection`/`optionTotal`/`disabledOptionIds`/`excludeGroups`/`excludePartners`, 순수·TDD) → 옵션 합계를 `data-pricing="option"` input에 반영 → 1단계 `recompute`. **basic도 유료 제조사 옵션**(데이터 검증: trim_options 6,737개 중 99.6% 유료)이라 선택·합산 대상. excludes는 **비활성화 UX**(미스터차 앱 정합): 배타그룹 색점(6색 순환) · 선택 시 같은 그룹 회색 disabled · "⇄ ○○와 중복 선택 불가" 설명 · 상단 안내. includes는 자동추가(한 단계) 유지. 트림 변경 시 `key`로 재마운트 초기화. 설계/계획: `ref/specs|plans/2026-06-15-quote-option-selection*`, `…-quote-option-exclude-ux*`. **교훈: DB 컬럼/enum 의미는 구현 전 실제 샘플로 검증**(basic 가정 오류 사례).
 
 ## Verification / Next
 
 - After DOM/TS changes, run `bun run typecheck`.
 - Latest check: `bun run typecheck` passed after Jeff money input replace-preview behavior.
 - Avoid Playwright for every small spacing tweak; use screenshots after larger stabilization.
-- 2026-06-15 검증: `bun run typecheck` 0, `bun run lint` 0, `bun run test:unit` 27 passed, `bun run build` 성공. 미확인: dev 서버에서 트림 선택 시 가격/합산 실시각 반영(브라우저 수동 확인 권장).
-- Next (가격 2단계): 옵션 선택 UI(basic/tuning, includes/excludes)·외장/내장 컬러 선택 → 옵션 금액 합산, 구매방식별 할인 매핑(financial/partner/cash), 취득세 공식 자동계산 + segment 토글 재분류, 가격 패널 컴포넌트 추출. 별개로 header/body spacing QA와 saved workbench rows draft/app-send 흐름도 남음.
+- 2026-06-15 검증: `typecheck`/`lint` 0, `test:unit` 42 passed, `build` 성공. 브라우저 확인 완료(가격 합산·옵션 선택·excludes 비활성화 정상 동작). 1·2단계·excludes UX 모두 main 머지됨.
+- Next (다음 단계): 외장/내장 컬러 선택(hex 스와치, colors 10,483행), 구매방식별 할인 매핑(financial/partner/cash), 취득세 공식 자동계산 + segment 토글 재분류, 가격 패널·옵션·컬러 통합 컴포넌트 추출, 견적 저장(quotes 스키마). 별개로 header/body spacing QA, saved workbench draft/app-send 흐름.
 
 ## Collaboration
 
