@@ -1,7 +1,9 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
-import { VehiclePicker } from "@/components/VehiclePicker";
+import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
+import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
+import { fetchTrimDetail } from "@/lib/vehicles";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -1372,6 +1374,13 @@ function KimMinjunDetailContent({
   const [quoteDropTargetId, setQuoteDropTargetId] = useState<string | null>(null);
   const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
   const [previewSentQuoteId, setPreviewSentQuoteId] = useState<string | null>(null);
+  const [pricing, setPricing] = useState<PricingResult>({
+    finalVehiclePrice: 236500000,
+    registrationCost: 13531000,
+    otherCost: 0,
+    acquisitionCost: 250031000,
+  });
+  const pricingPanelRef = useRef<HTMLElement>(null);
   const [documents, setDocuments] = useState<KimDocumentItem[]>(kimMinjunDocumentVault);
   const [isDocumentDragActive, setIsDocumentDragActive] = useState(false);
   const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
@@ -1453,6 +1462,7 @@ function KimMinjunDetailContent({
     if (!target) return;
     clearJeffMoneyInputPreview(target);
     markQuoteDraftChanged();
+    recomputePricing();
   }
 
   function handleJeffMoneyInputChange(event: ChangeEvent<HTMLDivElement>) {
@@ -1492,6 +1502,47 @@ function KimMinjunDetailContent({
     if (!isQuoteDraftSaved) return;
     setIsQuoteDraftDirty(true);
     setIsQuoteAppCardPreviewOpen(false);
+  }
+
+  function readPricingInputs(root: HTMLElement): PricingInputs {
+    const read = (key: string) =>
+      parseMoney(root.querySelector<HTMLInputElement>(`input[data-pricing="${key}"]`)?.value ?? "");
+    return {
+      basePrice: read("base"),
+      optionPrice: read("option"),
+      discount: read("discount"),
+      acquisitionTax: read("acquisitionTax"),
+      bond: read("bond"),
+      delivery: read("delivery"),
+      incidental: read("incidental"),
+    };
+  }
+
+  function recomputePricing() {
+    const root = pricingPanelRef.current;
+    if (!root) return;
+    setPricing(computePricing(readPricingInputs(root)));
+  }
+
+  async function applyTrimToPricing(selection: VehicleSelection) {
+    const trim = selection.trim;
+    if (!trim) return;
+    try {
+      const detail = await fetchTrimDetail(trim.id);
+      const root = pricingPanelRef.current;
+      if (!root) return;
+      const setInput = (key: string, value: number) => {
+        const el = root.querySelector<HTMLInputElement>(`input[data-pricing="${key}"]`);
+        if (el) el.value = formatMoney(value);
+      };
+      setInput("base", detail.price);
+      setInput("option", 0);
+      setInput("discount", detail.financialDiscountAmount ?? 0);
+      recomputePricing();
+      markQuoteDraftChanged();
+    } catch (error) {
+      console.warn("트림 상세 로드 실패", error);
+    }
   }
 
   function quoteDraftSaveButtonLabel() {
@@ -4822,11 +4873,11 @@ function KimMinjunDetailContent({
                 onMouseUp={handleJeffMoneyInputMouseUp}
                 onPaste={handleJeffMoneyInputPaste}
               >
-                <section className="kim-jeff-top-panel">
+                <section className="kim-jeff-top-panel" ref={pricingPanelRef} onInput={recomputePricing}>
                   <div className="kim-jeff-top-grid">
                     <div className="kim-jeff-section">
                       <h4>🚘 차량 선택</h4>
-                      <VehiclePicker />
+                      <VehiclePicker onChange={(selection) => { void applyTrimToPricing(selection); }} />
                     </div>
                     <div className="kim-jeff-section">
                       <h4>🎨 옵션 / 컬러</h4>
@@ -4845,25 +4896,25 @@ function KimMinjunDetailContent({
                   </div>
 
                   <div className="kim-jeff-price-grid">
-                    <div className="kim-jeff-price-cell"><strong>기본 가격</strong><div className="kim-jeff-money-input"><input defaultValue="243,000,000" /><em>원</em></div></div>
-                    <div className="kim-jeff-price-cell"><strong>(+) 옵션 금액</strong><div className="kim-jeff-money-input"><input defaultValue="0" /><em>원</em></div></div>
-                    <div className="kim-jeff-price-cell"><strong>(-) 최종 할인</strong><div className="kim-jeff-money-input"><input defaultValue="6,500,000" /><em>원</em></div></div>
+                    <div className="kim-jeff-price-cell"><strong>기본 가격</strong><div className="kim-jeff-money-input"><input data-pricing="base" defaultValue="243,000,000" /><em>원</em></div></div>
+                    <div className="kim-jeff-price-cell"><strong>(+) 옵션 금액</strong><div className="kim-jeff-money-input"><input data-pricing="option" defaultValue="0" /><em>원</em></div></div>
+                    <div className="kim-jeff-price-cell"><strong>(-) 최종 할인</strong><div className="kim-jeff-money-input"><input data-pricing="discount" defaultValue="6,500,000" /><em>원</em></div></div>
                   </div>
 
                   <div className="kim-jeff-cost-grid">
                     <div className="kim-jeff-section kim-jeff-cost-section">
                       <h4>⚙️ 취득원가 설정</h4>
-                      <div className="kim-jeff-form-row"><span>취득세</span><div className="kim-jeff-segment"><button className="active" type="button">일반</button><button type="button">하이브리드 감면</button><button type="button">전기차 감면</button></div><div className="kim-jeff-money-input"><input defaultValue="13,531,000" /><em>원</em></div></div>
-                      <div className="kim-jeff-form-row"><span>공채</span><div className="kim-jeff-segment"><button className="active" type="button">포함</button><button type="button">불포함</button></div><div className="kim-jeff-money-input"><input defaultValue="0" /><em>원</em></div></div>
-                      <div className="kim-jeff-form-row"><span>탁송료</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input defaultValue="0" /><em>원</em></div></div>
-                      <div className="kim-jeff-form-row"><span>부대비용</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input defaultValue="0" /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>취득세</span><div className="kim-jeff-segment"><button className="active" type="button">일반</button><button type="button">하이브리드 감면</button><button type="button">전기차 감면</button></div><div className="kim-jeff-money-input"><input data-pricing="acquisitionTax" defaultValue="13,531,000" /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>공채</span><div className="kim-jeff-segment"><button className="active" type="button">포함</button><button type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="bond" defaultValue="0" /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>탁송료</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="delivery" defaultValue="0" /><em>원</em></div></div>
+                      <div className="kim-jeff-form-row"><span>부대비용</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="incidental" defaultValue="0" /><em>원</em></div></div>
                     </div>
                     <div className="kim-jeff-section kim-jeff-summary-section">
                       <h4>📋 최종 가격</h4>
-                      <div className="kim-jeff-summary-row"><span>최종 차량가(계산서 발행금액)</span><b><span>236,500,000</span><em>원</em></b></div>
-                      <div className="kim-jeff-summary-row"><span>등록비용(취득원가 포함)</span><b><span>13,531,000</span><em>원</em></b></div>
-                      <div className="kim-jeff-summary-row no-divider"><span>기타비용(취득원가 불포함, 고객 부담)</span><b><span>0</span><em>원</em></b></div>
-                      <div className="kim-jeff-summary-row emphasized"><span>취득원가</span><b><span>250,031,000</span><em>원</em></b></div>
+                      <div className="kim-jeff-summary-row"><span>최종 차량가(계산서 발행금액)</span><b><span>{formatMoney(pricing.finalVehiclePrice)}</span><em>원</em></b></div>
+                      <div className="kim-jeff-summary-row"><span>등록비용(취득원가 포함)</span><b><span>{formatMoney(pricing.registrationCost)}</span><em>원</em></b></div>
+                      <div className="kim-jeff-summary-row no-divider"><span>기타비용(취득원가 불포함, 고객 부담)</span><b><span>{formatMoney(pricing.otherCost)}</span><em>원</em></b></div>
+                      <div className="kim-jeff-summary-row emphasized"><span>취득원가</span><b><span>{formatMoney(pricing.acquisitionCost)}</span><em>원</em></b></div>
                     </div>
                   </div>
                 </section>
