@@ -30,9 +30,9 @@ export function resolveSelection(
   return next;
 }
 
-// 선택된 옵션 중 tuning의 price 합(basic 제외, price null → 0).
+// 선택된 옵션의 price 합(basic/tuning 모두 유료 옵션, price null → 0).
 export function optionTotal(options: OptionLite[], selectedIds: ReadonlySet<number>): number {
   return options
-    .filter((o) => o.type === "tuning" && selectedIds.has(o.id))
+    .filter((o) => selectedIds.has(o.id))
     .reduce((sum, o) => sum + (o.price ?? 0), 0);
 }

@@ -29,12 +29,28 @@ export function OptionPicker({ options, relations, onChange }: OptionPickerProps
   const basics = options.filter((o) => o.type === "basic");
   const tunings = options.filter((o) => o.type === "tuning");
   const total = optionTotal(options, selectedIds);
-  const tuningSelectedCount = tunings.filter((o) => selectedIds.has(o.id)).length;
+  const selectedCount = options.filter((o) => selectedIds.has(o.id)).length;
 
   function toggle(id: number) {
     const next = resolveSelection(relations, selectedIds, id, !selectedIds.has(id));
     setSelectedIds(next);
     onChange?.({ selectedIds: [...next], total: optionTotal(options, next) });
+  }
+
+  function renderOption(o: TrimOption) {
+    return (
+      <button
+        key={o.id}
+        className={`kim-option-picker-option${selectedIds.has(o.id) ? " is-selected" : ""}`}
+        type="button"
+        role="checkbox"
+        aria-checked={selectedIds.has(o.id)}
+        onClick={() => toggle(o.id)}
+      >
+        <span>{o.name}</span>
+        <em>+{formatMoney(o.price ?? 0)}원</em>
+      </button>
+    );
   }
 
   return (
@@ -46,8 +62,8 @@ export function OptionPicker({ options, relations, onChange }: OptionPickerProps
         onClick={() => setOpen(!open)}
       >
         <span>옵션</span>
-        <b className={tuningSelectedCount ? "" : "muted"}>
-          기본 {basics.length} · 추가 {tuningSelectedCount}
+        <b className={selectedCount ? "" : "muted"}>
+          {selectedCount ? `${selectedCount}개 선택` : "선택"}
           {total > 0 ? ` · +${formatMoney(total)}원` : ""}
         </b>
         <ChevronDown size={15} />
@@ -56,30 +72,14 @@ export function OptionPicker({ options, relations, onChange }: OptionPickerProps
         <div className="kim-option-picker-menu">
           {basics.length ? (
             <div className="kim-option-picker-group">
-              <span className="kim-option-picker-label">기본 포함</span>
-              {basics.map((o) => (
-                <div key={o.id} className="kim-option-picker-basic">
-                  {o.name}
-                </div>
-              ))}
+              <span className="kim-option-picker-label">기본 옵션</span>
+              {basics.map(renderOption)}
             </div>
           ) : null}
           {tunings.length ? (
             <div className="kim-option-picker-group">
-              <span className="kim-option-picker-label">추가 옵션</span>
-              {tunings.map((o) => (
-                <button
-                  key={o.id}
-                  className={`kim-option-picker-option${selectedIds.has(o.id) ? " is-selected" : ""}`}
-                  type="button"
-                  role="checkbox"
-                  aria-checked={selectedIds.has(o.id)}
-                  onClick={() => toggle(o.id)}
-                >
-                  <span>{o.name}</span>
-                  <em>+{formatMoney(o.price ?? 0)}원</em>
-                </button>
-              ))}
+              <span className="kim-option-picker-label">튜닝 옵션</span>
+              {tunings.map(renderOption)}
             </div>
           ) : null}
           {!basics.length && !tunings.length ? <span className="kim-option-picker-msg">옵션 없음</span> : null}

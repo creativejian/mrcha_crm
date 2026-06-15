@@ -14,7 +14,7 @@
 ## 결정사항 (확정)
 
 - **범위**: 옵션 선택 + 옵션 금액 합산. 컬러/할인 매핑/취득세 공식은 다음 단계.
-- **basic 옵션**: 읽기전용 "기본 포함" 표시, **합산 제외**. 선택·합산은 tuning만.
+- **basic/tuning 옵션**: 둘 다 **선택·합산**. 그룹만 "기본 옵션"/"튜닝 옵션"으로 분리 표시. (구현 중 데이터 검증으로 정정: basic도 유료 제조사 옵션 — `trim_options` 6,737개 중 99.6%가 유료, 예 파노라마 선루프 107만. 당초 "basic 표시만/합산 제외" 가정은 오류였음.)
 - **관계 강제** (includes/excludes):
   - **excludes**: 옵션 A를 켤 때, A와 배타관계인 옵션이 켜져 있으면 자동 해제. **대칭** 처리(데이터가 단방향이어도 양방향 적용).
   - **includes**: 옵션 A를 켤 때, A가 포함하는 옵션도 자동 ON. **단방향, 한 단계만**. 끌 때는 연쇄 해제 안 함(예측 가능·단순).
@@ -24,7 +24,7 @@
 
 **포함**
 - 순수 로직 lib `client/src/lib/option-selection.ts` (`resolveSelection`, `optionTotal`) + 단위테스트(TDD)
-- `OptionPicker` 컴포넌트: `options`/`optionRelations` props → 다중선택 드롭다운(tuning 체크리스트 + basic 표시), `onChange({ selectedIds, total })`
+- `OptionPicker` 컴포넌트: `options`/`optionRelations` props → 다중선택 드롭다운(basic/tuning 모두 체크, 그룹만 분리), `onChange({ selectedIds, total })`
 - `CustomerDetailPage`: 트림 선택 시 `TrimDetail`을 state로 보관 → `OptionPicker`에 전달 → 옵션 `total`을 `data-pricing="option"` input에 반영 → 1단계 `recompute`로 합산
 - 트림 변경 시 옵션 선택 초기화
 
@@ -61,7 +61,7 @@ export function resolveSelection(
   on: boolean,
 ): Set<number>;
 
-// 선택된 옵션 중 tuning의 price 합(basic 제외, price null → 0).
+// 선택된 옵션의 price 합(basic/tuning 모두, price null → 0).
 export function optionTotal(options: OptionLite[], selectedIds: ReadonlySet<number>): number;
 ```
 
@@ -77,7 +77,7 @@ export function optionTotal(options: OptionLite[], selectedIds: ReadonlySet<numb
 - props: `{ options: TrimOption[]; relations: TrimOptionRelation[]; onChange?: (next: { selectedIds: number[]; total: number }) => void }`.
 - 내부 state: `selectedIds: Set<number>`(초기 빈 집합). `options` 레퍼런스가 바뀌면(트림 변경) 초기화.
 - 버튼 행(기존 `kim-jeff-picker-row` 스타일): 요약 표시 `기본 N · 추가 M · +{금액}원`. 클릭 시 패널 토글, 바깥 클릭/Esc로 닫힘(VehiclePicker와 동일 패턴).
-- 패널: **basic** 옵션은 읽기전용 리스트("기본 포함"), **tuning** 옵션은 체크 토글 + `name` + `+{price}원`. 토글 → `resolveSelection(relations, selectedIds, id, on)` → `setSelectedIds` → `onChange({ selectedIds: [...next], total: optionTotal(options, next) })`.
+- 패널: basic/tuning 모두 체크 토글(`name` + `+{price}원`), 그룹 라벨만 "기본 옵션"/"튜닝 옵션"으로 분리. 토글 → `resolveSelection(relations, selectedIds, id, on)` → `setSelectedIds` → `onChange({ selectedIds: [...next], total: optionTotal(options, next) })`.
 - excludes로 자동 해제되거나 includes로 자동 추가된 항목은 체크 상태로 즉시 반영(파생 렌더).
 
 ## ④ 연결 — `CustomerDetailPage`
@@ -89,8 +89,8 @@ export function optionTotal(options: OptionLite[], selectedIds: ReadonlySet<numb
 
 ## ⑤ 테스트 — vitest
 
-- `option-selection.test.ts`(신규, TDD): `resolveSelection` — 단순 토글, excludes 자동 해제(대칭), includes 자동 추가(한 단계), 끄기 시 연쇄 없음, 원본 Set 불변. `optionTotal` — tuning 합, basic 제외, `price null → 0`.
-- `OptionPicker.test.tsx`(신규): 렌더 → tuning 체크 시 `onChange` total, basic 읽기전용 표시, excludes 토글 시 상대 해제. fetch mock 불필요(props 주입).
+- `option-selection.test.ts`(신규, TDD): `resolveSelection` — 단순 토글, excludes 자동 해제(대칭), includes 자동 추가(한 단계), 끄기 시 연쇄 없음, 원본 Set 불변. `optionTotal` — basic/tuning 모두 합산, `price null → 0`.
+- `OptionPicker.test.tsx`(신규): 렌더 → 옵션 체크 시 `onChange` total, basic도 체크 가능, excludes 토글 시 상대 해제. fetch mock 불필요(props 주입).
 - `CustomerDetailPage` 통합은 1단계와 동일하게 수동 확인(거대 컴포넌트 풀 테스트 비범위).
 
 ## 영향 파일

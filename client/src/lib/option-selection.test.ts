@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { optionTotal, resolveSelection, type OptionLite, type OptionRelation } from "./option-selection";
 
 const opts: OptionLite[] = [
-  { id: 1, type: "basic", price: null },
+  { id: 1, type: "basic", price: 500000 },
   { id: 2, type: "tuning", price: 1500000 },
   { id: 3, type: "tuning", price: 2000000 },
   { id: 4, type: "tuning", price: null },
@@ -44,8 +44,8 @@ describe("resolveSelection", () => {
 });
 
 describe("optionTotal", () => {
-  it("tuning만 합산, basic 제외, price null은 0", () => {
-    expect(optionTotal(opts, new Set([1, 2, 4]))).toBe(1500000); // 1=basic 제외, 4=null→0
+  it("선택된 모든 옵션 합산(basic 포함), price null은 0", () => {
+    expect(optionTotal(opts, new Set([1, 2, 4]))).toBe(2000000); // basic 50만 + tuning 150만 + null 0
     expect(optionTotal(opts, new Set([2, 3]))).toBe(3500000);
     expect(optionTotal(opts, new Set())).toBe(0);
   });
