@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { optionTotal, resolveSelection } from "@/lib/option-selection";
+import { disabledOptionIds, excludeGroups, excludePartners, optionTotal, resolveSelection } from "@/lib/option-selection";
 import { formatMoney } from "@/lib/quote-pricing";
 import type { TrimOption, TrimOptionRelation } from "@/lib/vehicles";
 
@@ -30,6 +30,10 @@ export function OptionPicker({ options, relations, onChange }: OptionPickerProps
   const tunings = options.filter((o) => o.type === "tuning");
   const total = optionTotal(options, selectedIds);
   const selectedCount = options.filter((o) => selectedIds.has(o.id)).length;
+  const disabled = disabledOptionIds(relations, selectedIds);
+  const groups = excludeGroups(options, relations);
+  const nameById = new Map(options.map((o) => [o.id, o.name] as const));
+  const hasExcludeGroups = groups.size > 0;
 
   function toggle(id: number) {
     const next = resolveSelection(relations, selectedIds, id, !selectedIds.has(id));
@@ -38,18 +42,28 @@ export function OptionPicker({ options, relations, onChange }: OptionPickerProps
   }
 
   function renderOption(o: TrimOption) {
+    const group = groups.get(o.id);
+    const partners = excludePartners(relations, o.id);
     return (
-      <button
-        key={o.id}
-        className={`kim-option-picker-option${selectedIds.has(o.id) ? " is-selected" : ""}`}
-        type="button"
-        role="checkbox"
-        aria-checked={selectedIds.has(o.id)}
-        onClick={() => toggle(o.id)}
-      >
-        <span>{o.name}</span>
-        <em>+{formatMoney(o.price ?? 0)}원</em>
-      </button>
+      <div key={o.id} className="kim-option-picker-row-wrap">
+        <button
+          className={`kim-option-picker-option${selectedIds.has(o.id) ? " is-selected" : ""}`}
+          type="button"
+          role="checkbox"
+          aria-checked={selectedIds.has(o.id)}
+          disabled={disabled.has(o.id)}
+          onClick={() => toggle(o.id)}
+        >
+          {group !== undefined ? <span className={`kim-option-picker-dot kim-option-picker-dot--${group % 6}`} /> : null}
+          <span className="kim-option-picker-name">{o.name}</span>
+          <em>+{formatMoney(o.price ?? 0)}원</em>
+        </button>
+        {partners.length ? (
+          <span className="kim-option-picker-relation">
+            ⇄ {partners.map((id) => nameById.get(id)).filter(Boolean).join(", ")}와 중복 선택 불가
+          </span>
+        ) : null}
+      </div>
     );
   }
 
@@ -70,6 +84,14 @@ export function OptionPicker({ options, relations, onChange }: OptionPickerProps
       </button>
       {open ? (
         <div className="kim-option-picker-menu">
+          {hasExcludeGroups ? (
+            <div className="kim-option-picker-hint">
+              <span className="kim-option-picker-dot kim-option-picker-dot--0" />
+              <span className="kim-option-picker-dot kim-option-picker-dot--1" />
+              <span className="kim-option-picker-dot kim-option-picker-dot--2" />
+              같은 색 = 중복 선택 불가
+            </div>
+          ) : null}
           {basics.length ? (
             <div className="kim-option-picker-group">
               <span className="kim-option-picker-label">기본 옵션</span>

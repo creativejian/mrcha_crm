@@ -29,19 +29,22 @@ describe("OptionPicker", () => {
     expect(onChange).toHaveBeenCalledWith({ selectedIds: [1], total: 800000 });
   });
 
-  it("excludes 토글 시 상대 자동 해제", async () => {
+  it("excludes 옵션 선택 시 배타 상대가 비활성화", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
     render(
-      <OptionPicker
-        options={options}
-        relations={[{ id: 1, optionId: 2, relatedOptionId: 3, type: "excludes" }]}
-        onChange={onChange}
-      />,
+      <OptionPicker options={options} relations={[{ id: 1, optionId: 2, relatedOptionId: 3, type: "excludes" }]} />,
     );
     await user.click(screen.getByRole("button", { name: /옵션/ }));
-    await user.click(screen.getByRole("checkbox", { name: /고급 시트/ })); // 3 on
-    await user.click(screen.getByRole("checkbox", { name: /선루프/ })); // 2 on → 3 해제
-    expect(onChange).toHaveBeenLastCalledWith({ selectedIds: [2], total: 1500000 });
+    await user.click(screen.getByRole("checkbox", { name: /선루프/ })); // 2 on
+    expect(screen.getByRole("checkbox", { name: /고급 시트/ })).toBeDisabled(); // 3 비활성화
+  });
+
+  it("배타 옵션에 중복 선택 불가 설명을 표시", async () => {
+    const user = userEvent.setup();
+    render(
+      <OptionPicker options={options} relations={[{ id: 1, optionId: 2, relatedOptionId: 3, type: "excludes" }]} />,
+    );
+    await user.click(screen.getByRole("button", { name: /옵션/ }));
+    expect(screen.getAllByText(/중복 선택 불가/).length).toBeGreaterThan(0);
   });
 });

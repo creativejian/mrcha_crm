@@ -15082,6 +15082,42 @@ th input:focus-visible {
   font-size: 12px;
   color: #5f6872;
 }
+.kim-option-picker-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kim-option-picker-option:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.kim-option-picker-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.kim-option-picker-dot--0 { background: #e5484d; }
+.kim-option-picker-dot--1 { background: #3b82f6; }
+.kim-option-picker-dot--2 { background: #22a06b; }
+.kim-option-picker-dot--3 { background: #f5a524; }
+.kim-option-picker-dot--4 { background: #8b5cf6; }
+.kim-option-picker-dot--5 { background: #06b6d4; }
+.kim-option-picker-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  color: #9298a0;
+}
+.kim-option-picker-relation {
+  display: block;
+  padding: 0 10px 6px 22px;
+  font-size: 11px;
+  color: #9298a0;
+  line-height: 1.4;
+}
 .kim-option-picker-msg {
   display: block;
   padding: 10px;
