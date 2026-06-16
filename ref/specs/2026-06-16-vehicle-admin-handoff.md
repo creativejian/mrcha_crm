@@ -58,7 +58,7 @@
 
 - 5종: 판매중(기본)·출시예정·사전예약·단종·블라인드.
 - **⚠️ 갱신(2026-06-16): 단종 로직 2건은 앱 Dart에만 있던 것 → DB 트리거로 이전 확정(catalog SSOT, Phase ①).** CRM 콘솔 재구현 불필요, 앱·CRM 어느 쪽 write에도 일관 보장.
-  - 모델 단종: status='단종' → 하위 트림 자동 단종(트리거).
+  - 모델 단종: status='단종' 전이 시 하위 트림 자동 단종(트리거 `cascade_model_discontinue`, **블라인드·이미단종 제외** — 블라인드 보존).
   - 트림 status ⊂ 모델 status: 모델이 '단종'이면 트림은 단종/블라인드만 허용(트리거 검증, 위반 거부).
 - 표시 규칙(별도): 채팅 라인업은 단종도 보이되 트림 있으면 활성 / 견적은 단종 비활성 / 블라인드는 전 경로 숨김.
 
@@ -96,7 +96,7 @@
 
 ## CRM 차량 콘솔 결정 (2026-06-16 확정)
 
-1. **단종 cascade**: DB 트리거 이전(원자성+SSOT). ⏳ 현재 blunt cascade(status 무관 무조건 단종, 블라인드/출시예정도 덮음)가 의도인지 앱 팀 확인 대기 → 의도면 현행 트리거화, 아니면 조건부 개선.
+1. **단종 cascade**: DB 트리거 이전 **확정**(원자성+SSOT). blunt는 버그(블라인드 노출)로 판정 → **조건부 개선 트리거** `catalog.cascade_model_discontinue`(AFTER UPDATE on models): 모델 '단종' 전이(`NEW='단종' AND OLD IS DISTINCT FROM '단종'`) 시 하위 트림 단종, **단 `status NOT IN ('블라인드','단종')`**(블라인드 보존·churn 회피). 출시예정/사전예약은 단종 처리. Dart `discontinueModelTrims` 제거. Phase ① 산출물.
 2. **`trim_option_relations` 편집**: **UI 미구현 + 크롤러 SSOT 유지**. 콘솔은 표시만, 편집은 SQL/크롤러 재실행. (5,195쌍 92.3% 크롤러 자동, 수정 빈도 낮음). 구조: `id·option_id·related_option_id·type(excludes 배타양방향/includes 요구단방향)·created_at`, trim_options.id 종속(FK CASCADE).
 3. **`moveTrimsToModel`**: `UPDATE trims SET model_id`. **★ `mc_code IS NOT NULL` 트림 이동 차단**(콘솔 가드) — UNIQUE(model_id, trim_code) 충돌 + mc_code가 OLD model_code 박은 11자리라 이동 시 stale·불변. 코드 부여 전에만 안전.
 4. **`batch_update_sort_order(p_table, p_ids[], p_sort_orders[])`**: 2-pass(임시 10000+i → 최종, UNIQUE 회피), 1부터. **catalog 재한정 Phase ①**(앱 팀). CRM은 `catalog.batch_update_sort_order('trims'|'models', …)` 호출.
@@ -104,5 +104,4 @@
 
 ## 남은 확인 (앱 팀)
 
-- 단종 blunt cascade 의도 여부(위 1번).
-- 표기법 준수 책임: 크롤러 자동 vs 운영자 수동(입력 계약 pending).
+- 표기법 준수 책임: 크롤러 자동 vs 운영자 수동(입력 계약 pending). ← 유일 잔여
