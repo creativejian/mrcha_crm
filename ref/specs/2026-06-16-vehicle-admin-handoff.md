@@ -102,6 +102,41 @@
 4. **`batch_update_sort_order(p_table, p_ids[], p_sort_orders[])`**: 2-pass(임시 10000+i → 최종, UNIQUE 회피), 1부터. **catalog 재한정 Phase ①**(앱 팀). CRM은 `catalog.batch_update_sort_order('trims'|'models', …)` 호출.
 5. **그룹핑 입력**: 국산 서브라인/등급 **분리 입력 → 저장 시 ` - ` 자동 결합** + `name=trim_name`·`canonical_name` 자동 채움(통짜 입력=결함 4건 원인 차단). 수입은 flat 단일.
 
-## 남은 확인 (앱 팀)
+## 표기법 책임 (확정 2026-06-16)
 
-- 표기법 준수 책임: 크롤러 자동 vs 운영자 수동(입력 계약 pending). ← 유일 잔여
+- 현재 = **운영자 수동**: `trim_name`은 이사님 엑셀(`reference/domestic_car/{brand}.xlsx`) → import/수동 입력. **크롤러는 trim_name을 만들지 않고 소비**(다나와 옵션 매칭 `match_db_trim` 92.3%가 `trim_name`의 ` - ` 뒤 부분으로 트림 매칭). **→ 표기법은 표시 일관성을 넘어 옵션 파이프라인의 입력 계약.**
+- CRM = **콘솔 강제**(분리입력+자동결합, §7/입력계약 §5) + **DB 백스톱 트리거**(엑셀 import·직결 INSERT 등 콘솔 우회까지 차단):
+
+```sql
+-- Phase ① 산출물 #9
+CREATE FUNCTION catalog.enforce_domestic_trim_name_format() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = '' AS $$
+DECLARE v_is_domestic boolean;
+BEGIN
+  SELECT b.is_domestic INTO v_is_domestic
+  FROM catalog.models m JOIN catalog.brands b ON b.id = m.brand_id
+  WHERE m.id = NEW.model_id;
+  IF v_is_domestic AND (NEW.trim_name IS NULL OR NEW.trim_name NOT LIKE '% - %') THEN
+    RAISE EXCEPTION '국산차 trim_name 은 "서브라인 - 등급"(" - " 구분자) 필수: %', NEW.trim_name;
+  END IF;
+  RETURN NEW;
+END; $$;
+CREATE TRIGGER enforce_domestic_trim_name_format
+  BEFORE INSERT OR UPDATE OF trim_name ON catalog.trims
+  FOR EACH ROW EXECUTE FUNCTION catalog.enforce_domestic_trim_name_format();
+```
+- ` - ` 존재만 검증(오타·등급 내용은 콘솔+검수 몫). 기존 국산 1090건 전부 준수 → 적용 안전.
+
+**→ 차량 author 사양 완결. 남은 확인 0건.**
+
+## Phase ① 산출물 9종 (최종 확정 — 앱 팀 작성)
+
+1. catalog `SET SCHEMA` 9테이블 + FK 자동 승계
+2. 트리거 함수 12개 이동 + 본문 재한정(`public.*`→`catalog.*`)
+3. public 호환 view(`security_invoker`) + grant + 타입 재생성
+4. `provision_staff_role` RPC (admin 차단 + `role_audit`)
+5. `assign_trim_codes` RPC (trim_code 할당 SSOT)
+6. `cascade_model_discontinue` 트리거 (조건부 — 블라인드/이미단종 제외)
+7. `batch_update_sort_order` catalog 재한정
+8. status 검증 트리거 (트림 status ⊂ 모델 status)
+9. `enforce_domestic_trim_name_format` 트리거 (표기법 DB 백스톱)

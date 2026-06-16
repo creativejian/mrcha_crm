@@ -58,7 +58,7 @@ CRM이 catalog(차량) author를 인수할 때 앱이 의존하는 trim 표기·
 - 첫 ` - ` 기준 분리. 서브라인엔 ` - ` 없음, 등급엔 괄호·공백 OK
 - **검증(2026-06-16, 실데이터)**: 국산 1090/1090 100% 준수, 수입 579 전부 flat, 변형대시 0
 - **그룹핑 표시 UI는 앱 몫(CRM 불필요).** 단 **차량 수정/author 시 표기법은 준수 필수**.
-- ⏳ **앱 팀 추가 정보 대기**: ① 차량 **수정 시 그룹핑 입력 방식**(수정 UI엔 서브라인/등급 분리가 필요할 것으로 봄) ② 표기법 준수 책임이 **크롤러 자동 vs 운영자 수동** 중 어디인지. 답 오면 콘솔 입력/검증 수준 확정.
+- ✅ **확정(2026-06-16)**: ① 차량 수정 그룹핑 = 국산 서브라인/등급 **분리 입력 → ` - ` 자동 결합**(콘솔 강제). ② 표기법 책임 = 현재 운영자 수동(엑셀 import) → **콘솔 강제 + DB 백스톱 트리거**(`enforce_domestic_trim_name_format`, Phase ① #9). 표기법은 옵션 자동매칭(92.3%) 입력 계약이라 우회 경로까지 트리거로 차단. **차량 author 사양 완결.**
 
 ### 정합성
 - 결함 정정 완료(앱 팀 migration `20260616174610`): 국산 name≠trim_name 4건(레이 시그니처, GV80 Coupe BLACK 오타×2, 캐스퍼 II) → **잔여 0**. CRM 인수 시 1회 점검 쿼리(앱 spec §6) 재확인.
@@ -78,7 +78,7 @@ master 소유 = 앱 팀. **Phase ①은 앱 팀이 supabase CLI로 적용**, 이
 
 - **Phase ①** (앱 팀): `CREATE SCHEMA catalog` → 9테이블 `ALTER ... SET SCHEMA catalog`(FK·트리거·RLS 자동 승계, OID 참조 무손실) → 트리거 함수 12개 catalog 이동 + 본문 `public.*`→`catalog.*` 재한정 → `public`에 `security_invoker` 호환 view → 권한(anon/authenticated SELECT) → catalog PostgREST 비노출 유지.
   - FK(`quote_requests.trim_id`, `quote_request_options.trim_option_id`, `source_vehicle_map.internal_trim_id`, `trim_code_history.model_id`, alias.* 등)는 cross-schema로 자동 승계. **실테이블 `catalog.*` 참조**(view엔 FK 불가).
-  - **Phase ① 산출물(앱 팀 작성)**: catalog 이동 + 코드 트리거 12개 + public 호환 view + `provision_staff_role` RPC + **`catalog.assign_trim_codes(model_id)` RPC**(trim_code 할당, CRM 호출만 — 앱 Dart 로직이 안 넘어오므로 RPC로 보존) + **단종 트리거 2건**(모델 단종 cascade + 트림 status⊂모델 status 검증, 앱 Dart→트리거 SSOT 이전).
+  - **Phase ① 산출물 9종(앱 팀 작성, 최종 확정)**: ① catalog SET SCHEMA 9테이블+FK 승계 ② 트리거 함수 12개 이동+재한정 ③ public 호환 view(security_invoker)+grant+타입 재생성 ④ `provision_staff_role` RPC(admin 차단+role_audit) ⑤ `assign_trim_codes` RPC(trim_code 할당 SSOT) ⑥ `cascade_model_discontinue` 트리거(조건부, 블라인드 제외) ⑦ `batch_update_sort_order` catalog 재한정 ⑧ status 검증 트리거(트림⊂모델) ⑨ `enforce_domestic_trim_name_format` 트리거(표기법 백스톱). 상세: `2026-06-16-vehicle-admin-handoff.md`.
 - **Phase ②**: 앱 어드민 차량 화면 read-only(별도 PR) + CRM이 catalog write 시작. **CRM은 catalog를 drizzle introspect baseline으로 adopt**(새 CREATE 금지). provision_staff_role 배포 → CRM 프로비저닝 연결.
 - **Phase ③** (선택): public 호환 view 정리 검토. view 유지 비용 낮아 영구 유지 가능.
 
@@ -107,8 +107,7 @@ master 소유 = 앱 팀. **Phase ①은 앱 팀이 supabase CLI로 적용**, 이
 ## 상태 / 다음
 
 - ✅ 앱 팀 합의 완료(admin 차단·감사로그 v1·도구경계·FK조율·동시성·secret).
-- ✅ 차량 입력 계약 수신·검증(위 섹션). 결함 4건 앱 팀 정정 완료(잔여 0).
-- ⏳ 차량 **수정 시 그룹핑 입력 방식** + 표기법 책임(크롤러 자동 vs 수동)은 **앱 팀 추가 정보 대기** → 받으면 차량 콘솔 설계에 반영.
+- ✅ **차량 author 사양 완결**(2026-06-16): 차량 입력 계약 + 어드민 동작 명세 + 콘솔 5개 결정 + 표기법 백스톱 모두 확정. 결함 4건 정정(잔여 0). **Phase ① 산출물 9종 최종 확정**(앱 팀 작성 대기). 잔여 확인 0건. 상세: `2026-06-16-vehicle-admin-handoff.md`.
 - ⏳ **A안**: CRM 설계 먼저 → 준비되면 Phase ① 적용 일정 공유. CRM baseline은 prod 적용 알림 후.
 - 다음: **CRM 데이터 아키텍처 brainstorming**(연결 전환·`crm` 스키마·차량 콘솔·인증).
 - 참고: 앱 작업폴더 `/Users/tobedoit/Documents/Flutter/mr-cha-app` (read-only 확인 가능 — `supabase/migrations`, `lease_calc.ts`, `lib/data/repositories`).
