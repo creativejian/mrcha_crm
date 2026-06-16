@@ -85,7 +85,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
 
         <div className="mini-grid">
           {TABLE_LABELS.map(([key, label]) => (
-            <article className="mini-card" key={key}>
+            <article className="mini-card catalog-count-card" key={key}>
               <strong>{label}</strong>
               <span>{countsError ? "불러오기 실패" : counts ? `${counts[key].toLocaleString()}건` : "…"}</span>
             </article>

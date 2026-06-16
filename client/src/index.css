@@ -5029,6 +5029,17 @@ th input:focus-visible {
   }
 }
 
+.catalog-count-card {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.catalog-count-card strong::after {
+  content: ":";
+}
+
 .catalog-sync-result {
   margin-top: 12px;
   padding: 12px 14px;
