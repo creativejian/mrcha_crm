@@ -119,14 +119,15 @@ Purpose: `영실아 이어가자` 이후 현재 작업만 빠르게 복구하기
 - 2026-06-15: Manual condition value boxes share `--kim-manual-value-width`, matching the upper rows where value boxes start at the `48개월` boundary. The calculated result area must use a 4-column row grammar (`label/value/label/value`), not two independent half cards, otherwise equal-width value boxes drift. `월 납입금` is a `.kim-manual-compare-row`, not a `<label>`, so clicking the gray row background does not enter replace-preview edit mode; only the input box click should.
 - 2026-06-15: Each `견적 작성 1~3` condition now has a bottom save button (`n번 조건 저장`). Saving one condition only locks that card, applies `is-saved` disabled styling, disables its body controls, changes the bottom button to `n번 조건 저장됨`, and adds a header `수정` button before `재입력`. Card 1 still has no copy button; cards 2/3 keep their copy button.
 - 2026-06-15: Only the bottom `n번 조건 저장` button was compacted (34px height, 13px text). Do not shrink the rest of the manual condition card typography/row/control heights unless explicitly requested.
+- 2026-06-16 (PR #17): 외장/내장 **색상 선택 완료**. `ColorPicker`(controlled, `colorType`로 외장/내장 재사용, hex 스와치 단일선택)로 `trimDetail.colors`에서 선택 → 🎨 섹션 버튼 + 앱카드/견적 `외장/내장 컬러` 반영. `colors`=트림별 기본 팔레트(exterior 7,914/interior 2,569, hex+code 완비, 한글 82%/영문 18% 원본명, **가격 무관**). 유료 매트 도장은 `trim_options` 외장컬러와 별개(겹치지 않음). 트림 변경 시 state 초기화(controlled라 key 불필요). 차량→가격→옵션→색상 구성 완성. 설계/계획: `ref/specs|plans/2026-06-16-quote-color-selection*`.
 
 ## Verification / Next
 
 - After DOM/TS changes, run `bun run typecheck`.
 - Latest check: `bun run typecheck`, `bun run lint`, and `bunx playwright test tools/customer-detail-screenshot.spec.ts --project=chromium` passed after adding the 3-condition manual quote cards and removing the old quote modal entry button.
 - Avoid Playwright for every small spacing tweak; use screenshots after larger stabilization.
-- 2026-06-15 검증: `typecheck`/`lint` 0, `test:unit` 42 passed, `build` 성공. 브라우저 확인 완료(가격 합산·옵션 선택·excludes 비활성화 정상 동작). 1·2단계·excludes UX 모두 main 머지됨.
-- Next (다음 단계): 외장/내장 컬러 선택(hex 스와치, colors 10,483행), 구매방식별 할인 매핑(financial/partner/cash), 취득세 공식 자동계산 + segment 토글 재분류, 가격 패널·옵션·컬러 통합 컴포넌트 추출, 견적 저장(quotes 스키마). 별개로 header/body spacing QA, saved workbench draft/app-send 흐름.
+- 2026-06-16 검증: `typecheck`/`lint` 0, `test:unit` 45 passed, `build` 성공. 가격/옵션/excludes/색상 모두 브라우저 확인 + main 머지(PR #13~17). 이사님 수기 3조건 UX(commit `1a4228a`)도 merge됨.
+- Next (다음 단계): 구매방식별 할인 매핑(financial/partner/cash)·취득세 공식 자동계산 — **이사님 할인 다중행·취득세 4탭 UI(`1a4228a`) 위에 실제 계산 연결**, segment 토글 재분류, 가격 패널·옵션·컬러 통합 컴포넌트 추출, 견적 저장(quotes 스키마). 별개로 header/body spacing QA, saved workbench draft/app-send 흐름.
 
 ## Collaboration
 

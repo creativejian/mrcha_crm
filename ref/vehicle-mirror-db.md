@@ -27,6 +27,7 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 - 행수: brands 33 / models 265 / trims 1,669 / trim_options 10,495 / trim_option_relations 6,236 / trim_no_options 57 / colors 10,483.
 - **`trim_options.type` 의미** (2026-06-15 실데이터 확인): `basic`(제조사 정규 옵션 — 6,737개 중 99.6%가 **유료**, 선루프·패키지·외장컬러 등) / `tuning`(애프터마켓, 3,758개, 더 저렴). **둘 다 유료 선택·합산 대상** — "basic=무료 기본사양"은 오해이니 주의.
 - **`trim_option_relations.type` 의미**: `excludes`(중복 선택 불가, 5,862개 — 외장컬러·패키지군 등 배타. 견적 UI는 미스터차 앱처럼 비활성화+색그룹으로 처리) / `includes`(A 선택 시 B 자동 포함, 374개, 한 단계). 견적 옵션 UX 상세: `ref/specs/2026-06-15-quote-option-selection-design.md`, `…-quote-option-exclude-ux-design.md`.
+- **`colors` 의미** (2026-06-16 실데이터 확인): 트림별 **기본 색상 팔레트** — exterior 7,914 / interior 2,569, 전부 hex+code, 색상명은 한글 82%/영문 18%(브랜드 원본 언어 그대로, 예 `폴라 화이트 (149U)`). **가격 컬럼 없음**(기본 제공). 유료 매트 도장(무광 등)은 `trim_options`의 외장컬러 옵션으로 **별개**(겹치지 않음). 견적 색상 선택은 `colors`에서, 유료 도장은 옵션에서. 색상 UX 상세: `ref/specs/2026-06-16-quote-color-selection-design.md` (PR #17).
 
 ## ⚠️ RLS 주의 (핸드오프 불일치 — 파트너 통보 필요)
 
@@ -60,9 +61,11 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 
 5. ✅ 가격/옵션 반영 — 가격 패널(PR #13), 옵션 선택+합산(PR #14), excludes 비활성화 UX(PR #15), 가격 mock 상수화(PR #16). 김민준 workbench 한정.
 
+6. ✅ 색상(외장/내장) 선택 — `ColorPicker`(hex 스와치 단일선택, colors=기본 팔레트·가격무관) → 🎨 버튼+앱카드 반영, PR #17.
+
 다음:
-6. 색상(외장/내장) 선택 — `colors`(10,483행, exterior/interior + hex) 선택 UI. 이후 구매방식별 할인 매핑(financial/partner/cash) + 취득세 공식.
-7. sync 스크립트 (위 PostgREST 규칙)
-8. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
+7. 구매방식별 할인 매핑(financial/partner/cash) + 취득세 공식 자동계산 — 이사님 할인 다중행·취득세 4탭 UI(`1a4228a`) 위에 실제 계산 연결.
+8. sync 스크립트 (위 PostgREST 규칙)
+9. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
 
 참고: 로컬 실행은 `bun run dev`로 API(8788)+client(5173) 둘 다 띄워야 `/api/vehicles`가 동작한다. (PORT 빈값 함정은 `src/local-dev.ts`에서 `Number(process.env.PORT) || 8788`로 견고화됨, PR #12)
