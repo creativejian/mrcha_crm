@@ -42,13 +42,16 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 - master에서 삭제된 차량/옵션/색상은 거울에서 hard delete 대신 `deleted_at` 마킹 → **견적 FK 보호 + 이력 보존**.
 - 조회 시 `WHERE deleted_at IS NULL`로 현재 판매 분만 필터.
 
-## 동기화 (PostgREST) — 미구현, 다음 단계
+## 동기화 (sync 코어 = `bun run sync`) — 1단계 구현 완료 (PR #18, 2026-06-16)
 
+- 구현: `src/sync/` — `sync-diff.ts`(순수 `idsToSoftDelete`/`chunk`/`projectRow`, TDD bun test) · `sync-tables.ts`(7테이블 화이트리스트 메타, `deleted_at` 제외, PK 정보) · `master-client.ts`(REST fetch + Range 페이징) · `sync.ts`(오케스트레이션 + 요약). CLI `bun run sync`.
 - env: `MRCHA_MASTER_SUPABASE_URL`, `MRCHA_MASTER_PUBLISHABLE_KEY`(`.env.local`, CRM 전용 publishable 키, 파트너/앱 키와 공유 금지).
-- 화이트리스트 fetch(`select=*` 금지) → upsert(`deleted_at=NULL`로 부활) + 응답에 없는 row `deleted_at=NOW()` soft-delete.
-- 주기: 사람이 버튼으로 ~2주 full sync.
+- 동작: 화이트리스트 fetch(`select=*` 금지, snake_case→camelCase 투영) → drizzle `onConflictDoUpdate`(`deleted_at=NULL`로 부활) + master에 없는 활성 row `deleted_at=NOW()` soft-delete.
+- **full-sync**(증분 불가): master는 hard-delete(`deleted_at` 없음) + `updated_at`은 `trims`에만. 주기는 사람이 ~2주 수동 실행.
 - conflict target: 대부분 `id`, **단 `trim_no_options`는 `trim_id`**.
-- 10K+ 테이블(trim_options/colors/relations)은 Range 페이징, total 일치 확인 후에만 soft-delete 마킹.
+- 10K+ 테이블(trim_options/colors/relations)은 Range 1000 페이징, `rows==total` 검증 통과 시에만 soft-delete 마킹(불완전 fetch로 오삭제 방지).
+- 실전 검증(2026-06-16): 520i(id 701) 가격 변경 → sync → catalog 가격+`updated_at` 메타까지 정확 반영, 원복도 추종, 다른 행/soft-delete 영향 0. 설계/계획: `ref/specs|plans/2026-06-16-catalog-sync*`.
+- **2단계(미구현)**: 관리 화면 동기화 버튼 + 서버 API(`POST /api/catalog/sync`) + 진행/결과 표시.
 
 ## 진행 상황 / 다음 작업
 
@@ -63,9 +66,11 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 
 6. ✅ 색상(외장/내장) 선택 — `ColorPicker`(hex 스와치 단일선택, colors=기본 팔레트·가격무관) → 🎨 버튼+앱카드 반영, PR #17.
 
+7. ✅ catalog 거울 동기화 sync 코어(1단계) — `bun run sync`(`src/sync/`), full-sync upsert+soft-delete, 실전 검증 완료. PR #18. (위 "동기화" 섹션 참조)
+
 다음:
-7. 구매방식별 할인 매핑(financial/partner/cash) + 취득세 공식 자동계산 — 이사님 할인 다중행·취득세 4탭 UI(`1a4228a`) 위에 실제 계산 연결.
-8. sync 스크립트 (위 PostgREST 규칙)
-9. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
+8. 구매방식별 할인 매핑(financial/partner/cash) + 취득세 공식 자동계산 — 이사님 할인 다중행·취득세 4탭 UI(`1a4228a`) 위에 실제 계산 연결. (master secret key 필요 — 보류)
+9. sync 2단계 — 관리 화면 동기화 버튼 + 서버 API(`POST /api/catalog/sync`) + 진행/결과 표시.
+10. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
 
 참고: 로컬 실행은 `bun run dev`로 API(8788)+client(5173) 둘 다 띄워야 `/api/vehicles`가 동작한다. (PORT 빈값 함정은 `src/local-dev.ts`에서 `Number(process.env.PORT) || 8788`로 견고화됨, PR #12)
