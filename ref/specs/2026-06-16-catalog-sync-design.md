@@ -67,6 +67,7 @@ export function idsToSoftDelete<K>(masterIds: ReadonlySet<K>, catalogActiveIds: 
 
 ## ④ 안전 / 에러
 
+- **트리거/함수 검증 완료**(2026-06-16 실데이터): catalog 사용자 정의 트리거 **0**(FK 무결성 시스템 트리거 `RI_ConstraintTrigger_*`만 남음 — 제거 금지), 코드생성/`updated_at` 함수 **0**. → sync upsert가 `mc_code`·`updated_at` 등을 재생성/덮어쓰지 않고 **master 값 그대로 보존(순수 거울)**. master 트리거가 거울에서 작동할 일 없음.
 - catalog **데이터만** 변경(스키마 불변).
 - 테이블 total 불일치/페이징 실패 → 그 테이블 **soft-delete 스킵 + 경고 로그**(upsert는 진행). 불완전 데이터로 잘못 단종 처리 방지.
 - 권한: master read=`publishable key`(차량 테이블 read 확인됨), catalog write=`DATABASE_URL`(service-role).

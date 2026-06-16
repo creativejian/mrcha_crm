@@ -22,7 +22,7 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 
 - 자산: `ref/db_import/`(gitignore — 대용량 dump + CRM 전용 publishable 키).
 - 적용 순서(FK): `brands_models_trims` → `mirror_drop_triggers` → `options_colors`.
-- 코드생성 트리거 12 + 함수 12 DROP(거울은 master 코드값을 보존).
+- 코드생성 트리거 12 + 함수 12 DROP(거울은 master 코드값을 보존). **(2026-06-16 실데이터 재확인: catalog 사용자 정의 트리거 0 — FK 무결성 시스템 트리거만 남음, 코드생성/`updated_at` 함수 0. sync upsert가 master 값을 재생성/덮어쓰지 않음 보장.)**
 - import 후 `public`에 들어간 차량 테이블을 `ALTER ... SET SCHEMA catalog`로 통째 이동(데이터 오염 0).
 - 행수: brands 33 / models 265 / trims 1,669 / trim_options 10,495 / trim_option_relations 6,236 / trim_no_options 57 / colors 10,483.
 - **`trim_options.type` 의미** (2026-06-15 실데이터 확인): `basic`(제조사 정규 옵션 — 6,737개 중 99.6%가 **유료**, 선루프·패키지·외장컬러 등) / `tuning`(애프터마켓, 3,758개, 더 저렴). **둘 다 유료 선택·합산 대상** — "basic=무료 기본사양"은 오해이니 주의.
