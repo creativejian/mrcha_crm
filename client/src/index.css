@@ -4977,6 +4977,31 @@ th input:focus-visible {
   font-size: 13px;
 }
 
+.notice-box.error {
+  border-color: #d9534f;
+  color: #d9534f;
+}
+
+.catalog-sync-result {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f7f6;
+}
+
+.catalog-sync-result.warn {
+  border-color: #e0b400;
+  background: #fffaf0;
+}
+
+.catalog-sync-result ul {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: #4f5a64;
+}
+
 .mini-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -205,7 +205,7 @@ export function App() {
     if (activeView === "insights") return <InsightsPage />;
     if (activeView === "knowledge-base") return <KnowledgeBasePage />;
     if (activeView === "ai-settings") return <AISettingsPage />;
-    if (activeView === "mc-master") return <MCMasterPage />;
+    if (activeView === "mc-master") return <MCMasterPage roleTab={roleTab} />;
     if (activeView === "org-members") return <OrgMembersPage />;
     if (activeView === "partners") return <PartnersPage />;
     if (activeView === "finance") return <FinancePage mode={financeMode} />;
