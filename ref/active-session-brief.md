@@ -13,10 +13,10 @@ Purpose: `영실아 이어가자` 이후 현재 작업만 빠르게 복구하기
 
 ## Current Focus
 
-- Scope: 김민준 customer detail drawer, `CU-2605-0020`.
-- Current task: new quote workbench opened from the quote box header.
-- Keep existing `견적 작성` button and old modal unchanged for reference.
-- New workbench button sits left of the existing quote button.
+- 차량 데이터 파이프라인 트랙: 거울 import → 조회 API → 프론트 선택(가격/옵션/색상) → **master 동기화**(`bun run sync` CLI + mc-master UI)까지 완성 (PR #9~19).
+- 2026-06-16 **클라이언트 라우팅 도입 완료**(react-router, URL↔화면, PR #20) — 리로드 초기화 해결.
+- 다음 후보: 라우팅 2단계(하위모드 `?mode=`·고객 딥링크) · sync 이력("마지막 동기화 N분 전") · 구매방식별 할인·취득세 공식(master secret key 대기).
+- 이전 김민준 견적 워크벤치(가격/옵션/excludes/색상)는 PR #13~17로 main 머지됨. 추가 작업 시 `client/src/pages/CustomerDetailPage.tsx` + `index.css`.
 
 ## Files / State
 
@@ -125,7 +125,9 @@ Purpose: `영실아 이어가자` 이후 현재 작업만 빠르게 복구하기
 - 2026-06-16: Manual quote solution lookup moved into the `월 납입금` row as a square calculator icon button directly left of the monthly payment input. It queries/fills the adjacent monthly payment rather than acting like a card-level save/reset action. Keep `aria-label/title="솔루션 조회"` because the visible text is removed. Bottom action remains condition save only.
 - 2026-06-16 (PR #17): 외장/내장 **색상 선택 완료**. `ColorPicker`(controlled, `colorType`로 외장/내장 재사용, hex 스와치 단일선택)로 `trimDetail.colors`에서 선택 → 🎨 섹션 버튼 + 앱카드/견적 `외장/내장 컬러` 반영. `colors`=트림별 기본 팔레트(exterior 7,914/interior 2,569, hex+code 완비, 한글 82%/영문 18% 원본명, **가격 무관**). 유료 매트 도장은 `trim_options` 외장컬러와 별개(겹치지 않음). 트림 변경 시 state 초기화(controlled라 key 불필요). 차량→가격→옵션→색상 구성 완성. 설계/계획: `ref/specs|plans/2026-06-16-quote-color-selection*`.
 - 2026-06-16 (브랜치 `feat/catalog-sync`): **작업 트랙 전환 → catalog 거울 sync**. quote 할인/취득세 공식은 **master secret key가 막혀 보류**(현재 `MRCHA_MASTER_PUBLISHABLE_KEY`만 있어 차량 테이블 read만 됨, 전체 스키마/RPC·Edge Function 조사 불가 → 이사님께 master service_role 키 요청 필요). sync 코어(1단계) **설계·spec 완료, brainstorming까지만 진행 후 compact 예정**. 데이터 검증: master는 **hard-delete**(`deleted_at` 없음) + `updated_at`은 `trims`에만 → **full sync**(전체 비교, 증분 불가). 설계: 화이트리스트 fetch + Range 페이징(`Prefer: count=exact`) → catalog drizzle `onConflictDoUpdate`(`deleted_at=NULL` 부활) + master에 없는 id soft-delete(**total 검증 통과 시만**). conflict target 대부분 `id`, `trim_no_options`만 `trim_id`. 코어 CLI(`bun run sync`) 먼저, UI 버튼은 2단계. spec: `ref/specs/2026-06-16-catalog-sync-design.md`.
-- 2026-06-16 (브랜치 `feat/catalog-sync`): **sync 코어(1단계) 구현 완료**. `src/sync/`: `sync-diff.ts`(순수 `idsToSoftDelete`/`chunk`/`projectRow` + bun test 8개, TDD) · `sync-tables.ts`(catalog 7테이블 화이트리스트 메타, deleted_at 제외, PK 정보) · `master-client.ts`(REST 화이트리스트 fetch + Range 1000 페이징 + `Content-Range` total) · `sync.ts`(fetch→검증 `rows==total`→drizzle `onConflictDoUpdate`(`deletedAt=NULL` 부활)→`idsToSoftDelete` soft-delete, **검증 통과 시만**). `bun run sync` 스크립트 추가. 실행 검증: 7테이블 전건 `fetch==total` OK, **soft-delete 0**(import 직후 master==catalog 일치), 멱등성 2회 동일, `test:server` 19 pass. drizzle 동적 테이블은 `as never` 캐스팅(any 아님, lint 0). 계획: `ref/plans/2026-06-16-catalog-sync.md`. **다음(2단계): 관리 화면 동기화 버튼 + 서버 API(`POST /api/catalog/sync`) + 진행/결과 표시.**
+- 2026-06-16 (브랜치 `feat/catalog-sync`): **sync 코어(1단계) 구현 완료**. `src/sync/`: `sync-diff.ts`(순수 `idsToSoftDelete`/`chunk`/`projectRow` + bun test 8개, TDD) · `sync-tables.ts`(catalog 7테이블 화이트리스트 메타, deleted_at 제외, PK 정보) · `master-client.ts`(REST 화이트리스트 fetch + Range 1000 페이징 + `Content-Range` total) · `sync.ts`(fetch→검증 `rows==total`→drizzle `onConflictDoUpdate`(`deletedAt=NULL` 부활)→`idsToSoftDelete` soft-delete, **검증 통과 시만**). `bun run sync` 스크립트 추가. 실행 검증: 7테이블 전건 `fetch==total` OK, **soft-delete 0**(import 직후 master==catalog 일치), 멱등성 2회 동일, `test:server` 19 pass. drizzle 동적 테이블은 `as never` 캐스팅(any 아님, lint 0). 계획: `ref/plans/2026-06-16-catalog-sync.md`. 실전 검증(520i 가격 변경→sync→catalog 반영, 원복 추종) 통과.
+- 2026-06-16 (PR #19, 브랜치 `feat/catalog-sync-ui`): **sync 2단계 — mc-master 동기화 UI 완료**. `runSync()` 재사용 분리(`import.meta.main` 가드로 CLI/API 공유) → Hono `GET /api/catalog/counts`·`POST /api/catalog/sync`(모듈 플래그 409 동시실행 가드) → `MCMasterPage`(빈 스텁→교체): 7테이블 건수 카드(`라벨: N건`, 숫자 `.num` 모노) + [마스터 동기화] 버튼(보라+RefreshCw, 최고관리자 전용) + 결과 패널(한글). 무저장 MVP(public 0 유지). `getCatalogCounts`는 순차 await(connection pool 소진 방지). 설계/계획: `ref/specs|plans/2026-06-16-catalog-sync-ui*`. **다음(sync 3단계): sync 이력 테이블 + "마지막 동기화 N분 전"(public 첫 마이그레이션).**
+- 2026-06-16 (PR #20, 브랜치 `feat/client-routing`): **클라이언트 라우팅 도입 완료**. `react-router@7.17` + `main.tsx` `BrowserRouter`. App.tsx `activeView` state → `useLocation` 파생, `VIEW_TO_PATH` 매핑, `renderView()`→`<Routes>` 트리, `handleViewChange`=navigate, 권한 가드(admin-dashboard/finance `<Navigate to="/" replace/>`), 404→`/`. **Sidebar/Topbar/페이지 인터페이스(`activeView`/`onViewChange`) 변경 0** — App 내부만 교체. MVP=평면 화면 path만(하위모드 `customerMode`/`financeMode`·선택 고객·고객상세 드로어는 state 유지). 테스트 `client/src/App.test.tsx`(MemoryRouter). 설계/계획: `ref/specs|plans/2026-06-16-client-routing*`. **다음(라우팅 2단계): 하위모드 `?mode=` + 고객상세 `/customers/:고객번호` 딥링크.**
 
 ## Verification / Next
 
@@ -133,8 +135,9 @@ Purpose: `영실아 이어가자` 이후 현재 작업만 빠르게 복구하기
 - Latest check: `bun run typecheck`, `bun run lint`, and `bunx playwright test tools/customer-detail-screenshot.spec.ts --project=chromium` passed after adding the 3-condition manual quote cards and removing the old quote modal entry button.
 - Avoid Playwright for every small spacing tweak; use screenshots after larger stabilization.
 - 2026-06-16 검증: `typecheck`/`lint` 0, `test:unit` 45 passed, `build` 성공. 가격/옵션/excludes/색상 모두 브라우저 확인 + main 머지(PR #13~17). 이사님 수기 3조건 UX(commit `1a4228a`)도 merge됨.
-- 2026-06-16 sync 코어 검증: `typecheck`/`lint` 0, `bun run sync` 7테이블 OK·soft-delete 0·멱등, `test:server` 19 pass. 이사님 `d9949ac`(manual quote condition) origin/main → main FF + feat/catalog-sync merge(충돌 0).
-- Next (다음 단계): 구매방식별 할인 매핑(financial/partner/cash)·취득세 공식 자동계산 — **이사님 할인 다중행·취득세 4탭 UI(`1a4228a`) 위에 실제 계산 연결**, segment 토글 재분류, 가격 패널·옵션·컬러 통합 컴포넌트 추출, 견적 저장(quotes 스키마). 별개로 header/body spacing QA, saved workbench draft/app-send 흐름.
+- 2026-06-16 sync 코어 검증: `typecheck`/`lint` 0, `bun run sync` 7테이블 OK·soft-delete 0·멱등, `test:server` 19 pass.
+- 2026-06-16 sync UI + 라우팅 검증: PR #19 `typecheck`/`lint` 0·`test` 53 pass·sync end-to-end OK. PR #20 `typecheck`/`lint` 0·`test:unit` 56 pass·`build` 성공. 셋 다 main 머지(#18~20).
+- Next (다음 단계): ① 라우팅 2단계(하위모드 `?mode=`·고객상세 `/customers/:고객번호` 딥링크) ② sync 이력 테이블("마지막 동기화 N분 전", public 첫 마이그레이션) ③ 구매방식별 할인 매핑·취득세 공식 — **이사님 할인 다중행·취득세 4탭 UI(`1a4228a`) 위에 계산 연결, master secret key 대기**. 별개로 견적 저장(quotes 스키마), 가격 패널·옵션·컬러 통합 컴포넌트 추출.
 
 ## Collaboration
 
