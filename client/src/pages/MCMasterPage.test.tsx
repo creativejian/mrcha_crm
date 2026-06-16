@@ -37,20 +37,20 @@ afterEach(() => vi.restoreAllMocks());
 
 it("건수 렌더", async () => {
   render(<MCMasterPage roleTab="최고관리자" />);
-  expect(await screen.findByText("1,669건")).toBeInTheDocument();
+  expect(await screen.findByText("1,669")).toBeInTheDocument();
 });
 
 it("최고관리자는 동기화 버튼 노출, 클릭 시 결과 표시", async () => {
   const user = userEvent.setup();
   render(<MCMasterPage roleTab="최고관리자" />);
-  await screen.findByText("33건");
+  await screen.findByText("33");
   await user.click(screen.getByRole("button", { name: "마스터 동기화" }));
   expect(await screen.findByText(/동기화 완료/)).toBeInTheDocument();
 });
 
 it("비최고관리자는 동기화 버튼 숨김", async () => {
   render(<MCMasterPage roleTab="상담사" />);
-  await screen.findByText("33건");
+  await screen.findByText("33");
   expect(screen.queryByRole("button", { name: "마스터 동기화" })).toBeNull();
 });
 

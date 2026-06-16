@@ -87,7 +87,17 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
           {TABLE_LABELS.map(([key, label]) => (
             <article className="mini-card catalog-count-card" key={key}>
               <strong>{label}</strong>
-              <span>{countsError ? "불러오기 실패" : counts ? `${counts[key].toLocaleString()}건` : "…"}</span>
+              <span>
+                {countsError ? (
+                  "불러오기 실패"
+                ) : counts ? (
+                  <>
+                    <span className="num">{counts[key].toLocaleString()}</span>건
+                  </>
+                ) : (
+                  "…"
+                )}
+              </span>
             </article>
           ))}
         </div>
@@ -100,8 +110,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
             <ul>
               {result.tables.map((t) => (
                 <li key={t.name}>
-                  {SYNC_NAME_KO[t.name] ?? t.name} · 반영 {t.upserted.toLocaleString()}건 · 삭제{" "}
-                  {t.softDeleted.toLocaleString()}건 · {t.complete ? "완료" : "건너뜀"}
+                  {SYNC_NAME_KO[t.name] ?? t.name} · 반영 <span className="num">{t.upserted.toLocaleString()}</span>건
+                  · 삭제 <span className="num">{t.softDeleted.toLocaleString()}</span>건 · {t.complete ? "완료" : "건너뜀"}
                 </li>
               ))}
             </ul>
