@@ -78,6 +78,7 @@ master 소유 = 앱 팀. **Phase ①은 앱 팀이 supabase CLI로 적용**, 이
 
 - **Phase ①** (앱 팀): `CREATE SCHEMA catalog` → 9테이블 `ALTER ... SET SCHEMA catalog`(FK·트리거·RLS 자동 승계, OID 참조 무손실) → 트리거 함수 12개 catalog 이동 + 본문 `public.*`→`catalog.*` 재한정 → `public`에 `security_invoker` 호환 view → 권한(anon/authenticated SELECT) → catalog PostgREST 비노출 유지.
   - FK(`quote_requests.trim_id`, `quote_request_options.trim_option_id`, `source_vehicle_map.internal_trim_id`, `trim_code_history.model_id`, alias.* 등)는 cross-schema로 자동 승계. **실테이블 `catalog.*` 참조**(view엔 FK 불가).
+  - **Phase ① 산출물(앱 팀 작성)**: catalog 이동 + 코드 트리거 12개 + public 호환 view + `provision_staff_role` RPC + **`catalog.assign_trim_codes(model_id)` RPC**(trim_code 할당, CRM 호출만 — 앱 Dart 로직이 안 넘어오므로 RPC로 보존) + **단종 트리거 2건**(모델 단종 cascade + 트림 status⊂모델 status 검증, 앱 Dart→트리거 SSOT 이전).
 - **Phase ②**: 앱 어드민 차량 화면 read-only(별도 PR) + CRM이 catalog write 시작. **CRM은 catalog를 drizzle introspect baseline으로 adopt**(새 CREATE 금지). provision_staff_role 배포 → CRM 프로비저닝 연결.
 - **Phase ③** (선택): public 호환 view 정리 검토. view 유지 비용 낮아 영구 유지 가능.
 
