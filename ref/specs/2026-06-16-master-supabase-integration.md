@@ -101,7 +101,7 @@ master 소유 = 앱 팀. **Phase ①은 앱 팀이 supabase CLI로 적용**, 이
 2. **catalog adopt**: prod 적용 알림 후 `db:pull`로 introspect baseline.
 3. **`crm` 운영 스키마 설계**: customers/consultations 운영(진행상태·status_group·담당배정·유입경로·메모·계약/출고) — app `public` 도메인과 중복 없이, `public.*` id 참조로 연결.
 4. **차량 관리 콘솔**(mc-master): sync 도구 → 차량 CRUD(트리거 가드 준수).
-5. **CRM 인증**: master `profiles`(staff/manager) 기반 로그인 → provision_staff_role 연결, actor 채움.
+5. **CRM 인증**(방향만 — 상세 brainstorming 나중): master **Supabase Auth 공유**(클라 = **publishable key** `sb_publishable_`, anon은 legacy / 서버 = secret) 로그인 → JWT → `profiles.role ∈ {admin,manager,staff}` 게이트(클라 라우팅 가드 + **서버 Hono JWT 검증 인가**=실제 보안), customer 거부. publishable은 프론트 노출 안전(RLS). → provision_staff_role 연결, actor 채움.
 6. 앱 admin dashboard ↔ CRM 역할 분담 정리.
 
 ## 상태 / 다음
