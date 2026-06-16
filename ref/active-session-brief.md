@@ -13,7 +13,8 @@ Purpose: `영실아 이어가자` 이후 현재 작업만 빠르게 복구하기
 
 ## Current Focus
 
-- 차량 데이터 파이프라인 트랙: 거울 import → 조회 API → 프론트 선택(가격/옵션/색상) → **master 동기화**(`bun run sync` CLI + mc-master UI)까지 완성 (PR #9~19).
+- **🔄 큰 전환 (2026-06-16): master Supabase 직접 통합 결정** — 별도 CRM DB·차량 거울·sync **폐기 예정**, master 1개로 통합. schema 3분할: `public`(앱 도메인, CRM read) / `catalog`(차량, CRM 소유) / `crm`(CRM 운영). 앱 팀 합의 완료, **Phase ① 적용 대기**(A안: CRM 설계 먼저). 상세: `ref/specs/2026-06-16-master-supabase-integration.md`.
+- (아래는 이 전환 전까지의 완성 상태) 차량 데이터 파이프라인 트랙: 거울 import → 조회 API → 프론트 선택(가격/옵션/색상) → **master 동기화**(`bun run sync` CLI + mc-master UI)까지 완성 (PR #9~19).
 - 2026-06-16 **클라이언트 라우팅 도입 완료**(react-router, URL↔화면, PR #20) — 리로드 초기화 해결.
 - 다음 후보: 라우팅 2단계(하위모드 `?mode=`·고객 딥링크) · sync 이력("마지막 동기화 N분 전") · 구매방식별 할인·취득세 공식(master secret key 대기).
 - 이전 김민준 견적 워크벤치(가격/옵션/excludes/색상)는 PR #13~17로 main 머지됨. 추가 작업 시 `client/src/pages/CustomerDetailPage.tsx` + `index.css`.
@@ -128,6 +129,7 @@ Purpose: `영실아 이어가자` 이후 현재 작업만 빠르게 복구하기
 - 2026-06-16 (브랜치 `feat/catalog-sync`): **sync 코어(1단계) 구현 완료**. `src/sync/`: `sync-diff.ts`(순수 `idsToSoftDelete`/`chunk`/`projectRow` + bun test 8개, TDD) · `sync-tables.ts`(catalog 7테이블 화이트리스트 메타, deleted_at 제외, PK 정보) · `master-client.ts`(REST 화이트리스트 fetch + Range 1000 페이징 + `Content-Range` total) · `sync.ts`(fetch→검증 `rows==total`→drizzle `onConflictDoUpdate`(`deletedAt=NULL` 부활)→`idsToSoftDelete` soft-delete, **검증 통과 시만**). `bun run sync` 스크립트 추가. 실행 검증: 7테이블 전건 `fetch==total` OK, **soft-delete 0**(import 직후 master==catalog 일치), 멱등성 2회 동일, `test:server` 19 pass. drizzle 동적 테이블은 `as never` 캐스팅(any 아님, lint 0). 계획: `ref/plans/2026-06-16-catalog-sync.md`. 실전 검증(520i 가격 변경→sync→catalog 반영, 원복 추종) 통과.
 - 2026-06-16 (PR #19, 브랜치 `feat/catalog-sync-ui`): **sync 2단계 — mc-master 동기화 UI 완료**. `runSync()` 재사용 분리(`import.meta.main` 가드로 CLI/API 공유) → Hono `GET /api/catalog/counts`·`POST /api/catalog/sync`(모듈 플래그 409 동시실행 가드) → `MCMasterPage`(빈 스텁→교체): 7테이블 건수 카드(`라벨: N건`, 숫자 `.num` 모노) + [마스터 동기화] 버튼(보라+RefreshCw, 최고관리자 전용) + 결과 패널(한글). 무저장 MVP(public 0 유지). `getCatalogCounts`는 순차 await(connection pool 소진 방지). 설계/계획: `ref/specs|plans/2026-06-16-catalog-sync-ui*`. **다음(sync 3단계): sync 이력 테이블 + "마지막 동기화 N분 전"(public 첫 마이그레이션).**
 - 2026-06-16 (PR #20, 브랜치 `feat/client-routing`): **클라이언트 라우팅 도입 완료**. `react-router@7.17` + `main.tsx` `BrowserRouter`. App.tsx `activeView` state → `useLocation` 파생, `VIEW_TO_PATH` 매핑, `renderView()`→`<Routes>` 트리, `handleViewChange`=navigate, 권한 가드(admin-dashboard/finance `<Navigate to="/" replace/>`), 404→`/`. **Sidebar/Topbar/페이지 인터페이스(`activeView`/`onViewChange`) 변경 0** — App 내부만 교체. MVP=평면 화면 path만(하위모드 `customerMode`/`financeMode`·선택 고객·고객상세 드로어는 state 유지). 테스트 `client/src/App.test.tsx`(MemoryRouter). 설계/계획: `ref/specs|plans/2026-06-16-client-routing*`. **다음(라우팅 2단계): 하위모드 `?mode=` + 고객상세 `/customers/:고객번호` 딥링크.**
+- 2026-06-16 **master Supabase 직접 통합 결정 (CRM 데이터 아키텍처 전환)**. secret key 확보 → master 직접 사용, 거울/sync(PR #18~19) **폐기 예정**. master 조사: 28테이블 앱 백엔드(profiles role admin/staff/manager/customer + RLS·권한상승방지 트리거, consultations/quote_requests/ai_estimates/chat_sessions). 앱 Flutter 조사: 취득세·공채·탁송은 **Gemini 추출(공식 아님)**, 리스 계산은 `lease_calc.ts`(금리 Newton-Raphson·PMT·시장금리표, 포팅 가능). 결정: **Supabase 1개 + schema 3분할**(`public` 앱 read / `catalog` 차량 CRM / `crm` 운영 CRM), drizzle은 `catalog`·`crm`만(public 보호), catalog PostgREST 비노출 + public 호환 view(앱 변경 0). 차량 author CRM 전담(앱 어드민 read-only, 크롤링·트림코드 전부, 크롤러 인프라 별도). profiles.role은 `provision_staff_role` RPC(admin 차단·감사로그). expand-contract(Phase① 앱팀 SET SCHEMA+view → ② CRM introspect baseline+write → ③ view 정리). **앱 팀 합의 완료. 다음: CRM 데이터 아키텍처 brainstorming.** 상세: `ref/specs/2026-06-16-master-supabase-integration.md`.
 
 ## Verification / Next
 
@@ -137,7 +139,8 @@ Purpose: `영실아 이어가자` 이후 현재 작업만 빠르게 복구하기
 - 2026-06-16 검증: `typecheck`/`lint` 0, `test:unit` 45 passed, `build` 성공. 가격/옵션/excludes/색상 모두 브라우저 확인 + main 머지(PR #13~17). 이사님 수기 3조건 UX(commit `1a4228a`)도 merge됨.
 - 2026-06-16 sync 코어 검증: `typecheck`/`lint` 0, `bun run sync` 7테이블 OK·soft-delete 0·멱등, `test:server` 19 pass.
 - 2026-06-16 sync UI + 라우팅 검증: PR #19 `typecheck`/`lint` 0·`test` 53 pass·sync end-to-end OK. PR #20 `typecheck`/`lint` 0·`test:unit` 56 pass·`build` 성공. 셋 다 main 머지(#18~20).
-- Next (다음 단계): ① 라우팅 2단계(하위모드 `?mode=`·고객상세 `/customers/:고객번호` 딥링크) ② sync 이력 테이블("마지막 동기화 N분 전", public 첫 마이그레이션) ③ 구매방식별 할인 매핑·취득세 공식 — **이사님 할인 다중행·취득세 4탭 UI(`1a4228a`) 위에 계산 연결, master secret key 대기**. 별개로 견적 저장(quotes 스키마), 가격 패널·옵션·컬러 통합 컴포넌트 추출.
+- Next (다음 단계): **① CRM 데이터 아키텍처 brainstorming → master 통합 구현** (DB 연결 master 직결 전환, catalog introspect baseline, `crm` 운영 스키마 설계, 차량 콘솔(mc-master 재편), CRM 인증=master profiles 기반). Phase ① 적용 일정은 CRM 설계 후 앱 팀과 조율. 상세: `ref/specs/2026-06-16-master-supabase-integration.md`.
+- (이 전환 이후/별개) 라우팅 2단계(하위모드·고객 딥링크), 견적 저장(quotes는 `crm` 스키마로), 할인·취득세(취득세는 Gemini 추출이라 수기/추출 + 리스 계산 `lease_calc.ts` 포팅). sync 이력/거울은 master 통합으로 **불요**.
 
 ## Collaboration
 
