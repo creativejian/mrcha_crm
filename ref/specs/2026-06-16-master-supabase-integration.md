@@ -33,6 +33,35 @@ master service_role(secret) 키를 확보하면서, CRM이 master Supabase(`wmkb
 - 앱 어드민 차량 화면은 **read-only 전환**(write 차단 = CRM 단일 writer). 제거는 CRM 차량 콘솔 안정화 후.
 - 차량 author 트리거 가드(`auto_generate_mc_code`/`prevent_*_code_change`/`auto_assign_*_code`)가 **secret write에도 발동** → CRM 차량 콘솔은 "mc_code 자동생성·코드 불변" 불변식을 그대로 따라야 함.
 
+## 차량 입력 계약 (CRM 차량 콘솔 제약) — 앱 팀 핸드오프 2026-06-16
+
+CRM이 catalog(차량) author를 인수할 때 앱이 의존하는 trim 표기·필드 규칙. **DB로 강제되지 않음 — 어기면 견적·채팅 UI가 에러 없이 조용히 깨짐.** CRM 차량 콘솔 설계의 핵심 제약.
+
+### 코드 트리거 (secret write에도 발동) — CRM은 코드 컬럼을 만지지 않음
+- **INSERT**: `brand_code`·`model_code`·`mc_code`·`sort_order` **자동 생성** → 직접 입력 금지
+- **UPDATE**: `*_code` 변경 시도 **거부**(불변) → 콘솔에서 코드 필드 편집 불가
+- **DELETE**: trim 삭제 시 `trim_code_history` **자동 아카이브**
+- `price_updated_at`·`updated_at` 자동 갱신
+→ 콘솔은 코드·순서·이력을 안 건드리고 **데이터(가격·이름·옵션 등)만** 다룸. 트리거가 나머지를 처리하므로 오히려 단순.
+
+### 필드 채움 규칙
+- `trim_name`: 표시·그룹핑 SSOT. 국산은 **모든 구분정보 포함**(자동 접미사 없음)
+- `name`: **국산은 trim_name과 동일**(수입은 name(풀명)≠trim_name(단축명) 정상 — 수입 정정 대상 아님)
+- `canonical_name`: 브랜드 모델 + trim_name
+- `price`·`model_year`·`fuel_type`·`drive_system`: 메타 표시 동시 필수
+- `sort_order`: 서브라인 묶음 + 내부 등급 순서, 같은 서브라인끼리 연속
+
+### 국산 서브라인 표기법 (`trim_name`)
+- `is_domestic=true`만. `trim_name = "<서브라인> - <등급>"`, 구분자 **정확히 ` - `**(공백+하이픈+공백). `–`/`—`/`-`(공백없음) 금지
+- 첫 ` - ` 기준 분리. 서브라인엔 ` - ` 없음, 등급엔 괄호·공백 OK
+- **검증(2026-06-16, 실데이터)**: 국산 1090/1090 100% 준수, 수입 579 전부 flat, 변형대시 0
+- **그룹핑 표시 UI는 앱 몫(CRM 불필요).** 단 **차량 수정/author 시 표기법은 준수 필수**.
+- ⏳ **앱 팀 추가 정보 대기**: ① 차량 **수정 시 그룹핑 입력 방식**(수정 UI엔 서브라인/등급 분리가 필요할 것으로 봄) ② 표기법 준수 책임이 **크롤러 자동 vs 운영자 수동** 중 어디인지. 답 오면 콘솔 입력/검증 수준 확정.
+
+### 정합성
+- 결함 정정 완료(앱 팀 migration `20260616174610`): 국산 name≠trim_name 4건(레이 시그니처, GV80 Coupe BLACK 오타×2, 캐스퍼 II) → **잔여 0**. CRM 인수 시 1회 점검 쿼리(앱 spec §6) 재확인.
+- `name=trim_name`은 국산 전용 가드. 코드 컬럼 직접 입력/수정 금지.
+
 ## profiles.role 프로비저닝 — RPC 경유
 
 `private.prevent_profile_role_change()` 트리거(권한상승 방지)는 secret/service_role로도 우회 안 됨. CRM은 직접 `UPDATE profiles SET role` 불가. 대신:
@@ -75,6 +104,8 @@ master 소유 = 앱 팀. **Phase ①은 앱 팀이 supabase CLI로 적용**, 이
 ## 상태 / 다음
 
 - ✅ 앱 팀 합의 완료(admin 차단·감사로그 v1·도구경계·FK조율·동시성·secret).
+- ✅ 차량 입력 계약 수신·검증(위 섹션). 결함 4건 앱 팀 정정 완료(잔여 0).
+- ⏳ 차량 **수정 시 그룹핑 입력 방식** + 표기법 책임(크롤러 자동 vs 수동)은 **앱 팀 추가 정보 대기** → 받으면 차량 콘솔 설계에 반영.
 - ⏳ **A안**: CRM 설계 먼저 → 준비되면 Phase ① 적용 일정 공유. CRM baseline은 prod 적용 알림 후.
 - 다음: **CRM 데이터 아키텍처 brainstorming**(연결 전환·`crm` 스키마·차량 콘솔·인증).
 - 참고: 앱 작업폴더 `/Users/tobedoit/Documents/Flutter/mr-cha-app` (read-only 확인 가능 — `supabase/migrations`, `lease_calc.ts`, `lib/data/repositories`).
