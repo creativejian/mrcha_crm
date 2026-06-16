@@ -24,7 +24,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:pull:catalog": "drizzle-kit pull --config=drizzle.config.catalog.ts"
+    "db:pull:catalog": "drizzle-kit pull --config=drizzle.config.catalog.ts",
+    "sync": "bun run src/sync/sync.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
