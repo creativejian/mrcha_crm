@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups, initialCustomers } from "@/data/customers";
@@ -20,6 +21,28 @@ import { PipelinePage } from "@/pages/PipelinePage";
 import { QuotesPage } from "@/pages/QuotesPage";
 
 type ViewKey = "advisor-dashboard" | "dashboard-preview" | "admin-dashboard" | "chat" | "customers" | "customer-detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance";
+
+const VIEW_TO_PATH: Record<ViewKey, string> = {
+  "advisor-dashboard": "/",
+  "dashboard-preview": "/dashboard-preview",
+  "admin-dashboard": "/admin-dashboard",
+  chat: "/chat",
+  customers: "/customers",
+  "customer-detail": "/customer-detail",
+  pipeline: "/pipeline",
+  quotes: "/quotes",
+  delivery: "/delivery",
+  insights: "/insights",
+  "knowledge-base": "/knowledge-base",
+  "ai-settings": "/ai-settings",
+  "mc-master": "/mc-master",
+  "org-members": "/org-members",
+  partners: "/partners",
+  finance: "/finance",
+};
+const PATH_TO_VIEW: Record<string, ViewKey> = Object.fromEntries(
+  Object.entries(VIEW_TO_PATH).map(([view, path]) => [path, view as ViewKey]),
+);
 
 const viewMeta: Record<ViewKey, [string, string]> = {
   "advisor-dashboard": ["대시보드", "배정된 고객 중 오늘 처리할 업무, 우선순위, 내 실적을 한눈에 보는 상담사용 화면입니다."],
@@ -52,7 +75,9 @@ const statusGroupByStatus = Object.fromEntries(
 );
 
 export function App() {
-  const [activeView, setActiveView] = useState<ViewKey>("advisor-dashboard");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeView: ViewKey = PATH_TO_VIEW[location.pathname] ?? "advisor-dashboard";
   const [customerMode, setCustomerMode] = useState<CustomerMode>("allDraft");
   const [financeMode, setFinanceMode] = useState<FinanceMode>("stats");
   const [toast, setToast] = useState("작업이 반영되었습니다.");
@@ -97,20 +122,17 @@ export function App() {
 
   function handleRoleTabChange(role: RoleTab) {
     setRoleTab(role);
-    if (role !== "최고관리자" && (activeView === "admin-dashboard" || activeView === "finance")) {
-      setActiveView("advisor-dashboard");
-    }
   }
 
   function handleViewChange(view: string) {
     setCustomerDetailPanelOpen(false);
     setCustomerDetailEditorOpen(false);
-    setActiveView(view as ViewKey);
+    navigate(VIEW_TO_PATH[view as ViewKey] ?? "/");
   }
 
   function openCustomerDetailPanel(customer: Customer) {
     setSelectedCustomerNo(customer.no);
-    setActiveView("customers");
+    navigate("/customers");
     setCustomerDetailEditorOpen(false);
     setCustomerDetailPanelOpen(true);
     showToast(`${customer.name} 고객 상세 패널을 열었습니다.`);
@@ -119,7 +141,7 @@ export function App() {
   function openCustomerDetailFullScreen() {
     setCustomerDetailPanelOpen(false);
     setCustomerDetailEditorOpen(false);
-    setActiveView("customer-detail");
+    navigate("/customer-detail");
   }
 
   function syncChanceWithStageGroup(customerNo: number, nextGroup: string) {
@@ -167,49 +189,58 @@ export function App() {
     return () => document.removeEventListener("keydown", closeByEscape);
   }, [customerDetailEditorOpen, customerDetailPanelOpen]);
 
+  const isAdmin = roleTab === "최고관리자";
+
   function renderView() {
-    if (activeView === "advisor-dashboard") return <AdvisorDashboardPage />;
-    if (activeView === "dashboard-preview") return <DashboardPreviewPage />;
-    if (activeView === "admin-dashboard") return <AdminDashboardPage />;
-    if (activeView === "chat") return <ChatPage onNavigate={(view) => setActiveView(view as ViewKey)} onToast={showToast} />;
-    if (activeView === "customers") {
-      return (
-        <CustomerManagementPage
-          activeCustomerId={customerDetailPanelOpen ? selectedCustomer.customerId : null}
-          chanceOverrides={chanceOverrides}
-          customers={customers}
-          manageStatusOverrides={manageStatusOverrides}
-          mode={customerMode}
-          roleTab={roleTab}
-          onChanceOverridesChange={setChanceOverrides}
-          onCustomersChange={setCustomers}
-          onOpenCustomer={openCustomerDetailPanel}
+    return (
+      <Routes>
+        <Route path="/" element={<AdvisorDashboardPage />} />
+        <Route path="/dashboard-preview" element={<DashboardPreviewPage />} />
+        <Route path="/admin-dashboard" element={isAdmin ? <AdminDashboardPage /> : <Navigate to="/" replace />} />
+        <Route path="/chat" element={<ChatPage onNavigate={handleViewChange} onToast={showToast} />} />
+        <Route
+          path="/customers"
+          element={
+            <CustomerManagementPage
+              activeCustomerId={customerDetailPanelOpen ? selectedCustomer.customerId : null}
+              chanceOverrides={chanceOverrides}
+              customers={customers}
+              manageStatusOverrides={manageStatusOverrides}
+              mode={customerMode}
+              roleTab={roleTab}
+              onChanceOverridesChange={setChanceOverrides}
+              onCustomersChange={setCustomers}
+              onOpenCustomer={openCustomerDetailPanel}
+            />
+          }
         />
-      );
-    }
-    if (activeView === "customer-detail") {
-      return (
-        <CustomerDetailPage
-          chanceOverride={chanceOverrides[selectedCustomer.no]}
-          customer={selectedCustomer}
-          manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
-          onBack={() => setActiveView("customers")}
-          onToast={showToast}
-          onWorkflowChange={updateCustomerWorkflow}
-          variant="page"
+        <Route
+          path="/customer-detail"
+          element={
+            <CustomerDetailPage
+              chanceOverride={chanceOverrides[selectedCustomer.no]}
+              customer={selectedCustomer}
+              manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
+              onBack={() => navigate("/customers")}
+              onToast={showToast}
+              onWorkflowChange={updateCustomerWorkflow}
+              variant="page"
+            />
+          }
         />
-      );
-    }
-    if (activeView === "pipeline") return <PipelinePage />;
-    if (activeView === "quotes") return <QuotesPage onToast={showToast} />;
-    if (activeView === "insights") return <InsightsPage />;
-    if (activeView === "knowledge-base") return <KnowledgeBasePage />;
-    if (activeView === "ai-settings") return <AISettingsPage />;
-    if (activeView === "mc-master") return <MCMasterPage roleTab={roleTab} />;
-    if (activeView === "org-members") return <OrgMembersPage />;
-    if (activeView === "partners") return <PartnersPage />;
-    if (activeView === "finance") return <FinancePage mode={financeMode} />;
-    return <DeliveryPage />;
+        <Route path="/pipeline" element={<PipelinePage />} />
+        <Route path="/quotes" element={<QuotesPage onToast={showToast} />} />
+        <Route path="/delivery" element={<DeliveryPage />} />
+        <Route path="/insights" element={<InsightsPage />} />
+        <Route path="/knowledge-base" element={<KnowledgeBasePage />} />
+        <Route path="/ai-settings" element={<AISettingsPage />} />
+        <Route path="/mc-master" element={<MCMasterPage roleTab={roleTab} />} />
+        <Route path="/org-members" element={<OrgMembersPage />} />
+        <Route path="/partners" element={<PartnersPage />} />
+        <Route path="/finance" element={isAdmin ? <FinancePage mode={financeMode} /> : <Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
   }
 
   return (
