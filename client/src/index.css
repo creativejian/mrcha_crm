@@ -15795,6 +15795,61 @@ select.kim-jeff-discount-label {
   color: #9298a0;
   line-height: 1.4;
 }
+.kim-color-picker {
+  position: relative;
+}
+.kim-color-picker-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.kim-color-picker-swatch {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  flex: none;
+}
+.kim-color-picker-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e4e4e2;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+}
+.kim-color-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kim-color-picker-option:hover {
+  background: #f4f1ff;
+}
+.kim-color-picker-option.is-selected {
+  background: #ece8ff;
+  font-weight: 600;
+}
+.kim-color-picker-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .kim-option-picker-msg {
   display: block;
   padding: 10px;
