@@ -51,7 +51,8 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 - conflict target: 대부분 `id`, **단 `trim_no_options`는 `trim_id`**.
 - 10K+ 테이블(trim_options/colors/relations)은 Range 1000 페이징, `rows==total` 검증 통과 시에만 soft-delete 마킹(불완전 fetch로 오삭제 방지).
 - 실전 검증(2026-06-16): 520i(id 701) 가격 변경 → sync → catalog 가격+`updated_at` 메타까지 정확 반영, 원복도 추종, 다른 행/soft-delete 영향 0. 설계/계획: `ref/specs|plans/2026-06-16-catalog-sync*`.
-- **2단계(미구현)**: 관리 화면 동기화 버튼 + 서버 API(`POST /api/catalog/sync`) + 진행/결과 표시.
+- **2단계 완료 (PR #19)**: `runSync()` 재사용 분리(`import.meta.main` 가드) → Hono `GET /api/catalog/counts`·`POST /api/catalog/sync`(409 동시실행 가드) → `MCMasterPage`(엠씨 마스터) 건수 카드 + [마스터 동기화] 버튼(최고관리자) + 결과 패널. 무저장 MVP(public 0). `getCatalogCounts` 순차 await(pool 소진 방지). 설계/계획: `ref/specs|plans/2026-06-16-catalog-sync-ui*`.
+- **3단계(미구현)**: sync 이력 테이블 + "마지막 동기화 N분 전"(public 첫 마이그레이션).
 
 ## 진행 상황 / 다음 작업
 
@@ -70,7 +71,7 @@ CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB
 
 다음:
 8. 구매방식별 할인 매핑(financial/partner/cash) + 취득세 공식 자동계산 — 이사님 할인 다중행·취득세 4탭 UI(`1a4228a`) 위에 실제 계산 연결. (master secret key 필요 — 보류)
-9. sync 2단계 — 관리 화면 동기화 버튼 + 서버 API(`POST /api/catalog/sync`) + 진행/결과 표시.
+9. ✅ sync 2단계 — mc-master 동기화 UI + counts/sync API (PR #19). 다음은 sync 3단계(이력 "마지막 동기화 N분 전").
 10. CRM 자체 스키마 (customers/consultations/quotes, public, drizzle migrate. quotes가 `catalog.trims` FK 참조)
 
 참고: 로컬 실행은 `bun run dev`로 API(8788)+client(5173) 둘 다 띄워야 `/api/vehicles`가 동작한다. (PORT 빈값 함정은 `src/local-dev.ts`에서 `Number(process.env.PORT) || 8788`로 견고화됨, PR #12)
