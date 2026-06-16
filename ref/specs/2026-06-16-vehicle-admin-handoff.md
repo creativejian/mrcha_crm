@@ -94,9 +94,15 @@
 - **단종 트리거 2건** (모델 단종 cascade + 트림 status ⊂ 모델 status 검증)
 - `provision_staff_role` RPC
 
-## CRM 구현 시 추가로 받을 것 (차량 콘솔 brainstorming/구현 때)
+## CRM 차량 콘솔 결정 (2026-06-16 확정)
 
-- `trim_option_relations`(excludes/includes) 구조 + 편집 정책(현재 SQL 관리)
-- `moveTrimsToModel`(트림 모델 이동) 동작
-- `batch_update_sort_order` RPC 시그니처
-- 차량 **수정 시 그룹핑 입력 방식** + 표기법 책임(크롤러 자동 vs 수동) ← 입력 계약 pending과 동일
+1. **단종 cascade**: DB 트리거 이전(원자성+SSOT). ⏳ 현재 blunt cascade(status 무관 무조건 단종, 블라인드/출시예정도 덮음)가 의도인지 앱 팀 확인 대기 → 의도면 현행 트리거화, 아니면 조건부 개선.
+2. **`trim_option_relations` 편집**: **UI 미구현 + 크롤러 SSOT 유지**. 콘솔은 표시만, 편집은 SQL/크롤러 재실행. (5,195쌍 92.3% 크롤러 자동, 수정 빈도 낮음). 구조: `id·option_id·related_option_id·type(excludes 배타양방향/includes 요구단방향)·created_at`, trim_options.id 종속(FK CASCADE).
+3. **`moveTrimsToModel`**: `UPDATE trims SET model_id`. **★ `mc_code IS NOT NULL` 트림 이동 차단**(콘솔 가드) — UNIQUE(model_id, trim_code) 충돌 + mc_code가 OLD model_code 박은 11자리라 이동 시 stale·불변. 코드 부여 전에만 안전.
+4. **`batch_update_sort_order(p_table, p_ids[], p_sort_orders[])`**: 2-pass(임시 10000+i → 최종, UNIQUE 회피), 1부터. **catalog 재한정 Phase ①**(앱 팀). CRM은 `catalog.batch_update_sort_order('trims'|'models', …)` 호출.
+5. **그룹핑 입력**: 국산 서브라인/등급 **분리 입력 → 저장 시 ` - ` 자동 결합** + `name=trim_name`·`canonical_name` 자동 채움(통짜 입력=결함 4건 원인 차단). 수입은 flat 단일.
+
+## 남은 확인 (앱 팀)
+
+- 단종 blunt cascade 의도 여부(위 1번).
+- 표기법 준수 책임: 크롤러 자동 vs 운영자 수동(입력 계약 pending).
