@@ -11850,6 +11850,20 @@ select.kim-jeff-discount-label {
   text-align-last: right;
 }
 
+.kim-manual-compare-body .kim-manual-value-select:disabled {
+  opacity: 1;
+  border-color: #d8dee8;
+  background-color: #fff;
+  color: #111827;
+  cursor: not-allowed;
+}
+
+.kim-manual-compare-body .kim-manual-value-select.is-fixed:disabled {
+  border-color: #d8dee8;
+  background-color: #f8fafc;
+  color: #687385;
+}
+
 .kim-manual-compare-body input:read-only {
   background: #f9fafb;
   color: #6b7280;
@@ -11904,9 +11918,55 @@ select.kim-jeff-discount-label {
   margin-left: auto;
 }
 
+.kim-manual-monthly-control {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 26px minmax(0, var(--kim-manual-value-width));
+  align-items: center;
+  justify-content: end;
+  gap: 7px;
+}
+
+.kim-manual-monthly-control .kim-jeff-money-input {
+  width: 100%;
+}
+
+.kim-manual-solution-query {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #cdd5e1;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #273446;
+  padding: 0;
+  font: inherit;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.kim-manual-solution-query:hover:not(:disabled) {
+  border-color: rgba(88, 54, 255, 0.34);
+  background: #fff;
+  color: #5836ff;
+  box-shadow: 0 0 0 2px rgba(88, 54, 255, 0.08), inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.kim-manual-solution-query:disabled {
+  opacity: 1;
+  background: #f3f6f9;
+  color: #9aa3af;
+  cursor: not-allowed;
+}
+
 .kim-manual-compare-body label.amount.emphasis .kim-jeff-money-input,
 .kim-manual-compare-row.amount.emphasis .kim-jeff-money-input {
   width: var(--kim-manual-value-width);
+}
+
+.kim-manual-compare-row.amount.emphasis .kim-manual-monthly-control .kim-jeff-money-input {
+  width: 100%;
 }
 
 .kim-manual-result-grid .kim-jeff-money-input {
@@ -11980,6 +12040,13 @@ select.kim-jeff-discount-label {
   background: #f9fafb;
   color: #6b7280;
   cursor: default;
+}
+
+.kim-manual-compare-body .kim-jeff-money-input.is-fixed input,
+.kim-manual-compare-body .kim-jeff-money-input.is-fixed input:read-only {
+  border-color: #d8dee8;
+  background-color: #f8fafc;
+  color: #687385;
 }
 
 .kim-manual-compare-body .kim-jeff-money-input em {
