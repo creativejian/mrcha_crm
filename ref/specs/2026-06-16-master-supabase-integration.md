@@ -37,6 +37,8 @@ master service_role(secret) 키를 확보하면서, CRM이 master Supabase(`wmkb
 
 CRM이 catalog(차량) author를 인수할 때 앱이 의존하는 trim 표기·필드 규칙. **DB로 강제되지 않음 — 어기면 견적·채팅 UI가 에러 없이 조용히 깨짐.** CRM 차량 콘솔 설계의 핵심 제약.
 
+> **차량 콘솔 구현의 두 축**: ① 이 "차량 입력 계약"(표기·필드·정합성) + ② `ref/specs/2026-06-16-vehicle-admin-handoff.md`(어드민 동작 명세 — 엔티티×작업 권한, MC코드 트리거 체계, 고유번호 할당 워크플로우, 정렬·상태·옵션·권한). 차량 콘솔 brainstorming 때 둘 다 입력으로.
+
 ### 코드 트리거 (secret write에도 발동) — CRM은 코드 컬럼을 만지지 않음
 - **INSERT**: `brand_code`·`model_code`·`mc_code`·`sort_order` **자동 생성** → 직접 입력 금지
 - **UPDATE**: `*_code` 변경 시도 **거부**(불변) → 콘솔에서 코드 필드 편집 불가
