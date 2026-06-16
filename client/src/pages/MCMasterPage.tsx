@@ -21,7 +21,6 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
-    setCountsError(false);
     fetchCatalogCounts()
       .then(setCounts)
       .catch(() => setCountsError(true));
