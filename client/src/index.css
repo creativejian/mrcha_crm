@@ -4982,6 +4982,53 @@ th input:focus-visible {
   color: #d9534f;
 }
 
+.catalog-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  border: 1px solid rgba(88, 54, 255, 0.28);
+  border-radius: 6px;
+  background: #5836ff;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 560;
+  box-shadow: 0 2px 6px rgba(88, 54, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: background 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+}
+
+.catalog-sync-btn:hover:not(:disabled) {
+  background: #6347ff;
+  box-shadow: 0 4px 10px rgba(88, 54, 255, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.catalog-sync-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.catalog-sync-btn:disabled {
+  background: #b9b4d6;
+  border-color: transparent;
+  box-shadow: none;
+  cursor: default;
+}
+
+.catalog-sync-btn svg {
+  flex: 0 0 auto;
+}
+
+.catalog-sync-btn.is-syncing svg {
+  animation: catalog-sync-spin 0.9s linear infinite;
+}
+
+@keyframes catalog-sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .catalog-sync-result {
   margin-top: 12px;
   padding: 12px 14px;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 
 import type { RoleTab } from "@/data/roles";
 import { type CatalogCounts, type SyncResponse, fetchCatalogCounts, runCatalogSync } from "@/lib/catalog";
@@ -12,6 +13,17 @@ const TABLE_LABELS: [keyof CatalogCounts, string][] = [
   ["trimOptionRelations", "옵션 관계"],
   ["trimNoOptions", "옵션 없는 트림"],
 ];
+
+// sync 결과의 테이블명(catalog 테이블명, snake_case) → 한글 라벨.
+const SYNC_NAME_KO: Record<string, string> = {
+  brands: "브랜드",
+  models: "모델",
+  trims: "트림",
+  trim_options: "옵션",
+  colors: "색상",
+  trim_no_options: "옵션 없는 트림",
+  trim_option_relations: "옵션 관계",
+};
 
 export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const [counts, setCounts] = useState<CatalogCounts | null>(null);
@@ -27,6 +39,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   }, []);
 
   const reloadCounts = () => {
+    setCountsError(false);
     fetchCatalogCounts()
       .then(setCounts)
       .catch(() => setCountsError(true));
@@ -40,7 +53,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       setResult(r);
       reloadCounts();
     } catch (e) {
-      setSyncError(e instanceof Error ? e.message : "동기화 실패");
+      setSyncError(e instanceof Error ? e.message : "동기화에 실패했습니다.");
     } finally {
       setSyncing(false);
     }
@@ -53,7 +66,13 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       <div className="panel-head">
         <h2>차선생 차량 데이터 기준</h2>
         {isAdmin && (
-          <button className="primary" type="button" onClick={handleSync} disabled={syncing}>
+          <button
+            className={`catalog-sync-btn${syncing ? " is-syncing" : ""}`}
+            type="button"
+            onClick={handleSync}
+            disabled={syncing}
+          >
+            <RefreshCw size={15} strokeWidth={2.1} />
             {syncing ? "동기화 중…" : "마스터 동기화"}
           </button>
         )}
@@ -77,11 +96,12 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
 
         {result && (
           <div className={`catalog-sync-result${result.ok ? "" : " warn"}`}>
-            <strong>{result.ok ? "동기화 완료" : "동기화 완료 (일부 검증 스킵)"}</strong>
+            <strong>{result.ok ? "동기화 완료" : "동기화 완료 (일부 건너뜀)"}</strong>
             <ul>
               {result.tables.map((t) => (
                 <li key={t.name}>
-                  {t.name} · upsert {t.upserted} · soft-delete {t.softDeleted} · {t.complete ? "OK" : "SKIP"}
+                  {SYNC_NAME_KO[t.name] ?? t.name} · 반영 {t.upserted.toLocaleString()}건 · 삭제{" "}
+                  {t.softDeleted.toLocaleString()}건 · {t.complete ? "완료" : "건너뜀"}
                 </li>
               ))}
             </ul>
