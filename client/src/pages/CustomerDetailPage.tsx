@@ -1,10 +1,11 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
+import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
-import { fetchTrimDetail, type TrimDetail } from "@/lib/vehicles";
+import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -1442,6 +1443,8 @@ function KimMinjunDetailContent({
   const [discountLines, setDiscountLines] = useState<KimDiscountLine[]>([]);
   const [acquisitionTaxMode, setAcquisitionTaxMode] = useState<KimAcquisitionTaxMode>("normal");
   const [trimDetail, setTrimDetail] = useState<TrimDetail | null>(null);
+  const [exteriorColor, setExteriorColor] = useState<TrimColor | null>(null);
+  const [interiorColor, setInteriorColor] = useState<TrimColor | null>(null);
   const [documents, setDocuments] = useState<KimDocumentItem[]>(kimMinjunDocumentVault);
   const [isDocumentDragActive, setIsDocumentDragActive] = useState(false);
   const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
@@ -1729,6 +1732,8 @@ function KimMinjunDetailContent({
     try {
       const detail = await fetchTrimDetail(trim.id);
       setTrimDetail(detail);
+      setExteriorColor(null);
+      setInteriorColor(null);
       const root = pricingPanelRef.current;
       if (!root) return;
       const setInput = (key: string, value: number) => {
@@ -5089,8 +5094,8 @@ function KimMinjunDetailContent({
                     <div className="kim-jeff-section">
                       <h4>🎨 옵션 / 컬러</h4>
                       <OptionPicker key={trimDetail?.id ?? "none"} options={trimDetail?.options ?? []} relations={trimDetail?.optionRelations ?? []} onChange={applyOptionTotal} />
-                      <button className="kim-jeff-picker-row" type="button"><span>외장</span><b className="muted">미선택</b><ChevronDown size={15} /></button>
-                      <button className="kim-jeff-picker-row" type="button"><span>내장</span><b className="muted">미선택</b><ChevronDown size={15} /></button>
+                      <ColorPicker colorType="exterior" colors={trimDetail?.colors ?? []} value={exteriorColor} onChange={(c) => { setExteriorColor(c); markQuoteDraftChanged(); }} />
+                      <ColorPicker colorType="interior" colors={trimDetail?.colors ?? []} value={interiorColor} onChange={(c) => { setInteriorColor(c); markQuoteDraftChanged(); }} />
                     </div>
                     <div className="kim-jeff-section">
                       <h4>💰 할인</h4>
@@ -5346,8 +5351,8 @@ function KimMinjunDetailContent({
                         <div className="kim-app-detail-block">
                           <header>🚗 출고 시기 정보</header>
                           <dl>
-                            <dt>외장 컬러</dt><dd>미선택</dd>
-                            <dt>내장 컬러</dt><dd>미선택</dd>
+                            <dt>외장 컬러</dt><dd>{exteriorColor?.name ?? "미선택"}</dd>
+                            <dt>내장 컬러</dt><dd>{interiorColor?.name ?? "미선택"}</dd>
                             <dt>재고 여부</dt><dd className="green">확인 필요</dd>
                             <dt>예상 출고</dt><dd>확인 후 안내</dd>
                             <dt>고객 지역</dt><dd>인천</dd>
@@ -5438,8 +5443,8 @@ function KimMinjunDetailContent({
                           <div className="kim-app-detail-block">
                             <header>🚗 출고 시기 정보</header>
                             <dl>
-                              <dt>외장 컬러</dt><dd>미선택</dd>
-                              <dt>내장 컬러</dt><dd>미선택</dd>
+                              <dt>외장 컬러</dt><dd>{exteriorColor?.name ?? "미선택"}</dd>
+                              <dt>내장 컬러</dt><dd>{interiorColor?.name ?? "미선택"}</dd>
                               <dt>재고 여부</dt><dd className="green">확인 필요</dd>
                               <dt>예상 출고</dt><dd>확인 후 안내</dd>
                               <dt>고객 지역</dt><dd>인천</dd>
