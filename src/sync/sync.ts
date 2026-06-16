@@ -12,7 +12,7 @@ import { fetchMasterTable } from "./master-client";
 const INSERT_PARAM_BUDGET = 60_000;
 const DELETE_BATCH = 1000;
 
-type TableResult = {
+export type TableResult = {
   name: string;
   fetched: number;
   total: number;
@@ -71,17 +71,27 @@ async function syncTable(meta: SyncTable): Promise<TableResult> {
   return { name: meta.name, fetched: rows.length, total, complete, upserted: rows.length, softDeleted };
 }
 
-async function main(): Promise<void> {
-  console.log("catalog full-sync 시작\n");
+// 재사용: 전체 테이블 sync 실행 후 결과 배열 반환. 연결을 끊지 않음(서버가 유지).
+// onTable 콜백으로 CLI는 테이블별 실시간 로그 유지, API(runSync())는 생략.
+export async function runSync(onTable?: (r: TableResult) => void): Promise<TableResult[]> {
   const results: TableResult[] = [];
   for (const meta of syncTables) {
     const r = await syncTable(meta);
+    onTable?.(r);
+    results.push(r);
+  }
+  return results;
+}
+
+// CLI 엔트리: runSync + 요약 + 연결 종료. `bun run sync`로 직접 실행할 때만 동작.
+async function main(): Promise<void> {
+  console.log("catalog full-sync 시작\n");
+  const results = await runSync((r) => {
     const flag = r.complete ? "OK" : "SKIP(soft-delete)";
     console.log(
       `  ${r.name.padEnd(22)} fetch ${r.fetched}/${r.total} · upsert ${r.upserted} · soft-delete ${r.softDeleted} · 검증 ${flag}`,
     );
-    results.push(r);
-  }
+  });
   const incomplete = results.filter((r) => !r.complete);
   console.log("\ncatalog full-sync 완료.");
   if (incomplete.length) {
@@ -92,4 +102,5 @@ async function main(): Promise<void> {
   await db.$client.end();
 }
 
-await main();
+// Bun 진입 모듈일 때만 실행. 라우트가 runSync를 import할 땐 main()/연결종료가 실행되지 않음.
+if (import.meta.main) await main();
