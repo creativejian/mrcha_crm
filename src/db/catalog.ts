@@ -1,7 +1,7 @@
 // catalog(차량 마스터) schema — master Supabase의 catalog 스키마를 읽기 위한 drizzle 정의.
-// READ-ONLY: master(앱)가 소유. CRM은 읽기만 한다. 이 파일은 `bun run db:pull:catalog` 재introspect
-// 산출물(drizzle/_catalog_introspect/)을 CRM 사용 7테이블로 정리한 정본이다. master catalog 스키마가
-// 바뀌면 재introspect 후 다시 정리한다.
+// master(앱)가 소유. CRM은 견적용 읽기(queries/vehicles.ts)와 차량 관리 admin 쓰기(queries/catalog-admin.ts)에서
+// 이 테이블 객체를 쓴다. 스키마 정의 자체는 `bun run db:pull:catalog` 재introspect 산출물
+// (drizzle/_catalog_introspect/)을 CRM 사용 7테이블로 정리한 정본이라 직접 수정하지 않는다(구조 변경 시 재introspect).
 // 주의:
 //   - master엔 deleted_at(거울 전용 soft-delete)이 없다 → 컬럼·필터 모두 없음.
 //   - status는 public.car_status enum이나 cross-schema라 introspect가 모델링 못 함('failed to parse').
