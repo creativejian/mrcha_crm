@@ -16,6 +16,12 @@ const num = (s: string): number | null => {
   return s.trim() === "" || Number.isNaN(n) ? null : n;
 };
 
+// 천단위 콤마 포맷(입력 중 그룹핑). 저장 시엔 num()이 콤마를 제거한다.
+const formatThousands = (s: string): string => {
+  const digits = s.replace(/[^0-9]/g, "");
+  return digits === "" ? "" : Number(digits).toLocaleString();
+};
+
 export function TrimEditPanel({
   trim,
   onClose,
@@ -31,7 +37,7 @@ export function TrimEditPanel({
 }) {
   const isEdit = trim !== null;
   const [trimName, setTrimName] = useState(trim?.trimName ?? "");
-  const [price, setPrice] = useState(trim ? String(trim.price) : "");
+  const [price, setPrice] = useState(trim ? trim.price.toLocaleString() : "");
   const [modelYear, setModelYear] = useState(String(trim?.modelYear ?? 2026));
   const [fuelType, setFuelType] = useState(trim?.fuelType ?? "가솔린");
   const [driveSystem, setDriveSystem] = useState(trim?.driveSystem ?? "FWD");
@@ -70,12 +76,18 @@ export function TrimEditPanel({
           {isEdit && (
             <label className="va-field">
               <span>정규화명 (자동 생성)</span>
-              <input className="input" value={trim?.canonicalName ?? ""} readOnly disabled />
+              <input className="input va-readonly" value={trim?.canonicalName ?? ""} readOnly disabled />
             </label>
           )}
           <label className="va-field">
             <span>가격(원) *</span>
-            <input className="input" inputMode="numeric" value={price} onChange={(e) => setPrice(e.currentTarget.value)} placeholder="예: 70000000" />
+            <input
+              className="input va-num"
+              inputMode="numeric"
+              value={price}
+              onChange={(e) => setPrice(formatThousands(e.currentTarget.value))}
+              placeholder="예: 70,000,000"
+            />
           </label>
           <label className="va-field">
             <span>연식 *</span>

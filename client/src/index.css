@@ -16116,15 +16116,18 @@ select.kim-jeff-discount-label {
   background: #fee4e2;
 }
 .va-col-sel {
-  width: 64px;
+  width: 60px;
   white-space: nowrap;
-  text-align: center;
 }
-.va-col-sel .lucide {
+.va-sel-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.va-grip {
   color: #b8bcc2;
   cursor: grab;
-  vertical-align: middle;
-  margin-right: 4px;
+  flex: 0 0 auto;
 }
 .va-model-table tr[draggable="true"],
 .va-trim-table tr[draggable="true"] {
@@ -16132,4 +16135,14 @@ select.kim-jeff-discount-label {
 }
 .va-row-selected {
   background: #f1edff;
+}
+/* 이사님 지정 숫자 폰트(가격범위·트림수·연식·고유번호·가격·입력값). */
+.va-num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+/* read-only 필드(정규화명 등)는 연하게. */
+.va-readonly {
+  color: var(--muted);
+  background: var(--surface-2);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckSquare, Plus } from "lucide-react";
 
@@ -47,7 +47,10 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const dragId = useRef<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const modelScrollTop = useRef(0);
 
+  const inTrimView = modelId != null;
   const openModel = useMemo(
     () => (modelId ? (models.find((m) => String(m.id) === modelId) ?? null) : null),
     [models, modelId],
@@ -81,6 +84,14 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       .catch(() => setLoadError(true));
   }, [modelId]);
 
+  // 모델 목록 스크롤 위치 보존: 트림 뷰로 들어갔다 뒤로 와도 위치 복원.
+  function onScroll() {
+    if (!inTrimView && scrollRef.current) modelScrollTop.current = scrollRef.current.scrollTop;
+  }
+  useLayoutEffect(() => {
+    if (!inTrimView && scrollRef.current) scrollRef.current.scrollTop = modelScrollTop.current;
+  }, [inTrimView, models]);
+
   function reloadModels() {
     if (brandId == null) return;
     fetchModels(brandId)
@@ -97,6 +108,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   function selectBrand(id: number) {
     setBrandId(id);
     resetSelect();
+    modelScrollTop.current = 0;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     navigate("/mc-master");
   }
   function openModelView(m: CatalogModel) {
@@ -127,16 +140,6 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     }
   }
 
-  async function handleDeleteModel(model: CatalogModel) {
-    if (!window.confirm(`'${model.name}' 모델과 하위 트림·옵션·색상이 모두 삭제됩니다. 계속할까요?`)) return;
-    try {
-      await deleteModel(model.id);
-      reloadModels();
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "삭제 실패");
-    }
-  }
-
   async function submitTrim(values: TrimInput) {
     if (modelId == null || trimPanel == null) return;
     setBusy(true);
@@ -157,19 +160,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     }
   }
 
-  async function handleDeleteTrim(trim: CatalogTrim) {
-    if (!window.confirm(`'${trim.trimName}' 트림과 하위 옵션·색상이 모두 삭제됩니다. 계속할까요?`)) return;
-    try {
-      await deleteTrim(trim.id);
-      reloadTrims();
-      reloadModels();
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "삭제 실패");
-    }
-  }
-
   // ── 선택 모드(일괄삭제 + 드래그 순서변경) ──────────────────────────────────────
-  const inTrimView = modelId != null;
   function toggle(idv: number) {
     setSelected((s) => {
       const n = new Set(s);
@@ -288,42 +279,42 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
         {loadError && <div className="notice-box error">불러오기 실패</div>}
         <div className="va-layout">
           <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} />
-          {inTrimView ? (
-            <TrimTable
-              trims={trims}
-              canEdit={canEdit}
-              selectMode={selectMode}
-              selected={selected}
-              onEdit={(t) => {
-                setPanelError(null);
-                setTrimPanel({ mode: "edit", trim: t });
-              }}
-              onDelete={handleDeleteTrim}
-              onToggle={toggle}
-              onToggleAll={toggleAll}
-              onDragStart={onDragStart}
-              onDragEnter={onDragEnter}
-              onDrop={onDrop}
-            />
-          ) : (
-            <ModelTable
-              models={models}
-              canEdit={canEdit}
-              selectMode={selectMode}
-              selected={selected}
-              onOpen={openModelView}
-              onEdit={(m) => {
-                setPanelError(null);
-                setModelPanel({ mode: "edit", model: m });
-              }}
-              onDelete={handleDeleteModel}
-              onToggle={toggle}
-              onToggleAll={toggleAll}
-              onDragStart={onDragStart}
-              onDragEnter={onDragEnter}
-              onDrop={onDrop}
-            />
-          )}
+          <div className="table-scroll va-scroll" ref={scrollRef} onScroll={onScroll}>
+            {inTrimView ? (
+              <TrimTable
+                trims={trims}
+                canEdit={canEdit}
+                selectMode={selectMode}
+                selected={selected}
+                onEdit={(t) => {
+                  setPanelError(null);
+                  setTrimPanel({ mode: "edit", trim: t });
+                }}
+                onToggle={toggle}
+                onToggleAll={toggleAll}
+                onDragStart={onDragStart}
+                onDragEnter={onDragEnter}
+                onDrop={onDrop}
+              />
+            ) : (
+              <ModelTable
+                models={models}
+                canEdit={canEdit}
+                selectMode={selectMode}
+                selected={selected}
+                onOpen={openModelView}
+                onEdit={(m) => {
+                  setPanelError(null);
+                  setModelPanel({ mode: "edit", model: m });
+                }}
+                onToggle={toggle}
+                onToggleAll={toggleAll}
+                onDragStart={onDragStart}
+                onDragEnter={onDragEnter}
+                onDrop={onDrop}
+              />
+            )}
+          </div>
         </div>
       </div>
       {modelPanel && (
