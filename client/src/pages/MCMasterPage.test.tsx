@@ -94,3 +94,13 @@ it("모델 클릭 시 트림 리스트로 드릴다운", async () => {
   expect(await screen.findByText("캐스퍼 1.0")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /트림 추가/ })).toBeInTheDocument();
 });
+
+it("선택 모드: 체크박스 + 선택 삭제 노출", async () => {
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await screen.findByText("그랜저");
+  await user.click(screen.getByRole("button", { name: /^선택$/ }));
+  expect(screen.getByRole("checkbox", { name: "전체 선택" })).toBeInTheDocument();
+  await user.click(screen.getByRole("checkbox", { name: "그랜저 선택" }));
+  expect(screen.getByRole("button", { name: /선택 삭제 \(1\)/ })).toBeInTheDocument();
+});
