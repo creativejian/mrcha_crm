@@ -65,7 +65,7 @@ export default defineConfig({
 ```bash
 bun run db:generate   # 스키마 변경 → 마이그레이션 SQL 생성
 bun run db:migrate    # 마이그레이션 적용
-bun run db:push       # 스키마 직접 푸시 (dev 전용)
+# db:push 제거됨 — master 직결 시 public(앱 테이블) DROP 위험. generate→migrate만 사용.
 ```
 
 > **결정**: Prisma 대신 Drizzle 채택. 이유: 빌드 타임 의존성 제로, Edge Runtime 호환, SQL-first 설계, postgres.js 와 자연스럽게 페어링.
