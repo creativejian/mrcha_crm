@@ -1,6 +1,14 @@
-import { and, asc, count, eq, isNull, max, min, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, max, min, sql } from "drizzle-orm";
 
-import { brandsInCatalog, colorsInCatalog, modelsInCatalog, trimOptionsInCatalog, trimsInCatalog } from "../catalog";
+import {
+  brandsInCatalog,
+  colorsInCatalog,
+  modelsInCatalog,
+  trimNoOptionsInCatalog,
+  trimOptionRelationsInCatalog,
+  trimOptionsInCatalog,
+  trimsInCatalog,
+} from "../catalog";
 import { db } from "../client";
 import { buildCanonicalName } from "./canonical-name";
 
@@ -221,6 +229,24 @@ export async function listOptionsByTrim(trimId: number) {
     .orderBy(asc(trimOptionsInCatalog.id));
 }
 
+// 트림 옵션의 includes/excludes 관계(표식 표시용·읽기 전용). 편집은 Phase 2.
+export async function listOptionRelationsByTrim(trimId: number) {
+  const opts = await db
+    .select({ id: trimOptionsInCatalog.id })
+    .from(trimOptionsInCatalog)
+    .where(eq(trimOptionsInCatalog.trimId, trimId));
+  const ids = opts.map((o) => o.id);
+  if (ids.length === 0) return [];
+  return db
+    .select({
+      optionId: trimOptionRelationsInCatalog.optionId,
+      relatedOptionId: trimOptionRelationsInCatalog.relatedOptionId,
+      type: trimOptionRelationsInCatalog.type,
+    })
+    .from(trimOptionRelationsInCatalog)
+    .where(inArray(trimOptionRelationsInCatalog.optionId, ids));
+}
+
 export async function createOption(
   input: { trimId: number; type: "basic" | "tuning"; name: string; price: number | null },
   executor: Executor = db,
@@ -250,6 +276,54 @@ export async function deleteOption(id: number, executor: Executor = db) {
     .where(eq(trimOptionsInCatalog.id, id))
     .returning({ id: trimOptionsInCatalog.id });
   return row ?? null;
+}
+
+// 모델 하위 트림별 옵션 요약(배지용): 기본/튜닝 개수 + 무옵션 확정 여부.
+// 옵션도 무옵션 등록도 없는 트림은 결과에서 빠지고, 프론트가 '미정'으로 처리한다.
+export async function listModelOptionSummary(modelId: number, executor: Executor = db) {
+  const counts = await executor
+    .select({ trimId: trimOptionsInCatalog.trimId, type: trimOptionsInCatalog.type, c: count() })
+    .from(trimOptionsInCatalog)
+    .innerJoin(trimsInCatalog, eq(trimsInCatalog.id, trimOptionsInCatalog.trimId))
+    .where(eq(trimsInCatalog.modelId, modelId))
+    .groupBy(trimOptionsInCatalog.trimId, trimOptionsInCatalog.type);
+  const noOpt = await executor
+    .select({ trimId: trimNoOptionsInCatalog.trimId })
+    .from(trimNoOptionsInCatalog)
+    .innerJoin(trimsInCatalog, eq(trimsInCatalog.id, trimNoOptionsInCatalog.trimId))
+    .where(eq(trimsInCatalog.modelId, modelId));
+  const map = new Map<number, { basic: number; tuning: number; noOption: boolean }>();
+  const slot = (id: number) => {
+    let e = map.get(id);
+    if (!e) {
+      e = { basic: 0, tuning: 0, noOption: false };
+      map.set(id, e);
+    }
+    return e;
+  };
+  for (const r of counts) {
+    const e = slot(r.trimId);
+    if (r.type === "basic") e.basic = Number(r.c);
+    else if (r.type === "tuning") e.tuning = Number(r.c);
+  }
+  for (const r of noOpt) slot(r.trimId).noOption = true;
+  return [...map.entries()].map(([trimId, v]) => ({ trimId, ...v }));
+}
+
+// 무옵션 확정: 옵션이 하나도 없을 때만 등록(idempotent).
+export async function setTrimNoOption(trimId: number, executor: Executor = db) {
+  const [row] = await executor
+    .select({ c: count() })
+    .from(trimOptionsInCatalog)
+    .where(eq(trimOptionsInCatalog.trimId, trimId));
+  if (Number(row?.c ?? 0) > 0) throw new Error("옵션이 있는 트림은 ‘옵션 없음’으로 확정할 수 없습니다.");
+  await executor.insert(trimNoOptionsInCatalog).values({ trimId }).onConflictDoNothing();
+  return { ok: true };
+}
+
+export async function unsetTrimNoOption(trimId: number, executor: Executor = db) {
+  await executor.delete(trimNoOptionsInCatalog).where(eq(trimNoOptionsInCatalog.trimId, trimId));
+  return { ok: true };
 }
 
 // ── 고유번호(mc_code) 부여 ──────────────────────────────────────────────────────

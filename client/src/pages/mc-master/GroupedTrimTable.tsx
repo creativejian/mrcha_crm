@@ -1,8 +1,8 @@
 import { Fragment } from "react";
 import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
 
-import type { CatalogTrim, TrimColor } from "@/lib/catalog";
-import { ColorChips, TrimHeadCells, TrimMetaCells } from "./trim-cells";
+import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
+import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 import { TRIM_BODY_COLS } from "./trim-format";
 import { groupTrimsBySubline, trimGrade } from "./trim-grouping";
 
@@ -12,16 +12,20 @@ export function GroupedTrimTable({
   trims,
   canEdit,
   colorsByTrim,
+  optionByTrim,
   expanded,
   onToggleGroup,
   onEdit,
+  onOpenOptions,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
   colorsByTrim: Map<number, TrimColor[]>;
+  optionByTrim: Map<number, TrimOptionSummary>;
   expanded: Set<string>;
   onToggleGroup: (key: string) => void;
   onEdit: (t: CatalogTrim) => void;
+  onOpenOptions: (t: CatalogTrim) => void;
 }) {
   if (trims.length === 0) return <div className="va-empty">트림이 없습니다. ‘트림 추가’로 등록하세요.</div>;
   const groups = groupTrimsBySubline(trims);
@@ -66,6 +70,9 @@ export function GroupedTrimTable({
                       <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
                     </td>
                     <TrimMetaCells trim={t} />
+                    <td className="va-col-center">
+                      <OptionBadgeButton summary={optionByTrim.get(t.id)} onClick={() => onOpenOptions(t)} />
+                    </td>
                     {canEdit && (
                       <td className="va-col-center">
                         <button

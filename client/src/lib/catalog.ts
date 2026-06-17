@@ -172,6 +172,58 @@ export async function assignMcCodes(modelId: number): Promise<{ assigned: number
   return jsonOrThrow(await fetch(`/api/catalog/models/${modelId}/assign-codes`, { method: "POST" }));
 }
 
+// ── 옵션 ───────────────────────────────────────────────────────────────────────
+export type OptionType = "basic" | "tuning";
+export type CatalogOption = { id: number; type: OptionType; name: string; price: number | null };
+// 옵션 관계(includes/excludes) — 표식 표시용(읽기 전용).
+export type OptionRelation = { optionId: number; relatedOptionId: number; type: "includes" | "excludes" };
+export type OptionsBundle = { options: CatalogOption[]; relations: OptionRelation[] };
+// 트림 행 배지용 요약: 기본/튜닝 개수 + 무옵션 확정.
+export type TrimOptionSummary = { trimId: number; basic: number; tuning: number; noOption: boolean };
+
+export async function fetchOptionSummary(modelId: number): Promise<TrimOptionSummary[]> {
+  return jsonOrThrow(await fetch(`/api/catalog/models/${modelId}/option-summary`));
+}
+
+export async function fetchOptions(trimId: number): Promise<OptionsBundle> {
+  return jsonOrThrow(await fetch(`/api/catalog/trims/${trimId}/options`));
+}
+
+export async function createOption(
+  trimId: number,
+  input: { type: OptionType; name: string; price: number | null },
+): Promise<CatalogOption> {
+  return jsonOrThrow(
+    await fetch(`/api/catalog/trims/${trimId}/options`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
+export async function updateOption(id: number, input: { name?: string; price?: number | null }): Promise<CatalogOption> {
+  return jsonOrThrow(
+    await fetch(`/api/catalog/options/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
+export async function deleteOption(id: number): Promise<{ id: number }> {
+  return jsonOrThrow(await fetch(`/api/catalog/options/${id}`, { method: "DELETE" }));
+}
+
+export async function setNoOption(trimId: number): Promise<{ ok: boolean }> {
+  return jsonOrThrow(await fetch(`/api/catalog/trims/${trimId}/no-option`, { method: "POST" }));
+}
+
+export async function unsetNoOption(trimId: number): Promise<{ ok: boolean }> {
+  return jsonOrThrow(await fetch(`/api/catalog/trims/${trimId}/no-option`, { method: "DELETE" }));
+}
+
 // 순서변경: orderedIds 위치(1..N) = sort_order.
 export async function reorderModels(ids: number[]): Promise<void> {
   await jsonOrThrow(

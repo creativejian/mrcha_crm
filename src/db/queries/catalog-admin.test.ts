@@ -9,7 +9,10 @@ import {
   createOption,
   createTrim,
   deleteModel,
+  listModelOptionSummary,
   reorderCatalog,
+  setTrimNoOption,
+  unsetTrimNoOption,
   updateModel,
   updateTrim,
 } from "./catalog-admin";
@@ -113,6 +116,50 @@ test("catalog-admin CRUD (tx 롤백, prod 무변경)", async () => {
     .from(modelsInCatalog)
     .where(eq(modelsInCatalog.name, "__CRM_TEST_MODEL__"));
   expect(leftover.length).toBe(0);
+});
+
+test("옵션 요약 + 무옵션 확정 토글 (tx 롤백, prod 무변경)", async () => {
+  await db
+    .transaction(async (tx) => {
+      const [brand] = await tx
+        .select({ id: brandsInCatalog.id })
+        .from(brandsInCatalog)
+        .where(eq(brandsInCatalog.isDomestic, false))
+        .limit(1);
+      const model = await createModel({ brandId: brand.id, name: "__OPT_MODEL__", category: null, status: "판매중" }, tx);
+      const trim = await createTrim(
+        { modelId: model.id, trimName: "옵트트림", price: 1000, modelYear: 2026, fuelType: "가솔린" },
+        tx,
+      );
+
+      // 옵션 0개 → 무옵션 확정 가능
+      await setTrimNoOption(trim.id, tx);
+      let s = (await listModelOptionSummary(model.id, tx)).find((x) => x.trimId === trim.id);
+      expect(s?.noOption).toBe(true);
+      expect(s?.basic).toBe(0);
+      expect(s?.tuning).toBe(0);
+
+      // 옵션이 있으면 무옵션 확정 불가
+      await createOption({ trimId: trim.id, type: "basic", name: "기본옵션", price: 100 }, tx);
+      await createOption({ trimId: trim.id, type: "tuning", name: "튜닝옵션", price: 200 }, tx);
+      let blocked = false;
+      try {
+        await setTrimNoOption(trim.id, tx);
+      } catch {
+        blocked = true;
+      }
+      expect(blocked).toBe(true);
+
+      s = (await listModelOptionSummary(model.id, tx)).find((x) => x.trimId === trim.id);
+      expect(s?.basic).toBe(1);
+      expect(s?.tuning).toBe(1);
+
+      await unsetTrimNoOption(trim.id, tx);
+      throw new Rollback();
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Rollback)) throw e;
+    });
 });
 
 test("assignMcCodes: 미부여 트림에 trim_code 채번 → mc_code 자동 생성 (tx 롤백, prod 무변경)", async () => {

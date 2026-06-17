@@ -10,6 +10,7 @@ import {
   type CatalogTrim,
   type TrimColor,
   type TrimInput,
+  type TrimOptionSummary,
   assignMcCodes,
   createModel,
   createTrim,
@@ -17,6 +18,7 @@ import {
   deleteTrim,
   fetchBrands,
   fetchModels,
+  fetchOptionSummary,
   fetchTrimColors,
   fetchTrims,
   reorderModels,
@@ -28,6 +30,7 @@ import { BrandSidebar } from "./mc-master/BrandSidebar";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
+import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
 import { TrimTable } from "./mc-master/TrimTable";
 import { moveItem } from "./mc-master/reorder";
@@ -54,6 +57,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [colorsByTrim, setColorsByTrim] = useState<Map<number, TrimColor[]>>(new Map());
+  const [optionByTrim, setOptionByTrim] = useState<Map<number, TrimOptionSummary>>(new Map());
+  const [optionPanelTrim, setOptionPanelTrim] = useState<CatalogTrim | null>(null);
   const [trimTab, setTrimTab] = useState<TrimTab>("list");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const dragId = useRef<number | null>(null);
@@ -112,6 +117,9 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
         setColorsByTrim(map);
       })
       .catch(() => undefined);
+    fetchOptionSummary(Number(modelId))
+      .then((rows) => setOptionByTrim(new Map(rows.map((r) => [r.trimId, r]))))
+      .catch(() => undefined);
   }, [modelId]);
 
   // 모델 목록 스크롤 위치 보존: 트림 뷰로 들어갔다 뒤로 와도 위치 복원.
@@ -133,6 +141,12 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     fetchTrims(Number(modelId))
       .then(setTrims)
       .catch(() => setLoadError(true));
+  }
+  function reloadOptionSummary() {
+    if (!modelId) return;
+    fetchOptionSummary(Number(modelId))
+      .then((rows) => setOptionByTrim(new Map(rows.map((r) => [r.trimId, r]))))
+      .catch(() => undefined);
   }
 
   function selectBrand(id: number) {
@@ -370,12 +384,14 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   trims={trims}
                   canEdit={canEdit}
                   colorsByTrim={colorsByTrim}
+                  optionByTrim={optionByTrim}
                   expanded={expandedGroups}
                   onToggleGroup={toggleGroup}
                   onEdit={(t) => {
                     setPanelError(null);
                     setTrimPanel({ mode: "edit", trim: t });
                   }}
+                  onOpenOptions={setOptionPanelTrim}
                 />
               ) : (
                 <TrimTable
@@ -385,10 +401,12 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   selected={selected}
                   draggingId={draggingId}
                   colorsByTrim={colorsByTrim}
+                  optionByTrim={optionByTrim}
                   onEdit={(t) => {
                     setPanelError(null);
                     setTrimPanel({ mode: "edit", trim: t });
                   }}
+                  onOpenOptions={setOptionPanelTrim}
                   onToggle={toggle}
                   onToggleAll={toggleAll}
                   onDragStart={onDragStart}
@@ -434,6 +452,15 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
           error={panelError}
           onClose={() => setTrimPanel(null)}
           onSubmit={submitTrim}
+        />
+      )}
+      {optionPanelTrim && (
+        <OptionPanel
+          trim={optionPanelTrim}
+          canEdit={canEdit}
+          initialNoOption={optionByTrim.get(optionPanelTrim.id)?.noOption ?? false}
+          onClose={() => setOptionPanelTrim(null)}
+          onChanged={reloadOptionSummary}
         />
       )}
     </section>

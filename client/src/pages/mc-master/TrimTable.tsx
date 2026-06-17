@@ -1,7 +1,7 @@
 import { GripVertical, Pencil } from "lucide-react";
 
-import type { CatalogTrim, TrimColor } from "@/lib/catalog";
-import { ColorChips, TrimHeadCells, TrimMetaCells } from "./trim-cells";
+import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
+import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 
 // 평면 트림 테이블(전체 trim_name). 국산차 '순서 관리' 탭 / 수입차 기본 뷰에서 쓴다.
 // 드래그 순서변경/일괄삭제는 '선택' 모드에서만(앱과 동일).
@@ -12,7 +12,9 @@ export function TrimTable({
   selected,
   draggingId,
   colorsByTrim,
+  optionByTrim,
   onEdit,
+  onOpenOptions,
   onToggle,
   onToggleAll,
   onDragStart,
@@ -25,7 +27,9 @@ export function TrimTable({
   selected: Set<number>;
   draggingId: number | null;
   colorsByTrim: Map<number, TrimColor[]>;
+  optionByTrim: Map<number, TrimOptionSummary>;
   onEdit: (t: CatalogTrim) => void;
+  onOpenOptions: (t: CatalogTrim) => void;
   onToggle: (id: number) => void;
   onToggleAll: () => void;
   onDragStart: (id: number) => void;
@@ -87,6 +91,9 @@ export function TrimTable({
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
             </td>
             <TrimMetaCells trim={t} />
+            <td className="va-col-center">
+              <OptionBadgeButton summary={optionByTrim.get(t.id)} onClick={() => onOpenOptions(t)} />
+            </td>
             {canEdit && !selectMode && (
               <td className="va-col-center">
                 <button type="button" className="tiny-btn" aria-label={`${t.trimName} 수정`} onClick={() => onEdit(t)}>

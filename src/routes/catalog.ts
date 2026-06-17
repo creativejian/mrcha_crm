@@ -12,11 +12,15 @@ import {
   deleteOption,
   deleteTrim,
   listColorsByTrim,
+  listModelOptionSummary,
   listModelsByBrand,
+  listOptionRelationsByTrim,
   listOptionsByTrim,
   listTrimColorsByModel,
   listTrimsByModel,
   reorderCatalog,
+  setTrimNoOption,
+  unsetTrimNoOption,
   updateModel,
   updateOption,
   updateTrim,
@@ -119,6 +123,11 @@ catalog.get("/models/:id/trim-colors", zValidator("param", z.object({ id })), as
   c.json(await listTrimColorsByModel(c.req.valid("param").id)),
 );
 
+// 트림별 옵션 요약(배지): 기본/튜닝 개수 + 무옵션 확정.
+catalog.get("/models/:id/option-summary", zValidator("param", z.object({ id })), async (c) =>
+  c.json(await listModelOptionSummary(c.req.valid("param").id)),
+);
+
 catalog.get("/trims", zValidator("query", z.object({ modelId: id })), async (c) => {
   const trims = await listTrimsByModel(c.req.valid("query").modelId);
   return c.json(trims.map((t) => ({ ...t, price: Number(t.price) })));
@@ -177,9 +186,11 @@ catalog.delete("/trims/:id", zValidator("param", z.object({ id })), async (c) =>
 );
 
 // ── 옵션 / 색상 ────────────────────────────────────────────────────────────────
-catalog.get("/trims/:id/options", zValidator("param", z.object({ id })), async (c) =>
-  c.json(await listOptionsByTrim(c.req.valid("param").id)),
-);
+catalog.get("/trims/:id/options", zValidator("param", z.object({ id })), async (c) => {
+  const trimId = c.req.valid("param").id;
+  const [options, relations] = await Promise.all([listOptionsByTrim(trimId), listOptionRelationsByTrim(trimId)]);
+  return c.json({ options, relations });
+});
 
 catalog.get("/trims/:id/colors", zValidator("param", z.object({ id })), async (c) =>
   c.json(await listColorsByTrim(c.req.valid("param").id)),
@@ -201,4 +212,12 @@ catalog.patch(
 
 catalog.delete("/options/:id", zValidator("param", z.object({ id })), async (c) =>
   run(c, () => deleteOption(c.req.valid("param").id), "옵션을 찾을 수 없습니다."),
+);
+
+// 무옵션 확정 토글(옵션 0개일 때만 등록 가능).
+catalog.post("/trims/:id/no-option", zValidator("param", z.object({ id })), async (c) =>
+  run(c, () => setTrimNoOption(c.req.valid("param").id)),
+);
+catalog.delete("/trims/:id/no-option", zValidator("param", z.object({ id })), async (c) =>
+  run(c, () => unsetTrimNoOption(c.req.valid("param").id)),
 );
