@@ -16098,3 +16098,38 @@ select.kim-jeff-discount-label {
   max-height: calc(100vh - 210px);
   overflow-y: auto;
 }
+.va-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.va-select-on {
+  border-color: rgba(88, 54, 255, 0.4);
+  color: #5836ff;
+  background: #f1edff;
+}
+.va-danger-btn {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.3);
+}
+.va-danger-btn:hover {
+  background: #fee4e2;
+}
+.va-col-sel {
+  width: 64px;
+  white-space: nowrap;
+  text-align: center;
+}
+.va-col-sel .lucide {
+  color: #b8bcc2;
+  cursor: grab;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.va-model-table tr[draggable="true"],
+.va-trim-table tr[draggable="true"] {
+  cursor: grab;
+}
+.va-row-selected {
+  background: #f1edff;
+}
