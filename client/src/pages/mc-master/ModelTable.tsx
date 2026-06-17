@@ -12,11 +12,13 @@ function priceRange(min: number | null, max: number | null): string {
 export function ModelTable({
   models,
   canEdit,
+  onOpen,
   onEdit,
   onDelete,
 }: {
   models: CatalogModel[];
   canEdit: boolean;
+  onOpen: (model: CatalogModel) => void;
   onEdit: (model: CatalogModel) => void;
   onDelete: (model: CatalogModel) => void;
 }) {
@@ -39,7 +41,9 @@ export function ModelTable({
             <tr key={m.id}>
               <td className="va-model-name">
                 {m.imageUrl && <img src={m.imageUrl} alt="" className="va-model-thumb" />}
-                <span>{m.name}</span>
+                <button type="button" className="va-link" onClick={() => onOpen(m)}>
+                  {m.name}
+                </button>
               </td>
               <td>{m.category ?? "—"}</td>
               <td>{priceRange(m.minPrice, m.maxPrice)}</td>

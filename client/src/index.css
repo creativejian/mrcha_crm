@@ -16065,3 +16065,23 @@ select.kim-jeff-discount-label {
   background: #ece8ff;
   color: #5836ff;
 }
+.va-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: #5836ff;
+  cursor: pointer;
+}
+.va-link:hover {
+  text-decoration: underline;
+}
+.va-head-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.va-mono {
+  font-variant-numeric: tabular-nums;
+  color: #5f6872;
+}

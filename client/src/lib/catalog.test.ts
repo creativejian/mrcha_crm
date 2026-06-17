@@ -1,6 +1,17 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-import { createModel, deleteModel, fetchBrands, fetchCatalogCounts, fetchModels, updateModel } from "./catalog";
+import {
+  createModel,
+  createTrim,
+  deleteModel,
+  deleteTrim,
+  fetchBrands,
+  fetchCatalogCounts,
+  fetchModels,
+  fetchTrims,
+  updateModel,
+  updateTrim,
+} from "./catalog";
 
 const COUNTS = {
   brands: 33,
@@ -57,4 +68,28 @@ it("fetchBrands / deleteModel 호출 경로", async () => {
   expect(spy.mock.calls[0][0]).toBe("/api/catalog/brands");
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ id: 1 }), { status: 200 })));
   await deleteModel(1);
+});
+
+it("fetchTrims: modelId 쿼리", async () => {
+  const spy = vi.fn(async (_url: string) => new Response("[]", { status: 200 }));
+  vi.stubGlobal("fetch", spy);
+  await fetchTrims(34);
+  expect(spy.mock.calls[0][0]).toBe("/api/catalog/trims?modelId=34");
+});
+
+it("createTrim: POST에 modelId 병합", async () => {
+  const spy = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ id: 1 }), { status: 200 }));
+  vi.stubGlobal("fetch", spy);
+  await createTrim(34, { trimName: "520i", price: 70000000, modelYear: 2026, fuelType: "가솔린" });
+  expect(spy.mock.calls[0][1]?.method).toBe("POST");
+  expect(JSON.parse(String(spy.mock.calls[0][1]?.body))).toMatchObject({ modelId: 34, trimName: "520i" });
+});
+
+it("updateTrim/deleteTrim 경로", async () => {
+  const spy = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ id: 1 }), { status: 200 }));
+  vi.stubGlobal("fetch", spy);
+  await updateTrim(1, { price: 1 });
+  expect(spy.mock.calls[0][0]).toBe("/api/catalog/trims/1");
+  await deleteTrim(1);
+  expect(spy.mock.calls[1][1]?.method).toBe("DELETE");
 });

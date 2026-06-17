@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { MCMasterPage } from "./MCMasterPage";
@@ -21,11 +22,32 @@ const MODELS = [
   },
 ];
 
+const TRIMS = [
+  {
+    id: 100,
+    name: "캐스퍼 1.0",
+    trimName: "캐스퍼 1.0",
+    canonicalName: null,
+    price: 15000000,
+    modelYear: 2026,
+    fuelType: "가솔린",
+    driveSystem: "FWD",
+    displacementCc: 998,
+    transmissionType: "A/T",
+    bodyStyle: null,
+    seatingCapacity: 4,
+    status: "판매중",
+    mcCode: null,
+    sortOrder: 1,
+  },
+];
+
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
       if (url === "/api/catalog/brands") return new Response(JSON.stringify(BRANDS), { status: 200 });
+      if (url.startsWith("/api/catalog/trims")) return new Response(JSON.stringify(TRIMS), { status: 200 });
       if (url.startsWith("/api/catalog/models")) return new Response(JSON.stringify(MODELS), { status: 200 });
       return new Response("[]", { status: 200 });
     }),
@@ -51,4 +73,12 @@ it("상담사는 편집 버튼 숨김", async () => {
   await screen.findByText("그랜저");
   expect(screen.queryByRole("button", { name: /모델 추가/ })).toBeNull();
   expect(screen.queryByRole("button", { name: "그랜저 수정" })).toBeNull();
+});
+
+it("모델 클릭 시 트림 리스트로 드릴다운", async () => {
+  const user = userEvent.setup();
+  render(<MCMasterPage roleTab="최고관리자" />);
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  expect(await screen.findByText("캐스퍼 1.0")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /트림 추가/ })).toBeInTheDocument();
 });
