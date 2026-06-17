@@ -9,6 +9,8 @@ import {
   fetchCatalogCounts,
   fetchModels,
   fetchTrims,
+  reorderModels,
+  reorderTrims,
   updateModel,
   updateTrim,
 } from "./catalog";
@@ -92,4 +94,14 @@ it("updateTrim/deleteTrim 경로", async () => {
   expect(spy.mock.calls[0][0]).toBe("/api/catalog/trims/1");
   await deleteTrim(1);
   expect(spy.mock.calls[1][1]?.method).toBe("DELETE");
+});
+
+it("reorderModels/Trims: POST ids", async () => {
+  const spy = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+  vi.stubGlobal("fetch", spy);
+  await reorderModels([3, 1, 2]);
+  expect(spy.mock.calls[0][0]).toBe("/api/catalog/models/reorder");
+  expect(JSON.parse(String(spy.mock.calls[0][1]?.body))).toEqual({ ids: [3, 1, 2] });
+  await reorderTrims([2, 1]);
+  expect(spy.mock.calls[1][0]).toBe("/api/catalog/trims/reorder");
 });

@@ -1,4 +1,4 @@
-import { asc, count, eq, max, min } from "drizzle-orm";
+import { asc, count, eq, max, min, sql } from "drizzle-orm";
 
 import { brandsInCatalog, colorsInCatalog, modelsInCatalog, trimOptionsInCatalog, trimsInCatalog } from "../catalog";
 import { db } from "../client";
@@ -93,6 +93,11 @@ export async function listTrimsByModel(modelId: number) {
       status: trimsInCatalog.status,
       mcCode: trimsInCatalog.mcCode,
       sortOrder: trimsInCatalog.sortOrder,
+      priceUpdatedAt: trimsInCatalog.priceUpdatedAt,
+      financialDiscountAmount: trimsInCatalog.financialDiscountAmount,
+      partnerDiscountAmount: trimsInCatalog.partnerDiscountAmount,
+      cashDiscountAmount: trimsInCatalog.cashDiscountAmount,
+      discountUpdatedAt: trimsInCatalog.discountUpdatedAt,
     })
     .from(trimsInCatalog)
     .where(eq(trimsInCatalog.modelId, modelId))
@@ -232,6 +237,37 @@ export async function deleteOption(id: number, executor: Executor = db) {
     .where(eq(trimOptionsInCatalog.id, id))
     .returning({ id: trimOptionsInCatalog.id });
   return row ?? null;
+}
+
+// ── 순서변경 ──────────────────────────────────────────────────────────────────
+// orderedIds 위치(1..N)를 sort_order로. public.batch_update_sort_order RPC가 temp 값으로
+// UNIQUE(brand_id/model_id, sort_order) 충돌을 회피한다. table='models'|'trims'.
+export async function reorderCatalog(
+  table: "models" | "trims",
+  orderedIds: number[],
+  executor: Executor = db,
+): Promise<void> {
+  if (orderedIds.length === 0) return;
+  const sortOrders = orderedIds.map((_, i) => i + 1);
+  await executor.execute(
+    sql`select public.batch_update_sort_order(${table}, ${sql.param(orderedIds)}::int[], ${sql.param(sortOrders)}::int[])`,
+  );
+}
+
+// 모델 하위 모든 트림의 색상(트림 리스트 칩 표시용). trimId로 묶어서 쓴다.
+export async function listTrimColorsByModel(modelId: number) {
+  return db
+    .select({
+      trimId: colorsInCatalog.trimId,
+      colorType: colorsInCatalog.colorType,
+      name: colorsInCatalog.name,
+      hexValue: colorsInCatalog.hexValue,
+      sortOrder: colorsInCatalog.sortOrder,
+    })
+    .from(colorsInCatalog)
+    .innerJoin(trimsInCatalog, eq(trimsInCatalog.id, colorsInCatalog.trimId))
+    .where(eq(trimsInCatalog.modelId, modelId))
+    .orderBy(asc(colorsInCatalog.sortOrder));
 }
 
 // 트림 색상(읽기 전용 칩) — Phase 1 표시용.

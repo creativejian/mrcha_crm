@@ -1,9 +1,17 @@
 import { expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { brandsInCatalog, modelsInCatalog, trimOptionsInCatalog, trimsInCatalog } from "../catalog";
 import { db } from "../client";
-import { createModel, createOption, createTrim, deleteModel, updateModel, updateTrim } from "./catalog-admin";
+import {
+  createModel,
+  createOption,
+  createTrim,
+  deleteModel,
+  reorderCatalog,
+  updateModel,
+  updateTrim,
+} from "./catalog-admin";
 
 // 모든 쓰기를 하나의 tx 안에서 수행하고 끝에서 강제 throw로 롤백 → 라이브 master 무변경.
 // 트리거(BEFORE INSERT sort_order 등)는 tx 안에서도 실행되므로 효과를 검증할 수 있다.
@@ -46,6 +54,20 @@ test("catalog-admin CRUD (tx 롤백, prod 무변경)", async () => {
       const trimUp = await updateTrim(trim.id, { price: 51000000, status: "출시예정" }, tx);
       expect(Number(trimUp?.price)).toBe(51000000);
       expect(trimUp?.status).toBe("출시예정");
+
+      // 순서변경(reorder) — 트림 2개를 뒤집어 sort_order 반영 확인
+      const trim2 = await createTrim(
+        { modelId: model.id, trimName: "테스트트림2", price: 60000000, modelYear: 2026, fuelType: "가솔린" },
+        tx,
+      );
+      await reorderCatalog("trims", [trim2.id, trim.id], tx);
+      const ordered = await tx
+        .select({ id: trimsInCatalog.id })
+        .from(trimsInCatalog)
+        .where(eq(trimsInCatalog.modelId, model.id))
+        .orderBy(asc(trimsInCatalog.sortOrder));
+      expect(ordered[0]?.id).toBe(trim2.id);
+      expect(ordered[1]?.id).toBe(trim.id);
 
       // 옵션 생성 + tx 내부 연결 확인
       const opt = await createOption({ trimId: trim.id, type: "tuning", name: "테스트옵션", price: 1000000 }, tx);

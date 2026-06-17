@@ -105,6 +105,18 @@ export type CatalogTrim = {
   status: VehicleStatus;
   mcCode: string | null;
   sortOrder: number | null;
+  priceUpdatedAt: string | null;
+  financialDiscountAmount: number | null;
+  partnerDiscountAmount: number | null;
+  cashDiscountAmount: number | null;
+  discountUpdatedAt: string | null;
+};
+
+export type TrimColor = {
+  trimId: number | null;
+  colorType: string;
+  name: string;
+  hexValue: string | null;
 };
 
 export type TrimInput = {
@@ -122,6 +134,10 @@ export type TrimInput = {
 
 export async function fetchTrims(modelId: number): Promise<CatalogTrim[]> {
   return jsonOrThrow(await fetch(`/api/catalog/trims?modelId=${modelId}`));
+}
+
+export async function fetchTrimColors(modelId: number): Promise<TrimColor[]> {
+  return jsonOrThrow(await fetch(`/api/catalog/models/${modelId}/trim-colors`));
 }
 
 export async function createTrim(modelId: number, input: TrimInput): Promise<CatalogTrim> {
@@ -146,4 +162,25 @@ export async function updateTrim(id: number, input: Partial<TrimInput>): Promise
 
 export async function deleteTrim(id: number): Promise<{ id: number }> {
   return jsonOrThrow(await fetch(`/api/catalog/trims/${id}`, { method: "DELETE" }));
+}
+
+// 순서변경: orderedIds 위치(1..N) = sort_order.
+export async function reorderModels(ids: number[]): Promise<void> {
+  await jsonOrThrow(
+    await fetch("/api/catalog/models/reorder", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }),
+  );
+}
+
+export async function reorderTrims(ids: number[]): Promise<void> {
+  await jsonOrThrow(
+    await fetch("/api/catalog/trims/reorder", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }),
+  );
 }

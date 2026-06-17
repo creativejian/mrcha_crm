@@ -15946,6 +15946,17 @@ select.kim-jeff-discount-label {
   font-size: 12px;
   color: var(--muted);
 }
+/* 모델/트림 뷰 전환 시 헤더 높이 고정(점프 방지). */
+.va-card > .panel-head {
+  min-height: 64px;
+  align-items: center;
+}
+.va-head-thumb {
+  width: 52px;
+  height: 30px;
+  object-fit: contain;
+  margin-left: 4px;
+}
 .va-body {
   padding: 0;
 }
@@ -16097,4 +16108,82 @@ select.kim-jeff-discount-label {
   top: 0;
   max-height: calc(100vh - 210px);
   overflow-y: auto;
+}
+.va-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.va-select-on {
+  border-color: rgba(88, 54, 255, 0.4);
+  color: #5836ff;
+  background: #f1edff;
+}
+.va-danger-btn {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.3);
+}
+.va-danger-btn:hover {
+  background: #fee4e2;
+}
+.va-col-sel {
+  width: 60px;
+  white-space: nowrap;
+}
+.va-sel-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.va-grip {
+  color: #b8bcc2;
+  cursor: grab;
+  flex: 0 0 auto;
+}
+.va-model-table tr[draggable="true"],
+.va-trim-table tr[draggable="true"] {
+  cursor: grab;
+}
+.va-row-selected {
+  background: #f1edff;
+}
+.va-dragging {
+  opacity: 0.45;
+}
+.va-muted {
+  color: var(--muted);
+}
+.va-trim-name {
+  font-weight: 500;
+}
+.va-color-chips {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 5px;
+}
+.va-color-chip {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid rgba(17, 17, 17, 0.18);
+  flex: 0 0 auto;
+}
+.va-color-div {
+  color: var(--line);
+  margin: 0 2px;
+}
+.va-color-more {
+  font-size: 11px;
+  color: var(--muted);
+}
+/* 이사님 지정 숫자 폰트(가격범위·트림수·연식·고유번호·가격·입력값). */
+.va-num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+/* read-only 필드(정규화명 등)는 연하게. */
+.va-readonly {
+  color: var(--muted);
+  background: var(--surface-2);
 }
