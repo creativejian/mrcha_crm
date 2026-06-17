@@ -19,7 +19,7 @@ export function ModelTable({
   onToggle,
   onToggleAll,
   onDragStart,
-  onDragEnter,
+  onDragOver,
   onDrop,
 }: {
   models: CatalogModel[];
@@ -31,7 +31,7 @@ export function ModelTable({
   onToggle: (id: number) => void;
   onToggleAll: () => void;
   onDragStart: (id: number) => void;
-  onDragEnter: (id: number) => void;
+  onDragOver: (id: number) => void;
   onDrop: () => void;
 }) {
   if (models.length === 0) return <div className="va-empty">브랜드를 선택하세요.</div>;
@@ -59,9 +59,15 @@ export function ModelTable({
             key={m.id}
             draggable={selectMode}
             onDragStart={selectMode ? () => onDragStart(m.id) : undefined}
-            onDragEnter={selectMode ? () => onDragEnter(m.id) : undefined}
+            onDragOver={
+              selectMode
+                ? (e) => {
+                    e.preventDefault();
+                    onDragOver(m.id);
+                  }
+                : undefined
+            }
             onDragEnd={selectMode ? onDrop : undefined}
-            onDragOver={selectMode ? (e) => e.preventDefault() : undefined}
             className={selectMode && selected.has(m.id) ? "va-row-selected" : undefined}
           >
             {selectMode && (

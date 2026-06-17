@@ -176,7 +176,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   function onDragStart(idv: number) {
     dragId.current = idv;
   }
-  function onDragEnter(overId: number) {
+  function onDragOverRow(overId: number) {
     const cur = dragId.current;
     if (cur == null || cur === overId) return;
     if (inTrimView) {
@@ -233,7 +233,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
             setSelected(new Set());
           }}
         >
-          <CheckSquare size={15} /> {selectMode ? "선택 종료" : "선택"}
+          <CheckSquare size={15} /> {selectMode ? "취소" : "선택"}
         </button>
         {!selectMode && (
           <button type="button" className="btn primary" onClick={onAdd}>
@@ -252,7 +252,11 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
               <button type="button" className="tiny-btn" aria-label="뒤로" onClick={backToModels}>
                 <ArrowLeft size={15} />
               </button>
-              <h2>{openModel?.name ?? "트림"}</h2>
+              {openModel?.imageUrl && <img src={openModel.imageUrl} alt="" className="va-head-thumb" />}
+              <h2>
+                {openModel?.name ?? "트림"}
+                {openModel ? ` (${trims.length})` : ""}
+              </h2>
             </div>
             {editActions(() => {
               setPanelError(null);
@@ -261,12 +265,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
           </>
         ) : (
           <>
-            <div>
-              <h2>차량 관리</h2>
-              <p className="va-subtitle">
-                차선생 앱·견적 솔루션이 쓰는 브랜드/모델/트림 기준 데이터입니다. 편집 즉시 master에 반영됩니다.
-              </p>
-            </div>
+            <h2>차량 관리</h2>
             {brandId != null &&
               editActions(() => {
                 setPanelError(null);
@@ -293,7 +292,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 onToggle={toggle}
                 onToggleAll={toggleAll}
                 onDragStart={onDragStart}
-                onDragEnter={onDragEnter}
+                onDragOver={onDragOverRow}
                 onDrop={onDrop}
               />
             ) : (
@@ -310,7 +309,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 onToggle={toggle}
                 onToggleAll={toggleAll}
                 onDragStart={onDragStart}
-                onDragEnter={onDragEnter}
+                onDragOver={onDragOverRow}
                 onDrop={onDrop}
               />
             )}

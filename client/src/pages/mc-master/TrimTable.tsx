@@ -12,7 +12,7 @@ export function TrimTable({
   onToggle,
   onToggleAll,
   onDragStart,
-  onDragEnter,
+  onDragOver,
   onDrop,
 }: {
   trims: CatalogTrim[];
@@ -23,7 +23,7 @@ export function TrimTable({
   onToggle: (id: number) => void;
   onToggleAll: () => void;
   onDragStart: (id: number) => void;
-  onDragEnter: (id: number) => void;
+  onDragOver: (id: number) => void;
   onDrop: () => void;
 }) {
   if (trims.length === 0) return <div className="va-empty">트림이 없습니다. ‘트림 추가’로 등록하세요.</div>;
@@ -51,9 +51,15 @@ export function TrimTable({
             key={t.id}
             draggable={selectMode}
             onDragStart={selectMode ? () => onDragStart(t.id) : undefined}
-            onDragEnter={selectMode ? () => onDragEnter(t.id) : undefined}
+            onDragOver={
+              selectMode
+                ? (e) => {
+                    e.preventDefault();
+                    onDragOver(t.id);
+                  }
+                : undefined
+            }
             onDragEnd={selectMode ? onDrop : undefined}
-            onDragOver={selectMode ? (e) => e.preventDefault() : undefined}
             className={selectMode && selected.has(t.id) ? "va-row-selected" : undefined}
           >
             {selectMode && (
