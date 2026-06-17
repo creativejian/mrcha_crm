@@ -16,3 +16,6 @@ docs/
 
 # 차량 거울 DB import 자산 (대용량 dump + CRM 전용 publishable 키 포함, 공유 금지)
 ref/db_import/
+
+# catalog 재introspect baseline (db:pull:catalog 산출물 — 재생성 가능, src/db/catalog.ts가 정본)
+drizzle/_catalog_introspect/
