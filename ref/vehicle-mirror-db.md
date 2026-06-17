@@ -2,6 +2,8 @@
 
 Last updated: 2026-06-14
 
+> **⚠️ 폐기됨 (2026-06-17, A2 Phase C).** 자체 Supabase 거울 + sync 모델은 **master Supabase의 `catalog` 스키마 직접 read**로 대체됐다. `src/sync/*`·`bun run sync`·`POST /api/catalog/sync`·`MRCHA_MASTER_*` 키·`ref/db_import/` 덤프는 모두 제거됐다. master catalog엔 거울 전용 `deleted_at`이 없어 read 쿼리는 그 필터를 쓰지 않는다. 현재 차량 데이터는 `src/db/client.ts`(=master) + `src/db/queries/vehicles.ts` + `src/routes/vehicles.ts`로 읽고, `crm.quotes`는 `catalog.trims`/`catalog.colors`에 FK(ON DELETE SET NULL)를 건다. 이 문서는 거울 시절 구조·결정의 **히스토리 참고용**이며, 아래 "거울/sync" 서술은 더 이상 유효하지 않다. 상세: `ref/specs/2026-06-17-crm-db-connection-migration-design.md`, `ref/plans/2026-06-17-crm-schema-phase-bc.md`.
+
 CRM은 차량 카탈로그(브랜드/모델/트림/옵션/색상)를 **거울 DB**로 보유한다. 이 문서는 그 구조·결정·동기화 규칙을 팀과 공유하기 위한 단일 소스다.
 
 ## master / 거울 관계
