@@ -8,6 +8,7 @@ import {
   type CatalogBrand,
   type CatalogModel,
   type CatalogTrim,
+  type TrimColor,
   type TrimInput,
   createModel,
   createTrim,
@@ -15,6 +16,7 @@ import {
   deleteTrim,
   fetchBrands,
   fetchModels,
+  fetchTrimColors,
   fetchTrims,
   reorderModels,
   reorderTrims,
@@ -46,6 +48,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const [loadError, setLoadError] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [colorsByTrim, setColorsByTrim] = useState<Map<number, TrimColor[]>>(new Map());
   const dragId = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const modelScrollTop = useRef(0);
@@ -82,6 +86,18 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     fetchTrims(Number(modelId))
       .then(setTrims)
       .catch(() => setLoadError(true));
+    fetchTrimColors(Number(modelId))
+      .then((rows) => {
+        const map = new Map<number, TrimColor[]>();
+        for (const c of rows) {
+          if (c.trimId == null) continue;
+          const arr = map.get(c.trimId) ?? [];
+          arr.push(c);
+          map.set(c.trimId, arr);
+        }
+        setColorsByTrim(map);
+      })
+      .catch(() => undefined);
   }, [modelId]);
 
   // 모델 목록 스크롤 위치 보존: 트림 뷰로 들어갔다 뒤로 와도 위치 복원.
@@ -175,22 +191,21 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   }
   function onDragStart(idv: number) {
     dragId.current = idv;
+    setDraggingId(idv);
   }
+  // 인덱스를 setter 안(최신 list)에서 계산 — stale closure로 엉뚱하게 이동/중복되는 문제 방지.
   function onDragOverRow(overId: number) {
     const cur = dragId.current;
     if (cur == null || cur === overId) return;
     if (inTrimView) {
-      const from = trims.findIndex((t) => t.id === cur);
-      const to = trims.findIndex((t) => t.id === overId);
-      setTrims((list) => moveItem(list, from, to));
+      setTrims((list) => moveItem(list, list.findIndex((t) => t.id === cur), list.findIndex((t) => t.id === overId)));
     } else {
-      const from = models.findIndex((m) => m.id === cur);
-      const to = models.findIndex((m) => m.id === overId);
-      setModels((list) => moveItem(list, from, to));
+      setModels((list) => moveItem(list, list.findIndex((m) => m.id === cur), list.findIndex((m) => m.id === overId)));
     }
   }
   async function onDrop() {
     dragId.current = null;
+    setDraggingId(null);
     try {
       if (inTrimView) await reorderTrims(trims.map((t) => t.id));
       else await reorderModels(models.map((m) => m.id));
@@ -285,6 +300,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 canEdit={canEdit}
                 selectMode={selectMode}
                 selected={selected}
+                draggingId={draggingId}
+                colorsByTrim={colorsByTrim}
                 onEdit={(t) => {
                   setPanelError(null);
                   setTrimPanel({ mode: "edit", trim: t });
@@ -301,6 +318,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 canEdit={canEdit}
                 selectMode={selectMode}
                 selected={selected}
+                draggingId={draggingId}
                 onOpen={openModelView}
                 onEdit={(m) => {
                   setPanelError(null);

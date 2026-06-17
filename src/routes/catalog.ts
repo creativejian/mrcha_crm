@@ -13,6 +13,7 @@ import {
   listColorsByTrim,
   listModelsByBrand,
   listOptionsByTrim,
+  listTrimColorsByModel,
   listTrimsByModel,
   reorderCatalog,
   updateModel,
@@ -107,6 +108,10 @@ catalog.post(
 );
 
 // ── 트림 ──────────────────────────────────────────────────────────────────────
+catalog.get("/models/:id/trim-colors", zValidator("param", z.object({ id })), async (c) =>
+  c.json(await listTrimColorsByModel(c.req.valid("param").id)),
+);
+
 catalog.get("/trims", zValidator("query", z.object({ modelId: id })), async (c) => {
   const trims = await listTrimsByModel(c.req.valid("query").modelId);
   return c.json(trims.map((t) => ({ ...t, price: Number(t.price) })));

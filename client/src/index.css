@@ -16147,6 +16147,36 @@ select.kim-jeff-discount-label {
 .va-row-selected {
   background: #f1edff;
 }
+.va-dragging {
+  opacity: 0.45;
+}
+.va-muted {
+  color: var(--muted);
+}
+.va-trim-name {
+  font-weight: 500;
+}
+.va-color-chips {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 5px;
+}
+.va-color-chip {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid rgba(17, 17, 17, 0.18);
+  flex: 0 0 auto;
+}
+.va-color-div {
+  color: var(--line);
+  margin: 0 2px;
+}
+.va-color-more {
+  font-size: 11px;
+  color: var(--muted);
+}
 /* 이사님 지정 숫자 폰트(가격범위·트림수·연식·고유번호·가격·입력값). */
 .va-num {
   font-family: var(--font-num);

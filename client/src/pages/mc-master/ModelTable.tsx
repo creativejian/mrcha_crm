@@ -14,6 +14,7 @@ export function ModelTable({
   canEdit,
   selectMode,
   selected,
+  draggingId,
   onOpen,
   onEdit,
   onToggle,
@@ -26,6 +27,7 @@ export function ModelTable({
   canEdit: boolean;
   selectMode: boolean;
   selected: Set<number>;
+  draggingId: number | null;
   onOpen: (model: CatalogModel) => void;
   onEdit: (model: CatalogModel) => void;
   onToggle: (id: number) => void;
@@ -68,7 +70,11 @@ export function ModelTable({
                 : undefined
             }
             onDragEnd={selectMode ? onDrop : undefined}
-            className={selectMode && selected.has(m.id) ? "va-row-selected" : undefined}
+            className={
+              [selectMode && selected.has(m.id) ? "va-row-selected" : "", draggingId === m.id ? "va-dragging" : ""]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
           >
             {selectMode && (
               <td className="va-col-sel">

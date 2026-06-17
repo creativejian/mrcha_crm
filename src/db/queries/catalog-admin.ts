@@ -93,6 +93,11 @@ export async function listTrimsByModel(modelId: number) {
       status: trimsInCatalog.status,
       mcCode: trimsInCatalog.mcCode,
       sortOrder: trimsInCatalog.sortOrder,
+      priceUpdatedAt: trimsInCatalog.priceUpdatedAt,
+      financialDiscountAmount: trimsInCatalog.financialDiscountAmount,
+      partnerDiscountAmount: trimsInCatalog.partnerDiscountAmount,
+      cashDiscountAmount: trimsInCatalog.cashDiscountAmount,
+      discountUpdatedAt: trimsInCatalog.discountUpdatedAt,
     })
     .from(trimsInCatalog)
     .where(eq(trimsInCatalog.modelId, modelId))
@@ -247,6 +252,22 @@ export async function reorderCatalog(
   await executor.execute(
     sql`select public.batch_update_sort_order(${table}, ${sql.param(orderedIds)}::int[], ${sql.param(sortOrders)}::int[])`,
   );
+}
+
+// 모델 하위 모든 트림의 색상(트림 리스트 칩 표시용). trimId로 묶어서 쓴다.
+export async function listTrimColorsByModel(modelId: number) {
+  return db
+    .select({
+      trimId: colorsInCatalog.trimId,
+      colorType: colorsInCatalog.colorType,
+      name: colorsInCatalog.name,
+      hexValue: colorsInCatalog.hexValue,
+      sortOrder: colorsInCatalog.sortOrder,
+    })
+    .from(colorsInCatalog)
+    .innerJoin(trimsInCatalog, eq(trimsInCatalog.id, colorsInCatalog.trimId))
+    .where(eq(trimsInCatalog.modelId, modelId))
+    .orderBy(asc(colorsInCatalog.sortOrder));
 }
 
 // 트림 색상(읽기 전용 칩) — Phase 1 표시용.
