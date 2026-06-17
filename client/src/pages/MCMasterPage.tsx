@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, Plus } from "lucide-react";
 
 import type { RoleTab } from "@/data/roles";
@@ -29,16 +30,23 @@ type TrimPanelState = { mode: "add" } | { mode: "edit"; trim: CatalogTrim } | nu
 
 export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const canEdit = roleTab === "최고관리자";
+  const navigate = useNavigate();
+  const { modelId } = useParams();
   const [brands, setBrands] = useState<CatalogBrand[]>([]);
   const [brandId, setBrandId] = useState<number | null>(null);
   const [models, setModels] = useState<CatalogModel[]>([]);
-  const [openModel, setOpenModel] = useState<CatalogModel | null>(null);
   const [trims, setTrims] = useState<CatalogTrim[]>([]);
   const [modelPanel, setModelPanel] = useState<ModelPanelState>(null);
   const [trimPanel, setTrimPanel] = useState<TrimPanelState>(null);
   const [busy, setBusy] = useState(false);
   const [panelError, setPanelError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
+
+  // 드릴다운은 URL(/mc-master/:modelId)이 source of truth → 브라우저 뒤로가기 작동.
+  const openModel = useMemo(
+    () => (modelId ? (models.find((m) => String(m.id) === modelId) ?? null) : null),
+    [models, modelId],
+  );
 
   useEffect(() => {
     fetchBrands()
@@ -56,18 +64,13 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       .catch(() => setLoadError(true));
   }, [brandId]);
 
-  // 브랜드 전환 시 드릴다운 해제(effect 동기 setState 회피).
-  function selectBrand(id: number) {
-    setOpenModel(null);
-    setBrandId(id);
-  }
-
   useEffect(() => {
-    if (openModel == null) return;
-    fetchTrims(openModel.id)
+    // modelId 없으면 트림 뷰가 렌더되지 않으므로 동기 clear 불필요(set-state-in-effect 회피).
+    if (!modelId) return;
+    fetchTrims(Number(modelId))
       .then(setTrims)
       .catch(() => setLoadError(true));
-  }, [openModel]);
+  }, [modelId]);
 
   function reloadModels() {
     if (brandId == null) return;
@@ -76,10 +79,15 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       .catch(() => setLoadError(true));
   }
   function reloadTrims() {
-    if (openModel == null) return;
-    fetchTrims(openModel.id)
+    if (!modelId) return;
+    fetchTrims(Number(modelId))
       .then(setTrims)
       .catch(() => setLoadError(true));
+  }
+
+  function selectBrand(id: number) {
+    setBrandId(id);
+    navigate("/mc-master"); // 브랜드 전환 시 드릴다운 해제
   }
 
   async function submitModel(values: { name: string; category: string | null; status: VehicleStatus }) {
@@ -112,12 +120,12 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   }
 
   async function submitTrim(values: TrimInput) {
-    if (openModel == null || trimPanel == null) return;
+    if (modelId == null || trimPanel == null) return;
     setBusy(true);
     setPanelError(null);
     try {
       if (trimPanel.mode === "add") {
-        await createTrim(openModel.id, values);
+        await createTrim(Number(modelId), values);
       } else {
         await updateTrim(trimPanel.trim.id, values);
       }
@@ -145,13 +153,13 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   return (
     <section className="card va-card">
       <div className="panel-head">
-        {openModel ? (
+        {modelId ? (
           <>
             <div className="va-head-back">
-              <button type="button" className="tiny-btn" aria-label="뒤로" onClick={() => setOpenModel(null)}>
+              <button type="button" className="tiny-btn" aria-label="뒤로" onClick={() => navigate("/mc-master")}>
                 <ArrowLeft size={15} />
               </button>
-              <h2>{openModel.name}</h2>
+              <h2>{openModel?.name ?? "트림"}</h2>
             </div>
             {canEdit && (
               <button
@@ -193,7 +201,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
         {loadError && <div className="notice-box error">불러오기 실패</div>}
         <div className="va-layout">
           <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} />
-          {openModel ? (
+          {modelId ? (
             <TrimTable
               trims={trims}
               canEdit={canEdit}
@@ -207,7 +215,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
             <ModelTable
               models={models}
               canEdit={canEdit}
-              onOpen={setOpenModel}
+              onOpen={(m) => navigate(`/mc-master/${m.id}`)}
               onEdit={(m) => {
                 setPanelError(null);
                 setModelPanel({ mode: "edit", model: m });
