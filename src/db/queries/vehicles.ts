@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import {
   brandsInCatalog,
@@ -10,6 +10,9 @@ import {
   trimsInCatalog,
 } from "../catalog";
 import { db } from "../client";
+
+// master catalog 직접 read. master엔 거울 전용 deleted_at이 없으므로 isNull(deletedAt) 필터를 쓰지 않는다.
+// status(판매중/단종/출시예정 등)는 거울 동작과 동일하게 필터하지 않는다(단종 차량도 라인업에 노출).
 
 export async function getBrands() {
   return db
@@ -23,7 +26,6 @@ export async function getBrands() {
       brandCode: brandsInCatalog.brandCode,
     })
     .from(brandsInCatalog)
-    .where(isNull(brandsInCatalog.deletedAt))
     .orderBy(asc(brandsInCatalog.sortOrder));
 }
 
@@ -40,7 +42,7 @@ export async function getModelsByBrand(brandId: number) {
       modelCode: modelsInCatalog.modelCode,
     })
     .from(modelsInCatalog)
-    .where(and(eq(modelsInCatalog.brandId, brandId), isNull(modelsInCatalog.deletedAt)))
+    .where(eq(modelsInCatalog.brandId, brandId))
     .orderBy(asc(modelsInCatalog.sortOrder));
 }
 
@@ -64,7 +66,7 @@ export async function getTrimsByModel(modelId: number) {
       sortOrder: trimsInCatalog.sortOrder,
     })
     .from(trimsInCatalog)
-    .where(and(eq(trimsInCatalog.modelId, modelId), isNull(trimsInCatalog.deletedAt)))
+    .where(eq(trimsInCatalog.modelId, modelId))
     .orderBy(asc(trimsInCatalog.sortOrder));
 }
 
@@ -92,7 +94,7 @@ export async function getTrimDetail(trimId: number) {
       cashDiscountAmount: trimsInCatalog.cashDiscountAmount,
     })
     .from(trimsInCatalog)
-    .where(and(eq(trimsInCatalog.id, trimId), isNull(trimsInCatalog.deletedAt)));
+    .where(eq(trimsInCatalog.id, trimId));
 
   if (!trim) return null;
 
@@ -104,7 +106,7 @@ export async function getTrimDetail(trimId: number) {
       price: trimOptionsInCatalog.price,
     })
     .from(trimOptionsInCatalog)
-    .where(and(eq(trimOptionsInCatalog.trimId, trimId), isNull(trimOptionsInCatalog.deletedAt)));
+    .where(eq(trimOptionsInCatalog.trimId, trimId));
 
   const optionIds = options.map((o) => o.id);
   const optionRelations = optionIds.length
@@ -116,12 +118,7 @@ export async function getTrimDetail(trimId: number) {
           type: trimOptionRelationsInCatalog.type,
         })
         .from(trimOptionRelationsInCatalog)
-        .where(
-          and(
-            inArray(trimOptionRelationsInCatalog.optionId, optionIds),
-            isNull(trimOptionRelationsInCatalog.deletedAt),
-          ),
-        )
+        .where(inArray(trimOptionRelationsInCatalog.optionId, optionIds))
     : [];
 
   const colors = await db
@@ -134,7 +131,7 @@ export async function getTrimDetail(trimId: number) {
       sortOrder: colorsInCatalog.sortOrder,
     })
     .from(colorsInCatalog)
-    .where(and(eq(colorsInCatalog.trimId, trimId), isNull(colorsInCatalog.deletedAt)))
+    .where(eq(colorsInCatalog.trimId, trimId))
     .orderBy(asc(colorsInCatalog.sortOrder));
 
   const [noOptions] = await db
@@ -143,7 +140,7 @@ export async function getTrimDetail(trimId: number) {
       checkedAt: trimNoOptionsInCatalog.checkedAt,
     })
     .from(trimNoOptionsInCatalog)
-    .where(and(eq(trimNoOptionsInCatalog.trimId, trimId), isNull(trimNoOptionsInCatalog.deletedAt)));
+    .where(eq(trimNoOptionsInCatalog.trimId, trimId));
 
   return { ...trim, options, optionRelations, colors, noOptions: noOptions ?? null };
 }
