@@ -87,3 +87,63 @@ export async function updateModel(
 export async function deleteModel(id: number): Promise<{ id: number }> {
   return jsonOrThrow(await fetch(`/api/catalog/models/${id}`, { method: "DELETE" }));
 }
+
+// ── 트림 ───────────────────────────────────────────────────────────────────────
+export type CatalogTrim = {
+  id: number;
+  name: string;
+  trimName: string;
+  canonicalName: string | null;
+  price: number;
+  modelYear: number | null;
+  fuelType: string | null;
+  driveSystem: string | null;
+  displacementCc: number | null;
+  transmissionType: string | null;
+  bodyStyle: string | null;
+  seatingCapacity: number | null;
+  status: VehicleStatus;
+  mcCode: string | null;
+  sortOrder: number | null;
+};
+
+export type TrimInput = {
+  trimName: string;
+  price: number;
+  modelYear: number;
+  fuelType: string;
+  driveSystem?: string | null;
+  displacementCc?: number | null;
+  transmissionType?: string | null;
+  bodyStyle?: string | null;
+  seatingCapacity?: number | null;
+  status?: VehicleStatus;
+};
+
+export async function fetchTrims(modelId: number): Promise<CatalogTrim[]> {
+  return jsonOrThrow(await fetch(`/api/catalog/trims?modelId=${modelId}`));
+}
+
+export async function createTrim(modelId: number, input: TrimInput): Promise<CatalogTrim> {
+  return jsonOrThrow(
+    await fetch("/api/catalog/trims", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ modelId, ...input }),
+    }),
+  );
+}
+
+export async function updateTrim(id: number, input: Partial<TrimInput>): Promise<CatalogTrim> {
+  return jsonOrThrow(
+    await fetch(`/api/catalog/trims/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
+export async function deleteTrim(id: number): Promise<{ id: number }> {
+  return jsonOrThrow(await fetch(`/api/catalog/trims/${id}`, { method: "DELETE" }));
+}
