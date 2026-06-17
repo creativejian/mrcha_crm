@@ -77,6 +77,7 @@ V1~V8 전부 통과 후 → CRM `db:pull` introspect → drizzle adopt(`schemaFi
 
 ## 상태 / 다음
 
-- ✅ B 실측 통과(view-only) → 조건 해소. 앱 팀 Phase ① 마이그레이션 작성 진행 가능.
-- ⏳ 앱 팀: 9종 + 트리거 테스트 케이스 작성 → data-clone 리허설 → 단일 tx 적용 → 앱 측 V검증.
-- ⏳ CRM: ⓐ `crm.quotes` 설계 병렬 진행 → 적용 후 V3/V8/V4~V6 확인 → catalog adopt.
+- ✅ B 실측 통과(view-only) → 조건 해소.
+- ✅ **2026-06-17 검증 완료**: PR #386(9종 단일 tx) CRM 정합 리뷰 통과 + **prod BEGIN…ROLLBACK 리허설로 V4/V5/V6·status·assign·V8·grant(anon read / admin write) 전부 통과**(실데이터, 영구변경 0) + V2(브랜치)·V7 + **catalog 비노출 prod 점검 확정**(exposed = public/graphql_public). → **적용 GO 완전 확정.**
+- ⏳ 앱 팀: PR #386 머지 + prod migrate → 적용 후 V1/V3 + 타입 재생성.
+- ⏳ CRM: 적용 알림 → catalog adopt(introspect baseline) → A2 전환. ⓐ `crm.quotes` 설계 완료.

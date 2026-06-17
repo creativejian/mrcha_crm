@@ -99,7 +99,7 @@
 1. **단종 cascade**: DB 트리거 이전 **확정**(원자성+SSOT). blunt는 버그(블라인드 노출)로 판정 → **조건부 개선 트리거** `catalog.cascade_model_discontinue`(AFTER UPDATE on models): 모델 '단종' 전이(`NEW='단종' AND OLD IS DISTINCT FROM '단종'`) 시 하위 트림 단종, **단 `status NOT IN ('블라인드','단종')`**(블라인드 보존·churn 회피). 출시예정/사전예약은 단종 처리. Dart `discontinueModelTrims` 제거. Phase ① 산출물.
 2. **`trim_option_relations` 편집**: **UI 미구현 + 크롤러 SSOT 유지**. 콘솔은 표시만, 편집은 SQL/크롤러 재실행. (5,195쌍 92.3% 크롤러 자동, 수정 빈도 낮음). 구조: `id·option_id·related_option_id·type(excludes 배타양방향/includes 요구단방향)·created_at`, trim_options.id 종속(FK CASCADE).
 3. **`moveTrimsToModel`**: `UPDATE trims SET model_id`. **★ `mc_code IS NOT NULL` 트림 이동 차단**(콘솔 가드) — UNIQUE(model_id, trim_code) 충돌 + mc_code가 OLD model_code 박은 11자리라 이동 시 stale·불변. 코드 부여 전에만 안전.
-4. **`batch_update_sort_order(p_table, p_ids[], p_sort_orders[])`**: 2-pass(임시 10000+i → 최종, UNIQUE 회피), 1부터. **catalog 재한정 Phase ①**(앱 팀). CRM은 `catalog.batch_update_sort_order('trims'|'models', …)` 호출. **★ CRM 콘솔에 드래그 재배치 UI 필수**(어드민 탭1 순서관리 재현) — 드래그→RPC 호출. `sort_order`는 **서브라인 묶음 순서 + 서브라인 내 등급 순서 둘 다 제어**이므로 드래그 시 같은 서브라인끼리 연속 유지 필요.
+4. **`batch_update_sort_order(p_table, p_ids[], p_sort_orders[])`**: 2-pass(임시 10000+i → 최종, UNIQUE 회피), 1부터. **함수는 public 유지, body만 catalog 재한정** Phase ①(앱 팀 — 앱 어드민 PostgREST rpc 때문). CRM은 `public.batch_update_sort_order('trims'|'models', …)` 호출. **★ CRM 콘솔에 드래그 재배치 UI 필수**(어드민 탭1 순서관리 재현) — 드래그→RPC 호출. `sort_order`는 **서브라인 묶음 순서 + 서브라인 내 등급 순서 둘 다 제어**이므로 드래그 시 같은 서브라인끼리 연속 유지 필요.
 5. **그룹핑 입력**: 국산 서브라인/등급 **분리 입력 → 저장 시 ` - ` 자동 결합** + `name=trim_name`·`canonical_name` 자동 채움(통짜 입력=결함 4건 원인 차단). 수입은 flat 단일.
 
 ## 표기법 책임 (확정 2026-06-16)
@@ -137,6 +137,6 @@ CREATE TRIGGER enforce_domestic_trim_name_format
 4. `provision_staff_role` RPC (admin 차단 + `role_audit`)
 5. `assign_trim_codes` RPC (trim_code 할당 SSOT)
 6. `cascade_model_discontinue` 트리거 (조건부 — 블라인드/이미단종 제외)
-7. `batch_update_sort_order` catalog 재한정
+7. `batch_update_sort_order` body catalog 재한정 (함수는 **public 유지** — 앱 PostgREST rpc, CRM도 `public.` 호출)
 8. status 검증 트리거 (트림 status ⊂ 모델 status)
 9. `enforce_domestic_trim_name_format` 트리거 (표기법 DB 백스톱)

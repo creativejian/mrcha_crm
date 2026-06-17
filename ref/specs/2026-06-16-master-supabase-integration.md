@@ -21,7 +21,7 @@ master service_role(secret) 키를 확보하면서, CRM이 master Supabase(`wmkb
 | `crm` | **CRM** | ✅ | CRM 운영 데이터(진행상태·담당배정·메모·계약/출고 등) — 신설 |
 
 - **drizzle은 `catalog` + `crm`만 관리**(`schemaFilter: ["catalog","crm"]`), `db:push` 금지(generate→migrate만). `public`은 절대 안 건드림 → 앱 테이블 보호.
-- **`catalog`는 PostgREST 비노출**(exposed schemas = public, graphql_public 유지). CRM은 secret/직결로 catalog write, 앱은 `public` 호환 view로 read.
+- **`catalog`는 PostgREST 비노출**(exposed schemas = public, graphql_public 유지). CRM은 secret/직결로 catalog write, 앱은 `public` 호환 view로 read. **(2026-06-17 prod 점검 확정: catalog 미노출. ⚠️ 대시보드 Exposed schemas에 catalog 추가 금지.)**
 
 ## 차량 이관 — `catalog`
 
@@ -78,7 +78,7 @@ master 소유 = 앱 팀. **Phase ①은 앱 팀이 supabase CLI로 적용**, 이
 
 - **Phase ①** (앱 팀): `CREATE SCHEMA catalog` → 9테이블 `ALTER ... SET SCHEMA catalog`(FK·트리거·RLS 자동 승계, OID 참조 무손실) → 트리거 함수 12개 catalog 이동 + 본문 `public.*`→`catalog.*` 재한정 → `public`에 `security_invoker` 호환 view → 권한(anon/authenticated SELECT) → catalog PostgREST 비노출 유지.
   - FK(`quote_requests.trim_id`, `quote_request_options.trim_option_id`, `source_vehicle_map.internal_trim_id`, `trim_code_history.model_id`, alias.* 등)는 cross-schema로 자동 승계. **실테이블 `catalog.*` 참조**(view엔 FK 불가).
-  - **Phase ① 산출물 9종(앱 팀 작성, 최종 확정)**: ① catalog SET SCHEMA 9테이블+FK 승계 ② 트리거 함수 12개 이동+재한정 ③ public 호환 view(security_invoker)+grant+타입 재생성 ④ `provision_staff_role` RPC(admin 차단+role_audit) ⑤ `assign_trim_codes` RPC(trim_code 할당 SSOT) ⑥ `cascade_model_discontinue` 트리거(조건부, 블라인드 제외) ⑦ `batch_update_sort_order` catalog 재한정 ⑧ status 검증 트리거(트림⊂모델) ⑨ `enforce_domestic_trim_name_format` 트리거(표기법 백스톱). 상세: `2026-06-16-vehicle-admin-handoff.md`.
+  - **Phase ① 산출물 9종(앱 팀 작성, 최종 확정)**: ① catalog SET SCHEMA 9테이블+FK 승계 ② 트리거 함수 12개 이동+재한정 ③ public 호환 view(security_invoker)+grant+타입 재생성 ④ `provision_staff_role` RPC(admin 차단+role_audit) ⑤ `assign_trim_codes` RPC(trim_code 할당 SSOT) ⑥ `cascade_model_discontinue` 트리거(조건부, 블라인드 제외) ⑦ `batch_update_sort_order` public 유지(body catalog 재한정) ⑧ status 검증 트리거(트림⊂모델) ⑨ `enforce_domestic_trim_name_format` 트리거(표기법 백스톱). 상세: `2026-06-16-vehicle-admin-handoff.md`.
 - **Phase ②**: 앱 어드민 차량 화면 read-only(별도 PR) + CRM이 catalog write 시작. **CRM은 catalog를 drizzle introspect baseline으로 adopt**(새 CREATE 금지). provision_staff_role 배포 → CRM 프로비저닝 연결.
 - **Phase ③** (선택): public 호환 view 정리 검토. view 유지 비용 낮아 영구 유지 가능.
 
