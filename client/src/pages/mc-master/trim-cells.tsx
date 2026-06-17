@@ -1,5 +1,8 @@
+import { ListChecks } from "lucide-react";
+
 import { statusBadgeTone, statusLabel } from "@/data/vehicle-taxonomy";
-import type { CatalogTrim, TrimColor } from "@/lib/catalog";
+import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
+import { optionBadgeState } from "./option-badge";
 import { discountText, fmtDate } from "./trim-format";
 
 export function ColorChips({ colors }: { colors: TrimColor[] }) {
@@ -7,7 +10,13 @@ export function ColorChips({ colors }: { colors: TrimColor[] }) {
   const ext = colors.filter((c) => c.colorType === "exterior");
   const int = colors.filter((c) => c.colorType === "interior");
   const chip = (c: TrimColor, k: string) => (
-    <span key={k} className="va-color-chip" style={{ backgroundColor: c.hexValue ?? "#cccccc" }} title={c.name} />
+    <span
+      key={k}
+      className="va-color-chip"
+      style={{ backgroundColor: c.hexValue ?? "#cccccc" }}
+      data-name={c.name}
+      aria-label={c.name}
+    />
   );
   return (
     <div className="va-color-chips">
@@ -33,7 +42,34 @@ export function TrimHeadCells() {
       <th>타사할인</th>
       <th className="va-col-center">할인변경일</th>
       <th className="va-col-center va-th-status">상태</th>
+      <th className="va-col-center va-th-option">옵션</th>
     </>
+  );
+}
+
+// 트림 행 옵션 배지 버튼(클릭 → 옵션 패널). summary 없으면 '미정'.
+export function OptionBadgeButton({
+  summary,
+  onClick,
+}: {
+  summary: TrimOptionSummary | undefined;
+  onClick: () => void;
+}) {
+  const basic = summary?.basic ?? 0;
+  const tuning = summary?.tuning ?? 0;
+  const state = optionBadgeState(basic, tuning, summary?.noOption ?? false);
+  const label =
+    state === "has"
+      ? `옵션 관리 (기본 ${basic} · 튜닝 ${tuning})`
+      : state === "confirmed-none"
+        ? "옵션 없음 확정"
+        : "옵션 미입력";
+  const text = state === "has" ? String(basic + tuning) : state === "confirmed-none" ? "✓" : "?";
+  return (
+    <button type="button" className="tiny-btn va-option-btn" onClick={onClick} aria-label={label} title={label}>
+      <ListChecks size={14} />
+      <span className={`va-option-badge va-option-${state}`}>{text}</span>
+    </button>
   );
 }
 
