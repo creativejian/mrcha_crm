@@ -1,6 +1,6 @@
 import { asc, count, eq, max, min } from "drizzle-orm";
 
-import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
+import { brandsInCatalog, colorsInCatalog, modelsInCatalog, trimOptionsInCatalog, trimsInCatalog } from "../catalog";
 import { db } from "../client";
 import { buildCanonicalName } from "./canonical-name";
 
@@ -187,4 +187,63 @@ export async function deleteTrim(id: number, executor: Executor = db) {
     .where(eq(trimsInCatalog.id, id))
     .returning({ id: trimsInCatalog.id });
   return row ?? null;
+}
+
+// ── 옵션 ──────────────────────────────────────────────────────────────────────
+export async function listOptionsByTrim(trimId: number) {
+  return db
+    .select({
+      id: trimOptionsInCatalog.id,
+      type: trimOptionsInCatalog.type,
+      name: trimOptionsInCatalog.name,
+      price: trimOptionsInCatalog.price,
+    })
+    .from(trimOptionsInCatalog)
+    .where(eq(trimOptionsInCatalog.trimId, trimId))
+    .orderBy(asc(trimOptionsInCatalog.id));
+}
+
+export async function createOption(
+  input: { trimId: number; type: "basic" | "tuning"; name: string; price: number | null },
+  executor: Executor = db,
+) {
+  const [row] = await executor
+    .insert(trimOptionsInCatalog)
+    .values({ trimId: input.trimId, type: input.type, name: input.name, price: input.price })
+    .returning();
+  return row;
+}
+
+export async function updateOption(
+  id: number,
+  input: { name?: string; price?: number | null },
+  executor: Executor = db,
+) {
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.price !== undefined) patch.price = input.price;
+  const [row] = await executor.update(trimOptionsInCatalog).set(patch).where(eq(trimOptionsInCatalog.id, id)).returning();
+  return row ?? null;
+}
+
+export async function deleteOption(id: number, executor: Executor = db) {
+  const [row] = await executor
+    .delete(trimOptionsInCatalog)
+    .where(eq(trimOptionsInCatalog.id, id))
+    .returning({ id: trimOptionsInCatalog.id });
+  return row ?? null;
+}
+
+// 트림 색상(읽기 전용 칩) — Phase 1 표시용.
+export async function listColorsByTrim(trimId: number) {
+  return db
+    .select({
+      id: colorsInCatalog.id,
+      colorType: colorsInCatalog.colorType,
+      name: colorsInCatalog.name,
+      hexValue: colorsInCatalog.hexValue,
+    })
+    .from(colorsInCatalog)
+    .where(eq(colorsInCatalog.trimId, trimId))
+    .orderBy(asc(colorsInCatalog.sortOrder));
 }
