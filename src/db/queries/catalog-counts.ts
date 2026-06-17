@@ -1,5 +1,5 @@
-import { count, isNull } from "drizzle-orm";
-import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
+import { count } from "drizzle-orm";
+import type { PgTable } from "drizzle-orm/pg-core";
 
 import {
   brandsInCatalog,
@@ -22,8 +22,9 @@ export type CatalogCounts = {
   trimOptionRelations: number;
 };
 
-async function activeCount(table: PgTable, deletedAt: PgColumn): Promise<number> {
-  const [row] = await db.select({ c: count() }).from(table).where(isNull(deletedAt));
+// master catalog엔 deleted_at(거울 전용)이 없으므로 전체 행을 센다.
+async function tableCount(table: PgTable): Promise<number> {
+  const [row] = await db.select({ c: count() }).from(table);
   return row?.c ?? 0;
 }
 
@@ -31,12 +32,12 @@ async function activeCount(table: PgTable, deletedAt: PgColumn): Promise<number>
 // 빠르게 소진한다(dev 서버 연결과 겹치면 EMAXCONNSESSION). 연결을 1개씩 재사용하도록 순차 실행.
 export async function getCatalogCounts(): Promise<CatalogCounts> {
   return {
-    brands: await activeCount(brandsInCatalog, brandsInCatalog.deletedAt),
-    models: await activeCount(modelsInCatalog, modelsInCatalog.deletedAt),
-    trims: await activeCount(trimsInCatalog, trimsInCatalog.deletedAt),
-    trimOptions: await activeCount(trimOptionsInCatalog, trimOptionsInCatalog.deletedAt),
-    colors: await activeCount(colorsInCatalog, colorsInCatalog.deletedAt),
-    trimNoOptions: await activeCount(trimNoOptionsInCatalog, trimNoOptionsInCatalog.deletedAt),
-    trimOptionRelations: await activeCount(trimOptionRelationsInCatalog, trimOptionRelationsInCatalog.deletedAt),
+    brands: await tableCount(brandsInCatalog),
+    models: await tableCount(modelsInCatalog),
+    trims: await tableCount(trimsInCatalog),
+    trimOptions: await tableCount(trimOptionsInCatalog),
+    colors: await tableCount(colorsInCatalog),
+    trimNoOptions: await tableCount(trimNoOptionsInCatalog),
+    trimOptionRelations: await tableCount(trimOptionRelationsInCatalog),
   };
 }

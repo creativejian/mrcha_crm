@@ -1,28 +1,45 @@
-// catalog(차량 거울) schema introspect 산출물 (drizzle-kit pull --config=drizzle.config.catalog.ts).
-// READ-ONLY: 차량 데이터의 master는 Mr.Cha Supabase이고 CRM은 거울이므로 이 정의를 직접 수정하지 않는다.
-// master 스키마가 바뀌면 `bun run db:pull:catalog`로 재생성한다. 상세: ref/vehicle-mirror-db.md
+// catalog(차량 마스터) schema — master Supabase의 catalog 스키마를 읽기 위한 drizzle 정의.
+// READ-ONLY: master(앱)가 소유. CRM은 읽기만 한다. 이 파일은 `bun run db:pull:catalog` 재introspect
+// 산출물(drizzle/_catalog_introspect/)을 CRM 사용 7테이블로 정리한 정본이다. master catalog 스키마가
+// 바뀌면 재introspect 후 다시 정리한다.
+// 주의:
+//   - master엔 deleted_at(거울 전용 soft-delete)이 없다 → 컬럼·필터 모두 없음.
+//   - status는 public.car_status enum이나 cross-schema라 introspect가 모델링 못 함('failed to parse').
+//     CRM은 읽기 전용이라 text로 모델링한다(값은 판매중/단종/출시예정 등 문자열).
+//   - 앱전용 source_vehicle_map·trim_code_history는 CRM 미사용이라 제외.
+// 상세: ref/specs/2026-06-17-crm-db-connection-migration-design.md
 
-import { pgTable, pgSchema, index, foreignKey, unique, bigint, text, timestamp, integer, smallint, boolean, jsonb, varchar, check } from "drizzle-orm/pg-core"
+import { pgSchema, index, foreignKey, unique, bigint, text, timestamp, integer, smallint, boolean, jsonb, varchar, check } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const catalog = pgSchema("catalog");
-export const carStatusInCatalog = catalog.enum("car_status", ['판매중', '단종', '출시예정', '사전예약', '블라인드'])
 
+export const brandsInCatalog = catalog.table("brands", {
+	id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "catalog.brands_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
+	name: text().notNull(),
+	logoUrl: text("logo_url"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
+	isDomestic: boolean("is_domestic").default(false).notNull(),
+	isPopular: boolean("is_popular").default(false).notNull(),
+	sortOrder: integer("sort_order").default(999).notNull(),
+	brandCode: smallint("brand_code"),
+}, (table) => [
+	unique("brands_name_key").on(table.name),
+	unique("brands_sort_order_unique").on(table.sortOrder),
+	unique("brands_brand_code_unique").on(table.brandCode),
+]);
 
 export const modelsInCatalog = catalog.table("models", {
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "catalog.models_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	brandId: bigint("brand_id", { mode: "number" }).notNull(),
 	name: text().notNull(),
 	imageUrl: text("image_url"),
 	category: text(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
 	sortOrder: integer("sort_order").default(999),
-	status: carStatusInCatalog().default('판매중').notNull(),
+	status: text().default('판매중').notNull(),
 	modelCode: smallint("model_code"),
 	isShortPattern: boolean("is_short_pattern").default(false).notNull(),
-	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("idx_models_name").using("btree", table.name.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -36,12 +53,9 @@ export const modelsInCatalog = catalog.table("models", {
 ]);
 
 export const trimsInCatalog = catalog.table("trims", {
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "catalog.trims_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	modelId: bigint("model_id", { mode: "number" }).notNull(),
 	name: text().notNull(),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	price: bigint({ mode: "number" }).notNull(),
 	specs: jsonb(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
@@ -56,7 +70,7 @@ export const trimsInCatalog = catalog.table("trims", {
 	imageUrl: text("image_url"),
 	trimName: text("trim_name"),
 	sortOrder: integer("sort_order").default(999),
-	status: carStatusInCatalog().default('판매중').notNull(),
+	status: text().default('판매중').notNull(),
 	priceUpdatedAt: timestamp("price_updated_at", { withTimezone: true, mode: 'string' }),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }),
 	financialDiscountAmount: integer("financial_discount_amount"),
@@ -65,7 +79,6 @@ export const trimsInCatalog = catalog.table("trims", {
 	discountUpdatedAt: timestamp("discount_updated_at", { withTimezone: true, mode: 'string' }),
 	trimCode: smallint("trim_code"),
 	mcCode: varchar("mc_code", { length: 11 }),
-	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("idx_trims_canonical_name").using("btree", table.canonicalName.asc().nullsLast().op("text_ops")),
 	index("idx_trims_fuel_type").using("btree", table.fuelType.asc().nullsLast().op("text_ops")),
@@ -83,34 +96,13 @@ export const trimsInCatalog = catalog.table("trims", {
 	unique("trims_mc_code_unique").on(table.mcCode),
 ]);
 
-export const brandsInCatalog = catalog.table("brands", {
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "catalog.brands_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
-	name: text().notNull(),
-	logoUrl: text("logo_url"),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
-	isDomestic: boolean("is_domestic").default(false).notNull(),
-	isPopular: boolean("is_popular").default(false).notNull(),
-	sortOrder: integer("sort_order").default(999).notNull(),
-	brandCode: smallint("brand_code"),
-	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
-}, (table) => [
-	unique("brands_name_key").on(table.name),
-	unique("brands_sort_order_unique").on(table.sortOrder),
-	unique("brands_brand_code_unique").on(table.brandCode),
-]);
-
 export const trimOptionsInCatalog = catalog.table("trim_options", {
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "catalog.trim_options_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	trimId: bigint("trim_id", { mode: "number" }).notNull(),
 	type: text().notNull(),
 	name: text().notNull(),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	price: bigint({ mode: "number" }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
-	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("idx_trim_options_name").using("btree", table.name.asc().nullsLast().op("text_ops")),
 	index("idx_trim_options_price").using("btree", table.price.asc().nullsLast().op("int8_ops")),
@@ -125,15 +117,11 @@ export const trimOptionsInCatalog = catalog.table("trim_options", {
 ]);
 
 export const trimOptionRelationsInCatalog = catalog.table("trim_option_relations", {
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "catalog.trim_option_relations_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	optionId: bigint("option_id", { mode: "number" }).notNull(),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	relatedOptionId: bigint("related_option_id", { mode: "number" }).notNull(),
 	type: text().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
-	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("idx_trim_option_relations_type").using("btree", table.type.asc().nullsLast().op("text_ops")),
 	index("trim_option_relations_option_id_idx").using("btree", table.optionId.asc().nullsLast().op("int8_ops")),
@@ -154,11 +142,9 @@ export const trimOptionRelationsInCatalog = catalog.table("trim_option_relations
 ]);
 
 export const trimNoOptionsInCatalog = catalog.table("trim_no_options", {
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	trimId: bigint("trim_id", { mode: "number" }).primaryKey().notNull(),
 	checkedAt: timestamp("checked_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	note: text(),
-	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	foreignKey({
 			columns: [table.trimId],
@@ -168,9 +154,7 @@ export const trimNoOptionsInCatalog = catalog.table("trim_no_options", {
 ]);
 
 export const colorsInCatalog = catalog.table("colors", {
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "catalog.colors_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	trimId: bigint("trim_id", { mode: "number" }),
 	colorType: text("color_type").notNull(),
 	name: text().notNull(),
@@ -178,7 +162,6 @@ export const colorsInCatalog = catalog.table("colors", {
 	hexValue: text("hex_value"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 	sortOrder: smallint("sort_order").default(0).notNull(),
-	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("idx_colors_trim_id").using("btree", table.trimId.asc().nullsLast().op("int8_ops")),
 	index("idx_colors_type").using("btree", table.colorType.asc().nullsLast().op("text_ops")),

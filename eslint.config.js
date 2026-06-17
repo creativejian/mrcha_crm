@@ -6,8 +6,9 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    // src/db/catalog.ts 는 catalog(차량 거울) introspect 자동생성물 — 수동 수정 금지, `bun run db:pull:catalog`로 재생성하므로 lint 제외.
-    ignores: ["node_modules/", "client/dist/", "build/", "coverage/", "screenshots/", "test-results/", "playwright-report/", ".wrangler/", "src/db/catalog.ts"],
+    // src/db/catalog.ts 는 catalog(차량) introspect 기반 정본 — `bun run db:pull:catalog` 재생성 산출물을 정리한 것이라 lint 제외.
+    // drizzle/_catalog_introspect/ 는 db:pull:catalog 원본 산출물(재생성 가능, gitignore) — lint 제외.
+    ignores: ["node_modules/", "client/dist/", "build/", "coverage/", "screenshots/", "test-results/", "playwright-report/", ".wrangler/", "src/db/catalog.ts", "drizzle/_catalog_introspect/"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
