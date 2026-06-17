@@ -1,6 +1,14 @@
 import { expect, it } from "vitest";
 
-import { MODEL_CATEGORIES, VEHICLE_STATUSES, statusBadgeTone, statusLabel } from "./vehicle-taxonomy";
+import {
+  DRIVE_SYSTEMS,
+  FUEL_TYPES,
+  MODEL_CATEGORIES,
+  TRANSMISSION_TYPES,
+  VEHICLE_STATUSES,
+  statusBadgeTone,
+  statusLabel,
+} from "./vehicle-taxonomy";
 
 it("status enum 5종", () => {
   expect(VEHICLE_STATUSES).toEqual(["판매중", "출시예정", "사전예약", "단종", "블라인드"]);
@@ -20,4 +28,11 @@ it("배지 톤 매핑", () => {
 it("카테고리 옵션 비어있지 않음", () => {
   expect(MODEL_CATEGORIES.length).toBeGreaterThan(0);
   expect(MODEL_CATEGORIES).toContain("중형 세단");
+});
+
+it("연료/구동/변속 옵션", () => {
+  expect(FUEL_TYPES).toContain("가솔린");
+  expect(FUEL_TYPES).toContain("전기");
+  expect(DRIVE_SYSTEMS).toEqual(["RWD", "FWD", "AWD", "4WD"]);
+  expect(TRANSMISSION_TYPES).toEqual(["A/T", "M/T"]);
 });
