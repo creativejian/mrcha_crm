@@ -67,6 +67,12 @@ export function TrimEditPanel({
             <span>트림명 *</span>
             <input className="input" value={trimName} onChange={(e) => setTrimName(e.currentTarget.value)} placeholder="예: 520i" />
           </label>
+          {isEdit && (
+            <label className="va-field">
+              <span>정규화명 (자동 생성)</span>
+              <input className="input" value={trim?.canonicalName ?? ""} readOnly disabled />
+            </label>
+          )}
           <label className="va-field">
             <span>가격(원) *</span>
             <input className="input" inputMode="numeric" value={price} onChange={(e) => setPrice(e.currentTarget.value)} placeholder="예: 70000000" />
