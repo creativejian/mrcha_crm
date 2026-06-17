@@ -1,4 +1,4 @@
-import { asc, count, eq, max, min } from "drizzle-orm";
+import { asc, count, eq, max, min, sql } from "drizzle-orm";
 
 import { brandsInCatalog, colorsInCatalog, modelsInCatalog, trimOptionsInCatalog, trimsInCatalog } from "../catalog";
 import { db } from "../client";
@@ -232,6 +232,21 @@ export async function deleteOption(id: number, executor: Executor = db) {
     .where(eq(trimOptionsInCatalog.id, id))
     .returning({ id: trimOptionsInCatalog.id });
   return row ?? null;
+}
+
+// ── 순서변경 ──────────────────────────────────────────────────────────────────
+// orderedIds 위치(1..N)를 sort_order로. public.batch_update_sort_order RPC가 temp 값으로
+// UNIQUE(brand_id/model_id, sort_order) 충돌을 회피한다. table='models'|'trims'.
+export async function reorderCatalog(
+  table: "models" | "trims",
+  orderedIds: number[],
+  executor: Executor = db,
+): Promise<void> {
+  if (orderedIds.length === 0) return;
+  const sortOrders = orderedIds.map((_, i) => i + 1);
+  await executor.execute(
+    sql`select public.batch_update_sort_order(${table}, ${sql.param(orderedIds)}::int[], ${sql.param(sortOrders)}::int[])`,
+  );
 }
 
 // 트림 색상(읽기 전용 칩) — Phase 1 표시용.

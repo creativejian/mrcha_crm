@@ -14,6 +14,7 @@ import {
   listModelsByBrand,
   listOptionsByTrim,
   listTrimsByModel,
+  reorderCatalog,
   updateModel,
   updateOption,
   updateTrim,
@@ -83,6 +84,26 @@ catalog.patch(
 
 catalog.delete("/models/:id", zValidator("param", z.object({ id })), async (c) =>
   run(c, () => deleteModel(c.req.valid("param").id), "모델을 찾을 수 없습니다."),
+);
+
+catalog.post(
+  "/models/reorder",
+  zValidator("json", z.object({ ids: z.array(id).min(1) })),
+  async (c) =>
+    run(c, async () => {
+      await reorderCatalog("models", c.req.valid("json").ids);
+      return { ok: true };
+    }),
+);
+
+catalog.post(
+  "/trims/reorder",
+  zValidator("json", z.object({ ids: z.array(id).min(1) })),
+  async (c) =>
+    run(c, async () => {
+      await reorderCatalog("trims", c.req.valid("json").ids);
+      return { ok: true };
+    }),
 );
 
 // ── 트림 ──────────────────────────────────────────────────────────────────────
