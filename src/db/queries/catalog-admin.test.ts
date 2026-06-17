@@ -50,10 +50,15 @@ test("catalog-admin CRUD (tx 롤백, prod 무변경)", async () => {
       expect(trim.name).toBe("테스트트림");
       expect(trim.sortOrder).not.toBeNull();
 
-      // 트림 수정
-      const trimUp = await updateTrim(trim.id, { price: 51000000, status: "출시예정" }, tx);
+      // 트림 수정(가격·상태·할인)
+      const trimUp = await updateTrim(
+        trim.id,
+        { price: 51000000, status: "출시예정", financialDiscountAmount: 1000000 },
+        tx,
+      );
       expect(Number(trimUp?.price)).toBe(51000000);
       expect(trimUp?.status).toBe("출시예정");
+      expect(trimUp?.financialDiscountAmount).toBe(1000000);
 
       // 순서변경(reorder) — 트림 2개를 뒤집어 sort_order 반영 확인
       const trim2 = await createTrim(

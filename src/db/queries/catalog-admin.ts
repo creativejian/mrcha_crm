@@ -117,6 +117,9 @@ export async function createTrim(
     bodyStyle?: string | null;
     seatingCapacity?: number | null;
     status?: VehicleStatus;
+    financialDiscountAmount?: number | null;
+    partnerDiscountAmount?: number | null;
+    cashDiscountAmount?: number | null;
   },
   executor: Executor = db,
 ) {
@@ -146,6 +149,9 @@ export async function createTrim(
       bodyStyle: input.bodyStyle ?? null,
       seatingCapacity: input.seatingCapacity ?? null,
       status: input.status ?? "판매중",
+      financialDiscountAmount: input.financialDiscountAmount ?? null,
+      partnerDiscountAmount: input.partnerDiscountAmount ?? null,
+      cashDiscountAmount: input.cashDiscountAmount ?? null,
     })
     .returning();
   return row;
@@ -164,6 +170,9 @@ export async function updateTrim(
     bodyStyle: string | null;
     seatingCapacity: number | null;
     status: VehicleStatus;
+    financialDiscountAmount: number | null;
+    partnerDiscountAmount: number | null;
+    cashDiscountAmount: number | null;
   }>,
   executor: Executor = db,
 ) {
@@ -182,6 +191,10 @@ export async function updateTrim(
   if (input.bodyStyle !== undefined) patch.bodyStyle = input.bodyStyle;
   if (input.seatingCapacity !== undefined) patch.seatingCapacity = input.seatingCapacity;
   if (input.status !== undefined) patch.status = input.status;
+  // 할인 변경 시 discount_updated_at은 DB 트리거가 자동 갱신.
+  if (input.financialDiscountAmount !== undefined) patch.financialDiscountAmount = input.financialDiscountAmount;
+  if (input.partnerDiscountAmount !== undefined) patch.partnerDiscountAmount = input.partnerDiscountAmount;
+  if (input.cashDiscountAmount !== undefined) patch.cashDiscountAmount = input.cashDiscountAmount;
   const [row] = await executor.update(trimsInCatalog).set(patch).where(eq(trimsInCatalog.id, id)).returning();
   return row ?? null;
 }

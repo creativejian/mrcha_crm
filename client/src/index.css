@@ -16057,6 +16057,14 @@ select.kim-jeff-discount-label {
 .va-field .select {
   width: 100%;
 }
+.va-form-section {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 700;
+  color: #687782;
+}
 .va-form-actions {
   display: flex;
   justify-content: flex-end;
@@ -16159,6 +16167,7 @@ select.kim-jeff-discount-label {
 .va-color-chips {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 3px;
   margin-top: 5px;
 }
@@ -16186,4 +16195,104 @@ select.kim-jeff-discount-label {
 .va-readonly {
   color: var(--muted);
   background: var(--surface-2);
+}
+/* 국산차 트림 뷰 탭(목록 보기 / 순서 관리) — 고객관리 필터 버튼 계열. */
+.va-trim-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 14px;
+}
+/* 트림 테이블 헤더 위 구분선 — 탭(목록보기/순서관리)이 있는 국산차에서만(탭과 헤더 분리). */
+.va-trim-tabs + .va-trim-table thead th {
+  border-top: 1px solid #e1e4e8;
+}
+.va-trim-tab {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #5f6872;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.va-trim-tab:hover {
+  background: var(--surface-2);
+}
+.va-trim-tab.active {
+  border-color: rgba(88, 54, 255, 0.4);
+  color: #5836ff;
+  background: #f1edff;
+}
+/* 서브라인 그룹 헤더행. */
+.va-group-row > td {
+  padding: 0;
+  background: var(--surface-2);
+}
+.va-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.va-group-toggle:hover {
+  background: rgba(88, 54, 255, 0.05);
+}
+.va-group-chevron {
+  color: #9aa0a6;
+  flex: 0 0 auto;
+}
+.va-group-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #2b2f36;
+}
+.va-group-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+/* 그룹 내 트림 행은 등급명을 살짝 들여쓴다. */
+.va-grade-cell {
+  padding-left: 24px;
+}
+.va-color-none {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+/* 모델/트림 테이블은 고객 테이블의 select-기준 first-child 가운데정렬을 따르지 않는다(모델명/트림명 좌정렬). */
+.va-model-table th:first-child,
+.va-trim-table th:first-child {
+  text-align: left;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.va-model-table th:nth-child(2),
+.va-model-table td:nth-child(2),
+.va-trim-table th:nth-child(2),
+.va-trim-table td:nth-child(2) {
+  padding-left: 10px;
+}
+/* 트림 테이블 컬럼 폭(table-layout: fixed). 트림명 넓게, 연식/상태 좁게. */
+.va-th-trim {
+  width: 240px;
+}
+.va-th-code {
+  width: 128px;
+}
+.va-th-year {
+  width: 56px;
+}
+.va-th-price {
+  width: 140px;
+}
+.va-th-status {
+  width: 78px;
 }

@@ -22,6 +22,8 @@ const formatThousands = (s: string): string => {
   return digits === "" ? "" : Number(digits).toLocaleString();
 };
 
+const won = (v: number | null): string => (v != null ? v.toLocaleString() : "");
+
 export function TrimEditPanel({
   trim,
   onClose,
@@ -48,6 +50,9 @@ export function TrimEditPanel({
     trim?.seatingCapacity != null ? String(trim.seatingCapacity) : "",
   );
   const [status, setStatus] = useState<VehicleStatus>(trim?.status ?? "판매중");
+  const [financialDiscount, setFinancialDiscount] = useState(won(trim?.financialDiscountAmount ?? null));
+  const [partnerDiscount, setPartnerDiscount] = useState(won(trim?.partnerDiscountAmount ?? null));
+  const [cashDiscount, setCashDiscount] = useState(won(trim?.cashDiscountAmount ?? null));
 
   const priceNum = num(price);
   const yearNum = num(modelYear);
@@ -79,6 +84,16 @@ export function TrimEditPanel({
               <input className="input va-readonly" value={trim?.canonicalName ?? ""} readOnly disabled />
             </label>
           )}
+          <label className="va-field">
+            <span>상태</span>
+            <select className="select" value={status} onChange={(e) => setStatus(e.currentTarget.value as VehicleStatus)}>
+              {VEHICLE_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {statusLabel(s)}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="va-field">
             <span>가격(원) *</span>
             <input
@@ -114,6 +129,10 @@ export function TrimEditPanel({
             </select>
           </label>
           <label className="va-field">
+            <span>배기량(cc)</span>
+            <input className="input" inputMode="numeric" value={displacementCc} onChange={(e) => setDisplacementCc(e.currentTarget.value)} />
+          </label>
+          <label className="va-field">
             <span>변속기</span>
             <select className="select" value={transmissionType} onChange={(e) => setTransmissionType(e.currentTarget.value)}>
               {TRANSMISSION_TYPES.map((t) => (
@@ -124,10 +143,6 @@ export function TrimEditPanel({
             </select>
           </label>
           <label className="va-field">
-            <span>배기량(cc)</span>
-            <input className="input" inputMode="numeric" value={displacementCc} onChange={(e) => setDisplacementCc(e.currentTarget.value)} />
-          </label>
-          <label className="va-field">
             <span>차체</span>
             <input className="input" value={bodyStyle} onChange={(e) => setBodyStyle(e.currentTarget.value)} placeholder="예: 세단" />
           </label>
@@ -135,15 +150,36 @@ export function TrimEditPanel({
             <span>인승</span>
             <input className="input" inputMode="numeric" value={seatingCapacity} onChange={(e) => setSeatingCapacity(e.currentTarget.value)} />
           </label>
+          <div className="va-form-section">할인 정보</div>
           <label className="va-field">
-            <span>상태</span>
-            <select className="select" value={status} onChange={(e) => setStatus(e.currentTarget.value as VehicleStatus)}>
-              {VEHICLE_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {statusLabel(s)}
-                </option>
-              ))}
-            </select>
+            <span>자사 할인(원)</span>
+            <input
+              className="input va-num"
+              inputMode="numeric"
+              value={financialDiscount}
+              onChange={(e) => setFinancialDiscount(formatThousands(e.currentTarget.value))}
+              placeholder="예: 1,000,000"
+            />
+          </label>
+          <label className="va-field">
+            <span>제휴 할인(원)</span>
+            <input
+              className="input va-num"
+              inputMode="numeric"
+              value={partnerDiscount}
+              onChange={(e) => setPartnerDiscount(formatThousands(e.currentTarget.value))}
+              placeholder="예: 500,000"
+            />
+          </label>
+          <label className="va-field">
+            <span>타사 할인(원)</span>
+            <input
+              className="input va-num"
+              inputMode="numeric"
+              value={cashDiscount}
+              onChange={(e) => setCashDiscount(formatThousands(e.currentTarget.value))}
+              placeholder="예: 500,000"
+            />
           </label>
           {error && <div className="notice-box error">{error}</div>}
           <div className="va-form-actions">
@@ -166,6 +202,9 @@ export function TrimEditPanel({
                   bodyStyle: bodyStyle.trim() || null,
                   seatingCapacity: num(seatingCapacity),
                   status,
+                  financialDiscountAmount: num(financialDiscount),
+                  partnerDiscountAmount: num(partnerDiscount),
+                  cashDiscountAmount: num(cashDiscount),
                 })
               }
             >

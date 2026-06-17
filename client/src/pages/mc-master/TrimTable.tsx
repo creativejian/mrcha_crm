@@ -1,36 +1,10 @@
 import { GripVertical, Pencil } from "lucide-react";
 
-import { statusBadgeTone, statusLabel } from "@/data/vehicle-taxonomy";
 import type { CatalogTrim, TrimColor } from "@/lib/catalog";
+import { ColorChips, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 
-function fmtDate(s: string | null): string {
-  return s ? s.slice(0, 10) : "—";
-}
-
-function discountText(amount: number | null, price: number): string {
-  if (!amount) return "—";
-  const rate = price > 0 ? ((amount / price) * 100).toFixed(1) : "0.0";
-  return `${amount.toLocaleString()}원 (${rate}%)`;
-}
-
-function ColorChips({ colors }: { colors: TrimColor[] }) {
-  if (!colors || colors.length === 0) return null;
-  const ext = colors.filter((c) => c.colorType === "exterior");
-  const int = colors.filter((c) => c.colorType === "interior");
-  const chip = (c: TrimColor, k: string) => (
-    <span key={k} className="va-color-chip" style={{ backgroundColor: c.hexValue ?? "#cccccc" }} title={c.name} />
-  );
-  return (
-    <div className="va-color-chips">
-      {ext.slice(0, 6).map((c, i) => chip(c, `e${i}`))}
-      {ext.length > 6 && <span className="va-color-more">+{ext.length - 6}</span>}
-      {int.length > 0 && <span className="va-color-div">|</span>}
-      {int.slice(0, 6).map((c, i) => chip(c, `i${i}`))}
-      {int.length > 6 && <span className="va-color-more">+{int.length - 6}</span>}
-    </div>
-  );
-}
-
+// 평면 트림 테이블(전체 trim_name). 국산차 '순서 관리' 탭 / 수입차 기본 뷰에서 쓴다.
+// 드래그 순서변경/일괄삭제는 '선택' 모드에서만(앱과 동일).
 export function TrimTable({
   trims,
   canEdit,
@@ -69,16 +43,8 @@ export function TrimTable({
               <input type="checkbox" checked={allChecked} onChange={onToggleAll} aria-label="전체 선택" />
             </th>
           )}
-          <th>트림명</th>
-          <th>고유번호</th>
-          <th className="va-col-center">연식</th>
-          <th>기본가격(개소세인하)</th>
-          <th className="va-col-center">가격변경일</th>
-          <th>자사할인</th>
-          <th>제휴할인</th>
-          <th>타사할인</th>
-          <th className="va-col-center">할인변경일</th>
-          <th className="va-col-center">상태</th>
+          <th className="va-th-trim">트림명</th>
+          <TrimHeadCells />
           {canEdit && !selectMode && <th className="va-col-center" aria-label="편집" />}
         </tr>
       </thead>
@@ -116,21 +82,11 @@ export function TrimTable({
                 </span>
               </td>
             )}
-            <td>
+            <td className="va-th-trim">
               <div className="va-trim-name">{t.trimName}</div>
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
             </td>
-            <td className="va-num">{t.mcCode ?? "—"}</td>
-            <td className="va-col-center va-num">{t.modelYear ?? "—"}</td>
-            <td className="va-num">{t.price.toLocaleString()}원</td>
-            <td className="va-col-center va-num va-muted">{fmtDate(t.priceUpdatedAt)}</td>
-            <td className="va-num">{discountText(t.financialDiscountAmount, t.price)}</td>
-            <td className="va-num">{discountText(t.partnerDiscountAmount, t.price)}</td>
-            <td className="va-num">{discountText(t.cashDiscountAmount, t.price)}</td>
-            <td className="va-col-center va-num va-muted">{fmtDate(t.discountUpdatedAt)}</td>
-            <td className="va-col-center">
-              <span className={`badge ${statusBadgeTone(t.status)}`}>{statusLabel(t.status)}</span>
-            </td>
+            <TrimMetaCells trim={t} />
             {canEdit && !selectMode && (
               <td className="va-col-center">
                 <button type="button" className="tiny-btn" aria-label={`${t.trimName} 수정`} onClick={() => onEdit(t)}>

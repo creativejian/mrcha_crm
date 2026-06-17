@@ -1,17 +1,10 @@
 // 차량 status enum(DB 저장값, public.car_status)과 모델 카테고리 옵션 SSOT.
-// 표시 라벨은 앱 admin과 동일(사전예약→예약판매, 블라인드→숨김). 저장은 항상 enum 값.
+// 표시 라벨은 앱 admin과 동일하게 enum 원값 그대로 노출한다(사전예약·블라인드).
 export const VEHICLE_STATUSES = ["판매중", "출시예정", "사전예약", "단종", "블라인드"] as const;
 export type VehicleStatus = (typeof VEHICLE_STATUSES)[number];
 
-const STATUS_LABEL: Record<VehicleStatus, string> = {
-  판매중: "판매중",
-  출시예정: "출시예정",
-  사전예약: "예약판매",
-  단종: "단종",
-  블라인드: "숨김",
-};
 export function statusLabel(s: VehicleStatus): string {
-  return STATUS_LABEL[s];
+  return s;
 }
 
 export type BadgeTone = "green" | "yellow" | "red" | "gray" | "purple";

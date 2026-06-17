@@ -14,10 +14,10 @@ it("status enum 5종", () => {
   expect(VEHICLE_STATUSES).toEqual(["판매중", "출시예정", "사전예약", "단종", "블라인드"]);
 });
 
-it("표시 라벨: 사전예약→예약판매, 블라인드→숨김", () => {
+it("표시 라벨: 앱과 동일하게 enum 원값 그대로", () => {
   expect(statusLabel("판매중")).toBe("판매중");
-  expect(statusLabel("사전예약")).toBe("예약판매");
-  expect(statusLabel("블라인드")).toBe("숨김");
+  expect(statusLabel("사전예약")).toBe("사전예약");
+  expect(statusLabel("블라인드")).toBe("블라인드");
 });
 
 it("배지 톤 매핑", () => {
