@@ -147,3 +147,24 @@ export async function updateTrim(id: number, input: Partial<TrimInput>): Promise
 export async function deleteTrim(id: number): Promise<{ id: number }> {
   return jsonOrThrow(await fetch(`/api/catalog/trims/${id}`, { method: "DELETE" }));
 }
+
+// 순서변경: orderedIds 위치(1..N) = sort_order.
+export async function reorderModels(ids: number[]): Promise<void> {
+  await jsonOrThrow(
+    await fetch("/api/catalog/models/reorder", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }),
+  );
+}
+
+export async function reorderTrims(ids: number[]): Promise<void> {
+  await jsonOrThrow(
+    await fetch("/api/catalog/trims/reorder", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }),
+  );
+}
