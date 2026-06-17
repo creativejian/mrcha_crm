@@ -234,7 +234,7 @@ export function App() {
         <Route path="/insights" element={<InsightsPage />} />
         <Route path="/knowledge-base" element={<KnowledgeBasePage />} />
         <Route path="/ai-settings" element={<AISettingsPage />} />
-        <Route path="/mc-master" element={<MCMasterPage />} />
+        <Route path="/mc-master" element={<MCMasterPage roleTab={roleTab} />} />
         <Route path="/org-members" element={<OrgMembersPage />} />
         <Route path="/partners" element={<PartnersPage />} />
         <Route path="/finance" element={isAdmin ? <FinancePage mode={financeMode} /> : <Navigate to="/" replace />} />
