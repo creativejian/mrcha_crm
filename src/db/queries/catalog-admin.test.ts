@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 
 import { brandsInCatalog, modelsInCatalog, trimOptionsInCatalog, trimsInCatalog } from "../catalog";
 import { db } from "../client";
 import {
+  assignMcCodes,
   createModel,
   createOption,
   createTrim,
@@ -112,4 +113,45 @@ test("catalog-admin CRUD (tx 롤백, prod 무변경)", async () => {
     .from(modelsInCatalog)
     .where(eq(modelsInCatalog.name, "__CRM_TEST_MODEL__"));
   expect(leftover.length).toBe(0);
+});
+
+test("assignMcCodes: 미부여 트림에 trim_code 채번 → mc_code 자동 생성 (tx 롤백, prod 무변경)", async () => {
+  await db
+    .transaction(async (tx) => {
+      // 브랜드/모델 코드가 모두 있는 모델 선택(없으면 mc_code 생성 불가).
+      const [m] = await tx
+        .select({ id: modelsInCatalog.id })
+        .from(modelsInCatalog)
+        .innerJoin(brandsInCatalog, eq(brandsInCatalog.id, modelsInCatalog.brandId))
+        .where(and(isNotNull(modelsInCatalog.modelCode), isNotNull(brandsInCatalog.brandCode)))
+        .limit(1);
+      expect(m).toBeDefined();
+
+      // 새 트림 2개(연식 포함) → 삽입 직후 mc_code null. ' - ' 형식이라 국산/수입 모두 안전.
+      const t1 = await createTrim(
+        { modelId: m.id, trimName: "__MC_T1__ - 기본", price: 1000, modelYear: 2026, fuelType: "가솔린" },
+        tx,
+      );
+      await createTrim(
+        { modelId: m.id, trimName: "__MC_T2__ - 기본", price: 2000, modelYear: 2026, fuelType: "가솔린" },
+        tx,
+      );
+      expect(t1.mcCode).toBeNull();
+
+      const res = await assignMcCodes(m.id, tx);
+      expect(res.assigned).toBeGreaterThanOrEqual(2);
+
+      // trim_code 부여 + 트리거가 mc_code(MC+9자리) 생성.
+      const [r1] = await tx
+        .select({ mcCode: trimsInCatalog.mcCode, trimCode: trimsInCatalog.trimCode })
+        .from(trimsInCatalog)
+        .where(eq(trimsInCatalog.id, t1.id));
+      expect(r1.trimCode).not.toBeNull();
+      expect(r1.mcCode).toMatch(/^MC\d{9}$/);
+
+      throw new Rollback();
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Rollback)) throw e;
+    });
 });

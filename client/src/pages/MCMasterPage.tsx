@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, CheckSquare, Plus } from "lucide-react";
+import { ArrowLeft, CheckSquare, Hash, Plus } from "lucide-react";
 
 import type { RoleTab } from "@/data/roles";
 import type { VehicleStatus } from "@/data/vehicle-taxonomy";
@@ -10,6 +10,7 @@ import {
   type CatalogTrim,
   type TrimColor,
   type TrimInput,
+  assignMcCodes,
   createModel,
   createTrim,
   deleteModel,
@@ -257,8 +258,21 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       window.alert(e instanceof Error ? e.message : "삭제 실패");
     }
   }
+  async function assignCodes() {
+    if (modelId == null) return;
+    setBusy(true);
+    try {
+      const r = await assignMcCodes(Number(modelId));
+      reloadTrims();
+      window.alert(`${r.assigned}개 트림에 고유번호를 부여했습니다.`);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "고유번호 부여 실패");
+    } finally {
+      setBusy(false);
+    }
+  }
 
-  const editActions = (onAdd: () => void, addLabel: string, allowSelect = true) =>
+  const editActions = (onAdd: () => void, addLabel: string, allowSelect = true, extra: ReactNode = null) =>
     canEdit ? (
       <div className="va-head-actions">
         {allowSelect && selectMode && selected.size > 0 && (
@@ -266,6 +280,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
             선택 삭제 ({selected.size})
           </button>
         )}
+        {!selectMode && extra}
         {!selectMode && (
           <button type="button" className="btn primary" onClick={onAdd}>
             <Plus size={15} /> {addLabel}
@@ -308,6 +323,11 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
               },
               "트림 추가",
               !groupedView,
+              canEdit && trims.some((t) => !t.mcCode) ? (
+                <button type="button" className="btn" onClick={assignCodes} disabled={busy}>
+                  <Hash size={15} /> 고유번호 할당
+                </button>
+              ) : null,
             )}
           </>
         ) : (

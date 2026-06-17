@@ -167,6 +167,11 @@ export async function deleteTrim(id: number): Promise<{ id: number }> {
   return jsonOrThrow(await fetch(`/api/catalog/trims/${id}`, { method: "DELETE" }));
 }
 
+// 모델의 mc_code 미부여 트림에 고유번호 일괄 부여.
+export async function assignMcCodes(modelId: number): Promise<{ assigned: number }> {
+  return jsonOrThrow(await fetch(`/api/catalog/models/${modelId}/assign-codes`, { method: "POST" }));
+}
+
 // 순서변경: orderedIds 위치(1..N) = sort_order.
 export async function reorderModels(ids: number[]): Promise<void> {
   await jsonOrThrow(
