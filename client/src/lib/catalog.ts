@@ -130,6 +130,9 @@ export type TrimInput = {
   bodyStyle?: string | null;
   seatingCapacity?: number | null;
   status?: VehicleStatus;
+  financialDiscountAmount?: number | null;
+  partnerDiscountAmount?: number | null;
+  cashDiscountAmount?: number | null;
 };
 
 export async function fetchTrims(modelId: number): Promise<CatalogTrim[]> {

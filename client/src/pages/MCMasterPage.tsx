@@ -24,14 +24,17 @@ import {
   updateTrim,
 } from "@/lib/catalog";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
+import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
 import { TrimTable } from "./mc-master/TrimTable";
 import { moveItem } from "./mc-master/reorder";
+import { trimSubline } from "./mc-master/trim-grouping";
 
 type ModelPanelState = { mode: "add" } | { mode: "edit"; model: CatalogModel } | null;
 type TrimPanelState = { mode: "add" } | { mode: "edit"; trim: CatalogTrim } | null;
+type TrimTab = "list" | "order";
 
 export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const canEdit = roleTab === "최고관리자";
@@ -50,6 +53,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [colorsByTrim, setColorsByTrim] = useState<Map<number, TrimColor[]>>(new Map());
+  const [trimTab, setTrimTab] = useState<TrimTab>("list");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const dragId = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const modelScrollTop = useRef(0);
@@ -59,6 +64,9 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     () => (modelId ? (models.find((m) => String(m.id) === modelId) ?? null) : null),
     [models, modelId],
   );
+  // 국산차만 서브라인 그룹/순서관리 탭. 현재 선택 브랜드 기준(트림 뷰 모델은 이 브랜드 소속).
+  const isDomestic = brands.find((b) => b.id === brandId)?.isDomestic ?? false;
+  const groupedView = inTrimView && isDomestic && trimTab === "list";
 
   function resetSelect() {
     setSelectMode(false);
@@ -84,7 +92,12 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   useEffect(() => {
     if (!modelId) return;
     fetchTrims(Number(modelId))
-      .then(setTrims)
+      .then((rows) => {
+        setTrims(rows);
+        // 첫 등장 서브라인 그룹만 펼친 상태로 진입(모델 전환 시 초기화).
+        const first = rows[0] ? trimSubline(rows[0].trimName) : null;
+        setExpandedGroups(first ? new Set([first]) : new Set());
+      })
       .catch(() => setLoadError(true));
     fetchTrimColors(Number(modelId))
       .then((rows) => {
@@ -130,11 +143,24 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   }
   function openModelView(m: CatalogModel) {
     resetSelect();
+    setTrimTab("list");
     navigate(`/mc-master/${m.id}`);
   }
   function backToModels() {
     resetSelect();
     navigate("/mc-master");
+  }
+  function switchTrimTab(tab: TrimTab) {
+    setTrimTab(tab);
+    resetSelect();
+  }
+  function toggleGroup(key: string) {
+    setExpandedGroups((s) => {
+      const n = new Set(s);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
   }
 
   async function submitModel(values: { name: string; category: string | null; status: VehicleStatus }) {
@@ -232,27 +258,29 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     }
   }
 
-  const editActions = (onAdd: () => void, addLabel: string) =>
+  const editActions = (onAdd: () => void, addLabel: string, allowSelect = true) =>
     canEdit ? (
       <div className="va-head-actions">
-        {selectMode && selected.size > 0 && (
+        {allowSelect && selectMode && selected.size > 0 && (
           <button type="button" className="btn va-danger-btn" onClick={bulkDelete}>
             선택 삭제 ({selected.size})
           </button>
         )}
-        <button
-          type="button"
-          className={`btn${selectMode ? " va-select-on" : ""}`}
-          onClick={() => {
-            setSelectMode((v) => !v);
-            setSelected(new Set());
-          }}
-        >
-          <CheckSquare size={15} /> {selectMode ? "취소" : "선택"}
-        </button>
         {!selectMode && (
           <button type="button" className="btn primary" onClick={onAdd}>
             <Plus size={15} /> {addLabel}
+          </button>
+        )}
+        {allowSelect && (
+          <button
+            type="button"
+            className={`btn${selectMode ? " va-select-on" : ""}`}
+            onClick={() => {
+              setSelectMode((v) => !v);
+              setSelected(new Set());
+            }}
+          >
+            <CheckSquare size={15} /> {selectMode ? "취소" : "선택"}
           </button>
         )}
       </div>
@@ -273,10 +301,14 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 {openModel ? ` (${trims.length})` : ""}
               </h2>
             </div>
-            {editActions(() => {
-              setPanelError(null);
-              setTrimPanel({ mode: "add" });
-            }, "트림 추가")}
+            {editActions(
+              () => {
+                setPanelError(null);
+                setTrimPanel({ mode: "add" });
+              },
+              "트림 추가",
+              !groupedView,
+            )}
           </>
         ) : (
           <>
@@ -294,24 +326,56 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
         <div className="va-layout">
           <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} />
           <div className="table-scroll va-scroll" ref={scrollRef} onScroll={onScroll}>
+            {inTrimView && isDomestic && (
+              <div className="va-trim-tabs">
+                <button
+                  type="button"
+                  className={`va-trim-tab${trimTab === "list" ? " active" : ""}`}
+                  onClick={() => switchTrimTab("list")}
+                >
+                  목록 보기
+                </button>
+                <button
+                  type="button"
+                  className={`va-trim-tab${trimTab === "order" ? " active" : ""}`}
+                  onClick={() => switchTrimTab("order")}
+                >
+                  순서 관리
+                </button>
+              </div>
+            )}
             {inTrimView ? (
-              <TrimTable
-                trims={trims}
-                canEdit={canEdit}
-                selectMode={selectMode}
-                selected={selected}
-                draggingId={draggingId}
-                colorsByTrim={colorsByTrim}
-                onEdit={(t) => {
-                  setPanelError(null);
-                  setTrimPanel({ mode: "edit", trim: t });
-                }}
-                onToggle={toggle}
-                onToggleAll={toggleAll}
-                onDragStart={onDragStart}
-                onDragOver={onDragOverRow}
-                onDrop={onDrop}
-              />
+              groupedView ? (
+                <GroupedTrimTable
+                  trims={trims}
+                  canEdit={canEdit}
+                  colorsByTrim={colorsByTrim}
+                  expanded={expandedGroups}
+                  onToggleGroup={toggleGroup}
+                  onEdit={(t) => {
+                    setPanelError(null);
+                    setTrimPanel({ mode: "edit", trim: t });
+                  }}
+                />
+              ) : (
+                <TrimTable
+                  trims={trims}
+                  canEdit={canEdit}
+                  selectMode={selectMode}
+                  selected={selected}
+                  draggingId={draggingId}
+                  colorsByTrim={colorsByTrim}
+                  onEdit={(t) => {
+                    setPanelError(null);
+                    setTrimPanel({ mode: "edit", trim: t });
+                  }}
+                  onToggle={toggle}
+                  onToggleAll={toggleAll}
+                  onDragStart={onDragStart}
+                  onDragOver={onDragOverRow}
+                  onDrop={onDrop}
+                />
+              )
             ) : (
               <ModelTable
                 models={models}
