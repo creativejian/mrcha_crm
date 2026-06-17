@@ -77,7 +77,9 @@ const statusGroupByStatus = Object.fromEntries(
 export function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const activeView: ViewKey = PATH_TO_VIEW[location.pathname] ?? "advisor-dashboard";
+  const activeView: ViewKey =
+    PATH_TO_VIEW[location.pathname] ??
+    (location.pathname.startsWith("/mc-master/") ? "mc-master" : "advisor-dashboard");
   const [customerMode, setCustomerMode] = useState<CustomerMode>("allDraft");
   const [financeMode, setFinanceMode] = useState<FinanceMode>("stats");
   const [toast, setToast] = useState("작업이 반영되었습니다.");
@@ -235,6 +237,7 @@ export function App() {
         <Route path="/knowledge-base" element={<KnowledgeBasePage />} />
         <Route path="/ai-settings" element={<AISettingsPage />} />
         <Route path="/mc-master" element={<MCMasterPage roleTab={roleTab} />} />
+        <Route path="/mc-master/:modelId" element={<MCMasterPage roleTab={roleTab} />} />
         <Route path="/org-members" element={<OrgMembersPage />} />
         <Route path="/partners" element={<PartnersPage />} />
         <Route path="/finance" element={isAdmin ? <FinancePage mode={financeMode} /> : <Navigate to="/" replace />} />

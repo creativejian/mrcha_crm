@@ -16085,3 +16085,16 @@ select.kim-jeff-discount-label {
   font-variant-numeric: tabular-nums;
   color: #5f6872;
 }
+/* 모델/트림 테이블 영역만 세로 스크롤, 브랜드 사이드바는 고정. 210px≈상단바+카드헤더+여백(근사). */
+.va-layout > .table-scroll,
+.va-layout > .va-empty {
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+}
+.va-brand-sidebar {
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+}
