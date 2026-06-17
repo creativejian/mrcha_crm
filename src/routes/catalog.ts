@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   VEHICLE_STATUSES,
+  assignMcCodes,
   createModel,
   createOption,
   createTrim,
@@ -22,6 +23,7 @@ import {
 } from "../db/queries/catalog-admin";
 import { getCatalogCounts } from "../db/queries/catalog-counts";
 import { getBrands } from "../db/queries/vehicles";
+import { db } from "../db/client";
 
 export const catalog = new Hono();
 
@@ -85,6 +87,11 @@ catalog.patch(
 
 catalog.delete("/models/:id", zValidator("param", z.object({ id })), async (c) =>
   run(c, () => deleteModel(c.req.valid("param").id), "모델을 찾을 수 없습니다."),
+);
+
+// 모델의 mc_code 미부여 트림에 고유번호 일괄 부여(tx로 원자 처리).
+catalog.post("/models/:id/assign-codes", zValidator("param", z.object({ id })), async (c) =>
+  run(c, () => db.transaction((tx) => assignMcCodes(c.req.valid("param").id, tx))),
 );
 
 catalog.post(

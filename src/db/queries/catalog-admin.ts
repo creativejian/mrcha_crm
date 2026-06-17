@@ -1,4 +1,4 @@
-import { asc, count, eq, max, min, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNull, max, min, sql } from "drizzle-orm";
 
 import { brandsInCatalog, colorsInCatalog, modelsInCatalog, trimOptionsInCatalog, trimsInCatalog } from "../catalog";
 import { db } from "../client";
@@ -250,6 +250,53 @@ export async function deleteOption(id: number, executor: Executor = db) {
     .where(eq(trimOptionsInCatalog.id, id))
     .returning({ id: trimOptionsInCatalog.id });
   return row ?? null;
+}
+
+// ── 고유번호(mc_code) 부여 ──────────────────────────────────────────────────────
+// 새 트림은 trim_code 미부여라 mc_code가 null이다. 관리자가 모델 단위로 할당하면
+// trim_code를 sort_order순으로 채번(활성+삭제이력 max+1부터)하고, catalog.trims의
+// auto_mc_code 트리거가 mc_code(MC+brand2+model2+year2+trim3)를 자동 생성한다.
+
+// 브랜드/모델 코드가 모두 있어야 mc_code 생성 가능.
+export async function modelHasCodes(modelId: number, executor: Executor = db): Promise<boolean> {
+  const [row] = await executor
+    .select({ modelCode: modelsInCatalog.modelCode, brandCode: brandsInCatalog.brandCode })
+    .from(modelsInCatalog)
+    .innerJoin(brandsInCatalog, eq(brandsInCatalog.id, modelsInCatalog.brandId))
+    .where(eq(modelsInCatalog.id, modelId));
+  return row != null && row.modelCode != null && row.brandCode != null;
+}
+
+// 활성 트림 + 삭제 이력(trim_code_history) 중 최대 trim_code (삭제분 코드 재사용 방지).
+async function maxTrimCode(modelId: number, executor: Executor = db): Promise<number> {
+  const [active] = await executor
+    .select({ m: max(trimsInCatalog.trimCode) })
+    .from(trimsInCatalog)
+    .where(eq(trimsInCatalog.modelId, modelId));
+  const histRows = (await executor.execute(
+    sql`select coalesce(max(trim_code), 0)::int as m from catalog.trim_code_history where model_id = ${modelId}`,
+  )) as unknown as Array<{ m: number }>;
+  return Math.max(Number(active?.m ?? 0), Number(histRows[0]?.m ?? 0));
+}
+
+// 모델의 mc_code 미부여 트림에 일괄 부여(앱 '고유번호 할당'). 라우트에서 tx로 감싼다.
+export async function assignMcCodes(modelId: number, executor: Executor = db): Promise<{ assigned: number }> {
+  if (!(await modelHasCodes(modelId, executor)))
+    throw new Error("브랜드 또는 모델의 고유번호가 아직 부여되지 않았습니다.");
+  const targets = await executor
+    .select({ id: trimsInCatalog.id, trimName: trimsInCatalog.trimName, modelYear: trimsInCatalog.modelYear })
+    .from(trimsInCatalog)
+    .where(and(eq(trimsInCatalog.modelId, modelId), isNull(trimsInCatalog.mcCode)))
+    .orderBy(asc(trimsInCatalog.sortOrder));
+  if (targets.length === 0) return { assigned: 0 };
+  const noYear = targets.find((t) => t.modelYear == null);
+  if (noYear) throw new Error(`'${noYear.trimName}'의 연식을 먼저 입력하세요.`);
+  // sort_order순으로 max+1부터 채번 → 각 UPDATE 시 auto_mc_code 트리거가 mc_code 생성.
+  const start = await maxTrimCode(modelId, executor);
+  for (let i = 0; i < targets.length; i++) {
+    await executor.update(trimsInCatalog).set({ trimCode: start + i + 1 }).where(eq(trimsInCatalog.id, targets[i].id));
+  }
+  return { assigned: targets.length };
 }
 
 // ── 순서변경 ──────────────────────────────────────────────────────────────────
