@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import {
   type CatalogOption,
@@ -14,6 +14,7 @@ import {
   updateOption,
 } from "@/lib/catalog";
 import { excludeGroups } from "@/lib/option-selection";
+import { EditDrawer } from "./EditDrawer";
 import { EXCLUDE_PALETTE, excludesText, includesText } from "./option-relations";
 import { formatThousands, manwonText, parseManwon } from "./trim-format";
 
@@ -159,136 +160,125 @@ export function OptionPanel({
   );
 
   return (
-    <div className="customer-detail-drawer-overlay" role="presentation">
-      <button type="button" aria-label="패널 닫기" className="customer-detail-drawer-backdrop" onClick={onClose} />
-      <aside
-        className="customer-detail-drawer va-edit-drawer va-opt-drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-label="옵션 관리"
-      >
-        <div className="panel-head">
-          <h2>옵션 관리 · {trim.trimName}</h2>
-          <button type="button" className="tiny-btn" aria-label="닫기" onClick={onClose}>
-            <X size={15} />
-          </button>
+    <EditDrawer
+      title={`옵션 관리 · ${trim.trimName}`}
+      ariaLabel="옵션 관리"
+      onClose={onClose}
+      className="va-opt-drawer"
+    >
+      <div className="va-trim-tabs">
+        <button
+          type="button"
+          className={`va-trim-tab${tab === "basic" ? " active" : ""}`}
+          onClick={() => {
+            setTab("basic");
+            resetForm();
+          }}
+        >
+          기본 옵션 ({basic.length})
+        </button>
+        <button
+          type="button"
+          className={`va-trim-tab${tab === "tuning" ? " active" : ""}`}
+          onClick={() => {
+            setTab("tuning");
+            resetForm();
+          }}
+        >
+          튜닝 옵션 ({tuning.length})
+        </button>
+      </div>
+
+      {hasExcludes && (
+        <div className="va-opt-legend">
+          <span className="va-opt-dot" style={{ background: EXCLUDE_PALETTE[0] }} />
+          <span className="va-opt-dot" style={{ background: EXCLUDE_PALETTE[1] }} />
+          <span className="va-opt-dot" style={{ background: EXCLUDE_PALETTE[2] }} />
+          같은 색 = 중복 선택 불가
         </div>
-        <div className="panel-body va-form">
-          <div className="va-trim-tabs">
-            <button
-              type="button"
-              className={`va-trim-tab${tab === "basic" ? " active" : ""}`}
-              onClick={() => {
-                setTab("basic");
-                resetForm();
-              }}
-            >
-              기본 옵션 ({basic.length})
-            </button>
-            <button
-              type="button"
-              className={`va-trim-tab${tab === "tuning" ? " active" : ""}`}
-              onClick={() => {
-                setTab("tuning");
-                resetForm();
-              }}
-            >
-              튜닝 옵션 ({tuning.length})
-            </button>
-          </div>
+      )}
 
-          {hasExcludes && (
-            <div className="va-opt-legend">
-              <span className="va-opt-dot" style={{ background: EXCLUDE_PALETTE[0] }} />
-              <span className="va-opt-dot" style={{ background: EXCLUDE_PALETTE[1] }} />
-              <span className="va-opt-dot" style={{ background: EXCLUDE_PALETTE[2] }} />
-              같은 색 = 중복 선택 불가
-            </div>
-          )}
+      {loaded && current.length === 0 && <div className="va-empty">옵션이 없습니다.</div>}
 
-          {loaded && current.length === 0 && <div className="va-empty">옵션이 없습니다.</div>}
-
-          <ul className="va-opt-list">
-            {current.map((o) => {
-              const gi = groups.get(o.id);
-              const dot = gi != null ? EXCLUDE_PALETTE[gi % EXCLUDE_PALETTE.length] : null;
-              const exText = excludesText(relations, o.id, nameById);
-              const inText = includesText(relations, o.id, nameById);
-              return (
-                <li key={o.id} className="va-opt-row">
-                  {editId === o.id ? (
-                    editor(submitEdit, "저장")
-                  ) : (
-                    <>
-                      <span className="va-opt-dot-slot">
-                        {dot && <span className="va-opt-dot" style={{ background: dot }} />}
-                      </span>
-                      <span className="va-opt-main">
-                        <span className="va-opt-name">{o.name}</span>
-                        {exText && <span className="va-opt-rel">⇄ {exText}</span>}
-                        {inText && <span className="va-opt-rel">⇒ {inText}</span>}
-                      </span>
-                      <span className="va-opt-price va-num">{manwonText(o.price)}</span>
-                      {canEdit && (
-                        <span className="va-opt-actions">
-                          <button
-                            type="button"
-                            className="tiny-btn"
-                            aria-label={`${o.name} 수정`}
-                            onClick={() => startEdit(o)}
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            className="tiny-btn va-danger"
-                            aria-label={`${o.name} 삭제`}
-                            onClick={() => del(o)}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </span>
-                      )}
-                    </>
+      <ul className="va-opt-list">
+        {current.map((o) => {
+          const gi = groups.get(o.id);
+          const dot = gi != null ? EXCLUDE_PALETTE[gi % EXCLUDE_PALETTE.length] : null;
+          const exText = excludesText(relations, o.id, nameById);
+          const inText = includesText(relations, o.id, nameById);
+          return (
+            <li key={o.id} className="va-opt-row">
+              {editId === o.id ? (
+                editor(submitEdit, "저장")
+              ) : (
+                <>
+                  <span className="va-opt-dot-slot">
+                    {dot && <span className="va-opt-dot" style={{ background: dot }} />}
+                  </span>
+                  <span className="va-opt-main">
+                    <span className="va-opt-name">{o.name}</span>
+                    {exText && <span className="va-opt-rel">⇄ {exText}</span>}
+                    {inText && <span className="va-opt-rel">⇒ {inText}</span>}
+                  </span>
+                  <span className="va-opt-price va-num">{manwonText(o.price)}</span>
+                  {canEdit && (
+                    <span className="va-opt-actions">
+                      <button
+                        type="button"
+                        className="tiny-btn"
+                        aria-label={`${o.name} 수정`}
+                        onClick={() => startEdit(o)}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="tiny-btn va-danger"
+                        aria-label={`${o.name} 삭제`}
+                        onClick={() => del(o)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </span>
                   )}
-                </li>
-              );
-            })}
-          </ul>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
-          {canEdit && adding && editor(submitAdd, "추가")}
-          {canEdit && !adding && editId == null && !noOption && (
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                resetForm();
-                setAdding(true);
-              }}
-            >
-              <Plus size={14} /> {tab === "basic" ? "기본" : "튜닝"} 옵션 추가
-            </button>
-          )}
+      {canEdit && adding && editor(submitAdd, "추가")}
+      {canEdit && !adding && editId == null && !noOption && (
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            resetForm();
+            setAdding(true);
+          }}
+        >
+          <Plus size={14} /> {tab === "basic" ? "기본" : "튜닝"} 옵션 추가
+        </button>
+      )}
 
-          {canEdit && options.length === 0 && (
-            <div className="va-opt-noopt">
-              <button
-                type="button"
-                className={`btn${noOption ? " va-select-on" : ""}`}
-                disabled={busy}
-                onClick={toggleNoOption}
-              >
-                {noOption ? "옵션 없음 확정 해제" : "옵션 없음으로 확정"}
-              </button>
-              <span className="va-muted">
-                {noOption ? "옵션 없음으로 확정됨 (배지 ✓)" : "옵션이 없는 트림이면 확정하세요 (배지 ? → ✓)"}
-              </span>
-            </div>
-          )}
-
-          {err && <div className="notice-box error">{err}</div>}
+      {canEdit && options.length === 0 && (
+        <div className="va-opt-noopt">
+          <button
+            type="button"
+            className={`btn${noOption ? " va-select-on" : ""}`}
+            disabled={busy}
+            onClick={toggleNoOption}
+          >
+            {noOption ? "옵션 없음 확정 해제" : "옵션 없음으로 확정"}
+          </button>
+          <span className="va-muted">
+            {noOption ? "옵션 없음으로 확정됨 (배지 ✓)" : "옵션이 없는 트림이면 확정하세요 (배지 ? → ✓)"}
+          </span>
         </div>
-      </aside>
-    </div>
+      )}
+
+      {err && <div className="notice-box error">{err}</div>}
+    </EditDrawer>
   );
 }

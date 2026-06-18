@@ -42,6 +42,9 @@ type ModelPanelState = { mode: "add" } | { mode: "edit"; model: CatalogModel } |
 type TrimPanelState = { mode: "add" } | { mode: "edit"; trim: CatalogTrim } | null;
 type TrimTab = "list" | "order";
 
+// 옵션 요약 행 → trimId 키 맵(트림 배지 조회용). effect·reload 양쪽에서 공유.
+const toOptionMap = (rows: TrimOptionSummary[]) => new Map(rows.map((r) => [r.trimId, r] as const));
+
 export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const canEdit = roleTab === "최고관리자";
   const navigate = useNavigate();
@@ -121,7 +124,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       })
       .catch(() => undefined);
     fetchOptionSummary(Number(modelId))
-      .then((rows) => setOptionByTrim(new Map(rows.map((r) => [r.trimId, r]))))
+      .then((rows) => setOptionByTrim(toOptionMap(rows)))
       .catch(() => undefined);
   }, [modelId]);
 
@@ -148,7 +151,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   function reloadOptionSummary() {
     if (!modelId) return;
     fetchOptionSummary(Number(modelId))
-      .then((rows) => setOptionByTrim(new Map(rows.map((r) => [r.trimId, r]))))
+      .then((rows) => setOptionByTrim(toOptionMap(rows)))
       .catch(() => undefined);
   }
 
