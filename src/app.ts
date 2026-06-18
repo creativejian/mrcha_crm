@@ -20,6 +20,12 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.route("/api/catalog", catalog);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));
+  // GET 라우트는 try/catch가 없어 throw 시 기본 "Internal Server Error"만 나간다.
+  // 실제 원인(DB 연결/쿼리 에러)을 로그(CF 실시간 로그)와 응답에 드러내 진단/운영을 돕는다.
+  app.onError((err, c) => {
+    console.error(err);
+    return c.json({ error: err instanceof Error ? err.message : "Internal Server Error" }, 500);
+  });
   return app;
 }
 
