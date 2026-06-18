@@ -1,13 +1,9 @@
-import { GripVertical, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 
 import { statusBadgeTone, statusLabel } from "@/data/vehicle-taxonomy";
 import type { CatalogModel } from "@/lib/catalog";
-
-function priceRange(min: number | null, max: number | null): string {
-  if (min == null || max == null) return "—";
-  const fmt = (n: number) => `${n.toLocaleString()}원`;
-  return min === max ? fmt(min) : `${fmt(min)} ~ ${fmt(max)}`;
-}
+import { formatPriceRangeKorean } from "@/lib/price-format";
+import { SelectAllHeadCell, SelectCheckCell, SelectableRow } from "./table-select";
 
 export function ModelTable({
   models,
@@ -42,53 +38,33 @@ export function ModelTable({
     <table className="customer-table va-model-table">
       <thead>
         <tr>
-          {selectMode && (
-            <th className="va-col-sel">
-              <input type="checkbox" checked={allChecked} onChange={onToggleAll} aria-label="전체 선택" />
-            </th>
-          )}
-          <th>모델명</th>
-          <th>카테고리</th>
-          <th>가격 범위</th>
-          <th className="va-col-center">상태</th>
-          <th className="va-col-center">트림 수</th>
-          {canEdit && !selectMode && <th className="va-col-center" aria-label="편집" />}
+          <SelectAllHeadCell show={selectMode} allChecked={allChecked} onToggleAll={onToggleAll} />
+          <th className="va-mt-name">모델명</th>
+          <th className="va-mt-cat">카테고리</th>
+          <th className="va-mt-price">가격 범위</th>
+          <th className="va-col-center va-mt-status">상태</th>
+          <th className="va-col-center va-mt-count">트림 수</th>
+          {canEdit && !selectMode && <th className="va-col-center va-mt-edit" aria-label="편집" />}
         </tr>
       </thead>
       <tbody>
         {models.map((m) => (
-          <tr
+          <SelectableRow
             key={m.id}
-            draggable={selectMode}
-            onDragStart={selectMode ? () => onDragStart(m.id) : undefined}
-            onDragOver={
-              selectMode
-                ? (e) => {
-                    e.preventDefault();
-                    onDragOver(m.id);
-                  }
-                : undefined
-            }
-            onDragEnd={selectMode ? onDrop : undefined}
-            className={
-              [selectMode && selected.has(m.id) ? "va-row-selected" : "", draggingId === m.id ? "va-dragging" : ""]
-                .filter(Boolean)
-                .join(" ") || undefined
-            }
+            id={m.id}
+            selectMode={selectMode}
+            isSelected={selected.has(m.id)}
+            isDragging={draggingId === m.id}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
           >
-            {selectMode && (
-              <td className="va-col-sel">
-                <span className="va-sel-cell">
-                  <GripVertical className="va-grip" size={15} />
-                  <input
-                    type="checkbox"
-                    checked={selected.has(m.id)}
-                    onChange={() => onToggle(m.id)}
-                    aria-label={`${m.name} 선택`}
-                  />
-                </span>
-              </td>
-            )}
+            <SelectCheckCell
+              show={selectMode}
+              checked={selected.has(m.id)}
+              onToggle={() => onToggle(m.id)}
+              label={`${m.name} 선택`}
+            />
             <td className="va-model-name">
               {m.imageUrl && <img src={m.imageUrl} alt="" className="va-model-thumb" />}
               {selectMode ? (
@@ -100,7 +76,7 @@ export function ModelTable({
               )}
             </td>
             <td>{m.category ?? "—"}</td>
-            <td className="va-num">{priceRange(m.minPrice, m.maxPrice)}</td>
+            <td className="va-num va-mt-price">{formatPriceRangeKorean(m.minPrice, m.maxPrice)}</td>
             <td className="va-col-center">
               <span className={`badge ${statusBadgeTone(m.status)}`}>{statusLabel(m.status)}</span>
             </td>
@@ -112,7 +88,7 @@ export function ModelTable({
                 </button>
               </td>
             )}
-          </tr>
+          </SelectableRow>
         ))}
       </tbody>
     </table>

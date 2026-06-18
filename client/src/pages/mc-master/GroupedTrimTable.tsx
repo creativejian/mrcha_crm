@@ -36,7 +36,7 @@ export function GroupedTrimTable({
         <tr>
           <th className="va-th-trim">트림명</th>
           <TrimHeadCells />
-          {canEdit && <th className="va-col-center" aria-label="편집" />}
+          {canEdit && <th className="va-col-center va-th-edit" aria-label="편집" />}
         </tr>
       </thead>
       <tbody>
