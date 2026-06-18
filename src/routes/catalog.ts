@@ -28,9 +28,9 @@ import {
 } from "../db/queries/catalog-admin";
 import { getCatalogCounts } from "../db/queries/catalog-counts";
 import { getBrands } from "../db/queries/vehicles";
-import { db } from "../db/client";
+import type { DbVariables } from "../middleware/db";
 
-export const catalog = new Hono();
+export const catalog = new Hono<{ Variables: DbVariables }>();
 
 const id = z.coerce.number().int().positive();
 const status = z.enum(VEHICLE_STATUSES);
@@ -59,12 +59,12 @@ async function run<T>(c: Context, work: () => Promise<T>, notFoundMsg?: string):
   }
 }
 
-catalog.get("/counts", async (c) => c.json(await getCatalogCounts()));
-catalog.get("/brands", async (c) => c.json(await getBrands()));
+catalog.get("/counts", async (c) => c.json(await getCatalogCounts(c.var.db)));
+catalog.get("/brands", async (c) => c.json(await getBrands(c.var.db)));
 
 // ── 모델 ──────────────────────────────────────────────────────────────────────
 catalog.get("/models", zValidator("query", z.object({ brandId: id })), async (c) => {
-  const rows = await listModelsByBrand(c.req.valid("query").brandId);
+  const rows = await listModelsByBrand(c.req.valid("query").brandId, c.var.db);
   return c.json(
     rows.map((m) => ({
       ...m,
@@ -81,23 +81,23 @@ catalog.post(
     "json",
     z.object({ brandId: id, name: z.string().min(1), category: z.string().nullable().default(null), status: status.default("판매중") }),
   ),
-  async (c) => run(c, () => createModel(c.req.valid("json"))),
+  async (c) => run(c, () => createModel(c.req.valid("json"), c.var.db)),
 );
 
 catalog.patch(
   "/models/:id",
   zValidator("param", z.object({ id })),
   zValidator("json", z.object({ category: z.string().nullable().optional(), status: status.optional() })),
-  async (c) => run(c, () => updateModel(c.req.valid("param").id, c.req.valid("json")), "모델을 찾을 수 없습니다."),
+  async (c) => run(c, () => updateModel(c.req.valid("param").id, c.req.valid("json"), c.var.db), "모델을 찾을 수 없습니다."),
 );
 
 catalog.delete("/models/:id", zValidator("param", z.object({ id })), async (c) =>
-  run(c, () => deleteModel(c.req.valid("param").id), "모델을 찾을 수 없습니다."),
+  run(c, () => deleteModel(c.req.valid("param").id, c.var.db), "모델을 찾을 수 없습니다."),
 );
 
 // 모델의 mc_code 미부여 트림에 고유번호 일괄 부여(tx로 원자 처리).
 catalog.post("/models/:id/assign-codes", zValidator("param", z.object({ id })), async (c) =>
-  run(c, () => db.transaction((tx) => assignMcCodes(c.req.valid("param").id, tx))),
+  run(c, () => c.var.db.transaction((tx) => assignMcCodes(c.req.valid("param").id, tx))),
 );
 
 catalog.post(
@@ -105,7 +105,7 @@ catalog.post(
   zValidator("json", z.object({ ids: z.array(id).min(1) })),
   async (c) =>
     run(c, async () => {
-      await reorderCatalog("models", c.req.valid("json").ids);
+      await reorderCatalog("models", c.req.valid("json").ids, c.var.db);
       return { ok: true };
     }),
 );
@@ -115,7 +115,7 @@ catalog.post(
   zValidator("json", z.object({ ids: z.array(id).min(1) })),
   async (c) =>
     run(c, async () => {
-      await reorderCatalog("trims", c.req.valid("json").ids);
+      await reorderCatalog("trims", c.req.valid("json").ids, c.var.db);
       return { ok: true };
     }),
 );
@@ -126,22 +126,22 @@ catalog.post(
   zValidator("json", z.object({ trimIds: z.array(id).min(1), targetModelId: id })),
   async (c) => {
     const { trimIds, targetModelId } = c.req.valid("json");
-    return run(c, () => db.transaction((tx) => moveTrims(trimIds, targetModelId, tx)));
+    return run(c, () => c.var.db.transaction((tx) => moveTrims(trimIds, targetModelId, tx)));
   },
 );
 
 // ── 트림 ──────────────────────────────────────────────────────────────────────
 catalog.get("/models/:id/trim-colors", zValidator("param", z.object({ id })), async (c) =>
-  c.json(await listTrimColorsByModel(c.req.valid("param").id)),
+  c.json(await listTrimColorsByModel(c.req.valid("param").id, c.var.db)),
 );
 
 // 트림별 옵션 요약(배지): 기본/튜닝 개수 + 무옵션 확정.
 catalog.get("/models/:id/option-summary", zValidator("param", z.object({ id })), async (c) =>
-  c.json(await listModelOptionSummary(c.req.valid("param").id)),
+  c.json(await listModelOptionSummary(c.req.valid("param").id, c.var.db)),
 );
 
 catalog.get("/trims", zValidator("query", z.object({ modelId: id })), async (c) => {
-  const trims = await listTrimsByModel(c.req.valid("query").modelId);
+  const trims = await listTrimsByModel(c.req.valid("query").modelId, c.var.db);
   return c.json(trims.map((t) => ({ ...t, price: Number(t.price) })));
 });
 
@@ -166,7 +166,7 @@ catalog.post(
       cashDiscountAmount: z.number().int().nullable().optional(),
     }),
   ),
-  async (c) => run(c, () => createTrim(c.req.valid("json"))),
+  async (c) => run(c, () => createTrim(c.req.valid("json"), c.var.db)),
 );
 
 catalog.patch(
@@ -190,46 +190,49 @@ catalog.patch(
       cashDiscountAmount: z.number().int().nullable().optional(),
     }),
   ),
-  async (c) => run(c, () => updateTrim(c.req.valid("param").id, c.req.valid("json")), "트림을 찾을 수 없습니다."),
+  async (c) => run(c, () => updateTrim(c.req.valid("param").id, c.req.valid("json"), c.var.db), "트림을 찾을 수 없습니다."),
 );
 
 catalog.delete("/trims/:id", zValidator("param", z.object({ id })), async (c) =>
-  run(c, () => deleteTrim(c.req.valid("param").id), "트림을 찾을 수 없습니다."),
+  run(c, () => deleteTrim(c.req.valid("param").id, c.var.db), "트림을 찾을 수 없습니다."),
 );
 
 // ── 옵션 / 색상 ────────────────────────────────────────────────────────────────
 catalog.get("/trims/:id/options", zValidator("param", z.object({ id })), async (c) => {
   const trimId = c.req.valid("param").id;
-  const [options, relations] = await Promise.all([listOptionsByTrim(trimId), listOptionRelationsByTrim(trimId)]);
+  const [options, relations] = await Promise.all([
+    listOptionsByTrim(trimId, c.var.db),
+    listOptionRelationsByTrim(trimId, c.var.db),
+  ]);
   return c.json({ options, relations });
 });
 
 catalog.get("/trims/:id/colors", zValidator("param", z.object({ id })), async (c) =>
-  c.json(await listColorsByTrim(c.req.valid("param").id)),
+  c.json(await listColorsByTrim(c.req.valid("param").id, c.var.db)),
 );
 
 catalog.post(
   "/trims/:id/options",
   zValidator("param", z.object({ id })),
   zValidator("json", z.object({ type: optionType, name: z.string().min(1), price: z.number().int().nullable().default(null) })),
-  async (c) => run(c, () => createOption({ trimId: c.req.valid("param").id, ...c.req.valid("json") })),
+  async (c) => run(c, () => createOption({ trimId: c.req.valid("param").id, ...c.req.valid("json") }, c.var.db)),
 );
 
 catalog.patch(
   "/options/:id",
   zValidator("param", z.object({ id })),
   zValidator("json", z.object({ name: z.string().min(1).optional(), price: z.number().int().nullable().optional() })),
-  async (c) => run(c, () => updateOption(c.req.valid("param").id, c.req.valid("json")), "옵션을 찾을 수 없습니다."),
+  async (c) => run(c, () => updateOption(c.req.valid("param").id, c.req.valid("json"), c.var.db), "옵션을 찾을 수 없습니다."),
 );
 
 catalog.delete("/options/:id", zValidator("param", z.object({ id })), async (c) =>
-  run(c, () => deleteOption(c.req.valid("param").id), "옵션을 찾을 수 없습니다."),
+  run(c, () => deleteOption(c.req.valid("param").id, c.var.db), "옵션을 찾을 수 없습니다."),
 );
 
 // 무옵션 확정 토글(옵션 0개일 때만 등록 가능).
 catalog.post("/trims/:id/no-option", zValidator("param", z.object({ id })), async (c) =>
-  run(c, () => setTrimNoOption(c.req.valid("param").id)),
+  run(c, () => setTrimNoOption(c.req.valid("param").id, c.var.db)),
 );
 catalog.delete("/trims/:id/no-option", zValidator("param", z.object({ id })), async (c) =>
-  run(c, () => unsetTrimNoOption(c.req.valid("param").id)),
+  run(c, () => unsetTrimNoOption(c.req.valid("param").id, c.var.db)),
 );

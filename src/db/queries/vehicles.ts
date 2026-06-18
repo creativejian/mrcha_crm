@@ -9,13 +9,13 @@ import {
   trimOptionsInCatalog,
   trimsInCatalog,
 } from "../catalog";
-import { db } from "../client";
+import { getDefaultDb, type Executor } from "../client";
 
 // master catalog 직접 read. master엔 거울 전용 deleted_at이 없으므로 isNull(deletedAt) 필터를 쓰지 않는다.
 // status(판매중/단종/출시예정 등)는 거울 동작과 동일하게 필터하지 않는다(단종 차량도 라인업에 노출).
 
-export async function getBrands() {
-  return db
+export async function getBrands(executor: Executor = getDefaultDb()) {
+  return executor
     .select({
       id: brandsInCatalog.id,
       name: brandsInCatalog.name,
@@ -29,8 +29,8 @@ export async function getBrands() {
     .orderBy(asc(brandsInCatalog.sortOrder));
 }
 
-export async function getModelsByBrand(brandId: number) {
-  return db
+export async function getModelsByBrand(brandId: number, executor: Executor = getDefaultDb()) {
+  return executor
     .select({
       id: modelsInCatalog.id,
       brandId: modelsInCatalog.brandId,
@@ -46,8 +46,8 @@ export async function getModelsByBrand(brandId: number) {
     .orderBy(asc(modelsInCatalog.sortOrder));
 }
 
-export async function getTrimsByModel(modelId: number) {
-  return db
+export async function getTrimsByModel(modelId: number, executor: Executor = getDefaultDb()) {
+  return executor
     .select({
       id: trimsInCatalog.id,
       modelId: trimsInCatalog.modelId,
@@ -70,8 +70,8 @@ export async function getTrimsByModel(modelId: number) {
     .orderBy(asc(trimsInCatalog.sortOrder));
 }
 
-export async function getTrimDetail(trimId: number) {
-  const [trim] = await db
+export async function getTrimDetail(trimId: number, executor: Executor = getDefaultDb()) {
+  const [trim] = await executor
     .select({
       id: trimsInCatalog.id,
       modelId: trimsInCatalog.modelId,
@@ -98,7 +98,7 @@ export async function getTrimDetail(trimId: number) {
 
   if (!trim) return null;
 
-  const options = await db
+  const options = await executor
     .select({
       id: trimOptionsInCatalog.id,
       type: trimOptionsInCatalog.type,
@@ -110,7 +110,7 @@ export async function getTrimDetail(trimId: number) {
 
   const optionIds = options.map((o) => o.id);
   const optionRelations = optionIds.length
-    ? await db
+    ? await executor
         .select({
           id: trimOptionRelationsInCatalog.id,
           optionId: trimOptionRelationsInCatalog.optionId,
@@ -121,7 +121,7 @@ export async function getTrimDetail(trimId: number) {
         .where(inArray(trimOptionRelationsInCatalog.optionId, optionIds))
     : [];
 
-  const colors = await db
+  const colors = await executor
     .select({
       id: colorsInCatalog.id,
       colorType: colorsInCatalog.colorType,
@@ -134,7 +134,7 @@ export async function getTrimDetail(trimId: number) {
     .where(eq(colorsInCatalog.trimId, trimId))
     .orderBy(asc(colorsInCatalog.sortOrder));
 
-  const [noOptions] = await db
+  const [noOptions] = await executor
     .select({
       note: trimNoOptionsInCatalog.note,
       checkedAt: trimNoOptionsInCatalog.checkedAt,

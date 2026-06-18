@@ -9,18 +9,17 @@ import {
   trimOptionsInCatalog,
   trimsInCatalog,
 } from "../catalog";
-import { db } from "../client";
+import { getDefaultDb, type Executor } from "../client";
 import { buildCanonicalName } from "./canonical-name";
 
-// 쓰기 함수는 기본 db, 테스트에선 tx를 넘겨 롤백한다(prod 무변경).
-type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+// 쓰기 함수는 기본 getDefaultDb()(로컬/테스트/fallback), 테스트·라우트에선 tx/요청 db를 넘긴다.
 
 export const VEHICLE_STATUSES = ["판매중", "출시예정", "사전예약", "단종", "블라인드"] as const;
 export type VehicleStatus = (typeof VEHICLE_STATUSES)[number];
 
 // ── 모델 ──────────────────────────────────────────────────────────────────────
-export async function listModelsByBrand(brandId: number) {
-  return db
+export async function listModelsByBrand(brandId: number, executor: Executor = getDefaultDb()) {
+  return executor
     .select({
       id: modelsInCatalog.id,
       name: modelsInCatalog.name,
@@ -42,7 +41,7 @@ export async function listModelsByBrand(brandId: number) {
 
 export async function createModel(
   input: { brandId: number; name: string; category: string | null; status: VehicleStatus },
-  executor: Executor = db,
+  executor: Executor = getDefaultDb(),
 ) {
   // model_code·sort_order는 트리거 자동 부여 (insert 시 생략).
   const [row] = await executor
@@ -55,7 +54,7 @@ export async function createModel(
 export async function updateModel(
   id: number,
   input: { category?: string | null; status?: VehicleStatus },
-  executor: Executor = db,
+  executor: Executor = getDefaultDb(),
 ) {
   const patch: Record<string, unknown> = {};
   if (input.category !== undefined) patch.category = input.category;
@@ -64,7 +63,7 @@ export async function updateModel(
   return row ?? null;
 }
 
-export async function deleteModel(id: number, executor: Executor = db) {
+export async function deleteModel(id: number, executor: Executor = getDefaultDb()) {
   const [row] = await executor
     .delete(modelsInCatalog)
     .where(eq(modelsInCatalog.id, id))
@@ -74,7 +73,7 @@ export async function deleteModel(id: number, executor: Executor = db) {
 
 // ── 트림 ──────────────────────────────────────────────────────────────────────
 // canonical 계산용 모델+브랜드 정보(브랜드명·모델명·국산여부).
-async function modelCanonicalContext(modelId: number, executor: Executor = db) {
+async function modelCanonicalContext(modelId: number, executor: Executor = getDefaultDb()) {
   const [row] = await executor
     .select({ brand: brandsInCatalog.name, model: modelsInCatalog.name, isDomestic: brandsInCatalog.isDomestic })
     .from(modelsInCatalog)
@@ -83,8 +82,8 @@ async function modelCanonicalContext(modelId: number, executor: Executor = db) {
   return row ?? null;
 }
 
-export async function listTrimsByModel(modelId: number) {
-  return db
+export async function listTrimsByModel(modelId: number, executor: Executor = getDefaultDb()) {
+  return executor
     .select({
       id: trimsInCatalog.id,
       name: trimsInCatalog.name,
@@ -129,7 +128,7 @@ export async function createTrim(
     partnerDiscountAmount?: number | null;
     cashDiscountAmount?: number | null;
   },
-  executor: Executor = db,
+  executor: Executor = getDefaultDb(),
 ) {
   const ctx = await modelCanonicalContext(input.modelId, executor);
   if (!ctx) throw new Error("모델을 찾을 수 없습니다.");
@@ -182,7 +181,7 @@ export async function updateTrim(
     partnerDiscountAmount: number | null;
     cashDiscountAmount: number | null;
   }>,
-  executor: Executor = db,
+  executor: Executor = getDefaultDb(),
 ) {
   const patch: Record<string, unknown> = {};
   // trimName 변경 시 name도 동기화(앱과 동일). canonical_name은 생성 시에만 설정(Phase 1).
@@ -207,7 +206,7 @@ export async function updateTrim(
   return row ?? null;
 }
 
-export async function deleteTrim(id: number, executor: Executor = db) {
+export async function deleteTrim(id: number, executor: Executor = getDefaultDb()) {
   const [row] = await executor
     .delete(trimsInCatalog)
     .where(eq(trimsInCatalog.id, id))
@@ -216,8 +215,8 @@ export async function deleteTrim(id: number, executor: Executor = db) {
 }
 
 // ── 옵션 ──────────────────────────────────────────────────────────────────────
-export async function listOptionsByTrim(trimId: number) {
-  return db
+export async function listOptionsByTrim(trimId: number, executor: Executor = getDefaultDb()) {
+  return executor
     .select({
       id: trimOptionsInCatalog.id,
       type: trimOptionsInCatalog.type,
@@ -230,14 +229,14 @@ export async function listOptionsByTrim(trimId: number) {
 }
 
 // 트림 옵션의 includes/excludes 관계(표식 표시용·읽기 전용). 편집은 Phase 2.
-export async function listOptionRelationsByTrim(trimId: number) {
-  const opts = await db
+export async function listOptionRelationsByTrim(trimId: number, executor: Executor = getDefaultDb()) {
+  const opts = await executor
     .select({ id: trimOptionsInCatalog.id })
     .from(trimOptionsInCatalog)
     .where(eq(trimOptionsInCatalog.trimId, trimId));
   const ids = opts.map((o) => o.id);
   if (ids.length === 0) return [];
-  return db
+  return executor
     .select({
       optionId: trimOptionRelationsInCatalog.optionId,
       relatedOptionId: trimOptionRelationsInCatalog.relatedOptionId,
@@ -249,7 +248,7 @@ export async function listOptionRelationsByTrim(trimId: number) {
 
 export async function createOption(
   input: { trimId: number; type: "basic" | "tuning"; name: string; price: number | null },
-  executor: Executor = db,
+  executor: Executor = getDefaultDb(),
 ) {
   const [row] = await executor
     .insert(trimOptionsInCatalog)
@@ -261,7 +260,7 @@ export async function createOption(
 export async function updateOption(
   id: number,
   input: { name?: string; price?: number | null },
-  executor: Executor = db,
+  executor: Executor = getDefaultDb(),
 ) {
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name;
@@ -270,7 +269,7 @@ export async function updateOption(
   return row ?? null;
 }
 
-export async function deleteOption(id: number, executor: Executor = db) {
+export async function deleteOption(id: number, executor: Executor = getDefaultDb()) {
   const [row] = await executor
     .delete(trimOptionsInCatalog)
     .where(eq(trimOptionsInCatalog.id, id))
@@ -280,7 +279,7 @@ export async function deleteOption(id: number, executor: Executor = db) {
 
 // 모델 하위 트림별 옵션 요약(배지용): 기본/튜닝 개수 + 무옵션 확정 여부.
 // 옵션도 무옵션 등록도 없는 트림은 결과에서 빠지고, 프론트가 '미정'으로 처리한다.
-export async function listModelOptionSummary(modelId: number, executor: Executor = db) {
+export async function listModelOptionSummary(modelId: number, executor: Executor = getDefaultDb()) {
   const counts = await executor
     .select({ trimId: trimOptionsInCatalog.trimId, type: trimOptionsInCatalog.type, c: count() })
     .from(trimOptionsInCatalog)
@@ -311,7 +310,7 @@ export async function listModelOptionSummary(modelId: number, executor: Executor
 }
 
 // 무옵션 확정: 옵션이 하나도 없을 때만 등록(idempotent).
-export async function setTrimNoOption(trimId: number, executor: Executor = db) {
+export async function setTrimNoOption(trimId: number, executor: Executor = getDefaultDb()) {
   const [row] = await executor
     .select({ c: count() })
     .from(trimOptionsInCatalog)
@@ -321,7 +320,7 @@ export async function setTrimNoOption(trimId: number, executor: Executor = db) {
   return { ok: true };
 }
 
-export async function unsetTrimNoOption(trimId: number, executor: Executor = db) {
+export async function unsetTrimNoOption(trimId: number, executor: Executor = getDefaultDb()) {
   await executor.delete(trimNoOptionsInCatalog).where(eq(trimNoOptionsInCatalog.trimId, trimId));
   return { ok: true };
 }
@@ -332,7 +331,7 @@ export async function unsetTrimNoOption(trimId: number, executor: Executor = db)
 // auto_mc_code 트리거가 mc_code(MC+brand2+model2+year2+trim3)를 자동 생성한다.
 
 // 브랜드/모델 코드가 모두 있어야 mc_code 생성 가능.
-export async function modelHasCodes(modelId: number, executor: Executor = db): Promise<boolean> {
+export async function modelHasCodes(modelId: number, executor: Executor = getDefaultDb()): Promise<boolean> {
   const [row] = await executor
     .select({ modelCode: modelsInCatalog.modelCode, brandCode: brandsInCatalog.brandCode })
     .from(modelsInCatalog)
@@ -342,7 +341,7 @@ export async function modelHasCodes(modelId: number, executor: Executor = db): P
 }
 
 // 활성 트림 + 삭제 이력(trim_code_history) 중 최대 trim_code (삭제분 코드 재사용 방지).
-async function maxTrimCode(modelId: number, executor: Executor = db): Promise<number> {
+async function maxTrimCode(modelId: number, executor: Executor = getDefaultDb()): Promise<number> {
   const [active] = await executor
     .select({ m: max(trimsInCatalog.trimCode) })
     .from(trimsInCatalog)
@@ -354,7 +353,7 @@ async function maxTrimCode(modelId: number, executor: Executor = db): Promise<nu
 }
 
 // 모델의 mc_code 미부여 트림에 일괄 부여(앱 '고유번호 할당'). 라우트에서 tx로 감싼다.
-export async function assignMcCodes(modelId: number, executor: Executor = db): Promise<{ assigned: number }> {
+export async function assignMcCodes(modelId: number, executor: Executor = getDefaultDb()): Promise<{ assigned: number }> {
   if (!(await modelHasCodes(modelId, executor)))
     throw new Error("브랜드 또는 모델의 고유번호가 아직 부여되지 않았습니다.");
   const targets = await executor
@@ -379,7 +378,7 @@ export async function assignMcCodes(modelId: number, executor: Executor = db): P
 export async function moveTrims(
   trimIds: number[],
   targetModelId: number,
-  executor: Executor = db,
+  executor: Executor = getDefaultDb(),
 ): Promise<{ moved: number }> {
   if (trimIds.length === 0) return { moved: 0 };
   const [row] = await executor
@@ -403,7 +402,7 @@ export async function moveTrims(
 export async function reorderCatalog(
   table: "models" | "trims",
   orderedIds: number[],
-  executor: Executor = db,
+  executor: Executor = getDefaultDb(),
 ): Promise<void> {
   if (orderedIds.length === 0) return;
   const sortOrders = orderedIds.map((_, i) => i + 1);
@@ -413,8 +412,8 @@ export async function reorderCatalog(
 }
 
 // 모델 하위 모든 트림의 색상(트림 리스트 칩 표시용). trimId로 묶어서 쓴다.
-export async function listTrimColorsByModel(modelId: number) {
-  return db
+export async function listTrimColorsByModel(modelId: number, executor: Executor = getDefaultDb()) {
+  return executor
     .select({
       trimId: colorsInCatalog.trimId,
       colorType: colorsInCatalog.colorType,
@@ -429,8 +428,8 @@ export async function listTrimColorsByModel(modelId: number) {
 }
 
 // 트림 색상(읽기 전용 칩) — Phase 1 표시용.
-export async function listColorsByTrim(trimId: number) {
-  return db
+export async function listColorsByTrim(trimId: number, executor: Executor = getDefaultDb()) {
+  return executor
     .select({
       id: colorsInCatalog.id,
       colorType: colorsInCatalog.colorType,
