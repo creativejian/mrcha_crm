@@ -11,7 +11,14 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   const app = new Hono();
   const auth = createAuthMiddleware(authOpts);
 
-  app.get("/api/health", (c) => c.json({ ok: true, service: "mrcha-crm" }));
+  // hyperdrive: 요청 env에 HYPERDRIVE binding이 실제로 주입됐는지 진단(비밀 노출 없음).
+  app.get("/api/health", (c) =>
+    c.json({
+      ok: true,
+      service: "mrcha-crm",
+      hyperdrive: !!(c.env as { HYPERDRIVE?: unknown } | undefined)?.HYPERDRIVE,
+    }),
+  );
 
   // 보호 라우트: 카카오 로그인(Supabase JWT) + role 게이트, 이후 요청 컨텍스트 db 주입.
   // auth → db 순서: 401(미인증)은 db 생성 없이 차단.

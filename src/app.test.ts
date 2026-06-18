@@ -6,7 +6,7 @@ describe("app (Hono)", () => {
   test("GET /api/health returns service status", async () => {
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, service: "mrcha-crm" });
+    expect(await res.json()).toEqual({ ok: true, service: "mrcha-crm", hyperdrive: false });
   });
 
   test("unknown route returns 404 not found", async () => {
