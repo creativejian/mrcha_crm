@@ -1,4 +1,5 @@
 import { type ReactNode, createContext, useContext, useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 
 import type { RoleTab } from "@/data/roles";
 import { roleTabFromClaim } from "@/data/roles";
@@ -9,22 +10,33 @@ type AuthState = {
   loading: boolean;
   authed: boolean; // 세션 존재 여부
   roleTab: RoleTab | null; // null = 세션은 있으나 권한 없음(customer 등)
+  name: string | null; // user_metadata.full_name(없으면 email)
+  avatarUrl: string | null; // user_metadata.avatar_url(https로 정규화)
 };
 
-const AuthContext = createContext<AuthState>({ loading: true, authed: false, roleTab: null });
+const EMPTY: AuthState = { loading: true, authed: false, roleTab: null, name: null, avatarUrl: null };
+
+const AuthContext = createContext<AuthState>(EMPTY);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ loading: true, authed: false, roleTab: null });
+  const [state, setState] = useState<AuthState>(EMPTY);
 
   useEffect(() => {
     let alive = true;
-    async function resolve(authed: boolean) {
+    async function resolve(session: Session | null) {
+      const authed = !!session;
       const roleTab = authed ? roleTabFromClaim(await getRoleClaim()) : null;
-      if (alive) setState({ loading: false, authed, roleTab });
+      const meta = session?.user.user_metadata as Record<string, unknown> | undefined;
+      const fullName = typeof meta?.full_name === "string" ? meta.full_name : null;
+      const name = fullName ?? session?.user.email ?? null;
+      const rawAvatar = typeof meta?.avatar_url === "string" ? meta.avatar_url : null;
+      // 카카오 CDN은 http로 내려오기도 해 HTTPS 페이지에서 mixed-content가 되므로 https로 올린다.
+      const avatarUrl = rawAvatar ? rawAvatar.replace(/^http:\/\//, "https://") : null;
+      if (alive) setState({ loading: false, authed, roleTab, name, avatarUrl });
     }
-    supabase.auth.getSession().then(({ data }) => resolve(!!data.session));
+    supabase.auth.getSession().then(({ data }) => resolve(data.session));
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      void resolve(!!session);
+      void resolve(session);
     });
     return () => {
       alive = false;

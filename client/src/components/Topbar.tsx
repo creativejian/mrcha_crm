@@ -1,6 +1,5 @@
 import { Maximize2, Send, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import cjLogo from "@/assets/cj.jpeg";
 import { initialCustomers, type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
 import { signOut } from "@/lib/auth";
@@ -92,6 +91,8 @@ function SettingSolidIcon({ name }: { name: "chat" | "insights" | "knowledge" | 
 type TopbarProps = {
   sidebarCollapsed: boolean;
   roleTab: RoleTab;
+  userName: string | null;
+  userAvatarUrl: string | null;
   onNavigate: (view: string) => void;
   onOpenCustomer: (customer: Customer) => void;
   onToggleSidebar: () => void;
@@ -120,7 +121,7 @@ function normalizeSearchValue(value: string): string {
   return value.toLowerCase().replace(/[\s-]/g, "");
 }
 
-export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, onToggleSidebar }: TopbarProps) {
+export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onNavigate, onOpenCustomer, onToggleSidebar }: TopbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -134,6 +135,7 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
   const [aiInput, setAiInput] = useState("");
   const [selectedPrompt, setSelectedPrompt] = useState(quickAiPrompts[0]);
   const [liveConsulting, setLiveConsulting] = useState(true);
+  const [avatarError, setAvatarError] = useState(false);
   const [confirmMode, setConfirmMode] = useState<"on" | "off" | null>(null);
   const workAiRef = useRef<HTMLDivElement>(null);
   const workAiCloseTimerRef = useRef<number | null>(null);
@@ -145,7 +147,10 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
   const accountMeta = roleAccountMeta[roleTab];
   const showAdminMetrics = roleTab === "최고관리자" || roleTab === "팀장";
   const isAdminRole = roleTab === "최고관리자";
-  const usesDefaultAvatar = roleTab !== "최고관리자";
+  // 실제 로그인 사용자 정보(인증 컨텍스트). full_name/avatar는 카카오 user_metadata 기반.
+  const displayName = userName ?? "사용자";
+  const showAvatar = !!userAvatarUrl && !avatarError;
+  const usesDefaultAvatar = !showAvatar;
   const showAttendanceMenu = roleTab !== "딜러";
   const dealerMode = roleTab === "딜러";
   const canManageLiveConsulting = !dealerMode;
@@ -530,7 +535,7 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
           )}
         </div>
         <div className="settings-wrap account-menu-wrap" ref={settingsMenuRef}>
-          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={`${accountMeta.name}, ${accountMeta.title}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{usesDefaultAvatar ? <AccountDefaultIcon /> : <img src={cjLogo} alt="" />}</span><span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" /></button>
+          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={`${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setAvatarError(true)} /> : <AccountDefaultIcon />}</span><span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" /></button>
           {settingsOpen && (
             <>
               <div
@@ -549,7 +554,7 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
               <div className={`settings-menu ${settingsClosing ? "closing" : ""}`} role="dialog" aria-label="계정 설정">
                 <div className="account-menu-head">
                   <div className="account-menu-title">
-                    <strong>{accountMeta.name}</strong>
+                    <strong>{displayName}</strong>
                     <span>{roleTab}</span>
                   </div>
                   <div className="account-menu-meta" aria-label="계정 권한 정보">
