@@ -3,7 +3,7 @@ import { useState } from "react";
 import mrchaLogoColor from "@/assets/mrcha-logo-color.svg";
 import type { CustomerMode } from "@/data/customers";
 import type { FinanceMode } from "@/pages/FinancePage";
-import { roleTabs, type RoleTab } from "@/data/roles";
+import type { RoleTab } from "@/data/roles";
 import { cn } from "@/lib/utils";
 
 type SidebarProps = {
@@ -15,7 +15,6 @@ type SidebarProps = {
   onViewChange: (view: string) => void;
   onCustomerModeChange: (mode: CustomerMode) => void;
   onFinanceModeChange: (mode: FinanceMode) => void;
-  onRoleTabChange: (role: RoleTab) => void;
 };
 
 
@@ -139,7 +138,7 @@ function SidebarFlyout({ items, title }: { items: FlyoutItem[]; title: string })
   );
 }
 
-export function Sidebar({ activeView, collapsed, customerMode, financeMode, roleTab, onViewChange, onCustomerModeChange, onFinanceModeChange, onRoleTabChange }: SidebarProps) {
+export function Sidebar({ activeView, collapsed, customerMode, financeMode, roleTab, onViewChange, onCustomerModeChange, onFinanceModeChange }: SidebarProps) {
   const canViewAdminMenu = roleTab === "최고관리자";
   const canViewTeamMenu = roleTab === "최고관리자" || roleTab === "팀장";
   const [customersOpen, setCustomersOpen] = useState(true);
@@ -252,13 +251,6 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
         </div>
       )}
       <div className="sidebar-bottom">
-        <div className="sidebar-role-tabs" aria-label="임시 역할 메뉴 전환">
-          {roleTabs.map((role) => (
-            <button className={roleTab === role ? "active" : ""} key={role} onClick={() => onRoleTabChange(role)} type="button">
-              {role}
-            </button>
-          ))}
-        </div>
         <div className="sidebar-principle">
           <strong><span aria-hidden="true">📌</span> 이번 달 상담 철학</strong>
           <span><mark>신뢰가 생기기 전에는</mark> 영업하지 않는다.</span>
