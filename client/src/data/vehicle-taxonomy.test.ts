@@ -6,6 +6,7 @@ import {
   MODEL_CATEGORIES,
   TRANSMISSION_TYPES,
   VEHICLE_STATUSES,
+  isTrimStatusBlockedByModel,
   statusBadgeTone,
   statusLabel,
 } from "./vehicle-taxonomy";
@@ -28,6 +29,19 @@ it("배지 톤 매핑", () => {
 it("카테고리 옵션 비어있지 않음", () => {
   expect(MODEL_CATEGORIES.length).toBeGreaterThan(0);
   expect(MODEL_CATEGORIES).toContain("중형 세단");
+});
+
+it("단종 모델 트림 상태 제약", () => {
+  // 모델 단종 + 트림 판매계열 → 차단
+  expect(isTrimStatusBlockedByModel("단종", "판매중")).toBe(true);
+  expect(isTrimStatusBlockedByModel("단종", "출시예정")).toBe(true);
+  expect(isTrimStatusBlockedByModel("단종", "사전예약")).toBe(true);
+  // 모델 단종 + 트림 단종/블라인드 → 허용
+  expect(isTrimStatusBlockedByModel("단종", "단종")).toBe(false);
+  expect(isTrimStatusBlockedByModel("단종", "블라인드")).toBe(false);
+  // 모델이 단종 아님 → 항상 허용
+  expect(isTrimStatusBlockedByModel("판매중", "판매중")).toBe(false);
+  expect(isTrimStatusBlockedByModel(null, "판매중")).toBe(false);
 });
 
 it("연료/구동/변속 옵션", () => {

@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, CheckSquare, Hash, Plus } from "lucide-react";
+import { ArrowLeft, CheckSquare, FolderInput, Hash, Plus } from "lucide-react";
 
 import type { RoleTab } from "@/data/roles";
 import type { VehicleStatus } from "@/data/vehicle-taxonomy";
@@ -21,6 +21,7 @@ import {
   fetchOptionSummary,
   fetchTrimColors,
   fetchTrims,
+  moveTrims,
   reorderModels,
   reorderTrims,
   updateModel,
@@ -30,6 +31,7 @@ import { BrandSidebar } from "./mc-master/BrandSidebar";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
+import { MoveTrimsDialog } from "./mc-master/MoveTrimsDialog";
 import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
 import { TrimTable } from "./mc-master/TrimTable";
@@ -59,6 +61,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const [colorsByTrim, setColorsByTrim] = useState<Map<number, TrimColor[]>>(new Map());
   const [optionByTrim, setOptionByTrim] = useState<Map<number, TrimOptionSummary>>(new Map());
   const [optionPanelTrim, setOptionPanelTrim] = useState<CatalogTrim | null>(null);
+  const [moveOpen, setMoveOpen] = useState(false);
   const [trimTab, setTrimTab] = useState<TrimTab>("list");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const dragId = useRef<number | null>(null);
@@ -285,13 +288,41 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       setBusy(false);
     }
   }
+  async function doMove(targetModelId: number) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBusy(true);
+    try {
+      await moveTrims(ids, targetModelId);
+      setMoveOpen(false);
+      resetSelect();
+      reloadTrims();
+      reloadModels();
+      reloadOptionSummary();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "이동 실패");
+    } finally {
+      setBusy(false);
+    }
+  }
 
-  const editActions = (onAdd: () => void, addLabel: string, allowSelect = true, extra: ReactNode = null) =>
+  const editActions = (
+    onAdd: () => void,
+    addLabel: string,
+    allowSelect = true,
+    extra: ReactNode = null,
+    onMove: (() => void) | null = null,
+  ) =>
     canEdit ? (
       <div className="va-head-actions">
         {allowSelect && selectMode && selected.size > 0 && (
           <button type="button" className="btn va-danger-btn" onClick={bulkDelete}>
             선택 삭제 ({selected.size})
+          </button>
+        )}
+        {allowSelect && selectMode && selected.size > 0 && onMove && (
+          <button type="button" className="btn" onClick={onMove}>
+            <FolderInput size={15} /> 모델 이동
           </button>
         )}
         {!selectMode && extra}
@@ -342,6 +373,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   <Hash size={15} /> 고유번호 할당
                 </button>
               ) : null,
+              () => setMoveOpen(true),
             )}
           </>
         ) : (
@@ -448,10 +480,20 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       {trimPanel && (
         <TrimEditPanel
           trim={trimPanel.mode === "edit" ? trimPanel.trim : null}
+          modelStatus={openModel?.status ?? null}
           busy={busy}
           error={panelError}
           onClose={() => setTrimPanel(null)}
           onSubmit={submitTrim}
+        />
+      )}
+      {moveOpen && (
+        <MoveTrimsDialog
+          count={selected.size}
+          targets={models.filter((m) => String(m.id) !== modelId)}
+          busy={busy}
+          onClose={() => setMoveOpen(false)}
+          onMove={doMove}
         />
       )}
       {optionPanelTrim && (

@@ -7,6 +7,13 @@ export function statusLabel(s: VehicleStatus): string {
   return s;
 }
 
+// 단종 모델의 트림은 단종/블라인드만 허용(앱 trim_status_helpers + 서버 트리거와 동일).
+// 모델이 단종이고 트림을 판매중/출시예정/사전예약으로 두면 저장 불가 → 배너/버튼 비활성.
+export function isTrimStatusBlockedByModel(modelStatus: VehicleStatus | null, trimStatus: VehicleStatus): boolean {
+  if (modelStatus !== "단종") return false;
+  return trimStatus === "판매중" || trimStatus === "출시예정" || trimStatus === "사전예약";
+}
+
 export type BadgeTone = "green" | "yellow" | "red" | "gray" | "purple";
 const STATUS_TONE: Record<VehicleStatus, BadgeTone> = {
   판매중: "green",

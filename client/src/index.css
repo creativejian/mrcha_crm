@@ -16452,3 +16452,18 @@ select.kim-jeff-discount-label {
   font-size: 11px;
   color: var(--muted);
 }
+/* 모델 이동 등 중앙 정렬 다이얼로그(드로어 오버레이 재사용, 중앙 배치). */
+.va-dialog-overlay {
+  justify-content: center;
+  align-items: center;
+}
+.va-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(420px, calc(100vw - 48px));
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(17, 17, 17, 0.22);
+  pointer-events: auto;
+  overflow: hidden;
+}

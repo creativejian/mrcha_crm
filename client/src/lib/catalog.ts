@@ -244,3 +244,14 @@ export async function reorderTrims(ids: number[]): Promise<void> {
     }),
   );
 }
+
+// 트림 다른 모델로 이동(같은 브랜드).
+export async function moveTrims(trimIds: number[], targetModelId: number): Promise<{ moved: number }> {
+  return jsonOrThrow(
+    await fetch("/api/catalog/trims/move", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ trimIds, targetModelId }),
+    }),
+  );
+}

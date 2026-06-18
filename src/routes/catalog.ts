@@ -18,6 +18,7 @@ import {
   listOptionsByTrim,
   listTrimColorsByModel,
   listTrimsByModel,
+  moveTrims,
   reorderCatalog,
   setTrimNoOption,
   unsetTrimNoOption,
@@ -41,6 +42,7 @@ function dbErrorMessage(e: unknown): string {
   if (/trim_name/i.test(msg) && /(format|hyphen|enforce| - )/i.test(msg))
     return "국산차 트림명은 '서브라인 - 등급' 형식이어야 합니다.";
   if (/foreign key|23503/i.test(msg)) return "참조 중인 데이터가 있어 삭제할 수 없습니다(견적 등).";
+  if (/duplicate key|unique constraint|23505/i.test(msg)) return "같은 모델에 동일한 트림명 또는 고유번호가 있습니다.";
   if (/단종|trim_status|enforce_trim_status/i.test(msg)) return "단종 모델의 트림은 단종/블라인드 상태만 가능합니다.";
   if (/prevent_.*_change|code/i.test(msg) && /update|change/i.test(msg)) return "이미 부여된 코드는 변경할 수 없습니다.";
   return msg;
@@ -116,6 +118,16 @@ catalog.post(
       await reorderCatalog("trims", c.req.valid("json").ids);
       return { ok: true };
     }),
+);
+
+// 트림 다른 모델로 이동(tx 원자 처리).
+catalog.post(
+  "/trims/move",
+  zValidator("json", z.object({ trimIds: z.array(id).min(1), targetModelId: id })),
+  async (c) => {
+    const { trimIds, targetModelId } = c.req.valid("json");
+    return run(c, () => db.transaction((tx) => moveTrims(trimIds, targetModelId, tx)));
+  },
 );
 
 // ── 트림 ──────────────────────────────────────────────────────────────────────
