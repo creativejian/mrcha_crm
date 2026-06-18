@@ -90,6 +90,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       .then((b) => {
         setBrands(b);
         setBrandId((cur) => cur ?? b[0]?.id ?? null);
+        setLoadError(false);
       })
       .catch(() => setLoadError(true));
   }, []);
@@ -97,7 +98,10 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   useEffect(() => {
     if (brandId == null) return;
     fetchModels(brandId)
-      .then(setModels)
+      .then((m) => {
+        setModels(m);
+        setLoadError(false);
+      })
       .catch(() => setLoadError(true));
   }, [brandId]);
 
@@ -109,6 +113,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
         // 첫 등장 서브라인 그룹만 펼친 상태로 진입(모델 전환 시 초기화).
         const first = rows[0] ? trimSubline(rows[0].trimName) : null;
         setExpandedGroups(first ? new Set([first]) : new Set());
+        setLoadError(false);
       })
       .catch(() => setLoadError(true));
     fetchTrimColors(Number(modelId))

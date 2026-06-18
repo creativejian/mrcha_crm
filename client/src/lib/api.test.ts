@@ -45,4 +45,55 @@ describe("apiFetch", () => {
     expect(h.get("Authorization")).toBe("Bearer tok");
     expect(h.get("content-type")).toBe("application/json");
   });
+
+  it("GET이 5xx면 재시도해 복구한다", async () => {
+    vi.useFakeTimers();
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: { access_token: "t" } },
+    } as never);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("err", { status: 500 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+    const p = apiFetch("/api/catalog/models?brandId=2");
+    await vi.runAllTimersAsync();
+    const res = await p;
+
+    expect(res.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("GET이 계속 5xx면 최대 3회 시도 후 마지막 응답을 반환한다", async () => {
+    vi.useFakeTimers();
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: { access_token: "t" } },
+    } as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("err", { status: 500 }));
+
+    const p = apiFetch("/api/catalog/models?brandId=2");
+    await vi.runAllTimersAsync();
+    const res = await p;
+
+    expect(res.status).toBe(500);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
+  it("쓰기(POST)는 5xx여도 재시도하지 않는다", async () => {
+    vi.useFakeTimers();
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: { access_token: "t" } },
+    } as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("err", { status: 500 }));
+
+    const p = apiFetch("/api/catalog/models", { method: "POST" });
+    await vi.runAllTimersAsync();
+    const res = await p;
+
+    expect(res.status).toBe(500);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
 });
