@@ -432,6 +432,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 <TrimTable
                   trims={trims}
                   canEdit={canEdit}
+                  isDomestic={isDomestic}
                   selectMode={selectMode}
                   selected={selected}
                   draggingId={draggingId}
