@@ -1,3 +1,5 @@
+import { apiFetch } from "./api";
+
 export type Brand = {
   id: number;
   name: string;
@@ -57,8 +59,6 @@ export type TrimDetail = Trim & {
   colors: TrimColor[];
   noOptions: { note: string | null; checkedAt: string } | null;
 };
-
-import { apiFetch } from "./api";
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await apiFetch(url);
