@@ -4,13 +4,13 @@
 export const TRIM_BODY_COLS = 11;
 
 export function fmtDate(s: string | null): string {
-  return s ? s.slice(0, 10) : "—";
+  return s ? s.slice(0, 10).replace(/-/g, "/") : "—";
 }
 
 export function discountText(amount: number | null, price: number): string {
   if (!amount) return "—";
   const rate = price > 0 ? ((amount / price) * 100).toFixed(1) : "0.0";
-  return `${amount.toLocaleString()}원 (${rate}%)`;
+  return `${amount.toLocaleString()}원(${rate}%)`;
 }
 
 // 원 단위 천단위 콤마 포맷(입력 중 그룹핑). 빈 값은 빈 문자열.
