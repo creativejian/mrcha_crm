@@ -6,7 +6,7 @@ import { catalog } from "./routes/catalog";
 import { vehicles } from "./routes/vehicles";
 
 // 테스트는 authOpts(로컬 keyResolver+issuer)를 주입해 보호 라우트를 통과 검증한다.
-export function createApp(authOpts?: { keyResolver?: JWTVerifyGetKey; issuer?: string }) {
+export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: string }) {
   const app = new Hono();
   const auth = createAuthMiddleware(authOpts);
 

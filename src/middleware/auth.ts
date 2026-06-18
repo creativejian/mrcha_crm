@@ -6,9 +6,10 @@ import { type AuthedUser, verifyAndGate } from "../auth/verify";
 export type AuthVariables = { user: AuthedUser };
 
 // 주입형: 기본은 원격 JWKS(c.env/process.env의 SUPABASE_URL), 테스트는 keyResolver+issuer 주입.
+// opts를 제공할 때는 keyResolver+issuer 쌍이 모두 필요(한쪽만 주입 시 issuer 검증이 무력화되는 문제 방지).
 export function createAuthMiddleware(opts?: {
-  keyResolver?: JWTVerifyGetKey;
-  issuer?: string;
+  keyResolver: JWTVerifyGetKey;
+  issuer: string;
 }): MiddlewareHandler<{ Variables: AuthVariables }> {
   // issuer별 원격 JWKS 캐시(주입 없을 때만).
   let cache: { issuer: string; jwks: JWTVerifyGetKey } | null = null;
@@ -23,7 +24,7 @@ export function createAuthMiddleware(opts?: {
     let keyResolver = opts?.keyResolver;
     if (!keyResolver) {
       const url = (c.env as { SUPABASE_URL?: string } | undefined)?.SUPABASE_URL ?? process.env.SUPABASE_URL;
-      if (!url) throw new Error("SUPABASE_URL is not set (see .env.local / Cloudflare vars)");
+      if (!url) return c.json({ error: "서버 설정 오류입니다. 관리자에게 문의하세요." }, 500);
       issuer = `${url}/auth/v1`;
       if (!cache || cache.issuer !== issuer) {
         cache = { issuer, jwks: createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`)) };
