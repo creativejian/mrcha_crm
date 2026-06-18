@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 
 import { brandsInCatalog, modelsInCatalog, trimOptionsInCatalog, trimsInCatalog } from "../catalog";
-import { db } from "../client";
+import { getDefaultDb } from "../client";
 import {
   assignMcCodes,
   createModel,
@@ -24,7 +24,7 @@ class Rollback extends Error {}
 
 test("catalog-admin CRUD (tx 롤백, prod 무변경)", async () => {
   let ranToEnd = false;
-  await db
+  await getDefaultDb()
     .transaction(async (tx) => {
       // 수입 브랜드 선택: 국산은 trim_name '서브라인 - 등급' 형식 트리거(enforce_domestic_trim_name_format)가 걸린다.
       const [brand] = await tx
@@ -112,7 +112,7 @@ test("catalog-admin CRUD (tx 롤백, prod 무변경)", async () => {
   expect(ranToEnd).toBe(true);
 
   // 롤백 후 prod에 남지 않았는지(다른 연결로 확인)
-  const leftover = await db
+  const leftover = await getDefaultDb()
     .select({ id: modelsInCatalog.id })
     .from(modelsInCatalog)
     .where(eq(modelsInCatalog.name, "__CRM_TEST_MODEL__"));
@@ -120,7 +120,7 @@ test("catalog-admin CRUD (tx 롤백, prod 무변경)", async () => {
 });
 
 test("옵션 요약 + 무옵션 확정 토글 (tx 롤백, prod 무변경)", async () => {
-  await db
+  await getDefaultDb()
     .transaction(async (tx) => {
       const [brand] = await tx
         .select({ id: brandsInCatalog.id })
@@ -164,7 +164,7 @@ test("옵션 요약 + 무옵션 확정 토글 (tx 롤백, prod 무변경)", asyn
 });
 
 test("moveTrims: 다른 모델로 이동 + sort_order 재부여 (tx 롤백, prod 무변경)", async () => {
-  await db
+  await getDefaultDb()
     .transaction(async (tx) => {
       const [brand] = await tx
         .select({ id: brandsInCatalog.id })
@@ -198,7 +198,7 @@ test("moveTrims: 다른 모델로 이동 + sort_order 재부여 (tx 롤백, prod
 });
 
 test("assignMcCodes: 미부여 트림에 trim_code 채번 → mc_code 자동 생성 (tx 롤백, prod 무변경)", async () => {
-  await db
+  await getDefaultDb()
     .transaction(async (tx) => {
       // 브랜드/모델 코드가 모두 있는 모델 선택(없으면 mc_code 생성 불가).
       const [m] = await tx
