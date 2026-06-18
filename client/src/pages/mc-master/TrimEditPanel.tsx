@@ -7,6 +7,7 @@ import {
   TRANSMISSION_TYPES,
   VEHICLE_STATUSES,
   type VehicleStatus,
+  isTrimStatusBlockedByModel,
   statusLabel,
 } from "@/data/vehicle-taxonomy";
 import type { CatalogTrim, TrimInput } from "@/lib/catalog";
@@ -26,12 +27,14 @@ const won = (v: number | null): string => (v != null ? v.toLocaleString() : "");
 
 export function TrimEditPanel({
   trim,
+  modelStatus,
   onClose,
   onSubmit,
   busy,
   error,
 }: {
   trim: CatalogTrim | null;
+  modelStatus: VehicleStatus | null;
   onClose: () => void;
   onSubmit: (values: TrimInput) => void;
   busy: boolean;
@@ -56,7 +59,8 @@ export function TrimEditPanel({
 
   const priceNum = num(price);
   const yearNum = num(modelYear);
-  const canSubmit = trimName.trim().length > 0 && priceNum != null && yearNum != null;
+  const statusBlocked = isTrimStatusBlockedByModel(modelStatus, status);
+  const canSubmit = trimName.trim().length > 0 && priceNum != null && yearNum != null && !statusBlocked;
 
   return (
     <div className="customer-detail-drawer-overlay" role="presentation">
@@ -94,6 +98,11 @@ export function TrimEditPanel({
               ))}
             </select>
           </label>
+          {statusBlocked && (
+            <div className="notice-box error">
+              모델이 단종 상태입니다. 트림을 판매중/출시예정/사전예약으로 저장할 수 없습니다.
+            </div>
+          )}
           <label className="va-field">
             <span>가격(원) *</span>
             <input

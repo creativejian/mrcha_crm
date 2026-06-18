@@ -373,6 +373,30 @@ export async function assignMcCodes(modelId: number, executor: Executor = db): P
   return { assigned: targets.length };
 }
 
+// 트림을 다른 모델로 이동(앱 '모델 이동', 같은 브랜드 내). model_id 변경 + 대상 모델 기준
+// sort_order 재부여(max+1…) — 앱은 재부여를 안 해 UNIQUE(model_id, sort_order) 충돌 위험이
+// 있어 CRM은 보강한다. trim_code/mc_code/canonical_name은 트리거가 변경을 막아 유지(앱 동일, mc_code stale).
+export async function moveTrims(
+  trimIds: number[],
+  targetModelId: number,
+  executor: Executor = db,
+): Promise<{ moved: number }> {
+  if (trimIds.length === 0) return { moved: 0 };
+  const [row] = await executor
+    .select({ m: max(trimsInCatalog.sortOrder) })
+    .from(trimsInCatalog)
+    .where(eq(trimsInCatalog.modelId, targetModelId));
+  let order = Number(row?.m ?? 0);
+  for (const id of trimIds) {
+    order += 1;
+    await executor
+      .update(trimsInCatalog)
+      .set({ modelId: targetModelId, sortOrder: order })
+      .where(eq(trimsInCatalog.id, id));
+  }
+  return { moved: trimIds.length };
+}
+
 // ── 순서변경 ──────────────────────────────────────────────────────────────────
 // orderedIds 위치(1..N)를 sort_order로. public.batch_update_sort_order RPC가 temp 값으로
 // UNIQUE(brand_id/model_id, sort_order) 충돌을 회피한다. table='models'|'trims'.

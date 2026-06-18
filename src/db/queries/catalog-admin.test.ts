@@ -10,6 +10,7 @@ import {
   createTrim,
   deleteModel,
   listModelOptionSummary,
+  moveTrims,
   reorderCatalog,
   setTrimNoOption,
   unsetTrimNoOption,
@@ -155,6 +156,40 @@ test("옵션 요약 + 무옵션 확정 토글 (tx 롤백, prod 무변경)", asyn
       expect(s?.tuning).toBe(1);
 
       await unsetTrimNoOption(trim.id, tx);
+      throw new Rollback();
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Rollback)) throw e;
+    });
+});
+
+test("moveTrims: 다른 모델로 이동 + sort_order 재부여 (tx 롤백, prod 무변경)", async () => {
+  await db
+    .transaction(async (tx) => {
+      const [brand] = await tx
+        .select({ id: brandsInCatalog.id })
+        .from(brandsInCatalog)
+        .where(eq(brandsInCatalog.isDomestic, false))
+        .limit(1);
+      const modelA = await createModel({ brandId: brand.id, name: "__MOVE_A__", category: null, status: "판매중" }, tx);
+      const modelB = await createModel({ brandId: brand.id, name: "__MOVE_B__", category: null, status: "판매중" }, tx);
+      // B에 기존 트림 1개(sort_order 1 차지) → 이동 시 충돌하면 안 됨
+      await createTrim({ modelId: modelB.id, trimName: "B기존", price: 1000, modelYear: 2026, fuelType: "가솔린" }, tx);
+      const t = await createTrim(
+        { modelId: modelA.id, trimName: "이동대상", price: 2000, modelYear: 2026, fuelType: "가솔린" },
+        tx,
+      );
+
+      const res = await moveTrims([t.id], modelB.id, tx);
+      expect(res.moved).toBe(1);
+
+      const [moved] = await tx
+        .select({ modelId: trimsInCatalog.modelId, sortOrder: trimsInCatalog.sortOrder })
+        .from(trimsInCatalog)
+        .where(eq(trimsInCatalog.id, t.id));
+      expect(moved.modelId).toBe(modelB.id);
+      expect(Number(moved.sortOrder)).toBeGreaterThanOrEqual(2); // B 기존 max(1) + 1
+
       throw new Rollback();
     })
     .catch((e: unknown) => {
