@@ -2,6 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+// apiFetch(./lib/api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
+vi.mock("@/lib/supabase", () => ({
+  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
+}));
+
 import { App } from "./App";
 
 // 일부 화면(mc-master 등)이 마운트 시 fetch를 호출하므로 전역 mock.
