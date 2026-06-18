@@ -58,8 +58,10 @@ export type TrimDetail = Trim & {
   noOptions: { note: string | null; checkedAt: string } | null;
 };
 
+import { apiFetch } from "./api";
+
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) {
     throw new Error(`vehicle fetch failed: ${res.status} ${url}`);
   }

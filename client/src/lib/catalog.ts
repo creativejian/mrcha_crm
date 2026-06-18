@@ -1,4 +1,5 @@
 import type { VehicleStatus } from "@/data/vehicle-taxonomy";
+import { apiFetch } from "./api";
 
 export type CatalogCounts = {
   brands: number;
@@ -11,7 +12,7 @@ export type CatalogCounts = {
 };
 
 export async function fetchCatalogCounts(): Promise<CatalogCounts> {
-  const res = await fetch("/api/catalog/counts");
+  const res = await apiFetch("/api/catalog/counts");
   if (!res.ok) throw new Error(`catalog counts 실패: ${res.status}`);
   return (await res.json()) as CatalogCounts;
 }
@@ -49,11 +50,11 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
 }
 
 export async function fetchBrands(): Promise<CatalogBrand[]> {
-  return jsonOrThrow(await fetch("/api/catalog/brands"));
+  return jsonOrThrow(await apiFetch("/api/catalog/brands"));
 }
 
 export async function fetchModels(brandId: number): Promise<CatalogModel[]> {
-  return jsonOrThrow(await fetch(`/api/catalog/models?brandId=${brandId}`));
+  return jsonOrThrow(await apiFetch(`/api/catalog/models?brandId=${brandId}`));
 }
 
 export async function createModel(input: {
@@ -63,7 +64,7 @@ export async function createModel(input: {
   status: VehicleStatus;
 }): Promise<CatalogModel> {
   return jsonOrThrow(
-    await fetch("/api/catalog/models", {
+    await apiFetch("/api/catalog/models", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
@@ -76,7 +77,7 @@ export async function updateModel(
   input: { category?: string | null; status?: VehicleStatus },
 ): Promise<CatalogModel> {
   return jsonOrThrow(
-    await fetch(`/api/catalog/models/${id}`, {
+    await apiFetch(`/api/catalog/models/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
@@ -85,7 +86,7 @@ export async function updateModel(
 }
 
 export async function deleteModel(id: number): Promise<{ id: number }> {
-  return jsonOrThrow(await fetch(`/api/catalog/models/${id}`, { method: "DELETE" }));
+  return jsonOrThrow(await apiFetch(`/api/catalog/models/${id}`, { method: "DELETE" }));
 }
 
 // ── 트림 ───────────────────────────────────────────────────────────────────────
@@ -136,16 +137,16 @@ export type TrimInput = {
 };
 
 export async function fetchTrims(modelId: number): Promise<CatalogTrim[]> {
-  return jsonOrThrow(await fetch(`/api/catalog/trims?modelId=${modelId}`));
+  return jsonOrThrow(await apiFetch(`/api/catalog/trims?modelId=${modelId}`));
 }
 
 export async function fetchTrimColors(modelId: number): Promise<TrimColor[]> {
-  return jsonOrThrow(await fetch(`/api/catalog/models/${modelId}/trim-colors`));
+  return jsonOrThrow(await apiFetch(`/api/catalog/models/${modelId}/trim-colors`));
 }
 
 export async function createTrim(modelId: number, input: TrimInput): Promise<CatalogTrim> {
   return jsonOrThrow(
-    await fetch("/api/catalog/trims", {
+    await apiFetch("/api/catalog/trims", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ modelId, ...input }),
@@ -155,7 +156,7 @@ export async function createTrim(modelId: number, input: TrimInput): Promise<Cat
 
 export async function updateTrim(id: number, input: Partial<TrimInput>): Promise<CatalogTrim> {
   return jsonOrThrow(
-    await fetch(`/api/catalog/trims/${id}`, {
+    await apiFetch(`/api/catalog/trims/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
@@ -164,12 +165,12 @@ export async function updateTrim(id: number, input: Partial<TrimInput>): Promise
 }
 
 export async function deleteTrim(id: number): Promise<{ id: number }> {
-  return jsonOrThrow(await fetch(`/api/catalog/trims/${id}`, { method: "DELETE" }));
+  return jsonOrThrow(await apiFetch(`/api/catalog/trims/${id}`, { method: "DELETE" }));
 }
 
 // 모델의 mc_code 미부여 트림에 고유번호 일괄 부여.
 export async function assignMcCodes(modelId: number): Promise<{ assigned: number }> {
-  return jsonOrThrow(await fetch(`/api/catalog/models/${modelId}/assign-codes`, { method: "POST" }));
+  return jsonOrThrow(await apiFetch(`/api/catalog/models/${modelId}/assign-codes`, { method: "POST" }));
 }
 
 // ── 옵션 ───────────────────────────────────────────────────────────────────────
@@ -182,11 +183,11 @@ export type OptionsBundle = { options: CatalogOption[]; relations: OptionRelatio
 export type TrimOptionSummary = { trimId: number; basic: number; tuning: number; noOption: boolean };
 
 export async function fetchOptionSummary(modelId: number): Promise<TrimOptionSummary[]> {
-  return jsonOrThrow(await fetch(`/api/catalog/models/${modelId}/option-summary`));
+  return jsonOrThrow(await apiFetch(`/api/catalog/models/${modelId}/option-summary`));
 }
 
 export async function fetchOptions(trimId: number): Promise<OptionsBundle> {
-  return jsonOrThrow(await fetch(`/api/catalog/trims/${trimId}/options`));
+  return jsonOrThrow(await apiFetch(`/api/catalog/trims/${trimId}/options`));
 }
 
 export async function createOption(
@@ -194,7 +195,7 @@ export async function createOption(
   input: { type: OptionType; name: string; price: number | null },
 ): Promise<CatalogOption> {
   return jsonOrThrow(
-    await fetch(`/api/catalog/trims/${trimId}/options`, {
+    await apiFetch(`/api/catalog/trims/${trimId}/options`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
@@ -204,7 +205,7 @@ export async function createOption(
 
 export async function updateOption(id: number, input: { name?: string; price?: number | null }): Promise<CatalogOption> {
   return jsonOrThrow(
-    await fetch(`/api/catalog/options/${id}`, {
+    await apiFetch(`/api/catalog/options/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
@@ -213,21 +214,21 @@ export async function updateOption(id: number, input: { name?: string; price?: n
 }
 
 export async function deleteOption(id: number): Promise<{ id: number }> {
-  return jsonOrThrow(await fetch(`/api/catalog/options/${id}`, { method: "DELETE" }));
+  return jsonOrThrow(await apiFetch(`/api/catalog/options/${id}`, { method: "DELETE" }));
 }
 
 export async function setNoOption(trimId: number): Promise<{ ok: boolean }> {
-  return jsonOrThrow(await fetch(`/api/catalog/trims/${trimId}/no-option`, { method: "POST" }));
+  return jsonOrThrow(await apiFetch(`/api/catalog/trims/${trimId}/no-option`, { method: "POST" }));
 }
 
 export async function unsetNoOption(trimId: number): Promise<{ ok: boolean }> {
-  return jsonOrThrow(await fetch(`/api/catalog/trims/${trimId}/no-option`, { method: "DELETE" }));
+  return jsonOrThrow(await apiFetch(`/api/catalog/trims/${trimId}/no-option`, { method: "DELETE" }));
 }
 
 // 순서변경: orderedIds 위치(1..N) = sort_order.
 export async function reorderModels(ids: number[]): Promise<void> {
   await jsonOrThrow(
-    await fetch("/api/catalog/models/reorder", {
+    await apiFetch("/api/catalog/models/reorder", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ids }),
@@ -237,7 +238,7 @@ export async function reorderModels(ids: number[]): Promise<void> {
 
 export async function reorderTrims(ids: number[]): Promise<void> {
   await jsonOrThrow(
-    await fetch("/api/catalog/trims/reorder", {
+    await apiFetch("/api/catalog/trims/reorder", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ids }),
@@ -248,7 +249,7 @@ export async function reorderTrims(ids: number[]): Promise<void> {
 // 트림 다른 모델로 이동(같은 브랜드).
 export async function moveTrims(trimIds: number[], targetModelId: number): Promise<{ moved: number }> {
   return jsonOrThrow(
-    await fetch("/api/catalog/trims/move", {
+    await apiFetch("/api/catalog/trims/move", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ trimIds, targetModelId }),
