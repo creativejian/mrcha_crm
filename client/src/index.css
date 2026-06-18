@@ -15962,7 +15962,7 @@ select.kim-jeff-discount-label {
 }
 .va-layout {
   display: grid;
-  grid-template-columns: 168px minmax(0, 1fr);
+  grid-template-columns: 140px minmax(0, 1fr);
   min-height: 420px;
 }
 .va-brand-sidebar {
@@ -16003,14 +16003,14 @@ select.kim-jeff-discount-label {
 .va-brand-logo {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
   object-fit: contain;
-  background: #fff;
-  border: 1px solid var(--line-soft);
   flex: 0 0 auto;
 }
 .va-model-table {
+  /* 전체 100% 채우되(table-layout: fixed 상속), 데이터 컬럼은 고정폭이고 모델명/가격이 남는 폭을 나눠 갖는다.
+     모델표는 6컬럼뿐이라 고객표(1160) min-width는 과하므로 모델표 기준으로 낮춘다. */
   width: 100%;
+  min-width: 780px;
 }
 .va-col-center {
   text-align: center;
@@ -16138,10 +16138,20 @@ select.kim-jeff-discount-label {
   width: 60px;
   white-space: nowrap;
 }
+/* 차량 관리 선택 체크박스는 고객 리스트(15px)보다 약간 크게. */
+.va-col-sel input {
+  width: 17px;
+  height: 17px;
+}
 .va-sel-cell {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  /* td는 vertical-align: middle이지만 inline-flex는 baseline으로 떠서 위로 치우친다. 묶음을 셀 중앙에. */
+  vertical-align: middle;
+}
+.va-sel-cell input {
+  margin: 0;
 }
 .va-grip {
   color: #b8bcc2;
@@ -16310,6 +16320,25 @@ select.kim-jeff-discount-label {
 .va-trim-table td:nth-child(2) {
   padding-left: 10px;
 }
+/* 모델명·데이터 컬럼은 고정폭, 가격만 남는 폭 흡수(한 줄 보장). */
+.va-model-table .va-mt-name {
+  width: 250px;
+}
+.va-model-table .va-mt-price {
+  white-space: nowrap;
+}
+.va-model-table .va-mt-cat {
+  width: 116px;
+}
+.va-model-table .va-mt-status {
+  width: 84px;
+}
+.va-model-table .va-mt-count {
+  width: 64px;
+}
+.va-model-table .va-mt-edit {
+  width: 56px;
+}
 /* 트림 테이블 컬럼 폭(table-layout: fixed). 트림명 넓게, 연식/상태 좁게. */
 .va-th-trim {
   width: 240px;
@@ -16328,6 +16357,18 @@ select.kim-jeff-discount-label {
 }
 .va-th-option {
   width: 60px;
+}
+.va-th-edit {
+  width: 56px;
+}
+/* 가격변경일/할인변경일·자사/제휴/타사할인은 한 줄 표시(트림표는 가로 스크롤이라 폭을 넉넉히 줘 줄바꿈을 막는다). */
+.va-trim-table .va-c-date {
+  width: 100px;
+  white-space: nowrap;
+}
+.va-trim-table .va-c-disc {
+  width: 152px;
+  white-space: nowrap;
 }
 /* 옵션 배지 버튼: 리스트 아이콘 + 우상단 배지(있음 파랑/무옵션확정 회색/미정 빨강). */
 .va-option-btn {

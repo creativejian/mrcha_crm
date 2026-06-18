@@ -1,6 +1,7 @@
-import { GripVertical, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
+import { SelectAllHeadCell, SelectCheckCell, SelectableRow } from "./table-select";
 import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 
 // 평면 트림 테이블(전체 trim_name). 국산차 '순서 관리' 탭 / 수입차 기본 뷰에서 쓴다.
@@ -42,50 +43,30 @@ export function TrimTable({
     <table className="customer-table va-trim-table">
       <thead>
         <tr>
-          {selectMode && (
-            <th className="va-col-sel">
-              <input type="checkbox" checked={allChecked} onChange={onToggleAll} aria-label="전체 선택" />
-            </th>
-          )}
+          <SelectAllHeadCell show={selectMode} allChecked={allChecked} onToggleAll={onToggleAll} />
           <th className="va-th-trim">트림명</th>
           <TrimHeadCells />
-          {canEdit && !selectMode && <th className="va-col-center" aria-label="편집" />}
+          {canEdit && !selectMode && <th className="va-col-center va-th-edit" aria-label="편집" />}
         </tr>
       </thead>
       <tbody>
         {trims.map((t) => (
-          <tr
+          <SelectableRow
             key={t.id}
-            draggable={selectMode}
-            onDragStart={selectMode ? () => onDragStart(t.id) : undefined}
-            onDragOver={
-              selectMode
-                ? (e) => {
-                    e.preventDefault();
-                    onDragOver(t.id);
-                  }
-                : undefined
-            }
-            onDragEnd={selectMode ? onDrop : undefined}
-            className={
-              [selectMode && selected.has(t.id) ? "va-row-selected" : "", draggingId === t.id ? "va-dragging" : ""]
-                .filter(Boolean)
-                .join(" ") || undefined
-            }
+            id={t.id}
+            selectMode={selectMode}
+            isSelected={selected.has(t.id)}
+            isDragging={draggingId === t.id}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
           >
-            {selectMode && (
-              <td className="va-col-sel">
-                <span className="va-sel-cell">
-                  <GripVertical className="va-grip" size={15} />
-                  <input
-                    type="checkbox"
-                    checked={selected.has(t.id)}
-                    onChange={() => onToggle(t.id)}
-                    aria-label={`${t.trimName} 선택`}
-                  />
-                </span>
-              </td>
-            )}
+            <SelectCheckCell
+              show={selectMode}
+              checked={selected.has(t.id)}
+              onToggle={() => onToggle(t.id)}
+              label={`${t.trimName} 선택`}
+            />
             <td className="va-th-trim">
               <div className="va-trim-name">{t.trimName}</div>
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
@@ -101,7 +82,7 @@ export function TrimTable({
                 </button>
               </td>
             )}
-          </tr>
+          </SelectableRow>
         ))}
       </tbody>
     </table>

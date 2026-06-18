@@ -36,11 +36,11 @@ export function TrimHeadCells() {
       <th className="va-th-code">고유번호</th>
       <th className="va-col-center va-th-year">연식</th>
       <th className="va-th-price">기본가격(개소세인하)</th>
-      <th className="va-col-center">가격변경일</th>
-      <th>자사할인</th>
-      <th>제휴할인</th>
-      <th>타사할인</th>
-      <th className="va-col-center">할인변경일</th>
+      <th className="va-col-center va-c-date">가격변경일</th>
+      <th className="va-c-disc">자사할인</th>
+      <th className="va-c-disc">제휴할인</th>
+      <th className="va-c-disc">타사할인</th>
+      <th className="va-col-center va-c-date">할인변경일</th>
       <th className="va-col-center va-th-status">상태</th>
       <th className="va-col-center va-th-option">옵션</th>
     </>
@@ -80,11 +80,11 @@ export function TrimMetaCells({ trim }: { trim: CatalogTrim }) {
       <td className="va-num">{trim.mcCode ?? "—"}</td>
       <td className="va-col-center va-num">{trim.modelYear ?? "—"}</td>
       <td className="va-num">{trim.price.toLocaleString()}원</td>
-      <td className="va-col-center va-num va-muted">{fmtDate(trim.priceUpdatedAt)}</td>
-      <td className="va-num">{discountText(trim.financialDiscountAmount, trim.price)}</td>
-      <td className="va-num">{discountText(trim.partnerDiscountAmount, trim.price)}</td>
-      <td className="va-num">{discountText(trim.cashDiscountAmount, trim.price)}</td>
-      <td className="va-col-center va-num va-muted">{fmtDate(trim.discountUpdatedAt)}</td>
+      <td className="va-col-center va-num va-muted va-c-date">{fmtDate(trim.priceUpdatedAt)}</td>
+      <td className="va-num va-c-disc">{discountText(trim.financialDiscountAmount, trim.price)}</td>
+      <td className="va-num va-c-disc">{discountText(trim.partnerDiscountAmount, trim.price)}</td>
+      <td className="va-num va-c-disc">{discountText(trim.cashDiscountAmount, trim.price)}</td>
+      <td className="va-col-center va-num va-muted va-c-date">{fmtDate(trim.discountUpdatedAt)}</td>
       <td className="va-col-center">
         <span className={`badge ${statusBadgeTone(trim.status)}`}>{statusLabel(trim.status)}</span>
       </td>
