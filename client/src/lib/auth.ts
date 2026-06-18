@@ -10,6 +10,8 @@ export async function signInWithKakao(): Promise<void> {
 }
 
 export async function signOut(): Promise<void> {
+  // 로그아웃 오류는 무시한다. 서버 세션 무효화가 실패해도 로컬 세션은 이미
+  // 정리되어 사용자는 로그인 화면으로 이동되므로 throw하지 않는다.
   await supabase.auth.signOut();
 }
 
