@@ -9,6 +9,9 @@ playwright-report/
 .env
 .env.*
 !.env.example
+# .env.production: 클라이언트 번들에 박히는 공개값(VITE_SUPABASE_URL/PUBLISHABLE_KEY)만.
+# CF Pages 빌드에서 vite가 읽어 번들 주입. 비밀(DATABASE_URL 등)은 절대 넣지 말 것(대시보드 secret).
+!.env.production
 .DS_Store
 *.log
 supabase/.temp/

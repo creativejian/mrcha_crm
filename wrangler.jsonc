@@ -4,6 +4,7 @@
   "pages_build_output_dir": "client/dist",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "APP_ENV": "development"
+    "APP_ENV": "development",
+    "SUPABASE_URL": "https://wmkbmlespgzkeekliwio.supabase.co"
   }
 }
