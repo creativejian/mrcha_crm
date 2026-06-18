@@ -30,7 +30,8 @@ export function ColorChips({ colors }: { colors: TrimColor[] }) {
 }
 
 // 트림명 다음 ~ 편집 전 공통 헤더(평면/그룹 테이블 컬럼 동기화).
-export function TrimHeadCells() {
+// 옵션 컬럼은 국산차만 표시(앱 패리티 — 수입차는 옵션 미관리).
+export function TrimHeadCells({ showOption = true }: { showOption?: boolean }) {
   return (
     <>
       <th className="va-th-code">고유번호</th>
@@ -42,7 +43,7 @@ export function TrimHeadCells() {
       <th className="va-c-disc">타사할인</th>
       <th className="va-col-center va-c-date">할인변경일</th>
       <th className="va-col-center va-th-status">상태</th>
-      <th className="va-col-center va-th-option">옵션</th>
+      {showOption && <th className="va-col-center va-th-option">옵션</th>}
     </>
   );
 }

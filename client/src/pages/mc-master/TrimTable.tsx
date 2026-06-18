@@ -9,6 +9,7 @@ import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./t
 export function TrimTable({
   trims,
   canEdit,
+  isDomestic,
   selectMode,
   selected,
   draggingId,
@@ -24,6 +25,7 @@ export function TrimTable({
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
+  isDomestic: boolean;
   selectMode: boolean;
   selected: Set<number>;
   draggingId: number | null;
@@ -45,7 +47,7 @@ export function TrimTable({
         <tr>
           <SelectAllHeadCell show={selectMode} allChecked={allChecked} onToggleAll={onToggleAll} />
           <th className="va-th-trim">트림명</th>
-          <TrimHeadCells />
+          <TrimHeadCells showOption={isDomestic} />
           {canEdit && !selectMode && <th className="va-col-center va-th-edit" aria-label="편집" />}
         </tr>
       </thead>
@@ -72,9 +74,11 @@ export function TrimTable({
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
             </td>
             <TrimMetaCells trim={t} />
-            <td className="va-col-center">
-              <OptionBadgeButton summary={optionByTrim.get(t.id)} onClick={() => onOpenOptions(t)} />
-            </td>
+            {isDomestic && (
+              <td className="va-col-center">
+                <OptionBadgeButton summary={optionByTrim.get(t.id)} onClick={() => onOpenOptions(t)} />
+              </td>
+            )}
             {canEdit && !selectMode && (
               <td className="va-col-center">
                 <button type="button" className="tiny-btn" aria-label={`${t.trimName} 수정`} onClick={() => onEdit(t)}>
