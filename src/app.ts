@@ -35,6 +35,13 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   // 응답 본문에는 내부 정보(DB 에러 등)를 노출하지 않는다.
   app.onError((err, c) => {
     console.error(err);
+    // drizzle은 원인을 err.cause로 감싼다(postgres.js 연결/쿼리 에러). 진단용으로 함께 남긴다.
+    const cause = (err as { cause?: unknown }).cause;
+    if (cause)
+      console.error(
+        "DB cause:",
+        cause instanceof Error ? `${cause.name}: ${cause.message}` : JSON.stringify(cause),
+      );
     return c.json({ error: "Internal Server Error" }, 500);
   });
   return app;
