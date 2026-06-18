@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import cjLogo from "@/assets/cj.jpeg";
 import { initialCustomers, type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
+import { signOut } from "@/lib/auth";
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
   return (
@@ -589,7 +590,7 @@ export function Topbar({ sidebarCollapsed, roleTab, onNavigate, onOpenCustomer, 
                 )}
                 <div className={`settings-menu-line logout-line ${dealerMode ? "after-live" : ""}`}><span>Prototype by Jian</span></div>
                 <div className="settings-menu-section logout-section">
-                  <button className="settings-menu-row danger" type="button"><span><SettingSolidIcon name="logout" />로그아웃</span></button>
+                  <button className="settings-menu-row danger" onClick={() => void signOut()} type="button"><span><SettingSolidIcon name="logout" />로그아웃</span></button>
                 </div>
               </div>
             </>
