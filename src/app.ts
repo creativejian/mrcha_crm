@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { JWTVerifyGetKey } from "jose";
 
 import { createAuthMiddleware } from "./middleware/auth";
+import { dbMiddleware } from "./middleware/db";
 import { catalog } from "./routes/catalog";
 import { vehicles } from "./routes/vehicles";
 
@@ -12,9 +13,12 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
 
   app.get("/api/health", (c) => c.json({ ok: true, service: "mrcha-crm" }));
 
-  // 보호 라우트: 카카오 로그인(Supabase JWT) + role 게이트.
+  // 보호 라우트: 카카오 로그인(Supabase JWT) + role 게이트, 이후 요청 컨텍스트 db 주입.
+  // auth → db 순서: 401(미인증)은 db 생성 없이 차단.
   app.use("/api/vehicles/*", auth);
+  app.use("/api/vehicles/*", dbMiddleware);
   app.use("/api/catalog/*", auth);
+  app.use("/api/catalog/*", dbMiddleware);
 
   app.route("/api/vehicles", vehicles);
   app.route("/api/catalog", catalog);
