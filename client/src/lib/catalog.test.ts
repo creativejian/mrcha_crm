@@ -1,5 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 
+// apiFetch(./api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
+vi.mock("./supabase", () => ({
+  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
+}));
+
 import {
   createModel,
   createTrim,

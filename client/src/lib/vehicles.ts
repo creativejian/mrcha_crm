@@ -1,3 +1,5 @@
+import { apiFetch } from "./api";
+
 export type Brand = {
   id: number;
   name: string;
@@ -59,7 +61,7 @@ export type TrimDetail = Trim & {
 };
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) {
     throw new Error(`vehicle fetch failed: ${res.status} ${url}`);
   }

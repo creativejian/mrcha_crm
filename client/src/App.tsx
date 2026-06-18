@@ -4,7 +4,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router"
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups, initialCustomers } from "@/data/customers";
-import type { RoleTab } from "@/data/roles";
+import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
 import { AdvisorDashboardPage, AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
 import { ChatPage } from "@/pages/ChatPage";
@@ -86,7 +86,8 @@ export function App() {
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [roleTab, setRoleTab] = useState<RoleTab>("최고관리자");
+  // RequireAuth가 App 렌더 전에 roleTab null(권한 없음)을 막으므로 이 폴백은 프로덕션에선 도달 불가(타입 안전용).
+  const roleTab = useAuth().roleTab ?? "상담사";
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [selectedCustomerNo, setSelectedCustomerNo] = useState(initialCustomers[0].no);
   const [chanceOverrides, setChanceOverrides] = useState<Record<number, CustomerChanceOption>>({});
@@ -121,10 +122,6 @@ export function App() {
   useEffect(() => () => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
   }, []);
-
-  function handleRoleTabChange(role: RoleTab) {
-    setRoleTab(role);
-  }
 
   function handleViewChange(view: string) {
     setCustomerDetailPanelOpen(false);
@@ -248,7 +245,7 @@ export function App() {
 
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} onCustomerModeChange={setCustomerMode} onFinanceModeChange={setFinanceMode} onRoleTabChange={handleRoleTabChange} onViewChange={handleViewChange} />
+      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} onCustomerModeChange={setCustomerMode} onFinanceModeChange={setFinanceMode} onViewChange={handleViewChange} />
       <main className={`main ${isCustomerConsole ? "customer-line-draft" : ""}`}>
         <Topbar
           sidebarCollapsed={sidebarCollapsed}
