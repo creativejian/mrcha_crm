@@ -1,45 +1,49 @@
-import { type CatalogModel, fetchModels } from "@/lib/catalog";
+import {
+  type CatalogModel,
+  type CatalogTrim,
+  type TrimColor,
+  type TrimOptionSummary,
+  fetchModels,
+  fetchOptionSummary,
+  fetchTrimColors,
+  fetchTrims,
+} from "@/lib/catalog";
 
-// 차량 관리(/mc-master) 모델 목록 프리패치/캐시.
+// 차량 관리(/mc-master) 카탈로그 프리패치/캐시.
 //
-// 목적: prod에서 브랜드 클릭마다 CF→Hyperdrive→DB 왕복 + 요청별 연결 생성으로
-// 클릭 랙이 생긴다(로컬은 웜 싱글톤이라 빠름). 모듈 스코프 캐시 + hover 프리패치로
-// 재방문·프리패치된 브랜드는 즉시 렌더(왕복 0)하고, 캐시는 화면 이동 후에도 유지된다.
+// 목적: prod에서 클릭마다 CF→Hyperdrive→DB 왕복 + 요청별 연결 생성으로 랙이 생긴다
+// (로컬은 웜 싱글톤이라 빠름). 모듈 스코프 캐시 + hover 프리패치로 재방문·프리패치된
+// 항목은 즉시 렌더(왕복 0), 캐시는 화면 이동 후에도 유지. id별 신선도 30s, 편집은 force로 갱신.
 
-type Entry = { models: CatalogModel[]; at: number };
-
-// 캐시가 이 시간보다 최신이면 네트워크 생략(즉시 반환). 어드민 편집은 force로 갱신한다.
 const FRESH_MS = 30_000;
 
-const cache = new Map<number, Entry>();
-const inflight = new Map<number, Promise<CatalogModel[]>>();
+type CacheApi<T> = {
+  get: (id: number) => T | undefined;
+  load: (id: number, opts?: { force?: boolean }) => Promise<T>;
+};
 
-// 즉시 렌더용(있으면 첫 페인트에 사용). 신선도 무관하게 마지막 스냅샷 반환.
-export function getCachedModels(brandId: number): CatalogModel[] | undefined {
-  return cache.get(brandId)?.models;
-}
-
-// 모델 목록을 가져온다. 캐시가 신선하면 네트워크 없이 반환, 아니면 fetch 후 캐시·이미지 워밍.
-// 동시 호출은 brand별로 dedupe. force=true면 신선도 무시하고 항상 새로 가져온다(편집 후 갱신).
-export function fetchModelsCached(brandId: number, opts?: { force?: boolean }): Promise<CatalogModel[]> {
-  const entry = cache.get(brandId);
-  if (!opts?.force && entry && Date.now() - entry.at < FRESH_MS) return Promise.resolve(entry.models);
-  const existing = inflight.get(brandId);
-  if (existing) return existing;
-  const p = fetchModels(brandId)
-    .then((models) => {
-      cache.set(brandId, { models, at: Date.now() });
-      warmModelImages(models);
-      return models;
-    })
-    .finally(() => inflight.delete(brandId));
-  inflight.set(brandId, p);
-  return p;
-}
-
-// hover/focus 프리패치: 캐시만 채우고 결과는 버린다(에러 무시).
-export function prefetchModels(brandId: number): void {
-  void fetchModelsCached(brandId).catch(() => undefined);
+// id(brandId/modelId) → 값 캐시. 신선하면 네트워크 생략, 동시호출 dedupe, onLoad로 부수효과(이미지 워밍).
+function makeCache<T>(fetcher: (id: number) => Promise<T>, onLoad?: (value: T) => void): CacheApi<T> {
+  const cache = new Map<number, { value: T; at: number }>();
+  const inflight = new Map<number, Promise<T>>();
+  return {
+    get: (id) => cache.get(id)?.value,
+    load: (id, opts) => {
+      const entry = cache.get(id);
+      if (!opts?.force && entry && Date.now() - entry.at < FRESH_MS) return Promise.resolve(entry.value);
+      const existing = inflight.get(id);
+      if (existing) return existing;
+      const p = fetcher(id)
+        .then((value) => {
+          cache.set(id, { value, at: Date.now() });
+          onLoad?.(value);
+          return value;
+        })
+        .finally(() => inflight.delete(id));
+      inflight.set(id, p);
+      return p;
+    },
+  };
 }
 
 // 모델 썸네일을 브라우저 캐시에 미리 올린다(render 엔드포인트 첫 변환 지연 흡수).
@@ -51,4 +55,33 @@ function warmModelImages(models: CatalogModel[]): void {
     img.decoding = "async";
     img.src = m.imageUrl;
   }
+}
+
+// ── 브랜드별 모델 목록 ──────────────────────────────────────────────────────────
+const modelsCache = makeCache<CatalogModel[]>(fetchModels, warmModelImages);
+export const getCachedModels = (brandId: number): CatalogModel[] | undefined => modelsCache.get(brandId);
+export const fetchModelsCached = (brandId: number, opts?: { force?: boolean }): Promise<CatalogModel[]> =>
+  modelsCache.load(brandId, opts);
+export function prefetchModels(brandId: number): void {
+  void modelsCache.load(brandId).catch(() => undefined);
+}
+
+// ── 모델별 트림 뷰(트림 + 색상 + 옵션요약) ───────────────────────────────────────
+const trimsCache = makeCache<CatalogTrim[]>(fetchTrims);
+const trimColorsCache = makeCache<TrimColor[]>(fetchTrimColors);
+const optionSummaryCache = makeCache<TrimOptionSummary[]>(fetchOptionSummary);
+
+export const getCachedTrims = (modelId: number): CatalogTrim[] | undefined => trimsCache.get(modelId);
+export const fetchTrimsCached = (modelId: number, opts?: { force?: boolean }): Promise<CatalogTrim[]> =>
+  trimsCache.load(modelId, opts);
+export const fetchTrimColorsCached = (modelId: number, opts?: { force?: boolean }): Promise<TrimColor[]> =>
+  trimColorsCache.load(modelId, opts);
+export const fetchOptionSummaryCached = (modelId: number, opts?: { force?: boolean }): Promise<TrimOptionSummary[]> =>
+  optionSummaryCache.load(modelId, opts);
+
+// 모델 hover/클릭 전 프리패치: 트림+색상+옵션요약을 한 번에 받아둬 트림 뷰 진입 즉시.
+export function prefetchTrims(modelId: number): void {
+  void trimsCache.load(modelId).catch(() => undefined);
+  void trimColorsCache.load(modelId).catch(() => undefined);
+  void optionSummaryCache.load(modelId).catch(() => undefined);
 }

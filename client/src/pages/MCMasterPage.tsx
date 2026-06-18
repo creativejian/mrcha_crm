@@ -17,9 +17,6 @@ import {
   deleteModel,
   deleteTrim,
   fetchBrands,
-  fetchOptionSummary,
-  fetchTrimColors,
-  fetchTrims,
   moveTrims,
   reorderModels,
   reorderTrims,
@@ -27,7 +24,15 @@ import {
   updateTrim,
 } from "@/lib/catalog";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
-import { fetchModelsCached, getCachedModels, prefetchModels } from "./mc-master/catalog-cache";
+import {
+  fetchModelsCached,
+  fetchOptionSummaryCached,
+  fetchTrimColorsCached,
+  fetchTrimsCached,
+  getCachedModels,
+  prefetchModels,
+  prefetchTrims,
+} from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
@@ -118,17 +123,24 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
 
   useEffect(() => {
     if (!modelId) return;
-    fetchTrims(Number(modelId))
+    const id = Number(modelId);
+    let active = true; // 모델 빠르게 전환 시 늦게 온 응답이 다른 모델을 덮지 않게.
+    // 캐시/프리패치된 모델은 즉시 resolve → 트림 뷰 진입 즉시.
+    fetchTrimsCached(id)
       .then((rows) => {
+        if (!active) return;
         setTrims(rows);
         // 첫 등장 서브라인 그룹만 펼친 상태로 진입(모델 전환 시 초기화).
         const first = rows[0] ? trimSubline(rows[0].trimName) : null;
         setExpandedGroups(first ? new Set([first]) : new Set());
         setLoadError(false);
       })
-      .catch(() => setLoadError(true));
-    fetchTrimColors(Number(modelId))
+      .catch(() => {
+        if (active) setLoadError(true);
+      });
+    fetchTrimColorsCached(id)
       .then((rows) => {
+        if (!active) return;
         const map = new Map<number, TrimColor[]>();
         for (const c of rows) {
           if (c.trimId == null) continue;
@@ -139,9 +151,14 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
         setColorsByTrim(map);
       })
       .catch(() => undefined);
-    fetchOptionSummary(Number(modelId))
-      .then((rows) => setOptionByTrim(toOptionMap(rows)))
+    fetchOptionSummaryCached(id)
+      .then((rows) => {
+        if (active) setOptionByTrim(toOptionMap(rows));
+      })
       .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, [modelId]);
 
   // 모델 목록 스크롤 위치 보존: 트림 뷰로 들어갔다 뒤로 와도 위치 복원.
@@ -161,13 +178,14 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   }
   function reloadTrims() {
     if (!modelId) return;
-    fetchTrims(Number(modelId))
+    // 편집 직후엔 신선도 무시하고 새로 가져와 캐시까지 갱신.
+    fetchTrimsCached(Number(modelId), { force: true })
       .then(setTrims)
       .catch(() => setLoadError(true));
   }
   function reloadOptionSummary() {
     if (!modelId) return;
-    fetchOptionSummary(Number(modelId))
+    fetchOptionSummaryCached(Number(modelId), { force: true })
       .then((rows) => setOptionByTrim(toOptionMap(rows)))
       .catch(() => undefined);
   }
@@ -481,6 +499,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 }}
                 onToggle={toggle}
                 onToggleAll={toggleAll}
+                onPrefetch={(m) => prefetchTrims(m.id)}
                 onDragStart={onDragStart}
                 onDragOver={onDragOverRow}
                 onDrop={onDrop}

@@ -18,6 +18,7 @@ export function ModelTable({
   onDragStart,
   onDragOver,
   onDrop,
+  onPrefetch,
 }: {
   models: CatalogModel[];
   canEdit: boolean;
@@ -31,6 +32,8 @@ export function ModelTable({
   onDragStart: (id: number) => void;
   onDragOver: (id: number) => void;
   onDrop: () => void;
+  // hover/focus 시 해당 모델의 트림 뷰(트림·색상·옵션)를 미리 받아둬 클릭 즉시 진입.
+  onPrefetch?: (model: CatalogModel) => void;
 }) {
   if (models.length === 0) return <div className="va-empty">브랜드를 선택하세요.</div>;
   const allChecked = models.length > 0 && models.every((m) => selected.has(m.id));
@@ -70,7 +73,13 @@ export function ModelTable({
               {selectMode ? (
                 <span>{m.name}</span>
               ) : (
-                <button type="button" className="va-link" onClick={() => onOpen(m)}>
+                <button
+                  type="button"
+                  className="va-link"
+                  onClick={() => onOpen(m)}
+                  onMouseEnter={() => onPrefetch?.(m)}
+                  onFocus={() => onPrefetch?.(m)}
+                >
                   {m.name}
                 </button>
               )}
