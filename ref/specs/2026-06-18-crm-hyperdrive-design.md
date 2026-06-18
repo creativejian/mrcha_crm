@@ -21,9 +21,10 @@
 | # | 항목 | 결정 | 근거 |
 |---|------|------|------|
 | 1 | db 요청 컨텍스트화 | **Hono `c.var` 주입 + `executor` 파라미터** | 기존 write 함수의 `executor: Executor = db` 패턴을 read 함수까지 확장. 명시적·테스트 친화, strict/no-any 기조 일관. |
-| 2 | Hyperdrive origin 연결 | **Supabase Supavisor session pooler (5432)** | direct(5432)는 IPv6-only라 Hyperdrive 도달 위험. session pooler는 IPv4 호환(add-on 불필요) + prepared statement 지원. |
+| 1b | db 생성/수명 | **Hyperdrive 경로는 요청마다 생성 + 응답 후 `client.end()`** (메모이즈 ❌) | ⚠️ **검증으로 정정(2026-06-18)**: 최초 설계는 connStr별 메모이즈(요청 간 재사용)였으나 **Workers는 요청 간 DB 소켓 재사용 불가** → `"The Workers runtime canceled this request because it detected that your Worker's code had hung"` 발생(검증: 동시호출 ~45% 500). 요청별 생성+`waitUntil(client.end())`로 전환해 hang 소멸. fallback(로컬/테스트, Bun/Node)만 싱글톤 메모이즈 유지. |
+| 2 | Hyperdrive origin 연결 | **Supabase direct connection (`db.<ref>.supabase.co:5432`, user `postgres`)** | ⚠️ **검증으로 정정(2026-06-18)**: 처음엔 IPv4 안전성 때문에 Supavisor **session pooler(5432)** 선택했으나, 실측 시 `PostgresError: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15`로 동시호출 ~17% 실패. session mode는 백엔드를 핀해 Hyperdrive multiplex 무력화(이중 풀링). Cloudflare 권장대로 **direct**로 교체. direct는 IPv6-only — Hyperdrive IPv6 도달 또는 Supabase IPv4 add-on 필요. `wrangler hyperdrive update <id> --connection-string=<direct>`(binding id 유지, 재배포 불요). |
 | 3 | Hyperdrive 쿼리 캐싱 | **v1은 캐싱 끄기** | 주 소비자가 /mc-master 관리 화면 — 편집 직후 최대 60s stale은 '고쳤는데 안 바뀜' 버그처럼 보임. 우선 연결 풀링(500 해소)만 확보. |
-| 파생 | postgres.js `prepare` | **v1은 두 경로 모두 `prepare: false` 유지** | fallback(6543 transaction pooler)은 prepared statement 미지원이라 false 필수. Hyperdrive 경로(5432)는 true 가능하나, 무중단·parity·최소 위험을 위해 v1은 false 통일. true는 후속 성능 튜닝(아래 §8). |
+| 파생 | postgres.js `prepare` | **v1은 두 경로 모두 `prepare: false` 유지** | fallback(6543 transaction pooler)은 prepared statement 미지원이라 false 필수. direct origin(5432)은 true 가능하나, 무중단·parity·최소 위험을 위해 v1은 false 통일. true는 후속 성능 튜닝(아래 §8). |
 
 ### 공식 문서 확인 (요약)
 - Cloudflare는 Supabase에 **direct connection 권장, pooled 금지**(이중 풀링 회피). 단 Supabase direct(`db.<ref>.supabase.co:5432`)는 **IPv6-only**. IPv4가 필요하면 Supavisor pooler 또는 IPv4 add-on(Pro+ 유료). → 안전한 보편 선택 = **session pooler 5432**(IPv4 + prepared statement).
