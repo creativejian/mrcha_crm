@@ -86,6 +86,7 @@ export function App() {
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // RequireAuth가 App 렌더 전에 roleTab null(권한 없음)을 막으므로 이 폴백은 프로덕션에선 도달 불가(타입 안전용).
   const roleTab = useAuth().roleTab ?? "상담사";
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [selectedCustomerNo, setSelectedCustomerNo] = useState(initialCustomers[0].no);
