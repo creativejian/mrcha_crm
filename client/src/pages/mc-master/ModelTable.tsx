@@ -66,7 +66,7 @@ export function ModelTable({
               label={`${m.name} 선택`}
             />
             <td className="va-model-name">
-              {m.imageUrl && <img src={m.imageUrl} alt="" className="va-model-thumb" />}
+              {m.imageUrl && <img src={m.imageUrl} alt="" className="va-model-thumb" loading="lazy" decoding="async" />}
               {selectMode ? (
                 <span>{m.name}</span>
               ) : (

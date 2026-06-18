@@ -17,7 +17,6 @@ import {
   deleteModel,
   deleteTrim,
   fetchBrands,
-  fetchModels,
   fetchOptionSummary,
   fetchTrimColors,
   fetchTrims,
@@ -28,6 +27,7 @@ import {
   updateTrim,
 } from "@/lib/catalog";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
+import { fetchModelsCached, getCachedModels, prefetchModels } from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
@@ -97,12 +97,23 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
 
   useEffect(() => {
     if (brandId == null) return;
-    fetchModels(brandId)
+    let active = true;
+    // 캐시/프리패치된 브랜드는 fetchModelsCached가 즉시 resolve → 사실상 즉시 페인트(왕복 0).
+    // 아니면 fetch 후 캐시·이미지 워밍. hadCache면 갱신 실패해도 에러화면 대신 캐시 유지.
+    const hadCache = getCachedModels(brandId) !== undefined;
+    fetchModelsCached(brandId)
       .then((m) => {
-        setModels(m);
-        setLoadError(false);
+        if (active) {
+          setModels(m);
+          setLoadError(false);
+        }
       })
-      .catch(() => setLoadError(true));
+      .catch(() => {
+        if (active && !hadCache) setLoadError(true);
+      });
+    return () => {
+      active = false; // 브랜드 빠르게 전환 시 늦게 도착한 응답이 다른 브랜드를 덮지 않게.
+    };
   }, [brandId]);
 
   useEffect(() => {
@@ -143,7 +154,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
 
   function reloadModels() {
     if (brandId == null) return;
-    fetchModels(brandId)
+    // 편집 직후엔 신선도 무시하고 새로 가져와 캐시까지 갱신.
+    fetchModelsCached(brandId, { force: true })
       .then(setModels)
       .catch(() => setLoadError(true));
   }
@@ -398,7 +410,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       <div className="panel-body va-body">
         {loadError && <div className="notice-box error">불러오기 실패</div>}
         <div className="va-layout">
-          <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} />
+          <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} onPrefetch={prefetchModels} />
           <div className="table-scroll va-scroll" ref={scrollRef} onScroll={onScroll}>
             {inTrimView && isDomestic && (
               <div className="va-trim-tabs">
