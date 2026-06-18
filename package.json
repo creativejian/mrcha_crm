@@ -34,6 +34,7 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.25",
+    "jose": "^6.2.3",
     "lucide-react": "^1.18.0",
     "postgres": "^3.4.9",
     "react": "^19.2.7",
