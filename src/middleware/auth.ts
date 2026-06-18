@@ -14,6 +14,11 @@ export function createAuthMiddleware(opts?: {
   let cache: { issuer: string; jwks: JWTVerifyGetKey } | null = null;
 
   return async (c, next) => {
+    // 토큰 없으면 즉시 401 — SUPABASE_URL 체크나 원격 JWKS fetch 불필요.
+    const header = c.req.header("Authorization");
+    const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+    if (!token) return c.json({ error: "인증이 필요합니다." }, 401);
+
     let issuer = opts?.issuer;
     let keyResolver = opts?.keyResolver;
     if (!keyResolver) {
@@ -25,10 +30,6 @@ export function createAuthMiddleware(opts?: {
       }
       keyResolver = cache.jwks;
     }
-
-    const header = c.req.header("Authorization");
-    const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-    if (!token) return c.json({ error: "인증이 필요합니다." }, 401);
 
     const result = await verifyAndGate(token, keyResolver, { issuer: issuer!, audience: "authenticated" });
     if (!result.ok) return c.json({ error: result.error }, result.status);
