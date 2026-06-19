@@ -25,11 +25,6 @@ export function parseWon(s: string): number | null {
   return s.trim() === "" || Number.isNaN(n) ? null : n;
 }
 
-// 원 표시(미정이면 '—').
-export function wonText(v: number | null): string {
-  return v == null ? "—" : `${v.toLocaleString()}원`;
-}
-
 // 옵션 가격은 만원 단위 표시/입력(앱과 동일). DB는 원 저장.
 export function manwonText(won: number | null): string {
   return won == null ? "—" : `${(won / 10000).toLocaleString()}만원`;

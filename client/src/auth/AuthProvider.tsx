@@ -25,7 +25,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let alive = true;
     async function resolve(session: Session | null) {
       const authed = !!session;
-      const roleTab = authed ? roleTabFromClaim(await getRoleClaim()) : null;
+      // claim 조회(getClaims) 실패는 권한 없음으로 폴백한다. throw하면 loading이 영영 풀리지
+      // 않아 무한 로딩이 되므로, 일시적 실패는 null로 두고 다음 onAuthStateChange에서 복구한다.
+      let roleTab: RoleTab | null = null;
+      if (authed) {
+        try {
+          roleTab = roleTabFromClaim(await getRoleClaim());
+        } catch {
+          roleTab = null;
+        }
+      }
       const meta = session?.user.user_metadata as Record<string, unknown> | undefined;
       const fullName = typeof meta?.full_name === "string" ? meta.full_name : null;
       const name = fullName ?? session?.user.email ?? null;
@@ -34,7 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const avatarUrl = rawAvatar ? rawAvatar.replace(/^http:\/\//, "https://") : null;
       if (alive) setState({ loading: false, authed, roleTab, name, avatarUrl });
     }
-    supabase.auth.getSession().then(({ data }) => resolve(data.session));
+    // getSession 자체가 reject해도 loading을 풀어 무한 로딩을 막는다(비인증으로 처리).
+    supabase.auth
+      .getSession()
+      .then(({ data }) => resolve(data.session))
+      .catch(() => {
+        if (alive) setState({ ...EMPTY, loading: false });
+      });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       void resolve(session);
     });
