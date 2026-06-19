@@ -6,13 +6,15 @@ import {
   type CatalogTrim,
   type TrimColor,
   type TrimOptionSummary,
-  fetchBrands,
 } from "@/lib/catalog";
 import {
+  fetchBrandsCached,
   fetchModelsCached,
   fetchOptionSummaryCached,
   fetchTrimColorsCached,
   fetchTrimsCached,
+  getBrandIdForModel,
+  getCachedBrands,
   getCachedModels,
   getCachedOptionSummary,
   getCachedTrimColors,
@@ -42,8 +44,13 @@ const firstGroup = (rows: CatalogTrim[]): Set<string> =>
 // 차량 관리(/mc-master) 카탈로그 데이터 로딩/캐시. 라우팅(brandId/modelId)에 반응해
 // 브랜드→모델→트림 뷰를 캐시 경유로 채운다(catalog-cache). 편집 직후 갱신은 reload*.
 export function useMcMasterCatalog(modelId: string | undefined) {
-  const [brands, setBrands] = useState<CatalogBrand[]>([]);
-  const [brandId, setBrandId] = useState<number | null>(null);
+  // 재진입 시 캐시값으로 즉시 초기화(brands 네트워크 대기 없이 사이드바 표시). brandId는
+  // 트림 뷰면 URL modelId의 브랜드로 복원(사이드바·isDomestic 정합), 아니면 첫 브랜드.
+  const [brands, setBrands] = useState<CatalogBrand[]>(() => getCachedBrands() ?? []);
+  const [brandId, setBrandId] = useState<number | null>(() => {
+    const fromModel = modelId ? getBrandIdForModel(Number(modelId)) : undefined;
+    return fromModel ?? getCachedBrands()?.[0]?.id ?? null;
+  });
   const [models, setModels] = useState<CatalogModel[]>([]);
   const [trims, setTrims] = useState<CatalogTrim[]>([]);
   const [colorsByTrim, setColorsByTrim] = useState<Map<number, TrimColor[]>>(new Map());
@@ -74,7 +81,7 @@ export function useMcMasterCatalog(modelId: string | undefined) {
   }
 
   useEffect(() => {
-    fetchBrands()
+    fetchBrandsCached()
       .then((b) => {
         setBrands(b);
         setBrandId((cur) => cur ?? b[0]?.id ?? null);
