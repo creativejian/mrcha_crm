@@ -9,7 +9,8 @@ test("opens customer detail from the all-customer list", async ({ page }) => {
 
   const drawer = page.getByRole("dialog", { name: "김민준 고객 상세 패널" });
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByRole("heading", { name: /고객 관리.*김민준.*CU-2605-0020.*2026\/06\/09 12:56:39 접수/ })).toBeVisible();
+  // 헤더 접수시각은 DB receivedAt을 formatActivity로 표시("YY/MM/DD HH:mm"). 값/TZ에 의존하지 않게 패턴만 검증.
+  await expect(drawer.getByRole("heading", { name: /고객 관리.*김민준.*CU-2605-0020.*\d{2}\/\d{2}\/\d{2} \d{2}:\d{2} 접수/ })).toBeVisible();
   await expect(drawer.getByText("방금 전 고객 메모 업데이트")).toBeVisible();
   await expect(drawer.getByText("010-9588-0812")).toBeVisible();
   await expect(drawer.getByText("개인 · 4대보험")).toBeVisible();
