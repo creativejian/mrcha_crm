@@ -1,0 +1,48 @@
+import { desc, eq, getTableColumns, sql } from "drizzle-orm";
+
+import { getDefaultDb, type Executor } from "../client";
+import {
+  consultations,
+  customerDocuments,
+  customerMemos,
+  customers,
+  customerSchedules,
+  customerTasks,
+} from "../schema";
+
+// 목록 행 = customers 전체 컬럼 + 상담메모용 최신 미완료 task 1건 body.
+export type CustomerListRow = typeof customers.$inferSelect & { latestTask: string | null };
+
+// 상담메모(목업 nextAction): customer_tasks 최신 미완료 1건 body를 상관 서브쿼리로.
+const latestTaskBody = sql<string | null>`(
+  select t.body from crm.customer_tasks t
+  where t.customer_id = ${customers.id} and t.done = false
+  order by t.created_at desc limit 1
+)`;
+
+export async function listCustomers(executor: Executor = getDefaultDb()): Promise<CustomerListRow[]> {
+  return executor
+    .select({ ...getTableColumns(customers), latestTask: latestTaskBody })
+    .from(customers)
+    .orderBy(desc(customers.receivedAt));
+}
+
+export type CustomerDetail = typeof customers.$inferSelect & {
+  tasks: (typeof customerTasks.$inferSelect)[];
+  schedules: (typeof customerSchedules.$inferSelect)[];
+  memos: (typeof customerMemos.$inferSelect)[];
+  documents: (typeof customerDocuments.$inferSelect)[];
+  consultations: (typeof consultations.$inferSelect)[];
+};
+
+export async function getCustomer(id: string, executor: Executor = getDefaultDb()): Promise<CustomerDetail | null> {
+  const [customer] = await executor.select().from(customers).where(eq(customers.id, id));
+  if (!customer) return null;
+  // 자식은 순차 await(저빈도 상세, pool 절약 — catalog-counts와 동일 원칙).
+  const tasks = await executor.select().from(customerTasks).where(eq(customerTasks.customerId, id));
+  const schedules = await executor.select().from(customerSchedules).where(eq(customerSchedules.customerId, id));
+  const memos = await executor.select().from(customerMemos).where(eq(customerMemos.customerId, id));
+  const documents = await executor.select().from(customerDocuments).where(eq(customerDocuments.customerId, id));
+  const consults = await executor.select().from(consultations).where(eq(consultations.customerId, id));
+  return { ...customer, tasks, schedules, memos, documents, consultations: consults };
+}
