@@ -34,6 +34,7 @@ export function formatActivity(ts: string | null): string {
 
 export function toCustomer(row: CustomerRow): Customer {
   return {
+    id: row.id,
     no: Number(row.customerCode.replace(/\D/g, "")),
     customerId: row.customerCode,
     receivedAt: formatActivity(row.receivedAt),
@@ -63,8 +64,87 @@ export async function fetchCustomers(): Promise<Customer[]> {
   return ((await res.json()) as CustomerRow[]).map(toCustomer);
 }
 
-export async function fetchCustomer(id: string): Promise<CustomerRow & Record<string, unknown>> {
+// ── 고객 상세(GET /api/customers/:id = getCustomer) ─────────────────────────────
+// 백엔드는 drizzle camelCase 그대로 반환(자식 배열 포함). consultations는 이번 범위 외라 생략.
+export type CustomerDetailTask = { id: string; category: string | null; due: string | null; body: string | null; done: boolean };
+export type CustomerDetailSchedule = { id: string; scheduledDate: string | null; scheduledTime: string | null; type: string | null; memo: string | null };
+export type CustomerDetailMemo = { id: string; body: string | null; createdAt: string | null };
+export type CustomerDetailDocument = { id: string; title: string | null; docType: string | null; fileName: string | null; fileSize: number | null; fileMime: string | null };
+
+export type CustomerDetailResponse = {
+  id: string;
+  customerCode: string;
+  name: string;
+  phone: string | null;
+  residence: string | null;
+  customerType: string | null;
+  customerTypeDetail: string | null;
+  source: string | null;
+  assignedAt: string | null;
+  receivedAt: string | null;
+  needModel: string | null;
+  needTrim: string | null;
+  needColors: string | null;
+  needMethod: string | null;
+  needTiming: string | null;
+  needMemo: string | null;
+  tasks: CustomerDetailTask[];
+  schedules: CustomerDetailSchedule[];
+  memos: CustomerDetailMemo[];
+  documents: CustomerDetailDocument[];
+};
+
+export type CustomerDetailData = Pick<
+  CustomerDetailResponse,
+  | "id"
+  | "customerCode"
+  | "name"
+  | "phone"
+  | "residence"
+  | "customerType"
+  | "customerTypeDetail"
+  | "source"
+  | "assignedAt"
+  | "receivedAt"
+  | "needModel"
+  | "needTrim"
+  | "needColors"
+  | "needMethod"
+  | "needTiming"
+  | "needMemo"
+  | "tasks"
+  | "schedules"
+  | "memos"
+  | "documents"
+>;
+
+export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailData {
+  return {
+    id: res.id,
+    customerCode: res.customerCode,
+    name: res.name,
+    phone: res.phone,
+    residence: res.residence,
+    customerType: res.customerType,
+    customerTypeDetail: res.customerTypeDetail,
+    source: res.source,
+    assignedAt: res.assignedAt,
+    receivedAt: res.receivedAt,
+    needModel: res.needModel,
+    needTrim: res.needTrim,
+    needColors: res.needColors,
+    needMethod: res.needMethod,
+    needTiming: res.needTiming,
+    needMemo: res.needMemo,
+    tasks: res.tasks ?? [],
+    schedules: res.schedules ?? [],
+    memos: res.memos ?? [],
+    documents: res.documents ?? [],
+  };
+}
+
+export async function fetchCustomerDetail(id: string): Promise<CustomerDetailData> {
   const res = await apiFetch(`/api/customers/${id}`);
   if (!res.ok) throw new Error(`고객 상세 실패: ${res.status}`);
-  return (await res.json()) as CustomerRow & Record<string, unknown>;
+  return toCustomerDetail((await res.json()) as CustomerDetailResponse);
 }

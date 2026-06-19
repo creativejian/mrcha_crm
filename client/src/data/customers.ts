@@ -3,6 +3,7 @@ export type CustomerChanceOption = "높음" | "중간" | "낮음" | "보류" | "
 export type CustomerManageStatus = "정상" | "확인필요" | "재문의" | "지연" | "장기방치";
 
 export type Customer = {
+  id?: string;
   no: number;
   customerId: string;
   receivedAt: string;

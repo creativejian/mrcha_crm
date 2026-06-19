@@ -1,6 +1,7 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
+import { fetchCustomerDetail, formatActivity, type CustomerDetailData } from "@/lib/customers";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
@@ -325,15 +326,6 @@ const kimMinjunStatusFieldMeta = [
   { key: "assignedAt", label: "배정시간", icon: CalendarClock },
 ] satisfies { key: KimStatusFieldKey; label: string; icon: typeof Phone }[];
 
-const kimMinjunInitialStatusValues: Record<KimStatusFieldKey, string> = {
-  phone: "010-9588-0812",
-  job: "개인 · 4대보험",
-  location: "인천광역시",
-  source: "디엘(견적서)",
-  advisor: "미배정",
-  assignedAt: "미배정",
-};
-
 const kimMinjunWorkflowMeta = [
   { key: "stage", label: "진행 상태", tone: "stage" },
   { key: "chance", label: "계약 가능성", tone: "chance" },
@@ -383,14 +375,6 @@ const kimRegionOptions: Record<string, string[]> = {
   전북: ["확인 필요", "전주시", "군산시", "익산시", "정읍시", "남원시", "김제시"],
   전남: ["확인 필요", "목포시", "여수시", "순천시", "나주시", "광양시"],
   제주: ["확인 필요", "제주시", "서귀포시"],
-};
-
-const kimInitialNeeds: KimNeedsState = {
-  model: "Maybach S-Class",
-  trim: "S 500 4M Long",
-  colors: "외장 컬러 미정 · 내장 컬러 미정",
-  method: "운용리스",
-  memo: "월 납입액, 총비용, 중도해지 조건 차이를 비교하고 싶어함. GLC 재고 확인 후 X3 조건과 함께 다시 정리 필요.",
 };
 
 const kimMinjunQuoteHistory: KimQuoteItem[] = [
@@ -464,25 +448,6 @@ const kimMinjunQuoteHistory: KimQuoteItem[] = [
   },
 ];
 
-const kimMinjunDocumentVault: KimDocumentItem[] = [
-  {
-    id: "resident-register-ham-seungwoo",
-    title: "주민등록등본",
-    status: "자동인식",
-    fileName: "등본_함승우.pdf",
-    fileSize: 962512,
-    mimeType: "application/pdf",
-  },
-  {
-    id: "business-registration-creative-jian",
-    title: "사업자등록증",
-    status: "자동인식",
-    fileName: "사업자등록증_크리에이티브지안.png",
-    fileSize: 7031251,
-    mimeType: "image/png",
-  },
-];
-
 const kimCheckCategoryOptions = ["체크", "견적", "안내", "요청", "내부", "심사"];
 const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
 const kimScheduleTypeOptions = ["재연락", "결정확인", "체크", "견적", "안내", "요청", "내부", "심사"];
@@ -514,23 +479,6 @@ const kimDocumentTypeOptions = [
 const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
 
-const kimMinjunCheckItems: KimCheckItem[] = [
-  { id: "glc-stock", category: "체크", due: "오늘", body: "GLC 재고 가능 여부 확인" },
-  { id: "x3-cost", category: "견적", due: "오늘", body: "X3 조건과 총비용 비교" },
-  { id: "insurance", category: "체크", due: "내일", body: "보험 포함 여부 확인" },
-  { id: "lease-risk", category: "안내", due: "이번 주", body: "중도해지 조건 설명" },
-];
-
-const kimInitialCustomerMemos: KimCustomerMemoItem[] = [
-  { id: "repurchase", body: "기존 고객 재구매 혜택 적용 가능성 확인 필요", createdAt: "오늘 13:18" },
-  { id: "decision", body: "가족과 최종 조건을 상의한 뒤 진행 예정", createdAt: "오늘 13:42" },
-  { id: "contact", body: "카톡 선호, 통화는 오후 시간대가 비교적 수월함", createdAt: "오늘 14:05" },
-];
-
-const kimInitialSchedules: KimScheduleItem[] = [
-  { id: "glc-quote-followup", date: "2026-05-26", time: "16:00", type: "견적", memo: "GLC 재고 확인 후 X3 조건과 총비용 비교 견적 재발송" },
-];
-
 function formatKimRecentUpdateTime(updatedAt: number, now: number) {
   const elapsedMinutes = Math.max(0, Math.floor((now - updatedAt) / 60000));
   if (elapsedMinutes < 10) return "방금 전";
@@ -546,7 +494,7 @@ function formatKimRecentUpdateTime(updatedAt: number, now: number) {
   return `${year}-${month}-${day}`;
 }
 
-function KimMinjunDetailHeader({ now, recentUpdate }: { now: number; recentUpdate: KimRecentUpdate }) {
+function KimMinjunDetailHeader({ now, recentUpdate, name, customerCode, receivedLabel }: { now: number; recentUpdate: KimRecentUpdate; name: string; customerCode: string; receivedLabel: string }) {
   return (
     <section className="customer-detail-summary kim-detail-summary">
       <div className="kim-header-main">
@@ -555,9 +503,9 @@ function KimMinjunDetailHeader({ now, recentUpdate }: { now: number; recentUpdat
             <h2 className="kim-header-breadcrumb">
               <span>고객 관리</span>
               <ChevronRight size={18} strokeWidth={2.2} />
-              <span>김민준</span>
-              <em className="kim-header-code-text num">CU-2605-0020</em>
-              <em className="kim-header-received-text num">· 2026/06/09 12:56:39 접수</em>
+              <span>{name}</span>
+              <em className="kim-header-code-text num">{customerCode}</em>
+              <em className="kim-header-received-text num">{receivedLabel ? `· ${receivedLabel} 접수` : ""}</em>
             </h2>
             <p>
               {formatKimRecentUpdateTime(recentUpdate.updatedAt, now)}{" "}
@@ -1390,6 +1338,7 @@ function KimAdvisorStatusEditor({
 function KimMinjunDetailContent({
   chanceOverride,
   customer,
+  detail,
   manageStatusOverride,
   onEditorOpenChange,
   onToast,
@@ -1397,38 +1346,83 @@ function KimMinjunDetailContent({
 }: {
   chanceOverride?: CustomerChanceOption;
   customer: Customer;
+  detail: CustomerDetailData;
   manageStatusOverride?: CustomerManageStatus;
   onEditorOpenChange?: CustomerDetailPageProps["onEditorOpenChange"];
   onToast: (message: string) => void;
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
 }) {
-  const [statusValues, setStatusValues] = useState(kimMinjunInitialStatusValues);
+  const [statusValues, setStatusValues] = useState<Record<KimStatusFieldKey, string>>(() => ({
+    phone: detail.phone ?? "미입력",
+    job: formatKimJobValue((detail.customerType as KimCustomerType) ?? "개인", detail.customerTypeDetail ?? ""),
+    location: detail.residence ?? "확인 필요",
+    source: detail.source ?? "미입력",
+    advisor: "미배정",
+    assignedAt: detail.assignedAt ? formatActivity(detail.assignedAt) : "미배정",
+  }));
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
   const [stageStatus, setStageStatus] = useState(customer.status);
   const [chance, setChance] = useState<CustomerChanceOption>(chanceOverride ?? chanceLabel(customer) as CustomerChanceOption);
   const [manage, setManage] = useState<CustomerManageStatus>(manageStatusOverride ?? "정상");
-  const [needs, setNeeds] = useState<KimNeedsState>(kimInitialNeeds);
-  const [purchaseFields, setPurchaseFields] = useState(kimMinjunPurchaseFields);
+  const [needs, setNeeds] = useState<KimNeedsState>(() => ({
+    model: detail.needModel ?? "",
+    trim: detail.needTrim ?? "",
+    colors: detail.needColors ?? "외장 컬러 미정 · 내장 컬러 미정",
+    method: detail.needMethod ?? "",
+    memo: detail.needMemo ?? "",
+  }));
+  const [purchaseFields, setPurchaseFields] = useState(() =>
+    kimMinjunPurchaseFields.map((field) =>
+      field.label === "구매방식"
+        ? { ...field, value: detail.needMethod ?? field.value }
+        : field.label === "출고 희망 시기"
+          ? { ...field, value: detail.needTiming ?? field.value }
+          : field,
+    ),
+  );
   const [showTimingMonths, setShowTimingMonths] = useState(false);
   const [initialCostKind, setInitialCostKind] = useState<KimInitialCostSelection>("보증금");
   const [initialCostUnit, setInitialCostUnit] = useState<KimInitialCostUnit>("%");
   const [initialCostAmount, setInitialCostAmount] = useState("30");
   const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<KimPurchasePopoverFrame | null>(null);
-  const [schedules, setSchedules] = useState<KimScheduleItem[]>(kimInitialSchedules);
+  const [schedules, setSchedules] = useState<KimScheduleItem[]>(() =>
+    detail.schedules.map((s) => ({
+      id: s.id,
+      date: s.scheduledDate ?? "",
+      time: s.scheduledTime ?? "",
+      type: s.type ?? "",
+      memo: s.memo ?? "",
+    })),
+  );
   const [completedScheduleKeys, setCompletedScheduleKeys] = useState<string[]>([]);
   const [addingScheduleItem, setAddingScheduleItem] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [confirmingScheduleCompleteId, setConfirmingScheduleCompleteId] = useState<string | null>(null);
   const [confirmingScheduleDeleteId, setConfirmingScheduleDeleteId] = useState<string | null>(null);
-  const [checkItems, setCheckItems] = useState<KimCheckItem[]>(kimMinjunCheckItems);
-  const [completedCheckItems, setCompletedCheckItems] = useState<string[]>([]);
+  const [checkItems, setCheckItems] = useState<KimCheckItem[]>(() =>
+    detail.tasks.map((t) => ({
+      id: t.id,
+      category: t.category ?? "",
+      due: t.due ?? "",
+      body: t.body ?? "",
+    })),
+  );
+  const [completedCheckItems, setCompletedCheckItems] = useState<string[]>(() =>
+    detail.tasks.filter((t) => t.done).map((t) => t.id),
+  );
   const [addingCheckItem, setAddingCheckItem] = useState(false);
   const [selectedCheckDue, setSelectedCheckDue] = useState("오늘");
   const [selectedEditingCheckDue, setSelectedEditingCheckDue] = useState("오늘");
   const [editingCheckItemId, setEditingCheckItemId] = useState<string | null>(null);
   const [confirmingCheckItemTitle, setConfirmingCheckItemTitle] = useState<string | null>(null);
   const [confirmingCheckItemDeleteId, setConfirmingCheckItemDeleteId] = useState<string | null>(null);
-  const [customerMemos, setCustomerMemos] = useState<KimCustomerMemoItem[]>(kimInitialCustomerMemos);
+  const [customerMemos, setCustomerMemos] = useState<KimCustomerMemoItem[]>(() =>
+    detail.memos.map((m) => ({
+      id: m.id,
+      body: m.body ?? "",
+      createdAt: formatActivity(m.createdAt),
+    })),
+  );
   const [addingCustomerMemo, setAddingCustomerMemo] = useState(false);
   const [editingCustomerMemoId, setEditingCustomerMemoId] = useState<string | null>(null);
   const [confirmingCustomerMemoDeleteId, setConfirmingCustomerMemoDeleteId] = useState<string | null>(null);
@@ -1474,7 +1468,16 @@ function KimMinjunDetailContent({
   const [trimDetail, setTrimDetail] = useState<TrimDetail | null>(null);
   const [exteriorColor, setExteriorColor] = useState<TrimColor | null>(null);
   const [interiorColor, setInteriorColor] = useState<TrimColor | null>(null);
-  const [documents, setDocuments] = useState<KimDocumentItem[]>(kimMinjunDocumentVault);
+  const [documents, setDocuments] = useState<KimDocumentItem[]>(() =>
+    detail.documents.map((d) => ({
+      id: d.id,
+      title: d.title ?? "",
+      status: d.docType ?? "수동입력",
+      fileName: d.fileName ?? undefined,
+      fileSize: d.fileSize ?? undefined,
+      mimeType: d.fileMime ?? undefined,
+    })),
+  );
   const [isDocumentDragActive, setIsDocumentDragActive] = useState(false);
   const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
   const [documentDropTargetId, setDocumentDropTargetId] = useState<string | null>(null);
@@ -3832,7 +3835,7 @@ function KimMinjunDetailContent({
   return (
     <div className="kim-customer-dashboard">
       <div className="kim-left-dashboard">
-        <KimMinjunDetailHeader now={recentUpdateNow} recentUpdate={recentUpdate} />
+        <KimMinjunDetailHeader now={recentUpdateNow} recentUpdate={recentUpdate} name={detail.name} customerCode={detail.customerCode} receivedLabel={formatActivity(detail.receivedAt)} />
         <section className="detail-section kim-status-dashboard">
           <div className="kim-status-grid">
             {kimMinjunStatusFieldMeta.map((field) => {
@@ -5753,6 +5756,22 @@ export function CustomerDetailPage({
   const isContracted = chance === "확정";
   const drawerMode = variant === "drawer";
   const isKimMinjun = customer.customerId === "CU-2605-0020";
+  const [detail, setDetail] = useState<CustomerDetailData | null>(null);
+  const [detailError, setDetailError] = useState(false);
+  useEffect(() => {
+    if (!isKimMinjun || !customer.id) return;
+    let cancelled = false;
+    fetchCustomerDetail(customer.id)
+      .then((data) => {
+        if (!cancelled) setDetail(data);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isKimMinjun, customer.id]);
 
   return (
     <div className={`customer-detail-console-page ${drawerMode ? "drawer" : ""} ${isKimMinjun ? "kim-detail-mode" : ""}`}>
@@ -5806,14 +5825,22 @@ export function CustomerDetailPage({
       )}
 
       {isKimMinjun ? (
-        <KimMinjunDetailContent
-          chanceOverride={chanceOverride}
-          customer={customer}
-          manageStatusOverride={manageStatusOverride}
-          onEditorOpenChange={onEditorOpenChange}
-          onToast={onToast}
-          onWorkflowChange={onWorkflowChange}
-        />
+        detailError ? (
+          <div className="kim-detail-loading">고객 정보를 불러오지 못했습니다.</div>
+        ) : detail ? (
+          <KimMinjunDetailContent
+            key={customer.id}
+            detail={detail}
+            chanceOverride={chanceOverride}
+            customer={customer}
+            manageStatusOverride={manageStatusOverride}
+            onEditorOpenChange={onEditorOpenChange}
+            onToast={onToast}
+            onWorkflowChange={onWorkflowChange}
+          />
+        ) : (
+          <div className="kim-detail-loading">고객 정보를 불러오는 중…</div>
+        )
       ) : (
       <div className="customer-detail-layout">
         <main className="customer-detail-main">

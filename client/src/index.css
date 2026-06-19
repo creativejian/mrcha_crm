@@ -16484,3 +16484,12 @@ select.kim-jeff-discount-label {
   gap: 16px;
   align-items: center;
 }
+
+.kim-detail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  color: #6b7280;
+  font-size: 13px;
+}
