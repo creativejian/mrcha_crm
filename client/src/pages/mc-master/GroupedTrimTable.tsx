@@ -17,6 +17,7 @@ export function GroupedTrimTable({
   onToggleGroup,
   onEdit,
   onOpenOptions,
+  onPrefetchOptions,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -26,6 +27,7 @@ export function GroupedTrimTable({
   onToggleGroup: (key: string) => void;
   onEdit: (t: CatalogTrim) => void;
   onOpenOptions: (t: CatalogTrim) => void;
+  onPrefetchOptions: (trimId: number) => void;
 }) {
   if (trims.length === 0) return <div className="va-empty">트림이 없습니다. ‘트림 추가’로 등록하세요.</div>;
   const groups = groupTrimsBySubline(trims);
@@ -71,7 +73,11 @@ export function GroupedTrimTable({
                     </td>
                     <TrimMetaCells trim={t} />
                     <td className="va-col-center">
-                      <OptionBadgeButton summary={optionByTrim.get(t.id)} onClick={() => onOpenOptions(t)} />
+                      <OptionBadgeButton
+                        summary={optionByTrim.get(t.id)}
+                        onClick={() => onOpenOptions(t)}
+                        onPrefetch={() => onPrefetchOptions(t.id)}
+                      />
                     </td>
                     {canEdit && (
                       <td className="va-col-center">

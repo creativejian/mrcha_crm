@@ -2,11 +2,13 @@ import {
   type CatalogBrand,
   type CatalogModel,
   type CatalogTrim,
+  type OptionsBundle,
   type TrimColor,
   type TrimOptionSummary,
   fetchBrands,
   fetchModels,
   fetchOptionSummary,
+  fetchOptions,
   fetchTrimColors,
   fetchTrims,
 } from "@/lib/catalog";
@@ -104,6 +106,21 @@ export function prefetchTrims(modelId: number): void {
   void trimsCache.load(modelId).catch(() => undefined);
   void trimColorsCache.load(modelId).catch(() => undefined);
   void optionSummaryCache.load(modelId).catch(() => undefined);
+}
+
+// ── 트림별 옵션 상세(options + relations) ────────────────────────────────────────
+// 옵션 패널 전용. 모델 단위 optionSummary(배지)와 별개로 trimId 키 캐시 — 패널은 열 때마다
+// fetchOptions를 직접 쳐서 prod에서 클릭마다 왕복이었다. 캐시+hover 프리패치로 즉시 표시.
+const optionsCache = makeCache<OptionsBundle>(fetchOptions);
+
+// 동기 getter — OptionPanel이 마운트 첫 페인트에 캐시값으로 리스트를 즉시 그린다(왕복 0).
+export const getCachedOptions = (trimId: number): OptionsBundle | undefined => optionsCache.get(trimId);
+export const fetchOptionsCached = (trimId: number, opts?: { force?: boolean }): Promise<OptionsBundle> =>
+  optionsCache.load(trimId, opts);
+
+// 옵션 배지 hover 시 프리패치 → 클릭 즉시 캐시 hit.
+export function prefetchOptions(trimId: number): void {
+  void optionsCache.load(trimId).catch(() => undefined);
 }
 
 // 앱 로드 직후 호출 — mc-master 첫 진입 전에 brands + 첫 브랜드 모델을 미리 받아둔다.

@@ -20,7 +20,7 @@ import {
   updateTrim,
 } from "@/lib/catalog";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
-import { prefetchModels, prefetchTrims } from "./mc-master/catalog-cache";
+import { prefetchModels, prefetchOptions, prefetchTrims } from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
@@ -346,6 +346,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                     setTrimPanel({ mode: "edit", trim: t });
                   }}
                   onOpenOptions={setOptionPanelTrim}
+                  onPrefetchOptions={prefetchOptions}
                 />
               ) : (
                 <TrimTable
@@ -362,6 +363,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                     setTrimPanel({ mode: "edit", trim: t });
                   }}
                   onOpenOptions={setOptionPanelTrim}
+                  onPrefetchOptions={prefetchOptions}
                   onToggle={toggle}
                   onToggleAll={toggleAllRows}
                   onDragStart={onDragStart}
@@ -422,9 +424,10 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       )}
       {optionPanelTrim && (
         <OptionPanel
+          key={optionPanelTrim.id}
           trim={optionPanelTrim}
           canEdit={canEdit}
-          initialNoOption={optionByTrim.get(optionPanelTrim.id)?.noOption ?? false}
+          summary={optionByTrim.get(optionPanelTrim.id)}
           onClose={() => setOptionPanelTrim(null)}
           onChanged={reloadOptionSummary}
         />
