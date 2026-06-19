@@ -3,7 +3,8 @@ import { ChevronRight } from "lucide-react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups } from "@/data/customers";
+import { fetchCustomers } from "@/lib/customers";
 import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
 import { AdvisorDashboardPage, AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
@@ -89,13 +90,31 @@ export function App() {
   // RequireAuth가 App 렌더 전에 roleTab null(권한 없음)을 막으므로 이 폴백은 프로덕션에선 도달 불가(타입 안전용).
   const auth = useAuth();
   const roleTab = auth.roleTab ?? "상담사";
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [selectedCustomerNo, setSelectedCustomerNo] = useState(initialCustomers[0].no);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customersError, setCustomersError] = useState(false);
+  const [selectedCustomerNo, setSelectedCustomerNo] = useState<number | null>(null);
   const [chanceOverrides, setChanceOverrides] = useState<Record<number, CustomerChanceOption>>({});
   const [manageStatusOverrides, setManageStatusOverrides] = useState<Record<number, CustomerManageStatus>>({});
   const [customerDetailPanelOpen, setCustomerDetailPanelOpen] = useState(false);
   const [customerDetailEditorOpen, setCustomerDetailEditorOpen] = useState(false);
-  const selectedCustomer = customers.find((customer) => customer.no === selectedCustomerNo) ?? customers[0] ?? initialCustomers[0];
+  const selectedCustomer = customers.find((customer) => customer.no === selectedCustomerNo) ?? customers[0] ?? null;
+
+  useEffect(() => {
+    let alive = true;
+    fetchCustomers()
+      .then((list) => {
+        if (!alive) return;
+        setCustomers(list);
+        setSelectedCustomerNo((cur) => cur ?? list[0]?.no ?? null);
+        setCustomersError(false);
+      })
+      .catch(() => {
+        if (alive) setCustomersError(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const [title, desc] = activeView === "customers"
     ? [
@@ -103,7 +122,7 @@ export function App() {
       customerModeMeta[customerMode].desc,
     ]
     : activeView === "customer-detail"
-      ? [`고객 관리 > 전체 보기 > ${selectedCustomer.name}`, `${selectedCustomer.customerId} 고객의 상담 기록, 상태, 견적 조건, 다음 액션을 한 화면에서 처리합니다.`]
+      ? [`고객 관리 > 전체 보기 > ${selectedCustomer?.name ?? ""}`, `${selectedCustomer?.customerId ?? ""} 고객의 상담 기록, 상태, 견적 조건, 다음 액션을 한 화면에서 처리합니다.`]
     : activeView === "finance"
       ? financeModeMeta[financeMode]
     : viewMeta[activeView];
@@ -202,7 +221,7 @@ export function App() {
           path="/customers"
           element={
             <CustomerManagementPage
-              activeCustomerId={customerDetailPanelOpen ? selectedCustomer.customerId : null}
+              activeCustomerId={customerDetailPanelOpen ? (selectedCustomer?.customerId ?? null) : null}
               chanceOverrides={chanceOverrides}
               customers={customers}
               manageStatusOverrides={manageStatusOverrides}
@@ -217,15 +236,19 @@ export function App() {
         <Route
           path="/customer-detail"
           element={
-            <CustomerDetailPage
-              chanceOverride={chanceOverrides[selectedCustomer.no]}
-              customer={selectedCustomer}
-              manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
-              onBack={() => navigate("/customers")}
-              onToast={showToast}
-              onWorkflowChange={updateCustomerWorkflow}
-              variant="page"
-            />
+            selectedCustomer ? (
+              <CustomerDetailPage
+                chanceOverride={chanceOverrides[selectedCustomer.no]}
+                customer={selectedCustomer}
+                manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
+                onBack={() => navigate("/customers")}
+                onToast={showToast}
+                onWorkflowChange={updateCustomerWorkflow}
+                variant="page"
+              />
+            ) : (
+              <Navigate to="/customers" replace />
+            )
           }
         />
         <Route path="/pipeline" element={<PipelinePage />} />
@@ -269,7 +292,7 @@ export function App() {
                     {activeView === "customer-detail" && (
                       <>
                         <ChevronRight aria-hidden="true" size={18} strokeWidth={2.2} />
-                        <span>{selectedCustomer.name}</span>
+                        <span>{selectedCustomer?.name ?? ""}</span>
                       </>
                     )}
                   </span>
@@ -282,9 +305,10 @@ export function App() {
             )}
           </header>
         )}
+        {customersError && <div className="notice-box error">고객 목록을 불러오지 못했습니다.</div>}
         {renderView()}
       </main>
-      {customerDetailPanelOpen && (
+      {customerDetailPanelOpen && selectedCustomer && (
         <div className="customer-detail-drawer-overlay" role="presentation">
           <button aria-label="고객 상세 닫기" className="customer-detail-drawer-backdrop" onClick={() => setCustomerDetailPanelOpen(false)} type="button" />
           <aside aria-label={`${selectedCustomer.name} 고객 상세 패널`} className="customer-detail-drawer" role="dialog" aria-modal="true">
