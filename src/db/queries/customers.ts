@@ -20,6 +20,40 @@ const latestTaskBody = sql<string | null>`(
   order by t.created_at desc limit 1
 )`;
 
+// 쓰기 가능한 customers 컬럼만(고객 쓰기 #1 범위). 값 enum 검증은 추후.
+export type CustomerWritePatch = Partial<
+  Pick<
+    typeof customers.$inferInsert,
+    | "phone"
+    | "residence"
+    | "customerType"
+    | "customerTypeDetail"
+    | "source"
+    | "statusGroup"
+    | "status"
+    | "chance"
+    | "needModel"
+    | "needTrim"
+    | "needColors"
+    | "needMethod"
+    | "needTiming"
+    | "needMemo"
+  >
+>;
+
+export async function updateCustomer(
+  id: string,
+  patch: CustomerWritePatch,
+  executor: Executor = getDefaultDb(),
+): Promise<{ id: string } | null> {
+  const [row] = await executor
+    .update(customers)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(eq(customers.id, id))
+    .returning({ id: customers.id });
+  return row ?? null;
+}
+
 export async function listCustomers(executor: Executor = getDefaultDb()): Promise<CustomerListRow[]> {
   return executor
     .select({ ...getTableColumns(customers), latestTask: latestTaskBody })
