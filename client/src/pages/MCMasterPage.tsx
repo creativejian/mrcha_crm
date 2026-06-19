@@ -424,9 +424,10 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       )}
       {optionPanelTrim && (
         <OptionPanel
+          key={optionPanelTrim.id}
           trim={optionPanelTrim}
           canEdit={canEdit}
-          initialNoOption={optionByTrim.get(optionPanelTrim.id)?.noOption ?? false}
+          summary={optionByTrim.get(optionPanelTrim.id)}
           onClose={() => setOptionPanelTrim(null)}
           onChanged={reloadOptionSummary}
         />

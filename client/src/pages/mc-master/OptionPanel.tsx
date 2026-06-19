@@ -6,14 +6,15 @@ import {
   type CatalogTrim,
   type OptionRelation,
   type OptionType,
+  type TrimOptionSummary,
   createOption,
   deleteOption,
-  fetchOptions,
   setNoOption,
   unsetNoOption,
   updateOption,
 } from "@/lib/catalog";
 import { excludeGroups } from "@/lib/option-selection";
+import { fetchOptionsCached, getCachedOptions } from "./catalog-cache";
 import { EditDrawer } from "./EditDrawer";
 import { EXCLUDE_PALETTE, excludesText, includesText } from "./option-relations";
 import { formatThousands, manwonText, parseManwon } from "./trim-format";
@@ -23,23 +24,24 @@ import { formatThousands, manwonText, parseManwon } from "./trim-format";
 export function OptionPanel({
   trim,
   canEdit,
-  initialNoOption,
+  summary,
   onClose,
   onChanged,
 }: {
   trim: CatalogTrim;
   canEdit: boolean;
-  initialNoOption: boolean;
+  summary: TrimOptionSummary | undefined;
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [options, setOptions] = useState<CatalogOption[]>([]);
-  const [relations, setRelations] = useState<OptionRelation[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const cached = getCachedOptions(trim.id);
+  const [options, setOptions] = useState<CatalogOption[]>(cached?.options ?? []);
+  const [relations, setRelations] = useState<OptionRelation[]>(cached?.relations ?? []);
+  const [loaded, setLoaded] = useState(cached != null);
   const [tab, setTab] = useState<OptionType>("basic");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [noOption, setNoOptionState] = useState(initialNoOption);
+  const [noOption, setNoOptionState] = useState(summary?.noOption ?? false);
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [name, setName] = useState("");
@@ -47,7 +49,7 @@ export function OptionPanel({
 
   useEffect(() => {
     let alive = true;
-    fetchOptions(trim.id)
+    fetchOptionsCached(trim.id)
       .then((b) => {
         if (!alive) return;
         setOptions(b.options);
@@ -65,6 +67,9 @@ export function OptionPanel({
   const basic = options.filter((o) => o.type === "basic");
   const tuning = options.filter((o) => o.type === "tuning");
   const current = tab === "basic" ? basic : tuning;
+  // 로딩 중(캐시 miss)에는 트림 요약 카운트로 탭 라벨을 채워 '(0)' 깜빡임을 막는다.
+  const basicCount = loaded ? basic.length : (summary?.basic ?? basic.length);
+  const tuningCount = loaded ? tuning.length : (summary?.tuning ?? tuning.length);
   const nameById = new Map(options.map((o) => [o.id, o.name]));
   const groups = excludeGroups(options, relations);
   const hasExcludes = relations.some((r) => r.type === "excludes");
@@ -77,7 +82,7 @@ export function OptionPanel({
     setErr(null);
   }
   function reload() {
-    fetchOptions(trim.id)
+    fetchOptionsCached(trim.id, { force: true })
       .then((b) => {
         setOptions(b.options);
         setRelations(b.relations);
@@ -175,7 +180,7 @@ export function OptionPanel({
             resetForm();
           }}
         >
-          기본 옵션 ({basic.length})
+          기본 옵션 ({basicCount})
         </button>
         <button
           type="button"
@@ -185,7 +190,7 @@ export function OptionPanel({
             resetForm();
           }}
         >
-          튜닝 옵션 ({tuning.length})
+          튜닝 옵션 ({tuningCount})
         </button>
       </div>
 
@@ -199,6 +204,18 @@ export function OptionPanel({
       )}
 
       {loaded && current.length === 0 && <div className="va-empty">옵션이 없습니다.</div>}
+
+      {!loaded && current.length === 0 && (
+        <ul className="va-opt-list" aria-hidden="true">
+          {Array.from({ length: Math.max(1, tab === "basic" ? (summary?.basic ?? 2) : (summary?.tuning ?? 2)) }).map(
+            (_, i) => (
+              <li key={i} className="va-opt-row va-opt-skeleton">
+                <span className="va-skel-bar" />
+              </li>
+            ),
+          )}
+        </ul>
+      )}
 
       <ul className="va-opt-list">
         {current.map((o) => {
@@ -262,7 +279,7 @@ export function OptionPanel({
         </button>
       )}
 
-      {canEdit && options.length === 0 && (
+      {canEdit && loaded && options.length === 0 && (
         <div className="va-opt-noopt">
           <button
             type="button"
