@@ -19,6 +19,7 @@
     "functions",
     "tools",
     "test",
+    "scripts",
     "drizzle.config.ts",
     "drizzle.config.catalog.ts",
     "client/vite.config.ts",
