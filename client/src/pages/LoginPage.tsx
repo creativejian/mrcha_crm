@@ -1,9 +1,11 @@
+import mrchaLogoColor from "@/assets/mrcha-logo-color.svg";
 import { signInWithKakao, signOut } from "@/lib/auth";
 
 export function LoginPage({ deniedReason }: { deniedReason?: boolean }) {
   return (
     <div className="login-page">
       <div className="login-card">
+        <img className="login-logo" src={mrchaLogoColor} alt="" aria-hidden="true" />
         <h1>Mr. Cha CRM</h1>
         {deniedReason ? (
           <>
