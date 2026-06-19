@@ -1,6 +1,7 @@
 import { Check, ChevronsUpDown, Eraser, FileText, MessageSquare, Minus, Pencil, Plus, RefreshCcw, Search, X } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { prefetchCustomerDetail } from "@/lib/customers";
 import type { RoleTab } from "@/data/roles";
 
 type CustomerManagementPageProps = {
@@ -944,6 +945,7 @@ export function CustomerManagementPage({
       className: [onOpenCustomer ? "customer-row" : "", activeCustomerId === customer.customerId ? "detail-open" : ""].filter(Boolean).join(" ") || undefined,
       onClick: () => openCustomer(customer),
       onKeyDown: (event: KeyboardEvent<HTMLTableRowElement>) => openCustomerByKeyboard(event, customer),
+      onMouseEnter: onOpenCustomer && customer.id ? () => prefetchCustomerDetail(customer.id as string) : undefined,
       tabIndex: onOpenCustomer ? 0 : undefined,
     };
     const vehicle = vehicleDisplay(customer);

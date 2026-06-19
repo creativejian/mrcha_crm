@@ -16520,3 +16520,16 @@ select.kim-jeff-discount-label {
   color: #6b7280;
   font-size: 13px;
 }
+
+.kim-detail-skeleton {
+  height: 360px;
+  margin-top: 16px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f2f2f0 25%, #ececea 37%, #f2f2f0 63%);
+  background-size: 400% 100%;
+  animation: kim-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes kim-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}

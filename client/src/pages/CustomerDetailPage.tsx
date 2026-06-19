@@ -5913,7 +5913,23 @@ export function CustomerDetailPage({
             onWorkflowChange={onWorkflowChange}
           />
         ) : (
-          <div className="kim-detail-loading">고객 정보를 불러오는 중…</div>
+          <section className="customer-detail-summary kim-detail-summary">
+            <div className="kim-header-main">
+              <div className="kim-header-read">
+                <div className="kim-header-primary">
+                  <h2 className="kim-header-breadcrumb">
+                    <span>고객 관리</span>
+                    <ChevronRight size={18} strokeWidth={2.2} />
+                    <span>{customer.name}</span>
+                    <em className="kim-header-code-text num">{customer.customerId}</em>
+                    <em className="kim-header-received-text num">{customer.receivedAt ? `· ${customer.receivedAt} 접수` : ""}</em>
+                  </h2>
+                  <p>불러오는 중…</p>
+                </div>
+              </div>
+            </div>
+            <div className="kim-detail-skeleton" aria-hidden="true" />
+          </section>
         )
       ) : (
       <div className="customer-detail-layout">

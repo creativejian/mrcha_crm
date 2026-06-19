@@ -145,10 +145,25 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
   };
 }
 
+// 진행 중 동일 id 요청 dedup — 행 hover 프리패치와 상세 마운트 fetch가 같은 GET을 공유한다.
+// 결과 캐시는 두지 않는다(쓰기 직후 재진입 시 stale 방지) — 정착되면 inflight에서 제거.
+const detailInflight = new Map<string, Promise<CustomerDetailData>>();
+
 export async function fetchCustomerDetail(id: string): Promise<CustomerDetailData> {
-  const res = await apiFetch(`/api/customers/${id}`);
-  if (!res.ok) throw new Error(`고객 상세 실패: ${res.status}`);
-  return toCustomerDetail((await res.json()) as CustomerDetailResponse);
+  const existing = detailInflight.get(id);
+  if (existing) return existing;
+  const p = (async () => {
+    const res = await apiFetch(`/api/customers/${id}`);
+    if (!res.ok) throw new Error(`고객 상세 실패: ${res.status}`);
+    return toCustomerDetail((await res.json()) as CustomerDetailResponse);
+  })().finally(() => detailInflight.delete(id));
+  detailInflight.set(id, p);
+  return p;
+}
+
+// 행 hover 시 호출 — 클릭 전에 GET을 시작해 진입 시 같은 in-flight를 재사용(체감 즉시).
+export function prefetchCustomerDetail(id: string): void {
+  void fetchCustomerDetail(id).catch(() => undefined);
 }
 
 // ── 고객 본체 쓰기(PATCH /api/customers/:id) ────────────────────────────────────
