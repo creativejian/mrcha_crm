@@ -17,6 +17,7 @@ export function TrimTable({
   optionByTrim,
   onEdit,
   onOpenOptions,
+  onPrefetchOptions,
   onToggle,
   onToggleAll,
   onDragStart,
@@ -33,6 +34,7 @@ export function TrimTable({
   optionByTrim: Map<number, TrimOptionSummary>;
   onEdit: (t: CatalogTrim) => void;
   onOpenOptions: (t: CatalogTrim) => void;
+  onPrefetchOptions: (trimId: number) => void;
   onToggle: (id: number) => void;
   onToggleAll: () => void;
   onDragStart: (id: number) => void;
@@ -76,7 +78,11 @@ export function TrimTable({
             <TrimMetaCells trim={t} />
             {isDomestic && (
               <td className="va-col-center">
-                <OptionBadgeButton summary={optionByTrim.get(t.id)} onClick={() => onOpenOptions(t)} />
+                <OptionBadgeButton
+                  summary={optionByTrim.get(t.id)}
+                  onClick={() => onOpenOptions(t)}
+                  onPrefetch={() => onPrefetchOptions(t.id)}
+                />
               </td>
             )}
             {canEdit && !selectMode && (

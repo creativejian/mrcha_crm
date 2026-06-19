@@ -48,13 +48,15 @@ export function TrimHeadCells({ showOption = true }: { showOption?: boolean }) {
   );
 }
 
-// 트림 행 옵션 배지 버튼(클릭 → 옵션 패널). summary 없으면 '미정'.
+// 트림 행 옵션 배지 버튼(클릭 → 옵션 패널). summary 없으면 '미정'. hover 시 옵션 상세 프리패치.
 export function OptionBadgeButton({
   summary,
   onClick,
+  onPrefetch,
 }: {
   summary: TrimOptionSummary | undefined;
   onClick: () => void;
+  onPrefetch?: () => void;
 }) {
   const basic = summary?.basic ?? 0;
   const tuning = summary?.tuning ?? 0;
@@ -67,7 +69,15 @@ export function OptionBadgeButton({
         : "옵션 미입력";
   const text = state === "has" ? String(basic + tuning) : state === "confirmed-none" ? "✓" : "?";
   return (
-    <button type="button" className="tiny-btn va-option-btn" onClick={onClick} aria-label={label} title={label}>
+    <button
+      type="button"
+      className="tiny-btn va-option-btn"
+      onClick={onClick}
+      onMouseEnter={() => onPrefetch?.()}
+      onFocus={() => onPrefetch?.()}
+      aria-label={label}
+      title={label}
+    >
       <ListChecks size={14} />
       <span className={`va-option-badge va-option-${state}`}>{text}</span>
     </button>
