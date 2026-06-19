@@ -50,6 +50,7 @@ Default handoff behavior:
 - Any change: keep `bun run lint` at 0 problems (the repo is currently lint-clean).
 - Customer management logic changes: run `bun run test:unit client/src/pages/CustomerManagementPage.test.tsx`.
 - Large visual layout changes: run Playwright screenshot once, not after every minor tweak.
+- **커밋 메시지 `[skip ci]` 토큰 주의**: feature 브랜치 커밋(spec/plan/brief 포함)에 넣으면 GitHub squash가 본문에 합쳐 **CF Pages 배포가 스킵**된다(2026-06-19 #51·#53서 2회 사고). 그 토큰은 머지와 무관한 **main 직접 docs 커밋에만** 사용. 스킵됐으면 마커 없는 빈 커밋 push 또는 CF 대시보드 수동 빌드로 보정.
 
 ## Current UI Focus
 
