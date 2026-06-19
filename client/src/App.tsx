@@ -4,7 +4,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router"
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups } from "@/data/customers";
-import { fetchCustomers } from "@/lib/customers";
+import { fetchCustomers, updateCustomer, type CustomerWritePatch } from "@/lib/customers";
 import { customerCodeFromLocation } from "@/lib/customer-route";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
@@ -118,6 +118,9 @@ export function App() {
       .then((list) => {
         if (!alive) return;
         setCustomers(list);
+        setChanceOverrides(
+          Object.fromEntries(list.filter((c) => c.chance).map((c) => [c.no, c.chance as CustomerChanceOption])),
+        );
         setCustomersError(false);
         setCustomersLoaded(true);
       })
@@ -186,9 +189,12 @@ export function App() {
   }
 
   function updateCustomerWorkflow(customerNo: number, next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus }) {
+    const target = customers.find((customer) => customer.no === customerNo);
+    const prevCustomers = customers;
+    const prevChanceOverrides = chanceOverrides;
+
     if (next.statusGroup || next.status) {
-      const currentCustomer = customers.find((customer) => customer.no === customerNo);
-      const nextStageGroup = next.statusGroup ?? currentCustomer?.statusGroup ?? statusGroupByStatus[next.status ?? ""] ?? "";
+      const nextStageGroup = next.statusGroup ?? target?.statusGroup ?? statusGroupByStatus[next.status ?? ""] ?? "";
       setCustomers((current) => current.map((customer) => {
         if (customer.no !== customerNo) return customer;
         const statusGroup = next.statusGroup ?? customer.statusGroup;
@@ -204,6 +210,21 @@ export function App() {
 
     if (next.manageStatus) {
       setManageStatusOverrides((current) => ({ ...current, [customerNo]: next.manageStatus as CustomerManageStatus }));
+    }
+
+    // DB 저장(statusGroup/status/chance만 — manageStatus는 컬럼 없음). chance는 계약완료 동기화 규칙 반영.
+    const patch: CustomerWritePatch = {};
+    if (next.statusGroup) patch.statusGroup = next.statusGroup;
+    if (next.status) patch.status = next.status;
+    if (next.statusGroup === "계약완료") patch.chance = "확정";
+    else if (next.statusGroup && prevChanceOverrides[customerNo] === "확정") patch.chance = null;
+    else if (next.chance) patch.chance = next.chance;
+    if (target?.id && Object.keys(patch).length > 0) {
+      updateCustomer(target.id, patch).catch(() => {
+        setCustomers(prevCustomers);
+        setChanceOverrides(prevChanceOverrides);
+        showToast("저장에 실패했습니다");
+      });
     }
   }
 

@@ -1,7 +1,7 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
-import { fetchCustomerDetail, formatActivity, type CustomerDetailData } from "@/lib/customers";
+import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
@@ -1866,6 +1866,15 @@ function KimMinjunDetailContent({
     setRecentUpdateNow(updatedAt);
   }
 
+  // 낙관 갱신 후 백그라운드 PATCH. 실패 시 rollback + 토스트(쓰기는 재시도 안 함).
+  function savePatch(patch: CustomerWritePatch, rollback: () => void) {
+    if (!customer.id) return;
+    void updateCustomer(customer.id, patch).catch(() => {
+      rollback();
+      onToast("저장에 실패했습니다");
+    });
+  }
+
   function openCheckItemEdit(item: KimCheckItem) {
     setAddingCheckItem(false);
     setConfirmingCheckItemTitle(null);
@@ -2304,10 +2313,12 @@ function KimMinjunDetailContent({
     const formData = new FormData(event.currentTarget);
     const value = String(formData.get("value") ?? "").trim();
     if (!value) return;
+    const prev = statusValues[key];
     setStatusValues((current) => ({ ...current, [key]: value }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast(`${fieldLabel(key)} 수정 완료`);
+    if (key === "phone") savePatch({ phone: value }, () => setStatusValues((current) => ({ ...current, phone: prev })));
   }
 
   function saveJobField(event: SyntheticEvent<HTMLFormElement>) {
@@ -2316,10 +2327,12 @@ function KimMinjunDetailContent({
     const customerType = String(formData.get("customerType") ?? "개인") as KimCustomerType;
     const customerTypeDetail = String(formData.get("customerTypeDetail") ?? "").trim();
     const nextJobValue = formatKimJobValue(customerType, customerTypeDetail);
+    const prevJob = statusValues.job;
     setStatusValues((current) => ({ ...current, job: nextJobValue }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast("직군 수정 완료");
+    savePatch({ customerType, customerTypeDetail }, () => setStatusValues((current) => ({ ...current, job: prevJob })));
   }
 
   function saveLocationField(event: SyntheticEvent<HTMLFormElement>) {
@@ -2327,10 +2340,13 @@ function KimMinjunDetailContent({
     const formData = new FormData(event.currentTarget);
     const province = String(formData.get("province") ?? "확인 필요");
     const detail = String(formData.get("detail") ?? "확인 필요");
-    setStatusValues((current) => ({ ...current, location: formatKimLocationValue(province, detail) }));
+    const nextLocation = formatKimLocationValue(province, detail);
+    const prevLocation = statusValues.location;
+    setStatusValues((current) => ({ ...current, location: nextLocation }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast("거주지 수정 완료");
+    savePatch({ residence: nextLocation }, () => setStatusValues((current) => ({ ...current, location: prevLocation })));
   }
 
   function saveSourceField(event: SyntheticEvent<HTMLFormElement>) {
@@ -2340,10 +2356,12 @@ function KimMinjunDetailContent({
     const customSource = String(formData.get("customSource") ?? "").trim();
     const nextSource = source === "기타" ? customSource || "기타" : source;
     if (!nextSource) return;
+    const prevSource = statusValues.source;
     setStatusValues((current) => ({ ...current, source: nextSource }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast("상담경로 수정 완료");
+    savePatch({ source: nextSource }, () => setStatusValues((current) => ({ ...current, source: prevSource })));
   }
 
   function saveAdvisorField(event: SyntheticEvent<HTMLFormElement>) {
@@ -2378,16 +2396,22 @@ function KimMinjunDetailContent({
   function saveNeeds(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    setNeeds({
+    const prevNeeds = needs;
+    const nextNeeds = {
       model: String(formData.get("model") ?? "").trim() || needs.model,
       trim: String(formData.get("trim") ?? "").trim() || needs.trim,
       colors: String(formData.get("colors") ?? "").trim() || needs.colors,
       method: String(formData.get("method") ?? "").trim() || needs.method,
       memo: String(formData.get("memo") ?? "").trim() || needs.memo,
-    });
+    };
+    setNeeds(nextNeeds);
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast("고객 니즈 수정 완료");
+    savePatch(
+      { needModel: nextNeeds.model, needTrim: nextNeeds.trim, needColors: nextNeeds.colors, needMethod: nextNeeds.method, needMemo: nextNeeds.memo },
+      () => setNeeds(prevNeeds),
+    );
   }
 
   function savePurchaseConditions(event: SyntheticEvent<HTMLFormElement>) {
@@ -2412,11 +2436,13 @@ function KimMinjunDetailContent({
     }
     const orderedMethods = kimMethodOptions.filter((method) => selectedMethods.has(method));
     const nextValue = orderedMethods.length > 0 ? orderedMethods.join(" · ") : "확인 필요";
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "구매방식" ? { ...field, value: nextValue } : field
     )));
     markRecentUpdate("상세 구매조건");
     onToast("구매방식 수정 완료");
+    savePatch({ needMethod: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   function togglePurchaseTerm(option: string) {
@@ -2490,6 +2516,7 @@ function KimMinjunDetailContent({
     }
     const currentTimingField = purchaseFields.find((field) => field.label === "출고 희망 시기");
     const nextValue = currentTimingField?.value === option ? "확인 필요" : option;
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "출고 희망 시기" ? { ...field, value: nextValue } : field
     )));
@@ -2498,12 +2525,14 @@ function KimMinjunDetailContent({
     setPurchasePopoverFrame(null);
     markRecentUpdate("상세 구매조건");
     onToast("출고 희망 시기 수정 완료");
+    savePatch({ needTiming: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   function selectPurchaseTimingMonth(month: string) {
     const currentTimingField = purchaseFields.find((field) => field.label === "출고 희망 시기");
     const monthValue = `${month} 출고 희망`;
     const nextValue = currentTimingField?.value === monthValue ? "확인 필요" : monthValue;
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "출고 희망 시기" ? { ...field, value: nextValue } : field
     )));
@@ -2512,6 +2541,7 @@ function KimMinjunDetailContent({
     setPurchasePopoverFrame(null);
     markRecentUpdate("상세 구매조건");
     onToast("출고 희망 시기 수정 완료");
+    savePatch({ needTiming: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   function togglePurchaseCostFocus(option: string) {

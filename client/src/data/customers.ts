@@ -22,6 +22,7 @@ export type Customer = {
   source: string;
   talkCount: string;
   priority: string;
+  chance?: string;
   nextAction: string;
   aiSummary: string;
   settlementStatus?: string;

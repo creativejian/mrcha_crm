@@ -14,6 +14,7 @@ export type CustomerRow = {
   statusGroup: string | null;
   status: string | null;
   priority: string | null;
+  chance: string | null;
   aiSummary: string | null;
   needModel: string | null;
   needMethod: string | null;
@@ -53,6 +54,7 @@ export function toCustomer(row: CustomerRow): Customer {
     source: row.source ?? "",
     talkCount: "",
     priority: row.priority ?? "",
+    chance: row.chance ?? undefined,
     nextAction: row.latestTask ?? "",
     aiSummary: row.aiSummary ?? "",
   };
@@ -147,4 +149,32 @@ export async function fetchCustomerDetail(id: string): Promise<CustomerDetailDat
   const res = await apiFetch(`/api/customers/${id}`);
   if (!res.ok) throw new Error(`고객 상세 실패: ${res.status}`);
   return toCustomerDetail((await res.json()) as CustomerDetailResponse);
+}
+
+// ── 고객 본체 쓰기(PATCH /api/customers/:id) ────────────────────────────────────
+// 쓰기 가능 컬럼 partial. 백엔드 customerWriteSchema와 1:1. 쓰기는 apiFetch 재시도 대상 아님.
+export type CustomerWritePatch = {
+  phone?: string | null;
+  residence?: string | null;
+  customerType?: string | null;
+  customerTypeDetail?: string | null;
+  source?: string | null;
+  statusGroup?: string | null;
+  status?: string | null;
+  chance?: string | null;
+  needModel?: string | null;
+  needTrim?: string | null;
+  needColors?: string | null;
+  needMethod?: string | null;
+  needTiming?: string | null;
+  needMemo?: string | null;
+};
+
+export async function updateCustomer(id: string, patch: CustomerWritePatch): Promise<void> {
+  const res = await apiFetch(`/api/customers/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`고객 저장 실패: ${res.status}`);
 }
