@@ -82,7 +82,7 @@ const detailRes: CustomerDetailResponse = {
   needTiming: "좋은 조건 즉시",
   needMemo: "비교 정리 필요",
   tasks: [{ id: "t1", category: "체크", due: "오늘", body: "GLC 재고", done: false }],
-  schedules: [{ id: "s1", scheduledDate: "2026-05-26", scheduledTime: "16:00", type: "견적", memo: "재발송" }],
+  schedules: [{ id: "s1", scheduledDate: "2026-05-26", scheduledTime: "16:00", type: "견적", memo: "재발송", done: false }],
   memos: [{ id: "m1", body: "메모1", createdAt: "2026-05-14T13:18:00+09:00" }],
   documents: [{ id: "d1", title: "주민등록등본", docType: "자동인식", fileName: "f.pdf", fileSize: 100, fileMime: "application/pdf" }],
 };
