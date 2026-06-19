@@ -1,7 +1,7 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
-import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
+import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
@@ -1115,47 +1115,18 @@ const kimMockQuoteAttachments = [
 
 function KimPhoneStatusInput({ initialValue }: { initialValue: string }) {
   const [value, setValue] = useState(initialValue);
-  const [replaceOnInput, setReplaceOnInput] = useState(true);
 
-  function replaceInitialValue(nextValue: string) {
-    setValue(formatKoreanPhoneInput(nextValue));
-    setReplaceOnInput(false);
-  }
-
+  // 일반 편집: 변경 시 하이픈 자동 포맷, 포커스 시 커서를 끝으로(백스페이스로 끝부터 한 글자씩 삭제).
   return (
     <input
       autoComplete="tel"
       autoFocus
-      className={replaceOnInput ? "is-preview-value" : ""}
       inputMode="numeric"
       name="value"
-      onBeforeInput={(event) => {
-        if (!replaceOnInput || event.nativeEvent.inputType !== "insertText") return;
-        event.preventDefault();
-        replaceInitialValue(event.nativeEvent.data ?? "");
-      }}
-      onChange={(event) => {
-        setValue(formatKoreanPhoneInput(event.currentTarget.value));
-        setReplaceOnInput(false);
-      }}
+      onChange={(event) => setValue(formatKoreanPhoneInput(event.currentTarget.value))}
       onFocus={(event) => {
-        event.currentTarget.setSelectionRange(0, 0);
-      }}
-      onKeyDown={(event) => {
-        if (!replaceOnInput) return;
-        if (/^\d$/.test(event.key)) {
-          event.preventDefault();
-          replaceInitialValue(event.key);
-          return;
-        }
-        if (event.key !== "Backspace" && event.key !== "Delete") return;
-        event.preventDefault();
-        replaceInitialValue("");
-      }}
-      onPaste={(event: ReactClipboardEvent<HTMLInputElement>) => {
-        if (!replaceOnInput) return;
-        event.preventDefault();
-        replaceInitialValue(event.clipboardData.getData("text"));
+        const end = event.currentTarget.value.length;
+        event.currentTarget.setSelectionRange(end, end);
       }}
       placeholder="010-0000-0000"
       type="tel"
@@ -1354,7 +1325,7 @@ function KimMinjunDetailContent({
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
 }) {
   const [statusValues, setStatusValues] = useState<Record<KimStatusFieldKey, string>>(() => ({
-    phone: detail.phone ?? "미입력",
+    phone: detail.phone ? formatPhone(detail.phone) : "미입력",
     job: formatKimJobValue((detail.customerType as KimCustomerType) ?? "개인", detail.customerTypeDetail ?? ""),
     location: detail.residence ?? "확인 필요",
     source: detail.source ?? "미입력",
@@ -2321,7 +2292,7 @@ function KimMinjunDetailContent({
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast(`${fieldLabel(key)} 수정 완료`);
-    if (key === "phone") savePatch({ phone: value }, () => setStatusValues((current) => ({ ...current, phone: prev })));
+    if (key === "phone") savePatch({ phone: value.replace(/\D/g, "") }, () => setStatusValues((current) => ({ ...current, phone: prev })));
   }
 
   function saveJobField(event: SyntheticEvent<HTMLFormElement>) {

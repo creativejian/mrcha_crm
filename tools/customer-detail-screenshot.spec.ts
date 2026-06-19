@@ -103,11 +103,13 @@ test("opens customer detail from the all-customer list", async ({ page }) => {
   await drawer.getByRole("button", { name: /연락처.*010-9588-0812/ }).click();
   const phoneInput = drawer.getByRole("textbox", { name: "연락처 수정" });
   await expect(phoneInput).toHaveValue("010-9588-0812");
-  await expect(phoneInput).toHaveJSProperty("selectionStart", 0);
-  await expect(phoneInput).toHaveClass(/is-preview-value/);
-  await phoneInput.pressSequentially("01012345678");
+  // 일반 편집: 끝에서 백스페이스 1회 → 마지막 한 글자만 삭제(전체 삭제 아님).
+  await phoneInput.press("End");
+  await phoneInput.press("Backspace");
+  await expect(phoneInput).toHaveValue("010-9588-081");
+  // 전체 재입력 시 하이픈 자동 포맷.
+  await phoneInput.fill("01012345678");
   await expect(phoneInput).toHaveValue("010-1234-5678");
-  await expect(phoneInput).not.toHaveClass(/is-preview-value/);
   await drawer.getByRole("button", { name: "저장" }).click();
   await expect(drawer.getByRole("button", { name: /연락처.*010-1234-5678/ })).toBeVisible();
 
