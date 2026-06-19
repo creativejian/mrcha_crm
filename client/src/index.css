@@ -16533,3 +16533,24 @@ select.kim-jeff-discount-label {
   0% { background-position: 100% 0; }
   100% { background-position: 0 0; }
 }
+
+.kim-phone-input {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.kim-phone-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #f1f1ef;
+  color: #4f5a64;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kim-phone-input input {
+  flex: 1;
+  min-width: 0;
+}

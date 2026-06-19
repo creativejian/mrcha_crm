@@ -658,11 +658,15 @@ function scheduleRecordKey(item: KimScheduleItem) {
   return item.id;
 }
 
-function formatKoreanPhoneInput(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+// 010 prefix는 고정. 입력은 뒤 8자리만(휴대폰 4-4). 저장/표시는 "010" + 8자리 = 11자리.
+function formatLocalPhone(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 4) return digits;
+  return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+}
+function localPhoneFrom(fullValue: string) {
+  const digits = fullValue.replace(/\D/g, "");
+  return formatLocalPhone(digits.startsWith("010") ? digits.slice(3) : digits);
 }
 
 function formatKoreanShortTime(date = new Date()) {
@@ -1114,24 +1118,29 @@ const kimMockQuoteAttachments = [
 ];
 
 function KimPhoneStatusInput({ initialValue }: { initialValue: string }) {
-  const [value, setValue] = useState(initialValue);
+  // 010은 고정 prefix. 입력값은 뒤 8자리(4-4)만 다룬다. 폼 제출 시 name="value"=8자리, 저장 핸들러가 010 prepend.
+  const [value, setValue] = useState(() => localPhoneFrom(initialValue));
 
-  // 일반 편집: 변경 시 하이픈 자동 포맷, 포커스 시 커서를 끝으로(백스페이스로 끝부터 한 글자씩 삭제).
   return (
-    <input
-      autoComplete="tel"
-      autoFocus
-      inputMode="numeric"
-      name="value"
-      onChange={(event) => setValue(formatKoreanPhoneInput(event.currentTarget.value))}
-      onFocus={(event) => {
-        const end = event.currentTarget.value.length;
-        event.currentTarget.setSelectionRange(end, end);
-      }}
-      placeholder="010-0000-0000"
-      type="tel"
-      value={value}
-    />
+    <div className="kim-phone-input">
+      <span className="kim-phone-prefix" aria-hidden="true">010</span>
+      <input
+        aria-label="연락처 수정"
+        autoComplete="tel"
+        autoFocus
+        inputMode="numeric"
+        maxLength={9}
+        name="value"
+        onChange={(event) => setValue(formatLocalPhone(event.currentTarget.value))}
+        onFocus={(event) => {
+          const end = event.currentTarget.value.length;
+          event.currentTarget.setSelectionRange(end, end);
+        }}
+        placeholder="0000-0000"
+        type="tel"
+        value={value}
+      />
+    </div>
   );
 }
 
@@ -2288,11 +2297,20 @@ function KimMinjunDetailContent({
     const value = String(formData.get("value") ?? "").trim();
     if (!value) return;
     const prev = statusValues[key];
+    if (key === "phone") {
+      const digits = `010${value.replace(/\D/g, "")}`; // 입력 8자리 + 010 고정 prefix = 11자리
+      const display = formatPhone(digits);
+      setStatusValues((current) => ({ ...current, phone: display }));
+      setOpenEditor(null);
+      markRecentUpdate("고객 정보");
+      onToast("연락처 수정 완료");
+      savePatch({ phone: digits }, () => setStatusValues((current) => ({ ...current, phone: prev })));
+      return;
+    }
     setStatusValues((current) => ({ ...current, [key]: value }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast(`${fieldLabel(key)} 수정 완료`);
-    if (key === "phone") savePatch({ phone: value.replace(/\D/g, "") }, () => setStatusValues((current) => ({ ...current, phone: prev })));
   }
 
   function saveJobField(event: SyntheticEvent<HTMLFormElement>) {
@@ -5884,23 +5902,7 @@ export function CustomerDetailPage({
             onWorkflowChange={onWorkflowChange}
           />
         ) : (
-          <section className="customer-detail-summary kim-detail-summary">
-            <div className="kim-header-main">
-              <div className="kim-header-read">
-                <div className="kim-header-primary">
-                  <h2 className="kim-header-breadcrumb">
-                    <span>고객 관리</span>
-                    <ChevronRight size={18} strokeWidth={2.2} />
-                    <span>{customer.name}</span>
-                    <em className="kim-header-code-text num">{customer.customerId}</em>
-                    <em className="kim-header-received-text num">{customer.receivedAt ? `· ${customer.receivedAt} 접수` : ""}</em>
-                  </h2>
-                  <p>불러오는 중…</p>
-                </div>
-              </div>
-            </div>
-            <div className="kim-detail-skeleton" aria-hidden="true" />
-          </section>
+          <div className="kim-detail-skeleton" aria-hidden="true" />
         )
       ) : (
       <div className="customer-detail-layout">

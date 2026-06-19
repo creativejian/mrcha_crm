@@ -72,11 +72,13 @@ export type CustomerDetail = typeof customers.$inferSelect & {
 export async function getCustomer(id: string, executor: Executor = getDefaultDb()): Promise<CustomerDetail | null> {
   const [customer] = await executor.select().from(customers).where(eq(customers.id, id));
   if (!customer) return null;
-  // 자식은 순차 await(저빈도 상세, pool 절약 — catalog-counts와 동일 원칙).
-  const tasks = await executor.select().from(customerTasks).where(eq(customerTasks.customerId, id));
-  const schedules = await executor.select().from(customerSchedules).where(eq(customerSchedules.customerId, id));
-  const memos = await executor.select().from(customerMemos).where(eq(customerMemos.customerId, id));
-  const documents = await executor.select().from(customerDocuments).where(eq(customerDocuments.customerId, id));
-  const consults = await executor.select().from(consultations).where(eq(consultations.customerId, id));
+  // 자식 5개는 병렬(존재 확인 후 1회 배치 — 순차 6왕복 → 2왕복으로 단축). 상세는 저빈도라 동시연결 부담 작음.
+  const [tasks, schedules, memos, documents, consults] = await Promise.all([
+    executor.select().from(customerTasks).where(eq(customerTasks.customerId, id)),
+    executor.select().from(customerSchedules).where(eq(customerSchedules.customerId, id)),
+    executor.select().from(customerMemos).where(eq(customerMemos.customerId, id)),
+    executor.select().from(customerDocuments).where(eq(customerDocuments.customerId, id)),
+    executor.select().from(consultations).where(eq(consultations.customerId, id)),
+  ]);
   return { ...customer, tasks, schedules, memos, documents, consultations: consults };
 }
