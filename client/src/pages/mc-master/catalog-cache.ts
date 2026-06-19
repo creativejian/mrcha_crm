@@ -71,6 +71,12 @@ const trimsCache = makeCache<CatalogTrim[]>(fetchTrims);
 const trimColorsCache = makeCache<TrimColor[]>(fetchTrimColors);
 const optionSummaryCache = makeCache<TrimOptionSummary[]>(fetchOptionSummary);
 
+// 동기 캐시 getter — 모델 전환 시 페인트 전 즉시 표시해 이전 모델 트림 잔상을 막는다(useMcMasterCatalog).
+export const getCachedTrims = (modelId: number): CatalogTrim[] | undefined => trimsCache.get(modelId);
+export const getCachedTrimColors = (modelId: number): TrimColor[] | undefined => trimColorsCache.get(modelId);
+export const getCachedOptionSummary = (modelId: number): TrimOptionSummary[] | undefined =>
+  optionSummaryCache.get(modelId);
+
 export const fetchTrimsCached = (modelId: number, opts?: { force?: boolean }): Promise<CatalogTrim[]> =>
   trimsCache.load(modelId, opts);
 export const fetchTrimColorsCached = (modelId: number, opts?: { force?: boolean }): Promise<TrimColor[]> =>
