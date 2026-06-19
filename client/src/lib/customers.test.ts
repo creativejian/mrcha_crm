@@ -21,6 +21,7 @@ const row: CustomerRow = {
   assignedAt: "2026-05-14T13:04:00+09:00",
   lastActivityAt: "2026-05-14T14:20:00+09:00",
   latestTask: "GLC 재고 확인",
+  chance: null,
 };
 
 describe("toCustomer", () => {
@@ -43,6 +44,10 @@ describe("toCustomer", () => {
   });
   it("id(uuid)를 그대로 전달", () => {
     expect(toCustomer(row).id).toBe("11111111-1111-1111-1111-111111111111");
+  });
+  it("chance를 전달(없으면 undefined)", () => {
+    expect(toCustomer({ ...row, chance: "높음" }).chance).toBe("높음");
+    expect(toCustomer(row).chance).toBeUndefined();
   });
 });
 
