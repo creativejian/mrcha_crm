@@ -1,22 +1,18 @@
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckSquare, FolderInput, Hash, Plus } from "lucide-react";
 
 import type { RoleTab } from "@/data/roles";
 import type { VehicleStatus } from "@/data/vehicle-taxonomy";
 import {
-  type CatalogBrand,
   type CatalogModel,
   type CatalogTrim,
-  type TrimColor,
   type TrimInput,
-  type TrimOptionSummary,
   assignMcCodes,
   createModel,
   createTrim,
   deleteModel,
   deleteTrim,
-  fetchBrands,
   moveTrims,
   reorderModels,
   reorderTrims,
@@ -24,15 +20,7 @@ import {
   updateTrim,
 } from "@/lib/catalog";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
-import {
-  fetchModelsCached,
-  fetchOptionSummaryCached,
-  fetchTrimColorsCached,
-  fetchTrimsCached,
-  getCachedModels,
-  prefetchModels,
-  prefetchTrims,
-} from "./mc-master/catalog-cache";
+import { prefetchModels, prefetchTrims } from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
@@ -41,38 +29,56 @@ import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
 import { TrimTable } from "./mc-master/TrimTable";
 import { moveItem } from "./mc-master/reorder";
-import { trimSubline } from "./mc-master/trim-grouping";
+import { useMcMasterCatalog } from "./mc-master/useMcMasterCatalog";
+import { useMcMasterSelection } from "./mc-master/useMcMasterSelection";
 
 type ModelPanelState = { mode: "add" } | { mode: "edit"; model: CatalogModel } | null;
 type TrimPanelState = { mode: "add" } | { mode: "edit"; trim: CatalogTrim } | null;
 type TrimTab = "list" | "order";
 
-// 옵션 요약 행 → trimId 키 맵(트림 배지 조회용). effect·reload 양쪽에서 공유.
-const toOptionMap = (rows: TrimOptionSummary[]) => new Map(rows.map((r) => [r.trimId, r] as const));
-
 export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const canEdit = roleTab === "최고관리자";
   const navigate = useNavigate();
   const { modelId } = useParams();
-  const [brands, setBrands] = useState<CatalogBrand[]>([]);
-  const [brandId, setBrandId] = useState<number | null>(null);
-  const [models, setModels] = useState<CatalogModel[]>([]);
-  const [trims, setTrims] = useState<CatalogTrim[]>([]);
+
+  const {
+    brands,
+    brandId,
+    setBrandId,
+    models,
+    setModels,
+    trims,
+    setTrims,
+    colorsByTrim,
+    optionByTrim,
+    loadError,
+    expandedGroups,
+    toggleGroup,
+    reloadModels,
+    reloadTrims,
+    reloadOptionSummary,
+  } = useMcMasterCatalog(modelId);
+  const {
+    selectMode,
+    selected,
+    draggingId,
+    dragId,
+    resetSelect,
+    toggleSelectMode,
+    toggle,
+    toggleAll,
+    onDragStart,
+    endDrag,
+    clearSelected,
+  } = useMcMasterSelection();
+
   const [modelPanel, setModelPanel] = useState<ModelPanelState>(null);
   const [trimPanel, setTrimPanel] = useState<TrimPanelState>(null);
   const [busy, setBusy] = useState(false);
   const [panelError, setPanelError] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState(false);
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [draggingId, setDraggingId] = useState<number | null>(null);
-  const [colorsByTrim, setColorsByTrim] = useState<Map<number, TrimColor[]>>(new Map());
-  const [optionByTrim, setOptionByTrim] = useState<Map<number, TrimOptionSummary>>(new Map());
   const [optionPanelTrim, setOptionPanelTrim] = useState<CatalogTrim | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
   const [trimTab, setTrimTab] = useState<TrimTab>("list");
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const dragId = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const modelScrollTop = useRef(0);
 
@@ -85,82 +91,6 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const isDomestic = brands.find((b) => b.id === brandId)?.isDomestic ?? false;
   const groupedView = inTrimView && isDomestic && trimTab === "list";
 
-  function resetSelect() {
-    setSelectMode(false);
-    setSelected(new Set());
-  }
-
-  useEffect(() => {
-    fetchBrands()
-      .then((b) => {
-        setBrands(b);
-        setBrandId((cur) => cur ?? b[0]?.id ?? null);
-        setLoadError(false);
-      })
-      .catch(() => setLoadError(true));
-  }, []);
-
-  useEffect(() => {
-    if (brandId == null) return;
-    let active = true;
-    // 캐시/프리패치된 브랜드는 fetchModelsCached가 즉시 resolve → 사실상 즉시 페인트(왕복 0).
-    // 아니면 fetch 후 캐시·이미지 워밍. hadCache면 갱신 실패해도 에러화면 대신 캐시 유지.
-    const hadCache = getCachedModels(brandId) !== undefined;
-    fetchModelsCached(brandId)
-      .then((m) => {
-        if (active) {
-          setModels(m);
-          setLoadError(false);
-        }
-      })
-      .catch(() => {
-        if (active && !hadCache) setLoadError(true);
-      });
-    return () => {
-      active = false; // 브랜드 빠르게 전환 시 늦게 도착한 응답이 다른 브랜드를 덮지 않게.
-    };
-  }, [brandId]);
-
-  useEffect(() => {
-    if (!modelId) return;
-    const id = Number(modelId);
-    let active = true; // 모델 빠르게 전환 시 늦게 온 응답이 다른 모델을 덮지 않게.
-    // 캐시/프리패치된 모델은 즉시 resolve → 트림 뷰 진입 즉시.
-    fetchTrimsCached(id)
-      .then((rows) => {
-        if (!active) return;
-        setTrims(rows);
-        // 첫 등장 서브라인 그룹만 펼친 상태로 진입(모델 전환 시 초기화).
-        const first = rows[0] ? trimSubline(rows[0].trimName) : null;
-        setExpandedGroups(first ? new Set([first]) : new Set());
-        setLoadError(false);
-      })
-      .catch(() => {
-        if (active) setLoadError(true);
-      });
-    fetchTrimColorsCached(id)
-      .then((rows) => {
-        if (!active) return;
-        const map = new Map<number, TrimColor[]>();
-        for (const c of rows) {
-          if (c.trimId == null) continue;
-          const arr = map.get(c.trimId) ?? [];
-          arr.push(c);
-          map.set(c.trimId, arr);
-        }
-        setColorsByTrim(map);
-      })
-      .catch(() => undefined);
-    fetchOptionSummaryCached(id)
-      .then((rows) => {
-        if (active) setOptionByTrim(toOptionMap(rows));
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [modelId]);
-
   // 모델 목록 스크롤 위치 보존: 트림 뷰로 들어갔다 뒤로 와도 위치 복원.
   function onScroll() {
     if (!inTrimView && scrollRef.current) modelScrollTop.current = scrollRef.current.scrollTop;
@@ -168,27 +98,6 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   useLayoutEffect(() => {
     if (!inTrimView && scrollRef.current) scrollRef.current.scrollTop = modelScrollTop.current;
   }, [inTrimView, models]);
-
-  function reloadModels() {
-    if (brandId == null) return;
-    // 편집 직후엔 신선도 무시하고 새로 가져와 캐시까지 갱신.
-    fetchModelsCached(brandId, { force: true })
-      .then(setModels)
-      .catch(() => setLoadError(true));
-  }
-  function reloadTrims() {
-    if (!modelId) return;
-    // 편집 직후엔 신선도 무시하고 새로 가져와 캐시까지 갱신.
-    fetchTrimsCached(Number(modelId), { force: true })
-      .then(setTrims)
-      .catch(() => setLoadError(true));
-  }
-  function reloadOptionSummary() {
-    if (!modelId) return;
-    fetchOptionSummaryCached(Number(modelId), { force: true })
-      .then((rows) => setOptionByTrim(toOptionMap(rows)))
-      .catch(() => undefined);
-  }
 
   function selectBrand(id: number) {
     setBrandId(id);
@@ -209,14 +118,6 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   function switchTrimTab(tab: TrimTab) {
     setTrimTab(tab);
     resetSelect();
-  }
-  function toggleGroup(key: string) {
-    setExpandedGroups((s) => {
-      const n = new Set(s);
-      if (n.has(key)) n.delete(key);
-      else n.add(key);
-      return n;
-    });
   }
 
   async function submitModel(values: { name: string; category: string | null; status: VehicleStatus }) {
@@ -259,22 +160,9 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   }
 
   // ── 선택 모드(일괄삭제 + 드래그 순서변경) ──────────────────────────────────────
-  function toggle(idv: number) {
-    setSelected((s) => {
-      const n = new Set(s);
-      if (n.has(idv)) n.delete(idv);
-      else n.add(idv);
-      return n;
-    });
-  }
-  function toggleAll() {
-    const rows = inTrimView ? trims : models;
-    setSelected((s) => (s.size === rows.length ? new Set() : new Set(rows.map((r) => r.id))));
-  }
-  function onDragStart(idv: number) {
-    dragId.current = idv;
-    setDraggingId(idv);
-  }
+  // 전체선택/순서변경/저장은 선택 상태(selection)와 카탈로그 데이터(catalog) 양쪽을 만져
+  // 컴포넌트에서 엮는다.
+  const toggleAllRows = () => toggleAll((inTrimView ? trims : models).map((r) => r.id));
   // 인덱스를 setter 안(최신 list)에서 계산 — stale closure로 엉뚱하게 이동/중복되는 문제 방지.
   function onDragOverRow(overId: number) {
     const cur = dragId.current;
@@ -286,8 +174,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     }
   }
   async function onDrop() {
-    dragId.current = null;
-    setDraggingId(null);
+    endDrag();
     try {
       if (inTrimView) await reorderTrims(trims.map((t) => t.id));
       else await reorderModels(models.map((m) => m.id));
@@ -306,7 +193,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
         if (inTrimView) await deleteTrim(idv);
         else await deleteModel(idv);
       }
-      setSelected(new Set());
+      clearSelected();
       reloadModels();
       if (inTrimView) reloadTrims();
     } catch (e) {
@@ -373,10 +260,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
           <button
             type="button"
             className={`btn${selectMode ? " va-select-on" : ""}`}
-            onClick={() => {
-              setSelectMode((v) => !v);
-              setSelected(new Set());
-            }}
+            onClick={toggleSelectMode}
           >
             <CheckSquare size={15} /> {selectMode ? "취소" : "선택"}
           </button>
@@ -479,7 +363,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   }}
                   onOpenOptions={setOptionPanelTrim}
                   onToggle={toggle}
-                  onToggleAll={toggleAll}
+                  onToggleAll={toggleAllRows}
                   onDragStart={onDragStart}
                   onDragOver={onDragOverRow}
                   onDrop={onDrop}
@@ -498,7 +382,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   setModelPanel({ mode: "edit", model: m });
                 }}
                 onToggle={toggle}
-                onToggleAll={toggleAll}
+                onToggleAll={toggleAllRows}
                 onPrefetch={(m) => prefetchTrims(m.id)}
                 onDragStart={onDragStart}
                 onDragOver={onDragOverRow}
