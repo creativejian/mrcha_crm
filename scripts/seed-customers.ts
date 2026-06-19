@@ -46,7 +46,8 @@ async function main() {
       .values({
         customerCode: c.customerId,
         name: c.name,
-        phone: c.phone,
+        phone: c.phone.replace(/\D/g, ""), // DB엔 숫자만 저장(표시는 프론트에서 포맷)
+
         customerType: c.customerType,
         customerTypeDetail: c.customerTypeDetail,
         team: c.team,

@@ -24,6 +24,15 @@ export type CustomerRow = {
   latestTask: string | null;
 };
 
+// 전화번호 표시 포맷. DB엔 숫자만 저장하고, 화면에선 하이픈 포맷으로 보여준다.
+// 입력이 하이픈 포함이어도 먼저 숫자만 추출하므로 digits/hyphen 둘 다 안전(전환기 호환).
+export function formatPhone(raw: string | null): string {
+  const d = (raw ?? "").replace(/\D/g, "");
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return raw ?? "";
+}
+
 // timestamptz → 화면 표시 문자열. 기준일 비교 없이 "YY/MM/DD HH:mm"(읽기 1차 — 상대표현 보류).
 export function formatActivity(ts: string | null): string {
   if (!ts) return "";
@@ -44,7 +53,7 @@ export function toCustomer(row: CustomerRow): Customer {
     name: row.name,
     customerType: row.customerType ?? "",
     customerTypeDetail: row.customerTypeDetail ?? "",
-    phone: row.phone ?? "",
+    phone: formatPhone(row.phone),
     vehicle: row.needModel ?? "",
     method: row.needMethod ?? "",
     advisor: "미배정",
