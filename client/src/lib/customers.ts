@@ -154,23 +154,39 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
   };
 }
 
-// 진행 중 동일 id 요청 dedup — 행 hover 프리패치와 상세 마운트 fetch가 같은 GET을 공유한다.
-// 결과 캐시는 두지 않는다(쓰기 직후 재진입 시 stale 방지) — 정착되면 inflight에서 제거.
+// 상세 결과 캐시 + inflight dedup.
+// - 재진입은 캐시 hit으로 즉시(왕복 0), hover 프리패치가 캐시를 미리 채움.
+// - 쓰기(본체 PATCH·자식 CRUD)는 성공 시 해당 고객 캐시를 무효화 → 다음 진입만 새로 fetch(stale 없음).
+// - TTL 60s: 타인 변경 등 외부 수정도 흡수.
+const DETAIL_FRESH_MS = 60_000;
+const detailCache = new Map<string, { data: CustomerDetailData; at: number }>();
 const detailInflight = new Map<string, Promise<CustomerDetailData>>();
 
+// 쓰기 성공 시 호출 — 해당 고객 상세 캐시를 버려 다음 진입에 최신을 받게 한다.
+export function invalidateCustomerDetail(id: string): void {
+  detailCache.delete(id);
+}
+
 export async function fetchCustomerDetail(id: string): Promise<CustomerDetailData> {
+  const cached = detailCache.get(id);
+  if (cached && Date.now() - cached.at < DETAIL_FRESH_MS) return cached.data;
   const existing = detailInflight.get(id);
   if (existing) return existing;
   const p = (async () => {
     const res = await apiFetch(`/api/customers/${id}`);
     if (!res.ok) throw new Error(`고객 상세 실패: ${res.status}`);
     return toCustomerDetail((await res.json()) as CustomerDetailResponse);
-  })().finally(() => detailInflight.delete(id));
+  })()
+    .then((data) => {
+      detailCache.set(id, { data, at: Date.now() });
+      return data;
+    })
+    .finally(() => detailInflight.delete(id));
   detailInflight.set(id, p);
   return p;
 }
 
-// 행 hover 시 호출 — 클릭 전에 GET을 시작해 진입 시 같은 in-flight를 재사용(체감 즉시).
+// 행 hover 시 호출 — 클릭 전에 캐시를 미리 채워 진입 시 즉시 표시.
 export function prefetchCustomerDetail(id: string): void {
   void fetchCustomerDetail(id).catch(() => undefined);
 }
@@ -201,4 +217,5 @@ export async function updateCustomer(id: string, patch: CustomerWritePatch): Pro
     body: JSON.stringify(patch),
   });
   if (!res.ok) throw new Error(`고객 저장 실패: ${res.status}`);
+  invalidateCustomerDetail(id);
 }
