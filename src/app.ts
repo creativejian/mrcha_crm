@@ -4,6 +4,7 @@ import type { JWTVerifyGetKey } from "jose";
 import { createAuthMiddleware } from "./middleware/auth";
 import { dbMiddleware } from "./middleware/db";
 import { catalog } from "./routes/catalog";
+import { customers } from "./routes/customers";
 import { vehicles } from "./routes/vehicles";
 
 // 테스트는 authOpts(로컬 keyResolver+issuer)를 주입해 보호 라우트를 통과 검증한다.
@@ -26,9 +27,12 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.use("/api/vehicles/*", dbMiddleware);
   app.use("/api/catalog/*", auth);
   app.use("/api/catalog/*", dbMiddleware);
+  app.use("/api/customers/*", auth);
+  app.use("/api/customers/*", dbMiddleware);
 
   app.route("/api/vehicles", vehicles);
   app.route("/api/catalog", catalog);
+  app.route("/api/customers", customers);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));
   // 처리되지 않은 에러는 CF 실시간 로그로 진단할 수 있게 console.error로 남기되,
