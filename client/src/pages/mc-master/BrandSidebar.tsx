@@ -28,7 +28,7 @@ export function BrandSidebar({
           onFocus={() => onPrefetch?.(b.id)}
         >
           {b.logoUrl ? (
-            <img src={b.logoUrl} alt="" className="va-brand-logo" loading="lazy" decoding="async" />
+            <img src={b.logoUrl} alt="" className="va-brand-logo" loading="eager" decoding="async" />
           ) : (
             <span className="va-brand-logo" />
           )}

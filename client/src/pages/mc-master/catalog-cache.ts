@@ -50,20 +50,25 @@ function makeCache<T>(fetcher: (id: number) => Promise<T>, onLoad?: (value: T, i
   };
 }
 
-// 모델 썸네일을 브라우저 캐시에 미리 올린다(render 엔드포인트 첫 변환 지연 흡수).
-function warmModelImages(models: CatalogModel[]): void {
+// 이미지 URL들을 브라우저 캐시에 미리 올린다(render 엔드포인트 첫 변환 지연 흡수).
+// 모델 썸네일·브랜드 로고 공용 — 데이터를 받는 즉시 이미지를 디코드해 첫 표시 지연을 줄인다.
+function warmImageUrls(urls: (string | null | undefined)[]): void {
   if (typeof Image === "undefined") return;
-  for (const m of models) {
-    if (!m.imageUrl) continue;
+  for (const url of urls) {
+    if (!url) continue;
     const img = new Image();
     img.decoding = "async";
-    img.src = m.imageUrl;
+    img.src = url;
   }
 }
 
 // ── 브랜드 목록(거의 정적, 단일 리스트라 key 0 고정) ─────────────────────────────
 // 캐시 없으면 mc-master 재진입마다 fetchBrands 네트워크(요청별 연결+Hyperdrive)로 블로킹된다.
-const brandsCache = makeCache<CatalogBrand[]>(() => fetchBrands());
+// 로고는 첫 진입 즉시 보이는 사이드바라, 데이터를 받을 때 이미지도 프리워밍한다(prefetchCatalog 경유 앱 로드 시점에 디코드).
+const brandsCache = makeCache<CatalogBrand[]>(
+  () => fetchBrands(),
+  (brands) => warmImageUrls(brands.map((b) => b.logoUrl)),
+);
 export const getCachedBrands = (): CatalogBrand[] | undefined => brandsCache.get(0);
 export const fetchBrandsCached = (opts?: { force?: boolean }): Promise<CatalogBrand[]> => brandsCache.load(0, opts);
 
@@ -73,7 +78,7 @@ const modelBrandIndex = new Map<number, number>();
 export const getBrandIdForModel = (modelId: number): number | undefined => modelBrandIndex.get(modelId);
 
 const modelsCache = makeCache<CatalogModel[]>(fetchModels, (models, brandId) => {
-  warmModelImages(models);
+  warmImageUrls(models.map((m) => m.imageUrl));
   for (const m of models) modelBrandIndex.set(m.id, brandId);
 });
 export const getCachedModels = (brandId: number): CatalogModel[] | undefined => modelsCache.get(brandId);
