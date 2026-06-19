@@ -105,3 +105,14 @@ export function prefetchTrims(modelId: number): void {
   void trimColorsCache.load(modelId).catch(() => undefined);
   void optionSummaryCache.load(modelId).catch(() => undefined);
 }
+
+// 앱 로드 직후 호출 — mc-master 첫 진입 전에 brands + 첫 브랜드 모델을 미리 받아둔다.
+// 진입 시 캐시 hit으로 즉시 표시(세션 첫 진입 체감 단축). 이미 캐시면 사실상 no-op.
+export function prefetchCatalog(): void {
+  void fetchBrandsCached()
+    .then((brands) => {
+      const first = brands[0]?.id;
+      if (first != null) prefetchModels(first);
+    })
+    .catch(() => undefined);
+}
