@@ -71,7 +71,6 @@ const trimsCache = makeCache<CatalogTrim[]>(fetchTrims);
 const trimColorsCache = makeCache<TrimColor[]>(fetchTrimColors);
 const optionSummaryCache = makeCache<TrimOptionSummary[]>(fetchOptionSummary);
 
-export const getCachedTrims = (modelId: number): CatalogTrim[] | undefined => trimsCache.get(modelId);
 export const fetchTrimsCached = (modelId: number, opts?: { force?: boolean }): Promise<CatalogTrim[]> =>
   trimsCache.load(modelId, opts);
 export const fetchTrimColorsCached = (modelId: number, opts?: { force?: boolean }): Promise<TrimColor[]> =>

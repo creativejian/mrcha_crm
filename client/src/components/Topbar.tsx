@@ -135,7 +135,9 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const [aiInput, setAiInput] = useState("");
   const [selectedPrompt, setSelectedPrompt] = useState(quickAiPrompts[0]);
   const [liveConsulting, setLiveConsulting] = useState(true);
-  const [avatarError, setAvatarError] = useState(false);
+  // 실패한 아바타 URL을 저장한다. URL이 바뀌면(재로그인/사용자 전환) 자동으로 다시 시도한다
+  // — 단순 boolean이면 한 번 onError 후 멀쩡한 새 아바타도 계속 기본 아이콘으로 표시된다.
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   const [confirmMode, setConfirmMode] = useState<"on" | "off" | null>(null);
   const workAiRef = useRef<HTMLDivElement>(null);
   const workAiCloseTimerRef = useRef<number | null>(null);
@@ -149,7 +151,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const isAdminRole = roleTab === "최고관리자";
   // 실제 로그인 사용자 정보(인증 컨텍스트). full_name/avatar는 카카오 user_metadata 기반.
   const displayName = userName ?? "사용자";
-  const showAvatar = !!userAvatarUrl && !avatarError;
+  const showAvatar = !!userAvatarUrl && failedAvatarUrl !== userAvatarUrl;
   const usesDefaultAvatar = !showAvatar;
   const showAttendanceMenu = roleTab !== "딜러";
   const dealerMode = roleTab === "딜러";
@@ -535,7 +537,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
           )}
         </div>
         <div className="settings-wrap account-menu-wrap" ref={settingsMenuRef}>
-          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={`${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setAvatarError(true)} /> : <AccountDefaultIcon />}</span><span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" /></button>
+          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={`${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setFailedAvatarUrl(userAvatarUrl ?? null)} /> : <AccountDefaultIcon />}</span><span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" /></button>
           {settingsOpen && (
             <>
               <div

@@ -330,8 +330,8 @@ export async function unsetTrimNoOption(trimId: number, executor: Executor = get
 // trim_code를 sort_order순으로 채번(활성+삭제이력 max+1부터)하고, catalog.trims의
 // auto_mc_code 트리거가 mc_code(MC+brand2+model2+year2+trim3)를 자동 생성한다.
 
-// 브랜드/모델 코드가 모두 있어야 mc_code 생성 가능.
-export async function modelHasCodes(modelId: number, executor: Executor = getDefaultDb()): Promise<boolean> {
+// 브랜드/모델 코드가 모두 있어야 mc_code 생성 가능. assignMcCodes 내부 전용.
+async function modelHasCodes(modelId: number, executor: Executor = getDefaultDb()): Promise<boolean> {
   const [row] = await executor
     .select({ modelCode: modelsInCatalog.modelCode, brandCode: brandsInCatalog.brandCode })
     .from(modelsInCatalog)
