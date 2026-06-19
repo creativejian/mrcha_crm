@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups } from "@/data/customers";
 import { fetchCustomers } from "@/lib/customers";
+import { customerCodeFromLocation } from "@/lib/customer-route";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
@@ -81,7 +82,11 @@ export function App() {
   const navigate = useNavigate();
   const activeView: ViewKey =
     PATH_TO_VIEW[location.pathname] ??
-    (location.pathname.startsWith("/mc-master/") ? "mc-master" : "advisor-dashboard");
+    (location.pathname.startsWith("/customer-detail")
+      ? "customer-detail"
+      : location.pathname.startsWith("/mc-master/")
+        ? "mc-master"
+        : "advisor-dashboard");
   const [customerMode, setCustomerMode] = useState<CustomerMode>("allDraft");
   const [financeMode, setFinanceMode] = useState<FinanceMode>("stats");
   const [toast, setToast] = useState("작업이 반영되었습니다.");
@@ -93,12 +98,14 @@ export function App() {
   const roleTab = auth.roleTab ?? "상담사";
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersError, setCustomersError] = useState(false);
-  const [selectedCustomerNo, setSelectedCustomerNo] = useState<number | null>(null);
+  const [customersLoaded, setCustomersLoaded] = useState(false);
   const [chanceOverrides, setChanceOverrides] = useState<Record<number, CustomerChanceOption>>({});
   const [manageStatusOverrides, setManageStatusOverrides] = useState<Record<number, CustomerManageStatus>>({});
-  const [customerDetailPanelOpen, setCustomerDetailPanelOpen] = useState(false);
   const [customerDetailEditorOpen, setCustomerDetailEditorOpen] = useState(false);
-  const selectedCustomer = customers.find((customer) => customer.no === selectedCustomerNo) ?? customers[0] ?? null;
+  // 선택 고객은 URL이 single source of truth: /customer-detail/:code 또는 /customers?customer=code.
+  const selectedCode = customerCodeFromLocation(location.pathname, location.search);
+  const selectedCustomer = selectedCode ? customers.find((customer) => customer.customerId === selectedCode) ?? null : null;
+  const isDrawerOpen = activeView === "customers" && selectedCode != null && selectedCustomer != null;
 
   // mc-master 첫 진입 전에 brands/첫 모델을 백그라운드로 미리 받아둔다(진입 시 캐시 hit → 즉시).
   useEffect(() => {
@@ -111,11 +118,13 @@ export function App() {
       .then((list) => {
         if (!alive) return;
         setCustomers(list);
-        setSelectedCustomerNo((cur) => cur ?? list[0]?.no ?? null);
         setCustomersError(false);
+        setCustomersLoaded(true);
       })
       .catch(() => {
-        if (alive) setCustomersError(true);
+        if (!alive) return;
+        setCustomersError(true);
+        setCustomersLoaded(true);
       });
     return () => {
       alive = false;
@@ -150,23 +159,20 @@ export function App() {
   }, []);
 
   function handleViewChange(view: string) {
-    setCustomerDetailPanelOpen(false);
     setCustomerDetailEditorOpen(false);
     navigate(VIEW_TO_PATH[view as ViewKey] ?? "/");
   }
 
   function openCustomerDetailPanel(customer: Customer) {
-    setSelectedCustomerNo(customer.no);
-    navigate("/customers");
+    const alreadyOpen = isDrawerOpen;
     setCustomerDetailEditorOpen(false);
-    setCustomerDetailPanelOpen(true);
+    navigate(`/customers?customer=${encodeURIComponent(customer.customerId)}`, { replace: alreadyOpen });
     showToast(`${customer.name} 고객 상세 패널을 열었습니다.`);
   }
 
   function openCustomerDetailFullScreen() {
-    setCustomerDetailPanelOpen(false);
     setCustomerDetailEditorOpen(false);
-    navigate("/customer-detail");
+    if (selectedCode) navigate(`/customer-detail/${encodeURIComponent(selectedCode)}`);
   }
 
   function syncChanceWithStageGroup(customerNo: number, nextGroup: string) {
@@ -202,17 +208,17 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!customerDetailPanelOpen) return;
+    if (!isDrawerOpen) return;
 
     function closeByEscape(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       if (customerDetailEditorOpen) return;
-      setCustomerDetailPanelOpen(false);
+      navigate("/customers");
     }
 
     document.addEventListener("keydown", closeByEscape);
     return () => document.removeEventListener("keydown", closeByEscape);
-  }, [customerDetailEditorOpen, customerDetailPanelOpen]);
+  }, [customerDetailEditorOpen, isDrawerOpen, navigate]);
 
   const isAdmin = roleTab === "최고관리자";
 
@@ -227,7 +233,7 @@ export function App() {
           path="/customers"
           element={
             <CustomerManagementPage
-              activeCustomerId={customerDetailPanelOpen ? (selectedCustomer?.customerId ?? null) : null}
+              activeCustomerId={isDrawerOpen ? selectedCode : null}
               chanceOverrides={chanceOverrides}
               customers={customers}
               manageStatusOverrides={manageStatusOverrides}
@@ -239,8 +245,9 @@ export function App() {
             />
           }
         />
+        <Route path="/customer-detail" element={<Navigate to="/customers" replace />} />
         <Route
-          path="/customer-detail"
+          path="/customer-detail/:code"
           element={
             selectedCustomer ? (
               <CustomerDetailPage
@@ -252,8 +259,10 @@ export function App() {
                 onWorkflowChange={updateCustomerWorkflow}
                 variant="page"
               />
-            ) : (
+            ) : customersLoaded ? (
               <Navigate to="/customers" replace />
+            ) : (
+              <div className="kim-detail-loading">고객 정보를 불러오는 중…</div>
             )
           }
         />
@@ -309,15 +318,15 @@ export function App() {
         {customersError && <div className="notice-box error">고객 목록을 불러오지 못했습니다.</div>}
         {renderView()}
       </main>
-      {customerDetailPanelOpen && selectedCustomer && (
+      {isDrawerOpen && selectedCustomer && (
         <div className="customer-detail-drawer-overlay" role="presentation">
-          <button aria-label="고객 상세 닫기" className="customer-detail-drawer-backdrop" onClick={() => setCustomerDetailPanelOpen(false)} type="button" />
+          <button aria-label="고객 상세 닫기" className="customer-detail-drawer-backdrop" onClick={() => navigate("/customers")} type="button" />
           <aside aria-label={`${selectedCustomer.name} 고객 상세 패널`} className="customer-detail-drawer" role="dialog" aria-modal="true">
             <CustomerDetailPage
               chanceOverride={chanceOverrides[selectedCustomer.no]}
               customer={selectedCustomer}
               manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
-              onBack={() => setCustomerDetailPanelOpen(false)}
+              onBack={() => navigate("/customers")}
               onEditorOpenChange={setCustomerDetailEditorOpen}
               onFullScreen={openCustomerDetailFullScreen}
               onToast={showToast}
