@@ -72,6 +72,7 @@ export const customerSchedules = crm.table("customer_schedules", {
   scheduledTime: text("scheduled_time"),
   type: text("type"),
   memo: text("memo"),
+  done: boolean("done").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

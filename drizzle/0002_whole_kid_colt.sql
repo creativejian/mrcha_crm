@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."customer_schedules" ADD COLUMN "done" boolean DEFAULT false NOT NULL;

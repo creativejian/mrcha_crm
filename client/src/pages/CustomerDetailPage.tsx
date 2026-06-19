@@ -2,6 +2,7 @@ import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront,
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
+import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
@@ -1394,7 +1395,9 @@ function KimMinjunDetailContent({
       memo: s.memo ?? "",
     })),
   );
-  const [completedScheduleKeys, setCompletedScheduleKeys] = useState<string[]>([]);
+  const [completedScheduleKeys, setCompletedScheduleKeys] = useState<string[]>(() =>
+    detail.schedules.filter((s) => s.done).map((s) => s.id),
+  );
   const [addingScheduleItem, setAddingScheduleItem] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [confirmingScheduleCompleteId, setConfirmingScheduleCompleteId] = useState<string | null>(null);
@@ -3077,6 +3080,10 @@ function KimMinjunDetailContent({
     setOpenEditor(null);
     markRecentUpdate("예정 일정");
     onToast("예정 일정이 생성되었습니다.");
+    if (!customer.id) return;
+    void addSchedule(customer.id, { scheduledDate: nextSchedule.date, scheduledTime: nextSchedule.time, type: nextSchedule.type, memo: nextSchedule.memo })
+      .then((res) => setSchedules((current) => current.map((s) => (s.id === nextSchedule.id ? { ...s, id: res.id } : s))))
+      .catch(() => { setSchedules((current) => current.filter((s) => s.id !== nextSchedule.id)); onToast("저장에 실패했습니다"); });
   }
 
   function updateSchedule(event: SyntheticEvent<HTMLFormElement>, id: string) {
@@ -3091,21 +3098,30 @@ function KimMinjunDetailContent({
       return;
     }
     if (!memo) return;
+    const prevSchedules = schedules;
     setSchedules((current) => current.map((item) => (
       item.id === id ? { ...item, date, time, type, memo } : item
     )));
     setEditingScheduleId(null);
     markRecentUpdate("예정 일정");
     onToast("예정 일정을 수정했습니다.");
+    if (customer.id && !id.startsWith("kim-")) {
+      void apiUpdateSchedule(customer.id, id, { scheduledDate: date, scheduledTime: time, type, memo }).catch(() => { setSchedules(prevSchedules); onToast("저장에 실패했습니다"); });
+    }
   }
 
   function deleteSchedule(id: string) {
+    const prevSchedules = schedules;
+    const prevCompleted = completedScheduleKeys;
     setSchedules((current) => current.filter((item) => item.id !== id));
     setCompletedScheduleKeys((current) => current.filter((key) => key !== id));
     setEditingScheduleId((current) => (current === id ? null : current));
     setConfirmingScheduleDeleteId(null);
     markRecentUpdate("예정 일정");
     onToast("예정 일정을 삭제했습니다.");
+    if (customer.id && !id.startsWith("kim-")) {
+      void apiDeleteSchedule(customer.id, id).catch(() => { setSchedules(prevSchedules); setCompletedScheduleKeys(prevCompleted); onToast("삭제에 실패했습니다"); });
+    }
   }
 
   function saveCheckItem(event: SyntheticEvent<HTMLFormElement>) {
@@ -3121,16 +3137,16 @@ function KimMinjunDetailContent({
       return;
     }
     const due = dueSelection === "지정" ? formatShortDateLabel(dueDate) : dueSelection;
-    setCheckItems((current) => [...current, {
-      id: `kim-check-${Date.now()}`,
-      category,
-      due,
-      body,
-    }]);
+    const tempId = `kim-check-${Date.now()}`;
+    setCheckItems((current) => [...current, { id: tempId, category, due, body }]);
     setAddingCheckItem(false);
     setSelectedCheckDue("오늘");
     markRecentUpdate("해야 할 일");
     onToast("해야 할 일이 추가되었습니다.");
+    if (!customer.id) return;
+    void addTask(customer.id, { category, due, body })
+      .then((res) => setCheckItems((current) => current.map((t) => (t.id === tempId ? { ...t, id: res.id } : t))))
+      .catch(() => { setCheckItems((current) => current.filter((t) => t.id !== tempId)); onToast("저장에 실패했습니다"); });
   }
 
   function updateCheckItem(event: SyntheticEvent<HTMLFormElement>, id: string, currentDue: string) {
@@ -3147,12 +3163,16 @@ function KimMinjunDetailContent({
       return;
     }
     const due = dueSelection === "지정" ? (dueDate ? formatShortDateLabel(dueDate) : currentDue) : dueSelection;
+    const prevCheckItems = checkItems;
     setCheckItems((current) => current.map((item) => (
       item.id === id ? { ...item, category, due, body } : item
     )));
     cancelCheckItemEdit();
     markRecentUpdate("해야 할 일");
     onToast("해야 할 일을 수정했습니다.");
+    if (customer.id && !id.startsWith("kim-")) {
+      void updateTask(customer.id, id, { category, due, body }).catch(() => { setCheckItems(prevCheckItems); onToast("저장에 실패했습니다"); });
+    }
   }
 
   function saveCustomerMemo(event: SyntheticEvent<HTMLFormElement>) {
@@ -3160,16 +3180,17 @@ function KimMinjunDetailContent({
     const formData = new FormData(event.currentTarget);
     const body = String(formData.get("body") ?? "").trim();
     if (!body) return;
-    setCustomerMemos((current) => [...current, {
-      id: `kim-customer-memo-${Date.now()}`,
-      body,
-      createdAt: formatKoreanShortTime(),
-    }]);
+    const tempId = `kim-customer-memo-${Date.now()}`;
+    setCustomerMemos((current) => [...current, { id: tempId, body, createdAt: formatKoreanShortTime() }]);
     setAddingCustomerMemo(false);
     setEditingCustomerMemoId(null);
     setConfirmingCustomerMemoDeleteId(null);
     markRecentUpdate("고객 메모");
     onToast("고객 메모가 추가되었습니다.");
+    if (!customer.id) return;
+    void addMemo(customer.id, { body })
+      .then((res) => setCustomerMemos((current) => current.map((m) => (m.id === tempId ? { ...m, id: res.id, createdAt: formatActivity(res.createdAt) } : m))))
+      .catch(() => { setCustomerMemos((current) => current.filter((m) => m.id !== tempId)); onToast("저장에 실패했습니다"); });
   }
 
   function updateCustomerMemo(event: SyntheticEvent<HTMLFormElement>, id: string) {
@@ -3177,6 +3198,7 @@ function KimMinjunDetailContent({
     const formData = new FormData(event.currentTarget);
     const body = String(formData.get("body") ?? "").trim();
     if (!body) return;
+    const prevMemos = customerMemos;
     setCustomerMemos((current) => current.map((item) => (
       item.id === id ? { ...item, body } : item
     )));
@@ -3184,23 +3206,35 @@ function KimMinjunDetailContent({
     setConfirmingCustomerMemoDeleteId(null);
     markRecentUpdate("고객 메모");
     onToast("고객 메모를 수정했습니다.");
+    if (customer.id && !id.startsWith("kim-")) {
+      void updateMemo(customer.id, id, { body }).catch(() => { setCustomerMemos(prevMemos); onToast("저장에 실패했습니다"); });
+    }
   }
 
   function deleteCustomerMemo(id: string) {
+    const prevMemos = customerMemos;
     setCustomerMemos((current) => current.filter((item) => item.id !== id));
     setEditingCustomerMemoId((current) => (current === id ? null : current));
     setConfirmingCustomerMemoDeleteId(null);
     markRecentUpdate("고객 메모");
     onToast("고객 메모를 삭제했습니다.");
+    if (customer.id && !id.startsWith("kim-")) {
+      void deleteMemo(customer.id, id).catch(() => { setCustomerMemos(prevMemos); onToast("삭제에 실패했습니다"); });
+    }
   }
 
   function toggleScheduleComplete(item: KimScheduleItem) {
     const key = scheduleRecordKey(item);
+    const nextDone = !completedScheduleKeys.includes(key);
+    const prevCompleted = completedScheduleKeys;
     setCompletedScheduleKeys((current) => (
       current.includes(key) ? current.filter((completedKey) => completedKey !== key) : [...current, key]
     ));
     setConfirmingScheduleCompleteId(null);
     markRecentUpdate("예정 일정");
+    if (customer.id && !item.id.startsWith("kim-")) {
+      void apiUpdateSchedule(customer.id, item.id, { done: nextDone }).catch(() => { setCompletedScheduleKeys(prevCompleted); onToast("저장에 실패했습니다"); });
+    }
   }
 
   function renderScheduleInlineForm(item?: KimScheduleItem) {
@@ -3269,14 +3303,21 @@ function KimMinjunDetailContent({
   }
 
   function toggleCheckItem(id: string) {
+    const nextDone = !completedCheckItems.includes(id);
+    const prevCompleted = completedCheckItems;
     setCompletedCheckItems((current) => (
       current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id]
     ));
     setConfirmingCheckItemTitle(null);
     markRecentUpdate("해야 할 일");
+    if (customer.id && !id.startsWith("kim-")) {
+      void updateTask(customer.id, id, { done: nextDone }).catch(() => { setCompletedCheckItems(prevCompleted); onToast("저장에 실패했습니다"); });
+    }
   }
 
   function deleteCheckItem(id: string) {
+    const prevCheckItems = checkItems;
+    const prevCompleted = completedCheckItems;
     setCheckItems((current) => current.filter((item) => item.id !== id));
     setCompletedCheckItems((current) => current.filter((itemId) => itemId !== id));
     setEditingCheckItemId((current) => (current === id ? null : current));
@@ -3284,6 +3325,9 @@ function KimMinjunDetailContent({
     setConfirmingCheckItemDeleteId(null);
     markRecentUpdate("해야 할 일");
     onToast("해야 할 일을 삭제했습니다.");
+    if (customer.id && !id.startsWith("kim-")) {
+      void deleteTask(customer.id, id).catch(() => { setCheckItems(prevCheckItems); setCompletedCheckItems(prevCompleted); onToast("삭제에 실패했습니다"); });
+    }
   }
 
   function renderCheckItemEditForm(item: KimCheckItem) {

@@ -15,6 +15,13 @@
       "when": 1781679101554,
       "tag": "0001_crm_catalog_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781866303030,
+      "tag": "0002_whole_kid_colt",
+      "breakpoints": true
     }
   ]
 }

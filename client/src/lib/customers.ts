@@ -69,7 +69,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
 // ── 고객 상세(GET /api/customers/:id = getCustomer) ─────────────────────────────
 // 백엔드는 drizzle camelCase 그대로 반환(자식 배열 포함). consultations는 이번 범위 외라 생략.
 export type CustomerDetailTask = { id: string; category: string | null; due: string | null; body: string | null; done: boolean };
-export type CustomerDetailSchedule = { id: string; scheduledDate: string | null; scheduledTime: string | null; type: string | null; memo: string | null };
+export type CustomerDetailSchedule = { id: string; scheduledDate: string | null; scheduledTime: string | null; type: string | null; memo: string | null; done: boolean };
 export type CustomerDetailMemo = { id: string; body: string | null; createdAt: string | null };
 export type CustomerDetailDocument = { id: string; title: string | null; docType: string | null; fileName: string | null; fileSize: number | null; fileMime: string | null };
 
