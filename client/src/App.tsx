@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups } from "@/data/customers";
 import { fetchCustomers } from "@/lib/customers";
+import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
 import { AdvisorDashboardPage, AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
@@ -98,6 +99,11 @@ export function App() {
   const [customerDetailPanelOpen, setCustomerDetailPanelOpen] = useState(false);
   const [customerDetailEditorOpen, setCustomerDetailEditorOpen] = useState(false);
   const selectedCustomer = customers.find((customer) => customer.no === selectedCustomerNo) ?? customers[0] ?? null;
+
+  // mc-master 첫 진입 전에 brands/첫 모델을 백그라운드로 미리 받아둔다(진입 시 캐시 hit → 즉시).
+  useEffect(() => {
+    prefetchCatalog();
+  }, []);
 
   useEffect(() => {
     let alive = true;
