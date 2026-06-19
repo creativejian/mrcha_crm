@@ -280,7 +280,8 @@ export function App() {
           onOpenCustomer={openCustomerDetailPanel}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         />
-        {activeView !== "dashboard-preview" && (
+        {/* customer-detail 전체화면은 CustomerDetailPage 자체 헤더가 있어 공통 헤더를 숨겨 중복을 막는다. */}
+        {activeView !== "dashboard-preview" && activeView !== "customer-detail" && (
           <header className={`topbar ${isCustomerConsole ? "page-heading-console" : ""}`}>
             <div className="title">
               <h1>
@@ -289,12 +290,6 @@ export function App() {
                     <span>고객 관리</span>
                     <ChevronRight aria-hidden="true" size={18} strokeWidth={2.2} />
                     <span>전체 보기</span>
-                    {activeView === "customer-detail" && (
-                      <>
-                        <ChevronRight aria-hidden="true" size={18} strokeWidth={2.2} />
-                        <span>{selectedCustomer?.name ?? ""}</span>
-                      </>
-                    )}
                   </span>
                 ) : title}
               </h1>
