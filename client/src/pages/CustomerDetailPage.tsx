@@ -10,7 +10,8 @@ import { computePricing, formatMoney, parseMoney, type PricingInputs, type Prici
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 import type { MergeSource } from "@/lib/document-merge";
-import { nowMs, phoneChunks, formatKimRecentUpdateTime, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimTimeLabelMinutes, kimCheckDueRank, kimCheckDueDateRank, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
+import { nowMs, phoneChunks, formatKimRecentUpdateTime, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
+import { type KimScheduleItem, type KimCheckItem, type KimCustomerMemoItem, scheduleRecordKey, sortKimCustomerMemosByCreatedAt, sortKimCheckItemsByWorkRule, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -80,29 +81,6 @@ type KimNeedsState = {
   colors: string;
   method: string;
   memo: string;
-};
-
-type KimScheduleItem = {
-  id: string;
-  date: string;
-  time: string;
-  type: string;
-  memo: string;
-};
-
-type KimCheckItem = {
-  id: string;
-  category: string;
-  due: string;
-  body: string;
-};
-
-// `Date.now()`는 컴포넌트 렌더 경로 밖에 두어야 react-hooks/purity 오탐을 피한다.
-// 이 헬퍼는 이벤트 핸들러에서 쓰는 impure read를 한 곳으로 격리한다.
-type KimCustomerMemoItem = {
-  id: string;
-  body: string;
-  createdAt: string;
 };
 
 type KimQuoteItem = {
@@ -604,10 +582,6 @@ function calculateKimQuoteStatusTooltip(target: HTMLElement, id: string): KimQuo
   return { id, top, left };
 }
 
-function scheduleRecordKey(item: KimScheduleItem) {
-  return item.id;
-}
-
 function kimQuoteAppStatusLabel(status: KimQuoteItem["appStatus"], quote?: KimQuoteItem) {
   if ((quote?.revision ?? 1) > 1 && status === "viewed") return "수정 열람";
   if ((quote?.revision ?? 1) > 1 && status === "sent") return "수정 발송";
@@ -783,43 +757,6 @@ function scheduleTimeFromFormData(formData: FormData) {
   const safeHour = kimScheduleHourOptions.includes(hour) ? hour : "10";
   const safeMinute = kimScheduleMinuteOptions.includes(minute) ? minute : "00";
   return `${safeHour}:${safeMinute}`;
-}
-
-function sortKimCustomerMemosByCreatedAt(items: KimCustomerMemoItem[]) {
-  return [...items].sort((left, right) => {
-    const minuteDiff = kimTimeLabelMinutes(left.createdAt) - kimTimeLabelMinutes(right.createdAt);
-    if (minuteDiff !== 0) return minuteDiff;
-    return left.id.localeCompare(right.id);
-  });
-}
-
-function sortKimCheckItemsByWorkRule(items: KimCheckItem[], completedItemIds: string[]) {
-  const completedSet = new Set(completedItemIds);
-  return [...items].sort((left, right) => {
-    const leftCompleted = completedSet.has(left.id);
-    const rightCompleted = completedSet.has(right.id);
-    if (leftCompleted !== rightCompleted) return leftCompleted ? -1 : 1;
-    if (leftCompleted && rightCompleted) return items.indexOf(left) - items.indexOf(right);
-    const dueDiff = kimCheckDueRank(left.due) - kimCheckDueRank(right.due);
-    if (dueDiff !== 0) return dueDiff;
-    const dateDiff = kimCheckDueDateRank(left.due) - kimCheckDueDateRank(right.due);
-    if (dateDiff !== 0) return dateDiff;
-    return items.indexOf(left) - items.indexOf(right);
-  });
-}
-
-function kimScheduleSortValue(item: KimScheduleItem) {
-  const dateValue = item.date || "9999-12-31";
-  const timeValue = item.time || "23:59";
-  return `${dateValue}T${timeValue}`;
-}
-
-function sortKimSchedulesByDateTime(items: KimScheduleItem[]) {
-  return [...items].sort((left, right) => {
-    const dateTimeDiff = kimScheduleSortValue(left).localeCompare(kimScheduleSortValue(right));
-    if (dateTimeDiff !== 0) return dateTimeDiff;
-    return items.indexOf(left) - items.indexOf(right);
-  });
 }
 
 function kimCheckDueSelection(value: string) {
