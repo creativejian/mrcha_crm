@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-export const CUSTOMER_DOCS_BUCKET = "customer-documents";
+const CUSTOMER_DOCS_BUCKET = "customer-documents";
 
 // secret key는 백엔드 전용(프론트 노출 금지). CF는 c.env, 로컬/테스트는 process.env.
 type StorageEnv = { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined;

@@ -1,7 +1,6 @@
 import { mock } from "bun:test";
 
 mock.module("../lib/storage", () => ({
-  CUSTOMER_DOCS_BUCKET: "customer-documents",
   uploadObject: async () => {},
   removeObject: async () => {},
   createSignedUrl: async () => "https://example.test/signed-url",

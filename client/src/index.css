@@ -13124,6 +13124,13 @@ select.kim-jeff-discount-label {
   padding: 32px;
 }
 
+/* drawer 모드: 미리보기를 고객 상세 패널(우측) 영역에만 띄워 좌측 고객 목록을 덮지 않고
+   작업 맥락 안 가운데에 오게 한다. 패널 폭(.customer-detail-drawer)과 동일하게 우측 정렬. */
+.customer-detail-console-page.drawer .kim-document-preview-backdrop {
+  inset: 0 0 0 auto;
+  width: min(1260px, calc(100vw - 240px));
+}
+
 .kim-document-preview-panel {
   width: min(720px, calc(100vw - 64px));
   max-height: calc(100vh - 64px);
@@ -13182,17 +13189,17 @@ select.kim-jeff-discount-label {
 
 .kim-document-preview-body {
   min-height: 420px;
-  overflow: auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
   background: #f7f7f6;
   padding: 16px;
-  text-align: center;
 }
 
 .kim-document-preview-body img {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin: 0 auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .kim-document-preview-body iframe {
