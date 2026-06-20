@@ -1467,6 +1467,8 @@ function KimMinjunDetailContent({
   const [documentDropTargetId, setDocumentDropTargetId] = useState<string | null>(null);
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
   const [previewDocumentUrl, setPreviewDocumentUrl] = useState<string | null>(null);
+  const [previewDownloadUrl, setPreviewDownloadUrl] = useState<string | null>(null);
+  const [previewImageLoaded, setPreviewImageLoaded] = useState(false);
   const [confirmingDocumentDeleteId, setConfirmingDocumentDeleteId] = useState<string | null>(null);
   const [openEditor, setOpenEditor] = useState<KimOpenEditor | null>(null);
   const [recentUpdate, setRecentUpdate] = useState<KimRecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
@@ -1500,25 +1502,34 @@ function KimMinjunDetailContent({
   const previewQuote = quotes.find((quote) => quote.id === previewQuoteId) ?? null;
   const previewSentQuote = quotes.find((quote) => quote.id === previewSentQuoteId) ?? null;
   const previewDocument = documents.find((documentItem) => documentItem.id === previewDocumentId) ?? null;
-  // 업로드 직후 objectUrl 우선, 없으면 발급된 signed URL. null이면 아직 URL 발급 중(로딩).
+  // 미리보기 URL(이미지면 썸네일). 업로드 직후 objectUrl 우선. null이면 아직 발급 중(로딩).
   const activePreviewDocumentUrl = previewDocument ? previewDocument.objectUrl ?? previewDocumentUrl : null;
-  // previewDocumentUrl: objectUrl이 없는 서버 저장 파일에 대해 signed URL을 비동기로 발급한다.
-  // 렌더에서는 previewDocument?.objectUrl ?? previewDocumentUrl 순서로 사용한다.
+  // 다운로드는 항상 원본. objectUrl(업로드 직후 원본) 우선, 없으면 서버 원본 downloadUrl.
+  const activeDownloadUrl = previewDocument ? previewDocument.objectUrl ?? previewDownloadUrl ?? previewDocumentUrl : null;
+  // 서버 저장 파일은 signed URL을 비동기 발급한다(미리보기=썸네일/원본, 다운로드=원본).
   useEffect(() => {
-    // objectUrl이 이미 있으면 fetch 불필요. cleanup에서 null 처리.
-    if (!previewDocumentId || (previewDocument?.objectUrl)) return () => { setPreviewDocumentUrl(null); };
+    if (!previewDocumentId || (previewDocument?.objectUrl)) return () => { setPreviewDocumentUrl(null); setPreviewDownloadUrl(null); setPreviewImageLoaded(false); };
     let cancelled = false;
     getDocumentUrlApi(detail.id, previewDocumentId)
       .then((r) => {
-        if (!cancelled) setPreviewDocumentUrl(r.url);
+        if (!cancelled) { setPreviewDocumentUrl(r.url); setPreviewDownloadUrl(r.downloadUrl); }
       })
       .catch(() => onToast("미리보기 URL 발급에 실패했습니다."));
     return () => {
       cancelled = true;
       setPreviewDocumentUrl(null);
+      setPreviewDownloadUrl(null);
+      setPreviewImageLoaded(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- previewDocumentId 변경 시에만 재실행, previewDocument는 파생값이라 dep 제외
   }, [previewDocumentId, detail.id, onToast]);
+
+  // 미리보기 모달이 열린 동안 배경(고객 상세 패널·페이지) 스크롤을 잠가 스크롤 전파(chaining)를 막는다.
+  useEffect(() => {
+    if (!previewDocumentId) return;
+    document.body.classList.add("kim-doc-preview-open");
+    return () => document.body.classList.remove("kim-doc-preview-open");
+  }, [previewDocumentId]);
   const quoteManualFieldConfig = kimQuoteManualFieldConfig(selectedQuotePurchaseMethod);
   const quoteSolutionAvailable = selectedQuotePurchaseMethod === "운용리스" || selectedQuotePurchaseMethod === "장기렌트";
   const solutionWorkbenchCanQuery =solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
@@ -5844,8 +5855,8 @@ function KimMinjunDetailContent({
                 <span>{previewDocument.fileName} · {formatKimFileSize(previewDocument.fileSize)}</span>
               </div>
               <div className="kim-document-preview-head-actions">
-                {activePreviewDocumentUrl ? (
-                  <button aria-label="원본 다운로드" onClick={() => downloadKimDocument(activePreviewDocumentUrl, previewDocument.fileName ?? "document")} type="button"><Download size={15} strokeWidth={2.3} /></button>
+                {activeDownloadUrl ? (
+                  <button aria-label="원본 다운로드" onClick={() => downloadKimDocument(activeDownloadUrl, previewDocument.fileName ?? "document")} type="button"><Download size={15} strokeWidth={2.3} /></button>
                 ) : null}
                 <button aria-label="서류 미리보기 닫기" onClick={() => setPreviewDocumentId(null)} type="button"><X size={15} strokeWidth={2.4} /></button>
               </div>
@@ -5854,13 +5865,16 @@ function KimMinjunDetailContent({
               {!activePreviewDocumentUrl ? (
                 <div className="kim-document-preview-loading" role="status">불러오는 중…</div>
               ) : previewDocument.mimeType?.startsWith("image/") ? (
-                <img alt={previewDocument.title} src={activePreviewDocumentUrl} />
+                <>
+                  {!previewImageLoaded ? <div className="kim-document-preview-loading" role="status">불러오는 중…</div> : null}
+                  <img alt={previewDocument.title} src={activePreviewDocumentUrl} onLoad={() => setPreviewImageLoaded(true)} style={previewImageLoaded ? undefined : { display: "none" }} />
+                </>
               ) : kimDocumentFileKind(previewDocument.mimeType, previewDocument.fileName) === "PDF" ? (
                 <iframe src={activePreviewDocumentUrl} title={previewDocument.title} />
               ) : (
                 <div className="kim-document-preview-fallback">
                   <p>이 형식은 미리보기를 지원하지 않습니다.</p>
-                  <button className="kim-doc-preview-download-link" onClick={() => downloadKimDocument(activePreviewDocumentUrl, previewDocument.fileName ?? "document")} type="button">원본 다운로드</button>
+                  <button className="kim-doc-preview-download-link" onClick={() => downloadKimDocument(activeDownloadUrl ?? activePreviewDocumentUrl, previewDocument.fileName ?? "document")} type="button">원본 다운로드</button>
                 </div>
               )}
             </div>

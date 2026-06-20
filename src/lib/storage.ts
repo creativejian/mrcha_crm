@@ -36,10 +36,16 @@ export async function removeObject(env: StorageEnv, path: string): Promise<void>
   if (error) throw new Error(`Storage 삭제 실패: ${error.message}`);
 }
 
-export async function createSignedUrl(env: StorageEnv, path: string, expiresIn = 60): Promise<string> {
+// transform을 주면 이미지 변환(축소·재인코딩)된 미리보기 URL을 만든다 — 큰 원본 대신 가벼운 썸네일로 빠르게.
+export async function createSignedUrl(
+  env: StorageEnv,
+  path: string,
+  expiresIn = 60,
+  opts?: { transform?: { width?: number; height?: number; quality?: number } },
+): Promise<string> {
   const { data, error } = await client(env)
     .storage.from(CUSTOMER_DOCS_BUCKET)
-    .createSignedUrl(path, expiresIn);
+    .createSignedUrl(path, expiresIn, opts);
   if (error || !data) throw new Error(`Storage signed URL 실패: ${error?.message ?? "데이터 없음"}`);
   return data.signedUrl;
 }
