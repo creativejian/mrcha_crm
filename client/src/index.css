@@ -13132,8 +13132,7 @@ select.kim-jeff-discount-label {
 }
 
 .kim-document-preview-panel {
-  width: auto;
-  max-width: min(880px, calc(100vw - 64px));
+  width: min(840px, calc(100vw - 64px));
   max-height: calc(100vh - 64px);
   border: 1px solid #dededb;
   border-radius: 8px;
@@ -13197,16 +13196,16 @@ select.kim-jeff-discount-label {
 }
 
 .kim-document-preview-body {
-  display: grid;
-  place-items: center;
+  display: block;
   overflow: hidden;
   background: #f7f7f6;
 }
 
 .kim-document-preview-body img {
   display: block;
-  max-width: 100%;
+  width: 100%;
   max-height: calc(100vh - 130px);
+  object-fit: contain;
 }
 
 .kim-document-preview-loading,
@@ -13222,7 +13221,8 @@ select.kim-jeff-discount-label {
 }
 
 .kim-document-preview-body iframe {
-  width: min(800px, calc(100vw - 80px));
+  display: block;
+  width: 100%;
   height: calc(100vh - 130px);
   border: 0;
   background: #fff;
