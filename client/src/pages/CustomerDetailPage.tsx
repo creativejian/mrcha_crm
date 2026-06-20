@@ -10,6 +10,7 @@ import { computePricing, formatMoney, parseMoney, type PricingInputs, type Prici
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 import type { MergeSource } from "@/lib/document-merge";
+import { nowMs, phoneChunks, formatKimRecentUpdateTime, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimTimeLabelMinutes, kimCheckDueRank, kimCheckDueDateRank, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -98,10 +99,6 @@ type KimCheckItem = {
 
 // `Date.now()`는 컴포넌트 렌더 경로 밖에 두어야 react-hooks/purity 오탐을 피한다.
 // 이 헬퍼는 이벤트 핸들러에서 쓰는 impure read를 한 곳으로 격리한다.
-function nowMs() {
-  return Date.now();
-}
-
 type KimCustomerMemoItem = {
   id: string;
   body: string;
@@ -196,11 +193,6 @@ function chanceLabel(customer: Customer) {
   if (customer.statusGroup === "계약완료" || customer.status === "출고완료") return "확정";
   if (customer.statusGroup === "불발") return "낮음";
   return chanceByPriority[customer.priority] ?? "중간";
-}
-
-function phoneChunks(phone: string) {
-  const chunks = phone.split("-");
-  return chunks.length === 3 ? chunks : [phone.slice(0, 3), phone.slice(3, 7), phone.slice(7)];
 }
 
 function sourceType(source: string) {
@@ -481,21 +473,6 @@ const kimDocumentTypeOptions = [
 const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
 
-function formatKimRecentUpdateTime(updatedAt: number, now: number) {
-  const elapsedMinutes = Math.max(0, Math.floor((now - updatedAt) / 60000));
-  if (elapsedMinutes < 10) return "방금 전";
-  if (elapsedMinutes < 60) return `${Math.floor(elapsedMinutes / 10) * 10}분 전`;
-  const elapsedHours = Math.floor(elapsedMinutes / 60);
-  if (elapsedHours < 24) return `${elapsedHours}시간 전`;
-  const elapsedDays = Math.floor(elapsedHours / 24);
-  if (elapsedDays < 7) return `${elapsedDays}일 전`;
-  const date = new Date(updatedAt);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function KimMinjunDetailHeader({ now, recentUpdate, name, customerCode, receivedLabel }: { now: number; recentUpdate: KimRecentUpdate; name: string; customerCode: string; receivedLabel: string }) {
   return (
     <section className="customer-detail-summary kim-detail-summary">
@@ -544,12 +521,6 @@ function fieldLabel(key: KimStatusFieldKey) {
   return kimMinjunStatusFieldMeta.find((field) => field.key === key)?.label ?? "항목";
 }
 
-function formatKimNumberWithCommas(value: string) {
-  const digits = value.replace(/[^\d]/g, "");
-  if (!digits) return "";
-  return Number(digits).toLocaleString("ko-KR");
-}
-
 function parseKimInitialCost(value: string) {
   if (value === "확인 필요") {
     return { kind: "" as KimInitialCostSelection, unit: "%" as KimInitialCostUnit, amount: "" };
@@ -561,20 +532,6 @@ function parseKimInitialCost(value: string) {
   const amount = value.replace(kind, "").replace("만원", "").replace("%", "").replace(/,/g, "").trim();
   const unit = value.includes("만원") ? "금액" : "%";
   return { kind: kind as KimInitialCostKind, unit: unit as KimInitialCostUnit, amount: amount || "30" };
-}
-
-function kimPurchaseValueClass(value: string) {
-  if (value === "미정") return "is-empty";
-  if (value === "확인 필요") return "needs-confirmation";
-  return "";
-}
-
-function isKimPurchaseTagField(label: string) {
-  return label === "계약 포커스" || label === "고객 특이사항" || label === "심사 특이사항";
-}
-
-function kimPurchaseTags(value: string) {
-  return value.split("#").map((tag) => tag.trim()).filter(Boolean).map((tag) => `#${tag}`);
 }
 
 function isKimPurchaseFloatingKind(kind: KimOpenEditor["kind"]): kind is KimPurchaseFloatingKind {
@@ -647,84 +604,8 @@ function calculateKimQuoteStatusTooltip(target: HTMLElement, id: string): KimQuo
   return { id, top, left };
 }
 
-function kimConsultKindClass(kind: string) {
-  if (kind === "통화") return " call";
-  if (kind === "카톡" || kind === "앱상담") return " chat";
-  if (kind === "상태변경" || kind === "상태") return " status";
-  if (kind === "메모") return " memo";
-  return "";
-}
-
 function scheduleRecordKey(item: KimScheduleItem) {
   return item.id;
-}
-
-// 010 prefix는 고정. 입력은 뒤 8자리만(휴대폰 4-4). 저장/표시는 "010" + 8자리 = 11자리.
-function formatLocalPhone(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-  if (digits.length <= 4) return digits;
-  return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-}
-function localPhoneFrom(fullValue: string) {
-  const digits = fullValue.replace(/\D/g, "");
-  return formatLocalPhone(digits.startsWith("010") ? digits.slice(3) : digits);
-}
-
-function formatKoreanShortTime(date = new Date()) {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `오늘 ${hours}:${minutes}`;
-}
-
-function formatShortDateLabel(value: string) {
-  const [, month, day] = value.split("-");
-  if (!month || !day) return "지정";
-  return `${Number(month)}/${Number(day)}`;
-}
-
-function formatScheduleDateLabel(value: string) {
-  const [, month, day] = value.split("-");
-  if (!month || !day) return value;
-  return `${Number(month)}/${Number(day)}`;
-}
-
-function formatDateInputValue(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function formatKimFileSize(size?: number) {
-  if (!size) return "크기 확인 전";
-  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))}KB`;
-  return `${(size / 1024 / 1024).toFixed(1)}MB`;
-}
-
-function classifyKimDocumentFile(fileName: string) {
-  const normalized = fileName.normalize("NFC").toLowerCase().replace(/\s|_|-/g, "");
-  if (/운전면허|면허|driver.?license|license/.test(normalized)) return "면허증";
-  if (/주민등록등본|등본|초본|resident|register/.test(normalized)) return "주민등록등본";
-  if (/원천징수|withholding/.test(normalized)) return "원천징수영수증";
-  if (/부가세|부가가치|과세|vat/.test(normalized)) return "부가세과세증명원";
-  if (/소득금액|소득증명|income/.test(normalized)) return "소득금액증명원";
-  if (/사업자등록|사업자|businessregistration/.test(normalized)) return "사업자등록증";
-  if (/자동이체|통장사본|계좌|bankbook|account/.test(normalized)) return "자동이체통장사본";
-  if (/매매계약|purchasecontract|salescontract/.test(normalized)) return "매매계약서";
-  if (/리스승인|leaseapproval/.test(normalized)) return "리스승인서";
-  if (/계약사실|contractconfirmation/.test(normalized)) return "계약사실확인서";
-  if (/주주명부|shareholder/.test(normalized)) return "법인(점)주주명부";
-  if (/등기부등본|법인등기|registry/.test(normalized)) return "법인(점)등기부등본";
-  if (/법인인감/.test(normalized)) return "법인(점)법인인감증명서";
-  if (/개인인감|인감/.test(normalized)) return "법인(점)개인인감증명서";
-  if (/전기|전년도|전해|previous/.test(normalized) && /재무제표|표준재무|financialstatement|financial/.test(normalized)) return "법인(점)재무제표(전기)";
-  if (/재무제표|표준재무|당해|financialstatement|financial/.test(normalized)) return "법인(점)재무제표(당해)";
-  if (/자동차등록증|차량등록증|vehicle.?registration/.test(normalized)) return "등록(점)자동차등록증";
-  if (/세금계산서|taxinvoice/.test(normalized)) return "등록(점)세금계산서";
-  if (/취득세|acquisitiontax/.test(normalized)) return "등록(점)취득세납부영수증";
-  if (/등록비|registrationfee/.test(normalized)) return "등록(점)등록비영수증";
-  if (/보험가입|보험증명|insurance/.test(normalized)) return "등록(점)보험가입증명서";
-  return "기타서류";
 }
 
 function kimQuoteAppStatusLabel(status: KimQuoteItem["appStatus"], quote?: KimQuoteItem) {
@@ -795,13 +676,6 @@ function kimQuoteDecisionLabel(status: KimQuoteItem["decisionStatus"]) {
 function kimQuoteRevisionLabel(quote: KimQuoteItem) {
   if (!quote.revision || quote.revision <= 1) return null;
   return `수정 v${quote.revision}`;
-}
-
-function kimQuoteValidClass(label?: string) {
-  if (!label) return "";
-  if (label.includes("만료")) return " expired";
-  if (/D-[01]$/.test(label)) return " urgent";
-  return " active";
 }
 
 function kimQuoteStockClass(status?: KimQuoteItem["stockStatus"]) {
@@ -890,12 +764,6 @@ function createKimQuoteCode(existingQuotes: KimQuoteItem[]) {
   return `QT-${yearMonth}-${String(nextSequence).padStart(4, "0")}`;
 }
 
-function kimDocumentFileKind(mimeType?: string, fileName = "") {
-  if (mimeType?.startsWith("image/")) return "이미지";
-  if (mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) return "PDF";
-  return "파일";
-}
-
 function kimDocumentFileIcon(kind: string) {
   if (kind === "이미지") return <Image size={13} strokeWidth={2.25} />;
   if (kind === "PDF") return <FileText size={13} strokeWidth={2.25} />;
@@ -917,35 +785,12 @@ function scheduleTimeFromFormData(formData: FormData) {
   return `${safeHour}:${safeMinute}`;
 }
 
-function kimTimeLabelMinutes(value: string) {
-  const [, time = ""] = value.split(" ");
-  const [rawHour, rawMinute] = time.split(":");
-  const hour = Number(rawHour);
-  const minute = Number(rawMinute);
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return Number.MAX_SAFE_INTEGER;
-  return hour * 60 + minute;
-}
-
 function sortKimCustomerMemosByCreatedAt(items: KimCustomerMemoItem[]) {
   return [...items].sort((left, right) => {
     const minuteDiff = kimTimeLabelMinutes(left.createdAt) - kimTimeLabelMinutes(right.createdAt);
     if (minuteDiff !== 0) return minuteDiff;
     return left.id.localeCompare(right.id);
   });
-}
-
-function kimCheckDueRank(value: string) {
-  if (value === "급함") return 0;
-  if (value === "오늘") return 1;
-  if (value === "내일") return 2;
-  if (value === "이번 주") return 3;
-  return 4;
-}
-
-function kimCheckDueDateRank(value: string) {
-  const [month, day] = value.split("/").map(Number);
-  if (!Number.isFinite(month) || !Number.isFinite(day)) return Number.MAX_SAFE_INTEGER;
-  return month * 100 + day;
 }
 
 function sortKimCheckItemsByWorkRule(items: KimCheckItem[], completedItemIds: string[]) {
@@ -979,12 +824,6 @@ function sortKimSchedulesByDateTime(items: KimScheduleItem[]) {
 
 function kimCheckDueSelection(value: string) {
   return kimCheckDueOptions.includes(value) ? value : "지정";
-}
-
-function parseKimCheckDueDate(value: string, date = new Date()) {
-  const [month, day] = value.split("/");
-  if (!month || !day) return "";
-  return `${date.getFullYear()}-${String(Number(month)).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
 }
 
 function parseKimJobValue(value: string): { type: KimCustomerType; detail: string } {
@@ -1032,12 +871,6 @@ function parseKimAdvisorValue(value: string): { team: KimAdvisorTeam; advisor: s
 function formatKimAdvisorValue(team: KimAdvisorTeam, advisor: string) {
   if (!advisor || advisor === "미배정") return "미배정";
   return `${advisor} · ${team}`;
-}
-
-function formatKimAssignmentTime(date = new Date()) {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `오늘 ${hours}:${minutes}`;
 }
 
 function kimChanceOptionClass(option: CustomerChanceOption, selected: boolean) {
