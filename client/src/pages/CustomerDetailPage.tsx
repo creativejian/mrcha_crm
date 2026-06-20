@@ -13,6 +13,7 @@ import type { MergeSource } from "@/lib/document-merge";
 import { nowMs, phoneChunks, formatKimRecentUpdateTime, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
 import { type KimScheduleItem, type KimCheckItem, type KimCustomerMemoItem, scheduleRecordKey, sortKimCustomerMemosByCreatedAt, sortKimCheckItemsByWorkRule, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
 import { type KimCustomerType, type KimAdvisorTeam, kimCustomerTypeOptions, kimAutomaticSourceOptions, kimManualSourceOptions, kimAdvisorOptions, kimRegionOptions, parseKimJobValue, formatKimJobValue, parseKimLocationValue, formatKimLocationValue, parseKimSourceValue, parseKimAdvisorValue, formatKimAdvisorValue, isKimAutomaticSource, hasKimAppSourceQueue, hasKimQuoteAttachments } from "@/lib/kim-status-fields";
+import { type KimPurchaseFloatingKind, type KimPurchasePopoverFrame, type KimQuoteActionFrame, type KimQuoteStatusTooltip, isKimPurchaseFloatingKind, calculateKimPurchasePopoverFrame, calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -53,10 +54,6 @@ const kimManualMileageOptions = [
   "40,000km / 년",
 ] as const;
 type KimAcquisitionTaxMode = "normal" | "hybrid" | "electric" | "manual";
-type KimPurchaseFloatingKind = "purchaseMethod" | "purchaseTiming" | "purchaseCostFocus" | "purchaseTerm" | "purchaseInitialCost" | "purchaseAnnualMileage" | "purchaseDeliveryMethod" | "purchaseCustomerNotes" | "purchaseReviewNotes";
-type KimPurchasePopoverFrame = { align?: "left" | "right"; top: number; left: number };
-type KimQuoteActionFrame = { top: number; left: number };
-type KimQuoteStatusTooltip = { id: string; top: number; left: number };
 type KimOpenEditor =
   | { kind: "status"; key: KimStatusFieldKey }
   | { kind: "workflow"; key: KimWorkflowKey }
@@ -479,76 +476,6 @@ function parseKimInitialCost(value: string) {
   const amount = value.replace(kind, "").replace("만원", "").replace("%", "").replace(/,/g, "").trim();
   const unit = value.includes("만원") ? "금액" : "%";
   return { kind: kind as KimInitialCostKind, unit: unit as KimInitialCostUnit, amount: amount || "30" };
-}
-
-function isKimPurchaseFloatingKind(kind: KimOpenEditor["kind"]): kind is KimPurchaseFloatingKind {
-  return ["purchaseMethod", "purchaseTiming", "purchaseCostFocus", "purchaseTerm", "purchaseInitialCost", "purchaseAnnualMileage", "purchaseDeliveryMethod", "purchaseCustomerNotes", "purchaseReviewNotes"].includes(kind);
-}
-
-function kimPurchasePopoverSize(kind: KimPurchaseFloatingKind) {
-  switch (kind) {
-    case "purchaseMethod":
-      return { width: 390, height: 48 };
-    case "purchaseTiming":
-      return { width: 318, height: 108 };
-    case "purchaseCostFocus":
-      return { width: 360, height: 118 };
-    case "purchaseTerm":
-      return { width: 352, height: 48 };
-    case "purchaseInitialCost":
-      return { width: 330, height: 146 };
-    case "purchaseAnnualMileage":
-      return { width: 360, height: 88 };
-    case "purchaseDeliveryMethod":
-      return { width: 340, height: 48 };
-    case "purchaseCustomerNotes":
-      return { width: 380, height: 154 };
-    case "purchaseReviewNotes":
-      return { width: 380, height: 118 };
-    default:
-      return { width: 340, height: 120 };
-  }
-}
-
-function calculateKimPurchasePopoverFrame(target: HTMLElement, kind: KimPurchaseFloatingKind): KimPurchasePopoverFrame {
-  const rect = target.getBoundingClientRect();
-  const gap = 8;
-  const margin = 14;
-  const { width, height } = kimPurchasePopoverSize(kind);
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const alignRight = kind === "purchaseInitialCost" || kind === "purchaseTiming" || kind === "purchaseReviewNotes";
-  const preferredLeft = alignRight
-    ? rect.right
-    : kind === "purchaseMethod" || kind === "purchaseTerm" || kind === "purchaseAnnualMileage" || kind === "purchaseDeliveryMethod" || kind === "purchaseCostFocus" || kind === "purchaseCustomerNotes"
-    ? rect.left
-    : rect.left + rect.width / 2 - width / 2;
-  const maxLeft = alignRight ? viewportWidth - margin : Math.max(margin, viewportWidth - width - margin);
-  const left = Math.min(Math.max(preferredLeft, margin), maxLeft);
-  const belowTop = rect.bottom + gap;
-  const aboveTop = rect.top - height - gap;
-  const preferAbove = false;
-  const top = (preferAbove || belowTop + height > viewportHeight - margin) && aboveTop >= margin
-    ? aboveTop
-    : Math.min(belowTop, Math.max(margin, viewportHeight - height - margin));
-  return { align: alignRight ? "right" : "left", top, left };
-}
-
-function calculateKimQuoteActionFrame(target: HTMLElement): KimQuoteActionFrame {
-  const rect = target.getBoundingClientRect();
-  const width = 214;
-  const margin = 10;
-  const left = Math.min(window.innerWidth - width - margin, rect.right + 8);
-  const top = Math.max(margin, rect.bottom);
-  return { top, left };
-}
-
-function calculateKimQuoteStatusTooltip(target: HTMLElement, id: string): KimQuoteStatusTooltip {
-  const rect = target.getBoundingClientRect();
-  const margin = 10;
-  const top = Math.max(margin, rect.top - 8);
-  const left = Math.min(window.innerWidth - margin, Math.max(margin, rect.left));
-  return { id, top, left };
 }
 
 function kimQuoteAppStatusLabel(status: KimQuoteItem["appStatus"], quote?: KimQuoteItem) {
