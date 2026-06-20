@@ -4,7 +4,7 @@
 
 **Goal:** 김민준(`CU-2605-0020`) 상세 drawer의 서류함을 메모리(objectURL)에서 Supabase private 버킷 영속 저장으로 전환한다(업로드·분류수정·순서·삭제·미리보기).
 
-**Architecture:** 백엔드 경유 — Hono가 multipart로 파일을 받아 service_role 키로 Storage 업로드 + `crm.customer_documents` row 생성을 한 핸들러에서 처리. 미리보기/다운로드는 백엔드가 발급한 signed URL. 쓰기 #2(자식 CRUD)와 동일한 3계층 + Storage 래퍼. 김민준 전용 UI에만 실 연결.
+**Architecture:** 백엔드 경유 — Hono가 multipart로 파일을 받아 secret key로 Storage 업로드 + `crm.customer_documents` row 생성을 한 핸들러에서 처리. 미리보기/다운로드는 백엔드가 발급한 signed URL. 쓰기 #2(자식 CRUD)와 동일한 3계층 + Storage 래퍼. 김민준 전용 UI에만 실 연결.
 
 **Tech Stack:** drizzle-orm pg-core(crm 스키마), Hono, @hono/zod-validator, @supabase/supabase-js(Storage), postgres-js, React 19, Vitest(프론트 단위), bun:test(서버), bun.
 
@@ -16,7 +16,7 @@
 
 - **Create** `src/lib/document-validation.ts` — 순수 검증/정규화: `isAllowedMime`/`MAX_DOC_BYTES`/`safeFileName`. 단위테스트 대상.
 - **Create** `src/lib/document-validation.test.ts` — 위 순수함수 단위테스트(bun:test).
-- **Create** `src/lib/storage.ts` — service_role supabase 클라이언트 + `uploadObject`/`removeObject`/`createSignedUrl` + 버킷 상수. CF(`c.env`)/로컬(`process.env`) 키 해석.
+- **Create** `src/lib/storage.ts` — secret key supabase 클라이언트 + `uploadObject`/`removeObject`/`createSignedUrl` + 버킷 상수. CF(`c.env`)/로컬(`process.env`) 키 해석.
 - **Create** `src/db/queries/customer-documents.ts` — `addDocument`/`updateDocument`/`deleteDocument`/`getDocumentPath`/`reorderDocuments`/`nextSortOrder`.
 - **Modify** `src/db/queries/customers.ts` — `getCustomer`의 documents를 명시 컬럼(`file_path` 제외) + `orderBy(sortOrder, createdAt)`. `CustomerDetail.documents` 타입 갱신.
 - **Modify** `src/routes/customers.ts` — 서류 중첩 라우트 5개(POST multipart / PATCH docType / PATCH reorder / DELETE / GET url).
@@ -24,7 +24,7 @@
 - **Create** `client/src/lib/customer-documents.ts` — 프론트 API 5종 + 캐시 무효화.
 - **Modify** `client/src/lib/customers.ts` — `CustomerDetailDocument`에 `sortOrder`·`createdAt` 추가.
 - **Modify** `client/src/pages/CustomerDetailPage.tsx` — `KimMinjunDetailContent` 서류 핸들러 DB 연결(낙관+롤백), 미리보기 signed URL, 업로드 허용형식 확장.
-- **Modify** `.env.example` — `SUPABASE_SERVICE_ROLE_KEY` 키 이름 추가.
+- **Modify** `.env.example` — `SUPABASE_SECRET_KEY` 키 이름 추가.
 
 ---
 
@@ -33,8 +33,8 @@
 > 이 태스크는 구현자가 실행할 수 없는 외부 작업이다. 시작 전 유슨생이 완료해야 백엔드 라우트가 동작한다. 미완료여도 Task 1~5의 코드 작성/단위·서버 테스트(storage 모킹)는 진행 가능 — 실제 업로드는 Task 6 수동 검증에서 필요.
 
 - [ ] **버킷 생성**: master Supabase 프로젝트에 private 버킷 `customer-documents` 생성(Supabase MCP `apply_migration`로 `storage.buckets` insert, 또는 대시보드 Storage → New bucket → public 끄기). public 접근 차단.
-- [ ] **service_role 키 등록(로컬)**: `.env.local`에 `SUPABASE_SERVICE_ROLE_KEY=<master 프로젝트 service_role 키>` 추가.
-- [ ] **service_role 키 등록(CF)**: `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`(production+preview). 변경 후 재배포 필요.
+- [ ] **secret key 등록(로컬)**: `.env.local`에 `SUPABASE_SECRET_KEY=<master 프로젝트 secret key>` 추가.
+- [ ] **secret key 등록(CF)**: `wrangler secret put SUPABASE_SECRET_KEY`(production+preview). 변경 후 재배포 필요.
 
 ---
 
@@ -146,19 +146,19 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const CUSTOMER_DOCS_BUCKET = "customer-documents";
 
-// service_role 키는 백엔드 전용(프론트 노출 금지). CF는 c.env, 로컬/테스트는 process.env.
-type StorageEnv = { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string } | undefined;
+// secret key는 백엔드 전용(프론트 노출 금지). CF는 c.env, 로컬/테스트는 process.env.
+type StorageEnv = { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined;
 
 function resolve(env: StorageEnv): { url: string; key: string } {
   const url = env?.SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const key = env?.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 가 설정되지 않았습니다.");
+  const key = env?.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SECRET_KEY 가 설정되지 않았습니다.");
   return { url, key };
 }
 
 function client(env: StorageEnv): SupabaseClient {
   const { url, key } = resolve(env);
-  return createClient(url, key, { auth: { persistSession: false } });
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
 }
 
 export async function uploadObject(env: StorageEnv, path: string, bytes: Uint8Array, contentType: string): Promise<void> {
@@ -188,14 +188,14 @@ Expected: 0 errors.
 `.env.example`에 한 줄 추가(값 없이):
 
 ```
-SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_SECRET_KEY=
 ```
 
 - [ ] **Step 4: 커밋**
 
 ```bash
 git add src/lib/storage.ts .env.example
-git commit -m "feat(crm): Storage 래퍼(service_role 업로드/삭제/signed URL) + env 키"
+git commit -m "feat(crm): Storage 래퍼(secret key 업로드/삭제/signed URL) + env 키"
 ```
 
 ---
@@ -802,7 +802,7 @@ Expected: typecheck 0 · lint 0 · test:unit 통과(기존+0 신규는 프론트
 - [ ] **Step 3: brief 갱신**
 
 `ref/active-session-brief.md`의 "완료" 최상단에 #3 서류 완료 항목 추가, "Current Focus"·"Next"에서 #3을 완료로 이동(다음 = enum/lookup 또는 견적). "Caveats"에 서류 규약 추가:
-- service_role 키는 백엔드 전용·CF secret. 변경 후 재배포.
+- secret key는 백엔드 전용·CF secret. 변경 후 재배포.
 - private 버킷 `customer-documents` + signed URL(60s)만 노출.
 - 서류 쓰기도 `invalidateCustomerDetail` 호출(캐시 불변식).
 
@@ -826,6 +826,6 @@ PR 본문/커밋에 skip-ci 마커 금지. squash 머지 → 브랜치 삭제.
 
 ## Self-Review 메모
 
-- **Spec 커버리지**: 버킷·경로(Task 0,4) · service_role(Task 0,2) · Storage 래퍼(Task 2) · 쿼리(Task 3) · getCustomer 정렬·file_path 비노출(Task 3) · 라우트 5종(Task 4) · 검증/거부(Task 1,4) · 프론트 lib(Task 5) · UI 연결·미리보기 signed URL·자동분류 유지(Task 6) · invalidate(Task 5 lib) · 검증·수동(Task 7). 모두 매핑됨.
+- **Spec 커버리지**: 버킷·경로(Task 0,4) · secret key(Task 0,2) · Storage 래퍼(Task 2) · 쿼리(Task 3) · getCustomer 정렬·file_path 비노출(Task 3) · 라우트 5종(Task 4) · 검증/거부(Task 1,4) · 프론트 lib(Task 5) · UI 연결·미리보기 signed URL·자동분류 유지(Task 6) · invalidate(Task 5 lib) · 검증·수동(Task 7). 모두 매핑됨.
 - **타입 일관성**: 프론트 lib 함수명은 컴포넌트 내 동명 함수(`updateDocumentType`/`deleteDocument`)와 충돌 피하려 `*Api` 접미사(`updateDocumentTypeApi`/`deleteDocumentApi`/`reorderDocumentsApi`/`getDocumentUrlApi`). 업로드는 `uploadDocument`(충돌 없음). 백엔드 쿼리는 접미사 없음(`updateDocument`/`deleteDocument`).
 - **YAGNI**: OCR·PDF 병합·다른 고객 서류함·enum 정리 제외. docType은 text 유지.
