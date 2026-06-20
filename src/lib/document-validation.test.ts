@@ -2,11 +2,12 @@ import { test, expect } from "bun:test";
 
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "./document-validation";
 
-test("isAllowedMime: 이미지·PDF·오피스 허용, 그 외 거부", () => {
+test("isAllowedMime: 이미지·PDF만 허용, 오피스·그 외 거부", () => {
   expect(isAllowedMime("image/png")).toBe(true);
   expect(isAllowedMime("image/heic")).toBe(true);
   expect(isAllowedMime("application/pdf")).toBe(true);
-  expect(isAllowedMime("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).toBe(true);
+  expect(isAllowedMime("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).toBe(false); // xlsx 거부
+  expect(isAllowedMime("application/msword")).toBe(false); // doc 거부
   expect(isAllowedMime("application/x-msdownload")).toBe(false);
   expect(isAllowedMime("")).toBe(false);
 });

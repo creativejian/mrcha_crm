@@ -1,16 +1,8 @@
 // 고객 서류 업로드 검증/정규화(순수). 라우트와 단위테스트가 공유.
 export const MAX_DOC_BYTES = 20 * 1024 * 1024; // 20MB
 
-// 이미지 전체 + PDF + 오피스(신규/구형). 미리보기는 이미지·PDF만, 오피스는 다운로드.
-const ALLOWED_MIME = new Set([
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // xlsx
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // pptx
-  "application/vnd.ms-excel", // xls
-  "application/msword", // doc
-  "application/vnd.ms-powerpoint", // ppt
-]);
+// 이미지 전체 + PDF만. 오피스는 허용하지 않는다(이미지/PDF만 병합 다운로드 대상).
+const ALLOWED_MIME = new Set(["application/pdf"]);
 
 export function isAllowedMime(mime: string): boolean {
   return mime.startsWith("image/") || ALLOWED_MIME.has(mime);
