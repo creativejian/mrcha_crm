@@ -1,6 +1,6 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
-import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
+import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { ColorPicker } from "@/components/ColorPicker";
@@ -334,7 +334,6 @@ const kimMinjunWorkflowMeta = [
   { key: "manage", label: "관리 상태", tone: "normal" },
 ] satisfies { key: KimWorkflowKey; label: string; tone: string }[];
 
-const kimChanceOptions: CustomerChanceOption[] = ["높음", "중간", "낮음", "보류", "확정"];
 const kimMethodOptions = ["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"];
 const kimContractTermOptions = ["12개월", "24개월", "36개월", "48개월", "60개월"];
 const kimInitialCostKindOptions: KimInitialCostKind[] = ["무보증", "보증금", "선수금"];
@@ -3551,7 +3550,7 @@ function KimMinjunDetailContent({
     return (
       <div className="kim-edit-popover compact" role="dialog" aria-label={`${key === "chance" ? "계약 가능성" : "관리 상태"} 수정`}>
         <div className="kim-choice-list single">
-          {kimChanceOptions.map((option) => {
+          {CHANCE_OPTIONS.map((option) => {
             const selected = option === chance;
             return (
               <button

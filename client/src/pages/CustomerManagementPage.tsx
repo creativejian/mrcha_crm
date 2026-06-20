@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown, Eraser, FileText, MessageSquare, Minus, Pencil, Plus, RefreshCcw, Search, X } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { ADVISOR_NAMES, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import { prefetchCustomerDetail } from "@/lib/customers";
 import type { RoleTab } from "@/data/roles";
 
@@ -57,12 +57,9 @@ const tableColumnsByMode: Record<CustomerMode, string[]> = {
 };
 
 const pageSizeOptions = [15, 30, 50, 100] as const;
-const chanceOptions = ["높음", "중간", "낮음", "보류", "확정"] as const;
-const finalUpdateFilterOptions = ["정상", "확인필요", "재문의", "지연", "장기방치"] as const;
-const advisorRotation = ["김지안", "이주선", "이건수"] as const;
 type ChanceOption = CustomerChanceOption;
 type ManageStatusOption = CustomerManageStatus;
-type FinalUpdateFilterOption = typeof finalUpdateFilterOptions[number];
+type FinalUpdateFilterOption = CustomerManageStatus;
 type StagePickerLevel = "primary" | "secondary";
 type DraftFilterKey = "statusGroup" | "status" | "advisor" | "chance" | "finalUpdate";
 type FinalUpdateInfo = {
@@ -735,8 +732,8 @@ export function CustomerManagementPage({
   function changeCustomerAdvisor(customerNo: number) {
     updateCustomers((current) => current.map((customer) => {
       if (customer.no !== customerNo) return customer;
-      const currentIndex = advisorRotation.findIndex((name) => name === customer.advisor);
-      const nextAdvisor = advisorRotation[(currentIndex + 1 + advisorRotation.length) % advisorRotation.length];
+      const currentIndex = ADVISOR_NAMES.findIndex((name) => name === customer.advisor);
+      const nextAdvisor = ADVISOR_NAMES[(currentIndex + 1 + ADVISOR_NAMES.length) % ADVISOR_NAMES.length];
       return { ...customer, advisor: nextAdvisor, assignedAt: "방금 전" };
     }));
     markFinalUpdate(customerNo, "담당", "담당자 변경");
@@ -1222,7 +1219,7 @@ export function CustomerManagementPage({
           )}
           {openChanceFor === customer.no && (
             <div aria-label="가능성 선택" className="chance-status-popover" role="listbox">
-              {chanceOptions.map((value) => {
+              {CHANCE_OPTIONS.map((value) => {
                 const selectedChance = value === chance;
                 return (
                   <button
@@ -1377,9 +1374,9 @@ export function CustomerManagementPage({
   const draftFilterOptions = {
     statusGroup: Object.keys(customerStatusGroups).map((group) => ({ value: group, label: group })),
     status: statuses.map((item) => ({ value: item, label: item })),
-    advisor: ["김지안", "이주선", "이건수"].map((name) => ({ value: name, label: name })),
-    chance: chanceOptions.map((option) => ({ value: option, label: option })),
-    finalUpdate: finalUpdateFilterOptions.map((option) => ({ value: option, label: option })),
+    advisor: ADVISOR_NAMES.map((name) => ({ value: name, label: name })),
+    chance: CHANCE_OPTIONS.map((option) => ({ value: option, label: option })),
+    finalUpdate: CUSTOMER_MANAGE_STATUSES.map((option) => ({ value: option, label: option })),
   };
 
   function renderDraftFilter(options: {
@@ -1496,9 +1493,7 @@ export function CustomerManagementPage({
                 </select>
                 <select className="select" onChange={(event) => { setAdvisor(event.target.value); setCurrentPage(1); }} value={advisor}>
                   <option value="">담당자</option>
-                  <option>김지안</option>
-                  <option>이주선</option>
-                  <option>이건수</option>
+                  {ADVISOR_NAMES.map((name) => <option key={name}>{name}</option>)}
                 </select>
               </>
             )}
