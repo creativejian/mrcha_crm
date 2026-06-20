@@ -172,6 +172,17 @@ test("서류: 허용 안 되는 MIME → 415", async () => {
   expect(res.status).toBe(415);
 });
 
+test("서류: 오피스 파일(xlsx) → 415", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const auth = { Authorization: `Bearer ${token}` };
+  const list = (await (await app.request("/api/customers", { headers: auth })).json()) as Array<{ id: string }>;
+  const fd = new FormData();
+  fd.append("file", new File([new Uint8Array([1])], "재무제표.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  const res = await app.request(`/api/customers/${list[0].id}/documents`, { method: "POST", headers: auth, body: fd });
+  expect(res.status).toBe(415);
+});
+
 test("서류: 파일 없음 → 400", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });

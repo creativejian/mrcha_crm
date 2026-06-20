@@ -9,6 +9,7 @@ import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
+import type { MergeSource } from "@/lib/document-merge";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -901,41 +902,6 @@ function kimDocumentFileIcon(kind: string) {
   return <File size={13} strokeWidth={2.25} />;
 }
 
-function escapePdfText(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-}
-
-function downloadTextAsPdf(title: string, lines: string[]) {
-  const contentLines = lines.map((line, index) => `BT /F1 11 Tf 40 ${760 - index * 18} Td (${escapePdfText(line)}) Tj ET`).join("\n");
-  const stream = `${contentLines}\n`;
-  const objects = [
-    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
-    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
-    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj",
-    "4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
-    `5 0 obj << /Length ${stream.length} >> stream\n${stream}endstream endobj`,
-  ];
-  let body = "%PDF-1.4\n";
-  const offsets = [0];
-  objects.forEach((object) => {
-    offsets.push(body.length);
-    body += `${object}\n`;
-  });
-  const xrefOffset = body.length;
-  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  offsets.slice(1).forEach((offset) => {
-    body += `${String(offset).padStart(10, "0")} 00000 n \n`;
-  });
-  body += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  const blob = new Blob([body], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = title;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 function parseScheduleTimeParts(value?: string) {
   const [rawHour, rawMinute] = (value || "10:00").split(":");
   const hour = kimScheduleHourOptions.includes(rawHour) ? rawHour : "10";
@@ -1469,6 +1435,7 @@ function KimMinjunDetailContent({
   const [previewDownloadUrl, setPreviewDownloadUrl] = useState<string | null>(null);
   const [previewImageLoaded, setPreviewImageLoaded] = useState(false);
   const [confirmingDocumentDeleteId, setConfirmingDocumentDeleteId] = useState<string | null>(null);
+  const [isMergingDocuments, setIsMergingDocuments] = useState(false);
   const [openEditor, setOpenEditor] = useState<KimOpenEditor | null>(null);
   const [recentUpdate, setRecentUpdate] = useState<KimRecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
   const [recentUpdateNow, setRecentUpdateNow] = useState(() => Date.now());
@@ -2962,13 +2929,12 @@ function KimMinjunDetailContent({
   }
 
   async function addDocumentFiles(fileList: FileList | File[]) {
-    const officeExt = [".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt"];
     const files = Array.from(fileList).filter((file) => {
       const lower = file.name.toLowerCase();
-      return file.type.startsWith("image/") || file.type === "application/pdf" || lower.endsWith(".pdf") || officeExt.some((ext) => lower.endsWith(ext));
+      return file.type.startsWith("image/") || file.type === "application/pdf" || lower.endsWith(".pdf");
     });
     if (files.length === 0) {
-      onToast("이미지·PDF·오피스 문서만 등록할 수 있습니다.");
+      onToast("이미지·PDF만 등록할 수 있습니다.");
       return;
     }
     setConfirmingDocumentDeleteId(null);
@@ -3100,22 +3066,61 @@ function KimMinjunDetailContent({
     }
   }
 
-  function exportDocumentBundleAsPdf() {
+  // 서류함의 이미지/PDF를 표시 순서대로 하나의 PDF로 병합해 내려받는다(금융사에 한 번에 제출).
+  // 소스 바이트: 업로드 직후(메모리 File) 우선, 없으면 저장본의 원본 signed URL(downloadUrl)을 fetch.
+  async function downloadDocumentsMergedPdf() {
+    if (isMergingDocuments) return;
     if (documents.length === 0) {
       onToast("내보낼 서류가 없습니다.");
       return;
     }
-    const hasPdfOriginal = documents.some((documentItem) => kimDocumentFileKind(documentItem.mimeType, documentItem.fileName) === "PDF");
-    const lines = [
-      "Mr. Cha CRM 서류함",
-      `고객: 김민준 CU-2605-0020`,
-      `생성: ${formatKoreanShortTime()}`,
-      "",
-      ...documents.map((documentItem, index) => `${index + 1}. ${documentItem.title} / ${documentItem.fileName ?? "파일명 없음"} / ${formatKimFileSize(documentItem.fileSize)}`),
-    ];
-    downloadTextAsPdf("kim-minjun-documents.pdf", lines);
-    markRecentUpdate("서류함");
-    onToast(hasPdfOriginal ? "PDF 원본 병합은 다음 단계에서 서버 병합으로 연결합니다. 우선 서류 목록 PDF를 내려받았습니다." : "서류 목록 PDF를 내려받았습니다.");
+    setIsMergingDocuments(true);
+    try {
+      const sources: MergeSource[] = [];
+      for (const documentItem of documents) {
+        const kind = kimDocumentFileKind(documentItem.mimeType, documentItem.fileName);
+        if (kind !== "이미지" && kind !== "PDF") continue;
+        let blob: Blob | null = null;
+        if (documentItem.file) {
+          blob = documentItem.file;
+        } else if (!documentItem.id.startsWith("kim-")) {
+          try {
+            const { downloadUrl } = await getDocumentUrlApi(detail.id, documentItem.id);
+            const res = await fetch(downloadUrl);
+            if (res.ok) blob = await res.blob();
+          } catch {
+            blob = null;
+          }
+        }
+        if (blob) sources.push({ kind: kind === "PDF" ? "pdf" : "image", blob });
+      }
+      if (sources.length === 0) {
+        onToast("병합할 수 있는 이미지·PDF 서류가 없습니다.");
+        return;
+      }
+      // pdf-lib는 무겁다 — 병합 시점에만 동적 로드(초기 번들에서 분리).
+      const { mergeDocumentsToPdf } = await import("@/lib/document-merge");
+      const { bytes, merged, skipped } = await mergeDocumentsToPdf(sources);
+      if (merged === 0) {
+        onToast("서류 병합에 실패했습니다.");
+        return;
+      }
+      const pdfBlob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const objectUrl = URL.createObjectURL(pdfBlob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = "김민준-서류.pdf";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+      markRecentUpdate("서류함");
+      onToast(skipped > 0 ? `서류 ${merged}건을 PDF로 병합했습니다(${skipped}건 제외).` : `서류 ${merged}건을 하나의 PDF로 병합했습니다.`);
+    } catch {
+      onToast("서류 병합에 실패했습니다.");
+    } finally {
+      setIsMergingDocuments(false);
+    }
   }
 
   function saveSchedule(event: SyntheticEvent<HTMLFormElement>) {
@@ -5707,12 +5712,14 @@ function KimMinjunDetailContent({
             <div className="kim-doc-head-actions">
               <label aria-label="서류 파일 첨부" className="kim-mvp-add-circle kim-doc-upload-trigger">
                 <Paperclip size={13} strokeWidth={2.4} />
-                <input accept="image/*,.pdf,application/pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt" multiple onChange={addDocumentFilesFromInput} type="file" />
+                <input accept="image/*,.pdf,application/pdf" multiple onChange={addDocumentFilesFromInput} type="file" />
               </label>
               <button
-                aria-label="서류 PDF 내보내기"
+                aria-label="서류 PDF 병합 다운로드"
                 className="kim-mvp-add-circle"
-                onClick={exportDocumentBundleAsPdf}
+                disabled={isMergingDocuments || documents.length === 0}
+                onClick={downloadDocumentsMergedPdf}
+                title="이미지·PDF 서류를 하나의 PDF로 병합해 다운로드"
                 type="button"
               ><Download size={13} strokeWidth={2.4} /></button>
             </div>
