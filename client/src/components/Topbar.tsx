@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { initialCustomers, type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
 import { signOut } from "@/lib/auth";
+import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
   return (
@@ -276,67 +277,23 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
     };
   }, []);
 
-  useEffect(() => {
-    if (!settingsOpen) return;
+  // 계정 설정: 외부 pointerdown은 confirm 모달이 떠 있으면 무시, Esc는 항상 닫는다(원본 동작 보존).
+  usePopoverDismiss(settingsMenuRef, settingsOpen, closeSettingsMenu, {
+    guard: () => confirmMode !== null,
+  });
 
-    function handlePointerDown(event: PointerEvent) {
-      if (confirmMode) return;
-      if (!settingsMenuRef.current?.contains(event.target as Node)) closeSettingsMenu();
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") closeSettingsMenu();
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- settingsOpen 동안만 외부 클릭/Esc 리스너를 등록하는 effect; closeSettingsMenu(일반 함수)는 의도적으로 deps에서 제외
-  }, [settingsOpen, settingsClosing, confirmMode]);
-
-  useEffect(() => {
-    if (!globalSearchOpen) return;
-
-    function handlePointerDown(event: PointerEvent) {
-      if (!globalSearchRef.current?.contains(event.target as Node)) setGlobalSearchOpen(false);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setGlobalSearchOpen(false);
+  // 통합검색: Esc 닫기 + Enter로 첫 결과 열기.
+  usePopoverDismiss(globalSearchRef, globalSearchOpen, () => setGlobalSearchOpen(false), {
+    onKeyDown: (event) => {
       if (event.key === "Enter" && globalSearchResults[0]) handleGlobalSearchCustomerOpen(globalSearchResults[0]);
-    }
+    },
+  });
 
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [globalSearchOpen, globalSearchResults, handleGlobalSearchCustomerOpen]);
+  // 업무 AI: 닫기 애니메이션은 closeWorkAi 내부에서 처리.
+  usePopoverDismiss(workAiRef, workAiOpen, closeWorkAi);
 
-  useEffect(() => {
-    if (!workAiOpen) return;
-
-    function handlePointerDown(event: PointerEvent) {
-      if (!workAiRef.current?.contains(event.target as Node)) closeWorkAi();
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") closeWorkAi();
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- workAiOpen 동안만 외부 클릭/Esc 리스너를 등록하는 effect; closeWorkAi(일반 함수)는 의도적으로 deps에서 제외
-  }, [workAiOpen, workAiClosing]);
-
+  // 알림: 첫 외부클릭을 capture 단계에서 소비해 그 클릭이 다른 Topbar 액션을 실행하지 못하게 막는
+  // 특수 동작이라 공용 usePopoverDismiss로 통합하지 않고 별도 effect로 유지한다.
   useEffect(() => {
     if (!notificationsOpen) return;
 
