@@ -42,8 +42,9 @@ export async function reorderDocumentsApi(cid: string, order: { id: string; sort
   invalidateCustomerDetail(cid);
 }
 
-export async function getDocumentUrlApi(cid: string, id: string): Promise<{ url: string; fileMime: string | null }> {
+// url=미리보기(이미지면 썸네일), downloadUrl=원본(다운로드용).
+export async function getDocumentUrlApi(cid: string, id: string): Promise<{ url: string; downloadUrl: string; fileMime: string | null }> {
   const res = await apiFetch(`/api/customers/${cid}/documents/${id}/url`);
   if (!res.ok) throw new Error(`서류 URL 발급 실패: ${res.status}`);
-  return (await res.json()) as { url: string; fileMime: string | null };
+  return (await res.json()) as { url: string; downloadUrl: string; fileMime: string | null };
 }

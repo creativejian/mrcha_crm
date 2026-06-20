@@ -147,6 +147,10 @@ customers.get("/:id/documents/:childId/url", zValidator("param", childParam), as
   const p = c.req.valid("param");
   const row = await getDocumentPath(p.id, p.childId, c.var.db);
   if (!row?.filePath) return c.json({ error: "서류를 찾을 수 없습니다." }, 404);
-  const url = await createSignedUrl(c.env as { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined, row.filePath, 60);
-  return c.json({ url, fileMime: row.fileMime });
+  const env = c.env as { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined;
+  // 미리보기: 이미지는 변환(썸네일 w1000·q70)으로 가볍게, PDF/오피스는 원본. 다운로드는 항상 원본.
+  const isImage = (row.fileMime ?? "").startsWith("image/");
+  const url = await createSignedUrl(env, row.filePath, 60, isImage ? { transform: { width: 1000, quality: 70 } } : undefined);
+  const downloadUrl = isImage ? await createSignedUrl(env, row.filePath, 60) : url;
+  return c.json({ url, downloadUrl, fileMime: row.fileMime });
 });

@@ -13122,11 +13122,26 @@ select.kim-jeff-discount-label {
   place-items: center;
   background: rgba(15, 23, 42, 0.18);
   padding: 32px;
+  overscroll-behavior: contain;
+}
+
+/* 미리보기 모달이 열린 동안 배경(전체 페이지 + 고객 상세 패널) 스크롤을 잠가, 모달 안 스크롤이 뒤로 전파(chaining)되지 않게 한다. */
+body.kim-doc-preview-open,
+body.kim-doc-preview-open .customer-detail-drawer {
+  overflow: hidden;
+}
+
+/* drawer 모드: 미리보기를 고객 상세 패널(우측) 영역에만 띄워 좌측 고객 목록을 덮지 않고
+   작업 맥락 안 가운데에 오게 한다. 패널 폭(.customer-detail-drawer)과 동일하게 우측 정렬. */
+.customer-detail-console-page.drawer .kim-document-preview-backdrop {
+  inset: 0 0 0 auto;
+  width: min(1260px, calc(100vw - 240px));
 }
 
 .kim-document-preview-panel {
-  width: min(720px, calc(100vw - 64px));
-  max-height: calc(100vh - 64px);
+  /* 고정 크기 — 로딩 박스와 이미지 표시 시 모달 크기가 같아 레이아웃 점프가 없다. */
+  width: min(660px, calc(100vw - 64px));
+  height: min(900px, calc(100vh - 64px));
   border: 1px solid #dededb;
   border-radius: 8px;
   display: grid;
@@ -13134,6 +13149,14 @@ select.kim-jeff-discount-label {
   overflow: hidden;
   background: #fff;
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+}
+
+/* head > div { display:grid } 가 actions에도 먹어 버튼이 세로로 쌓이던 것을 specificity로 덮어 가로 배치. */
+.kim-document-preview-head .kim-document-preview-head-actions {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
 .kim-document-preview-head {
@@ -13181,23 +13204,34 @@ select.kim-jeff-discount-label {
 }
 
 .kim-document-preview-body {
-  min-height: 420px;
-  overflow: auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
   background: #f7f7f6;
-  padding: 16px;
-  text-align: center;
 }
 
 .kim-document-preview-body img {
   display: block;
-  width: 100%;
-  height: auto;
-  margin: 0 auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.kim-document-preview-loading,
+.kim-document-preview-fallback {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  min-height: 280px;
+  padding: 24px;
+  color: #68717b;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .kim-document-preview-body iframe {
   width: 100%;
-  min-height: min(720px, calc(100vh - 150px));
+  height: 100%;
   border: 0;
   background: #fff;
 }

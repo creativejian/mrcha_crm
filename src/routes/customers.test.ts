@@ -1,7 +1,6 @@
 import { mock } from "bun:test";
 
 mock.module("../lib/storage", () => ({
-  CUSTOMER_DOCS_BUCKET: "customer-documents",
   uploadObject: async () => {},
   removeObject: async () => {},
   createSignedUrl: async () => "https://example.test/signed-url",
@@ -146,8 +145,9 @@ test("서류: 업로드→signedUrl→docType PATCH→reorder→삭제 라운드
 
   const urlRes = await app.request(`/api/customers/${cid}/documents/${doc.id}/url`, { headers: auth });
   expect(urlRes.status).toBe(200);
-  const urlBody = (await urlRes.json()) as { url: string; fileMime: string | null };
+  const urlBody = (await urlRes.json()) as { url: string; downloadUrl: string; fileMime: string | null };
   expect(urlBody.url).toContain("https://");
+  expect(urlBody.downloadUrl).toContain("https://");
   expect(urlBody.fileMime).toBe("image/png");
 
   const h = { ...auth, "Content-Type": "application/json" };
