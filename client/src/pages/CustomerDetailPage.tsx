@@ -8,6 +8,7 @@ import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
+import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -1465,6 +1466,7 @@ function KimMinjunDetailContent({
   const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
   const [documentDropTargetId, setDocumentDropTargetId] = useState<string | null>(null);
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
+  const [previewDocumentUrl, setPreviewDocumentUrl] = useState<string | null>(null);
   const [confirmingDocumentDeleteId, setConfirmingDocumentDeleteId] = useState<string | null>(null);
   const [openEditor, setOpenEditor] = useState<KimOpenEditor | null>(null);
   const [recentUpdate, setRecentUpdate] = useState<KimRecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
@@ -1498,6 +1500,23 @@ function KimMinjunDetailContent({
   const previewQuote = quotes.find((quote) => quote.id === previewQuoteId) ?? null;
   const previewSentQuote = quotes.find((quote) => quote.id === previewSentQuoteId) ?? null;
   const previewDocument = documents.find((documentItem) => documentItem.id === previewDocumentId) ?? null;
+  // previewDocumentUrl: objectUrl이 없는 서버 저장 파일에 대해 signed URL을 비동기로 발급한다.
+  // 렌더에서는 previewDocument?.objectUrl ?? previewDocumentUrl 순서로 사용한다.
+  useEffect(() => {
+    // objectUrl이 이미 있으면 fetch 불필요. cleanup에서 null 처리.
+    if (!previewDocumentId || (previewDocument?.objectUrl)) return () => { setPreviewDocumentUrl(null); };
+    let cancelled = false;
+    getDocumentUrlApi(detail.id, previewDocumentId)
+      .then((r) => {
+        if (!cancelled) setPreviewDocumentUrl(r.url);
+      })
+      .catch(() => onToast("미리보기 URL 발급에 실패했습니다."));
+    return () => {
+      cancelled = true;
+      setPreviewDocumentUrl(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- previewDocumentId 변경 시에만 재실행, previewDocument는 파생값이라 dep 제외
+  }, [previewDocumentId, detail.id, onToast]);
   const quoteManualFieldConfig = kimQuoteManualFieldConfig(selectedQuotePurchaseMethod);
   const quoteSolutionAvailable = selectedQuotePurchaseMethod === "운용리스" || selectedQuotePurchaseMethod === "장기렌트";
   const solutionWorkbenchCanQuery =solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
@@ -2930,26 +2949,42 @@ function KimMinjunDetailContent({
     onToast(decisionStatus === "contracting" ? "계약 진행 견적으로 표시했습니다." : decisionStatus === "confirmed" ? "고객 확정 견적으로 표시했습니다." : decisionStatus === "considering" ? "최종 고민중 견적으로 표시했습니다." : "견적 확정 상태를 해제했습니다.");
   }
 
-  function addDocumentFiles(fileList: FileList | File[]) {
-    const files = Array.from(fileList).filter((file) => file.type.startsWith("image/") || file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+  async function addDocumentFiles(fileList: FileList | File[]) {
+    const officeExt = [".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt"];
+    const files = Array.from(fileList).filter((file) => {
+      const lower = file.name.toLowerCase();
+      return file.type.startsWith("image/") || file.type === "application/pdf" || lower.endsWith(".pdf") || officeExt.some((ext) => lower.endsWith(ext));
+    });
     if (files.length === 0) {
-      onToast("이미지 또는 PDF 파일만 등록할 수 있습니다.");
+      onToast("이미지·PDF·오피스 문서만 등록할 수 있습니다.");
       return;
     }
-    const nextDocuments = files.map((file, index) => ({
-      id: `kim-document-${Date.now()}-${index}`,
-      title: classifyKimDocumentFile(file.name),
-      status: "자동인식",
-      fileName: file.name,
-      fileSize: file.size,
-      mimeType: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
-      objectUrl: URL.createObjectURL(file),
-      file,
-    }));
-    setDocuments((current) => [...current, ...nextDocuments]);
     setConfirmingDocumentDeleteId(null);
     markRecentUpdate("서류함");
-    onToast(`${files.length}개 서류를 자동 인식했습니다.`);
+    for (const file of files) {
+      const tempId = `kim-document-${nowMs()}-${Math.round(file.size)}`;
+      const docType = classifyKimDocumentFile(file.name);
+      const objectUrl = URL.createObjectURL(file);
+      const optimistic: KimDocumentItem = {
+        id: tempId,
+        title: docType,
+        status: "자동인식",
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
+        objectUrl,
+        file,
+      };
+      setDocuments((current) => [...current, optimistic]);
+      try {
+        const saved = await uploadDocument(detail.id, file, docType);
+        setDocuments((current) => current.map((d) => (d.id === tempId ? { ...d, id: saved.id, file: undefined } : d)));
+      } catch {
+        setDocuments((current) => current.filter((d) => d.id !== tempId));
+        URL.revokeObjectURL(objectUrl);
+        onToast(`${file.name} 업로드에 실패했습니다.`);
+      }
+    }
   }
 
   function addDocumentFilesFromInput(event: ChangeEvent<HTMLInputElement>) {
@@ -2964,10 +2999,9 @@ function KimMinjunDetailContent({
   }
 
   function updateDocumentType(id: string, title: string) {
-    setDocuments((current) => current.map((documentItem) => (
-      documentItem.id === id ? { ...documentItem, title, status: "수동분류" } : documentItem
-    )));
+    setDocuments((current) => current.map((documentItem) => (documentItem.id === id ? { ...documentItem, title, status: "수동분류" } : documentItem)));
     markRecentUpdate("서류함");
+    if (!id.startsWith("kim-")) void updateDocumentTypeApi(detail.id, id, title).catch(() => onToast("분류 저장에 실패했습니다."));
   }
 
   function isDocumentFileDrag(event: ReactDragEvent<HTMLElement>) {
@@ -2992,16 +3026,17 @@ function KimMinjunDetailContent({
 
   function moveDocumentToTarget(sourceId: string, targetId: string) {
     if (sourceId === targetId) return;
-    setDocuments((current) => {
-      const sourceIndex = current.findIndex((documentItem) => documentItem.id === sourceId);
-      const targetIndex = current.findIndex((documentItem) => documentItem.id === targetId);
-      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return current;
-      const nextDocuments = [...current];
-      const [target] = nextDocuments.splice(sourceIndex, 1);
-      nextDocuments.splice(targetIndex, 0, target);
-      return nextDocuments;
-    });
+    const sourceIndex = documents.findIndex((documentItem) => documentItem.id === sourceId);
+    const targetIndex = documents.findIndex((documentItem) => documentItem.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+    const nextDocuments = [...documents];
+    const [target] = nextDocuments.splice(sourceIndex, 1);
+    nextDocuments.splice(targetIndex, 0, target);
+    setDocuments(nextDocuments);
     markRecentUpdate("서류함");
+    // 서버 저장 항목만 추린 뒤 연속 index로 재채번(업로드 중 임시 항목을 제외한 자리로 sortOrder를 맞춘다).
+    const order = nextDocuments.filter((documentItem) => !documentItem.id.startsWith("kim-")).map((documentItem, index) => ({ id: documentItem.id, sortOrder: index }));
+    if (order.length > 0) void reorderDocumentsApi(detail.id, order).catch(() => onToast("순서 저장에 실패했습니다."));
   }
 
   function dragDocumentRowOver(event: ReactDragEvent<HTMLElement>, targetId: string) {
@@ -3029,6 +3064,28 @@ function KimMinjunDetailContent({
     setConfirmingDocumentDeleteId(null);
     markRecentUpdate("서류함");
     onToast("서류 항목을 삭제했습니다.");
+    if (!id.startsWith("kim-")) void deleteDocumentApi(detail.id, id).catch(() => onToast("삭제 저장에 실패했습니다."));
+  }
+
+  // 다운로드는 signed URL(또는 업로드 직후 objectUrl)을 blob으로 받아 같은 출처에서 내려받는다.
+  // signed URL의 Content-Disposition은 supabase가 한글 파일명을 이중 인코딩해 깨지므로,
+  // blob + a.download로 원본 파일명(한글 포함)을 그대로 보존한다.
+  async function downloadKimDocument(url: string, fileName: string) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      onToast("다운로드에 실패했습니다.");
+    }
   }
 
   function exportDocumentBundleAsPdf() {
@@ -5638,7 +5695,7 @@ function KimMinjunDetailContent({
             <div className="kim-doc-head-actions">
               <label aria-label="서류 파일 첨부" className="kim-mvp-add-circle kim-doc-upload-trigger">
                 <Paperclip size={13} strokeWidth={2.4} />
-                <input accept="image/*,.pdf,application/pdf" multiple onChange={addDocumentFilesFromInput} type="file" />
+                <input accept="image/*,.pdf,application/pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt" multiple onChange={addDocumentFilesFromInput} type="file" />
               </label>
               <button
                 aria-label="서류 PDF 내보내기"
@@ -5787,13 +5844,23 @@ function KimMinjunDetailContent({
               <button aria-label="서류 미리보기 닫기" onClick={() => setPreviewDocumentId(null)} type="button"><X size={15} strokeWidth={2.4} /></button>
             </div>
             <div className="kim-document-preview-body">
-              {previewDocument.objectUrl && previewDocument.mimeType?.startsWith("image/") ? (
-                <img alt={previewDocument.title} src={previewDocument.objectUrl} />
-              ) : previewDocument.objectUrl && kimDocumentFileKind(previewDocument.mimeType, previewDocument.fileName) === "PDF" ? (
-                <iframe src={previewDocument.objectUrl} title={previewDocument.title} />
-              ) : (
-                <p>미리보기를 지원하지 않는 파일입니다.</p>
-              )}
+              {(() => {
+                const activePreviewUrl = previewDocument.objectUrl ?? previewDocumentUrl;
+                if (activePreviewUrl && previewDocument.mimeType?.startsWith("image/")) {
+                  return <img alt={previewDocument.title} src={activePreviewUrl} />;
+                }
+                if (activePreviewUrl && kimDocumentFileKind(previewDocument.mimeType, previewDocument.fileName) === "PDF") {
+                  return <iframe src={activePreviewUrl} title={previewDocument.title} />;
+                }
+                return (
+                  <>
+                    <p>미리보기를 지원하지 않는 파일입니다.</p>
+                    {activePreviewUrl ? (
+                      <button className="kim-doc-preview-download-link" onClick={() => downloadKimDocument(activePreviewUrl, previewDocument.fileName ?? "document")} type="button">원본 다운로드</button>
+                    ) : null}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

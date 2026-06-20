@@ -1,4 +1,4 @@
-import { desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import {
@@ -65,7 +65,7 @@ export type CustomerDetail = typeof customers.$inferSelect & {
   tasks: (typeof customerTasks.$inferSelect)[];
   schedules: (typeof customerSchedules.$inferSelect)[];
   memos: (typeof customerMemos.$inferSelect)[];
-  documents: (typeof customerDocuments.$inferSelect)[];
+  documents: Omit<typeof customerDocuments.$inferSelect, "filePath">[];
   consultations: (typeof consultations.$inferSelect)[];
 };
 
@@ -77,7 +77,21 @@ export async function getCustomer(id: string, executor: Executor = getDefaultDb(
     executor.select().from(customerTasks).where(eq(customerTasks.customerId, id)),
     executor.select().from(customerSchedules).where(eq(customerSchedules.customerId, id)),
     executor.select().from(customerMemos).where(eq(customerMemos.customerId, id)),
-    executor.select().from(customerDocuments).where(eq(customerDocuments.customerId, id)),
+    executor
+      .select({
+        id: customerDocuments.id,
+        customerId: customerDocuments.customerId,
+        title: customerDocuments.title,
+        docType: customerDocuments.docType,
+        fileName: customerDocuments.fileName,
+        fileSize: customerDocuments.fileSize,
+        fileMime: customerDocuments.fileMime,
+        sortOrder: customerDocuments.sortOrder,
+        createdAt: customerDocuments.createdAt,
+      })
+      .from(customerDocuments)
+      .where(eq(customerDocuments.customerId, id))
+      .orderBy(asc(customerDocuments.sortOrder), asc(customerDocuments.createdAt)),
     executor.select().from(consultations).where(eq(consultations.customerId, id)),
   ]);
   return { ...customer, tasks, schedules, memos, documents, consultations: consults };
