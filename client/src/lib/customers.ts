@@ -80,7 +80,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
 export type CustomerDetailTask = { id: string; category: string | null; due: string | null; body: string | null; done: boolean };
 export type CustomerDetailSchedule = { id: string; scheduledDate: string | null; scheduledTime: string | null; type: string | null; memo: string | null; done: boolean };
 export type CustomerDetailMemo = { id: string; body: string | null; createdAt: string | null };
-export type CustomerDetailDocument = { id: string; title: string | null; docType: string | null; fileName: string | null; fileSize: number | null; fileMime: string | null };
+export type CustomerDetailDocument = { id: string; title: string | null; docType: string | null; fileName: string | null; fileSize: number | null; fileMime: string | null; sortOrder: number | null; createdAt: string | null };
 
 export type CustomerDetailResponse = {
   id: string;
