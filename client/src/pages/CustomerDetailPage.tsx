@@ -3067,6 +3067,27 @@ function KimMinjunDetailContent({
     if (!id.startsWith("kim-")) void deleteDocumentApi(detail.id, id).catch(() => onToast("삭제 저장에 실패했습니다."));
   }
 
+  // 다운로드는 signed URL(또는 업로드 직후 objectUrl)을 blob으로 받아 같은 출처에서 내려받는다.
+  // signed URL의 Content-Disposition은 supabase가 한글 파일명을 이중 인코딩해 깨지므로,
+  // blob + a.download로 원본 파일명(한글 포함)을 그대로 보존한다.
+  async function downloadKimDocument(url: string, fileName: string) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      onToast("다운로드에 실패했습니다.");
+    }
+  }
+
   function exportDocumentBundleAsPdf() {
     if (documents.length === 0) {
       onToast("내보낼 서류가 없습니다.");
@@ -5835,7 +5856,7 @@ function KimMinjunDetailContent({
                   <>
                     <p>미리보기를 지원하지 않는 파일입니다.</p>
                     {activePreviewUrl ? (
-                      <a className="kim-doc-preview-download-link" download href={activePreviewUrl}>원본 다운로드</a>
+                      <button className="kim-doc-preview-download-link" onClick={() => downloadKimDocument(activePreviewUrl, previewDocument.fileName ?? "document")} type="button">원본 다운로드</button>
                     ) : null}
                   </>
                 );
