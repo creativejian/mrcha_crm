@@ -1,4 +1,5 @@
 import { apiFetch } from "./api";
+import { getJson, sendVoid } from "./http";
 import { invalidateCustomerDetail } from "./customers";
 
 // 서버 POST 응답(업로드 성공 시 새 row 메타). file_path는 비노출.
@@ -13,6 +14,7 @@ export type UploadedDocument = {
 };
 
 // 업로드는 multipart라 Content-Type을 직접 지정하지 않는다(브라우저가 boundary 포함). 쓰기라 재시도 비대상.
+// multipart라 lib/http(JSON 전용) 대신 apiFetch 직접 사용.
 export async function uploadDocument(cid: string, file: File, docType: string): Promise<UploadedDocument> {
   const fd = new FormData();
   fd.append("file", file);
@@ -25,26 +27,21 @@ export async function uploadDocument(cid: string, file: File, docType: string): 
 }
 
 export async function updateDocumentTypeApi(cid: string, id: string, docType: string): Promise<void> {
-  const res = await apiFetch(`/api/customers/${cid}/documents/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ docType }) });
-  if (!res.ok) throw new Error(`서류 분류 수정 실패: ${res.status}`);
+  await sendVoid(`/api/customers/${cid}/documents/${id}`, "PATCH", { docType });
   invalidateCustomerDetail(cid);
 }
 
 export async function deleteDocumentApi(cid: string, id: string): Promise<void> {
-  const res = await apiFetch(`/api/customers/${cid}/documents/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(`서류 삭제 실패: ${res.status}`);
+  await sendVoid(`/api/customers/${cid}/documents/${id}`, "DELETE");
   invalidateCustomerDetail(cid);
 }
 
 export async function reorderDocumentsApi(cid: string, order: { id: string; sortOrder: number }[]): Promise<void> {
-  const res = await apiFetch(`/api/customers/${cid}/documents/reorder`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order }) });
-  if (!res.ok) throw new Error(`서류 순서 변경 실패: ${res.status}`);
+  await sendVoid(`/api/customers/${cid}/documents/reorder`, "PATCH", { order });
   invalidateCustomerDetail(cid);
 }
 
 // url=미리보기(이미지면 썸네일), downloadUrl=원본(다운로드용).
 export async function getDocumentUrlApi(cid: string, id: string): Promise<{ url: string; downloadUrl: string; fileMime: string | null }> {
-  const res = await apiFetch(`/api/customers/${cid}/documents/${id}/url`);
-  if (!res.ok) throw new Error(`서류 URL 발급 실패: ${res.status}`);
-  return (await res.json()) as { url: string; downloadUrl: string; fileMime: string | null };
+  return getJson(`/api/customers/${cid}/documents/${id}/url`);
 }
