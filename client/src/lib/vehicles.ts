@@ -1,4 +1,4 @@
-import { apiFetch } from "./api";
+import { getJson } from "./http";
 
 export type Brand = {
   id: number;
@@ -59,14 +59,6 @@ export type TrimDetail = Trim & {
   colors: TrimColor[];
   noOptions: { note: string | null; checkedAt: string } | null;
 };
-
-async function getJson<T>(url: string): Promise<T> {
-  const res = await apiFetch(url);
-  if (!res.ok) {
-    throw new Error(`vehicle fetch failed: ${res.status} ${url}`);
-  }
-  return (await res.json()) as T;
-}
 
 export function fetchBrands(): Promise<Brand[]> {
   return getJson<Brand[]>("/api/vehicles/brands");

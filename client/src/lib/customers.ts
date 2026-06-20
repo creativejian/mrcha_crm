@@ -1,5 +1,5 @@
 import type { Customer } from "@/data/customers";
-import { apiFetch } from "./api";
+import { getJson, sendVoid } from "./http";
 
 // 백엔드 listCustomers 응답 1행(camelCase, null 가능). 상세는 추가 자식 필드 포함.
 export type CustomerRow = {
@@ -70,9 +70,7 @@ export function toCustomer(row: CustomerRow): Customer {
 }
 
 export async function fetchCustomers(): Promise<Customer[]> {
-  const res = await apiFetch("/api/customers");
-  if (!res.ok) throw new Error(`고객 목록 실패: ${res.status}`);
-  return ((await res.json()) as CustomerRow[]).map(toCustomer);
+  return (await getJson<CustomerRow[]>("/api/customers")).map(toCustomer);
 }
 
 // ── 고객 상세(GET /api/customers/:id = getCustomer) ─────────────────────────────
@@ -172,11 +170,8 @@ export async function fetchCustomerDetail(id: string): Promise<CustomerDetailDat
   if (cached && Date.now() - cached.at < DETAIL_FRESH_MS) return cached.data;
   const existing = detailInflight.get(id);
   if (existing) return existing;
-  const p = (async () => {
-    const res = await apiFetch(`/api/customers/${id}`);
-    if (!res.ok) throw new Error(`고객 상세 실패: ${res.status}`);
-    return toCustomerDetail((await res.json()) as CustomerDetailResponse);
-  })()
+  const p = getJson<CustomerDetailResponse>(`/api/customers/${id}`)
+    .then(toCustomerDetail)
     .then((data) => {
       detailCache.set(id, { data, at: Date.now() });
       return data;
@@ -211,11 +206,6 @@ export type CustomerWritePatch = {
 };
 
 export async function updateCustomer(id: string, patch: CustomerWritePatch): Promise<void> {
-  const res = await apiFetch(`/api/customers/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
-  if (!res.ok) throw new Error(`고객 저장 실패: ${res.status}`);
+  await sendVoid(`/api/customers/${id}`, "PATCH", patch);
   invalidateCustomerDetail(id);
 }
