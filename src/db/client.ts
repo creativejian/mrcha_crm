@@ -29,5 +29,3 @@ export function getDefaultDb() {
 export type Db = ReturnType<typeof createDbClient>["db"];
 // 쓰기 함수는 db 또는 tx(transaction 콜백 인자)를 받는다.
 export type Executor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
-
-export { catalog, schema };

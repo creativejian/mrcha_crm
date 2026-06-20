@@ -1,22 +1,6 @@
 import type { VehicleStatus } from "@/data/vehicle-taxonomy";
 import { apiFetch } from "./api";
 
-export type CatalogCounts = {
-  brands: number;
-  models: number;
-  trims: number;
-  trimOptions: number;
-  colors: number;
-  trimNoOptions: number;
-  trimOptionRelations: number;
-};
-
-export async function fetchCatalogCounts(): Promise<CatalogCounts> {
-  const res = await apiFetch("/api/catalog/counts");
-  if (!res.ok) throw new Error(`catalog counts 실패: ${res.status}`);
-  return (await res.json()) as CatalogCounts;
-}
-
 // ── 차량 관리(admin) ───────────────────────────────────────────────────────────
 export type CatalogBrand = {
   id: number;
