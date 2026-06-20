@@ -1420,8 +1420,9 @@ function KimMinjunDetailContent({
   const [documents, setDocuments] = useState<KimDocumentItem[]>(() =>
     detail.documents.map((d) => ({
       id: d.id,
-      title: d.title ?? "",
-      status: d.docType ?? "수동입력",
+      // 분류의 진실원본은 doc_type(분류 변경 PATCH가 갱신하는 컬럼). title 컬럼은 레거시라 폴백만.
+      title: d.docType ?? d.title ?? "",
+      status: "분류완료",
       fileName: d.fileName ?? undefined,
       fileSize: d.fileSize ?? undefined,
       mimeType: d.fileMime ?? undefined,
