@@ -10,7 +10,7 @@ import {
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
-import { createSignedUrl, removeObject, uploadObject } from "../lib/storage";
+import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
 
 export const customers = new Hono<{ Variables: DbVariables }>();
@@ -109,7 +109,7 @@ customers.post("/:id/documents", zValidator("param", idParam), async (c) => {
   const objectId = crypto.randomUUID();
   const path = `${customerId}/${objectId}-${safeFileName(file.name)}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
-  await uploadObject(c.env as { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined, path, bytes, file.type || "application/octet-stream");
+  await uploadObject(c.env as StorageEnv, path, bytes, file.type || "application/octet-stream");
   try {
     const sortOrder = await nextSortOrder(customerId, c.var.db);
     const row = await addDocument(
@@ -119,7 +119,7 @@ customers.post("/:id/documents", zValidator("param", idParam), async (c) => {
     );
     return c.json({ id: row.id, title: docType, docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, sortOrder, createdAt: row.createdAt }, 201);
   } catch (e) {
-    await removeObject(c.env as { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined, path).catch(() => undefined); // 보상 삭제
+    await removeObject(c.env as StorageEnv, path).catch(() => undefined); // 보상 삭제
     throw e;
   }
 });
@@ -139,7 +139,7 @@ customers.delete("/:id/documents/:childId", zValidator("param", childParam), asy
   const p = c.req.valid("param");
   const row = await deleteDocument(p.id, p.childId, c.var.db);
   if (!row) return c.json({ error: "서류를 찾을 수 없습니다." }, 404);
-  if (row.filePath) await removeObject(c.env as { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined, row.filePath).catch((err) => console.error("Storage remove 실패(고아 객체):", err));
+  if (row.filePath) await removeObject(c.env as StorageEnv, row.filePath).catch((err) => console.error("Storage remove 실패(고아 객체):", err));
   return c.json({ id: row.id });
 });
 
@@ -147,7 +147,7 @@ customers.get("/:id/documents/:childId/url", zValidator("param", childParam), as
   const p = c.req.valid("param");
   const row = await getDocumentPath(p.id, p.childId, c.var.db);
   if (!row?.filePath) return c.json({ error: "서류를 찾을 수 없습니다." }, 404);
-  const env = c.env as { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined;
+  const env = c.env as StorageEnv;
   // 미리보기: 이미지는 변환(썸네일 w1000·q70)으로 가볍게, PDF/오피스는 원본. 다운로드는 항상 원본.
   const isImage = (row.fileMime ?? "").startsWith("image/");
   const url = await createSignedUrl(env, row.filePath, 60, isImage ? { transform: { width: 1000, quality: 70 } } : undefined);

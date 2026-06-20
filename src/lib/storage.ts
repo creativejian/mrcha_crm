@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 const CUSTOMER_DOCS_BUCKET = "customer-documents";
 
 // secret key는 백엔드 전용(프론트 노출 금지). CF는 c.env, 로컬/테스트는 process.env.
-type StorageEnv = { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined;
+export type StorageEnv = { SUPABASE_URL?: string; SUPABASE_SECRET_KEY?: string } | undefined;
 
 function resolve(env: StorageEnv): { url: string; key: string } {
   const url = env?.SUPABASE_URL ?? process.env.SUPABASE_URL;
