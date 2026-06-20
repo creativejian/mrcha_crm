@@ -1,7 +1,7 @@
 // 테스트 전용. 로컬 키쌍으로 지정 role 토큰 + 같은 키의 JWKS + issuer를 만든다.
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, type JWTVerifyGetKey } from "jose";
 
-export const TEST_ISSUER = "https://test.supabase.co/auth/v1";
+const TEST_ISSUER = "https://test.supabase.co/auth/v1";
 
 export async function makeTestAuth(
   role = "staff",

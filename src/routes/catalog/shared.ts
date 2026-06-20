@@ -15,7 +15,7 @@ export const status = z.enum(VEHICLE_STATUSES);
 export const optionType = z.enum(["basic", "tuning"]);
 
 // 트리거/제약 위반 등 DB 에러를 사용자 친화 한글 메시지로.
-export function dbErrorMessage(e: unknown): string {
+function dbErrorMessage(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   if (/trim_name/i.test(msg) && /(format|hyphen|enforce| - )/i.test(msg))
     return "국산차 트림명은 '서브라인 - 등급' 형식이어야 합니다.";

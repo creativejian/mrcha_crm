@@ -1,6 +1,4 @@
-export const roleTabs = ["최고관리자", "팀장", "상담사", "딜러"] as const;
-
-export type RoleTab = (typeof roleTabs)[number];
+export type RoleTab = "최고관리자" | "팀장" | "상담사" | "딜러";
 
 export const roleAccountMeta: Record<RoleTab, { name: string; title: string }> = {
   최고관리자: { name: "지안", title: "최고관리자" },

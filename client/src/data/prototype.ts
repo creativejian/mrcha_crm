@@ -39,13 +39,6 @@ export const advisorBriefs = [
   ["이도윤", "심사 민감 고객입니다. 가능한 금융사와 필요 서류를 먼저 정리하면 이탈을 줄일 수 있습니다."],
 ] as const;
 
-export const timeline = [
-  ["AI", "AI 상담 시작", "리스와 장기렌트 차이를 질문. 패밀리 SUV 용도와 월 90만원 이하 예산 확인."],
-  ["M", "상담사 메모", "경쟁사 X3 견적 2장 보유. 총 비용과 중도해지 조건 민감."],
-  ["Q", "견적 발송", "A캐피탈 X3 / B캐피탈 GLC / C캐피탈 X3 비교 견적 발송."],
-  ["S", "상태 변경", "견적 요청 -> 조건 비교중. GLC 재고 확인 필요."],
-] as const;
-
 export const quotes = [
   { vehicle: "BMW X3 20i", finance: "A캐피탈", period: "48개월", initial: "보증금 20%", residual: "52%", monthly: "842,000원", stock: "가능", verdict: "추천" },
   { vehicle: "Benz GLC 300", finance: "B캐피탈", period: "48개월", initial: "보증금 20%", residual: "49%", monthly: "879,000원", stock: "확인 필요", verdict: "재고 변수" },
