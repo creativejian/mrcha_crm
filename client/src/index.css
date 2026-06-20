@@ -13144,8 +13144,10 @@ select.kim-jeff-discount-label {
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
 }
 
-.kim-document-preview-head-actions {
+/* head > div { display:grid } 가 actions에도 먹어 버튼이 세로로 쌓이던 것을 specificity로 덮어 가로 배치. */
+.kim-document-preview-head .kim-document-preview-head-actions {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: 6px;
 }
@@ -13205,7 +13207,6 @@ select.kim-jeff-discount-label {
   display: block;
   max-width: 100%;
   max-height: calc(100vh - 130px);
-  object-fit: contain;
 }
 
 .kim-document-preview-loading,
