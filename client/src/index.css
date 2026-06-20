@@ -13182,19 +13182,17 @@ select.kim-jeff-discount-label {
 
 .kim-document-preview-body {
   min-height: 420px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
   overflow: auto;
   background: #f7f7f6;
   padding: 16px;
+  text-align: center;
 }
 
 .kim-document-preview-body img {
   display: block;
-  max-width: 100%;
+  width: 100%;
   height: auto;
+  margin: 0 auto;
 }
 
 .kim-document-preview-body iframe {
