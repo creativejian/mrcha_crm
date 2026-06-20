@@ -16,15 +16,21 @@ export function isAllowedMime(mime: string): boolean {
   return mime.startsWith("image/") || ALLOWED_MIME.has(mime);
 }
 
-// 파일명에서 경로 구분자·앞쪽 점·공백류를 제거해 Storage 키에 안전한 basename으로.
-// 표시는 원본 file_name을 쓰고, 경로에만 이 안전화본을 쓴다. 한글은 유지.
+// 파일명을 Storage 객체 키에 안전한 ASCII basename으로 만든다.
+// Supabase Storage 키는 non-ASCII(한글 등)를 "Invalid key"로 거부하므로 제거한다.
+// 원본 파일명(한글 포함)은 DB file_name이 보존하므로 표시엔 지장이 없고, 경로는 추적용이다.
+// 확장자는 살리고, stem이 비면(예: 한글만인 이름) "file"로 대체한다.
 export function safeFileName(name: string): string {
   const base = name.split(/[/\\]/).pop() ?? name;
-  const cleaned = base
-    // eslint-disable-next-line no-control-regex -- 파일명 안전화: 제어문자(0x00-0x1f)·DEL(0x7f) 의도적 제거
-    .replace(/[\x00-\x1f\x7f]/g, "")
-    .replace(/\s+/g, "_") // 공백류 → _
-    .replace(/^\.+/, "_") // 선행 점(.hidden) → _
-    .slice(0, 120);
-  return cleaned || "file";
+  const dot = base.lastIndexOf(".");
+  const rawStem = dot > 0 ? base.slice(0, dot) : base;
+  const rawExt = dot > 0 ? base.slice(dot + 1) : "";
+  const toAscii = (s: string) =>
+    s
+      .replace(/[^\x20-\x7e]/g, "") // printable ASCII 외(한글·제어문자·DEL 등) 제거 — Storage 키 제약
+      .replace(/\s+/g, "_") // 공백류 → _
+      .replace(/[^A-Za-z0-9._-]/g, ""); // 남은 ASCII 중 안전치 않은 것(괄호·&·! 등) 제거
+  const stem = toAscii(rawStem).replace(/^[._]+/, "").slice(0, 80) || "file";
+  const ext = toAscii(rawExt).replace(/[^A-Za-z0-9]/g, "").slice(0, 12);
+  return ext ? `${stem}.${ext}` : stem;
 }
