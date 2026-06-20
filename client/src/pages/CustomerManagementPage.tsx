@@ -84,7 +84,6 @@ export function CustomerManagementPage({
   const [selected, setSelected] = useState<number[]>([]);
   const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(15);
   const [currentPage, setCurrentPage] = useState(1);
-  const [openStageFor, setOpenStageFor] = useState<number | null>(null);
   const [openStagePicker, setOpenStagePicker] = useState<{ customerNo: number; level: StagePickerLevel } | null>(null);
   const [openChanceFor, setOpenChanceFor] = useState<number | null>(null);
   const [openExtraFor, setOpenExtraFor] = useState<string | null>(null);
@@ -95,7 +94,6 @@ export function CustomerManagementPage({
   const [chanceNoticeFor, setChanceNoticeFor] = useState<number | null>(null);
   const nextActionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const nextActionEditorRef = useRef<HTMLDivElement>(null);
-  const stagePopoverRef = useRef<HTMLDivElement>(null);
   const stagePickerRef = useRef<HTMLDivElement>(null);
   const chancePopoverRef = useRef<HTMLDivElement>(null);
   const extraPopoverRef = useRef<HTMLButtonElement>(null);
@@ -198,43 +196,6 @@ export function CustomerManagementPage({
   function isTableControlTarget(target: EventTarget | null) {
     return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .advisor-change-pill"));
   }
-
-  useEffect(() => {
-    if (openStageFor === null) return;
-
-    function closeStagePopover(event: PointerEvent) {
-      if (stagePopoverRef.current?.contains(event.target as Node)) return;
-      if (isTableControlTarget(event.target)) return;
-      suppressOutsideClickRef.current = true;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      setOpenStageFor(null);
-    }
-
-    function suppressOutsideClick(event: globalThis.MouseEvent) {
-      if (!suppressOutsideClickRef.current) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.setTimeout(() => {
-        suppressOutsideClickRef.current = false;
-      }, 0);
-    }
-
-    function closeStagePopoverByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpenStageFor(null);
-    }
-
-    document.addEventListener("pointerdown", closeStagePopover, true);
-    document.addEventListener("click", suppressOutsideClick, true);
-    document.addEventListener("keydown", closeStagePopoverByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeStagePopover, true);
-      document.removeEventListener("click", suppressOutsideClick, true);
-      document.removeEventListener("keydown", closeStagePopoverByKeyboard);
-    };
-  }, [openStageFor]);
 
   useEffect(() => {
     if (openStagePicker === null) return;
@@ -457,7 +418,6 @@ export function CustomerManagementPage({
       return { ...customer, advisor: nextAdvisor, assignedAt: "방금 전" };
     }));
     markFinalUpdate(customerNo, "담당", "담당자 변경");
-    setOpenStageFor(null);
     setOpenStagePicker(null);
     setOpenChanceFor(null);
     setOpenExtraFor(null);
@@ -466,7 +426,6 @@ export function CustomerManagementPage({
 
   function toggleFinalUpdatePopover(event: MouseEvent<HTMLButtonElement>, customerNo: number) {
     event.stopPropagation();
-    setOpenStageFor(null);
     setOpenStagePicker(null);
     setOpenChanceFor(null);
     setOpenExtraFor(null);
@@ -490,14 +449,12 @@ export function CustomerManagementPage({
   }
 
   function toggleChancePopover(customerNo: number) {
-    setOpenStageFor(null);
     setOpenStagePicker(null);
     setOpenFinalUpdateFor(null);
     setOpenChanceFor((current) => current === customerNo ? null : customerNo);
   }
 
   function openTwoStepStagePicker(customerNo: number, level: StagePickerLevel) {
-    setOpenStageFor(null);
     setOpenChanceFor(null);
     setOpenExtraFor(null);
     setOpenFinalUpdateFor(null);
@@ -512,7 +469,6 @@ export function CustomerManagementPage({
     syncChanceWithStageGroup(customerNo, nextGroup);
     markFinalUpdate(customerNo, "진행 상태");
     setOpenStagePicker({ customerNo, level: "secondary" });
-    setOpenStageFor(null);
     setOpenExtraFor(null);
   }
 
@@ -522,7 +478,6 @@ export function CustomerManagementPage({
       : customer));
     markFinalUpdate(customerNo, "진행 상태");
     setOpenStagePicker(null);
-    setOpenStageFor(null);
     setOpenExtraFor(null);
   }
 
@@ -539,7 +494,6 @@ export function CustomerManagementPage({
   }
 
   function startEditingNextAction(customer: Customer) {
-    setOpenStageFor(null);
     setOpenStagePicker(null);
     setOpenChanceFor(null);
     setOpenExtraFor(null);
@@ -596,7 +550,6 @@ export function CustomerManagementPage({
 
   function toggleExtraPopover(event: MouseEvent<HTMLButtonElement>, extraId: string) {
     event.stopPropagation();
-    setOpenStageFor(null);
     setOpenStagePicker(null);
     setOpenChanceFor(null);
     setOpenFinalUpdateFor(null);
