@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
+import { useOutsideClick } from "@/lib/useOutsideClick";
 import type { TrimColor } from "@/lib/vehicles";
 
 type ColorPickerProps = {
@@ -14,14 +15,7 @@ export function ColorPicker({ colorType, colors, value, onChange }: ColorPickerP
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  useOutsideClick(rootRef, open, () => setOpen(false));
 
   const items = colors.filter((c) => c.colorType === colorType).sort((a, b) => a.sortOrder - b.sortOrder);
   const label = colorType === "exterior" ? "외장" : "내장";

@@ -1,8 +1,9 @@
 import { ChevronDown } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { disabledOptionIds, excludeGroups, excludePartners, optionTotal, resolveSelection } from "@/lib/option-selection";
 import { formatMoney } from "@/lib/quote-pricing";
+import { useOutsideClick } from "@/lib/useOutsideClick";
 import type { TrimOption, TrimOptionRelation } from "@/lib/vehicles";
 
 type OptionPickerProps = {
@@ -12,19 +13,12 @@ type OptionPickerProps = {
 };
 
 export function OptionPicker({ options, relations, onChange }: OptionPickerProps) {
+  // 트림이 바뀌면 부모가 key로 재마운트 → 선택은 자연히 초기화(effect 내 setState 회피).
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // 트림이 바뀌면 부모가 key로 재마운트 → 선택은 자연히 초기화(effect 내 setState 회피).
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  useOutsideClick(rootRef, open, () => setOpen(false));
 
   const basics = options.filter((o) => o.type === "basic");
   const tunings = options.filter((o) => o.type === "tuning");
