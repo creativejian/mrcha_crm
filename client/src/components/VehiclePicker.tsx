@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { useOutsideClick } from "@/lib/useOutsideClick";
 import { fetchBrands, fetchModels, fetchTrims, type Brand, type Model, type Trim } from "@/lib/vehicles";
 
 export type VehicleSelection = { brand?: Brand; model?: Model; trim?: Trim };
@@ -27,14 +28,7 @@ export function VehiclePicker({ onChange }: { onChange?: (selection: VehicleSele
       .finally(() => setLoading(null));
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(null);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  useOutsideClick(rootRef, open !== null, () => setOpen(null));
 
   function selectBrand(next: Brand) {
     setBrand(next);
