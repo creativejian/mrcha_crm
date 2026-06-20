@@ -12,6 +12,7 @@ import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDoc
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
+import { run } from "./shared";
 
 export const customers = new Hono<{ Variables: DbVariables }>();
 
@@ -35,19 +36,14 @@ export const customerWriteSchema = z.object({
 
 customers.get("/", async (c) => c.json(await listCustomers(c.var.db)));
 
-customers.get("/:id", zValidator("param", z.object({ id: z.uuid() })), async (c) => {
-  const row = await getCustomer(c.req.valid("param").id, c.var.db);
-  return row ? c.json(row) : c.json({ error: "고객을 찾을 수 없습니다." }, 404);
-});
+customers.get("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) =>
+  run(c, () => getCustomer(c.req.valid("param").id, c.var.db), "고객을 찾을 수 없습니다."));
 
 customers.patch(
   "/:id",
   zValidator("param", z.object({ id: z.uuid() })),
   zValidator("json", customerWriteSchema),
-  async (c) => {
-    const row = await updateCustomer(c.req.valid("param").id, c.req.valid("json"), c.var.db);
-    return row ? c.json(row) : c.json({ error: "고객을 찾을 수 없습니다." }, 404);
-  },
+  (c) => run(c, () => updateCustomer(c.req.valid("param").id, c.req.valid("json"), c.var.db), "고객을 찾을 수 없습니다."),
 );
 
 // ── 자식 컬렉션 CRUD (메모/할일/일정) ──────────────────────────────
@@ -59,41 +55,35 @@ const scheduleBody = z.object({ scheduledDate: z.string().nullable().optional(),
 
 customers.post("/:id/memos", zValidator("param", idParam), zValidator("json", memoBody), async (c) =>
   c.json(await addMemo(c.req.valid("param").id, c.req.valid("json"), c.var.db), 201));
-customers.patch("/:id/memos/:childId", zValidator("param", childParam), zValidator("json", memoBody), async (c) => {
+customers.patch("/:id/memos/:childId", zValidator("param", childParam), zValidator("json", memoBody), (c) => {
   const p = c.req.valid("param");
-  const row = await updateMemo(p.id, p.childId, c.req.valid("json"), c.var.db);
-  return row ? c.json(row) : c.json({ error: "메모를 찾을 수 없습니다." }, 404);
+  return run(c, () => updateMemo(p.id, p.childId, c.req.valid("json"), c.var.db), "메모를 찾을 수 없습니다.");
 });
-customers.delete("/:id/memos/:childId", zValidator("param", childParam), async (c) => {
+customers.delete("/:id/memos/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
-  const row = await deleteMemo(p.id, p.childId, c.var.db);
-  return row ? c.json(row) : c.json({ error: "메모를 찾을 수 없습니다." }, 404);
+  return run(c, () => deleteMemo(p.id, p.childId, c.var.db), "메모를 찾을 수 없습니다.");
 });
 
 customers.post("/:id/tasks", zValidator("param", idParam), zValidator("json", taskBody), async (c) =>
   c.json(await addTask(c.req.valid("param").id, c.req.valid("json"), c.var.db), 201));
-customers.patch("/:id/tasks/:childId", zValidator("param", childParam), zValidator("json", taskBody), async (c) => {
+customers.patch("/:id/tasks/:childId", zValidator("param", childParam), zValidator("json", taskBody), (c) => {
   const p = c.req.valid("param");
-  const row = await updateTask(p.id, p.childId, c.req.valid("json"), c.var.db);
-  return row ? c.json(row) : c.json({ error: "할 일을 찾을 수 없습니다." }, 404);
+  return run(c, () => updateTask(p.id, p.childId, c.req.valid("json"), c.var.db), "할 일을 찾을 수 없습니다.");
 });
-customers.delete("/:id/tasks/:childId", zValidator("param", childParam), async (c) => {
+customers.delete("/:id/tasks/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
-  const row = await deleteTask(p.id, p.childId, c.var.db);
-  return row ? c.json(row) : c.json({ error: "할 일을 찾을 수 없습니다." }, 404);
+  return run(c, () => deleteTask(p.id, p.childId, c.var.db), "할 일을 찾을 수 없습니다.");
 });
 
 customers.post("/:id/schedules", zValidator("param", idParam), zValidator("json", scheduleBody), async (c) =>
   c.json(await addSchedule(c.req.valid("param").id, c.req.valid("json"), c.var.db), 201));
-customers.patch("/:id/schedules/:childId", zValidator("param", childParam), zValidator("json", scheduleBody), async (c) => {
+customers.patch("/:id/schedules/:childId", zValidator("param", childParam), zValidator("json", scheduleBody), (c) => {
   const p = c.req.valid("param");
-  const row = await updateSchedule(p.id, p.childId, c.req.valid("json"), c.var.db);
-  return row ? c.json(row) : c.json({ error: "일정을 찾을 수 없습니다." }, 404);
+  return run(c, () => updateSchedule(p.id, p.childId, c.req.valid("json"), c.var.db), "일정을 찾을 수 없습니다.");
 });
-customers.delete("/:id/schedules/:childId", zValidator("param", childParam), async (c) => {
+customers.delete("/:id/schedules/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
-  const row = await deleteSchedule(p.id, p.childId, c.var.db);
-  return row ? c.json(row) : c.json({ error: "일정을 찾을 수 없습니다." }, 404);
+  return run(c, () => deleteSchedule(p.id, p.childId, c.var.db), "일정을 찾을 수 없습니다.");
 });
 
 // ── 서류함 (업로드/분류/순서/삭제/미리보기 URL) ──────────────────
@@ -129,10 +119,9 @@ customers.patch("/:id/documents/reorder", zValidator("param", idParam), zValidat
   return c.json({ ok: true });
 });
 
-customers.patch("/:id/documents/:childId", zValidator("param", childParam), zValidator("json", z.object({ docType: z.string().nullable().optional() })), async (c) => {
+customers.patch("/:id/documents/:childId", zValidator("param", childParam), zValidator("json", z.object({ docType: z.string().nullable().optional() })), (c) => {
   const p = c.req.valid("param");
-  const row = await updateDocument(p.id, p.childId, c.req.valid("json"), c.var.db);
-  return row ? c.json(row) : c.json({ error: "서류를 찾을 수 없습니다." }, 404);
+  return run(c, () => updateDocument(p.id, p.childId, c.req.valid("json"), c.var.db), "서류를 찾을 수 없습니다.");
 });
 
 customers.delete("/:id/documents/:childId", zValidator("param", childParam), async (c) => {
