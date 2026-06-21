@@ -5368,9 +5368,8 @@ function KimMinjunDetailContent({
                 <span>{previewDocument.fileName} · {formatKimFileSize(previewDocument.fileSize)}</span>
               </div>
               <div className="kim-document-preview-head-actions">
-                {activeDownloadUrl ? (
-                  <button aria-label="원본 다운로드" onClick={() => downloadKimDocument(activeDownloadUrl, previewDocument.fileName ?? "document")} type="button"><Download size={15} strokeWidth={2.3} /></button>
-                ) : null}
+                {/* 닫기처럼 항상 렌더 — URL 발급 전엔 disabled로(이전엔 URL 준비 후에야 버튼이 떠 뒤늦게 나타났다). */}
+                <button aria-label="원본 다운로드" disabled={!activeDownloadUrl} onClick={() => { if (activeDownloadUrl) downloadKimDocument(activeDownloadUrl, previewDocument.fileName ?? "document"); }} type="button"><Download size={15} strokeWidth={2.3} /></button>
                 <button aria-label="서류 미리보기 닫기" onClick={() => setPreviewDocumentId(null)} type="button"><X size={15} strokeWidth={2.4} /></button>
               </div>
             </div>

@@ -13206,16 +13206,27 @@ body.kim-doc-preview-open .customer-detail-drawer {
   padding: 0;
 }
 
+/* 다운로드 버튼은 항상 보이되 URL 발급 전엔 비활성(닫기처럼 즉시 표시, 깜빡임/뒤늦은 등장 방지). */
+.kim-document-preview-head button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .kim-document-preview-body {
   display: grid;
   place-items: center;
   overflow: hidden;
   background: #f7f7f6;
+  /* 이미지가 모달을 꽉 채워 거대하게 보이지 않도록 둘레 여백을 둔다. */
+  padding: 28px;
+  box-sizing: border-box;
 }
 
+/* 미리보기 이미지는 모달을 가득 채우지 않고 적당한 크기(최대 폭 cap)로 — 문서 글자가 과하게 커지지 않게.
+   조정 포인트: 더 작게/크게 하려면 max-width의 420px만 바꾸면 된다. */
 .kim-document-preview-body img {
   display: block;
-  max-width: 100%;
+  max-width: min(100%, 420px);
   max-height: 100%;
   object-fit: contain;
 }
