@@ -8,9 +8,12 @@ mock.module("../lib/storage", () => ({
 }));
 
 import { test, expect } from "bun:test";
+import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
+import { getDefaultDb } from "../db/client";
+import { quotes, quoteScenarios } from "../db/schema";
 import { customerWriteSchema } from "./customers";
 
 test("GET /api/customers → 200, 배열", async () => {
@@ -233,4 +236,96 @@ test("GET /api/customers/:id → quotes(+scenarios) 배열 포함", async () => 
   const body = (await res.json()) as { quotes: Array<{ id: string; scenarios: unknown[] }> };
   expect(Array.isArray(body.quotes)).toBe(true);
   for (const q of body.quotes) expect(Array.isArray(q.scenarios)).toBe(true);
+});
+
+// throwaway 견적 1건 + 대표 시나리오 1건을 직접 insert(생성 API는 #4c라 없음). 반환 id로 라우트를 검증.
+async function seedThrowawayQuote(customerId: string) {
+  const db = getDefaultDb();
+  const [q] = await db.insert(quotes).values({
+    quoteCode: `QT-TEST-${crypto.randomUUID().slice(0, 8)}`,
+    customerId, entryMode: "manual", appStatus: "draft", status: "작성중", revision: 0,
+  }).returning({ id: quotes.id });
+  const [s] = await db.insert(quoteScenarios).values({
+    quoteId: q.id, scenarioNo: 1, purchaseMethod: "운용리스", termMonths: 60, lender: "iM캐피탈", monthlyPayment: "2473200",
+  }).returning({ id: quoteScenarios.id });
+  await db.update(quotes).set({ primaryScenarioId: s.id }).where(eq(quotes.id, q.id));
+  return q.id;
+}
+
+test("견적 쓰기: PATCH 헤더+대표시나리오 → getCustomer 반영", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const quoteId = await seedThrowawayQuote(cid);
+
+  const patched = await app.request(`/api/customers/${cid}/quotes/${quoteId}`, {
+    method: "PATCH", headers: h,
+    body: JSON.stringify({
+      note: "수정됨", appStatus: "sent", bumpRevision: true, decisionStatus: "confirmed",
+      scenario: { purchaseMethod: "장기렌트", termMonths: 48, monthlyPayment: "1999000", lender: "우리금융캐피탈" },
+    }),
+  });
+  expect(patched.status).toBe(200);
+
+  const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+    quotes: Array<{ id: string; note: string | null; appStatus: string | null; decisionStatus: string | null; revision: number; sentAt: string | null; scenarios: Array<{ purchaseMethod: string | null; termMonths: number | null; monthlyPayment: string | null; lender: string | null }> }>;
+  };
+  const q = detail.quotes.find((x) => x.id === quoteId)!;
+  expect(q.note).toBe("수정됨");
+  expect(q.appStatus).toBe("sent");
+  expect(q.decisionStatus).toBe("confirmed");
+  expect(q.revision).toBe(1);
+  expect(q.sentAt).not.toBeNull();
+  expect(q.scenarios[0].purchaseMethod).toBe("장기렌트");
+  expect(q.scenarios[0].termMonths).toBe(48);
+  expect(q.scenarios[0].monthlyPayment).toBe("1999000");
+  expect(q.scenarios[0].lender).toBe("우리금융캐피탈");
+
+  // cleanup
+  await app.request(`/api/customers/${cid}/quotes/${quoteId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+});
+
+test("견적 쓰기: DELETE → 200, getCustomer에서 사라짐(시나리오 cascade)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const quoteId = await seedThrowawayQuote(cid);
+
+  const removed = await app.request(`/api/customers/${cid}/quotes/${quoteId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+  expect(removed.status).toBe(200);
+
+  const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as { quotes: Array<{ id: string }> };
+  expect(detail.quotes.some((x) => x.id === quoteId)).toBe(false);
+  const leftover = await getDefaultDb().select({ id: quoteScenarios.id }).from(quoteScenarios).where(eq(quoteScenarios.quoteId, quoteId));
+  expect(leftover.length).toBe(0);
+});
+
+test("견적 쓰기: 없는 quoteId PATCH/DELETE → 404", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const missing = "00000000-0000-0000-0000-000000000000";
+  expect((await app.request(`/api/customers/${cid}/quotes/${missing}`, { method: "PATCH", headers: h, body: JSON.stringify({ note: "x" }) })).status).toBe(404);
+  expect((await app.request(`/api/customers/${cid}/quotes/${missing}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } })).status).toBe(404);
+});
+
+test("견적 쓰기: 교차 고객 가드 — 다른 고객 id로 PATCH → 404", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const otherCid = list[1].id;
+  const quoteId = await seedThrowawayQuote(cid);
+
+  const res = await app.request(`/api/customers/${otherCid}/quotes/${quoteId}`, { method: "PATCH", headers: h, body: JSON.stringify({ note: "x" }) });
+  expect(res.status).toBe(404);
+
+  // cleanup
+  await app.request(`/api/customers/${cid}/quotes/${quoteId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
 });
