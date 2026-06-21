@@ -339,3 +339,42 @@ test("견적 쓰기: 교차 고객 가드 — 다른 고객 id로 PATCH → 404"
     await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
   }
 });
+
+test("견적 생성: POST → 201·quote_code 형식·getCustomer 반영(대표 시나리오 포함)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  let createdId: string | undefined;
+  try {
+    const res = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h,
+      body: JSON.stringify({
+        entryMode: "manual", status: "작성중", quoteRound: "1차", stockStatus: "재고있음",
+        brandName: "벤츠", modelName: "Maybach S-Class", trimName: "S 500 4M Long", note: "테스트 생성",
+        scenario: { purchaseMethod: "운용리스", termMonths: 60, monthlyPayment: "2473200", lender: "iM캐피탈" },
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { id: string; quoteCode: string; createdAt: string };
+    createdId = body.id;
+    expect(body.quoteCode).toMatch(/^QT-\d{4}-\d{4}$/);
+
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+      quotes: Array<{ id: string; quoteCode: string; brandName: string | null; appStatus: string | null; primaryScenarioId: string | null; scenarios: Array<{ id: string; purchaseMethod: string | null; termMonths: number | null; lender: string | null }> }>;
+    };
+    const q = detail.quotes.find((x) => x.id === createdId)!;
+    expect(q.quoteCode).toBe(body.quoteCode);
+    expect(q.brandName).toBe("벤츠");
+    expect(q.appStatus).toBe("draft");
+    expect(q.scenarios.length).toBe(1);
+    expect(q.scenarios[0].purchaseMethod).toBe("운용리스");
+    expect(q.scenarios[0].termMonths).toBe(60);
+    expect(q.scenarios[0].lender).toBe("iM캐피탈");
+    expect(q.primaryScenarioId).toBe(q.scenarios[0].id); // 대표 시나리오 지정됨
+  } finally {
+    // 공유 master DB라 항상 정리(scenarios는 ON DELETE CASCADE).
+    if (createdId) await getDefaultDb().delete(quotes).where(eq(quotes.id, createdId));
+  }
+});

@@ -9,7 +9,7 @@ import {
   addSchedule, updateSchedule, deleteSchedule,
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
-import { deleteQuote, updateQuote } from "../db/queries/customer-quotes";
+import { createQuote, deleteQuote, updateQuote } from "../db/queries/customer-quotes";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
@@ -59,6 +59,17 @@ const quoteScenarioBody = z.object({
   monthlyPayment: z.string().nullable().optional(),
   lender: z.string().nullable().optional(),
 });
+const quoteCreateBody = z.object({
+  entryMode: z.enum(["manual", "solution", "original"]).nullable().optional(),
+  status: z.string().nullable().optional(),
+  quoteRound: z.string().nullable().optional(),
+  stockStatus: z.enum(["재고있음", "재고없음", "재고확인중"]).nullable().optional(),
+  brandName: z.string().nullable().optional(),
+  modelName: z.string().nullable().optional(),
+  trimName: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+  scenario: quoteScenarioBody.optional(),
+});
 const quotePatchBody = z.object({
   status: z.string().nullable().optional(),
   entryMode: z.enum(["manual", "solution", "original"]).nullable().optional(),
@@ -105,6 +116,14 @@ customers.patch("/:id/schedules/:childId", zValidator("param", childParam), zVal
 customers.delete("/:id/schedules/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
   return run(c, () => deleteSchedule(p.id, p.childId, c.var.db), "일정을 찾을 수 없습니다.");
+});
+
+// ── 견적 생성(composer 견적 작성 → quote + 대표 시나리오 INSERT) ──────
+customers.post("/:id/quotes", zValidator("param", idParam), zValidator("json", quoteCreateBody), async (c) => {
+  const id = c.req.valid("param").id;
+  const body = c.req.valid("json");
+  const row = await c.var.db.transaction((tx) => createQuote(id, body, tx));
+  return c.json(row, 201);
 });
 
 // ── 견적 쓰기(기존 견적 메타/시나리오 수정·삭제·상태 토글) ──────────
