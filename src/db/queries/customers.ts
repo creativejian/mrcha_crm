@@ -1,4 +1,4 @@
-import { asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import {
@@ -8,6 +8,8 @@ import {
   customers,
   customerSchedules,
   customerTasks,
+  quotes,
+  quoteScenarios,
 } from "../schema";
 
 // 목록 행 = customers 전체 컬럼 + 상담메모용 최신 미완료 task 1건 body.
@@ -61,19 +63,24 @@ export async function listCustomers(executor: Executor = getDefaultDb()): Promis
     .orderBy(desc(customers.receivedAt));
 }
 
+export type QuoteWithScenarios = typeof quotes.$inferSelect & {
+  scenarios: (typeof quoteScenarios.$inferSelect)[];
+};
+
 export type CustomerDetail = typeof customers.$inferSelect & {
   tasks: (typeof customerTasks.$inferSelect)[];
   schedules: (typeof customerSchedules.$inferSelect)[];
   memos: (typeof customerMemos.$inferSelect)[];
   documents: Omit<typeof customerDocuments.$inferSelect, "filePath">[];
   consultations: (typeof consultations.$inferSelect)[];
+  quotes: QuoteWithScenarios[];
 };
 
 export async function getCustomer(id: string, executor: Executor = getDefaultDb()): Promise<CustomerDetail | null> {
   const [customer] = await executor.select().from(customers).where(eq(customers.id, id));
   if (!customer) return null;
-  // 자식 5개는 병렬(존재 확인 후 1회 배치 — 순차 6왕복 → 2왕복으로 단축). 상세는 저빈도라 동시연결 부담 작음.
-  const [tasks, schedules, memos, documents, consults] = await Promise.all([
+  // 자식 6개는 병렬(존재 확인 후 1회 배치). quotes는 scenarios 묶음을 위해 id 목록을 먼저 받아야 하므로 그 뒤 1 왕복 추가.
+  const [tasks, schedules, memos, documents, consults, quoteRows] = await Promise.all([
     executor.select().from(customerTasks).where(eq(customerTasks.customerId, id)),
     executor.select().from(customerSchedules).where(eq(customerSchedules.customerId, id)),
     executor.select().from(customerMemos).where(eq(customerMemos.customerId, id)),
@@ -93,6 +100,20 @@ export async function getCustomer(id: string, executor: Executor = getDefaultDb(
       .where(eq(customerDocuments.customerId, id))
       .orderBy(asc(customerDocuments.sortOrder), asc(customerDocuments.createdAt)),
     executor.select().from(consultations).where(eq(consultations.customerId, id)),
+    executor.select().from(quotes).where(eq(quotes.customerId, id)).orderBy(asc(quotes.createdAt)),
   ]);
-  return { ...customer, tasks, schedules, memos, documents, consultations: consults };
+
+  const quoteIds = quoteRows.map((q) => q.id);
+  const scenarioRows = quoteIds.length
+    ? await executor.select().from(quoteScenarios).where(inArray(quoteScenarios.quoteId, quoteIds)).orderBy(asc(quoteScenarios.scenarioNo))
+    : [];
+  const scenariosByQuote = new Map<string, (typeof quoteScenarios.$inferSelect)[]>();
+  for (const s of scenarioRows) {
+    const arr = scenariosByQuote.get(s.quoteId);
+    if (arr) arr.push(s);
+    else scenariosByQuote.set(s.quoteId, [s]);
+  }
+  const quotesWithScenarios: QuoteWithScenarios[] = quoteRows.map((q) => ({ ...q, scenarios: scenariosByQuote.get(q.id) ?? [] }));
+
+  return { ...customer, tasks, schedules, memos, documents, consultations: consults, quotes: quotesWithScenarios };
 }

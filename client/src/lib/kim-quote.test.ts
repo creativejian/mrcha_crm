@@ -1,0 +1,99 @@
+import { describe, expect, it } from "vitest";
+
+import { toKimQuoteItem, type CustomerDetailQuote } from "./kim-quote";
+
+const NOW = new Date("2026-05-28T12:00:00+09:00").getTime();
+
+function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote {
+  return {
+    id: "q1",
+    quoteCode: "QT-2606-0001",
+    entryMode: "solution",
+    quoteRound: "1차",
+    brandName: "벤츠",
+    modelName: "Maybach S-Class",
+    trimName: "S 500 4M Long",
+    status: "고객 확인 전",
+    appStatus: "sent",
+    decisionStatus: "none",
+    stockStatus: "재고있음",
+    note: "비고",
+    validUntil: "2026-06-03T12:00:00+09:00", // NOW + 6일
+    sentAt: "2026-05-28T12:39:00+09:00",
+    viewedAt: null,
+    revision: 0,
+    primaryScenarioId: "s1",
+    scenarios: [
+      { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200" },
+    ],
+    ...over,
+  };
+}
+
+describe("toKimQuoteItem", () => {
+  it("대표 시나리오(primaryScenarioId)에서 금융 4필드를 평탄화", () => {
+    const k = toKimQuoteItem(makeQuote(), NOW);
+    expect(k.financeType).toBe("운용리스");
+    expect(k.term).toBe("60개월");
+    expect(k.monthlyPayment).toBe("월 2,473,200원");
+    expect(k.lender).toBe("iM캐피탈");
+  });
+
+  it("quote 헤더 필드 직매핑 + union 좁히기", () => {
+    const k = toKimQuoteItem(makeQuote(), NOW);
+    expect(k.id).toBe("q1");
+    expect(k.quoteCode).toBe("QT-2606-0001");
+    expect(k.source).toBe("solution");
+    expect(k.appStatus).toBe("sent");
+    expect(k.decisionStatus).toBe("none");
+    expect(k.stockStatus).toBe("재고있음");
+    expect(k.brand).toBe("벤츠");
+    expect(k.model).toBe("Maybach S-Class");
+    expect(k.trim).toBe("S 500 4M Long");
+  });
+
+  it("vehicleName/title은 brand+model+trim 조합", () => {
+    const k = toKimQuoteItem(makeQuote(), NOW);
+    expect(k.vehicleName).toBe("벤츠 Maybach S-Class S 500 4M Long");
+    expect(k.title).toBe("벤츠 Maybach S-Class S 500 4M Long");
+  });
+
+  it("validLabel: 미래는 D-day", () => {
+    expect(toKimQuoteItem(makeQuote(), NOW).validLabel).toBe("D-6");
+  });
+
+  it("validLabel: 과거/null", () => {
+    expect(toKimQuoteItem(makeQuote({ validUntil: "2026-05-27T12:00:00+09:00" }), NOW).validLabel).toBe("만료됨");
+    expect(toKimQuoteItem(makeQuote({ validUntil: null }), NOW).validLabel).toBeUndefined();
+  });
+
+  it("시나리오 비거나 값 null이면 폴백", () => {
+    const k = toKimQuoteItem(makeQuote({ primaryScenarioId: null, scenarios: [] }), NOW);
+    expect(k.financeType).toBeUndefined();
+    expect(k.term).toBe("조건 미정");
+    expect(k.monthlyPayment).toBeUndefined();
+    expect(k.lender).toBe("금융사 미정");
+  });
+
+  it("primaryScenarioId 없으면 scenarioNo 최소를 대표로", () => {
+    const k = toKimQuoteItem(
+      makeQuote({
+        primaryScenarioId: null,
+        scenarios: [
+          { id: "s2", scenarioNo: 2, purchaseMethod: "할부", lender: "B", termMonths: 36, monthlyPayment: "100" },
+          { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "A", termMonths: 60, monthlyPayment: "200" },
+        ],
+      }),
+      NOW,
+    );
+    expect(k.financeType).toBe("운용리스");
+  });
+
+  it("알 수 없는 enum 값은 안전 폴백", () => {
+    const k = toKimQuoteItem(makeQuote({ entryMode: "weird", appStatus: null, decisionStatus: null, stockStatus: "??" }), NOW);
+    expect(k.source).toBe("manual");
+    expect(k.appStatus).toBe("draft");
+    expect(k.decisionStatus).toBe("none");
+    expect(k.stockStatus).toBeUndefined();
+  });
+});
