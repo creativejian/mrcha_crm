@@ -940,7 +940,9 @@ function KimMinjunDetailContent({
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
   const [previewDocumentUrl, setPreviewDocumentUrl] = useState<string | null>(null);
   const [previewDownloadUrl, setPreviewDownloadUrl] = useState<string | null>(null);
-  const [previewImageLoaded, setPreviewImageLoaded] = useState(false);
+  // 미리보기 이미지 로딩 완료 여부는 "로드된 URL"로 추적(파생) — URL이 바뀌면 자동으로 false가 되고
+  // 무관한 리렌더로 effect가 재실행돼도 영향이 없다(objectUrl 미리보기가 false에 갇히던 버그 방지).
+  const [loadedPreviewUrl, setLoadedPreviewUrl] = useState<string | null>(null);
   const [confirmingDocumentDeleteId, setConfirmingDocumentDeleteId] = useState<string | null>(null);
   const [isMergingDocuments, setIsMergingDocuments] = useState(false);
   const [openEditor, setOpenEditor] = useState<KimOpenEditor | null>(null);
@@ -977,11 +979,13 @@ function KimMinjunDetailContent({
   const previewDocument = documents.find((documentItem) => documentItem.id === previewDocumentId) ?? null;
   // 미리보기 URL(이미지면 썸네일). 업로드 직후 objectUrl 우선. null이면 아직 발급 중(로딩).
   const activePreviewDocumentUrl = previewDocument ? previewDocument.objectUrl ?? previewDocumentUrl : null;
+  // 현재 보여줄 URL이 실제로 로드 완료됐는지(파생). URL이 바뀌면 자동 false.
+  const previewImageLoaded = activePreviewDocumentUrl !== null && loadedPreviewUrl === activePreviewDocumentUrl;
   // 다운로드는 항상 원본. objectUrl(업로드 직후 원본) 우선, 없으면 서버 원본 downloadUrl.
   const activeDownloadUrl = previewDocument ? previewDocument.objectUrl ?? previewDownloadUrl ?? previewDocumentUrl : null;
   // 서버 저장 파일은 signed URL을 비동기 발급한다(미리보기=썸네일/원본, 다운로드=원본).
   useEffect(() => {
-    if (!previewDocumentId || (previewDocument?.objectUrl)) return () => { setPreviewDocumentUrl(null); setPreviewDownloadUrl(null); setPreviewImageLoaded(false); };
+    if (!previewDocumentId || (previewDocument?.objectUrl)) return () => { setPreviewDocumentUrl(null); setPreviewDownloadUrl(null); };
     let cancelled = false;
     getDocumentUrlApi(detail.id, previewDocumentId)
       .then((r) => {
@@ -992,10 +996,10 @@ function KimMinjunDetailContent({
       cancelled = true;
       setPreviewDocumentUrl(null);
       setPreviewDownloadUrl(null);
-      setPreviewImageLoaded(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- previewDocumentId 변경 시에만 재실행, previewDocument는 파생값이라 dep 제외
   }, [previewDocumentId, detail.id, onToast]);
+
 
   // 미리보기 모달이 열린 동안 배경(고객 상세 패널·페이지) 스크롤을 잠가 스크롤 전파(chaining)를 막는다.
   useEffect(() => {
@@ -5379,7 +5383,7 @@ function KimMinjunDetailContent({
               ) : previewDocument.mimeType?.startsWith("image/") ? (
                 <>
                   {!previewImageLoaded ? <div className="kim-document-preview-loading" role="status">불러오는 중…</div> : null}
-                  <img alt={previewDocument.title} src={activePreviewDocumentUrl} onLoad={() => setPreviewImageLoaded(true)} style={previewImageLoaded ? undefined : { display: "none" }} />
+                  <img alt={previewDocument.title} src={activePreviewDocumentUrl} onLoad={() => setLoadedPreviewUrl(activePreviewDocumentUrl)} style={previewImageLoaded ? undefined : { display: "none" }} />
                 </>
               ) : kimDocumentFileKind(previewDocument.mimeType, previewDocument.fileName) === "PDF" ? (
                 <iframe src={activePreviewDocumentUrl} title={previewDocument.title} />
