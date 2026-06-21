@@ -9,6 +9,7 @@ import {
   addSchedule, updateSchedule, deleteSchedule,
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
+import { deleteQuote, updateQuote } from "../db/queries/customer-quotes";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
@@ -52,6 +53,26 @@ const childParam = z.object({ id: z.uuid(), childId: z.uuid() });
 const memoBody = z.object({ body: z.string().nullable().optional() });
 const taskBody = z.object({ category: z.string().nullable().optional(), due: z.string().nullable().optional(), body: z.string().nullable().optional(), done: z.boolean().optional() });
 const scheduleBody = z.object({ scheduledDate: z.string().nullable().optional(), scheduledTime: z.string().nullable().optional(), type: z.string().nullable().optional(), memo: z.string().nullable().optional(), done: z.boolean().optional() });
+const quoteScenarioBody = z.object({
+  purchaseMethod: z.string().nullable().optional(),
+  termMonths: z.number().int().nullable().optional(),
+  monthlyPayment: z.string().nullable().optional(),
+  lender: z.string().nullable().optional(),
+});
+const quotePatchBody = z.object({
+  status: z.string().nullable().optional(),
+  entryMode: z.enum(["manual", "solution", "original"]).nullable().optional(),
+  quoteRound: z.string().nullable().optional(),
+  stockStatus: z.enum(["재고있음", "재고없음", "재고확인중"]).nullable().optional(),
+  brandName: z.string().nullable().optional(),
+  modelName: z.string().nullable().optional(),
+  trimName: z.string().nullable().optional(),
+  appStatus: z.enum(["draft", "queued", "sent", "viewed"]).nullable().optional(),
+  decisionStatus: z.enum(["none", "considering", "confirmed", "contracting"]).nullable().optional(),
+  note: z.string().nullable().optional(),
+  bumpRevision: z.boolean().optional(),
+  scenario: quoteScenarioBody.optional(),
+});
 
 customers.post("/:id/memos", zValidator("param", idParam), zValidator("json", memoBody), async (c) =>
   c.json(await addMemo(c.req.valid("param").id, c.req.valid("json"), c.var.db), 201));
@@ -84,6 +105,17 @@ customers.patch("/:id/schedules/:childId", zValidator("param", childParam), zVal
 customers.delete("/:id/schedules/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
   return run(c, () => deleteSchedule(p.id, p.childId, c.var.db), "일정을 찾을 수 없습니다.");
+});
+
+// ── 견적 쓰기(기존 견적 메타/시나리오 수정·삭제·상태 토글) ──────────
+customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValidator("json", quotePatchBody), (c) => {
+  const p = c.req.valid("param");
+  const body = c.req.valid("json");
+  return run(c, () => c.var.db.transaction((tx) => updateQuote(p.id, p.childId, body, tx)), "견적을 찾을 수 없습니다.");
+});
+customers.delete("/:id/quotes/:childId", zValidator("param", childParam), (c) => {
+  const p = c.req.valid("param");
+  return run(c, () => deleteQuote(p.id, p.childId, c.var.db), "견적을 찾을 수 없습니다.");
 });
 
 // ── 서류함 (업로드/분류/순서/삭제/미리보기 URL) ──────────────────

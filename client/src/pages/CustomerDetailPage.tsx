@@ -4,6 +4,7 @@ import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanc
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, type KimQuoteItem } from "@/lib/kim-quote";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
+import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, parseTermMonths, parseMonthlyPayment, type QuoteWritePatch } from "@/lib/customer-quotes";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
@@ -2155,6 +2156,8 @@ function KimMinjunDetailContent({
     if (!nextTitle) return;
     if (quoteComposerMode === "edit" && editingQuoteId) {
       const sentAt = formatKoreanShortTime();
+      const prevQuotes = quotes;
+      const prev = quotes.find((quote) => quote.id === editingQuoteId);
       setQuotes((current) => current.map((quote) => (
         quote.id === editingQuoteId ? {
           ...quote,
@@ -2190,6 +2193,28 @@ function KimMinjunDetailContent({
           } : {}),
         } : quote
       )));
+      if (customer.id && !editingQuoteId.startsWith("kim-")) {
+        const patch: QuoteWritePatch = {
+          status: "고객 확인 전",
+          entryMode: source,
+          appStatus: "sent",
+          bumpRevision: true,
+          quoteRound: quoteRound || prev?.quoteRound || null,
+          stockStatus: (stockStatus || prev?.stockStatus) ?? null,
+          brandName: (brand || prev?.brand) ?? null,
+          modelName: (model || prev?.model) ?? null,
+          trimName: (trim || vehicleName || prev?.trim) ?? null,
+          note: meta || prev?.note || null,
+          decisionStatus: prev?.decisionStatus === "contracting" ? "contracting" : "none",
+          scenario: {
+            purchaseMethod: financeType || null,
+            termMonths: parseTermMonths(term),
+            monthlyPayment: parseMonthlyPayment(monthlyPayment),
+            lender: lender || prev?.lender || null,
+          },
+        };
+        void apiUpdateQuote(customer.id, editingQuoteId, patch).catch(() => { setQuotes(prevQuotes); onToast("견적 저장에 실패했습니다."); });
+      }
       setQuoteComposerMode(null);
       setEditingQuoteId(null);
       setRecognizedQuoteFile(null);
@@ -2408,16 +2433,21 @@ function KimMinjunDetailContent({
   function deleteQuote(id: string) {
     const targetQuote = quotes.find((quote) => quote.id === id);
     if (targetQuote?.objectUrl) URL.revokeObjectURL(targetQuote.objectUrl);
+    const prevQuotes = quotes;
     setQuotes((current) => current.filter((quote) => quote.id !== id));
     setPreviewQuoteId((current) => (current === id ? null : current));
     setConfirmingQuoteDeleteId(null);
     setConfirmingQuoteContractId(null);
+    if (customer.id && !id.startsWith("kim-")) {
+      void apiDeleteQuote(customer.id, id).catch(() => { setQuotes(prevQuotes); onToast("삭제에 실패했습니다."); });
+    }
     markRecentUpdate("견적함");
     onToast("견적 항목을 삭제했습니다.");
   }
 
   function sendQuoteToApp(id: string) {
     const sentAt = formatKoreanShortTime();
+    const prevQuotes = quotes;
     setQuotes((current) => current.map((quote) => (
       quote.id === id ? {
         ...quote,
@@ -2427,14 +2457,21 @@ function KimMinjunDetailContent({
         meta: `${sentAt} · 앱 발송완료`,
       } : quote
     )));
+    if (customer.id && !id.startsWith("kim-")) {
+      void apiUpdateQuote(customer.id, id, { status: "고객 확인 전", appStatus: "sent" }).catch(() => { setQuotes(prevQuotes); onToast("발송 저장에 실패했습니다."); });
+    }
     markRecentUpdate("견적함");
     onToast(`김민준 고객 앱 견적함으로 발송했습니다. 대상: CU-2605-0020`);
   }
 
   function updateQuoteDecisionStatus(id: string, decisionStatus: KimQuoteItem["decisionStatus"]) {
+    const prevQuotes = quotes;
     setQuotes((current) => current.map((quote) => (
       quote.id === id ? { ...quote, decisionStatus } : quote
     )));
+    if (customer.id && !id.startsWith("kim-") && decisionStatus) {
+      void apiUpdateQuote(customer.id, id, { decisionStatus }).catch(() => { setQuotes(prevQuotes); onToast("저장에 실패했습니다."); });
+    }
     markRecentUpdate("견적함");
     onToast(decisionStatus === "contracting" ? "계약 진행 견적으로 표시했습니다." : decisionStatus === "confirmed" ? "고객 확정 견적으로 표시했습니다." : decisionStatus === "considering" ? "최종 고민중 견적으로 표시했습니다." : "견적 확정 상태를 해제했습니다.");
   }
