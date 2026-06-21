@@ -4,7 +4,7 @@ import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanc
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, type KimQuoteItem } from "@/lib/kim-quote";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
-import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, parseTermMonths, parseMonthlyPayment, type QuoteWritePatch } from "@/lib/customer-quotes";
+import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseTermMonths, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload } from "@/lib/customer-quotes";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
@@ -2226,36 +2226,56 @@ function KimMinjunDetailContent({
       onToast("수정 견적을 앱 견적함으로 재발송하고 푸시알림을 보냈습니다.");
       return;
     }
-    setQuotes((current) => {
-      const quoteCode = createKimQuoteCode(current);
-      return [...current, {
-        id: `kim-quote-${Date.now()}`,
-        quoteCode,
-        title: nextTitle,
+    const tempId = `kim-quote-${Date.now()}`;
+    const tempQuoteCode = createKimQuoteCode(quotes);
+    setQuotes((current) => [...current, {
+      id: tempId,
+      quoteCode: tempQuoteCode,
+      title: nextTitle,
+      status,
+      source,
+      appStatus: "draft",
+      brand,
+      model: model || vehicleName,
+      trim: trim || vehicleName,
+      quoteRound: quoteRound || "1차",
+      vehicleName,
+      financeType,
+      term,
+      monthlyPayment,
+      lender,
+      stockStatus: stockStatus || "재고확인중",
+      validLabel,
+      note: meta,
+      meta: meta || `${formatKoreanShortTime()} · ${source === "original" ? "원본 인식" : "내부 작성"}`,
+      ...(recognizedQuoteFile ? {
+        fileName: recognizedQuoteFile.fileName,
+        fileSize: recognizedQuoteFile.fileSize,
+        mimeType: recognizedQuoteFile.mimeType,
+        file: recognizedQuoteFile.file,
+      } : {}),
+    }]);
+    if (customer.id) {
+      const payload: QuoteCreatePayload = {
+        entryMode: source,
         status,
-        source,
-        appStatus: "draft",
-        brand,
-        model: model || vehicleName,
-        trim: trim || vehicleName,
         quoteRound: quoteRound || "1차",
-        vehicleName,
-        financeType,
-        term,
-        monthlyPayment,
-        lender,
         stockStatus: stockStatus || "재고확인중",
-        validLabel,
-        note: meta,
-        meta: meta || `${formatKoreanShortTime()} · ${source === "original" ? "원본 인식" : "내부 작성"}`,
-        ...(recognizedQuoteFile ? {
-          fileName: recognizedQuoteFile.fileName,
-          fileSize: recognizedQuoteFile.fileSize,
-          mimeType: recognizedQuoteFile.mimeType,
-          file: recognizedQuoteFile.file,
-        } : {}),
-      }];
-    });
+        brandName: brand || null,
+        modelName: (model || vehicleName) || null,
+        trimName: (trim || vehicleName) || null,
+        note: meta || null,
+        scenario: {
+          purchaseMethod: financeType || null,
+          termMonths: parseTermMonths(term),
+          monthlyPayment: parseMonthlyPayment(monthlyPayment),
+          lender: lender || null,
+        },
+      };
+      void apiCreateQuote(customer.id, payload)
+        .then(({ id, quoteCode }) => setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q))))
+        .catch(() => { setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("견적 저장에 실패했습니다."); });
+    }
     setQuoteComposerMode(null);
     setEditingQuoteId(null);
     setRecognizedQuoteFile(null);
