@@ -13206,18 +13206,29 @@ body.kim-doc-preview-open .customer-detail-drawer {
   padding: 0;
 }
 
+/* 다운로드 버튼은 항상 보이되 URL 발급 전엔 비활성(닫기처럼 즉시 표시, 깜빡임/뒤늦은 등장 방지). */
+.kim-document-preview-head button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .kim-document-preview-body {
-  display: grid;
-  place-items: center;
-  overflow: hidden;
+  overflow: auto;
   background: #f7f7f6;
 }
 
+/* 이미지는 PDF(iframe)처럼 폭에 꽉 차게(여백 없이) — 비율 유지(height:auto), 세로로 길면 스크롤.
+   object-fit:contain + place-items:center는 비율 차이만큼 상하/좌우 회색 여백이 생겨 폐기. */
 .kim-document-preview-body img {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+  width: 100%;
+  height: auto;
+}
+
+/* 로딩/대체 안내는 영역 중앙에 표시(이미지는 위 규칙대로 꽉 차게). */
+.kim-document-preview-body .kim-document-preview-loading,
+.kim-document-preview-body .kim-document-preview-fallback {
+  min-height: 100%;
 }
 
 .kim-document-preview-loading,

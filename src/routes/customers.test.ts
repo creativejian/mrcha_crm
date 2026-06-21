@@ -3,7 +3,8 @@ import { mock } from "bun:test";
 mock.module("../lib/storage", () => ({
   uploadObject: async () => {},
   removeObject: async () => {},
-  createSignedUrl: async () => "https://example.test/signed-url",
+  // 경로를 그대로 echo해 미리보기(thumb)/다운로드(원본) 중 어떤 객체로 signed URL을 냈는지 단언할 수 있게 한다.
+  createSignedUrl: async (_env: unknown, path: string) => `https://example.test/${path}`,
 }));
 
 import { test, expect } from "bun:test";
@@ -137,6 +138,8 @@ test("서류: 업로드→signedUrl→docType PATCH→reorder→삭제 라운드
   const fd = new FormData();
   fd.append("file", new File([new Uint8Array([1, 2, 3, 4])], "운전면허증.png", { type: "image/png" }));
   fd.append("docType", "면허증");
+  // 이미지면 클라가 구운 JPEG 썸네일도 함께 올린다(미리보기=썸네일, 다운로드=원본).
+  fd.append("thumb", new File([new Uint8Array([9, 9, 9])], "thumb.jpg", { type: "image/jpeg" }));
   const up = await app.request(`/api/customers/${cid}/documents`, { method: "POST", headers: auth, body: fd });
   expect(up.status).toBe(201);
   const doc = (await up.json()) as { id: string; docType: string; fileName: string; sortOrder: number };
@@ -146,8 +149,10 @@ test("서류: 업로드→signedUrl→docType PATCH→reorder→삭제 라운드
   const urlRes = await app.request(`/api/customers/${cid}/documents/${doc.id}/url`, { headers: auth });
   expect(urlRes.status).toBe(200);
   const urlBody = (await urlRes.json()) as { url: string; downloadUrl: string; fileMime: string | null };
-  expect(urlBody.url).toContain("https://");
-  expect(urlBody.downloadUrl).toContain("https://");
+  // 미리보기는 썸네일(-thumb.jpg), 다운로드는 원본 — 서로 다른 객체여야 한다.
+  expect(urlBody.url).toContain("-thumb.jpg");
+  expect(urlBody.downloadUrl).not.toContain("-thumb.jpg");
+  expect(urlBody.url).not.toBe(urlBody.downloadUrl);
   expect(urlBody.fileMime).toBe("image/png");
 
   const h = { ...auth, "Content-Type": "application/json" };
@@ -190,6 +195,24 @@ test("서류: 파일 없음 → 400", async () => {
   const list = (await (await app.request("/api/customers", { headers: auth })).json()) as Array<{ id: string }>;
   const res = await app.request(`/api/customers/${list[0].id}/documents`, { method: "POST", headers: auth, body: new FormData() });
   expect(res.status).toBe(400);
+});
+
+test("서류: 썸네일 없는 이미지는 미리보기=원본 폴백(미리보기==다운로드)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const auth = { Authorization: `Bearer ${token}` };
+  const list = (await (await app.request("/api/customers", { headers: auth })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+
+  const fd = new FormData();
+  fd.append("file", new File([new Uint8Array([1, 2, 3, 4])], "scan.png", { type: "image/png" }));
+  fd.append("docType", "기타서류");
+  const up = await app.request(`/api/customers/${cid}/documents`, { method: "POST", headers: auth, body: fd });
+  const doc = (await up.json()) as { id: string };
+
+  const urlBody = (await (await app.request(`/api/customers/${cid}/documents/${doc.id}/url`, { headers: auth })).json()) as { url: string; downloadUrl: string };
+  expect(urlBody.url).not.toContain("-thumb.jpg");
+  expect(urlBody.url).toBe(urlBody.downloadUrl); // 썸네일 없으면 둘 다 원본
 });
 
 test("서류: 없는 childId signedUrl → 404", async () => {

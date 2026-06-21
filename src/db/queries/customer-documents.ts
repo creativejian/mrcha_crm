@@ -23,6 +23,7 @@ export async function addDocument(
     fileSize?: number | null;
     fileMime?: string | null;
     filePath: string;
+    thumbPath?: string | null;
     sortOrder?: number | null;
   },
   ex: Executor = getDefaultDb(),
@@ -37,6 +38,7 @@ export async function addDocument(
       fileSize: v.fileSize ?? null,
       fileMime: v.fileMime ?? null,
       filePath: v.filePath,
+      thumbPath: v.thumbPath ?? null,
       sortOrder: v.sortOrder ?? null,
     })
     .returning({ id: customerDocuments.id, createdAt: customerDocuments.createdAt });
@@ -57,27 +59,27 @@ export async function updateDocument(
   return row ?? null;
 }
 
-// 삭제 후 Storage remove에 file_path가 필요해 함께 반환.
+// 삭제 후 Storage remove에 file_path(+썸네일 thumb_path)가 필요해 함께 반환.
 export async function deleteDocument(
   customerId: string,
   id: string,
   ex: Executor = getDefaultDb(),
-): Promise<{ id: string; filePath: string | null } | null> {
+): Promise<{ id: string; filePath: string | null; thumbPath: string | null } | null> {
   const [row] = await ex
     .delete(customerDocuments)
     .where(and(eq(customerDocuments.id, id), eq(customerDocuments.customerId, customerId)))
-    .returning({ id: customerDocuments.id, filePath: customerDocuments.filePath });
+    .returning({ id: customerDocuments.id, filePath: customerDocuments.filePath, thumbPath: customerDocuments.thumbPath });
   return row ?? null;
 }
 
-// signed URL 발급용 — 경로/타입만.
+// signed URL 발급용 — 경로/타입만(미리보기는 thumb_path 우선).
 export async function getDocumentPath(
   customerId: string,
   id: string,
   ex: Executor = getDefaultDb(),
-): Promise<{ filePath: string | null; fileMime: string | null } | null> {
+): Promise<{ filePath: string | null; thumbPath: string | null; fileMime: string | null } | null> {
   const [row] = await ex
-    .select({ filePath: customerDocuments.filePath, fileMime: customerDocuments.fileMime })
+    .select({ filePath: customerDocuments.filePath, thumbPath: customerDocuments.thumbPath, fileMime: customerDocuments.fileMime })
     .from(customerDocuments)
     .where(and(eq(customerDocuments.id, id), eq(customerDocuments.customerId, customerId)));
   return row ?? null;

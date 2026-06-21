@@ -96,20 +96,32 @@ customers.post("/:id/documents", zValidator("param", idParam), async (c) => {
   if (!isAllowedMime(file.type)) return c.json({ error: "허용되지 않는 파일 형식입니다." }, 415);
   if (file.size > MAX_DOC_BYTES) return c.json({ error: "파일이 너무 큽니다(최대 20MB)." }, 413);
 
+  const env = c.env as StorageEnv;
   const objectId = crypto.randomUUID();
   const path = `${customerId}/${objectId}-${safeFileName(file.name)}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
-  await uploadObject(c.env as StorageEnv, path, bytes, file.type || "application/octet-stream");
+  await uploadObject(env, path, bytes, file.type || "application/octet-stream");
+
+  // 미리보기용 썸네일: 클라가 canvas로 구운 JPEG(있으면). 별도 객체로 저장하고 thumb_path에 기록한다.
+  // 미리보기를 이 JPEG로 내보내면 가볍고 모든 브라우저(특히 Safari)가 렌더한다(render/image WebP 변환 폐기).
+  const thumb = body["thumb"];
+  let thumbPath: string | null = null;
+  if (thumb instanceof File && thumb.type.startsWith("image/") && thumb.size > 0 && thumb.size <= MAX_DOC_BYTES) {
+    thumbPath = `${customerId}/${objectId}-thumb.jpg`;
+    await uploadObject(env, thumbPath, new Uint8Array(await thumb.arrayBuffer()), "image/jpeg");
+  }
+
   try {
     const sortOrder = await nextSortOrder(customerId, c.var.db);
     const row = await addDocument(
       customerId,
-      { title: docType, docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, filePath: path, sortOrder },
+      { title: docType, docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, filePath: path, thumbPath, sortOrder },
       c.var.db,
     );
     return c.json({ id: row.id, title: docType, docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, sortOrder, createdAt: row.createdAt }, 201);
   } catch (e) {
-    await removeObject(c.env as StorageEnv, path).catch(() => undefined); // 보상 삭제
+    await removeObject(env, path).catch(() => undefined); // 보상 삭제
+    if (thumbPath) await removeObject(env, thumbPath).catch(() => undefined);
     throw e;
   }
 });
@@ -128,7 +140,9 @@ customers.delete("/:id/documents/:childId", zValidator("param", childParam), asy
   const p = c.req.valid("param");
   const row = await deleteDocument(p.id, p.childId, c.var.db);
   if (!row) return c.json({ error: "서류를 찾을 수 없습니다." }, 404);
-  if (row.filePath) await removeObject(c.env as StorageEnv, row.filePath).catch((err) => console.error("Storage remove 실패(고아 객체):", err));
+  const env = c.env as StorageEnv;
+  if (row.filePath) await removeObject(env, row.filePath).catch((err) => console.error("Storage remove 실패(고아 객체):", err));
+  if (row.thumbPath) await removeObject(env, row.thumbPath).catch((err) => console.error("Storage thumb remove 실패(고아 객체):", err));
   return c.json({ id: row.id });
 });
 
@@ -137,9 +151,12 @@ customers.get("/:id/documents/:childId/url", zValidator("param", childParam), as
   const row = await getDocumentPath(p.id, p.childId, c.var.db);
   if (!row?.filePath) return c.json({ error: "서류를 찾을 수 없습니다." }, 404);
   const env = c.env as StorageEnv;
-  // 미리보기: 이미지는 변환(썸네일 w1000·q70)으로 가볍게, PDF/오피스는 원본. 다운로드는 항상 원본.
+  // 미리보기: 이미지는 업로드 시 구운 JPEG 썸네일(thumb_path)로 — 가볍고 모든 브라우저(특히 Safari)가 렌더한다.
+  // 썸네일 없는 옛 문서/비이미지는 원본으로 폴백. (render/image 변환은 Accept 협상으로 WebP를 내보내
+  // Safari가 미리보기를 못 띄우는 회귀가 있어 폐기했다 — 2026-06-21.) 다운로드는 항상 원본.
   const isImage = (row.fileMime ?? "").startsWith("image/");
-  const url = await createSignedUrl(env, row.filePath, 60, isImage ? { transform: { width: 1000, quality: 70 } } : undefined);
-  const downloadUrl = isImage ? await createSignedUrl(env, row.filePath, 60) : url;
+  const previewPath = isImage && row.thumbPath ? row.thumbPath : row.filePath;
+  const url = await createSignedUrl(env, previewPath, 60);
+  const downloadUrl = previewPath === row.filePath ? url : await createSignedUrl(env, row.filePath, 60);
   return c.json({ url, downloadUrl, fileMime: row.fileMime });
 });

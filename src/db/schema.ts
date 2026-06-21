@@ -87,6 +87,8 @@ export const customerDocuments = crm.table("customer_documents", {
   fileSize: integer("file_size"),
   fileMime: text("file_mime"),
   filePath: text("file_path"),
+  // 미리보기용 JPEG 썸네일 객체 경로(이미지에만, 업로드 시 브라우저가 구움). 없으면 미리보기는 원본 폴백.
+  thumbPath: text("thumb_path"),
   sortOrder: integer("sort_order"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

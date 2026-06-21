@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."customer_documents" ADD COLUMN "thumb_path" text;

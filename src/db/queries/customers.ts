@@ -71,7 +71,7 @@ export type CustomerDetail = typeof customers.$inferSelect & {
   tasks: (typeof customerTasks.$inferSelect)[];
   schedules: (typeof customerSchedules.$inferSelect)[];
   memos: (typeof customerMemos.$inferSelect)[];
-  documents: Omit<typeof customerDocuments.$inferSelect, "filePath">[];
+  documents: Omit<typeof customerDocuments.$inferSelect, "filePath" | "thumbPath">[];
   consultations: (typeof consultations.$inferSelect)[];
   quotes: QuoteWithScenarios[];
 };

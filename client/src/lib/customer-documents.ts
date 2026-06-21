@@ -1,6 +1,7 @@
 import { apiFetch } from "./api";
 import { getJson, sendVoid } from "./http";
 import { invalidateCustomerDetail } from "./customers";
+import { createImageThumbnail } from "./image-thumbnail";
 
 // 서버 POST 응답(업로드 성공 시 새 row 메타). file_path는 비노출.
 export type UploadedDocument = {
@@ -19,6 +20,12 @@ export async function uploadDocument(cid: string, file: File, docType: string): 
   const fd = new FormData();
   fd.append("file", file);
   fd.append("docType", docType);
+  // 이미지면 미리보기용 JPEG 썸네일을 브라우저에서 구워 함께 올린다(가볍고 Safari가 확실히 렌더).
+  // 실패(디코딩 불가 등)하면 thumb 없이 진행 — 미리보기는 원본으로 폴백한다.
+  if (file.type.startsWith("image/")) {
+    const thumb = await createImageThumbnail(file);
+    if (thumb) fd.append("thumb", thumb);
+  }
   const res = await apiFetch(`/api/customers/${cid}/documents`, { method: "POST", body: fd });
   if (!res.ok) throw new Error(`서류 업로드 실패: ${res.status}`);
   const data = (await res.json()) as UploadedDocument;

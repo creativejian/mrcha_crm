@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Sidebar } from "@/components/Sidebar";
@@ -147,7 +147,9 @@ export function App() {
   const isCustomerLineDraft = activeView === "customers" && customerMode === "allDraft";
   const isCustomerConsole = isCustomerLineDraft || activeView === "customer-detail";
 
-  function showToast(message: string) {
+  // useCallback로 identity 고정 — onToast가 매 렌더 새 함수면 이를 deps에 둔 자식 effect가 계속 재실행돼,
+  // 미리보기 이미지 로딩 플래그가 리셋되며 objectUrl 미리보기가 안 뜨던 버그가 있었다.
+  const showToast = useCallback((message: string) => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
     setToast(message);
     setToastVisible(true);
@@ -155,7 +157,7 @@ export function App() {
       setToastVisible(false);
       toastTimerRef.current = null;
     }, 1800);
-  }
+  }, []);
 
   useEffect(() => () => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
