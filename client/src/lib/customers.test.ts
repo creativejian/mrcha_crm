@@ -85,6 +85,28 @@ const detailRes: CustomerDetailResponse = {
   schedules: [{ id: "s1", scheduledDate: "2026-05-26", scheduledTime: "16:00", type: "견적", memo: "재발송", done: false }],
   memos: [{ id: "m1", body: "메모1", createdAt: "2026-05-14T13:18:00+09:00" }],
   documents: [{ id: "d1", title: "주민등록등본", docType: "자동인식", fileName: "f.pdf", fileSize: 100, fileMime: "application/pdf", sortOrder: 1, createdAt: "2026-05-14T13:18:00+09:00" }],
+  quotes: [
+    {
+      id: "q1",
+      quoteCode: "QT-2606-0001",
+      entryMode: "solution",
+      quoteRound: "1차",
+      brandName: "벤츠",
+      modelName: "Maybach S-Class",
+      trimName: "S 500 4M Long",
+      status: "고객 확인 전",
+      appStatus: "sent",
+      decisionStatus: "none",
+      stockStatus: "재고있음",
+      note: null,
+      validUntil: null,
+      sentAt: null,
+      viewedAt: null,
+      revision: 0,
+      primaryScenarioId: "s1",
+      scenarios: [{ id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200" }],
+    },
+  ],
 };
 
 describe("toCustomerDetail", () => {
@@ -105,5 +127,13 @@ describe("toCustomerDetail", () => {
   it("자식 배열 누락 시 빈 배열로 방어", () => {
     const partial = { ...detailRes, tasks: undefined } as unknown as CustomerDetailResponse;
     expect(toCustomerDetail(partial).tasks).toEqual([]);
+  });
+  it("quotes(+scenarios)를 그대로 전달, 누락 시 빈 배열", () => {
+    const d = toCustomerDetail(detailRes);
+    expect(d.quotes).toHaveLength(1);
+    expect(d.quotes[0].quoteCode).toBe("QT-2606-0001");
+    expect(d.quotes[0].scenarios[0].purchaseMethod).toBe("운용리스");
+    const partial = { ...detailRes, quotes: undefined } as unknown as CustomerDetailResponse;
+    expect(toCustomerDetail(partial).quotes).toEqual([]);
   });
 });

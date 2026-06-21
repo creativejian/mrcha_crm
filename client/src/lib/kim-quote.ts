@@ -1,0 +1,141 @@
+import { formatActivity } from "./customers";
+
+// 견적함 UI 항목 타입(기존 CustomerDetailPage 내부 정의에서 이동).
+export type KimQuoteItem = {
+  id: string;
+  quoteCode: string;
+  title: string;
+  meta: string;
+  status: string;
+  source: "manual" | "solution" | "original";
+  appStatus: "draft" | "queued" | "sent" | "viewed";
+  brand?: string;
+  model?: string;
+  trim?: string;
+  quoteRound?: string;
+  vehicleName?: string;
+  financeType?: string;
+  term?: string;
+  monthlyPayment?: string;
+  lender?: string;
+  stockStatus?: "재고있음" | "재고없음" | "재고확인중";
+  validLabel?: string;
+  note?: string;
+  sentAt?: string;
+  viewedAt?: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+  objectUrl?: string;
+  file?: File;
+  decisionStatus?: "none" | "considering" | "confirmed" | "contracting";
+  revision?: number;
+  revisedAt?: string;
+  originalNeedsReplacement?: boolean;
+};
+
+// GET /api/customers/:id 의 quote 1건(drizzle camelCase 직렬화; numeric→string, timestamptz→ISO string).
+export type CustomerDetailScenario = {
+  id: string;
+  scenarioNo: number | null;
+  purchaseMethod: string | null;
+  lender: string | null;
+  termMonths: number | null;
+  monthlyPayment: string | null;
+};
+
+export type CustomerDetailQuote = {
+  id: string;
+  quoteCode: string;
+  entryMode: string | null;
+  quoteRound: string | null;
+  brandName: string | null;
+  modelName: string | null;
+  trimName: string | null;
+  status: string | null;
+  appStatus: string | null;
+  decisionStatus: string | null;
+  stockStatus: string | null;
+  note: string | null;
+  validUntil: string | null;
+  sentAt: string | null;
+  viewedAt: string | null;
+  revision: number;
+  primaryScenarioId: string | null;
+  scenarios: CustomerDetailScenario[];
+};
+
+const MS_DAY = 86_400_000;
+const QUOTE_SOURCES = ["manual", "solution", "original"] as const;
+const APP_STATUSES = ["draft", "queued", "sent", "viewed"] as const;
+const STOCK_STATUSES = ["재고있음", "재고없음", "재고확인중"] as const;
+const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"] as const;
+
+function asEnum<T extends readonly string[]>(allowed: T, v: string | null, fallback: T[number]): T[number] {
+  return v != null && (allowed as readonly string[]).includes(v) ? (v as T[number]) : fallback;
+}
+
+// 표시 옵션 enum: 매칭 안 되면 undefined(렌더 시 숨김).
+function asOptionalEnum<T extends readonly string[]>(allowed: T, v: string | null): T[number] | undefined {
+  return v != null && (allowed as readonly string[]).includes(v) ? (v as T[number]) : undefined;
+}
+
+function pickPrimaryScenario(q: CustomerDetailQuote): CustomerDetailScenario | null {
+  if (q.scenarios.length === 0) return null;
+  if (q.primaryScenarioId) {
+    const found = q.scenarios.find((s) => s.id === q.primaryScenarioId);
+    if (found) return found;
+  }
+  return [...q.scenarios].sort((a, b) => (a.scenarioNo ?? 0) - (b.scenarioNo ?? 0))[0];
+}
+
+function formatTerm(termMonths: number | null): string {
+  return termMonths != null ? `${termMonths}개월` : "조건 미정";
+}
+
+function formatMonthly(raw: string | null): string | undefined {
+  if (raw == null) return undefined;
+  const n = Number(raw);
+  if (Number.isNaN(n)) return undefined;
+  return `월 ${n.toLocaleString("ko-KR")}원`;
+}
+
+// valid_until → 화면 D-day. 미래면 "D-N", 지났으면 "만료됨", 없으면 표시 안 함.
+function validLabelFromUntil(validUntil: string | null, nowMs: number): string | undefined {
+  if (!validUntil) return undefined;
+  const until = new Date(validUntil).getTime();
+  if (Number.isNaN(until)) return undefined;
+  const days = Math.ceil((until - nowMs) / MS_DAY);
+  return days > 0 ? `D-${days}` : "만료됨";
+}
+
+// 대표 시나리오를 평탄화해 기존 KimQuoteItem 형태로 변환(접근 1). 파일/원본 필드는 읽기 범위 밖.
+export function toKimQuoteItem(q: CustomerDetailQuote, nowMs: number): KimQuoteItem {
+  const primary = pickPrimaryScenario(q);
+  const vehicleName = [q.brandName, q.modelName, q.trimName].filter(Boolean).join(" ");
+  return {
+    id: q.id,
+    quoteCode: q.quoteCode,
+    title: vehicleName || q.quoteCode,
+    meta: "",
+    status: q.status ?? "",
+    source: asEnum(QUOTE_SOURCES, q.entryMode, "manual"),
+    appStatus: asEnum(APP_STATUSES, q.appStatus, "draft"),
+    brand: q.brandName ?? undefined,
+    model: q.modelName ?? undefined,
+    trim: q.trimName ?? undefined,
+    quoteRound: q.quoteRound ?? undefined,
+    vehicleName: vehicleName || undefined,
+    financeType: primary?.purchaseMethod ?? undefined,
+    term: formatTerm(primary?.termMonths ?? null),
+    monthlyPayment: formatMonthly(primary?.monthlyPayment ?? null),
+    lender: primary?.lender ?? "금융사 미정",
+    stockStatus: asOptionalEnum(STOCK_STATUSES, q.stockStatus),
+    validLabel: validLabelFromUntil(q.validUntil, nowMs),
+    note: q.note ?? undefined,
+    sentAt: q.sentAt ? formatActivity(q.sentAt) : undefined,
+    viewedAt: q.viewedAt ? formatActivity(q.viewedAt) : undefined,
+    decisionStatus: asEnum(DECISION_STATUSES, q.decisionStatus, "none"),
+    revision: q.revision,
+  };
+}

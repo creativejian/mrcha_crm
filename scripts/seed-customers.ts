@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { initialCustomers } from "../client/src/data/customers";
 import { getDefaultDb } from "../src/db/client";
-import { customerDocuments, customerMemos, customers, customerSchedules, customerTasks } from "../src/db/schema";
+import { customerMemos, customers, customerSchedules, customerTasks, quotes, quoteScenarios } from "../src/db/schema";
 
 // "2026-05-14 12:56"(절대) | "오늘 13:04" | "어제 19:10" | "5/10 16:30" 파싱.
 // 기준일: 목업 최신 절대 시각(2026-05-14)을 "오늘"로 본다(결정적, Date.now 미사용).
@@ -106,12 +106,103 @@ async function main() {
       { customerId: kim.id, scheduledDate: "2026-05-26", scheduledTime: "16:00", type: "견적", memo: "GLC 재고 확인 후 X3 조건과 총비용 비교 견적 재발송" },
     ]);
 
-    await db.delete(customerDocuments).where(eq(customerDocuments.customerId, kim.id));
-    await db.insert(customerDocuments).values([
-      { customerId: kim.id, title: "주민등록등본", docType: "자동인식", fileName: "등본_함승우.pdf", fileSize: 962512, fileMime: "application/pdf", sortOrder: 0 },
-      { customerId: kim.id, title: "사업자등록증", docType: "자동인식", fileName: "사업자등록증_크리에이티브지안.png", fileSize: 7031251, fileMime: "image/png", sortOrder: 1 },
-    ]);
-    console.log("seeded 김민준(CU-2605-0020) detail: tasks 4 / memos 3 / schedules 1 / documents 2");
+    // 서류(customer_documents)는 실제 업로드(#58, Supabase Storage)로 관리하므로 시드하지 않는다.
+    // (과거 여기서 delete→insert 하던 블록이 시드 재실행 시 실제 업로드 서류를 덮어쓰는 사고를 냈다.)
+
+    // 견적 3건 + 시나리오 3(각 1). 멱등: quote_code 기준 delete→insert(시나리오는 ON DELETE CASCADE).
+    // valid_until은 시드 시점 기준 상대 오프셋(D-6/D-4/만료) — 시간 경과 시 D-day가 실제로 줄어드는 것은 정상.
+    const dayOffset = (days: number): Date => new Date(Date.now() + days * 86_400_000);
+    await db.delete(quotes).where(eq(quotes.customerId, kim.id));
+    const quoteSeeds = [
+      {
+        quoteCode: "QT-2606-0001",
+        entryMode: "solution",
+        quoteRound: "1차",
+        brandName: "벤츠",
+        modelName: "Maybach S-Class",
+        trimName: "S 500 4M Long",
+        status: "고객 확인 전",
+        appStatus: "sent",
+        decisionStatus: "none",
+        stockStatus: "재고있음",
+        note: "보증금 30% 기준, 할인 조건 재확인 필요",
+        validUntil: dayOffset(6),
+        sentAt: ts("5/28 12:39"),
+        viewedAt: null as Date | null,
+        scenario: { purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200" as string | null },
+      },
+      {
+        quoteCode: "QT-2606-0002",
+        entryMode: "solution",
+        quoteRound: "2차",
+        brandName: "벤츠",
+        modelName: "Maybach S-Class",
+        trimName: "S 500 4M Long",
+        status: "고객 열람",
+        appStatus: "viewed",
+        decisionStatus: "confirmed",
+        stockStatus: "재고확인중",
+        note: "가족 상의 후 최종 조건 확인 예정",
+        validUntil: dayOffset(4),
+        sentAt: ts("5/28 12:39"),
+        viewedAt: ts("5/29 16:08"),
+        scenario: { purchaseMethod: "운용리스", lender: "우리금융캐피탈", termMonths: 60, monthlyPayment: "2398000" as string | null },
+      },
+      {
+        quoteCode: "QT-2606-0003",
+        entryMode: "manual",
+        quoteRound: "1차",
+        brandName: "벤츠",
+        modelName: "GLC",
+        trimName: "재고 비교",
+        status: "작성중",
+        appStatus: "draft",
+        decisionStatus: "none",
+        stockStatus: "재고확인중",
+        note: "GLC 재고 확인 후 X3 조건과 총비용 비교",
+        validUntil: dayOffset(-1),
+        sentAt: null as Date | null,
+        viewedAt: null as Date | null,
+        scenario: { purchaseMethod: "비교 견적", lender: null as string | null, termMonths: null as number | null, monthlyPayment: null as string | null },
+      },
+    ];
+    for (const q of quoteSeeds) {
+      const [qrow] = await db
+        .insert(quotes)
+        .values({
+          quoteCode: q.quoteCode,
+          customerId: kim.id,
+          entryMode: q.entryMode,
+          quoteRound: q.quoteRound,
+          brandName: q.brandName,
+          modelName: q.modelName,
+          trimName: q.trimName,
+          status: q.status,
+          appStatus: q.appStatus,
+          decisionStatus: q.decisionStatus,
+          stockStatus: q.stockStatus,
+          note: q.note,
+          validUntil: q.validUntil,
+          sentAt: q.sentAt,
+          viewedAt: q.viewedAt,
+        })
+        .returning({ id: quotes.id });
+      const [srow] = await db
+        .insert(quoteScenarios)
+        .values({
+          quoteId: qrow.id,
+          scenarioNo: 1,
+          isSaved: q.appStatus !== "draft",
+          purchaseMethod: q.scenario.purchaseMethod,
+          lender: q.scenario.lender,
+          termMonths: q.scenario.termMonths,
+          monthlyPayment: q.scenario.monthlyPayment,
+        })
+        .returning({ id: quoteScenarios.id });
+      // 순환 FK 회피: 시나리오 INSERT 후 대표 지정.
+      await db.update(quotes).set({ primaryScenarioId: srow.id }).where(eq(quotes.id, qrow.id));
+    }
+    console.log("seeded 김민준(CU-2605-0020) detail: tasks 4 / memos 3 / schedules 1 / quotes 3 (documents는 실제 업로드 보존)");
   }
 
   process.exit(0);

@@ -2,6 +2,7 @@ import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront,
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
+import { toKimQuoteItem, type KimQuoteItem } from "@/lib/kim-quote";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
@@ -79,38 +80,6 @@ type KimNeedsState = {
   memo: string;
 };
 
-type KimQuoteItem = {
-  id: string;
-  quoteCode: string;
-  title: string;
-  meta: string;
-  status: string;
-  source: "manual" | "solution" | "original";
-  appStatus: "draft" | "queued" | "sent" | "viewed";
-  brand?: string;
-  model?: string;
-  trim?: string;
-  quoteRound?: string;
-  vehicleName?: string;
-  financeType?: string;
-  term?: string;
-  monthlyPayment?: string;
-  lender?: string;
-  stockStatus?: "재고있음" | "재고없음" | "재고확인중";
-  validLabel?: string;
-  note?: string;
-  sentAt?: string;
-  viewedAt?: string;
-  fileName?: string;
-  fileSize?: number;
-  mimeType?: string;
-  objectUrl?: string;
-  file?: File;
-  decisionStatus?: "none" | "considering" | "confirmed" | "contracting";
-  revision?: number;
-  revisedAt?: string;
-  originalNeedsReplacement?: boolean;
-};
 
 type KimQuoteComposerMode = "solution" | "manual" | "edit";
 type KimQuoteEntryMode = "solution" | "manual" | "original";
@@ -315,76 +284,6 @@ const kimReviewNoteOptions = ["4대보험 확인", "재직 확인 전", "소득 
 const kimPurchaseTagSelectionLimit = 4;
 const kimPersonalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];
 
-const kimMinjunQuoteHistory: KimQuoteItem[] = [
-  {
-    id: "maybach-first-quote",
-    quoteCode: "QT-2606-0001",
-    title: "Maybach S 500 운용리스 1차 견적",
-    meta: "오늘 14:20 · 앱 발송완료",
-    status: "고객 확인 전",
-    source: "solution",
-    appStatus: "sent",
-    brand: "벤츠",
-    model: "Maybach S-Class",
-    trim: "S 500 4M Long",
-    quoteRound: "1차",
-    vehicleName: "Maybach S 500 4M Long",
-    financeType: "운용리스",
-    term: "60개월",
-    monthlyPayment: "월 2,473,200원",
-    lender: "iM캐피탈",
-    stockStatus: "재고있음",
-    validLabel: "D-6",
-    note: "보증금 30% 기준, 할인 조건 재확인 필요",
-    sentAt: "5/28 12:39",
-    decisionStatus: "none",
-  },
-  {
-    id: "maybach-second-quote",
-    quoteCode: "QT-2606-0002",
-    title: "Maybach S 500 운용리스 2차 견적",
-    meta: "오늘 14:20 · 앱 발송완료",
-    status: "고객 열람",
-    source: "solution",
-    appStatus: "viewed",
-    brand: "벤츠",
-    model: "Maybach S-Class",
-    trim: "S 500 4M Long",
-    quoteRound: "2차",
-    vehicleName: "Maybach S 500 4M Long",
-    financeType: "운용리스",
-    term: "60개월",
-    monthlyPayment: "월 2,398,000원",
-    lender: "우리금융캐피탈",
-    stockStatus: "재고확인중",
-    validLabel: "D-4",
-    note: "가족 상의 후 최종 조건 확인 예정",
-    sentAt: "5/28 12:39",
-    viewedAt: "5/29 16:08",
-    decisionStatus: "confirmed",
-  },
-  {
-    id: "glc-compare-quote",
-    quoteCode: "QT-2606-0003",
-    title: "GLC 재고 확인 후 비교 견적 예정",
-    meta: "오늘 16:00 전 · 준비 필요",
-    status: "작성중",
-    source: "manual",
-    appStatus: "draft",
-    brand: "벤츠",
-    model: "GLC",
-    trim: "재고 비교",
-    quoteRound: "1차",
-    vehicleName: "GLC 재고 비교",
-    financeType: "비교 견적",
-    term: "조건 미정",
-    lender: "금융사 미정",
-    stockStatus: "재고확인중",
-    validLabel: "만료됨",
-    note: "GLC 재고 확인 후 X3 조건과 총비용 비교",
-    decisionStatus: "none",
-  },
-];
 
 const kimCheckCategoryOptions = ["체크", "견적", "안내", "요청", "내부", "심사"];
 const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
@@ -982,7 +881,7 @@ function KimMinjunDetailContent({
   const [addingCustomerMemo, setAddingCustomerMemo] = useState(false);
   const [editingCustomerMemoId, setEditingCustomerMemoId] = useState<string | null>(null);
   const [confirmingCustomerMemoDeleteId, setConfirmingCustomerMemoDeleteId] = useState<string | null>(null);
-  const [quotes, setQuotes] = useState<KimQuoteItem[]>(kimMinjunQuoteHistory);
+  const [quotes, setQuotes] = useState<KimQuoteItem[]>(() => detail.quotes.map((q) => toKimQuoteItem(q, Date.now())));
   const [quoteComposerMode, setQuoteComposerMode] = useState<KimQuoteComposerMode | null>(null);
   const [isQuoteSolutionWorkbenchOpen, setIsQuoteSolutionWorkbenchOpen] = useState(false);
   const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(kimMinjunPurchaseFields));

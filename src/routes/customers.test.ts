@@ -200,3 +200,14 @@ test("서류: 없는 childId signedUrl → 404", async () => {
   const res = await app.request(`/api/customers/${list[0].id}/documents/00000000-0000-0000-0000-000000000000/url`, { headers: auth });
   expect(res.status).toBe(404);
 });
+
+test("GET /api/customers/:id → quotes(+scenarios) 배열 포함", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const res = await app.request(`/api/customers/${list[0].id}`, { headers: { Authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as { quotes: Array<{ id: string; scenarios: unknown[] }> };
+  expect(Array.isArray(body.quotes)).toBe(true);
+  for (const q of body.quotes) expect(Array.isArray(q.scenarios)).toBe(true);
+});

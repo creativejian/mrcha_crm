@@ -1,5 +1,6 @@
 import type { Customer } from "@/data/customers";
 import { getJson, sendVoid } from "./http";
+import type { CustomerDetailQuote } from "./kim-quote";
 
 // 백엔드 listCustomers 응답 1행(camelCase, null 가능). 상세는 추가 자식 필드 포함.
 export type CustomerRow = {
@@ -101,6 +102,7 @@ export type CustomerDetailResponse = {
   schedules: CustomerDetailSchedule[];
   memos: CustomerDetailMemo[];
   documents: CustomerDetailDocument[];
+  quotes: CustomerDetailQuote[];
 };
 
 export type CustomerDetailData = Pick<
@@ -125,6 +127,7 @@ export type CustomerDetailData = Pick<
   | "schedules"
   | "memos"
   | "documents"
+  | "quotes"
 >;
 
 export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailData {
@@ -149,6 +152,7 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
     schedules: res.schedules ?? [],
     memos: res.memos ?? [],
     documents: res.documents ?? [],
+    quotes: res.quotes ?? [],
   };
 }
 
