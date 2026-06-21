@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { initialCustomers } from "../client/src/data/customers";
 import { getDefaultDb } from "../src/db/client";
-import { customerDocuments, customerMemos, customers, customerSchedules, customerTasks, quotes, quoteScenarios } from "../src/db/schema";
+import { customerMemos, customers, customerSchedules, customerTasks, quotes, quoteScenarios } from "../src/db/schema";
 
 // "2026-05-14 12:56"(절대) | "오늘 13:04" | "어제 19:10" | "5/10 16:30" 파싱.
 // 기준일: 목업 최신 절대 시각(2026-05-14)을 "오늘"로 본다(결정적, Date.now 미사용).
@@ -106,11 +106,8 @@ async function main() {
       { customerId: kim.id, scheduledDate: "2026-05-26", scheduledTime: "16:00", type: "견적", memo: "GLC 재고 확인 후 X3 조건과 총비용 비교 견적 재발송" },
     ]);
 
-    await db.delete(customerDocuments).where(eq(customerDocuments.customerId, kim.id));
-    await db.insert(customerDocuments).values([
-      { customerId: kim.id, title: "주민등록등본", docType: "자동인식", fileName: "등본_함승우.pdf", fileSize: 962512, fileMime: "application/pdf", sortOrder: 0 },
-      { customerId: kim.id, title: "사업자등록증", docType: "자동인식", fileName: "사업자등록증_크리에이티브지안.png", fileSize: 7031251, fileMime: "image/png", sortOrder: 1 },
-    ]);
+    // 서류(customer_documents)는 실제 업로드(#58, Supabase Storage)로 관리하므로 시드하지 않는다.
+    // (과거 여기서 delete→insert 하던 블록이 시드 재실행 시 실제 업로드 서류를 덮어쓰는 사고를 냈다.)
 
     // 견적 3건 + 시나리오 3(각 1). 멱등: quote_code 기준 delete→insert(시나리오는 ON DELETE CASCADE).
     // valid_until은 시드 시점 기준 상대 오프셋(D-6/D-4/만료) — 시간 경과 시 D-day가 실제로 줄어드는 것은 정상.
@@ -205,7 +202,7 @@ async function main() {
       // 순환 FK 회피: 시나리오 INSERT 후 대표 지정.
       await db.update(quotes).set({ primaryScenarioId: srow.id }).where(eq(quotes.id, qrow.id));
     }
-    console.log("seeded 김민준(CU-2605-0020) detail: tasks 4 / memos 3 / schedules 1 / documents 2 / quotes 3");
+    console.log("seeded 김민준(CU-2605-0020) detail: tasks 4 / memos 3 / schedules 1 / quotes 3 (documents는 실제 업로드 보존)");
   }
 
   process.exit(0);
