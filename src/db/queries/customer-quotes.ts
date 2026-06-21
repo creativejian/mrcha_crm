@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, like, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import { quotes, quoteScenarios } from "../schema";
@@ -94,4 +94,66 @@ export async function deleteQuote(
     .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)))
     .returning({ id: quotes.id });
   return row ?? null;
+}
+
+// 다음 견적 코드 QT-YYMM-#### (현재월 기준, 기존 최대 시퀀스 +1). UNIQUE 컬럼이라 서버가 canonical 생성.
+export async function nextQuoteCode(ex: Executor = getDefaultDb()): Promise<string> {
+  const now = new Date();
+  const yymm = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const prefix = `QT-${yymm}-`;
+  const rows = await ex.select({ code: quotes.quoteCode }).from(quotes).where(like(quotes.quoteCode, `${prefix}%`));
+  const max = rows.reduce((m, r) => {
+    const match = r.code.match(/-(\d{4})$/);
+    return match ? Math.max(m, Number(match[1])) : m;
+  }, 0);
+  return `${prefix}${String(max + 1).padStart(4, "0")}`;
+}
+
+// 생성 바디(라우트 zod와 동형). 헤더 + 대표 시나리오 1건.
+export type QuoteCreateBody = {
+  entryMode?: string | null;
+  status?: string | null;
+  quoteRound?: string | null;
+  stockStatus?: string | null;
+  brandName?: string | null;
+  modelName?: string | null;
+  trimName?: string | null;
+  note?: string | null;
+  scenario?: QuoteScenarioPatch;
+};
+
+// 새 견적 INSERT — quote_code 서버 생성 → quote → scenario(scenario_no=1) → primary_scenario_id UPDATE.
+// 라우트가 transaction으로 감싸 호출(ex=tx). app_status는 항상 "draft"(발송 전).
+export async function createQuote(
+  customerId: string,
+  body: QuoteCreateBody,
+  ex: Executor = getDefaultDb(),
+): Promise<{ id: string; quoteCode: string; createdAt: Date }> {
+  const quoteCode = await nextQuoteCode(ex);
+  const [q] = await ex.insert(quotes).values({
+    quoteCode,
+    customerId,
+    entryMode: body.entryMode ?? null,
+    status: body.status ?? null,
+    quoteRound: body.quoteRound ?? null,
+    stockStatus: body.stockStatus ?? null,
+    brandName: body.brandName ?? null,
+    modelName: body.modelName ?? null,
+    trimName: body.trimName ?? null,
+    note: body.note ?? null,
+    appStatus: "draft",
+    revision: 0,
+  }).returning({ id: quotes.id, quoteCode: quotes.quoteCode, createdAt: quotes.createdAt });
+
+  const [s] = await ex.insert(quoteScenarios).values({
+    quoteId: q.id,
+    scenarioNo: 1,
+    purchaseMethod: body.scenario?.purchaseMethod ?? null,
+    termMonths: body.scenario?.termMonths ?? null,
+    monthlyPayment: body.scenario?.monthlyPayment ?? null,
+    lender: body.scenario?.lender ?? null,
+  }).returning({ id: quoteScenarios.id });
+
+  await ex.update(quotes).set({ primaryScenarioId: s.id }).where(eq(quotes.id, q.id));
+  return q;
 }

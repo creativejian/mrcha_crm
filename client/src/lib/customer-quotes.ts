@@ -1,5 +1,5 @@
 import { invalidateCustomerDetail } from "./customers";
-import { sendVoid } from "./http";
+import { sendJson, sendVoid } from "./http";
 
 // 견적함 표시 문자열 → 시나리오 컬럼값. 숫자만 남겨 파싱한다.
 
@@ -48,4 +48,29 @@ export async function updateQuote(customerId: string, quoteId: string, patch: Qu
 export async function deleteQuote(customerId: string, quoteId: string): Promise<void> {
   await sendVoid(`/api/customers/${customerId}/quotes/${quoteId}`, "DELETE");
   invalidateCustomerDetail(customerId);
+}
+
+// POST 바디(서버 zod와 동형). 헤더 + 대표 시나리오.
+export type QuoteCreatePayload = {
+  entryMode?: "manual" | "solution" | "original" | null;
+  status?: string | null;
+  quoteRound?: string | null;
+  stockStatus?: "재고있음" | "재고없음" | "재고확인중" | null;
+  brandName?: string | null;
+  modelName?: string | null;
+  trimName?: string | null;
+  note?: string | null;
+  scenario?: {
+    purchaseMethod?: string | null;
+    termMonths?: number | null;
+    monthlyPayment?: string | null;
+    lender?: string | null;
+  };
+};
+
+// 새 견적 생성. 서버가 quote_code·id 부여 → 반환값으로 낙관 임시 항목을 교체한다. 성공 시 상세 캐시 무효화.
+export async function createQuote(customerId: string, payload: QuoteCreatePayload): Promise<{ id: string; quoteCode: string; createdAt: string }> {
+  const row = await sendJson<{ id: string; quoteCode: string; createdAt: string }>(`/api/customers/${customerId}/quotes`, "POST", payload);
+  invalidateCustomerDetail(customerId);
+  return row;
 }
