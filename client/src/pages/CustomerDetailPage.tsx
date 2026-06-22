@@ -924,6 +924,9 @@ function KimMinjunDetailContent({
   const [trimDetail, setTrimDetail] = useState<TrimDetail | null>(null);
   const [exteriorColor, setExteriorColor] = useState<TrimColor | null>(null);
   const [interiorColor, setInteriorColor] = useState<TrimColor | null>(null);
+  // #4c-2 워크벤치 저장용: VehiclePicker가 고른 brand/model(applyTrimToPricing이 버리던 값)과 선택 옵션 ids.
+  const [workbenchVehicle, setWorkbenchVehicle] = useState<VehicleSelection | null>(null);
+  const [selectedWorkbenchOptionIds, setSelectedWorkbenchOptionIds] = useState<number[]>([]);
   const [documents, setDocuments] = useState<KimDocumentItem[]>(() =>
     detail.documents.map((d) => ({
       id: d.id,
@@ -1257,6 +1260,8 @@ function KimMinjunDetailContent({
     try {
       const detail = await fetchTrimDetail(trim.id);
       setTrimDetail(detail);
+      setWorkbenchVehicle(selection);
+      setSelectedWorkbenchOptionIds([]);
       setExteriorColor(null);
       setInteriorColor(null);
       const root = pricingPanelRef.current;
@@ -1279,6 +1284,7 @@ function KimMinjunDetailContent({
   }
 
   function applyOptionTotal(next: { selectedIds: number[]; total: number }) {
+    setSelectedWorkbenchOptionIds(next.selectedIds);
     const root = pricingPanelRef.current;
     if (!root) return;
     const el = root.querySelector<HTMLInputElement>('input[data-pricing="option"]');
@@ -2290,39 +2296,89 @@ function KimMinjunDetailContent({
     const source: KimQuoteItem["source"] = solutionWorkbenchEntryMode === "solution" ? "solution" : solutionWorkbenchEntryMode === "original" ? "original" : "manual";
     const sourceLabel = source === "solution" ? "솔루션 조회 조건" : source === "original" ? "원본 인식 후 보정" : "수기 입력 조건";
     const savedAt = formatKoreanShortTime();
-    setQuotes((current) => {
-      const quoteCode = createKimQuoteCode(current);
-      const maybachQuoteCount = current.filter((quote) => quote.model === "Maybach S-Class" || quote.vehicleName?.includes("Maybach S 500")).length;
-      const quoteRound = `${maybachQuoteCount + 1}차`;
-      return [...current, {
-        id: `kim-quote-workbench-${Date.now()}`,
-        quoteCode,
-        title: `Maybach S 500 ${solutionWorkbenchPurchaseMethod} ${quoteRound} 견적`,
-        meta: `${savedAt} · ${sourceLabel}`,
+
+    // 워크벤치 입력 추출(#4c-2). 가격은 DOM(readPricingInputs)+pricing state, 차량/색상/옵션은 기존 state.
+    const root = pricingPanelRef.current;
+    const inputs = root ? readPricingInputs(root) : null;
+    const brandName = workbenchVehicle?.brand?.name ?? null;
+    const modelName = workbenchVehicle?.model?.name ?? null;
+    const trimName = trimDetail?.trimName ?? trimDetail?.name ?? null;
+    const selectedOptions = trimDetail
+      ? trimDetail.options.filter((o) => selectedWorkbenchOptionIds.includes(o.id)).map((o) => ({ id: o.id, name: o.name, price: o.price }))
+      : [];
+    const vehicleName = [brandName, modelName, trimName].filter(Boolean).join(" ") || "차량 미선택";
+    const num = (n: number | undefined | null) => (n == null ? null : String(n));
+
+    const tempId = `kim-quote-workbench-${nowMs()}`;
+    const tempQuoteCode = createKimQuoteCode(quotes);
+
+    setQuotes((current) => [...current, {
+      id: tempId,
+      quoteCode: tempQuoteCode,
+      title: vehicleName,
+      meta: `${savedAt} · ${sourceLabel}`,
+      status: "작성중",
+      source,
+      appStatus: "draft",
+      brand: brandName ?? undefined,
+      model: modelName ?? undefined,
+      trim: trimName ?? undefined,
+      quoteRound: "1차",
+      vehicleName,
+      financeType: solutionWorkbenchPurchaseMethod,
+      term: "조건 미정",
+      lender: "금융사 미정",
+      stockStatus: "재고확인중",
+      note: sourceLabel,
+      decisionStatus: "none",
+      finalVehiclePrice: pricing.finalVehiclePrice,
+      exteriorColorName: exteriorColor?.name,
+      exteriorColorHex: exteriorColor?.hexValue ?? undefined,
+      interiorColorName: interiorColor?.name,
+      interiorColorHex: interiorColor?.hexValue ?? undefined,
+      ...(recognizedQuoteFile ? {
+        fileName: recognizedQuoteFile.fileName,
+        fileSize: recognizedQuoteFile.fileSize,
+        mimeType: recognizedQuoteFile.mimeType,
+        file: recognizedQuoteFile.file,
+      } : {}),
+    }]);
+
+    if (customer.id) {
+      const payload: QuoteCreatePayload = {
+        entryMode: source,
         status: "작성중",
-        source,
-        appStatus: "draft",
-        brand: "벤츠",
-        model: "Maybach S-Class",
-        trim: "S 500 4M Long",
-        quoteRound,
-        vehicleName: "Maybach S 500 4M Long",
-        financeType: solutionWorkbenchPurchaseMethod,
-        term: "60개월",
-        monthlyPayment: "월 2,398,000원",
-        lender: "우리금융캐피탈",
+        quoteRound: "1차",
         stockStatus: "재고확인중",
-        validLabel: "D-6",
+        brandName,
+        modelName,
+        trimName,
         note: sourceLabel,
-        decisionStatus: "none",
-        ...(recognizedQuoteFile ? {
-          fileName: recognizedQuoteFile.fileName,
-          fileSize: recognizedQuoteFile.fileSize,
-          mimeType: recognizedQuoteFile.mimeType,
-          file: recognizedQuoteFile.file,
-        } : {}),
-      }];
-    });
+        trimId: trimDetail?.id ?? null,
+        basePrice: inputs ? num(inputs.basePrice) : null,
+        optionTotal: inputs ? num(inputs.optionPrice) : null,
+        options: selectedOptions.length ? selectedOptions : null,
+        finalDiscount: inputs ? num(inputs.discount) : null,
+        acquisitionTax: inputs ? num(inputs.acquisitionTax) : null,
+        acquisitionTaxMode,
+        bond: inputs ? num(inputs.bond) : null,
+        delivery: inputs ? num(inputs.delivery) : null,
+        incidental: inputs ? num(inputs.incidental) : null,
+        finalVehiclePrice: num(pricing.finalVehiclePrice),
+        acquisitionCost: num(pricing.acquisitionCost),
+        exteriorColorId: exteriorColor?.id ?? null,
+        exteriorColorName: exteriorColor?.name ?? null,
+        exteriorColorHex: exteriorColor?.hexValue ?? null,
+        interiorColorId: interiorColor?.id ?? null,
+        interiorColorName: interiorColor?.name ?? null,
+        interiorColorHex: interiorColor?.hexValue ?? null,
+        scenario: { purchaseMethod: solutionWorkbenchPurchaseMethod },
+      };
+      void apiCreateQuote(customer.id, payload)
+        .then(({ id, quoteCode }) => setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q))))
+        .catch(() => { setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("견적 저장에 실패했습니다."); });
+    }
+
     setIsQuoteSolutionWorkbenchOpen(false);
     setSolutionWorkbenchModeMenu(null);
     setRecognizedQuoteFile(null);
