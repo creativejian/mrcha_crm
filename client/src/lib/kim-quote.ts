@@ -37,6 +37,8 @@ export type KimQuoteItem = {
   exteriorColorHex?: string;
   interiorColorName?: string;
   interiorColorHex?: string;
+  // #4c-3a 다중 시나리오(비교 표시는 #4c-3b가 소비)
+  scenarios?: CustomerDetailScenario[];
   originalNeedsReplacement?: boolean;
 };
 
@@ -48,6 +50,16 @@ export type CustomerDetailScenario = {
   lender: string | null;
   termMonths: number | null;
   monthlyPayment: string | null;
+  // #4c-3a 비교카드 입력 가능 컬럼
+  depositMode: string | null;
+  depositValue: string | null;
+  downPaymentMode: string | null;
+  downPaymentValue: string | null;
+  residualMode: string | null;
+  residualValue: string | null;
+  mileageMode: string | null;
+  mileageValue: string | null;
+  isSaved: boolean;
 };
 
 export type CustomerDetailQuote = {
@@ -163,5 +175,6 @@ export function toKimQuoteItem(q: CustomerDetailQuote, nowMs: number): KimQuoteI
     exteriorColorHex: q.exteriorColorHex ?? undefined,
     interiorColorName: q.interiorColorName ?? undefined,
     interiorColorHex: q.interiorColorHex ?? undefined,
+    scenarios: q.scenarios,
   };
 }

@@ -38,7 +38,7 @@ function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote
     interiorColorName: null,
     interiorColorHex: null,
     scenarios: [
-      { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200" },
+      { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false },
     ],
     ...over,
   };
@@ -94,8 +94,8 @@ describe("toKimQuoteItem", () => {
       makeQuote({
         primaryScenarioId: null,
         scenarios: [
-          { id: "s2", scenarioNo: 2, purchaseMethod: "할부", lender: "B", termMonths: 36, monthlyPayment: "100" },
-          { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "A", termMonths: 60, monthlyPayment: "200" },
+          { id: "s2", scenarioNo: 2, purchaseMethod: "할부", lender: "B", termMonths: 36, monthlyPayment: "100", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false },
+          { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "A", termMonths: 60, monthlyPayment: "200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false },
         ],
       }),
       NOW,
@@ -129,5 +129,20 @@ describe("toKimQuoteItem", () => {
     expect(k.finalVehiclePrice).toBeUndefined();
     expect(k.exteriorColorName).toBeUndefined();
     expect(k.interiorColorName).toBeUndefined();
+  });
+
+  it("#4c-3a scenarios 배열 보존(N건) + 대표 평탄화 유지", () => {
+    const k = toKimQuoteItem(makeQuote({
+      primaryScenarioId: "s1",
+      scenarios: [
+        { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "우리금융캐피탈", termMonths: 60, monthlyPayment: "2398000", depositMode: "percent", depositValue: "30", downPaymentMode: null, downPaymentValue: null, residualMode: "max", residualValue: null, mileageMode: "basic", mileageValue: "20,000km / 년", isSaved: true },
+        { id: "s2", scenarioNo: 2, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: null, monthlyPayment: "2473200", depositMode: "amount", depositValue: "10000000", downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: true },
+      ],
+    }), NOW);
+    expect(k.scenarios?.length).toBe(2);
+    expect(k.scenarios?.[0].lender).toBe("우리금융캐피탈");
+    expect(k.scenarios?.[1].depositMode).toBe("amount");
+    expect(k.financeType).toBe("운용리스");
+    expect(k.lender).toBe("우리금융캐피탈");
   });
 });
