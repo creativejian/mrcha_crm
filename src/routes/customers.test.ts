@@ -441,3 +441,69 @@ test("견적 생성(워크벤치 #4c-2): composer 하위호환 — 가격 필드
     if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
   }
 });
+
+test("견적 다중 시나리오(#4c-3a): scenarios 3건 → getCustomer 라운드트립 + primary=round1", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  let quoteId: string | null = null;
+  try {
+    const created = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h,
+      body: JSON.stringify({
+        entryMode: "manual", status: "작성중", brandName: "벤츠",
+        scenarios: [
+          { scenarioNo: 1, isSaved: true, purchaseMethod: "운용리스", lender: "우리금융캐피탈", monthlyPayment: "2398000", depositMode: "percent", depositValue: "30", residualMode: "max", mileageMode: "basic", mileageValue: "20,000km / 년" },
+          { scenarioNo: 2, isSaved: true, purchaseMethod: "운용리스", lender: "iM캐피탈", monthlyPayment: "2473200", depositMode: "amount", depositValue: "10000000" },
+          { scenarioNo: 3, isSaved: true, purchaseMethod: "운용리스", lender: "하나캐피탈", monthlyPayment: "2550000" },
+        ],
+      }),
+    });
+    expect(created.status).toBe(201);
+    quoteId = ((await created.json()) as { id: string }).id;
+
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+      quotes: Array<{ id: string; primaryScenarioId: string | null; scenarios: Array<{ id: string; scenarioNo: number | null; lender: string | null; monthlyPayment: string | null; depositMode: string | null; depositValue: string | null; isSaved: boolean }> }>;
+    };
+    const q = detail.quotes.find((x) => x.id === quoteId)!;
+    expect(q.scenarios.length).toBe(3);
+    const byNo = [...q.scenarios].sort((a, b) => (a.scenarioNo ?? 0) - (b.scenarioNo ?? 0));
+    expect(byNo[0].lender).toBe("우리금융캐피탈");
+    expect(byNo[0].depositMode).toBe("percent");
+    expect(byNo[0].depositValue).toBe("30");
+    expect(byNo[0].isSaved).toBe(true);
+    expect(byNo[1].lender).toBe("iM캐피탈");
+    expect(byNo[2].monthlyPayment).toBe("2550000");
+    expect(q.primaryScenarioId).toBe(byNo[0].id);
+  } finally {
+    if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
+test("견적 다중 시나리오(#4c-3a): scenario 단수 하위호환 — 1건 저장", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  let quoteId: string | null = null;
+  try {
+    const created = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h,
+      body: JSON.stringify({ entryMode: "manual", status: "작성중", scenario: { purchaseMethod: "할부", termMonths: 36, monthlyPayment: "1000000", lender: "iM캐피탈" } }),
+    });
+    expect(created.status).toBe(201);
+    quoteId = ((await created.json()) as { id: string }).id;
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+      quotes: Array<{ id: string; scenarios: Array<{ scenarioNo: number | null; purchaseMethod: string | null }> }>;
+    };
+    const q = detail.quotes.find((x) => x.id === quoteId)!;
+    expect(q.scenarios.length).toBe(1);
+    expect(q.scenarios[0].scenarioNo).toBe(1);
+    expect(q.scenarios[0].purchaseMethod).toBe("할부");
+  } finally {
+    if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});

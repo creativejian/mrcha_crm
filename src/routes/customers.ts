@@ -54,10 +54,20 @@ const memoBody = z.object({ body: z.string().nullable().optional() });
 const taskBody = z.object({ category: z.string().nullable().optional(), due: z.string().nullable().optional(), body: z.string().nullable().optional(), done: z.boolean().optional() });
 const scheduleBody = z.object({ scheduledDate: z.string().nullable().optional(), scheduledTime: z.string().nullable().optional(), type: z.string().nullable().optional(), memo: z.string().nullable().optional(), done: z.boolean().optional() });
 const quoteScenarioBody = z.object({
+  scenarioNo: z.number().int().nullable().optional(),
+  isSaved: z.boolean().optional(),
   purchaseMethod: z.string().nullable().optional(),
   termMonths: z.number().int().nullable().optional(),
   monthlyPayment: z.string().nullable().optional(),
   lender: z.string().nullable().optional(),
+  depositMode: z.string().nullable().optional(),
+  depositValue: z.string().nullable().optional(),
+  downPaymentMode: z.string().nullable().optional(),
+  downPaymentValue: z.string().nullable().optional(),
+  residualMode: z.string().nullable().optional(),
+  residualValue: z.string().nullable().optional(),
+  mileageMode: z.string().nullable().optional(),
+  mileageValue: z.string().nullable().optional(),
 });
 const quoteCreateBody = z.object({
   entryMode: z.enum(["manual", "solution", "original"]).nullable().optional(),
@@ -88,6 +98,7 @@ const quoteCreateBody = z.object({
   interiorColorName: z.string().nullable().optional(),
   interiorColorHex: z.string().nullable().optional(),
   scenario: quoteScenarioBody.optional(),
+  scenarios: z.array(quoteScenarioBody).max(3).optional(),
 });
 const quotePatchBody = z.object({
   status: z.string().nullable().optional(),
