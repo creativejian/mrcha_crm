@@ -39,6 +39,7 @@ export type KimQuoteItem = {
   interiorColorHex?: string;
   // #4c-3a 다중 시나리오(비교 표시는 #4c-3b가 소비)
   scenarios?: CustomerDetailScenario[];
+  primaryScenarioId?: string;
   originalNeedsReplacement?: boolean;
 };
 
@@ -122,15 +123,41 @@ function pickPrimaryScenario(q: CustomerDetailQuote): CustomerDetailScenario | n
   return [...q.scenarios].sort((a, b) => (a.scenarioNo ?? 0) - (b.scenarioNo ?? 0))[0];
 }
 
-function formatTerm(termMonths: number | null): string {
+export function formatTerm(termMonths: number | null): string {
   return termMonths != null ? `${termMonths}개월` : "조건 미정";
 }
 
-function formatMonthly(raw: string | null): string | undefined {
+export function formatMonthly(raw: string | null): string | undefined {
   if (raw == null) return undefined;
   const n = Number(raw);
   if (Number.isNaN(n)) return undefined;
   return `월 ${n.toLocaleString("ko-KR")}원`;
+}
+
+// 대표 시나리오 → 견적 행 요약 4필드(financeType/term/monthlyPayment/lender). toKimQuoteItem과 "대표로" 핸들러가 공유.
+export function flattenPrimaryScenario(
+  s: CustomerDetailScenario | null,
+): Pick<KimQuoteItem, "financeType" | "term" | "monthlyPayment" | "lender"> {
+  return {
+    financeType: s?.purchaseMethod ?? undefined,
+    term: formatTerm(s?.termMonths ?? null),
+    monthlyPayment: formatMonthly(s?.monthlyPayment ?? null),
+    lender: s?.lender ?? "금융사 미정",
+  };
+}
+
+// 시나리오 금액 mode+value 표기. percent→"N%", amount→"N만원"(만원 절삭), none→"없음", max→"최대", 그 외/빈값→undefined.
+export function formatScenarioMoneyMode(mode: string | null, value: string | null): string | undefined {
+  if (mode === "none") return "없음";
+  if (mode === "max") return "최대";
+  if (mode === "percent") return value ? `${value}%` : undefined;
+  if (mode === "amount") {
+    if (!value) return undefined;
+    const n = Number(value);
+    if (Number.isNaN(n)) return undefined;
+    return `${Math.round(n / 10000).toLocaleString("ko-KR")}만원`;
+  }
+  return undefined;
 }
 
 // valid_until → 화면 D-day. 미래면 "D-N", 지났으면 "만료됨", 없으면 표시 안 함.
@@ -159,10 +186,7 @@ export function toKimQuoteItem(q: CustomerDetailQuote, nowMs: number): KimQuoteI
     trim: q.trimName ?? undefined,
     quoteRound: q.quoteRound ?? undefined,
     vehicleName: vehicleName || undefined,
-    financeType: primary?.purchaseMethod ?? undefined,
-    term: formatTerm(primary?.termMonths ?? null),
-    monthlyPayment: formatMonthly(primary?.monthlyPayment ?? null),
-    lender: primary?.lender ?? "금융사 미정",
+    ...flattenPrimaryScenario(primary),
     stockStatus: asOptionalEnum(STOCK_STATUSES, q.stockStatus),
     validLabel: validLabelFromUntil(q.validUntil, nowMs),
     note: q.note ?? undefined,
@@ -175,6 +199,7 @@ export function toKimQuoteItem(q: CustomerDetailQuote, nowMs: number): KimQuoteI
     exteriorColorHex: q.exteriorColorHex ?? undefined,
     interiorColorName: q.interiorColorName ?? undefined,
     interiorColorHex: q.interiorColorHex ?? undefined,
+    primaryScenarioId: q.primaryScenarioId ?? undefined,
     scenarios: q.scenarios,
   };
 }

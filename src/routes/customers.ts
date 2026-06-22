@@ -111,6 +111,7 @@ const quotePatchBody = z.object({
   appStatus: z.enum(["draft", "queued", "sent", "viewed"]).nullable().optional(),
   decisionStatus: z.enum(["none", "considering", "confirmed", "contracting"]).nullable().optional(),
   note: z.string().nullable().optional(),
+  primaryScenarioId: z.uuid().nullable().optional(),
   bumpRevision: z.boolean().optional(),
   scenario: quoteScenarioBody.optional(),
 });

@@ -15,6 +15,7 @@ export type QuoteHeaderPatch = {
   appStatus?: string | null;
   decisionStatus?: string | null;
   note?: string | null;
+  primaryScenarioId?: string | null;
   bumpRevision?: boolean;
 };
 export type QuoteScenarioPatch = {
@@ -67,8 +68,9 @@ function scenarioSet(s: QuoteScenarioPatch): Record<string, unknown> {
   return set;
 }
 
-// 기존 견적 헤더 + 대표 시나리오 1건 갱신. customer_id 가드 불일치/없는 quoteId면 null(→404).
-// 대표 시나리오 = primary_scenario_id 일치 → 없으면 scenario_no 최소.
+// 기존 견적 헤더 + (선택)대표 시나리오 1건 갱신 + (선택)대표 전환. customer_id 가드 불일치/없는 quoteId면 null(→404).
+// 대표 전환(primaryScenarioId)은 그 id가 이 quote의 시나리오일 때만 set(타 quote/없는 id는 무시). null이면 해제.
+// 대표 시나리오 갱신 = primary_scenario_id 일치 → 없으면 scenario_no 최소.
 export async function updateQuote(
   customerId: string,
   quoteId: string,
@@ -82,13 +84,26 @@ export async function updateQuote(
     .returning({ id: quotes.id, primaryScenarioId: quotes.primaryScenarioId });
   if (!row) return null;
 
+  // 대표 전환 또는 대표 시나리오 갱신이 필요할 때만 시나리오 목록을 조회한다.
+  const needScenarios = patch.scenario != null || patch.primaryScenarioId !== undefined;
+  const scs = needScenarios
+    ? await ex
+        .select({ id: quoteScenarios.id })
+        .from(quoteScenarios)
+        .where(eq(quoteScenarios.quoteId, quoteId))
+        .orderBy(asc(quoteScenarios.scenarioNo))
+    : [];
+
+  // 대표 전환: 이 quote의 시나리오일 때만(또는 null=해제) set. 무효 id는 무시.
+  let primaryId = row.primaryScenarioId;
+  if (patch.primaryScenarioId !== undefined && (patch.primaryScenarioId === null || scs.some((s) => s.id === patch.primaryScenarioId))) {
+    await ex.update(quotes).set({ primaryScenarioId: patch.primaryScenarioId }).where(eq(quotes.id, quoteId));
+    primaryId = patch.primaryScenarioId;
+  }
+
+  // 대표 시나리오 1건 갱신(헤더 PATCH와 함께 온 경우) — 갱신된 대표 기준.
   if (patch.scenario) {
-    const scs = await ex
-      .select({ id: quoteScenarios.id })
-      .from(quoteScenarios)
-      .where(eq(quoteScenarios.quoteId, quoteId))
-      .orderBy(asc(quoteScenarios.scenarioNo));
-    const target = scs.find((s) => s.id === row.primaryScenarioId) ?? scs[0];
+    const target = scs.find((s) => s.id === primaryId) ?? scs[0];
     if (target) {
       await ex.update(quoteScenarios).set(scenarioSet(patch.scenario)).where(eq(quoteScenarios.id, target.id));
     }
