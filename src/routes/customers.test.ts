@@ -340,6 +340,42 @@ test("견적 쓰기: 교차 고객 가드 — 다른 고객 id로 PATCH → 404"
   }
 });
 
+test("견적 쓰기: PATCH primaryScenarioId → 대표 전환 반영, 타 quote 시나리오 id는 무시", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const db = getDefaultDb();
+  // 시나리오 2건 견적(대표 = 1번 시나리오).
+  const [q] = await db.insert(quotes).values({
+    quoteCode: `QT-TEST-${crypto.randomUUID().slice(0, 8)}`,
+    customerId: cid, entryMode: "manual", appStatus: "draft", status: "작성중", revision: 0,
+  }).returning({ id: quotes.id });
+  const [s1] = await db.insert(quoteScenarios).values({ quoteId: q.id, scenarioNo: 1, purchaseMethod: "운용리스", termMonths: 60, lender: "A캐피탈", monthlyPayment: "100" }).returning({ id: quoteScenarios.id });
+  const [s2] = await db.insert(quoteScenarios).values({ quoteId: q.id, scenarioNo: 2, purchaseMethod: "할부", termMonths: 36, lender: "B캐피탈", monthlyPayment: "200" }).returning({ id: quoteScenarios.id });
+  await db.update(quotes).set({ primaryScenarioId: s1.id }).where(eq(quotes.id, q.id));
+  // 타 quote(시나리오 id 무시 검증용).
+  const otherQuoteId = await seedThrowawayQuote(cid);
+  const [otherScenario] = await db.select({ id: quoteScenarios.id }).from(quoteScenarios).where(eq(quoteScenarios.quoteId, otherQuoteId));
+  try {
+    // 대표를 2번 시나리오로 전환.
+    const patched = await app.request(`/api/customers/${cid}/quotes/${q.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ primaryScenarioId: s2.id }) });
+    expect(patched.status).toBe(200);
+    const d1 = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as { quotes: Array<{ id: string; primaryScenarioId: string | null }> };
+    expect(d1.quotes.find((x) => x.id === q.id)!.primaryScenarioId).toBe(s2.id);
+
+    // 타 quote의 시나리오 id → 무시(대표 불변 = s2).
+    const ignored = await app.request(`/api/customers/${cid}/quotes/${q.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ primaryScenarioId: otherScenario.id }) });
+    expect(ignored.status).toBe(200);
+    const d2 = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as { quotes: Array<{ id: string; primaryScenarioId: string | null }> };
+    expect(d2.quotes.find((x) => x.id === q.id)!.primaryScenarioId).toBe(s2.id);
+  } finally {
+    await getDefaultDb().delete(quotes).where(eq(quotes.id, q.id));
+    await getDefaultDb().delete(quotes).where(eq(quotes.id, otherQuoteId));
+  }
+});
+
 test("견적 생성: POST → 201·quote_code 형식·getCustomer 반영(대표 시나리오 포함)", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
