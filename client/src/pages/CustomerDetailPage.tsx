@@ -2345,6 +2345,34 @@ function KimMinjunDetailContent({
     }]);
 
     if (customer.id) {
+      // #4c-3a: 저장된 비교카드 → scenarios. 없으면 단일(구매방식만, #4c-2 폴백).
+      const compareForm = quoteDetailFormRef.current;
+      const builtScenarios = savedManualQuoteConditionIds.map((condId) => {
+        const card = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
+        const fieldVal = (f: string) => card?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? null;
+        const constCard = kimManualQuoteConditionCards.find((c) => c.id === condId);
+        const depositMode = manualDepositModes[condId] ?? constCard?.depositMode ?? null;
+        const downPaymentMode = manualDownPaymentModes[condId] ?? constCard?.downPaymentMode ?? null;
+        const residualMode = manualResidualModes[condId] ?? constCard?.residualMode ?? null;
+        const mileageMode = manualMileageModes[condId] ?? "basic";
+        const mileageValue = mileageMode === "basic" ? "20,000km / 년" : (manualMileageValues[condId] ?? "20,000km / 년");
+        const lenderRaw = fieldVal("lender");
+        return {
+          scenarioNo: Number(constCard?.round ?? 1),
+          isSaved: true,
+          purchaseMethod: solutionWorkbenchPurchaseMethod,
+          lender: lenderRaw && lenderRaw !== "미선택" ? lenderRaw : null,
+          monthlyPayment: parseMonthlyPayment(fieldVal("monthly") ?? ""),
+          depositMode,
+          depositValue: depositMode === "none" ? null : parseMonthlyPayment(fieldVal("deposit") ?? ""),
+          downPaymentMode,
+          downPaymentValue: downPaymentMode === "none" ? null : parseMonthlyPayment(fieldVal("downPayment") ?? ""),
+          residualMode,
+          residualValue: residualMode === "max" ? null : parseMonthlyPayment(fieldVal("residual") ?? ""),
+          mileageMode,
+          mileageValue,
+        };
+      });
       const payload: QuoteCreatePayload = {
         entryMode: source,
         status: "작성중",
@@ -2372,7 +2400,9 @@ function KimMinjunDetailContent({
         interiorColorId: interiorColor?.id ?? null,
         interiorColorName: interiorColor?.name ?? null,
         interiorColorHex: interiorColor?.hexValue ?? null,
-        scenario: { purchaseMethod: solutionWorkbenchPurchaseMethod },
+        ...(builtScenarios.length
+          ? { scenarios: builtScenarios }
+          : { scenario: { purchaseMethod: solutionWorkbenchPurchaseMethod } }),
       };
       void apiCreateQuote(customer.id, payload)
         .then(({ id, quoteCode }) => setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q))))
