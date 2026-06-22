@@ -4268,6 +4268,23 @@ function KimMinjunDetailContent({
                       {quote.stockStatus ? <span className={`stock${kimQuoteStockClass(quote.stockStatus)}`}>{quote.stockStatus}</span> : null}
                       {quote.validLabel ? <span className={`valid${kimQuoteValidClass(quote.validLabel)}`}>{quote.validLabel}</span> : null}
                     </div>
+                    {(quote.finalVehiclePrice != null || quote.exteriorColorName || quote.interiorColorName) ? (
+                      <div className="kim-quote-meta-pricing">
+                        {quote.finalVehiclePrice != null ? <span className="kim-quote-final-price">최종 차량가 {formatMoney(quote.finalVehiclePrice)}</span> : null}
+                        {quote.exteriorColorName ? (
+                          <span className="kim-quote-color-chip">
+                            {quote.exteriorColorHex ? <i aria-hidden="true" style={{ background: quote.exteriorColorHex }} /> : null}
+                            외장 {quote.exteriorColorName}
+                          </span>
+                        ) : null}
+                        {quote.interiorColorName ? (
+                          <span className="kim-quote-color-chip">
+                            {quote.interiorColorHex ? <i aria-hidden="true" style={{ background: quote.interiorColorHex }} /> : null}
+                            내장 {quote.interiorColorName}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {quote.note ? <p className="kim-quote-row-note">{quote.note}</p> : null}
                   </div>
                   <div className="kim-quote-row-actions">

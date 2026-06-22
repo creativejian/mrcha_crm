@@ -8297,6 +8297,32 @@ th input:focus-visible {
   white-space: nowrap;
 }
 
+/* #4c-2 워크벤치 저장 견적의 최종 차량가 + 외장/내장 색상 칩 */
+.kim-quote-meta-pricing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #5f6872;
+}
+.kim-quote-final-price {
+  font-weight: 600;
+  color: #2b2f36;
+}
+.kim-quote-color-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.kim-quote-color-chip i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+}
+
 .kim-quote-meta-primary b,
 .kim-quote-meta-secondary span,
 .kim-quote-meta-secondary strong {
