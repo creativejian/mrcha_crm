@@ -79,12 +79,26 @@ export type QuoteCreatePayload = {
   interiorColorId?: number | null;
   interiorColorName?: string | null;
   interiorColorHex?: string | null;
-  scenario?: {
-    purchaseMethod?: string | null;
-    termMonths?: number | null;
-    monthlyPayment?: string | null;
-    lender?: string | null;
-  };
+  scenario?: ScenarioInput;
+  scenarios?: ScenarioInput[];
+};
+
+// #4c-3a 생성용 시나리오(서버 ScenarioInput 동형). 비교카드 입력 가능 컬럼 + 메타.
+export type ScenarioInput = {
+  scenarioNo?: number | null;
+  isSaved?: boolean;
+  purchaseMethod?: string | null;
+  termMonths?: number | null;
+  monthlyPayment?: string | null;
+  lender?: string | null;
+  depositMode?: string | null;
+  depositValue?: string | null;
+  downPaymentMode?: string | null;
+  downPaymentValue?: string | null;
+  residualMode?: string | null;
+  residualValue?: string | null;
+  mileageMode?: string | null;
+  mileageValue?: string | null;
 };
 
 // 새 견적 생성. 서버가 quote_code·id 부여 → 반환값으로 낙관 임시 항목을 교체한다. 성공 시 상세 캐시 무효화.
