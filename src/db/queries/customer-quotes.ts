@@ -24,6 +24,19 @@ export type QuoteScenarioPatch = {
   lender?: string | null;
 };
 export type QuotePatch = QuoteHeaderPatch & { scenario?: QuoteScenarioPatch };
+// #4c-3a 생성용 시나리오(비교카드 입력 가능 컬럼 + 메타). PATCH는 단수 그대로.
+export type ScenarioInput = QuoteScenarioPatch & {
+  scenarioNo?: number | null;
+  isSaved?: boolean;
+  depositMode?: string | null;
+  depositValue?: string | null;
+  downPaymentMode?: string | null;
+  downPaymentValue?: string | null;
+  residualMode?: string | null;
+  residualValue?: string | null;
+  mileageMode?: string | null;
+  mileageValue?: string | null;
+};
 
 // 헤더 컬럼만 골라 set 객체로(컬럼 아닌 키 bumpRevision/scenario는 제외).
 function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
@@ -139,6 +152,7 @@ export type QuoteCreateBody = {
   interiorColorName?: string | null;
   interiorColorHex?: string | null;
   scenario?: QuoteScenarioPatch;
+  scenarios?: ScenarioInput[];
 };
 
 // 새 견적 INSERT — quote_code 서버 생성 → quote → scenario(scenario_no=1) → primary_scenario_id UPDATE.
@@ -182,15 +196,39 @@ export async function createQuote(
     revision: 0,
   }).returning({ id: quotes.id, quoteCode: quotes.quoteCode, createdAt: quotes.createdAt });
 
-  const [s] = await ex.insert(quoteScenarios).values({
-    quoteId: q.id,
-    scenarioNo: 1,
-    purchaseMethod: body.scenario?.purchaseMethod ?? null,
-    termMonths: body.scenario?.termMonths ?? null,
-    monthlyPayment: body.scenario?.monthlyPayment ?? null,
-    lender: body.scenario?.lender ?? null,
-  }).returning({ id: quoteScenarios.id });
+  // #4c-3a: scenarios(복수) 우선, 없으면 scenario(단수)를 1건으로(하위호환).
+  const scenarioInputs: ScenarioInput[] = (body.scenarios && body.scenarios.length)
+    ? body.scenarios
+    : (body.scenario ? [{ ...body.scenario, scenarioNo: 1 }] : []);
 
-  await ex.update(quotes).set({ primaryScenarioId: s.id }).where(eq(quotes.id, q.id));
+  const inserted: { id: string; scenarioNo: number }[] = [];
+  for (const sc of scenarioInputs) {
+    const scenarioNo = sc.scenarioNo ?? 1;
+    const [s] = await ex.insert(quoteScenarios).values({
+      quoteId: q.id,
+      scenarioNo,
+      isSaved: sc.isSaved ?? false,
+      savedAt: sc.isSaved ? new Date() : null,
+      purchaseMethod: sc.purchaseMethod ?? null,
+      termMonths: sc.termMonths ?? null,
+      monthlyPayment: sc.monthlyPayment ?? null,
+      lender: sc.lender ?? null,
+      depositMode: sc.depositMode ?? null,
+      depositValue: sc.depositValue ?? null,
+      downPaymentMode: sc.downPaymentMode ?? null,
+      downPaymentValue: sc.downPaymentValue ?? null,
+      residualMode: sc.residualMode ?? null,
+      residualValue: sc.residualValue ?? null,
+      mileageMode: sc.mileageMode ?? null,
+      mileageValue: sc.mileageValue ?? null,
+    }).returning({ id: quoteScenarios.id });
+    inserted.push({ id: s.id, scenarioNo });
+  }
+
+  // 대표 = scenario_no 최소(보통 1). 없으면 첫 건.
+  const primary = inserted.length
+    ? inserted.reduce((m, x) => (x.scenarioNo < m.scenarioNo ? x : m))
+    : null;
+  if (primary) await ex.update(quotes).set({ primaryScenarioId: primary.id }).where(eq(quotes.id, q.id));
   return q;
 }
