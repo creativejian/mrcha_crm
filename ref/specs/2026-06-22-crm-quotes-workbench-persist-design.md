@@ -75,6 +75,8 @@
 
 **미저장(파생)**: `title`/`meta(표시)`/`vehicleName`은 `toKimQuoteItem` 재파생. `validLabel`(D-6)·`valid_until` 미영속(새 견적 새로고침 후 D-day 배지 없음). 원본 파일 #4d.
 
+**⚠️ catalog FK 캐비엇(구현 중 발견)**: `quotes.trim_id`·`exterior_color_id`·`interior_color_id`는 schema.ts 주석("FK: Phase B")과 달리 **실제 DB에 catalog FK가 이미 걸려 있다**(`quotes_*_catalog_*_fk`, ON DELETE SET NULL — `drizzle/0001`). 따라서 이 id들은 **catalog에 실존하는 값만 INSERT 가능**(없으면 500). 워크벤치는 `VehiclePicker`/`ColorPicker`로 실 catalog에서 고르므로 정상 경로는 안전(`trimDetail.id`=catalog.trims.id, `TrimColor.id`=catalog.colors.id). 반면 이름/hex/가격/옵션 jsonb는 FK 없는 snapshot이라 자유. **서버 테스트는 가짜 id를 못 넣어 trim_id/color_id를 null로 두고 snapshot 필드만 검증**한다. (catalog 삭제 시 id는 SET NULL, 이름/hex snapshot은 잔존.)
+
 ## 읽기 표시 확장 (저장 확인용)
 
 - `client/src/lib/kim-quote.ts`:
