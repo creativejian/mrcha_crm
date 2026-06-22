@@ -50,7 +50,7 @@ export async function deleteQuote(customerId: string, quoteId: string): Promise<
   invalidateCustomerDetail(customerId);
 }
 
-// POST 바디(서버 zod와 동형). 헤더 + 대표 시나리오.
+// POST 바디(서버 zod와 동형). 헤더 + 대표 시나리오 + #4c-2 가격/색상/옵션 스냅샷.
 export type QuoteCreatePayload = {
   entryMode?: "manual" | "solution" | "original" | null;
   status?: string | null;
@@ -60,6 +60,25 @@ export type QuoteCreatePayload = {
   modelName?: string | null;
   trimName?: string | null;
   note?: string | null;
+  // #4c-2 워크벤치 스냅샷(trim_id/color_id는 catalog FK라 실존 id만)
+  trimId?: number | null;
+  basePrice?: string | null;
+  optionTotal?: string | null;
+  options?: { id: number; name: string; price: number | null }[] | null;
+  finalDiscount?: string | null;
+  acquisitionTax?: string | null;
+  acquisitionTaxMode?: "normal" | "hybrid" | "electric" | "manual" | null;
+  bond?: string | null;
+  delivery?: string | null;
+  incidental?: string | null;
+  finalVehiclePrice?: string | null;
+  acquisitionCost?: string | null;
+  exteriorColorId?: number | null;
+  exteriorColorName?: string | null;
+  exteriorColorHex?: string | null;
+  interiorColorId?: number | null;
+  interiorColorName?: string | null;
+  interiorColorHex?: string | null;
   scenario?: {
     purchaseMethod?: string | null;
     termMonths?: number | null;

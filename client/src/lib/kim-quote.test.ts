@@ -23,6 +23,20 @@ function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote
     viewedAt: null,
     revision: 0,
     primaryScenarioId: "s1",
+    basePrice: null,
+    optionTotal: null,
+    finalDiscount: null,
+    acquisitionTax: null,
+    bond: null,
+    delivery: null,
+    incidental: null,
+    finalVehiclePrice: null,
+    acquisitionCost: null,
+    options: null,
+    exteriorColorName: null,
+    exteriorColorHex: null,
+    interiorColorName: null,
+    interiorColorHex: null,
     scenarios: [
       { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200" },
     ],
@@ -95,5 +109,25 @@ describe("toKimQuoteItem", () => {
     expect(k.appStatus).toBe("draft");
     expect(k.decisionStatus).toBe("none");
     expect(k.stockStatus).toBeUndefined();
+  });
+
+  it("#4c-2 가격(string)→number, 색상 이름/hex 매핑", () => {
+    const k = toKimQuoteItem(makeQuote({
+      finalVehiclePrice: "241500000",
+      exteriorColorName: "옵시디언 블랙", exteriorColorHex: "#0a0a0a",
+      interiorColorName: "마키아토 베이지", interiorColorHex: "#d8c7a8",
+    }), NOW);
+    expect(k.finalVehiclePrice).toBe(241500000);
+    expect(k.exteriorColorName).toBe("옵시디언 블랙");
+    expect(k.exteriorColorHex).toBe("#0a0a0a");
+    expect(k.interiorColorName).toBe("마키아토 베이지");
+    expect(k.interiorColorHex).toBe("#d8c7a8");
+  });
+
+  it("#4c-2 가격/색상 없으면 undefined", () => {
+    const k = toKimQuoteItem(makeQuote(), NOW);
+    expect(k.finalVehiclePrice).toBeUndefined();
+    expect(k.exteriorColorName).toBeUndefined();
+    expect(k.interiorColorName).toBeUndefined();
   });
 });

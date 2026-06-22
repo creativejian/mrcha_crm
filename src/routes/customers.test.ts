@@ -378,3 +378,66 @@ test("견적 생성: POST → 201·quote_code 형식·getCustomer 반영(대표 
     if (createdId) await getDefaultDb().delete(quotes).where(eq(quotes.id, createdId));
   }
 });
+
+test("견적 생성(워크벤치 #4c-2): 가격/색상/옵션 payload → getCustomer 라운드트립", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  let quoteId: string | null = null;
+  try {
+    const created = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h,
+      body: JSON.stringify({
+        entryMode: "manual", status: "작성중", quoteRound: "1차", stockStatus: "재고확인중",
+        brandName: "벤츠", modelName: "Maybach S-Class", trimName: "S 500 4M Long", note: "수기 입력 조건",
+        // trim_id·color_id는 catalog FK(실존 id만 가능)라 단위테스트에선 null로 두고 snapshot(이름/hex/가격/옵션)만 검증한다.
+        basePrice: "243000000", optionTotal: "5000000",
+        options: [{ id: 9001, name: "프리미엄 패키지", price: 5000000 }],
+        finalDiscount: "6500000", acquisitionTax: "13531000", acquisitionTaxMode: "normal",
+        bond: "0", delivery: "0", incidental: "0",
+        finalVehiclePrice: "241500000", acquisitionCost: "255031000",
+        exteriorColorName: "옵시디언 블랙", exteriorColorHex: "#0a0a0a",
+        interiorColorName: "마키아토 베이지", interiorColorHex: "#d8c7a8",
+        scenario: { purchaseMethod: "운용리스" },
+      }),
+    });
+    expect(created.status).toBe(201);
+    quoteId = ((await created.json()) as { id: string }).id;
+
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+      quotes: Array<{ id: string; basePrice: string | null; optionTotal: string | null; options: Array<{ id: number; name: string; price: number | null }> | null; finalVehiclePrice: string | null; exteriorColorName: string | null; exteriorColorHex: string | null; interiorColorName: string | null; scenarios: Array<{ purchaseMethod: string | null }> }>;
+    };
+    const q = detail.quotes.find((x) => x.id === quoteId)!;
+    expect(q.basePrice).toBe("243000000");
+    expect(q.optionTotal).toBe("5000000");
+    expect(q.options?.[0]?.name).toBe("프리미엄 패키지");
+    expect(q.finalVehiclePrice).toBe("241500000");
+    expect(q.exteriorColorName).toBe("옵시디언 블랙");
+    expect(q.exteriorColorHex).toBe("#0a0a0a");
+    expect(q.interiorColorName).toBe("마키아토 베이지");
+    expect(q.scenarios[0].purchaseMethod).toBe("운용리스");
+  } finally {
+    if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
+test("견적 생성(워크벤치 #4c-2): composer 하위호환 — 가격 필드 없이도 201", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  let quoteId: string | null = null;
+  try {
+    const created = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h,
+      body: JSON.stringify({ entryMode: "manual", status: "작성중", brandName: "BMW", scenario: { purchaseMethod: "할부" } }),
+    });
+    expect(created.status).toBe(201);
+    quoteId = ((await created.json()) as { id: string }).id;
+  } finally {
+    if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});

@@ -109,7 +109,7 @@ export async function nextQuoteCode(ex: Executor = getDefaultDb()): Promise<stri
   return `${prefix}${String(max + 1).padStart(4, "0")}`;
 }
 
-// 생성 바디(라우트 zod와 동형). 헤더 + 대표 시나리오 1건.
+// 생성 바디(라우트 zod와 동형). 헤더 + 대표 시나리오 1건. #4c-2: 가격/색상/옵션 스냅샷(전부 optional, composer는 미전송).
 export type QuoteCreateBody = {
   entryMode?: string | null;
   status?: string | null;
@@ -119,6 +119,25 @@ export type QuoteCreateBody = {
   modelName?: string | null;
   trimName?: string | null;
   note?: string | null;
+  // #4c-2 워크벤치 스냅샷
+  trimId?: number | null;
+  basePrice?: string | null;
+  optionTotal?: string | null;
+  options?: { id: number; name: string; price: number | null }[] | null;
+  finalDiscount?: string | null;
+  acquisitionTax?: string | null;
+  acquisitionTaxMode?: string | null;
+  bond?: string | null;
+  delivery?: string | null;
+  incidental?: string | null;
+  finalVehiclePrice?: string | null;
+  acquisitionCost?: string | null;
+  exteriorColorId?: number | null;
+  exteriorColorName?: string | null;
+  exteriorColorHex?: string | null;
+  interiorColorId?: number | null;
+  interiorColorName?: string | null;
+  interiorColorHex?: string | null;
   scenario?: QuoteScenarioPatch;
 };
 
@@ -141,6 +160,24 @@ export async function createQuote(
     modelName: body.modelName ?? null,
     trimName: body.trimName ?? null,
     note: body.note ?? null,
+    trimId: body.trimId ?? null,
+    basePrice: body.basePrice ?? null,
+    optionTotal: body.optionTotal ?? null,
+    options: body.options ?? null,
+    finalDiscount: body.finalDiscount ?? null,
+    acquisitionTax: body.acquisitionTax ?? null,
+    acquisitionTaxMode: body.acquisitionTaxMode ?? null,
+    bond: body.bond ?? null,
+    delivery: body.delivery ?? null,
+    incidental: body.incidental ?? null,
+    finalVehiclePrice: body.finalVehiclePrice ?? null,
+    acquisitionCost: body.acquisitionCost ?? null,
+    exteriorColorId: body.exteriorColorId ?? null,
+    exteriorColorName: body.exteriorColorName ?? null,
+    exteriorColorHex: body.exteriorColorHex ?? null,
+    interiorColorId: body.interiorColorId ?? null,
+    interiorColorName: body.interiorColorName ?? null,
+    interiorColorHex: body.interiorColorHex ?? null,
     appStatus: "draft",
     revision: 0,
   }).returning({ id: quotes.id, quoteCode: quotes.quoteCode, createdAt: quotes.createdAt });
