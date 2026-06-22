@@ -29,6 +29,7 @@ export type QuoteWritePatch = {
   appStatus?: "draft" | "queued" | "sent" | "viewed" | null;
   decisionStatus?: "none" | "considering" | "confirmed" | "contracting" | null;
   note?: string | null;
+  primaryScenarioId?: string | null;
   bumpRevision?: boolean;
   scenario?: {
     purchaseMethod?: string | null;

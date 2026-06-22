@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toKimQuoteItem, type CustomerDetailQuote } from "./kim-quote";
+import { flattenPrimaryScenario, formatScenarioMoneyMode, toKimQuoteItem, type CustomerDetailQuote } from "./kim-quote";
 
 const NOW = new Date("2026-05-28T12:00:00+09:00").getTime();
 
@@ -144,5 +144,51 @@ describe("toKimQuoteItem", () => {
     expect(k.scenarios?.[1].depositMode).toBe("amount");
     expect(k.financeType).toBe("운용리스");
     expect(k.lender).toBe("우리금융캐피탈");
+  });
+});
+
+describe("toKimQuoteItem primaryScenarioId 노출", () => {
+  it("primaryScenarioId를 매핑", () => {
+    const k = toKimQuoteItem(makeQuote({ primaryScenarioId: "s1" }), NOW);
+    expect(k.primaryScenarioId).toBe("s1");
+  });
+  it("primaryScenarioId null이면 undefined", () => {
+    const k = toKimQuoteItem(makeQuote({ primaryScenarioId: null }), NOW);
+    expect(k.primaryScenarioId).toBeUndefined();
+  });
+});
+
+describe("flattenPrimaryScenario", () => {
+  it("시나리오 → 대표 요약 4필드", () => {
+    const flat = flattenPrimaryScenario({ id: "s2", scenarioNo: 2, purchaseMethod: "할부", lender: "B캐피탈", termMonths: 36, monthlyPayment: "200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false });
+    expect(flat.financeType).toBe("할부");
+    expect(flat.term).toBe("36개월");
+    expect(flat.monthlyPayment).toBe("월 200원");
+    expect(flat.lender).toBe("B캐피탈");
+  });
+  it("null이면 폴백", () => {
+    const flat = flattenPrimaryScenario(null);
+    expect(flat.financeType).toBeUndefined();
+    expect(flat.term).toBe("조건 미정");
+    expect(flat.monthlyPayment).toBeUndefined();
+    expect(flat.lender).toBe("금융사 미정");
+  });
+});
+
+describe("formatScenarioMoneyMode", () => {
+  it("percent → N%", () => {
+    expect(formatScenarioMoneyMode("percent", "30")).toBe("30%");
+  });
+  it("amount → 만원 절삭(천단위 콤마)", () => {
+    expect(formatScenarioMoneyMode("amount", "10000000")).toBe("1,000만원");
+  });
+  it("none → 없음, max → 최대", () => {
+    expect(formatScenarioMoneyMode("none", null)).toBe("없음");
+    expect(formatScenarioMoneyMode("max", null)).toBe("최대");
+  });
+  it("mode null/빈값/NaN → undefined", () => {
+    expect(formatScenarioMoneyMode(null, "30")).toBeUndefined();
+    expect(formatScenarioMoneyMode("percent", null)).toBeUndefined();
+    expect(formatScenarioMoneyMode("amount", "abc")).toBeUndefined();
   });
 });
