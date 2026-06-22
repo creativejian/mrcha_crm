@@ -31,6 +31,12 @@ export type KimQuoteItem = {
   decisionStatus?: "none" | "considering" | "confirmed" | "contracting";
   revision?: number;
   revisedAt?: string;
+  // #4c-2 표시용 가격/색상
+  finalVehiclePrice?: number;
+  exteriorColorName?: string;
+  exteriorColorHex?: string;
+  interiorColorName?: string;
+  interiorColorHex?: string;
   originalNeedsReplacement?: boolean;
 };
 
@@ -62,6 +68,21 @@ export type CustomerDetailQuote = {
   viewedAt: string | null;
   revision: number;
   primaryScenarioId: string | null;
+  // #4c-2 가격/색상 스냅샷(numeric은 string, 없으면 null). getCustomer가 select() 전체라 응답에 포함.
+  basePrice: string | null;
+  optionTotal: string | null;
+  finalDiscount: string | null;
+  acquisitionTax: string | null;
+  bond: string | null;
+  delivery: string | null;
+  incidental: string | null;
+  finalVehiclePrice: string | null;
+  acquisitionCost: string | null;
+  options: { id: number; name: string; price: number | null }[] | null;
+  exteriorColorName: string | null;
+  exteriorColorHex: string | null;
+  interiorColorName: string | null;
+  interiorColorHex: string | null;
   scenarios: CustomerDetailScenario[];
 };
 
@@ -137,5 +158,10 @@ export function toKimQuoteItem(q: CustomerDetailQuote, nowMs: number): KimQuoteI
     viewedAt: q.viewedAt ? formatActivity(q.viewedAt) : undefined,
     decisionStatus: asEnum(DECISION_STATUSES, q.decisionStatus, "none"),
     revision: q.revision,
+    finalVehiclePrice: q.finalVehiclePrice != null && q.finalVehiclePrice !== "" && !Number.isNaN(Number(q.finalVehiclePrice)) ? Number(q.finalVehiclePrice) : undefined,
+    exteriorColorName: q.exteriorColorName ?? undefined,
+    exteriorColorHex: q.exteriorColorHex ?? undefined,
+    interiorColorName: q.interiorColorName ?? undefined,
+    interiorColorHex: q.interiorColorHex ?? undefined,
   };
 }
