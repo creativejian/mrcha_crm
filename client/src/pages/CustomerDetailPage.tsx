@@ -1,8 +1,8 @@
-import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Trash2, UserRound, X } from "lucide-react";
+import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { toKimQuoteItem, type KimQuoteItem } from "@/lib/kim-quote";
+import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseTermMonths, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload } from "@/lib/customer-quotes";
 import { ColorPicker } from "@/components/ColorPicker";
@@ -916,6 +916,7 @@ function KimMinjunDetailContent({
   const [quoteDropTargetId, setQuoteDropTargetId] = useState<string | null>(null);
   const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
   const [previewSentQuoteId, setPreviewSentQuoteId] = useState<string | null>(null);
+  const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PricingResult>(kimMaybachQuotePricingResult);
   const pricingPanelRef = useRef<HTMLElement>(null);
   const [primaryDiscountUnit, setPrimaryDiscountUnit] = useState<KimDiscountUnit>("amount");
@@ -2580,6 +2581,20 @@ function KimMinjunDetailContent({
     }
     markRecentUpdate("견적함");
     onToast(decisionStatus === "contracting" ? "계약 진행 견적으로 표시했습니다." : decisionStatus === "confirmed" ? "고객 확정 견적으로 표시했습니다." : decisionStatus === "considering" ? "최종 고민중 견적으로 표시했습니다." : "견적 확정 상태를 해제했습니다.");
+  }
+
+  function setPrimaryScenario(quoteId: string, scenarioId: string) {
+    const prevQuotes = quotes;
+    setQuotes((current) => current.map((quote) => {
+      if (quote.id !== quoteId) return quote;
+      const next = quote.scenarios?.find((s) => s.id === scenarioId) ?? null;
+      return { ...quote, primaryScenarioId: scenarioId, ...flattenPrimaryScenario(next) };
+    }));
+    if (customer.id && !quoteId.startsWith("kim-")) {
+      void apiUpdateQuote(customer.id, quoteId, { primaryScenarioId: scenarioId }).catch(() => { setQuotes(prevQuotes); onToast("대표 시나리오 저장에 실패했습니다."); });
+    }
+    markRecentUpdate("견적함");
+    onToast("대표 시나리오를 변경했습니다.");
   }
 
   async function addDocumentFiles(fileList: FileList | File[]) {
@@ -4316,6 +4331,52 @@ function KimMinjunDetailContent({
                       </div>
                     ) : null}
                     {quote.note ? <p className="kim-quote-row-note">{quote.note}</p> : null}
+                    {quote.scenarios && quote.scenarios.length >= 2 ? (
+                      <div className="kim-quote-compare">
+                        <button
+                          type="button"
+                          className={`kim-quote-compare-toggle${expandedQuoteId === quote.id ? " is-open" : ""}`}
+                          aria-expanded={expandedQuoteId === quote.id}
+                          onClick={() => setExpandedQuoteId((current) => (current === quote.id ? null : quote.id))}
+                        >
+                          비교 {quote.scenarios.length}
+                          <ChevronDown size={12} strokeWidth={2.6} />
+                        </button>
+                        {expandedQuoteId === quote.id ? (
+                          <ul className="kim-quote-scenario-cards">
+                            {[...quote.scenarios]
+                              .sort((a, b) => (a.scenarioNo ?? 0) - (b.scenarioNo ?? 0))
+                              .map((scenario) => {
+                                const isPrimary = (quote.primaryScenarioId ?? null) === scenario.id;
+                                const monthly = formatMonthly(scenario.monthlyPayment);
+                                const deposit = formatScenarioMoneyMode(scenario.depositMode, scenario.depositValue);
+                                const downPayment = formatScenarioMoneyMode(scenario.downPaymentMode, scenario.downPaymentValue);
+                                const residual = formatScenarioMoneyMode(scenario.residualMode, scenario.residualValue);
+                                return (
+                                  <li key={scenario.id} className={`kim-quote-scenario-card${isPrimary ? " is-primary" : ""}`}>
+                                    <div className="kim-quote-scenario-head">
+                                      <span className="kim-quote-scenario-no">{scenario.scenarioNo ?? "-"}</span>
+                                      {scenario.lender ? <span className="kim-quote-scenario-lender">{scenario.lender}</span> : null}
+                                      {isPrimary ? (
+                                        <span className="kim-quote-scenario-star"><Star size={11} strokeWidth={2.6} />대표</span>
+                                      ) : (
+                                        <button type="button" className="kim-quote-scenario-pick" onClick={() => setPrimaryScenario(quote.id, scenario.id)}>대표로</button>
+                                      )}
+                                    </div>
+                                    <div className="kim-quote-scenario-figures">
+                                      {monthly ? <strong>{monthly}</strong> : <span>월 납입금 미정</span>}
+                                      {deposit ? <span>보증금 {deposit}</span> : null}
+                                      {downPayment ? <span>선수금 {downPayment}</span> : null}
+                                      {residual ? <span>잔존 {residual}</span> : null}
+                                      {scenario.mileageValue ? <span>약정 {scenario.mileageValue}</span> : null}
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                          </ul>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="kim-quote-row-actions">
                     <div className="kim-quote-row-action-line">
