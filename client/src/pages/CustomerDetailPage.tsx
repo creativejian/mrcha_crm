@@ -4,7 +4,7 @@ import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanc
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
-import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseTermMonths, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload } from "@/lib/customer-quotes";
+import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseTermMonths, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
@@ -45,6 +45,14 @@ type KimDiscountLine = { id: string; label: string; amount: string; unit: KimDis
 type KimManualDepositMode = "none" | "amount" | "percent";
 type KimManualResidualMode = "max" | "amount" | "percent";
 type KimManualMileageMode = "basic" | "custom";
+type KimManualCard = {
+  id: string; title: string; round: string; copyLabel: string;
+  lender: string; monthlyPayment: string;
+  totalReturn: string; totalTakeover: string; dueAtDelivery: string; interestRate: string;
+  depositMode: KimManualDepositMode; depositValue: string;
+  downPaymentMode: KimManualDepositMode; downPaymentValue: string;
+  residualMode: KimManualResidualMode; residualValue: string;
+};
 const kimDiscountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
 const kimManualMileageOptions = [
   "10,000km / 년",
@@ -86,11 +94,26 @@ type KimQuoteComposerMode = "solution" | "manual" | "edit";
 type KimQuoteEntryMode = "solution" | "manual" | "original";
 type KimQuotePurchaseMethod = "장기렌트" | "운용리스" | "금융리스" | "중고리스" | "할부" | "일시불";
 type KimRecognizedQuoteFile = { file: File; fileName: string; fileSize: number; mimeType: string };
+type KimEditScenario = {
+  scenarioNo: number;
+  lender: string;
+  monthlyPayment: string;
+  termMonths: number;
+  depositMode: KimManualDepositMode;
+  depositValue: string;
+  downPaymentMode: KimManualDepositMode;
+  downPaymentValue: string;
+  residualMode: KimManualResidualMode;
+  residualValue: string;
+  mileageMode: KimManualMileageMode;
+  mileageValue: string;
+};
 type KimEditPrefill = {
   optionIds: number[];
   exteriorColorId: number | null;
   interiorColorId: number | null;
   pricing: { base: number; option: number; discount: number; acquisitionTax: number; bond: number; delivery: number; incidental: number };
+  scenarios: KimEditScenario[];
 };
 
 type KimDocumentItem = {
@@ -193,7 +216,7 @@ const kimMaybachQuotePricingMock: PricingInputs = {
 };
 const kimMaybachQuotePricingResult = computePricing(kimMaybachQuotePricingMock);
 
-const kimManualQuoteConditionCards = [
+const kimManualQuoteConditionCards: KimManualCard[] = [
   {
     id: "manual-condition-1",
     title: "견적 작성",
@@ -898,6 +921,8 @@ function KimMinjunDetailContent({
   const [isQuoteDraftSaved, setIsQuoteDraftSaved] = useState(false);
   const [isQuoteDraftDirty, setIsQuoteDraftDirty] = useState(false);
   const [savedManualQuoteConditionIds, setSavedManualQuoteConditionIds] = useState<string[]>([]);
+  const [manualTermMonths, setManualTermMonths] = useState<Record<string, number>>({});
+  const [manualQuoteCards, setManualQuoteCards] = useState<KimManualCard[]>(() => [...kimManualQuoteConditionCards]);
   const [manualDepositModes, setManualDepositModes] = useState<Record<string, KimManualDepositMode>>({});
   const [manualDownPaymentModes, setManualDownPaymentModes] = useState<Record<string, KimManualDepositMode>>({});
   const [manualResidualModes, setManualResidualModes] = useState<Record<string, KimManualResidualMode>>({});
@@ -1158,6 +1183,25 @@ function KimMinjunDetailContent({
     target.setSelectionRange(target.value.length, target.value.length);
   }
 
+  // 수정 진입 시 기존 시나리오(round)를 비교카드 골격에 덮어쓴다(빈 슬롯은 기본 mock).
+  function buildManualCardsFromScenarios(scenarios: KimEditScenario[]): KimManualCard[] {
+    return kimManualQuoteConditionCards.map((base) => {
+      const sc = scenarios.find((s) => String(s.scenarioNo) === base.round);
+      if (!sc) return base;
+      return {
+        ...base,
+        lender: sc.lender || "미선택",
+        monthlyPayment: sc.monthlyPayment ? formatMoney(Number(sc.monthlyPayment)) : "0",
+        depositMode: sc.depositMode,
+        depositValue: sc.depositMode === "percent" ? sc.depositValue : (sc.depositValue ? formatMoney(Number(sc.depositValue)) : "0"),
+        downPaymentMode: sc.downPaymentMode,
+        downPaymentValue: sc.downPaymentMode === "percent" ? sc.downPaymentValue : (sc.downPaymentValue ? formatMoney(Number(sc.downPaymentValue)) : "0"),
+        residualMode: sc.residualMode,
+        residualValue: sc.residualMode === "max" ? "-" : (sc.residualMode === "percent" ? sc.residualValue : (sc.residualValue ? formatMoney(Number(sc.residualValue)) : "0")),
+      };
+    });
+  }
+
   function saveManualQuoteCondition(conditionId: string, conditionRound: string) {
     setSavedManualQuoteConditionIds((current) => (
       current.includes(conditionId) ? current : [...current, conditionId]
@@ -1362,6 +1406,11 @@ function KimMinjunDetailContent({
 
   function setManualMileageValue(conditionId: string, value: string) {
     setManualMileageValues((prev) => ({ ...prev, [conditionId]: value }));
+    markQuoteDraftChanged();
+  }
+
+  function setManualTermMonthsFor(conditionId: string, months: number) {
+    setManualTermMonths((current) => ({ ...current, [conditionId]: months }));
     markQuoteDraftChanged();
   }
 
@@ -2337,6 +2386,38 @@ function KimMinjunDetailContent({
     onToast("견적 항목이 추가되었습니다.");
   }
 
+  // 비교카드(저장된 조건) → 시나리오 추출. INSERT/UPDATE 공유. termMonths 포함(PR2c-2).
+  function extractWorkbenchScenarios(): ScenarioInput[] {
+    const compareForm = quoteDetailFormRef.current;
+    return savedManualQuoteConditionIds.map((condId) => {
+      const card = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
+      const fieldVal = (f: string) => card?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? null;
+      const constCard = manualQuoteCards.find((c) => c.id === condId);
+      const depositMode = manualDepositModes[condId] ?? constCard?.depositMode ?? null;
+      const downPaymentMode = manualDownPaymentModes[condId] ?? constCard?.downPaymentMode ?? null;
+      const residualMode = manualResidualModes[condId] ?? constCard?.residualMode ?? null;
+      const mileageMode = manualMileageModes[condId] ?? "basic";
+      const mileageValue = mileageMode === "basic" ? "20,000km / 년" : (manualMileageValues[condId] ?? "20,000km / 년");
+      const lenderRaw = fieldVal("lender");
+      return {
+        scenarioNo: Number(constCard?.round ?? 1),
+        isSaved: true,
+        purchaseMethod: solutionWorkbenchPurchaseMethod,
+        termMonths: manualTermMonths[condId] ?? 60,
+        lender: lenderRaw && lenderRaw !== "미선택" ? lenderRaw : null,
+        monthlyPayment: parseMonthlyPayment(fieldVal("monthly") ?? ""),
+        depositMode,
+        depositValue: depositMode === "none" ? null : parseMonthlyPayment(fieldVal("deposit") ?? ""),
+        downPaymentMode,
+        downPaymentValue: downPaymentMode === "none" ? null : parseMonthlyPayment(fieldVal("downPayment") ?? ""),
+        residualMode,
+        residualValue: residualMode === "max" ? null : parseMonthlyPayment(fieldVal("residual") ?? ""),
+        mileageMode,
+        mileageValue,
+      };
+    });
+  }
+
   function saveQuoteFromWorkbench() {
     if (!guardQuoteDraftOutput("견적함 저장")) return;
     const source: KimQuoteItem["source"] = solutionWorkbenchEntryMode === "solution" ? "solution" : solutionWorkbenchEntryMode === "original" ? "original" : "manual";
@@ -2405,7 +2486,8 @@ function KimMinjunDetailContent({
           interiorColorId: interiorColor?.id ?? null,
           interiorColorName: interiorColor?.name ?? null,
           interiorColorHex: interiorColor?.hexValue ?? null,
-          // scenarios 미전송 — PR2a updateQuote가 기존 시나리오 보존(편집은 PR2c-2)
+          // PR2c-2: 저장된 비교카드가 있으면 시나리오 전체 교체, 0건이면 미전송(기존 보존).
+          ...(savedManualQuoteConditionIds.length ? { scenarios: extractWorkbenchScenarios() } : {}),
         };
         void apiUpdateQuote(customer.id, editingQuoteId, patch).catch(() => { setQuotes(prevQuotes); onToast("견적 수정에 실패했습니다."); });
       }
@@ -2456,33 +2538,7 @@ function KimMinjunDetailContent({
 
     if (customer.id) {
       // #4c-3a: 저장된 비교카드 → scenarios. 없으면 단일(구매방식만, #4c-2 폴백).
-      const compareForm = quoteDetailFormRef.current;
-      const builtScenarios = savedManualQuoteConditionIds.map((condId) => {
-        const card = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
-        const fieldVal = (f: string) => card?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? null;
-        const constCard = kimManualQuoteConditionCards.find((c) => c.id === condId);
-        const depositMode = manualDepositModes[condId] ?? constCard?.depositMode ?? null;
-        const downPaymentMode = manualDownPaymentModes[condId] ?? constCard?.downPaymentMode ?? null;
-        const residualMode = manualResidualModes[condId] ?? constCard?.residualMode ?? null;
-        const mileageMode = manualMileageModes[condId] ?? "basic";
-        const mileageValue = mileageMode === "basic" ? "20,000km / 년" : (manualMileageValues[condId] ?? "20,000km / 년");
-        const lenderRaw = fieldVal("lender");
-        return {
-          scenarioNo: Number(constCard?.round ?? 1),
-          isSaved: true,
-          purchaseMethod: solutionWorkbenchPurchaseMethod,
-          lender: lenderRaw && lenderRaw !== "미선택" ? lenderRaw : null,
-          monthlyPayment: parseMonthlyPayment(fieldVal("monthly") ?? ""),
-          depositMode,
-          depositValue: depositMode === "none" ? null : parseMonthlyPayment(fieldVal("deposit") ?? ""),
-          downPaymentMode,
-          downPaymentValue: downPaymentMode === "none" ? null : parseMonthlyPayment(fieldVal("downPayment") ?? ""),
-          residualMode,
-          residualValue: residualMode === "max" ? null : parseMonthlyPayment(fieldVal("residual") ?? ""),
-          mileageMode,
-          mileageValue,
-        };
-      });
+      const builtScenarios = extractWorkbenchScenarios();
       const payload: QuoteCreatePayload = {
         entryMode: source,
         status: "작성중",
@@ -2535,6 +2591,8 @@ function KimMinjunDetailContent({
     setIsQuoteDraftSaved(false);
     setIsQuoteDraftDirty(false);
     setSavedManualQuoteConditionIds([]);
+    setManualQuoteCards([...kimManualQuoteConditionCards]);
+    setManualTermMonths({});
     setIsQuoteAppCardPreviewOpen(false);
     onToast("워크벤치 입력값을 초기화했습니다.");
   }
@@ -4367,6 +4425,10 @@ function KimMinjunDetailContent({
                 onClick={() => {
                   setConfirmingQuoteDeleteId(null);
                   setEditingQuoteId(null);
+                  setEditPrefill(null);
+                  setManualQuoteCards([...kimManualQuoteConditionCards]);
+                  setManualTermMonths({});
+                  setSavedManualQuoteConditionIds([]);
                   setRecognizedQuoteFile(null);
                   setQuoteComposerMode(null);
                   setSolutionWorkbenchPurchaseMethod(primaryKimQuotePurchaseMethod(purchaseFields));
@@ -4624,6 +4686,20 @@ function KimMinjunDetailContent({
                 return;
               }
               const dq = detail.quotes.find((q) => q.id === openQuoteAction.id);
+              const editScenarios: KimEditScenario[] = (dq?.scenarios ?? []).map((s) => ({
+                scenarioNo: s.scenarioNo ?? 1,
+                lender: s.lender ?? "미선택",
+                monthlyPayment: s.monthlyPayment ?? "",
+                termMonths: s.termMonths ?? 60,
+                depositMode: (s.depositMode as KimManualDepositMode) ?? "none",
+                depositValue: s.depositValue ?? "0",
+                downPaymentMode: (s.downPaymentMode as KimManualDepositMode) ?? "none",
+                downPaymentValue: s.downPaymentValue ?? "0",
+                residualMode: (s.residualMode as KimManualResidualMode) ?? "max",
+                residualValue: s.residualValue ?? "-",
+                mileageMode: (s.mileageMode as KimManualMileageMode) ?? "basic",
+                mileageValue: s.mileageValue ?? "20,000km / 년",
+              }));
               setEditPrefill(dq ? {
                 optionIds: dq.options?.map((o) => o.id) ?? [],
                 exteriorColorId: dq.exteriorColorId,
@@ -4637,7 +4713,17 @@ function KimMinjunDetailContent({
                   delivery: Number(dq.delivery ?? 0),
                   incidental: Number(dq.incidental ?? 0),
                 },
+                scenarios: editScenarios,
               } : null);
+              // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
+              setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...kimManualQuoteConditionCards]);
+              setSavedManualQuoteConditionIds(editScenarios.map((s) => `manual-condition-${s.scenarioNo}`));
+              setManualDepositModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.depositMode])));
+              setManualDownPaymentModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.downPaymentMode])));
+              setManualResidualModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.residualMode])));
+              setManualMileageModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageMode])));
+              setManualMileageValues(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageValue])));
+              setManualTermMonths(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.termMonths])));
               setEditingQuoteId(openQuoteAction.id);
               setSolutionWorkbenchPurchaseMethod(normalizeKimQuotePurchaseMethod(openQuoteAction.financeType));
               setSolutionWorkbenchEntryMode(openQuoteAction.source === "solution" ? "solution" : openQuoteAction.source === "original" ? "original" : "manual");
@@ -5254,7 +5340,7 @@ function KimMinjunDetailContent({
                   >
                     <section className="kim-app-form-section kim-manual-compare-section">
                       <div className="kim-manual-compare-grid">
-                        {kimManualQuoteConditionCards.map((condition) => {
+                        {manualQuoteCards.map((condition) => {
                           const isConditionSaved = savedManualQuoteConditionIds.includes(condition.id);
                           const depositMode = manualDepositModes[condition.id] ?? condition.depositMode;
                           const downPaymentMode = manualDownPaymentModes[condition.id] ?? condition.downPaymentMode;
@@ -5263,7 +5349,7 @@ function KimMinjunDetailContent({
                           const mileageValue = mileageMode === "basic" ? "20,000km / 년" : manualMileageValues[condition.id] ?? "20,000km / 년";
 
                           return (
-                            <section className={`kim-manual-compare-card${isConditionSaved ? " is-saved" : ""}`} data-scenario-card={condition.id} key={condition.id}>
+                            <section className={`kim-manual-compare-card${isConditionSaved ? " is-saved" : ""}`} data-scenario-card={condition.id} key={`${editingQuoteId ?? "new"}-${condition.id}`}>
                               <header>
                                 <strong>{condition.title} <span>{condition.round}</span></strong>
                                 <div>
@@ -5276,7 +5362,7 @@ function KimMinjunDetailContent({
                               </header>
                               <div className="kim-manual-compare-body">
                                 <label className="select-value"><span>금융사</span><select data-sc-field="lender" defaultValue={condition.lender} disabled={isConditionSaved}><option>미선택</option><option>우리금융캐피탈</option><option>iM캐피탈</option><option>하나캐피탈</option></select></label>
-                                <label><span>기간</span><div className="kim-jeff-segment wide"><button disabled={isConditionSaved} type="button">12개월</button><button disabled={isConditionSaved} type="button">24개월</button><button disabled={isConditionSaved} type="button">36개월</button><button disabled={isConditionSaved} type="button">48개월</button><button className="active" disabled={isConditionSaved} type="button">60개월</button></div></label>
+                                <label><span>기간</span><div className="kim-jeff-segment wide">{[12, 24, 36, 48, 60].map((m) => { const cur = manualTermMonths[condition.id] ?? 60; return <button key={m} className={cur === m ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualTermMonthsFor(condition.id, m)} type="button">{m}개월</button>; })}</div></label>
                                 <label><span>보증금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={depositMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "none")} type="button">없음</button><button className={depositMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "amount")} type="button">금액</button><button className={depositMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${depositMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="deposit" data-discount-unit={depositMode === "percent" ? "percent" : "amount"} defaultValue={condition.depositValue} disabled={isConditionSaved} readOnly={depositMode === "none"} /><em>{depositMode === "percent" ? "%" : "원"}</em></div></div></label>
                                 <label><span>선수금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={downPaymentMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "none")} type="button">없음</button><button className={downPaymentMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "amount")} type="button">금액</button><button className={downPaymentMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${downPaymentMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="downPayment" data-discount-unit={downPaymentMode === "percent" ? "percent" : "amount"} defaultValue={condition.downPaymentValue} disabled={isConditionSaved} readOnly={downPaymentMode === "none"} /><em>{downPaymentMode === "percent" ? "%" : "원"}</em></div></div></label>
                                 <label><span>잔존가치</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={residualMode === "max" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "max")} type="button">최대</button><button className={residualMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "amount")} type="button">금액</button><button className={residualMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${residualMode === "max" ? " is-fixed" : ""}`}><input data-sc-field="residual" data-discount-unit={residualMode === "percent" ? "percent" : "amount"} defaultValue={condition.residualValue} disabled={isConditionSaved} readOnly={residualMode === "max"} /><em>{residualMode === "percent" ? "%" : "원"}</em></div></div></label>
