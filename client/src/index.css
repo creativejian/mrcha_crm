@@ -13295,9 +13295,15 @@ select.kim-jeff-discount-label {
   overscroll-behavior: contain;
 }
 
-/* 미리보기 모달이 열린 동안 배경(전체 페이지 + 고객 상세 패널) 스크롤을 잠가, 모달 안 스크롤이 뒤로 전파(chaining)되지 않게 한다. */
-body.kim-doc-preview-open,
-body.kim-doc-preview-open .customer-detail-drawer {
+/* 고객 상세 패널(drawer)이 열린 동안 배경(고객 목록 페이지) 스크롤을 잠근다. */
+body.customer-drawer-open {
+  overflow: hidden;
+}
+
+/* 서류/견적 미리보기·견적 작성/수정·솔루션 워크벤치 오버레이가 열린 동안
+   배경(전체 페이지 + 고객 상세 패널) 스크롤을 잠가, 오버레이 안 스크롤이 뒤로 전파(chaining)되지 않게 한다. */
+body.kim-detail-overlay-open,
+body.kim-detail-overlay-open .customer-detail-drawer {
   overflow: hidden;
 }
 
