@@ -540,7 +540,13 @@ export function CustomerManagementPage({
   }
 
   function openCustomer(customer: Customer) {
-    if (suppressOutsideClickRef.current) return;
+    // popover 외부클릭으로 popover가 닫히면 effect cleanup이 click 핸들러(ref 리셋 담당)를
+    // 같은 클릭의 click 단계 전에 제거할 수 있어, suppressOutsideClickRef가 true로 stuck된다.
+    // 그러면 이 가드가 영구히 패널을 막으므로, ref를 만나면 소비하고 리셋한다(첫 클릭은 닫기만).
+    if (suppressOutsideClickRef.current) {
+      suppressOutsideClickRef.current = false;
+      return;
+    }
     onOpenCustomer?.(customer);
   }
 
