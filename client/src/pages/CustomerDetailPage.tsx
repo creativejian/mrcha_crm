@@ -1,10 +1,10 @@
-import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Sparkles, Star, Trash2, UserRound, X } from "lucide-react";
+import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
-import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseTermMonths, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
+import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
@@ -90,7 +90,6 @@ type KimNeedsState = {
 };
 
 
-type KimQuoteComposerMode = "solution" | "manual" | "edit";
 type KimQuoteEntryMode = "solution" | "manual" | "original";
 type KimQuotePurchaseMethod = "장기렌트" | "운용리스" | "금융리스" | "중고리스" | "할부" | "일시불";
 type KimRecognizedQuoteFile = { file: File; fileName: string; fileSize: number; mimeType: string };
@@ -492,67 +491,6 @@ function primaryKimQuotePurchaseMethod(fields: { label: string; value: string }[
   return normalizeKimQuotePurchaseMethod(fields.find((field) => field.label === "구매방식")?.value);
 }
 
-function kimQuoteManualFieldConfig(method: KimQuotePurchaseMethod) {
-  if (method === "장기렌트") {
-    return {
-      periodLabel: "계약 기간",
-      periodDefault: "48개월",
-      paymentLabel: "월 렌트료",
-      paymentDefault: "월 1,642,190원",
-      rateLabel: "보험 포함",
-      ratePlaceholder: "포함 · 미포함",
-      residualLabel: "약정거리",
-      residualPlaceholder: "연 20,000km",
-      prepaymentLabel: "선납금",
-      depositLabel: "보증금",
-      totalLabel: "총 렌트료",
-    };
-  }
-  if (method === "할부") {
-    return {
-      periodLabel: "할부 기간",
-      periodDefault: "60개월",
-      paymentLabel: "월 할부금",
-      paymentDefault: "월 1,128,000원",
-      rateLabel: "금리",
-      ratePlaceholder: "5.22%",
-      residualLabel: "대출원금",
-      residualPlaceholder: "60,000,000원",
-      prepaymentLabel: "선수금",
-      depositLabel: "총 이자",
-      totalLabel: "총 비용",
-    };
-  }
-  if (method === "일시불") {
-    return {
-      periodLabel: "결제 방식",
-      periodDefault: "일시불",
-      paymentLabel: "최종 결제금액",
-      paymentDefault: "154,480,000원",
-      rateLabel: "할인",
-      ratePlaceholder: "-11,000,000원",
-      residualLabel: "취득세/등록비",
-      residualPlaceholder: "포함",
-      prepaymentLabel: "차량가",
-      depositLabel: "옵션가",
-      totalLabel: "최종 비용",
-    };
-  }
-  return {
-    periodLabel: "계약 기간",
-    periodDefault: method === "중고리스" ? "48개월" : "60개월",
-    paymentLabel: "월 납입금",
-    paymentDefault: "월 2,473,200원",
-    rateLabel: "금리",
-    ratePlaceholder: "5.32%",
-    residualLabel: "잔존가치",
-    residualPlaceholder: "71,853,240원",
-    prepaymentLabel: "선수금",
-    depositLabel: "보증금",
-    totalLabel: "총 비용",
-  };
-}
-
 function createKimQuoteCode(existingQuotes: KimQuoteItem[]) {
   const yearMonth = "2606";
   const nextSequence = existingQuotes.reduce((max, quote) => {
@@ -912,7 +850,6 @@ function KimMinjunDetailContent({
   const [editingCustomerMemoId, setEditingCustomerMemoId] = useState<string | null>(null);
   const [confirmingCustomerMemoDeleteId, setConfirmingCustomerMemoDeleteId] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<KimQuoteItem[]>(() => detail.quotes.map((q) => toKimQuoteItem(q, Date.now())));
-  const [quoteComposerMode, setQuoteComposerMode] = useState<KimQuoteComposerMode | null>(null);
   const [isQuoteSolutionWorkbenchOpen, setIsQuoteSolutionWorkbenchOpen] = useState(false);
   const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(kimMinjunPurchaseFields));
   const [solutionWorkbenchEntryMode, setSolutionWorkbenchEntryMode] = useState<KimQuoteEntryMode>("manual");
@@ -930,11 +867,7 @@ function KimMinjunDetailContent({
   const [manualMileageValues, setManualMileageValues] = useState<Record<string, string>>({});
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [editPrefill, setEditPrefill] = useState<KimEditPrefill | null>(null);
-  const [selectedQuotePurchaseMethod, setSelectedQuotePurchaseMethod] = useState<KimQuotePurchaseMethod>("운용리스");
-  const [quoteEntryMode, setQuoteEntryMode] = useState<KimQuoteEntryMode>("solution");
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<KimRecognizedQuoteFile | null>(null);
-  const [isQuoteHeaderDragActive, setIsQuoteHeaderDragActive] = useState(false);
-  const [isQuoteModalDragActive, setIsQuoteModalDragActive] = useState(false);
   const [isQuoteWorkbenchOriginalDragActive, setIsQuoteWorkbenchOriginalDragActive] = useState(false);
   const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
   const [confirmingQuoteSendId, setConfirmingQuoteSendId] = useState<string | null>(null);
@@ -1008,7 +941,6 @@ function KimMinjunDetailContent({
   const remainingCheckCount = checkItems.filter((item) => !completedCheckItems.includes(item.id)).length;
   const receivedDocumentCount = documents.length;
   const openQuoteAction = quotes.find((quote) => quote.id === openQuoteActionId) ?? null;
-  const editingQuote = quotes.find((quote) => quote.id === editingQuoteId) ?? null;
   const activeQuoteStatusTooltip = pinnedQuoteStatus ?? hoveredQuoteStatus;
   const activeQuoteStatus = activeQuoteStatusTooltip ? quotes.find((quote) => quote.id === activeQuoteStatusTooltip.id) ?? null : null;
   const activeQuoteStatusDetail = activeQuoteStatus ? kimQuoteStatusDetailParts(activeQuoteStatus) : null;
@@ -1056,15 +988,12 @@ function KimMinjunDetailContent({
     previewDocumentId !== null ||
     previewQuoteId !== null ||
     previewSentQuoteId !== null ||
-    quoteComposerMode !== null ||
     isQuoteSolutionWorkbenchOpen;
   useEffect(() => {
     if (!detailOverlayOpen) return;
     document.body.classList.add("kim-detail-overlay-open");
     return () => document.body.classList.remove("kim-detail-overlay-open");
   }, [detailOverlayOpen]);
-  const quoteManualFieldConfig = kimQuoteManualFieldConfig(selectedQuotePurchaseMethod);
-  const quoteSolutionAvailable = selectedQuotePurchaseMethod === "운용리스" || selectedQuotePurchaseMethod === "장기렌트";
   const solutionWorkbenchCanQuery =solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
   const quoteDraftReady = isQuoteDraftSaved && !isQuoteDraftDirty;
   const sortedCustomerMemos = sortKimCustomerMemosByCreatedAt(customerMemos);
@@ -1505,16 +1434,9 @@ function KimMinjunDetailContent({
   }, []);
 
   useEffect(() => {
-    onEditorOpenChange?.(openEditor !== null || addingCustomerMemo || addingCheckItem || addingScheduleItem || quoteComposerMode !== null || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingCheckItemId !== null || editingCustomerMemoId !== null || editingScheduleId !== null || editingQuoteId !== null || confirmingCustomerMemoDeleteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
+    onEditorOpenChange?.(openEditor !== null || addingCustomerMemo || addingCheckItem || addingScheduleItem || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingCheckItemId !== null || editingCustomerMemoId !== null || editingScheduleId !== null || editingQuoteId !== null || confirmingCustomerMemoDeleteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
     return () => onEditorOpenChange?.(false);
-  }, [addingCheckItem, addingCustomerMemo, addingScheduleItem, confirmingCustomerMemoDeleteId, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, confirmingScheduleDeleteId, editingCheckItemId, editingCustomerMemoId, editingScheduleId, editingQuoteId, isQuoteSolutionWorkbenchOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId, quoteComposerMode]);
-
-  useEffect(() => {
-    if (!quoteSolutionAvailable && (quoteEntryMode === "solution" || quoteEntryMode === "original")) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 미지원 구매방식에서 작성 방식을 수기로 되돌리는 의도된 가드 effect
-      setQuoteEntryMode("manual");
-    }
-  }, [quoteEntryMode, quoteSolutionAvailable]);
+  }, [addingCheckItem, addingCustomerMemo, addingScheduleItem, confirmingCustomerMemoDeleteId, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, confirmingScheduleDeleteId, editingCheckItemId, editingCustomerMemoId, editingScheduleId, editingQuoteId, isQuoteSolutionWorkbenchOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId]);
 
   useEffect(() => {
     if (!solutionWorkbenchCanQuery && solutionWorkbenchEntryMode === "solution") {
@@ -2234,158 +2156,6 @@ function KimMinjunDetailContent({
     onToast("인도 방식 수정 완료");
   }
 
-  function saveQuote(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const title = String(formData.get("title") ?? "").trim();
-    const status = String(formData.get("status") ?? "대기");
-    const sourceLabel = String(formData.get("source") ?? (quoteEntryMode === "solution" ? "견적 조회" : quoteEntryMode === "original" ? "원본 인식" : "수기 작성"));
-    const source: KimQuoteItem["source"] = sourceLabel === "견적 조회" ? "solution" : sourceLabel === "원본 인식" ? "original" : "manual";
-    const brand = String(formData.get("brand") ?? "").trim();
-    const model = String(formData.get("model") ?? "").trim();
-    const trim = String(formData.get("trim") ?? "").trim();
-    const quoteRound = String(formData.get("quoteRound") ?? "").trim();
-    const vehicleName = String(formData.get("vehicleName") ?? "").trim();
-    const financeType = normalizeKimQuotePurchaseMethod(String(formData.get("financeType") ?? selectedQuotePurchaseMethod).trim());
-    const term = String(formData.get("term") ?? "").trim();
-    const monthlyPayment = String(formData.get("monthlyPayment") ?? "").trim();
-    const lender = String(formData.get("financeCompany") ?? "").trim();
-    const stockStatus = String(formData.get("stockStatus") ?? "").trim() as KimQuoteItem["stockStatus"] | "";
-    const validLabel = String(formData.get("validLabel") ?? "").trim();
-    const meta = String(formData.get("meta") ?? "").trim();
-    const nextTitle = title || [model || vehicleName, financeType, quoteRound ? `${quoteRound} 견적` : "견적"].filter(Boolean).join(" ");
-    if (!nextTitle) return;
-    if (quoteComposerMode === "edit" && editingQuoteId) {
-      const sentAt = formatKoreanShortTime();
-      const prevQuotes = quotes;
-      const prev = quotes.find((quote) => quote.id === editingQuoteId);
-      setQuotes((current) => current.map((quote) => (
-        quote.id === editingQuoteId ? {
-          ...quote,
-          title: nextTitle,
-          status: "고객 확인 전",
-          source,
-          appStatus: "sent",
-          vehicleName,
-          brand: brand || quote.brand,
-          model: model || quote.model,
-          trim: trim || vehicleName || quote.trim,
-          financeType,
-          term,
-          monthlyPayment,
-          lender: lender || quote.lender,
-          quoteRound: quoteRound || quote.quoteRound,
-          stockStatus: stockStatus || quote.stockStatus,
-          validLabel: validLabel || quote.validLabel,
-          note: meta || quote.note,
-          sentAt,
-          viewedAt: undefined,
-          revisedAt: sentAt,
-          revision: (quote.revision ?? 1) + 1,
-          decisionStatus: quote.decisionStatus === "contracting" ? quote.decisionStatus : "none",
-          originalNeedsReplacement: Boolean(quote.fileName),
-          meta: meta || `${sentAt} · 수정 후 앱 재발송`,
-          ...(recognizedQuoteFile ? {
-            fileName: recognizedQuoteFile.fileName,
-            fileSize: recognizedQuoteFile.fileSize,
-            mimeType: recognizedQuoteFile.mimeType,
-            file: recognizedQuoteFile.file,
-            originalNeedsReplacement: false,
-          } : {}),
-        } : quote
-      )));
-      if (customer.id && !editingQuoteId.startsWith("kim-")) {
-        const patch: QuoteWritePatch = {
-          status: "고객 확인 전",
-          entryMode: source,
-          appStatus: "sent",
-          bumpRevision: true,
-          quoteRound: quoteRound || prev?.quoteRound || null,
-          stockStatus: (stockStatus || prev?.stockStatus) ?? null,
-          brandName: (brand || prev?.brand) ?? null,
-          modelName: (model || prev?.model) ?? null,
-          trimName: (trim || vehicleName || prev?.trim) ?? null,
-          note: meta || prev?.note || null,
-          decisionStatus: prev?.decisionStatus === "contracting" ? "contracting" : "none",
-          scenario: {
-            purchaseMethod: financeType || null,
-            termMonths: parseTermMonths(term),
-            monthlyPayment: parseMonthlyPayment(monthlyPayment),
-            lender: lender || prev?.lender || null,
-          },
-        };
-        void apiUpdateQuote(customer.id, editingQuoteId, patch).catch(() => { setQuotes(prevQuotes); onToast("견적 저장에 실패했습니다."); });
-      }
-      setQuoteComposerMode(null);
-      setEditingQuoteId(null);
-      setRecognizedQuoteFile(null);
-      setConfirmingQuoteDeleteId(null);
-      setConfirmingQuoteContractId(null);
-      setOpenQuoteActionId(null);
-      setQuoteActionFrame(null);
-      markRecentUpdate("견적함");
-      onToast("수정 견적을 앱 견적함으로 재발송하고 푸시알림을 보냈습니다.");
-      return;
-    }
-    const tempId = `kim-quote-${Date.now()}`;
-    const tempQuoteCode = createKimQuoteCode(quotes);
-    setQuotes((current) => [...current, {
-      id: tempId,
-      quoteCode: tempQuoteCode,
-      title: nextTitle,
-      status,
-      source,
-      appStatus: "draft",
-      brand,
-      model: model || vehicleName,
-      trim: trim || vehicleName,
-      quoteRound: quoteRound || "1차",
-      vehicleName,
-      financeType,
-      term,
-      monthlyPayment,
-      lender,
-      stockStatus: stockStatus || "재고확인중",
-      validLabel,
-      note: meta,
-      meta: meta || `${formatKoreanShortTime()} · ${source === "original" ? "원본 인식" : "내부 작성"}`,
-      ...(recognizedQuoteFile ? {
-        fileName: recognizedQuoteFile.fileName,
-        fileSize: recognizedQuoteFile.fileSize,
-        mimeType: recognizedQuoteFile.mimeType,
-        file: recognizedQuoteFile.file,
-      } : {}),
-    }]);
-    if (customer.id) {
-      const payload: QuoteCreatePayload = {
-        entryMode: source,
-        status,
-        quoteRound: quoteRound || "1차",
-        stockStatus: stockStatus || "재고확인중",
-        brandName: brand || null,
-        modelName: (model || vehicleName) || null,
-        trimName: (trim || vehicleName) || null,
-        note: meta || null,
-        scenario: {
-          purchaseMethod: financeType || null,
-          termMonths: parseTermMonths(term),
-          monthlyPayment: parseMonthlyPayment(monthlyPayment),
-          lender: lender || null,
-        },
-      };
-      void apiCreateQuote(customer.id, payload)
-        .then(({ id, quoteCode }) => setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q))))
-        .catch(() => { setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("견적 저장에 실패했습니다."); });
-    }
-    setQuoteComposerMode(null);
-    setEditingQuoteId(null);
-    setRecognizedQuoteFile(null);
-    setConfirmingQuoteDeleteId(null);
-    setConfirmingQuoteContractId(null);
-    markRecentUpdate("견적함");
-    onToast("견적 항목이 추가되었습니다.");
-  }
-
   // 비교카드(저장된 조건) → 시나리오 추출. INSERT/UPDATE 공유. termMonths 포함(PR2c-2).
   function extractWorkbenchScenarios(): ScenarioInput[] {
     const compareForm = quoteDetailFormRef.current;
@@ -2661,25 +2431,6 @@ function KimMinjunDetailContent({
     attachQuoteFileToQuote(quoteId, file);
   }
 
-  function startQuoteFromOriginalFile(file: File) {
-    if (!file.type.startsWith("image/") && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      onToast("견적 원본은 이미지 또는 PDF 파일만 인식할 수 있습니다.");
-      return;
-    }
-    setRecognizedQuoteFile({
-      file,
-      fileName: file.name,
-      fileSize: file.size,
-      mimeType: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
-    });
-    setConfirmingQuoteDeleteId(null);
-    setEditingQuoteId(null);
-    setSelectedQuotePurchaseMethod("운용리스");
-    setQuoteEntryMode("original");
-    setQuoteComposerMode("manual");
-    onToast("견적 원본을 인식해 작성창을 열었습니다.");
-  }
-
   function recognizeQuoteOriginalForWorkbench(file: File) {
     if (!file.type.startsWith("image/") && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       onToast("견적 원본은 이미지 또는 PDF 파일만 인식할 수 있습니다.");
@@ -2694,23 +2445,6 @@ function KimMinjunDetailContent({
     setSolutionWorkbenchEntryMode("original");
     setSolutionWorkbenchModeMenu(null);
     onToast("견적 원본을 인식해 워크벤치에 반영했습니다.");
-  }
-
-  function dropQuoteOriginalToComposer(event: ReactDragEvent<HTMLElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsQuoteHeaderDragActive(false);
-    setIsQuoteModalDragActive(false);
-    const file = event.dataTransfer.files[0];
-    if (!file) return;
-    startQuoteFromOriginalFile(file);
-  }
-
-  function selectQuoteOriginalFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    startQuoteFromOriginalFile(file);
-    event.target.value = "";
   }
 
   function selectQuoteWorkbenchOriginalFile(event: ChangeEvent<HTMLInputElement>) {
@@ -4394,24 +4128,7 @@ function KimMinjunDetailContent({
         </article>
 
         <article className="detail-section kim-mvp-card kim-quote-card compact">
-          <div
-            className={`kim-mvp-card-head kim-quote-drop-head${isQuoteHeaderDragActive ? " is-drop-active" : ""}`}
-            onDragEnter={(event) => {
-              if (!isDocumentFileDrag(event)) return;
-              event.preventDefault();
-              setIsQuoteHeaderDragActive(true);
-            }}
-            onDragLeave={(event) => {
-              const nextTarget = event.relatedTarget;
-              if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
-              setIsQuoteHeaderDragActive(false);
-            }}
-            onDragOver={(event) => {
-              if (!isDocumentFileDrag(event)) return;
-              event.preventDefault();
-            }}
-            onDrop={dropQuoteOriginalToComposer}
-          >
+          <div className="kim-mvp-card-head">
             <div className="kim-mvp-title-row">
               <i aria-hidden="true" className="kim-mvp-title-icon"><FileText size={14} strokeWidth={2.2} /></i>
               <h3>견적함</h3>
@@ -4430,7 +4147,6 @@ function KimMinjunDetailContent({
                   setManualTermMonths({});
                   setSavedManualQuoteConditionIds([]);
                   setRecognizedQuoteFile(null);
-                  setQuoteComposerMode(null);
                   setSolutionWorkbenchPurchaseMethod(primaryKimQuotePurchaseMethod(purchaseFields));
                   setSolutionWorkbenchEntryMode("manual");
                   setSolutionWorkbenchModeMenu(null);
@@ -4438,11 +4154,6 @@ function KimMinjunDetailContent({
                 }}
                 type="button"
               ><FilePlus2 size={13} strokeWidth={2.35} /></button>
-            </div>
-            <div className="kim-file-drop-overlay kim-quote-head-drop-overlay" aria-hidden="true">
-              <FileUp size={22} strokeWidth={1.9} />
-              <strong>견적 원본의 값으로 새 견적을 작성합니다</strong>
-              <span>이미지와 PDF를 인식해 작성창을 엽니다</span>
             </div>
           </div>
           <div className="kim-mvp-card-body" ref={quoteBodyRef}>
@@ -4729,7 +4440,6 @@ function KimMinjunDetailContent({
               setSolutionWorkbenchEntryMode(openQuoteAction.source === "solution" ? "solution" : openQuoteAction.source === "original" ? "original" : "manual");
               setSolutionWorkbenchModeMenu(null);
               setRecognizedQuoteFile(null);
-              setQuoteComposerMode(null);
               setIsQuoteSolutionWorkbenchOpen(true);
               setOpenQuoteActionId(null);
               setQuoteActionFrame(null);
@@ -4890,164 +4600,6 @@ function KimMinjunDetailContent({
           </div>
         ) : null}
 
-        {quoteComposerMode ? (
-          <div className="kim-quote-modal-backdrop" role="presentation">
-            <form className="kim-quote-modal kim-quote-builder-modal" key={`${quoteComposerMode === "edit" ? editingQuote?.id ?? "edit" : "builder"}-${recognizedQuoteFile?.fileName ?? "no-original"}-${selectedQuotePurchaseMethod}`} onSubmit={saveQuote} role="dialog" aria-modal="true" aria-label={quoteComposerMode === "edit" ? "견적 수정" : "견적 작성"}>
-              <div className="kim-quote-modal-head">
-                <div>
-                  <span>{quoteComposerMode === "edit" ? `${editingQuote?.quoteCode ?? "QT"} · 수정 후 고객 앱 재발송` : "차량 DB · 솔루션 조회 · 수기 작성"}</span>
-                  <strong>{quoteComposerMode === "edit" ? "견적 수정" : "견적 작성"}</strong>
-                  <p>{quoteComposerMode === "edit" ? "기존 조건을 수정하고 고객 앱 견적함으로 다시 발송합니다." : "차량을 고르고, 솔루션 조회 또는 수기 작성으로 견적 조건을 완성합니다."}</p>
-                </div>
-                <button aria-label={quoteComposerMode === "edit" ? "견적 수정 닫기" : "견적 작성 닫기"} type="button" onClick={() => {
-                  setQuoteComposerMode(null);
-                  setEditingQuoteId(null);
-                  setRecognizedQuoteFile(null);
-                }}><X size={18} strokeWidth={2.4} /></button>
-              </div>
-              <input name="source" type="hidden" value={quoteEntryMode === "original" ? "원본 인식" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "견적 조회" : "수기 작성"} />
-              <input name="status" type="hidden" value={quoteComposerMode === "edit" ? "고객 확인 전" : "작성중"} />
-              <input name="financeType" type="hidden" value={selectedQuotePurchaseMethod} />
-
-              <div className="kim-quote-builder-shell">
-                <section className="kim-quote-builder-vehicle">
-                  <div className="kim-quote-builder-section-head">
-                    <span><CarFront size={13} strokeWidth={2.3} /> 차량 선택</span>
-                    <button type="button" onClick={() => onToast("차량 DB 선택 모달 연결 예정입니다.")}>DB에서 선택</button>
-                  </div>
-                  <div className="kim-quote-vehicle-picks">
-                    <label><span>브랜드</span><input autoFocus defaultValue={quoteComposerMode === "edit" ? editingQuote?.brand ?? "" : recognizedQuoteFile ? "BMW" : "벤츠"} name="brand" placeholder="벤츠" /></label>
-                    <label><span>모델</span><input defaultValue={quoteComposerMode === "edit" ? editingQuote?.model ?? "" : recognizedQuoteFile ? "X7" : "Maybach S-Class"} name="model" placeholder="Maybach S-Class" /></label>
-                    <label><span>트림</span><input defaultValue={quoteComposerMode === "edit" ? editingQuote?.trim ?? editingQuote?.vehicleName ?? "" : recognizedQuoteFile ? "X7 xDrive 40i M Spt LCI (7인승)" : "S 500 4M Long"} name="trim" placeholder="S 500 4M Long" /></label>
-                    <label><span>차수</span><select defaultValue={quoteComposerMode === "edit" ? editingQuote?.quoteRound ?? "1차" : "1차"} name="quoteRound"><option>1차</option><option>2차</option><option>3차</option><option>비교</option><option>최종</option></select></label>
-                  </div>
-                  <div className="kim-quote-db-preview" aria-label="차량 DB 선택 예시">
-                    <button type="button"><b>{recognizedQuoteFile ? "BMW" : "벤츠"}</b><span>수입차</span></button>
-                    <button type="button"><b>{recognizedQuoteFile ? "X7" : "Maybach S-Class"}</b><span>{recognizedQuoteFile ? "대형 SUV · 1억대" : "대형 세단 · 2억대"}</span></button>
-                    <button type="button"><b>{recognizedQuoteFile ? "X7 xDrive 40i M Spt LCI" : "S 500 4M Long"}</b><span>2026 · 가솔린 · 4WD</span></button>
-                  </div>
-                </section>
-
-                <section className="kim-quote-builder-method">
-                  <div className="kim-quote-builder-section-head">
-                    <span><Route size={13} strokeWidth={2.3} /> 구매방식</span>
-                    <em>{quoteSolutionAvailable ? "솔루션 조회 가능" : "수기 작성 방식"}</em>
-                  </div>
-                  <div className="kim-quote-method-tabs" aria-label="구매 방식">
-                    {kimQuotePurchaseMethodOptions.map((option) => (
-                      <button
-                        aria-pressed={selectedQuotePurchaseMethod === option}
-                        key={option}
-                        onClick={() => {
-                          setSelectedQuotePurchaseMethod(option);
-                          if (option === "운용리스" || option === "장기렌트") setQuoteEntryMode("solution");
-                          else setQuoteEntryMode("manual");
-                        }}
-                        type="button"
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="kim-quote-entry-switch" aria-label="견적 작성 방식">
-                    <button aria-pressed={quoteEntryMode === "solution"} disabled={!quoteSolutionAvailable} onClick={() => setQuoteEntryMode("solution")} type="button"><Calculator size={13} strokeWidth={2.3} /> 솔루션 조회</button>
-                    <button aria-pressed={quoteEntryMode === "original"} disabled={!quoteSolutionAvailable} onClick={() => setQuoteEntryMode("original")} type="button"><FileText size={13} strokeWidth={2.3} /> 원본 인식</button>
-                    <button aria-pressed={quoteEntryMode === "manual" || !quoteSolutionAvailable} onClick={() => setQuoteEntryMode("manual")} type="button"><PencilLine size={13} strokeWidth={2.3} /> 수기 작성</button>
-                  </div>
-                </section>
-
-                <section
-                  className={`kim-quote-original-dropzone${isQuoteModalDragActive ? " is-drop-active" : ""}${recognizedQuoteFile ? " has-file" : ""}`}
-                  onDragEnter={(event) => {
-                    if (!isDocumentFileDrag(event)) return;
-                    event.preventDefault();
-                    setIsQuoteModalDragActive(true);
-                  }}
-                  onDragLeave={(event) => {
-                    const nextTarget = event.relatedTarget;
-                    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
-                    setIsQuoteModalDragActive(false);
-                  }}
-                  onDragOver={(event) => {
-                    if (!isDocumentFileDrag(event)) return;
-                    event.preventDefault();
-                  }}
-                  onDrop={dropQuoteOriginalToComposer}
-                >
-                  <div>
-                    <FileUp size={16} strokeWidth={2.35} />
-                    <strong>{recognizedQuoteFile ? "원본 견적서 인식 완료" : "원본 견적서 인식"}</strong>
-                    <p>{recognizedQuoteFile ? `${recognizedQuoteFile.fileName} · 금융사/월납입/잔존가치/총비용을 임시 인식했습니다.` : "이미지 또는 PDF를 드롭하면 운용리스/장기렌트 견적 작성값을 자동으로 채웁니다."}</p>
-                  </div>
-                  <label>
-                    파일 선택
-                    <input accept="image/*,.pdf" onChange={selectQuoteOriginalFile} type="file" />
-                  </label>
-                </section>
-
-                {quoteSolutionAvailable && quoteEntryMode !== "original" ? (
-                  <section className={`kim-quote-solution-workbench${quoteEntryMode === "solution" ? " is-active" : ""}`}>
-                    <div className="kim-quote-builder-section-head">
-                      <span><Sparkles size={13} strokeWidth={2.4} /> 솔루션 결과</span>
-                      <button type="button" onClick={() => onToast("제프 견적 솔루션 API 연결 후 실제 조건 조회가 실행됩니다.")}>조건 조회</button>
-                    </div>
-                    <div className="kim-quote-solution-results">
-                      <button className="is-selected" type="button">
-                        <span>추천</span>
-                        <strong>iM캐피탈</strong>
-                        <b>{selectedQuotePurchaseMethod === "장기렌트" ? "월 1,642,190원" : "월 2,473,200원"}</b>
-                        <em>{selectedQuotePurchaseMethod} · 60개월 · 재고있음 · D-6</em>
-                      </button>
-                      <button type="button">
-                        <span>최저 월납</span>
-                        <strong>우리금융캐피탈</strong>
-                        <b>{selectedQuotePurchaseMethod === "장기렌트" ? "월 1,598,000원" : "월 2,398,000원"}</b>
-                        <em>보증금 30% · 심사 조건 확인</em>
-                      </button>
-                      <button type="button">
-                        <span>빠른 출고</span>
-                        <strong>하나캐피탈</strong>
-                        <b>{selectedQuotePurchaseMethod === "장기렌트" ? "월 1,688,400원" : "월 2,512,000원"}</b>
-                        <em>즉시 출고 가능 · 할인 재확인</em>
-                      </button>
-                    </div>
-                  </section>
-                ) : null}
-
-                <section className="kim-quote-builder-fields">
-                  <div className="kim-quote-builder-section-head">
-                    <span>{quoteEntryMode === "original" ? "원본 인식값 보정" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "선택 결과 보정" : "수기 작성"}</span>
-                    <em>{quoteEntryMode === "original" ? "OCR 인식값을 상담사가 확인합니다" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "조회값을 상담사가 수정할 수 있습니다" : "외부 견적/전화 조건을 정리합니다"}</em>
-                  </div>
-                  <div className="kim-quote-manual-grid">
-                    <label className="wide"><span>견적 제목</span><input defaultValue={quoteComposerMode === "edit" ? editingQuote?.title ?? "" : ""} name="title" placeholder="비워두면 차량/방식/차수 기준으로 자동 생성" /></label>
-                    <label><span>금융사</span><input defaultValue={quoteComposerMode === "edit" ? editingQuote?.lender ?? "" : recognizedQuoteFile ? "산은캐피탈" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "iM캐피탈" : "iM캐피탈"} name="financeCompany" placeholder="iM캐피탈" /></label>
-                    <label key={`${selectedQuotePurchaseMethod}-term`}><span>{quoteManualFieldConfig.periodLabel}</span><select defaultValue={quoteComposerMode === "edit" ? editingQuote?.term ?? quoteManualFieldConfig.periodDefault : quoteManualFieldConfig.periodDefault} name="term"><option>36개월</option><option>48개월</option><option>60개월</option><option>일시불</option><option>조건 미정</option></select></label>
-                    <label key={`${selectedQuotePurchaseMethod}-payment`}><span>{quoteManualFieldConfig.paymentLabel}</span><input defaultValue={quoteComposerMode === "edit" ? editingQuote?.monthlyPayment ?? "" : recognizedQuoteFile ? "월 2,398,000원" : quoteManualFieldConfig.paymentDefault} name="monthlyPayment" placeholder={quoteManualFieldConfig.paymentDefault} /></label>
-                    <label><span>재고 상태</span><select defaultValue={quoteComposerMode === "edit" ? editingQuote?.stockStatus ?? "재고확인중" : "재고있음"} name="stockStatus"><option>재고있음</option><option>재고확인중</option><option>재고없음</option></select></label>
-                    <label><span>유효기간</span><input defaultValue={quoteComposerMode === "edit" ? editingQuote?.validLabel ?? "" : "D-6"} name="validLabel" placeholder="D-6 · D-1 · 만료됨" /></label>
-                    <label key={`${selectedQuotePurchaseMethod}-rate`}><span>{quoteManualFieldConfig.rateLabel}</span><input defaultValue={recognizedQuoteFile ? "5.22%" : ""} name="interestRate" placeholder={quoteManualFieldConfig.ratePlaceholder} /></label>
-                    <label key={`${selectedQuotePurchaseMethod}-residual`}><span>{quoteManualFieldConfig.residualLabel}</span><input defaultValue={recognizedQuoteFile ? "71,853,240원" : ""} name="residualValue" placeholder={quoteManualFieldConfig.residualPlaceholder} /></label>
-                    <label key={`${selectedQuotePurchaseMethod}-prepayment`}><span>{quoteManualFieldConfig.prepaymentLabel}</span><input name="prepayment" placeholder="0원" /></label>
-                    <label key={`${selectedQuotePurchaseMethod}-deposit`}><span>{quoteManualFieldConfig.depositLabel}</span><input name="deposit" placeholder={selectedQuotePurchaseMethod === "할부" ? "총 이자" : selectedQuotePurchaseMethod === "일시불" ? "옵션가" : "30%"} /></label>
-                    <label key={`${selectedQuotePurchaseMethod}-total`}><span>{quoteManualFieldConfig.totalLabel}</span><input defaultValue={recognizedQuoteFile ? "167,652,170원" : ""} name="totalCost" placeholder={selectedQuotePurchaseMethod === "일시불" ? "154,480,000원" : "167,652,170원"} /></label>
-                    <label className="wide"><span>짧은 메모</span><input defaultValue={quoteComposerMode === "edit" ? editingQuote?.note ?? "수정 견적 재발송" : recognizedQuoteFile ? "원본 견적서 OCR 인식값, 상담사 확인 필요" : quoteEntryMode === "solution" && quoteSolutionAvailable ? "솔루션 추천 조건, 상담 후 보정 가능" : "보증금 30% 기준, 할인 조건 재확인 필요"} name="meta" maxLength={42} placeholder="견적 row에 표시할 짧은 메모" /></label>
-                  </div>
-                </section>
-              </div>
-
-              <div className="kim-quote-modal-actions">
-                <button type="button" onClick={() => {
-                  setQuoteComposerMode(null);
-                  setEditingQuoteId(null);
-                  setRecognizedQuoteFile(null);
-                }}>취소</button>
-                {quoteSolutionAvailable ? <button type="button" onClick={() => onToast("제프 견적 솔루션 API 연결 후 실제 조건 조회가 실행됩니다.")}>솔루션 조회</button> : null}
-                <button className="primary" type="submit">{quoteComposerMode === "edit" ? "수정 후 발송" : "견적함에 저장"}</button>
-              </div>
-            </form>
-          </div>
-        ) : null}
         {isQuoteSolutionWorkbenchOpen ? (
           <div className="kim-quote-modal-backdrop kim-quote-workbench-backdrop" onClick={() => setIsQuoteSolutionWorkbenchOpen(false)} role="presentation">
             <div
