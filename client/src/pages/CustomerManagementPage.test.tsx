@@ -112,6 +112,26 @@ describe("CustomerManagementPage", () => {
     expect(onOpenCustomer).toHaveBeenCalledTimes(2);
   });
 
+  it("reopens a customer by row click after a popover was opened then closed (no stuck suppress ref)", async () => {
+    const user = userEvent.setup();
+    const onOpenCustomer = vi.fn();
+    render(<CustomerManagementPage mode="all" onOpenCustomer={onOpenCustomer} />);
+
+    const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
+    // 1. 진행상태 버튼 클릭 → popover 열림
+    await user.click(within(row).getByRole("button", { name: "진행 1단계 변경: 견적" }));
+    expect(screen.getByRole("listbox", { name: "진행 1단계 선택" })).toBeInTheDocument();
+
+    // 2. row(고객명) 클릭 → popover 닫기(첫 클릭 소비), 패널은 안 열림
+    await user.click(within(row).getByText("김민준"));
+    expect(screen.queryByRole("listbox", { name: "진행 1단계 선택" })).not.toBeInTheDocument();
+    expect(onOpenCustomer).not.toHaveBeenCalled();
+
+    // 3. row 다시 클릭 → 패널 열려야 함(suppressOutsideClickRef가 stuck되면 영구 차단되던 버그)
+    await user.click(within(row).getByText("김민준"));
+    expect(onOpenCustomer).toHaveBeenCalledWith(expect.objectContaining({ name: "김민준" }));
+  });
+
   it("changes a two-step row stage without opening the customer", async () => {
     const user = userEvent.setup();
     const onOpenCustomer = vi.fn();
