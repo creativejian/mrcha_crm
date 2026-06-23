@@ -9,7 +9,7 @@ import {
   addSchedule, updateSchedule, deleteSchedule,
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
-import { createQuote, deleteQuote, updateQuote } from "../db/queries/customer-quotes";
+import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
@@ -166,6 +166,52 @@ customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValida
 customers.delete("/:id/quotes/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
   return run(c, () => deleteQuote(p.id, p.childId, c.var.db), "견적을 찾을 수 없습니다.");
+});
+
+// ── 견적 원본 파일(#4d — 견적함 행 드롭, 이미지/PDF Storage 영속) ──────
+customers.post("/:id/quotes/:childId/original", zValidator("param", childParam), async (c) => {
+  const p = c.req.valid("param");
+  const body = await c.req.parseBody();
+  const file = body["file"];
+  if (!(file instanceof File)) return c.json({ error: "파일이 필요합니다." }, 400);
+  if (!isAllowedMime(file.type)) return c.json({ error: "허용되지 않는 파일 형식입니다." }, 415);
+  if (file.size > MAX_DOC_BYTES) return c.json({ error: "파일이 너무 큽니다(최대 20MB)." }, 413);
+
+  const env = c.env as StorageEnv;
+  const objectId = crypto.randomUUID();
+  const path = `${p.id}/quotes/${p.childId}-${objectId}-${safeFileName(file.name)}`;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  await uploadObject(env, path, bytes, file.type || "application/octet-stream");
+  try {
+    const result = await setQuoteFile(p.id, p.childId, { fileName: file.name, fileSize: file.size, fileMime: file.type || null, filePath: path }, c.var.db);
+    if (!result) {
+      await removeObject(env, path).catch(() => undefined); // 견적 없음 → 업로드 객체 보상 삭제
+      return c.json({ error: "견적을 찾을 수 없습니다." }, 404);
+    }
+    if (result.previousFilePath) await removeObject(env, result.previousFilePath).catch(() => undefined); // 교체 시 이전 객체 삭제
+    return c.json({ fileName: file.name, fileSize: file.size, fileMime: file.type || null }, 201);
+  } catch (e) {
+    await removeObject(env, path).catch(() => undefined);
+    throw e;
+  }
+});
+
+customers.delete("/:id/quotes/:childId/original", zValidator("param", childParam), async (c) => {
+  const p = c.req.valid("param");
+  const result = await clearQuoteFile(p.id, p.childId, c.var.db);
+  if (!result) return c.json({ error: "견적을 찾을 수 없습니다." }, 404);
+  const env = c.env as StorageEnv;
+  if (result.previousFilePath) await removeObject(env, result.previousFilePath).catch((err) => console.error("Storage remove 실패(고아 객체):", err));
+  return c.json({ id: p.childId });
+});
+
+customers.get("/:id/quotes/:childId/original/url", zValidator("param", childParam), async (c) => {
+  const p = c.req.valid("param");
+  const row = await getQuoteFilePath(p.id, p.childId, c.var.db);
+  if (!row?.filePath) return c.json({ error: "견적 원본을 찾을 수 없습니다." }, 404);
+  const env = c.env as StorageEnv;
+  const url = await createSignedUrl(env, row.filePath, 60); // 견적 원본은 썸네일 없음 → url=downloadUrl
+  return c.json({ url, downloadUrl: url, fileMime: row.fileMime });
 });
 
 // ── 서류함 (업로드/분류/순서/삭제/미리보기 URL) ──────────────────

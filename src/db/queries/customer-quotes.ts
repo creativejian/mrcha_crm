@@ -247,3 +247,51 @@ export async function createQuote(
   if (primary) await ex.update(quotes).set({ primaryScenarioId: primary.id }).where(eq(quotes.id, q.id));
   return q;
 }
+
+// ── 견적 원본 파일(#4d) — quotes.file_* 영속. id AND customer_id 가드. ──────
+export async function setQuoteFile(
+  customerId: string,
+  quoteId: string,
+  file: { fileName: string; fileSize: number; fileMime: string | null; filePath: string },
+  ex: Executor = getDefaultDb(),
+): Promise<{ previousFilePath: string | null } | null> {
+  const [prev] = await ex
+    .select({ filePath: quotes.filePath })
+    .from(quotes)
+    .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)));
+  if (!prev) return null;
+  await ex
+    .update(quotes)
+    .set({ fileName: file.fileName, fileSize: file.fileSize, fileMime: file.fileMime, filePath: file.filePath, updatedAt: new Date() })
+    .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)));
+  return { previousFilePath: prev.filePath };
+}
+
+export async function clearQuoteFile(
+  customerId: string,
+  quoteId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<{ previousFilePath: string | null } | null> {
+  const [prev] = await ex
+    .select({ filePath: quotes.filePath })
+    .from(quotes)
+    .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)));
+  if (!prev) return null;
+  await ex
+    .update(quotes)
+    .set({ fileName: null, fileSize: null, fileMime: null, filePath: null, updatedAt: new Date() })
+    .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)));
+  return { previousFilePath: prev.filePath };
+}
+
+export async function getQuoteFilePath(
+  customerId: string,
+  quoteId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<{ filePath: string | null; fileMime: string | null } | null> {
+  const [row] = await ex
+    .select({ filePath: quotes.filePath, fileMime: quotes.fileMime })
+    .from(quotes)
+    .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)));
+  return row ?? null;
+}
