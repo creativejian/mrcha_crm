@@ -1,5 +1,6 @@
+import { apiFetch } from "./api";
 import { invalidateCustomerDetail } from "./customers";
-import { sendJson, sendVoid } from "./http";
+import { getJson, sendJson, sendVoid } from "./http";
 
 // 견적함 표시 문자열 → 시나리오 컬럼값. 숫자만 남겨 파싱한다.
 
@@ -107,4 +108,26 @@ export async function createQuote(customerId: string, payload: QuoteCreatePayloa
   const row = await sendJson<{ id: string; quoteCode: string; createdAt: string }>(`/api/customers/${customerId}/quotes`, "POST", payload);
   invalidateCustomerDetail(customerId);
   return row;
+}
+
+// ── 견적 원본 파일(#4d) — 서류 업로드와 동형. 성공 시 상세 캐시 무효화. ──────
+// multipart라 lib/http(JSON 전용) 대신 apiFetch 직접 사용(브라우저가 boundary 포함).
+export async function uploadQuoteOriginal(cid: string, quoteId: string, file: File): Promise<{ fileName: string; fileSize: number; fileMime: string | null }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await apiFetch(`/api/customers/${cid}/quotes/${quoteId}/original`, { method: "POST", body: fd });
+  if (!res.ok) throw new Error(`견적 원본 업로드 실패: ${res.status}`);
+  const data = (await res.json()) as { fileName: string; fileSize: number; fileMime: string | null };
+  invalidateCustomerDetail(cid);
+  return data;
+}
+
+export async function deleteQuoteOriginal(cid: string, quoteId: string): Promise<void> {
+  await sendVoid(`/api/customers/${cid}/quotes/${quoteId}/original`, "DELETE");
+  invalidateCustomerDetail(cid);
+}
+
+// url=미리보기, downloadUrl=원본(견적은 썸네일 없어 동일).
+export async function getQuoteOriginalUrl(cid: string, quoteId: string): Promise<{ url: string; downloadUrl: string; fileMime: string | null }> {
+  return getJson(`/api/customers/${cid}/quotes/${quoteId}/original/url`);
 }
