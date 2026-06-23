@@ -4350,7 +4350,7 @@ function KimMinjunDetailContent({
                       {quote.stockStatus ? <span className={`stock${kimQuoteStockClass(quote.stockStatus)}`}>{quote.stockStatus}</span> : null}
                       {quote.validLabel ? <span className={`valid${kimQuoteValidClass(quote.validLabel)}`}>{quote.validLabel}</span> : null}
                     </div>
-                    {(quote.finalVehiclePrice != null || quote.exteriorColorName || quote.interiorColorName) ? (
+                    {(quote.finalVehiclePrice != null || quote.exteriorColorName || quote.interiorColorName || quote.fileName) ? (
                       <div className="kim-quote-meta-pricing">
                         {quote.finalVehiclePrice != null ? <span className="kim-quote-final-price">최종 차량가 {formatMoney(quote.finalVehiclePrice)}</span> : null}
                         {quote.exteriorColorName ? (
@@ -4364,6 +4364,12 @@ function KimMinjunDetailContent({
                             {quote.interiorColorHex ? <i aria-hidden="true" style={{ background: quote.interiorColorHex }} /> : null}
                             내장 {quote.interiorColorName}
                           </span>
+                        ) : null}
+                        {quote.fileName ? (
+                          <button type="button" className="kim-quote-attach-chip" onClick={() => setPreviewQuoteId(quote.id)} title={`견적 원본 보기 · ${quote.fileName}`}>
+                            <Paperclip size={11} strokeWidth={2.5} />
+                            <span>{quote.fileName}</span>
+                          </button>
                         ) : null}
                       </div>
                     ) : null}
