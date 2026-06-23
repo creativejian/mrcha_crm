@@ -37,6 +37,9 @@ function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote
     exteriorColorHex: null,
     interiorColorName: null,
     interiorColorHex: null,
+    fileName: null,
+    fileSize: null,
+    fileMime: null,
     scenarios: [
       { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false },
     ],
@@ -190,5 +193,20 @@ describe("formatScenarioMoneyMode", () => {
     expect(formatScenarioMoneyMode(null, "30")).toBeUndefined();
     expect(formatScenarioMoneyMode("percent", null)).toBeUndefined();
     expect(formatScenarioMoneyMode("amount", "abc")).toBeUndefined();
+  });
+});
+
+describe("toKimQuoteItem 견적 원본 file_* 매핑 (#4d)", () => {
+  it("file_* 있으면 fileName/fileSize/mimeType 매핑", () => {
+    const k = toKimQuoteItem(makeQuote({ fileName: "원본견적.pdf", fileSize: 12345, fileMime: "application/pdf" }), NOW);
+    expect(k.fileName).toBe("원본견적.pdf");
+    expect(k.fileSize).toBe(12345);
+    expect(k.mimeType).toBe("application/pdf");
+  });
+  it("file_* 없으면 undefined", () => {
+    const k = toKimQuoteItem(makeQuote(), NOW);
+    expect(k.fileName).toBeUndefined();
+    expect(k.fileSize).toBeUndefined();
+    expect(k.mimeType).toBeUndefined();
   });
 });

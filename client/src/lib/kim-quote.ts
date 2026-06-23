@@ -96,6 +96,10 @@ export type CustomerDetailQuote = {
   exteriorColorHex: string | null;
   interiorColorName: string | null;
   interiorColorHex: string | null;
+  // #4d 견적 원본(file_path는 서버 비노출, 미리보기는 signed URL)
+  fileName: string | null;
+  fileSize: number | null;
+  fileMime: string | null;
   scenarios: CustomerDetailScenario[];
 };
 
@@ -199,6 +203,9 @@ export function toKimQuoteItem(q: CustomerDetailQuote, nowMs: number): KimQuoteI
     exteriorColorHex: q.exteriorColorHex ?? undefined,
     interiorColorName: q.interiorColorName ?? undefined,
     interiorColorHex: q.interiorColorHex ?? undefined,
+    fileName: q.fileName ?? undefined,
+    fileSize: q.fileSize ?? undefined,
+    mimeType: q.fileMime ?? undefined,
     primaryScenarioId: q.primaryScenarioId ?? undefined,
     scenarios: q.scenarios,
   };
