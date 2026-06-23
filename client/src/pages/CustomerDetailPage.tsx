@@ -86,6 +86,12 @@ type KimQuoteComposerMode = "solution" | "manual" | "edit";
 type KimQuoteEntryMode = "solution" | "manual" | "original";
 type KimQuotePurchaseMethod = "장기렌트" | "운용리스" | "금융리스" | "중고리스" | "할부" | "일시불";
 type KimRecognizedQuoteFile = { file: File; fileName: string; fileSize: number; mimeType: string };
+type KimEditPrefill = {
+  optionIds: number[];
+  exteriorColorId: number | null;
+  interiorColorId: number | null;
+  pricing: { base: number; option: number; discount: number; acquisitionTax: number; bond: number; delivery: number; incidental: number };
+};
 
 type KimDocumentItem = {
   id: string;
@@ -898,6 +904,7 @@ function KimMinjunDetailContent({
   const [manualMileageModes, setManualMileageModes] = useState<Record<string, KimManualMileageMode>>({});
   const [manualMileageValues, setManualMileageValues] = useState<Record<string, string>>({});
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [editPrefill, setEditPrefill] = useState<KimEditPrefill | null>(null);
   const [selectedQuotePurchaseMethod, setSelectedQuotePurchaseMethod] = useState<KimQuotePurchaseMethod>("운용리스");
   const [quoteEntryMode, setQuoteEntryMode] = useState<KimQuoteEntryMode>("solution");
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<KimRecognizedQuoteFile | null>(null);
@@ -1279,25 +1286,38 @@ function KimMinjunDetailContent({
     if (!trim) return;
     try {
       const detail = await fetchTrimDetail(trim.id);
+      const prefill = editPrefill;
       setTrimDetail(detail);
       setWorkbenchVehicle(selection);
-      setSelectedWorkbenchOptionIds([]);
-      setExteriorColor(null);
-      setInteriorColor(null);
+      setSelectedWorkbenchOptionIds(prefill ? prefill.optionIds : []);
+      setExteriorColor(prefill ? detail.colors.find((c) => c.id === prefill.exteriorColorId) ?? null : null);
+      setInteriorColor(prefill ? detail.colors.find((c) => c.id === prefill.interiorColorId) ?? null : null);
       const root = pricingPanelRef.current;
-      if (!root) return;
+      if (!root) { setEditPrefill(null); return; }
       const setInput = (key: string, value: number) => {
         const el = root.querySelector<HTMLInputElement>(`input[data-pricing="${key}"]`);
         if (el) el.value = formatMoney(value);
       };
-      setInput("base", detail.price);
-      setInput("option", 0);
-      setInput("discount", detail.financialDiscountAmount ?? 0);
-      setPrimaryDiscountUnit("amount");
       const primaryDiscount = root.querySelector<HTMLInputElement>('input[data-discount-primary="true"]');
-      if (primaryDiscount) primaryDiscount.value = formatMoney(detail.financialDiscountAmount ?? 0);
+      if (prefill) {
+        setInput("base", prefill.pricing.base);
+        setInput("option", prefill.pricing.option);
+        setInput("discount", prefill.pricing.discount);
+        setInput("acquisitionTax", prefill.pricing.acquisitionTax);
+        setInput("bond", prefill.pricing.bond);
+        setInput("delivery", prefill.pricing.delivery);
+        setInput("incidental", prefill.pricing.incidental);
+        if (primaryDiscount) primaryDiscount.value = formatMoney(prefill.pricing.discount);
+      } else {
+        setInput("base", detail.price);
+        setInput("option", 0);
+        setInput("discount", detail.financialDiscountAmount ?? 0);
+        if (primaryDiscount) primaryDiscount.value = formatMoney(detail.financialDiscountAmount ?? 0);
+      }
+      setPrimaryDiscountUnit("amount");
       recomputePricing();
       markQuoteDraftChanged();
+      setEditPrefill(null);
     } catch (error) {
       console.warn("트림 상세 로드 실패", error);
     }
@@ -1311,6 +1331,12 @@ function KimMinjunDetailContent({
     if (el) el.value = formatMoney(next.total);
     recomputePricing();
     markQuoteDraftChanged();
+  }
+
+  // 수정모드 대상 견적의 catalog trimId(VehiclePicker 차량 복원용, PR1). 신규면 undefined.
+  function openQuoteActionTrimId(): number | undefined {
+    if (!editingQuoteId) return undefined;
+    return quotes.find((q) => q.id === editingQuoteId)?.trimId;
   }
 
   function setManualDepositMode(conditionId: string, mode: KimManualDepositMode) {
@@ -2328,6 +2354,70 @@ function KimMinjunDetailContent({
       : [];
     const vehicleName = [brandName, modelName, trimName].filter(Boolean).join(" ") || "차량 미선택";
     const num = (n: number | undefined | null) => (n == null ? null : String(n));
+
+    // PR2c-1: 수정모드 — INSERT 대신 UPDATE(재발송). scenarios 미전송 → 기존 시나리오 보존.
+    if (editingQuoteId) {
+      const prevQuotes = quotes;
+      setQuotes((current) => current.map((q) => (q.id === editingQuoteId ? {
+        ...q,
+        source,
+        brand: brandName ?? undefined,
+        model: modelName ?? undefined,
+        trim: trimName ?? undefined,
+        vehicleName,
+        finalVehiclePrice: pricing.finalVehiclePrice,
+        exteriorColorName: exteriorColor?.name,
+        exteriorColorHex: exteriorColor?.hexValue ?? undefined,
+        interiorColorName: interiorColor?.name,
+        interiorColorHex: interiorColor?.hexValue ?? undefined,
+        trimId: trimDetail?.id ?? q.trimId,
+        exteriorColorId: exteriorColor?.id ?? undefined,
+        interiorColorId: interiorColor?.id ?? undefined,
+        status: "고객 확인 전",
+        appStatus: "sent",
+        revision: (q.revision ?? 1) + 1,
+        meta: `${savedAt} · 수정 후 재발송`,
+      } : q)));
+      if (customer.id && !editingQuoteId.startsWith("kim-")) {
+        const patch: QuoteWritePatch = {
+          status: "고객 확인 전",
+          entryMode: source,
+          appStatus: "sent",
+          bumpRevision: true,
+          brandName,
+          modelName,
+          trimName,
+          trimId: trimDetail?.id ?? null,
+          basePrice: inputs ? num(inputs.basePrice) : null,
+          optionTotal: inputs ? num(inputs.optionPrice) : null,
+          options: selectedOptions.length ? selectedOptions : null,
+          finalDiscount: inputs ? num(inputs.discount) : null,
+          acquisitionTax: inputs ? num(inputs.acquisitionTax) : null,
+          acquisitionTaxMode,
+          bond: inputs ? num(inputs.bond) : null,
+          delivery: inputs ? num(inputs.delivery) : null,
+          incidental: inputs ? num(inputs.incidental) : null,
+          finalVehiclePrice: num(pricing.finalVehiclePrice),
+          acquisitionCost: num(pricing.acquisitionCost),
+          exteriorColorId: exteriorColor?.id ?? null,
+          exteriorColorName: exteriorColor?.name ?? null,
+          exteriorColorHex: exteriorColor?.hexValue ?? null,
+          interiorColorId: interiorColor?.id ?? null,
+          interiorColorName: interiorColor?.name ?? null,
+          interiorColorHex: interiorColor?.hexValue ?? null,
+          // scenarios 미전송 — PR2a updateQuote가 기존 시나리오 보존(편집은 PR2c-2)
+        };
+        void apiUpdateQuote(customer.id, editingQuoteId, patch).catch(() => { setQuotes(prevQuotes); onToast("견적 수정에 실패했습니다."); });
+      }
+      setIsQuoteSolutionWorkbenchOpen(false);
+      setSolutionWorkbenchModeMenu(null);
+      setRecognizedQuoteFile(null);
+      setEditingQuoteId(null);
+      setEditPrefill(null);
+      markRecentUpdate("견적함");
+      onToast("수정 견적을 견적함에 저장하고 앱으로 재발송했습니다.");
+      return;
+    }
 
     const tempId = `kim-quote-workbench-${nowMs()}`;
     const tempQuoteCode = createKimQuoteCode(quotes);
@@ -4533,10 +4623,28 @@ function KimMinjunDetailContent({
                 setConfirmingQuoteContractEditId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
                 return;
               }
+              const dq = detail.quotes.find((q) => q.id === openQuoteAction.id);
+              setEditPrefill(dq ? {
+                optionIds: dq.options?.map((o) => o.id) ?? [],
+                exteriorColorId: dq.exteriorColorId,
+                interiorColorId: dq.interiorColorId,
+                pricing: {
+                  base: Number(dq.basePrice ?? 0),
+                  option: Number(dq.optionTotal ?? 0),
+                  discount: Number(dq.finalDiscount ?? 0),
+                  acquisitionTax: Number(dq.acquisitionTax ?? 0),
+                  bond: Number(dq.bond ?? 0),
+                  delivery: Number(dq.delivery ?? 0),
+                  incidental: Number(dq.incidental ?? 0),
+                },
+              } : null);
               setEditingQuoteId(openQuoteAction.id);
-              setSelectedQuotePurchaseMethod(normalizeKimQuotePurchaseMethod(openQuoteAction.financeType));
-              setQuoteEntryMode(openQuoteAction.source === "solution" ? "solution" : "manual");
-              setQuoteComposerMode("edit");
+              setSolutionWorkbenchPurchaseMethod(normalizeKimQuotePurchaseMethod(openQuoteAction.financeType));
+              setSolutionWorkbenchEntryMode(openQuoteAction.source === "solution" ? "solution" : openQuoteAction.source === "original" ? "original" : "manual");
+              setSolutionWorkbenchModeMenu(null);
+              setRecognizedQuoteFile(null);
+              setQuoteComposerMode(null);
+              setIsQuoteSolutionWorkbenchOpen(true);
               setOpenQuoteActionId(null);
               setQuoteActionFrame(null);
               setConfirmingQuoteSendId(null);
@@ -4903,7 +5011,7 @@ function KimMinjunDetailContent({
                     <span>김민준</span>
                     <em className="num">CU-2605-0020</em>
                     <ChevronRight size={18} strokeWidth={2.4} />
-                    <strong>새 견적 작성</strong>
+                    <strong>{editingQuoteId ? "견적 수정" : "새 견적 작성"}</strong>
                   </h2>
                   <p><span>최근 견적 {quotes.length}개</span><i aria-hidden="true" /><mark>Maybach S 500 · {solutionWorkbenchPurchaseMethod} 60개월</mark><span>견적 작성 필요</span></p>
                 </div>
@@ -5040,7 +5148,7 @@ function KimMinjunDetailContent({
                         type="button"
                       >
                         <FilePlus2 size={13} strokeWidth={2.2} />
-                        견적함에 저장
+                        {editingQuoteId ? "수정 후 발송" : "견적함에 저장"}
                       </button>
                     </div>
                   </div>
@@ -5066,11 +5174,11 @@ function KimMinjunDetailContent({
                   <div className="kim-jeff-top-grid">
                     <div className="kim-jeff-section">
                       <h4>🚘 차량 선택</h4>
-                      <VehiclePicker onChange={(selection) => { void applyTrimToPricing(selection); }} />
+                      <VehiclePicker key={editingQuoteId ?? "new"} initialTrimId={editingQuoteId ? openQuoteActionTrimId() : undefined} onChange={(selection) => { void applyTrimToPricing(selection); }} />
                     </div>
                     <div className="kim-jeff-section">
                       <h4>🎨 옵션 / 컬러</h4>
-                      <OptionPicker key={trimDetail?.id ?? "none"} options={trimDetail?.options ?? []} relations={trimDetail?.optionRelations ?? []} onChange={applyOptionTotal} />
+                      <OptionPicker key={trimDetail?.id ?? "none"} options={trimDetail?.options ?? []} relations={trimDetail?.optionRelations ?? []} initialSelectedIds={selectedWorkbenchOptionIds} onChange={applyOptionTotal} />
                       <ColorPicker colorType="exterior" colors={trimDetail?.colors ?? []} value={exteriorColor} onChange={(c) => { setExteriorColor(c); markQuoteDraftChanged(); }} />
                       <ColorPicker colorType="interior" colors={trimDetail?.colors ?? []} value={interiorColor} onChange={(c) => { setInteriorColor(c); markQuoteDraftChanged(); }} />
                     </div>
