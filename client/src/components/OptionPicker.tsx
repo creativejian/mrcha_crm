@@ -9,12 +9,14 @@ import type { TrimOption, TrimOptionRelation } from "@/lib/vehicles";
 type OptionPickerProps = {
   options: TrimOption[];
   relations: TrimOptionRelation[];
+  initialSelectedIds?: number[];
   onChange?: (next: { selectedIds: number[]; total: number }) => void;
 };
 
-export function OptionPicker({ options, relations, onChange }: OptionPickerProps) {
+export function OptionPicker({ options, relations, initialSelectedIds, onChange }: OptionPickerProps) {
   // 트림이 바뀌면 부모가 key로 재마운트 → 선택은 자연히 초기화(effect 내 setState 회피).
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
+  // 수정모드 진입 시 부모가 initialSelectedIds로 기존 옵션을 복원(lazy init이라 1회).
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set(initialSelectedIds));
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 

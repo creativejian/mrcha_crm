@@ -2,13 +2,13 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useOutsideClick } from "@/lib/useOutsideClick";
-import { fetchBrands, fetchModels, fetchTrims, type Brand, type Model, type Trim } from "@/lib/vehicles";
+import { fetchBrands, fetchModels, fetchTrims, fetchTrimDetail, type Brand, type Model, type Trim } from "@/lib/vehicles";
 
 export type VehicleSelection = { brand?: Brand; model?: Model; trim?: Trim };
 
 type Level = "brand" | "model" | "trim";
 
-export function VehiclePicker({ onChange }: { onChange?: (selection: VehicleSelection) => void }) {
+export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: number; onChange?: (selection: VehicleSelection) => void }) {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [trims, setTrims] = useState<Trim[]>([]);
@@ -22,11 +22,45 @@ export function VehiclePicker({ onChange }: { onChange?: (selection: VehicleSele
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchBrands()
-      .then((data) => setBrands(data))
-      .catch(() => setErrored("brand"))
-      .finally(() => setLoading(null));
-  }, []);
+    let cancelled = false;
+    // 신규: 브랜드 목록만 로드.
+    if (initialTrimId == null) {
+      fetchBrands()
+        .then((data) => { if (!cancelled) setBrands(data); })
+        .catch(() => { if (!cancelled) setErrored("brand"); })
+        .finally(() => { if (!cancelled) setLoading(null); });
+      return () => { cancelled = true; };
+    }
+    // 수정모드: trimId → trim 상세(ancestry)로 brand/model/trim과 목록을 복원.
+    // loading 초기값이 이미 "brand"라 동기 setState 없이 로딩 표시가 유지된다(set-state-in-effect 회피).
+    (async () => {
+      try {
+        const detail = await fetchTrimDetail(initialTrimId);
+        const [brandList, modelList, trimList] = await Promise.all([
+          fetchBrands(),
+          fetchModels(detail.brandId),
+          fetchTrims(detail.modelId),
+        ]);
+        if (cancelled) return;
+        setBrands(brandList);
+        setModels(modelList);
+        setTrims(trimList);
+        const b = brandList.find((x) => x.id === detail.brandId);
+        const m = modelList.find((x) => x.id === detail.modelId);
+        const t = trimList.find((x) => x.id === detail.id);
+        if (b) setBrand(b);
+        if (m) setModel(m);
+        if (t) setTrim(t);
+        if (b && m && t) onChange?.({ brand: b, model: m, trim: t });
+      } catch {
+        if (!cancelled) setErrored("brand");
+      } finally {
+        if (!cancelled) setLoading(null);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트/initialTrimId 변경 시 1회 복원. onChange는 의도적 제외(부모 재생성 시 재실행 방지).
+  }, [initialTrimId]);
 
   useOutsideClick(rootRef, open !== null, () => setOpen(null));
 
