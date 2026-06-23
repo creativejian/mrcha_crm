@@ -32,6 +32,9 @@ function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote
     incidental: null,
     finalVehiclePrice: null,
     acquisitionCost: null,
+    trimId: null,
+    exteriorColorId: null,
+    interiorColorId: null,
     options: null,
     exteriorColorName: null,
     exteriorColorHex: null,
@@ -132,6 +135,20 @@ describe("toKimQuoteItem", () => {
     expect(k.finalVehiclePrice).toBeUndefined();
     expect(k.exteriorColorName).toBeUndefined();
     expect(k.interiorColorName).toBeUndefined();
+  });
+
+  it("PR1 catalog FK(trimId/색상 id) 있으면 number 매핑", () => {
+    const k = toKimQuoteItem(makeQuote({ trimId: 1024, exteriorColorId: 7, interiorColorId: 12 }), NOW);
+    expect(k.trimId).toBe(1024);
+    expect(k.exteriorColorId).toBe(7);
+    expect(k.interiorColorId).toBe(12);
+  });
+
+  it("PR1 catalog FK 없으면(null) undefined", () => {
+    const k = toKimQuoteItem(makeQuote(), NOW);
+    expect(k.trimId).toBeUndefined();
+    expect(k.exteriorColorId).toBeUndefined();
+    expect(k.interiorColorId).toBeUndefined();
   });
 
   it("#4c-3a scenarios 배열 보존(N건) + 대표 평탄화 유지", () => {
