@@ -243,6 +243,13 @@ export function App() {
     return () => document.removeEventListener("keydown", closeByEscape);
   }, [customerDetailEditorOpen, isDrawerOpen, navigate]);
 
+  // 고객 상세 패널이 열린 동안 배경(고객 목록 페이지) 스크롤을 잠가 스크롤 전파(chaining)를 막는다.
+  useEffect(() => {
+    if (!isDrawerOpen) return;
+    document.body.classList.add("customer-drawer-open");
+    return () => document.body.classList.remove("customer-drawer-open");
+  }, [isDrawerOpen]);
+
   const isAdmin = roleTab === "최고관리자";
 
   function renderView() {

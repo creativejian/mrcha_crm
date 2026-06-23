@@ -1018,12 +1018,19 @@ function KimMinjunDetailContent({
   }, [previewDocumentId, detail.id, onToast]);
 
 
-  // 미리보기 모달이 열린 동안 배경(고객 상세 패널·페이지) 스크롤을 잠가 스크롤 전파(chaining)를 막는다.
+  // 서류/견적 미리보기·견적 작성/수정 모달·솔루션 워크벤치가 열린 동안
+  // 배경(고객 상세 패널·페이지) 스크롤을 잠가 스크롤 전파(chaining)를 막는다.
+  const detailOverlayOpen =
+    previewDocumentId !== null ||
+    previewQuoteId !== null ||
+    previewSentQuoteId !== null ||
+    quoteComposerMode !== null ||
+    isQuoteSolutionWorkbenchOpen;
   useEffect(() => {
-    if (!previewDocumentId) return;
-    document.body.classList.add("kim-doc-preview-open");
-    return () => document.body.classList.remove("kim-doc-preview-open");
-  }, [previewDocumentId]);
+    if (!detailOverlayOpen) return;
+    document.body.classList.add("kim-detail-overlay-open");
+    return () => document.body.classList.remove("kim-detail-overlay-open");
+  }, [detailOverlayOpen]);
   const quoteManualFieldConfig = kimQuoteManualFieldConfig(selectedQuotePurchaseMethod);
   const quoteSolutionAvailable = selectedQuotePurchaseMethod === "운용리스" || selectedQuotePurchaseMethod === "장기렌트";
   const solutionWorkbenchCanQuery =solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
