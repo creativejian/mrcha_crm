@@ -25,6 +25,13 @@ beforeEach(() => {
           { status: 200 },
         );
       }
+      if (url.includes("/api/vehicles/trims/")) {
+        // fetchTrimDetail(trimId): PR2a ancestry(brandId/brandName/modelName) 포함
+        return new Response(
+          JSON.stringify({ id: 100, modelId: 10, name: "Exclusive", trimName: "Exclusive", canonicalName: null, price: 50000000, specs: null, fuelType: null, displacementCc: null, modelYear: null, driveSystem: null, transmissionType: null, bodyStyle: null, seatingCapacity: null, status: "판매중", sortOrder: 1, financialDiscountAmount: null, partnerDiscountAmount: null, cashDiscountAmount: null, brandId: 1, brandName: "현대", modelName: "팰리세이드", options: [], optionRelations: [], colors: [], noOptions: null }),
+          { status: 200 },
+        );
+      }
       if (url.startsWith("/api/vehicles/trims")) {
         return new Response(
           JSON.stringify([{ id: 100, modelId: 10, name: "Exclusive", trimName: "Exclusive", canonicalName: null, price: 50000000, fuelType: null, displacementCc: null, modelYear: null, driveSystem: null, transmissionType: null, bodyStyle: null, seatingCapacity: null, status: "판매중", sortOrder: 1 }]),
@@ -55,6 +62,21 @@ describe("VehiclePicker", () => {
 
     await user.click(screen.getByRole("button", { name: /트림/ }));
     expect(await screen.findByRole("button", { name: "Exclusive" })).toBeInTheDocument();
+  });
+
+  it("initialTrimId로 brand/model/trim 선택을 복원하고 onChange 통지", async () => {
+    const onChange = vi.fn();
+    render(<VehiclePicker initialTrimId={100} onChange={onChange} />);
+    expect(await screen.findByRole("button", { name: /현대/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /팰리세이드/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Exclusive/ })).toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brand: expect.objectContaining({ id: 1 }),
+        model: expect.objectContaining({ id: 10 }),
+        trim: expect.objectContaining({ id: 100 }),
+      }),
+    );
   });
 
   it("브랜드 로드 실패 시 에러 표시", async () => {

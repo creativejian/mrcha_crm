@@ -29,6 +29,13 @@ describe("OptionPicker", () => {
     expect(onChange).toHaveBeenCalledWith({ selectedIds: [1], total: 800000 });
   });
 
+  it("initialSelectedIds로 초기 선택을 복원한다", () => {
+    render(<OptionPicker options={options} relations={[]} initialSelectedIds={[2]} />);
+    // 닫힌 상태 버튼 라벨에 선택 개수·합산이 반영(선루프 id 2 = 1,500,000)
+    expect(screen.getByRole("button", { name: /1개 선택/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /1,500,000원/ })).toBeInTheDocument();
+  });
+
   it("excludes 옵션 선택 시 배타 상대가 비활성화", async () => {
     const user = userEvent.setup();
     render(
