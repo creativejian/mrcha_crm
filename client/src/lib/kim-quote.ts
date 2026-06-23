@@ -37,6 +37,10 @@ export type KimQuoteItem = {
   exteriorColorHex?: string;
   interiorColorName?: string;
   interiorColorHex?: string;
+  // PR1: catalog FK(PR2 워크벤치 수정모드 prefill에서 소비)
+  trimId?: number;
+  exteriorColorId?: number;
+  interiorColorId?: number;
   // #4c-3a 다중 시나리오(비교 표시는 #4c-3b가 소비)
   scenarios?: CustomerDetailScenario[];
   primaryScenarioId?: string;
@@ -91,6 +95,10 @@ export type CustomerDetailQuote = {
   incidental: string | null;
   finalVehiclePrice: string | null;
   acquisitionCost: string | null;
+  // PR1: catalog FK(워크벤치 수정모드 차량/색상 복원용). bigint mode:"number"라 number|null.
+  trimId: number | null;
+  exteriorColorId: number | null;
+  interiorColorId: number | null;
   options: { id: number; name: string; price: number | null }[] | null;
   exteriorColorName: string | null;
   exteriorColorHex: string | null;
@@ -203,6 +211,9 @@ export function toKimQuoteItem(q: CustomerDetailQuote, nowMs: number): KimQuoteI
     exteriorColorHex: q.exteriorColorHex ?? undefined,
     interiorColorName: q.interiorColorName ?? undefined,
     interiorColorHex: q.interiorColorHex ?? undefined,
+    trimId: q.trimId ?? undefined,
+    exteriorColorId: q.exteriorColorId ?? undefined,
+    interiorColorId: q.interiorColorId ?? undefined,
     fileName: q.fileName ?? undefined,
     fileSize: q.fileSize ?? undefined,
     mimeType: q.fileMime ?? undefined,
