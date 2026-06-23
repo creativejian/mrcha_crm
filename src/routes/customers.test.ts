@@ -376,6 +376,56 @@ test("견적 쓰기: PATCH primaryScenarioId → 대표 전환 반영, 타 quote
   }
 });
 
+test("견적 쓰기 PR2a: PATCH가 가격 스냅샷 + 색상 + 옵션 + 시나리오 교체를 반영한다", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  let quoteId: string | undefined;
+  try {
+    // scenarios 2건으로 생성.
+    const createRes = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h,
+      body: JSON.stringify({
+        entryMode: "manual", brandName: "벤츠", modelName: "S", trimName: "S 500",
+        scenarios: [
+          { scenarioNo: 1, purchaseMethod: "운용리스", monthlyPayment: "2000000" },
+          { scenarioNo: 2, purchaseMethod: "운용리스", monthlyPayment: "2100000" },
+        ],
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    quoteId = ((await createRes.json()) as { id: string }).id;
+
+    // PATCH: 스냅샷 + 시나리오 1건으로 교체.
+    const patchRes = await app.request(`/api/customers/${cid}/quotes/${quoteId}`, {
+      method: "PATCH", headers: h,
+      body: JSON.stringify({
+        basePrice: "243000000", finalVehiclePrice: "236500000",
+        exteriorColorName: "옵시디언 블랙",
+        options: [{ id: 1, name: "옵션A", price: 1000000 }],
+        scenarios: [{ scenarioNo: 1, purchaseMethod: "장기렌트", monthlyPayment: "1900000" }],
+      }),
+    });
+    expect(patchRes.status).toBe(200);
+
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+      quotes: Array<{ id: string; basePrice: string | null; finalVehiclePrice: string | null; exteriorColorName: string | null; options: unknown[] | null; primaryScenarioId: string | null; scenarios: Array<{ id: string; purchaseMethod: string | null }> }>;
+    };
+    const q = detail.quotes.find((x) => x.id === quoteId)!;
+    expect(Number(q.basePrice)).toBe(243000000);
+    expect(Number(q.finalVehiclePrice)).toBe(236500000);
+    expect(q.exteriorColorName).toBe("옵시디언 블랙");
+    expect(q.options?.length).toBe(1);
+    expect(q.scenarios.length).toBe(1); // 2건 → 1건 교체
+    expect(q.scenarios[0].purchaseMethod).toBe("장기렌트");
+    expect(q.primaryScenarioId).toBe(q.scenarios[0].id); // 대표 재계산
+  } finally {
+    if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
 test("견적 원본 #4d: POST 업로드 → getCustomer file_* 반영(file_path 비노출), url 발급, DELETE 제거", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });

@@ -33,6 +33,10 @@ test("getTrimDetail: 트림 + 옵션/색상 배열 포함", async () => {
   expect(Array.isArray(detail!.options)).toBe(true);
   expect(Array.isArray(detail!.colors)).toBe(true);
   expect(Array.isArray(detail!.optionRelations)).toBe(true);
+  // PR2a: brand/model ancestry(VehiclePicker 복원 전제)
+  expect(detail!.brandId).toBe(brands[0].id);
+  expect(detail!.brandName).toBe(brands[0].name);
+  expect(detail!.modelName).toBe(models[0].name);
 });
 
 test("getTrimDetail: 없는 트림이면 null", async () => {

@@ -41,9 +41,19 @@ Topic: #4 견적 — composer 모달 폐기, 견적 "수정"을 솔루션 워크
 3. **legacy 견적(`trim_id` 없는 composer/OCR 출신) 처리** = 수정 진입 시 차량/옵션/색상은 **비워서 열고** "차량을 선택하세요" 안내, 금융조건·메모는 기존 텍스트로 prefill. 차량 선택 후 정상 저장되면 catalog 견적으로 승격.
 4. **OCR 원본인식 = 워크벤치 헤더로 일원화**(이미 존재). composer의 OCR 진입만 제거.
 
-## 슬라이스 (3-PR)
+## 슬라이스 (PR)
 
-순서: PR1 → PR2 → PR3. 각 PR은 typecheck 0 · lint 0 · build OK · 관련 테스트 통과를 만족하고 단독 머지 가능해야 한다.
+순서: PR1 → PR2a → PR2b → PR2c → PR3. 각 PR은 typecheck 0 · lint 0 · build OK · 관련 테스트 통과를 만족하고 단독 머지 가능해야 한다.
+
+PR1은 작아서 한 슬라이스였지만, PR2(워크벤치 수정모드)는 조사 결과 백엔드/picker/통합이 각각 독립적이고 통합 prefill이 커서 **2026-06-23 PR2a/2b/2c로 재분할**했다.
+
+| PR | 내용 | 상태 |
+|----|------|------|
+| PR1 | 읽기 어댑터 catalog FK 노출 | main 머지 완료 |
+| PR2a | 백엔드 `updateQuote` 확장(스냅샷+시나리오 교체) + zod + 프론트 타입 + vehicles `getTrimDetail` ancestry 보강 | 예정 |
+| PR2b | `VehiclePicker`/`OptionPicker` 초기선택 복원 prop | 예정 |
+| PR2c | 통합 — 수정 진입+prefill(차량/옵션/색상/가격)+UPDATE 저장+legacy. 시나리오 prefill 범위는 여기서 결정 | 예정 |
+| PR3 | composer 완전 제거 | 예정 |
 
 ### PR1 — 견적 읽기 어댑터에 catalog FK 노출
 
@@ -56,26 +66,42 @@ Topic: #4 견적 — composer 모달 폐기, 견적 "수정"을 솔루션 워크
 - 백엔드: `getCustomer`가 이미 전체 컬럼을 보내므로 쿼리 무변이 기본. **확인 필요**: `routes/customers.ts` 응답 직렬화가 FK/`options`(JSON)를 누락 없이 내보내는지 — 누락 시 그 지점만 보강.
 - 검증: typecheck/lint, `test:server`(읽기 형태 유지), 필요 시 `toKimQuoteItem` 단위테스트 보강.
 
-### PR2 — 워크벤치 수정모드 (핵심)
+### PR2a — 백엔드 `updateQuote` 확장 + vehicles ancestry 보강
 
-plan에서 **백엔드 확장 / 프론트 picker 복원 / 진입·prefill·저장**을 커밋 단위로 분리한다.
+UI 변화 없음. PR2c의 저장/복원 데이터 경로를 깐다. 서버테스트로 검증.
 
-**백엔드 (`src/db/queries/customer-quotes.ts` `updateQuote` + zod + 라우트)**
-- `QuoteWritePatch`(및 `quotePatchBody`)를 가격/색상/옵션 스냅샷 + `trimId` + `scenarios[]`까지 받도록 확장.
-- `updateQuote`: 헤더+스냅샷 컬럼 UPDATE + `scenarios` 제공 시 해당 quote의 `quote_scenarios` delete 후 re-insert(`createQuote` 패턴 재사용), primary = scenario_no 최소. `bumpRevision`/`sent_at`은 기존 #4b 경로 유지.
-- 가드: `id AND customer_id`. `trimId`/`colorId`는 catalog 실존 id만(워크벤치는 실 catalog에서 고름).
+**견적 UPDATE 확장 (`src/db/queries/customer-quotes.ts` + zod + 프론트 타입)**
+- `QuoteHeaderPatch`(서버)에 가격/색상/옵션 스냅샷 컬럼 추가(`trimId`/`basePrice`/`optionTotal`/`options`/`finalDiscount`/`acquisitionTax`/`acquisitionTaxMode`/`bond`/`delivery`/`incidental`/`finalVehiclePrice`/`acquisitionCost`/`exteriorColorId`/`Name`/`Hex`/`interiorColorId`/`Name`/`Hex`). `headerSet`에 set 추가.
+- `QuotePatch`에 `scenarios?: ScenarioInput[]` 추가. `updateQuote`가 `scenarios` 제공 시 해당 quote의 `quote_scenarios`를 delete 후 re-insert(`createQuote`의 시나리오 insert 로직을 공용 헬퍼로 추출해 재사용), primary = scenario_no 최소로 재계산. 미제공 시 기존 단수 `scenario` 갱신 경로 유지(하위호환). `bumpRevision`/`sent_at`은 기존 #4b 경로.
+- 가드: `id AND customer_id`. `trimId`/`colorId`는 catalog 실존 id만. 라우트는 이미 `transaction`으로 `updateQuote` 호출 → 시나리오 교체도 tx 안.
+- `routes/customers.ts` `quotePatchBody` zod를 `quoteCreateBody`처럼 스냅샷 + `scenarios: z.array(quoteScenarioBody).max(3).optional()`로 확장.
+- `client/src/lib/customer-quotes.ts` `QuoteWritePatch`(프론트 타입) 동형 확장.
 
-**프론트 picker 복원**
-- `ColorPicker`: 변화 없음 — `value`에 복원 색상 주입(색상 목록 로드 후 id 매칭).
-- `OptionPicker`: 초기 선택 prop(예: `initialSelectedIds`) 추가, 마운트 시 `onChange` 동기화.
-- `VehiclePicker`: 초기 선택 prop(예: `initialTrimId`) 추가. 마운트 시 `fetchTrimDetail(trimId)`로 trim→model→brand 역추적해 brand/model/trim 선택 상태와 목록을 복원하고 `onChange`로 상위에 전달. *(TrimDetail에 brand/model 식별자가 있는지 plan에서 확인; 없으면 vehicles API/lib 보강.)*
+**vehicles `getTrimDetail` ancestry 보강 (`src/db/queries/vehicles.ts` + 타입)**
+- `getTrimDetail`이 `modelId`만 주므로(`brandId`/이름 없음) VehiclePicker 복원이 불가 → catalog 조인으로 `brandId`/`brandName`/`modelName`을 응답에 추가. 라우트(`/api/vehicles/trims/:id`)는 결과를 그대로 반환하므로 무변.
+- `client/src/lib/vehicles.ts` `TrimDetail`에 `brandId: number`/`brandName: string`/`modelName: string` 추가.
 
-**진입 / prefill / 저장 (`CustomerDetailPage.tsx`)**
-- "견적 수정" 진입(현 line 4539 `setQuoteComposerMode("edit")`)을 워크벤치 edit 진입으로 교체: `editingQuoteId` 세팅 + 워크벤치 열기 + 구매방식/작성방식/차량(`initialTrimId`)/옵션/색상/가격 DOM defaultValue/다중 시나리오 카드 prefill.
+- 검증: typecheck/lint, `test:server`(updateQuote 확장 라운드트립·시나리오 교체·404/가드, vehicles ancestry), build.
+
+### PR2b — picker 초기선택 복원 prop
+
+워크벤치 신규 작성에도 무해(초기값 없으면 기존 동작). PR2c가 소비.
+
+- `ColorPicker`: 변화 없음 — `value`에 복원 색상 주입(PR2c에서 trimDetail.colors id 매칭).
+- `OptionPicker`: 초기 선택 prop(`initialSelectedIds?: number[]`) 추가 → `useState(() => new Set(initialSelectedIds))`. 부모가 같은 trim에선 `key`로 재마운트 안 하므로 prefill은 진입 시 1회. 마운트 effect-setState 회피 위해 부모가 `selectedWorkbenchOptionIds`를 별도 prefill(가격 계산용).
+- `VehiclePicker`: 초기 선택 prop(`initialTrimId?: number`) 추가. 마운트 effect에서 `initialTrimId` 있으면 `fetchTrimDetail`(PR2a 확장본: brandId/brandName/modelName 포함)로 brand/model/trim 선택 상태를 복원하고 `onChange`로 상위에 전달.
+- 검증: typecheck/lint, 단위/수동.
+
+### PR2c — 통합(수정 진입 + prefill + UPDATE 저장)
+
+PR2a/2b 위에 통합. 가장 큼.
+
+- "견적 수정" 진입(현 line ~4536 `setQuoteComposerMode("edit")`)을 워크벤치 edit 진입으로 교체: `editingQuoteId` 세팅 + 워크벤치 열기 + 구매방식/작성방식/차량(`initialTrimId`)/옵션/색상 복원. 가격은 uncontrolled `defaultValue` + DOM `el.value` 직접조작 방식이라 trim 로드 후 DOM에 직접 set(`applyTrimToPricing` 패턴 재사용).
 - `saveQuoteFromWorkbench`: `editingQuoteId`가 있으면 INSERT 대신 UPDATE 경로(`apiUpdateQuote` 확장본) + 낙관 갱신 + 롤백 + 재발송 스탬프. 없으면 기존 INSERT.
 - legacy(`trim_id` null): 차량/옵션/색상 빈 채로 열고 안내; 금융·메모만 prefill.
 - 워크벤치 헤더 카피/버튼이 edit일 때 "수정 후 재발송" 맥락으로 보이도록 분기.
-- 검증: typecheck/lint/build, `test:unit`/`test:server`, 브라우저(카카오 세션, 배포본) — 차량/옵션/색상/시나리오 복원→수정→재발송→새로고침 유지.
+- **시나리오(비교카드) prefill 범위 결정 필요**: 비교카드가 정적 상수(`kimManualQuoteConditionCards`) 기반이라 동적 시나리오 N건 prefill이 구조적으로 안 맞음. 옵션 — (i) 대표 1건만 prefill(MVP), (ii) 비교카드를 데이터 구동으로 리팩토링 후 전체, (iii) round→카드 best-effort 매핑. PR2c 착수 전 별도 결정.
+- 검증: typecheck/lint/build, `test:unit`/`test:server`, 브라우저(카카오 세션, 배포본) — 차량/옵션/색상/시나리오 복원→수정→재발송→새로고침 유지. legacy 견적 수정(차량 빈 채 열림→선택→저장).
 
 ### PR3 — composer 완전 제거
 
