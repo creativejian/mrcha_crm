@@ -38,6 +38,26 @@ export type QuoteWritePatch = {
     monthlyPayment?: string | null;
     lender?: string | null;
   };
+  // PR2a: 워크벤치 수정용 스냅샷 + 다중 시나리오 교체
+  trimId?: number | null;
+  basePrice?: string | null;
+  optionTotal?: string | null;
+  options?: { id: number; name: string; price: number | null }[] | null;
+  finalDiscount?: string | null;
+  acquisitionTax?: string | null;
+  acquisitionTaxMode?: "normal" | "hybrid" | "electric" | "manual" | null;
+  bond?: string | null;
+  delivery?: string | null;
+  incidental?: string | null;
+  finalVehiclePrice?: string | null;
+  acquisitionCost?: string | null;
+  exteriorColorId?: number | null;
+  exteriorColorName?: string | null;
+  exteriorColorHex?: string | null;
+  interiorColorId?: number | null;
+  interiorColorName?: string | null;
+  interiorColorHex?: string | null;
+  scenarios?: ScenarioInput[];
 };
 
 // 기존 견적 부분 수정. 성공 시 상세 캐시 무효화(재진입 stale 방지).

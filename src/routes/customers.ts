@@ -114,6 +114,26 @@ const quotePatchBody = z.object({
   primaryScenarioId: z.uuid().nullable().optional(),
   bumpRevision: z.boolean().optional(),
   scenario: quoteScenarioBody.optional(),
+  // PR2a: 워크벤치 수정용 스냅샷 + 다중 시나리오 교체
+  trimId: z.number().int().nullable().optional(),
+  basePrice: z.string().nullable().optional(),
+  optionTotal: z.string().nullable().optional(),
+  options: z.array(z.object({ id: z.number().int(), name: z.string(), price: z.number().nullable() })).nullable().optional(),
+  finalDiscount: z.string().nullable().optional(),
+  acquisitionTax: z.string().nullable().optional(),
+  acquisitionTaxMode: z.enum(["normal", "hybrid", "electric", "manual"]).nullable().optional(),
+  bond: z.string().nullable().optional(),
+  delivery: z.string().nullable().optional(),
+  incidental: z.string().nullable().optional(),
+  finalVehiclePrice: z.string().nullable().optional(),
+  acquisitionCost: z.string().nullable().optional(),
+  exteriorColorId: z.number().int().nullable().optional(),
+  exteriorColorName: z.string().nullable().optional(),
+  exteriorColorHex: z.string().nullable().optional(),
+  interiorColorId: z.number().int().nullable().optional(),
+  interiorColorName: z.string().nullable().optional(),
+  interiorColorHex: z.string().nullable().optional(),
+  scenarios: z.array(quoteScenarioBody).max(3).optional(),
 });
 
 customers.post("/:id/memos", zValidator("param", idParam), zValidator("json", memoBody), async (c) =>

@@ -57,6 +57,9 @@ export type TrimDetail = Trim & {
   options: TrimOption[];
   optionRelations: TrimOptionRelation[];
   colors: TrimColor[];
+  brandId: number;
+  brandName: string;
+  modelName: string;
   noOptions: { note: string | null; checkedAt: string } | null;
 };
 

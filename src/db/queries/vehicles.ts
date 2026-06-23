@@ -92,8 +92,13 @@ export async function getTrimDetail(trimId: number, executor: Executor = getDefa
       financialDiscountAmount: trimsInCatalog.financialDiscountAmount,
       partnerDiscountAmount: trimsInCatalog.partnerDiscountAmount,
       cashDiscountAmount: trimsInCatalog.cashDiscountAmount,
+      brandId: brandsInCatalog.id,
+      brandName: brandsInCatalog.name,
+      modelName: modelsInCatalog.name,
     })
     .from(trimsInCatalog)
+    .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
+    .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
     .where(eq(trimsInCatalog.id, trimId));
 
   if (!trim) return null;

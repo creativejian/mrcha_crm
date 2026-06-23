@@ -16,6 +16,25 @@ export type QuoteHeaderPatch = {
   decisionStatus?: string | null;
   note?: string | null;
   primaryScenarioId?: string | null;
+  // PR2a: 워크벤치 수정용 가격/색상/옵션 스냅샷(보낸 것만 갱신)
+  trimId?: number | null;
+  basePrice?: string | null;
+  optionTotal?: string | null;
+  options?: { id: number; name: string; price: number | null }[] | null;
+  finalDiscount?: string | null;
+  acquisitionTax?: string | null;
+  acquisitionTaxMode?: string | null;
+  bond?: string | null;
+  delivery?: string | null;
+  incidental?: string | null;
+  finalVehiclePrice?: string | null;
+  acquisitionCost?: string | null;
+  exteriorColorId?: number | null;
+  exteriorColorName?: string | null;
+  exteriorColorHex?: string | null;
+  interiorColorId?: number | null;
+  interiorColorName?: string | null;
+  interiorColorHex?: string | null;
   bumpRevision?: boolean;
 };
 export type QuoteScenarioPatch = {
@@ -24,7 +43,7 @@ export type QuoteScenarioPatch = {
   monthlyPayment?: string | null;
   lender?: string | null;
 };
-export type QuotePatch = QuoteHeaderPatch & { scenario?: QuoteScenarioPatch };
+export type QuotePatch = QuoteHeaderPatch & { scenario?: QuoteScenarioPatch; scenarios?: ScenarioInput[] };
 // #4c-3a 생성용 시나리오(비교카드 입력 가능 컬럼 + 메타). PATCH는 단수 그대로.
 export type ScenarioInput = QuoteScenarioPatch & {
   scenarioNo?: number | null;
@@ -55,6 +74,24 @@ function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
     set.appStatus = p.appStatus;
     if (p.appStatus === "sent") set.sentAt = new Date(); // 발송 시 서버가 시각 확정
   }
+  if (p.trimId !== undefined) set.trimId = p.trimId;
+  if (p.basePrice !== undefined) set.basePrice = p.basePrice;
+  if (p.optionTotal !== undefined) set.optionTotal = p.optionTotal;
+  if (p.options !== undefined) set.options = p.options;
+  if (p.finalDiscount !== undefined) set.finalDiscount = p.finalDiscount;
+  if (p.acquisitionTax !== undefined) set.acquisitionTax = p.acquisitionTax;
+  if (p.acquisitionTaxMode !== undefined) set.acquisitionTaxMode = p.acquisitionTaxMode;
+  if (p.bond !== undefined) set.bond = p.bond;
+  if (p.delivery !== undefined) set.delivery = p.delivery;
+  if (p.incidental !== undefined) set.incidental = p.incidental;
+  if (p.finalVehiclePrice !== undefined) set.finalVehiclePrice = p.finalVehiclePrice;
+  if (p.acquisitionCost !== undefined) set.acquisitionCost = p.acquisitionCost;
+  if (p.exteriorColorId !== undefined) set.exteriorColorId = p.exteriorColorId;
+  if (p.exteriorColorName !== undefined) set.exteriorColorName = p.exteriorColorName;
+  if (p.exteriorColorHex !== undefined) set.exteriorColorHex = p.exteriorColorHex;
+  if (p.interiorColorId !== undefined) set.interiorColorId = p.interiorColorId;
+  if (p.interiorColorName !== undefined) set.interiorColorName = p.interiorColorName;
+  if (p.interiorColorHex !== undefined) set.interiorColorHex = p.interiorColorHex;
   if (p.bumpRevision) set.revision = sql`${quotes.revision} + 1`;
   return set;
 }
@@ -99,6 +136,14 @@ export async function updateQuote(
   if (patch.primaryScenarioId !== undefined && (patch.primaryScenarioId === null || scs.some((s) => s.id === patch.primaryScenarioId))) {
     await ex.update(quotes).set({ primaryScenarioId: patch.primaryScenarioId }).where(eq(quotes.id, quoteId));
     primaryId = patch.primaryScenarioId;
+  }
+
+  // PR2a: scenarios(복수) 제공 시 전체 교체(delete→insert). 대표 재계산.
+  if (patch.scenarios) {
+    await ex.delete(quoteScenarios).where(eq(quoteScenarios.quoteId, quoteId));
+    const { primaryId } = await insertScenarios(ex, quoteId, patch.scenarios);
+    await ex.update(quotes).set({ primaryScenarioId: primaryId }).where(eq(quotes.id, quoteId));
+    return { id: row.id };
   }
 
   // 대표 시나리오 1건 갱신(헤더 PATCH와 함께 온 경우) — 갱신된 대표 기준.
@@ -170,6 +215,41 @@ export type QuoteCreateBody = {
   scenarios?: ScenarioInput[];
 };
 
+// 시나리오 N건 insert + 대표(scenario_no 최소) id 반환. createQuote/updateQuote 공용.
+async function insertScenarios(
+  ex: Executor,
+  quoteId: string,
+  inputs: ScenarioInput[],
+): Promise<{ primaryId: string | null }> {
+  const inserted: { id: string; scenarioNo: number }[] = [];
+  for (const sc of inputs) {
+    const scenarioNo = sc.scenarioNo ?? 1;
+    const [s] = await ex.insert(quoteScenarios).values({
+      quoteId,
+      scenarioNo,
+      isSaved: sc.isSaved ?? false,
+      savedAt: sc.isSaved ? new Date() : null,
+      purchaseMethod: sc.purchaseMethod ?? null,
+      termMonths: sc.termMonths ?? null,
+      monthlyPayment: sc.monthlyPayment ?? null,
+      lender: sc.lender ?? null,
+      depositMode: sc.depositMode ?? null,
+      depositValue: sc.depositValue ?? null,
+      downPaymentMode: sc.downPaymentMode ?? null,
+      downPaymentValue: sc.downPaymentValue ?? null,
+      residualMode: sc.residualMode ?? null,
+      residualValue: sc.residualValue ?? null,
+      mileageMode: sc.mileageMode ?? null,
+      mileageValue: sc.mileageValue ?? null,
+    }).returning({ id: quoteScenarios.id });
+    inserted.push({ id: s.id, scenarioNo });
+  }
+  const primary = inserted.length
+    ? inserted.reduce((m, x) => (x.scenarioNo < m.scenarioNo ? x : m))
+    : null;
+  return { primaryId: primary?.id ?? null };
+}
+
 // 새 견적 INSERT — quote_code 서버 생성 → quote → scenario(scenario_no=1) → primary_scenario_id UPDATE.
 // 라우트가 transaction으로 감싸 호출(ex=tx). app_status는 항상 "draft"(발송 전).
 export async function createQuote(
@@ -216,35 +296,8 @@ export async function createQuote(
     ? body.scenarios
     : (body.scenario ? [{ ...body.scenario, scenarioNo: 1 }] : []);
 
-  const inserted: { id: string; scenarioNo: number }[] = [];
-  for (const sc of scenarioInputs) {
-    const scenarioNo = sc.scenarioNo ?? 1;
-    const [s] = await ex.insert(quoteScenarios).values({
-      quoteId: q.id,
-      scenarioNo,
-      isSaved: sc.isSaved ?? false,
-      savedAt: sc.isSaved ? new Date() : null,
-      purchaseMethod: sc.purchaseMethod ?? null,
-      termMonths: sc.termMonths ?? null,
-      monthlyPayment: sc.monthlyPayment ?? null,
-      lender: sc.lender ?? null,
-      depositMode: sc.depositMode ?? null,
-      depositValue: sc.depositValue ?? null,
-      downPaymentMode: sc.downPaymentMode ?? null,
-      downPaymentValue: sc.downPaymentValue ?? null,
-      residualMode: sc.residualMode ?? null,
-      residualValue: sc.residualValue ?? null,
-      mileageMode: sc.mileageMode ?? null,
-      mileageValue: sc.mileageValue ?? null,
-    }).returning({ id: quoteScenarios.id });
-    inserted.push({ id: s.id, scenarioNo });
-  }
-
-  // 대표 = scenario_no 최소(보통 1). 없으면 첫 건.
-  const primary = inserted.length
-    ? inserted.reduce((m, x) => (x.scenarioNo < m.scenarioNo ? x : m))
-    : null;
-  if (primary) await ex.update(quotes).set({ primaryScenarioId: primary.id }).where(eq(quotes.id, q.id));
+  const { primaryId } = await insertScenarios(ex, q.id, scenarioInputs);
+  if (primaryId) await ex.update(quotes).set({ primaryScenarioId: primaryId }).where(eq(quotes.id, q.id));
   return q;
 }
 
