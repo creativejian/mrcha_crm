@@ -376,6 +376,62 @@ test("견적 쓰기: PATCH primaryScenarioId → 대표 전환 반영, 타 quote
   }
 });
 
+test("견적 원본 #4d: POST 업로드 → getCustomer file_* 반영(file_path 비노출), url 발급, DELETE 제거", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const auth = { Authorization: `Bearer ${token}` };
+  const list = (await (await app.request("/api/customers", { headers: auth })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const quoteId = await seedThrowawayQuote(cid);
+  try {
+    const fd = new FormData();
+    fd.append("file", new File([new Uint8Array([1, 2, 3, 4])], "원본견적.pdf", { type: "application/pdf" }));
+    const up = await app.request(`/api/customers/${cid}/quotes/${quoteId}/original`, { method: "POST", headers: auth, body: fd });
+    expect(up.status).toBe(201);
+    expect(((await up.json()) as { fileName: string }).fileName).toBe("원본견적.pdf");
+
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: auth })).json()) as {
+      quotes: Array<{ id: string; fileName: string | null; fileMime: string | null; filePath?: string }>;
+    };
+    const q = detail.quotes.find((x) => x.id === quoteId)!;
+    expect(q.fileName).toBe("원본견적.pdf");
+    expect(q.fileMime).toBe("application/pdf");
+    expect("filePath" in q).toBe(false); // file_path 비노출
+
+    const urlRes = await app.request(`/api/customers/${cid}/quotes/${quoteId}/original/url`, { headers: auth });
+    expect(urlRes.status).toBe(200);
+    expect(((await urlRes.json()) as { url: string }).url).toContain("https://example.test/");
+
+    const del = await app.request(`/api/customers/${cid}/quotes/${quoteId}/original`, { method: "DELETE", headers: auth });
+    expect(del.status).toBe(200);
+    const detail2 = (await (await app.request(`/api/customers/${cid}`, { headers: auth })).json()) as { quotes: Array<{ id: string; fileName: string | null }> };
+    expect(detail2.quotes.find((x) => x.id === quoteId)!.fileName).toBeNull();
+  } finally {
+    await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
+test("견적 원본 #4d: 허용 안 되는 MIME → 415, 없는 견적 → 404", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const auth = { Authorization: `Bearer ${token}` };
+  const list = (await (await app.request("/api/customers", { headers: auth })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const quoteId = await seedThrowawayQuote(cid);
+  try {
+    const fdBad = new FormData();
+    fdBad.append("file", new File([new Uint8Array([1])], "메모.txt", { type: "text/plain" }));
+    expect((await app.request(`/api/customers/${cid}/quotes/${quoteId}/original`, { method: "POST", headers: auth, body: fdBad })).status).toBe(415);
+
+    const missing = "00000000-0000-0000-0000-000000000000";
+    const fdPdf = new FormData();
+    fdPdf.append("file", new File([new Uint8Array([1])], "q.pdf", { type: "application/pdf" }));
+    expect((await app.request(`/api/customers/${cid}/quotes/${missing}/original`, { method: "POST", headers: auth, body: fdPdf })).status).toBe(404);
+  } finally {
+    await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
 test("견적 생성: POST → 201·quote_code 형식·getCustomer 반영(대표 시나리오 포함)", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });

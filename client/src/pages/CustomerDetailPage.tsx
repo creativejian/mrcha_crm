@@ -4,7 +4,7 @@ import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanc
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
-import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseTermMonths, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload } from "@/lib/customer-quotes";
+import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseTermMonths, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload } from "@/lib/customer-quotes";
 import { ColorPicker } from "@/components/ColorPicker";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
@@ -917,6 +917,7 @@ function KimMinjunDetailContent({
   const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
   const [previewSentQuoteId, setPreviewSentQuoteId] = useState<string | null>(null);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
+  const [previewQuoteUrl, setPreviewQuoteUrl] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PricingResult>(kimMaybachQuotePricingResult);
   const pricingPanelRef = useRef<HTMLElement>(null);
   const [primaryDiscountUnit, setPrimaryDiscountUnit] = useState<KimDiscountUnit>("amount");
@@ -980,6 +981,17 @@ function KimMinjunDetailContent({
   const activeQuoteStatus = activeQuoteStatusTooltip ? quotes.find((quote) => quote.id === activeQuoteStatusTooltip.id) ?? null : null;
   const activeQuoteStatusDetail = activeQuoteStatus ? kimQuoteStatusDetailParts(activeQuoteStatus) : null;
   const previewQuote = quotes.find((quote) => quote.id === previewQuoteId) ?? null;
+  // 미리보기 URL: 업로드 직후 메모리 objectUrl 우선, 영속본은 signed URL을 비동기 발급.
+  const activePreviewQuoteUrl = previewQuote ? previewQuote.objectUrl ?? previewQuoteUrl : null;
+  useEffect(() => {
+    if (!previewQuoteId || quotes.find((q) => q.id === previewQuoteId)?.objectUrl) return () => setPreviewQuoteUrl(null);
+    let cancelled = false;
+    getQuoteOriginalUrl(detail.id, previewQuoteId)
+      .then((r) => { if (!cancelled) setPreviewQuoteUrl(r.url); })
+      .catch(() => onToast("미리보기 URL 발급에 실패했습니다."));
+    return () => { cancelled = true; setPreviewQuoteUrl(null); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- previewQuoteId 변경 시에만 재실행(quotes는 파생 조회라 dep 제외)
+  }, [previewQuoteId, detail.id, onToast]);
   const previewSentQuote = quotes.find((quote) => quote.id === previewSentQuoteId) ?? null;
   const previewDocument = documents.find((documentItem) => documentItem.id === previewDocumentId) ?? null;
   // 미리보기 URL(이미지면 썸네일). 업로드 직후 objectUrl 우선. null이면 아직 발급 중(로딩).
@@ -2436,13 +2448,16 @@ function KimMinjunDetailContent({
       return;
     }
     const quoteTitle = quotes.find((quote) => quote.id === quoteId)?.title ?? "견적";
+    const prevQuotes = quotes;
+    const objectUrl = URL.createObjectURL(file);
+    const mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
     setQuotes((current) => current.map((quote) => (
       quote.id === quoteId ? {
         ...quote,
         fileName: file.name,
         fileSize: file.size,
-        mimeType: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
-        objectUrl: URL.createObjectURL(file),
+        mimeType,
+        objectUrl,
         file,
         status: quote.status === "작성중" ? "발송대기" : quote.status,
         appStatus: quote.appStatus === "draft" ? "queued" : quote.appStatus,
@@ -2450,7 +2465,29 @@ function KimMinjunDetailContent({
       } : quote
     )));
     markRecentUpdate("견적함");
+    if (customer.id && !quoteId.startsWith("kim-")) {
+      void uploadQuoteOriginal(customer.id, quoteId, file).catch(() => {
+        URL.revokeObjectURL(objectUrl);
+        setQuotes(prevQuotes);
+        onToast("원본 업로드에 실패했습니다.");
+      });
+    }
     onToast(`${quoteTitle} 원본 첨부: ${file.name}`);
+  }
+
+  function removeQuoteOriginal(quoteId: string) {
+    const prevQuotes = quotes;
+    const target = quotes.find((quote) => quote.id === quoteId);
+    if (target?.objectUrl) URL.revokeObjectURL(target.objectUrl);
+    setQuotes((current) => current.map((quote) => (
+      quote.id === quoteId ? { ...quote, fileName: undefined, fileSize: undefined, mimeType: undefined, objectUrl: undefined, file: undefined } : quote
+    )));
+    setPreviewQuoteId((current) => (current === quoteId ? null : current));
+    if (customer.id && !quoteId.startsWith("kim-")) {
+      void deleteQuoteOriginal(customer.id, quoteId).catch(() => { setQuotes(prevQuotes); onToast("원본 삭제에 실패했습니다."); });
+    }
+    markRecentUpdate("견적함");
+    onToast("견적 원본을 삭제했습니다.");
   }
 
   function attachQuoteFile(event: ChangeEvent<HTMLInputElement>, quoteId: string) {
@@ -4313,7 +4350,7 @@ function KimMinjunDetailContent({
                       {quote.stockStatus ? <span className={`stock${kimQuoteStockClass(quote.stockStatus)}`}>{quote.stockStatus}</span> : null}
                       {quote.validLabel ? <span className={`valid${kimQuoteValidClass(quote.validLabel)}`}>{quote.validLabel}</span> : null}
                     </div>
-                    {(quote.finalVehiclePrice != null || quote.exteriorColorName || quote.interiorColorName) ? (
+                    {(quote.finalVehiclePrice != null || quote.exteriorColorName || quote.interiorColorName || quote.fileName) ? (
                       <div className="kim-quote-meta-pricing">
                         {quote.finalVehiclePrice != null ? <span className="kim-quote-final-price">최종 차량가 {formatMoney(quote.finalVehiclePrice)}</span> : null}
                         {quote.exteriorColorName ? (
@@ -4327,6 +4364,12 @@ function KimMinjunDetailContent({
                             {quote.interiorColorHex ? <i aria-hidden="true" style={{ background: quote.interiorColorHex }} /> : null}
                             내장 {quote.interiorColorName}
                           </span>
+                        ) : null}
+                        {quote.fileName ? (
+                          <button type="button" className="kim-quote-attach-chip" onClick={() => setPreviewQuoteId(quote.id)} title={`견적 원본 보기 · ${quote.fileName}`}>
+                            <Paperclip size={11} strokeWidth={2.5} />
+                            <span>{quote.fileName}</span>
+                          </button>
                         ) : null}
                       </div>
                     ) : null}
@@ -5570,13 +5613,19 @@ function KimMinjunDetailContent({
                 <strong>{previewQuote.title}</strong>
                 <span>{previewQuote.quoteCode} · {previewQuote.fileName} · {formatKimFileSize(previewQuote.fileSize)}</span>
               </div>
-              <button aria-label="견적 원본 미리보기 닫기" onClick={() => setPreviewQuoteId(null)} type="button"><X size={15} strokeWidth={2.4} /></button>
+              <div className="kim-document-preview-head-actions">
+                <button aria-label="견적 원본 다운로드" disabled={!activePreviewQuoteUrl} onClick={() => { if (activePreviewQuoteUrl) downloadKimDocument(activePreviewQuoteUrl, previewQuote.fileName ?? "quote"); }} type="button"><Download size={15} strokeWidth={2.3} /></button>
+                <button aria-label="견적 원본 삭제" onClick={() => removeQuoteOriginal(previewQuote.id)} type="button"><Trash2 size={15} strokeWidth={2.3} /></button>
+                <button aria-label="견적 원본 미리보기 닫기" onClick={() => setPreviewQuoteId(null)} type="button"><X size={15} strokeWidth={2.4} /></button>
+              </div>
             </div>
             <div className="kim-document-preview-body">
-              {previewQuote.objectUrl && previewQuote.mimeType?.startsWith("image/") ? (
-                <img alt={previewQuote.title} src={previewQuote.objectUrl} />
-              ) : previewQuote.objectUrl && kimDocumentFileKind(previewQuote.mimeType, previewQuote.fileName) === "PDF" ? (
-                <iframe src={previewQuote.objectUrl} title={previewQuote.title} />
+              {!activePreviewQuoteUrl ? (
+                <p>불러오는 중…</p>
+              ) : previewQuote.mimeType?.startsWith("image/") ? (
+                <img alt={previewQuote.title} src={activePreviewQuoteUrl} />
+              ) : kimDocumentFileKind(previewQuote.mimeType, previewQuote.fileName) === "PDF" ? (
+                <iframe src={activePreviewQuoteUrl} title={previewQuote.title} />
               ) : (
                 <p>미리보기를 지원하지 않는 파일입니다.</p>
               )}

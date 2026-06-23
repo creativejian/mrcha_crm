@@ -63,7 +63,7 @@ export async function listCustomers(executor: Executor = getDefaultDb()): Promis
     .orderBy(desc(customers.receivedAt));
 }
 
-export type QuoteWithScenarios = typeof quotes.$inferSelect & {
+export type QuoteWithScenarios = Omit<typeof quotes.$inferSelect, "filePath"> & {
   scenarios: (typeof quoteScenarios.$inferSelect)[];
 };
 
@@ -113,7 +113,7 @@ export async function getCustomer(id: string, executor: Executor = getDefaultDb(
     if (arr) arr.push(s);
     else scenariosByQuote.set(s.quoteId, [s]);
   }
-  const quotesWithScenarios: QuoteWithScenarios[] = quoteRows.map((q) => ({ ...q, scenarios: scenariosByQuote.get(q.id) ?? [] }));
+  const quotesWithScenarios: QuoteWithScenarios[] = quoteRows.map(({ filePath: _filePath, ...rest }) => ({ ...rest, scenarios: scenariosByQuote.get(rest.id) ?? [] }));
 
   return { ...customer, tasks, schedules, memos, documents, consultations: consults, quotes: quotesWithScenarios };
 }
