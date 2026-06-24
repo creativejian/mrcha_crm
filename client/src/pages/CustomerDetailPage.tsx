@@ -5000,7 +5000,7 @@ function KimMinjunDetailContent({
                                 <option>인수 선택까지 고려한 안정적인 조건입니다.</option>
                               </select>
                             </label>
-                            <label className="wide"><span>추천이유</span><textarea defaultValue={"현재 조건에서는 월 납입금과 취득원가 균형이 가장 안정적인 운용리스 조건입니다.\n금리와 잔존가치 조건은 상담 중 추가 협상 여지가 있습니다."} rows={1} /></label>
+                            <label className="wide"><span>추천이유</span><textarea defaultValue={"현재 조건에서는 월 납입금과 취득원가 균형이 가장 안정적인 운용리스 조건입니다.\n금리와 잔존가치 조건은 상담 중 추가 협상 여지가 있습니다."} rows={2} /></label>
                           </div>
                         </div>
                       </div>
