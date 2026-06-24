@@ -866,6 +866,8 @@ function KimMinjunDetailContent({
   const [manualMileageModes, setManualMileageModes] = useState<Record<string, KimManualMileageMode>>({});
   const [manualMileageValues, setManualMileageValues] = useState<Record<string, string>>({});
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  // 신규 작성완료 후 "이후 UPDATE 대상 id". editingQuoteId(=비교카드 key·prefill)를 안 건드려야 카드 리마운트(입력 리셋)를 막는다.
+  const persistedQuoteIdRef = useRef<string | null>(null);
   const [editPrefill, setEditPrefill] = useState<KimEditPrefill | null>(null);
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<KimRecognizedQuoteFile | null>(null);
   const [isQuoteWorkbenchOriginalDragActive, setIsQuoteWorkbenchOriginalDragActive] = useState(false);
@@ -2240,23 +2242,25 @@ function KimMinjunDetailContent({
       interiorColorId: interiorColor?.id ?? undefined,
     };
 
-    if (editingQuoteId) {
+    // 수정 진입(editingQuoteId) 또는 신규 첫 작성완료 후(persistedQuoteIdRef)면 UPDATE.
+    const targetId = editingQuoteId ?? persistedQuoteIdRef.current;
+    if (targetId) {
       const prevQuotes = quotes;
-      setQuotes((current) => current.map((q) => (q.id === editingQuoteId ? {
+      setQuotes((current) => current.map((q) => (q.id === targetId ? {
         ...q,
         ...optimisticVehicle,
         ...(send
           ? { status: "고객 확인 전", appStatus: "sent" as const, revision: (q.revision ?? 1) + 1, meta: `${savedAt} · 수정 후 재발송` }
           : { meta: `${savedAt} · 저장` }),
       } : q)));
-      if (customer.id && !editingQuoteId.startsWith("kim-")) {
+      if (customer.id && !targetId.startsWith("kim-")) {
         const patch: QuoteWritePatch = {
           entryMode: source,
           ...snapshot,
           ...scenarioField,
           ...(send ? { status: "고객 확인 전", appStatus: "sent", bumpRevision: true } : {}),
         };
-        void apiUpdateQuote(customer.id, editingQuoteId, patch).catch(() => { setQuotes(prevQuotes); onToast(send ? "발송에 실패했습니다." : "저장에 실패했습니다."); });
+        void apiUpdateQuote(customer.id, targetId, patch).catch(() => { setQuotes(prevQuotes); onToast(send ? "발송에 실패했습니다." : "저장에 실패했습니다."); });
       }
     } else {
       const tempId = `kim-quote-workbench-${nowMs()}`;
@@ -2293,7 +2297,7 @@ function KimMinjunDetailContent({
         void apiCreateQuote(cid, payload)
           .then(({ id, quoteCode }) => {
             setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q)));
-            setEditingQuoteId(id); // 이후 작성완료/발송은 같은 견적 UPDATE
+            persistedQuoteIdRef.current = id; // 이후 작성완료/발송은 같은 견적 UPDATE (editingQuoteId/key는 안 건드림)
             if (send && !id.startsWith("kim-")) {
               void apiUpdateQuote(cid, id, { status: "고객 확인 전", appStatus: "sent", bumpRevision: true }).catch(() => onToast("발송에 실패했습니다."));
             }
@@ -2311,6 +2315,7 @@ function KimMinjunDetailContent({
       setSolutionWorkbenchModeMenu(null);
       setEditingQuoteId(null);
       setEditPrefill(null);
+      persistedQuoteIdRef.current = null;
     }
     onToast(send ? "저장하고 고객 앱으로 발송했습니다." : "견적을 저장했습니다.");
   }
@@ -4109,6 +4114,7 @@ function KimMinjunDetailContent({
                 onClick={() => {
                   setConfirmingQuoteDeleteId(null);
                   setEditingQuoteId(null);
+                  persistedQuoteIdRef.current = null;
                   setEditPrefill(null);
                   setManualQuoteCards([...kimManualQuoteConditionCards]);
                   setManualTermMonths({});
@@ -4403,6 +4409,7 @@ function KimMinjunDetailContent({
               setManualMileageValues(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageValue])));
               setManualTermMonths(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.termMonths])));
               setEditingQuoteId(openQuoteAction.id);
+              persistedQuoteIdRef.current = null;
               setSolutionWorkbenchPurchaseMethod(normalizeKimQuotePurchaseMethod(openQuoteAction.financeType));
               setSolutionWorkbenchEntryMode(openQuoteAction.source === "solution" ? "solution" : openQuoteAction.source === "original" ? "original" : "manual");
               setSolutionWorkbenchModeMenu(null);
