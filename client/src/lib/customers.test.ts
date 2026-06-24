@@ -124,6 +124,7 @@ const detailRes: CustomerDetailResponse = {
       fileName: null,
       fileSize: null,
       fileMime: null,
+      guidance: null,
       scenarios: [{ id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false }],
     },
   ],

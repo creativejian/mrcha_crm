@@ -43,6 +43,7 @@ function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote
     fileName: null,
     fileSize: null,
     fileMime: null,
+    guidance: null,
     scenarios: [
       { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false },
     ],
@@ -128,6 +129,12 @@ describe("toKimQuoteItem", () => {
     expect(k.exteriorColorHex).toBe("#0a0a0a");
     expect(k.interiorColorName).toBe("마키아토 베이지");
     expect(k.interiorColorHex).toBe("#d8c7a8");
+  });
+
+  it("guidance(추가 안내)를 매핑하고 null이면 undefined", () => {
+    const g = { deliveryComment: "a", stockNotice: "b", expectedDelivery: "c", customerRegion: "d", keyPoint: "e", recommendReason: "f", services: ["s1", "s2"] };
+    expect(toKimQuoteItem(makeQuote({ guidance: g }), NOW).guidance).toEqual(g);
+    expect(toKimQuoteItem(makeQuote({ guidance: null }), NOW).guidance).toBeUndefined();
   });
 
   it("#4c-2 가격/색상 없으면 undefined", () => {
