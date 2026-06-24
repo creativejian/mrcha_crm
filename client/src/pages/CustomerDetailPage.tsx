@@ -7,8 +7,10 @@ import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } fr
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { ColorPicker } from "@/components/ColorPicker";
+import { KimAppCardPreview } from "@/components/KimAppCardPreview";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
+import { buildAppCardModel, type AppCardModel } from "@/lib/kim-app-card";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
@@ -889,6 +891,8 @@ function KimMinjunDetailContent({
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [previewQuoteUrl, setPreviewQuoteUrl] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PricingResult>(kimMaybachQuotePricingResult);
+  const [pricingInputs, setPricingInputs] = useState<PricingInputs>(kimMaybachQuotePricingMock);
+  const [cardScenario, setCardScenario] = useState<ScenarioInput | null>(null);
   const pricingPanelRef = useRef<HTMLElement>(null);
   const [primaryDiscountUnit, setPrimaryDiscountUnit] = useState<KimDiscountUnit>("amount");
   const [discountLines, setDiscountLines] = useState<KimDiscountLine[]>([]);
@@ -1008,6 +1012,22 @@ function KimMinjunDetailContent({
     [workbenchVehicle?.brand?.name, workbenchVehicle?.model?.name, trimDetail?.trimName ?? trimDetail?.name].filter(Boolean).join(" ")
     || [editingQuote?.brand, editingQuote?.model, editingQuote?.trim].filter(Boolean).join(" ")
     || "차량 미선택";
+  const appCardModel: AppCardModel = buildAppCardModel({
+    brandName: workbenchVehicle?.brand?.name ?? null,
+    modelName: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
+    trimName: trimDetail?.trimName ?? trimDetail?.name ?? null,
+    modelYear: trimDetail?.modelYear ?? null,
+    basePrice: pricingInputs.basePrice,
+    discount: pricingInputs.discount,
+    finalVehiclePrice: pricing.finalVehiclePrice,
+    registrationCost: pricing.registrationCost,
+    acquisitionCost: pricing.acquisitionCost,
+    exteriorColorName: exteriorColor?.name ?? null,
+    interiorColorName: interiorColor?.name ?? null,
+    guidance,
+    purchaseMethod: solutionWorkbenchPurchaseMethod,
+    scenario: cardScenario,
+  });
   const workbenchFirstTermMonths = manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60;
   const sortedCustomerMemos = sortKimCustomerMemosByCreatedAt(customerMemos);
   const sortedCheckItems = sortKimCheckItemsByWorkRule(checkItems, completedCheckItems);
@@ -1179,7 +1199,9 @@ function KimMinjunDetailContent({
   function recomputePricing() {
     const root = pricingPanelRef.current;
     if (!root) return;
-    setPricing(computePricing(readPricingInputs(root)));
+    const inputs = readPricingInputs(root);
+    setPricingInputs(inputs);
+    setPricing(computePricing(inputs));
   }
 
   function syncDiscountTotalFromRows(root: HTMLElement) {
@@ -2204,6 +2226,16 @@ function KimMinjunDetailContent({
       };
     });
   }
+
+  useEffect(() => {
+    if (!savedManualQuoteConditionIds.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 저장된 조건이 없으면 대표 시나리오 해제(의도된 동기화 effect)
+      setCardScenario(null);
+      return;
+    }
+    setCardScenario(extractWorkbenchScenarios()[0] ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- savedManualQuoteConditionIds 변경 시점에만 재추출(extract가 읽는 manualTermMonths 등 내부 state는 그 시점 최신 보장; dep 추가 시 중복 실행)
+  }, [savedManualQuoteConditionIds]);
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
   // 신규는 첫 INSERT 후 반환 id를 editingQuoteId로 세팅 → 이후 UPDATE(중복 INSERT 방지).
@@ -4997,74 +5029,7 @@ function KimMinjunDetailContent({
                     </div>
                   </div>
 
-                  <aside className="kim-app-card-preview" aria-label="앱 견적카드 미리보기">
-                    <div className="kim-app-card">
-                      <div className="kim-app-card-status">
-                        <strong>🔔 미확인 견적</strong>
-                        <span>● D-6</span>
-                      </div>
-                      <div className="kim-app-card-body">
-                        <div className="kim-app-card-hero">
-                          <div>
-                            <span>벤츠</span>
-                            <strong>Maybach S-Class<br />S 500 4M Long</strong>
-                            <p>2026년식 ㅣ {formatMoney(kimMaybachQuotePricingMock.basePrice)}원 ㅣ 기본 제공 옵션</p>
-                          </div>
-                          <div>
-                            <b>운용리스</b>
-                            <b>60개월</b>
-                          </div>
-                        </div>
-
-                        <div className="kim-app-pay-box">
-                          <span>월 납입금</span>
-                          <strong>2,398,000원</strong>
-                          <em>금리 5.32%</em>
-                          <p>잔존가치 71,853,240원 · 총 비용 167,652,170원</p>
-                        </div>
-
-                        <div className="kim-app-discount-box">
-                          <span>최대 할인 적용</span>
-                          <strong>-{formatMoney(kimMaybachQuotePricingMock.discount)}원</strong>
-                        </div>
-
-                        <div className="kim-app-mini-grid">
-                          <div><span>보증금</span><strong>30% · 72,900,000원</strong></div>
-                          <div><span>주행거리</span><strong>연 20,000km</strong></div>
-                        </div>
-
-                        <div className="kim-app-detail-block">
-                          <header>🚗 출고 시기 정보</header>
-                          <dl>
-                            <dt>외장 컬러</dt><dd>{exteriorColor?.name ?? "미선택"}</dd>
-                            <dt>내장 컬러</dt><dd>{interiorColor?.name ?? "미선택"}</dd>
-                            <dt>재고 여부</dt><dd className="green">확인 필요</dd>
-                            <dt>예상 출고</dt><dd>확인 후 안내</dd>
-                            <dt>고객 지역</dt><dd>인천</dd>
-                          </dl>
-                        </div>
-
-                        <div className="kim-app-detail-block">
-                          <header>📌 취득원가 구성</header>
-                          <dl>
-                            <dt>최종 차량가</dt><dd className="green">{formatMoney(kimMaybachQuotePricingResult.finalVehiclePrice)}원</dd>
-                            <dt>등록비용 합계</dt><dd className="green">{formatMoney(kimMaybachQuotePricingResult.registrationCost)}원</dd>
-                            <dt>취득원가</dt><dd className="blue">{formatMoney(kimMaybachQuotePricingResult.acquisitionCost)}원</dd>
-                          </dl>
-                        </div>
-
-                        <div className="kim-app-detail-block">
-                          <header>🧾 추천 견적 조건</header>
-                          <dl>
-                            <dt>금융사</dt><dd>우리금융캐피탈</dd>
-                            <dt>보증금</dt><dd>30%</dd>
-                            <dt>선수금</dt><dd>0원</dd>
-                            <dt>최종 월 납입금</dt><dd className="blue">2,398,000원</dd>
-                          </dl>
-                        </div>
-                      </div>
-                    </div>
-                  </aside>
+                  <KimAppCardPreview model={appCardModel} />
                 </section>
               </div>
               {isQuoteAppCardPreviewOpen ? (
@@ -5089,74 +5054,7 @@ function KimMinjunDetailContent({
                         <X size={18} strokeWidth={2.2} />
                       </button>
                     </header>
-                    <aside className="kim-app-card-preview in-modal" aria-label="앱 견적카드 미리보기">
-                      <div className="kim-app-card">
-                        <div className="kim-app-card-status">
-                          <strong>🔔 미확인 견적</strong>
-                          <span>● D-6</span>
-                        </div>
-                        <div className="kim-app-card-body">
-                          <div className="kim-app-card-hero">
-                            <div>
-                              <span>벤츠</span>
-                              <strong>Maybach S-Class<br />S 500 4M Long</strong>
-                              <p>2026년식 ㅣ {formatMoney(kimMaybachQuotePricingMock.basePrice)}원 ㅣ 기본 제공 옵션</p>
-                            </div>
-                            <div>
-                              <b>운용리스</b>
-                              <b>60개월</b>
-                            </div>
-                          </div>
-
-                          <div className="kim-app-pay-box">
-                            <span>월 납입금</span>
-                            <strong>2,398,000원</strong>
-                            <em>금리 5.32%</em>
-                            <p>잔존가치 71,853,240원 · 총 비용 167,652,170원</p>
-                          </div>
-
-                          <div className="kim-app-discount-box">
-                            <span>최대 할인 적용</span>
-                            <strong>-{formatMoney(kimMaybachQuotePricingMock.discount)}원</strong>
-                          </div>
-
-                          <div className="kim-app-mini-grid">
-                            <div><span>보증금</span><strong>30% · 72,900,000원</strong></div>
-                            <div><span>주행거리</span><strong>연 20,000km</strong></div>
-                          </div>
-
-                          <div className="kim-app-detail-block">
-                            <header>🚗 출고 시기 정보</header>
-                            <dl>
-                              <dt>외장 컬러</dt><dd>{exteriorColor?.name ?? "미선택"}</dd>
-                              <dt>내장 컬러</dt><dd>{interiorColor?.name ?? "미선택"}</dd>
-                              <dt>재고 여부</dt><dd className="green">확인 필요</dd>
-                              <dt>예상 출고</dt><dd>확인 후 안내</dd>
-                              <dt>고객 지역</dt><dd>인천</dd>
-                            </dl>
-                          </div>
-
-                          <div className="kim-app-detail-block">
-                            <header>📌 취득원가 구성</header>
-                            <dl>
-                              <dt>최종 차량가</dt><dd className="green">{formatMoney(kimMaybachQuotePricingResult.finalVehiclePrice)}원</dd>
-                              <dt>등록비용 합계</dt><dd className="green">{formatMoney(kimMaybachQuotePricingResult.registrationCost)}원</dd>
-                              <dt>취득원가</dt><dd className="blue">{formatMoney(kimMaybachQuotePricingResult.acquisitionCost)}원</dd>
-                            </dl>
-                          </div>
-
-                          <div className="kim-app-detail-block">
-                            <header>🧾 추천 견적 조건</header>
-                            <dl>
-                              <dt>금융사</dt><dd>우리금융캐피탈</dd>
-                              <dt>보증금</dt><dd>30%</dd>
-                              <dt>선수금</dt><dd>0원</dd>
-                              <dt>최종 월 납입금</dt><dd className="blue">2,398,000원</dd>
-                            </dl>
-                          </div>
-                        </div>
-                      </div>
-                    </aside>
+                    <KimAppCardPreview model={appCardModel} inModal />
                   </div>
                 </div>
               ) : null}
