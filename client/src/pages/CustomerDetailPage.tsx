@@ -4625,7 +4625,7 @@ function KimMinjunDetailContent({
                     <ChevronRight size={18} strokeWidth={2.4} />
                     <strong>{editingQuoteId ? "견적 수정" : "새 견적 작성"}</strong>
                   </h2>
-                  <p><span>최근 견적 {quotes.length}개</span><i aria-hidden="true" /><mark>Maybach S 500 · {solutionWorkbenchPurchaseMethod} 60개월</mark><span>견적 작성 필요</span></p>
+                  <p><span>최근 견적 {quotes.length}개</span><i aria-hidden="true" /><mark>{[workbenchVehicle?.brand?.name, workbenchVehicle?.model?.name, trimDetail?.trimName ?? trimDetail?.name].filter(Boolean).join(" ") || "차량 미선택"} · {solutionWorkbenchPurchaseMethod} {manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60}개월</mark><span>{editingQuoteId ? "견적 수정 중" : "견적 작성"}</span></p>
                 </div>
                 <div className="kim-quote-workbench-head-tools" aria-label="견적 작성 모드">
                   <div className="kim-quote-workbench-mode-select" data-workbench-mode="purchase">
