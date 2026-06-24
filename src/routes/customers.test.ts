@@ -313,6 +313,39 @@ test("견적 쓰기: DELETE → 200, getCustomer에서 사라짐(시나리오 ca
   }
 });
 
+test("견적 쓰기: PATCH guidance(추가 안내) → getCustomer 라운드트립", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const quoteId = await seedThrowawayQuote(cid);
+  const guidance = {
+    deliveryComment: "이 차량은 1주일 내 출고 가능해요",
+    stockNotice: "즉시 출고 가능",
+    expectedDelivery: "1주일 이내",
+    customerRegion: "서울",
+    keyPoint: "초기 부담을 낮추는 조건입니다.",
+    recommendReason: "안정적인 조건입니다.",
+    services: ["썬팅", "블랙박스", "", ""],
+  };
+  try {
+    // seed 직후엔 guidance=null
+    const before = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as { quotes: Array<{ id: string; guidance: unknown }> };
+    expect(before.quotes.find((x) => x.id === quoteId)!.guidance).toBeNull();
+
+    const patched = await app.request(`/api/customers/${cid}/quotes/${quoteId}`, {
+      method: "PATCH", headers: h, body: JSON.stringify({ guidance }),
+    });
+    expect(patched.status).toBe(200);
+
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as { quotes: Array<{ id: string; guidance: typeof guidance | null }> };
+    expect(detail.quotes.find((x) => x.id === quoteId)!.guidance).toEqual(guidance);
+  } finally {
+    await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
 test("견적 쓰기: 없는 quoteId PATCH/DELETE → 404", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });

@@ -69,6 +69,15 @@ const quoteScenarioBody = z.object({
   mileageMode: z.string().nullable().optional(),
   mileageValue: z.string().nullable().optional(),
 });
+const quoteGuidanceSchema = z.object({
+  deliveryComment: z.string(),
+  stockNotice: z.string(),
+  expectedDelivery: z.string(),
+  customerRegion: z.string(),
+  keyPoint: z.string(),
+  recommendReason: z.string(),
+  services: z.array(z.string()),
+});
 const quoteCreateBody = z.object({
   entryMode: z.enum(["manual", "solution", "original"]).nullable().optional(),
   status: z.string().nullable().optional(),
@@ -78,6 +87,7 @@ const quoteCreateBody = z.object({
   modelName: z.string().nullable().optional(),
   trimName: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
+  guidance: quoteGuidanceSchema.nullable().optional(),
   // #4c-2 워크벤치 스냅샷(전부 optional, composer는 미전송)
   trimId: z.number().int().nullable().optional(),
   basePrice: z.string().nullable().optional(),
@@ -111,6 +121,7 @@ const quotePatchBody = z.object({
   appStatus: z.enum(["draft", "queued", "sent", "viewed"]).nullable().optional(),
   decisionStatus: z.enum(["none", "considering", "confirmed", "contracting"]).nullable().optional(),
   note: z.string().nullable().optional(),
+  guidance: quoteGuidanceSchema.nullable().optional(),
   primaryScenarioId: z.uuid().nullable().optional(),
   bumpRevision: z.boolean().optional(),
   scenario: quoteScenarioBody.optional(),

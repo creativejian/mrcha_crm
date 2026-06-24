@@ -1,4 +1,5 @@
 import { formatActivity } from "./customers";
+import type { QuoteGuidance } from "@/data/quote-guidance";
 
 // 견적함 UI 항목 타입(기존 CustomerDetailPage 내부 정의에서 이동).
 export type KimQuoteItem = {
@@ -45,6 +46,7 @@ export type KimQuoteItem = {
   scenarios?: CustomerDetailScenario[];
   primaryScenarioId?: string;
   originalNeedsReplacement?: boolean;
+  guidance?: QuoteGuidance;
 };
 
 // GET /api/customers/:id 의 quote 1건(drizzle camelCase 직렬화; numeric→string, timestamptz→ISO string).
@@ -109,6 +111,7 @@ export type CustomerDetailQuote = {
   fileSize: number | null;
   fileMime: string | null;
   scenarios: CustomerDetailScenario[];
+  guidance: QuoteGuidance | null;
 };
 
 const MS_DAY = 86_400_000;
@@ -219,5 +222,6 @@ export function toKimQuoteItem(q: CustomerDetailQuote, nowMs: number): KimQuoteI
     mimeType: q.fileMime ?? undefined,
     primaryScenarioId: q.primaryScenarioId ?? undefined,
     scenarios: q.scenarios,
+    guidance: q.guidance ?? undefined,
   };
 }

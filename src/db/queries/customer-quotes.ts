@@ -3,6 +3,17 @@ import { and, asc, eq, like, sql } from "drizzle-orm";
 import { getDefaultDb, type Executor } from "../client";
 import { quotes, quoteScenarios } from "../schema";
 
+// 추가 안내 사항(앱 노출용). client/src/data/quote-guidance.ts QuoteGuidance와 동형.
+export type QuoteGuidanceInput = {
+  deliveryComment: string;
+  stockNotice: string;
+  expectedDelivery: string;
+  customerRegion: string;
+  keyPoint: string;
+  recommendReason: string;
+  services: string[];
+};
+
 // PATCH 바디(라우트 zod와 동형). 전부 optional — 보낸 것만 갱신.
 export type QuoteHeaderPatch = {
   status?: string | null;
@@ -35,6 +46,7 @@ export type QuoteHeaderPatch = {
   interiorColorId?: number | null;
   interiorColorName?: string | null;
   interiorColorHex?: string | null;
+  guidance?: QuoteGuidanceInput | null;
   bumpRevision?: boolean;
 };
 export type QuoteScenarioPatch = {
@@ -70,6 +82,7 @@ function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
   if (p.trimName !== undefined) set.trimName = p.trimName;
   if (p.decisionStatus !== undefined) set.decisionStatus = p.decisionStatus;
   if (p.note !== undefined) set.note = p.note;
+  if (p.guidance !== undefined) set.guidance = p.guidance;
   if (p.appStatus !== undefined) {
     set.appStatus = p.appStatus;
     if (p.appStatus === "sent") set.sentAt = new Date(); // 발송 시 서버가 시각 확정
@@ -211,6 +224,7 @@ export type QuoteCreateBody = {
   interiorColorId?: number | null;
   interiorColorName?: string | null;
   interiorColorHex?: string | null;
+  guidance?: QuoteGuidanceInput | null;
   scenario?: QuoteScenarioPatch;
   scenarios?: ScenarioInput[];
 };
@@ -269,6 +283,7 @@ export async function createQuote(
     modelName: body.modelName ?? null,
     trimName: body.trimName ?? null,
     note: body.note ?? null,
+    guidance: body.guidance ?? null,
     trimId: body.trimId ?? null,
     basePrice: body.basePrice ?? null,
     optionTotal: body.optionTotal ?? null,
