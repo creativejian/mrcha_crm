@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."quotes" ADD COLUMN "guidance" jsonb;
