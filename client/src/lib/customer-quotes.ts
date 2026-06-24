@@ -1,6 +1,7 @@
 import { apiFetch } from "./api";
 import { invalidateCustomerDetail } from "./customers";
 import { getJson, sendJson, sendVoid } from "./http";
+import type { QuoteGuidance } from "@/data/quote-guidance";
 
 // 견적함 표시 문자열 → 시나리오 컬럼값. 숫자만 남겨 파싱한다.
 
@@ -57,6 +58,7 @@ export type QuoteWritePatch = {
   interiorColorId?: number | null;
   interiorColorName?: string | null;
   interiorColorHex?: string | null;
+  guidance?: QuoteGuidance | null;
   scenarios?: ScenarioInput[];
 };
 
@@ -101,6 +103,7 @@ export type QuoteCreatePayload = {
   interiorColorId?: number | null;
   interiorColorName?: string | null;
   interiorColorHex?: string | null;
+  guidance?: QuoteGuidance | null;
   scenario?: ScenarioInput;
   scenarios?: ScenarioInput[];
 };

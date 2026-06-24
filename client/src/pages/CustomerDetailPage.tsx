@@ -3,6 +3,7 @@ import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClip
 import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
+import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { ColorPicker } from "@/components/ColorPicker";
@@ -113,6 +114,7 @@ type KimEditPrefill = {
   interiorColorId: number | null;
   pricing: { base: number; option: number; discount: number; acquisitionTax: number; bond: number; delivery: number; incidental: number };
   scenarios: KimEditScenario[];
+  guidance: QuoteGuidance | null;
 };
 
 type KimDocumentItem = {
@@ -868,6 +870,7 @@ function KimMinjunDetailContent({
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   // 신규 작성완료 후 "이후 UPDATE 대상 id". editingQuoteId(=비교카드 key·prefill)를 안 건드려야 카드 리마운트(입력 리셋)를 막는다.
   const persistedQuoteIdRef = useRef<string | null>(null);
+  const [guidance, setGuidance] = useState<QuoteGuidance>(DEFAULT_QUOTE_GUIDANCE);
   const [editPrefill, setEditPrefill] = useState<KimEditPrefill | null>(null);
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<KimRecognizedQuoteFile | null>(null);
   const [isQuoteWorkbenchOriginalDragActive, setIsQuoteWorkbenchOriginalDragActive] = useState(false);
@@ -2240,6 +2243,7 @@ function KimMinjunDetailContent({
       interiorColorId: interiorColor?.id ?? null,
       interiorColorName: interiorColor?.name ?? null,
       interiorColorHex: interiorColor?.hexValue ?? null,
+      guidance,
     };
     const scenarioField = savedManualQuoteConditionIds.length ? { scenarios: extractWorkbenchScenarios() } : {};
     const optimisticVehicle = {
@@ -4133,6 +4137,7 @@ function KimMinjunDetailContent({
                   persistedQuoteIdRef.current = null;
                   setEditPrefill(null);
                   resetWorkbenchVehicle();
+                  setGuidance(DEFAULT_QUOTE_GUIDANCE);
                   setManualQuoteCards([...kimManualQuoteConditionCards]);
                   setManualTermMonths({});
                   setSavedManualQuoteConditionIds([]);
@@ -4415,6 +4420,7 @@ function KimMinjunDetailContent({
                   incidental: Number(dq.incidental ?? 0),
                 },
                 scenarios: editScenarios,
+                guidance: dq.guidance ?? null,
               } : null);
               // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
               setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...kimManualQuoteConditionCards]);
@@ -4428,6 +4434,7 @@ function KimMinjunDetailContent({
               setEditingQuoteId(openQuoteAction.id);
               persistedQuoteIdRef.current = null;
               resetWorkbenchVehicle();
+              setGuidance(dq?.guidance ?? DEFAULT_QUOTE_GUIDANCE);
               setSolutionWorkbenchPurchaseMethod(normalizeKimQuotePurchaseMethod(openQuoteAction.financeType));
               setSolutionWorkbenchEntryMode(openQuoteAction.source === "solution" ? "solution" : openQuoteAction.source === "original" ? "original" : "manual");
               setSolutionWorkbenchModeMenu(null);
@@ -4948,59 +4955,39 @@ function KimMinjunDetailContent({
                           <div className="kim-app-guidance-grid">
                             <label>
                               <span>출고시기 코멘트</span>
-                              <select defaultValue="이 차량은 1주일 내 출고 가능해요">
-                                <option>이 차량은 1주일 내 출고 가능해요</option>
-                                <option>배정 확인 후 출고 일정을 안내드릴게요</option>
-                                <option>주문 후 생산 일정 확인이 필요해요</option>
-                                <option>색상 확정 후 출고 가능 시점을 안내드릴게요</option>
+                              <select value={guidance.deliveryComment} onChange={(e) => setGuidance((g) => ({ ...g, deliveryComment: e.currentTarget.value }))}>
+                                {QUOTE_GUIDANCE_OPTIONS.deliveryComment.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label><span>서비스 1</span><input defaultValue="썬팅: 후퍼옵틱 KBR 전면 + 측후면 제공" /></label>
+                            <label><span>서비스 1</span><input value={guidance.services[0] ?? ""} onChange={(e) => setGuidance((g) => { const s = [...g.services]; s[0] = e.currentTarget.value; return { ...g, services: s }; })} /></label>
                             <label>
                               <span>재고여부</span>
-                              <select defaultValue="재고 확인 필요">
-                                <option>재고 확인 필요</option>
-                                <option>즉시 출고 가능</option>
-                                <option>배정 대기</option>
-                                <option>주문 필요</option>
+                              <select value={guidance.stockNotice} onChange={(e) => setGuidance((g) => ({ ...g, stockNotice: e.currentTarget.value }))}>
+                                {QUOTE_GUIDANCE_OPTIONS.stockNotice.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label><span>서비스 2</span><input defaultValue="블랙박스: 기본 제공" /></label>
+                            <label><span>서비스 2</span><input value={guidance.services[1] ?? ""} onChange={(e) => setGuidance((g) => { const s = [...g.services]; s[1] = e.currentTarget.value; return { ...g, services: s }; })} /></label>
                             <label>
                               <span>예상 출고 기간</span>
-                              <select defaultValue="확인 후 안내">
-                                <option>확인 후 안내</option>
-                                <option>1주일 이내</option>
-                                <option>2주 이내</option>
-                                <option>1개월 이내</option>
-                                <option>1개월 이상</option>
+                              <select value={guidance.expectedDelivery} onChange={(e) => setGuidance((g) => ({ ...g, expectedDelivery: e.currentTarget.value }))}>
+                                {QUOTE_GUIDANCE_OPTIONS.expectedDelivery.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label><span>서비스 3</span><input defaultValue="출고 기념품: 키케이스, 주차번호판, 머그컵" /></label>
+                            <label><span>서비스 3</span><input value={guidance.services[2] ?? ""} onChange={(e) => setGuidance((g) => { const s = [...g.services]; s[2] = e.currentTarget.value; return { ...g, services: s }; })} /></label>
                             <label>
                               <span>고객 지역</span>
-                              <select defaultValue="인천">
-                                <option>서울</option>
-                                <option>인천</option>
-                                <option>경기</option>
-                                <option>부산</option>
-                                <option>대구</option>
-                                <option>광주</option>
-                                <option>대전</option>
-                                <option>기타</option>
+                              <select value={guidance.customerRegion} onChange={(e) => setGuidance((g) => ({ ...g, customerRegion: e.currentTarget.value }))}>
+                                {QUOTE_GUIDANCE_OPTIONS.customerRegion.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label><span>서비스 4</span><input defaultValue="담당 카매니저 출고 일정 개별 안내" /></label>
+                            <label><span>서비스 4</span><input value={guidance.services[3] ?? ""} onChange={(e) => setGuidance((g) => { const s = [...g.services]; s[3] = e.currentTarget.value; return { ...g, services: s }; })} /></label>
                             <label className="wide">
                               <span>핵심포인트</span>
-                              <select defaultValue="잔존가치 최대 조건으로 월 납입금을 낮춘 조건입니다.">
-                                <option>잔존가치 최대 조건으로 월 납입금을 낮춘 조건입니다.</option>
-                                <option>초기 부담을 낮추는 조건입니다.</option>
-                                <option>월 납입금과 초기 비용 균형을 맞춘 조건입니다.</option>
-                                <option>인수 선택까지 고려한 안정적인 조건입니다.</option>
+                              <select value={guidance.keyPoint} onChange={(e) => setGuidance((g) => ({ ...g, keyPoint: e.currentTarget.value }))}>
+                                {QUOTE_GUIDANCE_OPTIONS.keyPoint.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label className="wide"><span>추천이유</span><textarea defaultValue={"현재 조건에서는 월 납입금과 취득원가 균형이 가장 안정적인 운용리스 조건입니다.\n금리와 잔존가치 조건은 상담 중 추가 협상 여지가 있습니다."} rows={2} /></label>
+                            <label className="wide"><span>추천이유</span><textarea value={guidance.recommendReason} onChange={(e) => setGuidance((g) => ({ ...g, recommendReason: e.currentTarget.value }))} rows={2} /></label>
                           </div>
                         </div>
                       </div>
