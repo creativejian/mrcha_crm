@@ -1135,7 +1135,7 @@ function KimMinjunDetailContent({
     setSavedManualQuoteConditionIds((current) => (
       current.includes(conditionId) ? current : [...current, conditionId]
     ));
-    onToast(`${conditionRound}번 조건을 저장했습니다.`);
+    onToast(`${conditionRound}번 조건을 담았습니다. "작성완료"를 누르면 저장됩니다.`);
   }
 
   function editManualQuoteCondition(conditionId: string, conditionRound: string) {
@@ -1362,14 +1362,7 @@ function KimMinjunDetailContent({
   }
 
   function saveQuoteDetailDraft() {
-    const missing = validateQuoteDetailDraft();
-    if (missing.length > 0) {
-      onToast(missing.slice(0, 3).join(" "));
-      return;
-    }
-    setIsQuoteDraftSaved(true);
-    setIsQuoteDraftDirty(false);
-    onToast("작성한 견적이 저장되었습니다. 우측 상단의 견적함에 저장 버튼을 눌러 마무리하세요.");
+    persistWorkbenchQuote({ send: false });
   }
 
   function guardQuoteDraftOutput(outputLabel: string) {
@@ -1379,7 +1372,7 @@ function KimMinjunDetailContent({
       onToast(missing.slice(0, 3).join(" "));
       return false;
     }
-    onToast(`${outputLabel} 전에 먼저 세부 견적을 저장해 주세요.`);
+    onToast(`${outputLabel} 전에 먼저 "작성완료"로 저장해 주세요.`);
     return false;
   }
 
@@ -2188,13 +2181,15 @@ function KimMinjunDetailContent({
     });
   }
 
-  function saveQuoteFromWorkbench() {
-    if (!guardQuoteDraftOutput("견적함 저장")) return;
+  // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
+  // 신규는 첫 INSERT 후 반환 id를 editingQuoteId로 세팅 → 이후 UPDATE(중복 INSERT 방지).
+  function persistWorkbenchQuote({ send }: { send: boolean }) {
+    const missing = validateQuoteDetailDraft();
+    if (missing.length > 0) { onToast(missing.slice(0, 3).join(" ")); return; }
+
     const source: KimQuoteItem["source"] = solutionWorkbenchEntryMode === "solution" ? "solution" : solutionWorkbenchEntryMode === "original" ? "original" : "manual";
     const sourceLabel = source === "solution" ? "솔루션 조회 조건" : source === "original" ? "원본 인식 후 보정" : "수기 입력 조건";
     const savedAt = formatKoreanShortTime();
-
-    // 워크벤치 입력 추출(#4c-2). 가격은 DOM(readPricingInputs)+pricing state, 차량/색상/옵션은 기존 state.
     const root = pricingPanelRef.current;
     const inputs = root ? readPricingInputs(root) : null;
     const brandName = workbenchVehicle?.brand?.name ?? null;
@@ -2206,150 +2201,122 @@ function KimMinjunDetailContent({
     const vehicleName = [brandName, modelName, trimName].filter(Boolean).join(" ") || "차량 미선택";
     const num = (n: number | undefined | null) => (n == null ? null : String(n));
 
-    // PR2c-1: 수정모드 — INSERT 대신 UPDATE(재발송). scenarios 미전송 → 기존 시나리오 보존.
-    if (editingQuoteId) {
-      const prevQuotes = quotes;
-      setQuotes((current) => current.map((q) => (q.id === editingQuoteId ? {
-        ...q,
-        source,
-        brand: brandName ?? undefined,
-        model: modelName ?? undefined,
-        trim: trimName ?? undefined,
-        vehicleName,
-        finalVehiclePrice: pricing.finalVehiclePrice,
-        exteriorColorName: exteriorColor?.name,
-        exteriorColorHex: exteriorColor?.hexValue ?? undefined,
-        interiorColorName: interiorColor?.name,
-        interiorColorHex: interiorColor?.hexValue ?? undefined,
-        trimId: trimDetail?.id ?? q.trimId,
-        exteriorColorId: exteriorColor?.id ?? undefined,
-        interiorColorId: interiorColor?.id ?? undefined,
-        status: "고객 확인 전",
-        appStatus: "sent",
-        revision: (q.revision ?? 1) + 1,
-        meta: `${savedAt} · 수정 후 재발송`,
-      } : q)));
-      if (customer.id && !editingQuoteId.startsWith("kim-")) {
-        const patch: QuoteWritePatch = {
-          status: "고객 확인 전",
-          entryMode: source,
-          appStatus: "sent",
-          bumpRevision: true,
-          brandName,
-          modelName,
-          trimName,
-          trimId: trimDetail?.id ?? null,
-          basePrice: inputs ? num(inputs.basePrice) : null,
-          optionTotal: inputs ? num(inputs.optionPrice) : null,
-          options: selectedOptions.length ? selectedOptions : null,
-          finalDiscount: inputs ? num(inputs.discount) : null,
-          acquisitionTax: inputs ? num(inputs.acquisitionTax) : null,
-          acquisitionTaxMode,
-          bond: inputs ? num(inputs.bond) : null,
-          delivery: inputs ? num(inputs.delivery) : null,
-          incidental: inputs ? num(inputs.incidental) : null,
-          finalVehiclePrice: num(pricing.finalVehiclePrice),
-          acquisitionCost: num(pricing.acquisitionCost),
-          exteriorColorId: exteriorColor?.id ?? null,
-          exteriorColorName: exteriorColor?.name ?? null,
-          exteriorColorHex: exteriorColor?.hexValue ?? null,
-          interiorColorId: interiorColor?.id ?? null,
-          interiorColorName: interiorColor?.name ?? null,
-          interiorColorHex: interiorColor?.hexValue ?? null,
-          // PR2c-2: 저장된 비교카드가 있으면 시나리오 전체 교체, 0건이면 미전송(기존 보존).
-          ...(savedManualQuoteConditionIds.length ? { scenarios: extractWorkbenchScenarios() } : {}),
-        };
-        void apiUpdateQuote(customer.id, editingQuoteId, patch).catch(() => { setQuotes(prevQuotes); onToast("견적 수정에 실패했습니다."); });
-      }
-      setIsQuoteSolutionWorkbenchOpen(false);
-      setSolutionWorkbenchModeMenu(null);
-      setRecognizedQuoteFile(null);
-      setEditingQuoteId(null);
-      setEditPrefill(null);
-      markRecentUpdate("견적함");
-      onToast("수정 견적을 견적함에 저장하고 앱으로 재발송했습니다.");
-      return;
-    }
-
-    const tempId = `kim-quote-workbench-${nowMs()}`;
-    const tempQuoteCode = createKimQuoteCode(quotes);
-
-    setQuotes((current) => [...current, {
-      id: tempId,
-      quoteCode: tempQuoteCode,
-      title: vehicleName,
-      meta: `${savedAt} · ${sourceLabel}`,
-      status: "작성중",
+    // UPDATE patch / INSERT payload 공유 스냅샷 컬럼
+    const snapshot = {
+      brandName, modelName, trimName,
+      trimId: trimDetail?.id ?? null,
+      basePrice: inputs ? num(inputs.basePrice) : null,
+      optionTotal: inputs ? num(inputs.optionPrice) : null,
+      options: selectedOptions.length ? selectedOptions : null,
+      finalDiscount: inputs ? num(inputs.discount) : null,
+      acquisitionTax: inputs ? num(inputs.acquisitionTax) : null,
+      acquisitionTaxMode,
+      bond: inputs ? num(inputs.bond) : null,
+      delivery: inputs ? num(inputs.delivery) : null,
+      incidental: inputs ? num(inputs.incidental) : null,
+      finalVehiclePrice: num(pricing.finalVehiclePrice),
+      acquisitionCost: num(pricing.acquisitionCost),
+      exteriorColorId: exteriorColor?.id ?? null,
+      exteriorColorName: exteriorColor?.name ?? null,
+      exteriorColorHex: exteriorColor?.hexValue ?? null,
+      interiorColorId: interiorColor?.id ?? null,
+      interiorColorName: interiorColor?.name ?? null,
+      interiorColorHex: interiorColor?.hexValue ?? null,
+    };
+    const scenarioField = savedManualQuoteConditionIds.length ? { scenarios: extractWorkbenchScenarios() } : {};
+    const optimisticVehicle = {
       source,
-      appStatus: "draft",
       brand: brandName ?? undefined,
       model: modelName ?? undefined,
       trim: trimName ?? undefined,
-      quoteRound: "1차",
       vehicleName,
-      financeType: solutionWorkbenchPurchaseMethod,
-      term: "조건 미정",
-      lender: "금융사 미정",
-      stockStatus: "재고확인중",
-      note: sourceLabel,
-      decisionStatus: "none",
       finalVehiclePrice: pricing.finalVehiclePrice,
       exteriorColorName: exteriorColor?.name,
       exteriorColorHex: exteriorColor?.hexValue ?? undefined,
       interiorColorName: interiorColor?.name,
       interiorColorHex: interiorColor?.hexValue ?? undefined,
-      ...(recognizedQuoteFile ? {
-        fileName: recognizedQuoteFile.fileName,
-        fileSize: recognizedQuoteFile.fileSize,
-        mimeType: recognizedQuoteFile.mimeType,
-        file: recognizedQuoteFile.file,
-      } : {}),
-    }]);
+      trimId: trimDetail?.id ?? undefined,
+      exteriorColorId: exteriorColor?.id ?? undefined,
+      interiorColorId: interiorColor?.id ?? undefined,
+    };
 
-    if (customer.id) {
-      // #4c-3a: 저장된 비교카드 → scenarios. 없으면 단일(구매방식만, #4c-2 폴백).
-      const builtScenarios = extractWorkbenchScenarios();
-      const payload: QuoteCreatePayload = {
-        entryMode: source,
+    if (editingQuoteId) {
+      const prevQuotes = quotes;
+      setQuotes((current) => current.map((q) => (q.id === editingQuoteId ? {
+        ...q,
+        ...optimisticVehicle,
+        ...(send
+          ? { status: "고객 확인 전", appStatus: "sent" as const, revision: (q.revision ?? 1) + 1, meta: `${savedAt} · 수정 후 재발송` }
+          : { meta: `${savedAt} · 저장` }),
+      } : q)));
+      if (customer.id && !editingQuoteId.startsWith("kim-")) {
+        const patch: QuoteWritePatch = {
+          entryMode: source,
+          ...snapshot,
+          ...scenarioField,
+          ...(send ? { status: "고객 확인 전", appStatus: "sent", bumpRevision: true } : {}),
+        };
+        void apiUpdateQuote(customer.id, editingQuoteId, patch).catch(() => { setQuotes(prevQuotes); onToast(send ? "발송에 실패했습니다." : "저장에 실패했습니다."); });
+      }
+    } else {
+      const tempId = `kim-quote-workbench-${nowMs()}`;
+      const tempQuoteCode = createKimQuoteCode(quotes);
+      setQuotes((current) => [...current, {
+        id: tempId,
+        quoteCode: tempQuoteCode,
+        title: vehicleName,
+        meta: `${savedAt} · ${sourceLabel}`,
         status: "작성중",
+        ...optimisticVehicle,
+        appStatus: send ? "sent" : "draft",
         quoteRound: "1차",
+        financeType: solutionWorkbenchPurchaseMethod,
+        term: "조건 미정",
+        lender: "금융사 미정",
         stockStatus: "재고확인중",
-        brandName,
-        modelName,
-        trimName,
         note: sourceLabel,
-        trimId: trimDetail?.id ?? null,
-        basePrice: inputs ? num(inputs.basePrice) : null,
-        optionTotal: inputs ? num(inputs.optionPrice) : null,
-        options: selectedOptions.length ? selectedOptions : null,
-        finalDiscount: inputs ? num(inputs.discount) : null,
-        acquisitionTax: inputs ? num(inputs.acquisitionTax) : null,
-        acquisitionTaxMode,
-        bond: inputs ? num(inputs.bond) : null,
-        delivery: inputs ? num(inputs.delivery) : null,
-        incidental: inputs ? num(inputs.incidental) : null,
-        finalVehiclePrice: num(pricing.finalVehiclePrice),
-        acquisitionCost: num(pricing.acquisitionCost),
-        exteriorColorId: exteriorColor?.id ?? null,
-        exteriorColorName: exteriorColor?.name ?? null,
-        exteriorColorHex: exteriorColor?.hexValue ?? null,
-        interiorColorId: interiorColor?.id ?? null,
-        interiorColorName: interiorColor?.name ?? null,
-        interiorColorHex: interiorColor?.hexValue ?? null,
-        ...(builtScenarios.length
-          ? { scenarios: builtScenarios }
-          : { scenario: { purchaseMethod: solutionWorkbenchPurchaseMethod } }),
-      };
-      void apiCreateQuote(customer.id, payload)
-        .then(({ id, quoteCode }) => setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q))))
-        .catch(() => { setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("견적 저장에 실패했습니다."); });
+        decisionStatus: "none",
+        ...(recognizedQuoteFile ? { fileName: recognizedQuoteFile.fileName, fileSize: recognizedQuoteFile.fileSize, mimeType: recognizedQuoteFile.mimeType, file: recognizedQuoteFile.file } : {}),
+      }]);
+      if (customer.id) {
+        const cid = customer.id; // .then 콜백에서 narrow 유지용
+        const builtScenarios = extractWorkbenchScenarios();
+        const payload: QuoteCreatePayload = {
+          entryMode: source,
+          status: "작성중",
+          quoteRound: "1차",
+          stockStatus: "재고확인중",
+          note: sourceLabel,
+          ...snapshot,
+          ...(builtScenarios.length ? { scenarios: builtScenarios } : { scenario: { purchaseMethod: solutionWorkbenchPurchaseMethod } }),
+        };
+        void apiCreateQuote(cid, payload)
+          .then(({ id, quoteCode }) => {
+            setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q)));
+            setEditingQuoteId(id); // 이후 작성완료/발송은 같은 견적 UPDATE
+            if (send && !id.startsWith("kim-")) {
+              void apiUpdateQuote(cid, id, { status: "고객 확인 전", appStatus: "sent", bumpRevision: true }).catch(() => onToast("발송에 실패했습니다."));
+            }
+          })
+          .catch(() => { setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("저장에 실패했습니다."); });
+      }
     }
 
-    setIsQuoteSolutionWorkbenchOpen(false);
-    setSolutionWorkbenchModeMenu(null);
+    setIsQuoteDraftSaved(true);
+    setIsQuoteDraftDirty(false);
     setRecognizedQuoteFile(null);
     markRecentUpdate("견적함");
-    onToast("워크벤치 견적을 견적함에 저장했습니다.");
+    if (send) {
+      setIsQuoteSolutionWorkbenchOpen(false);
+      setSolutionWorkbenchModeMenu(null);
+      setEditingQuoteId(null);
+      setEditPrefill(null);
+    }
+    onToast(send ? "저장하고 고객 앱으로 발송했습니다." : "견적을 저장했습니다.");
+  }
+
+  function saveQuoteFromWorkbench() {
+    persistWorkbenchQuote({ send: true });
   }
 
   function resetQuoteWorkbench() {
@@ -4781,12 +4748,12 @@ function KimMinjunDetailContent({
                         앱카드보기
                       </button>
                       <button
-                        className={`kim-quote-workbench-action primary${quoteDraftReady ? "" : " is-disabled"}`}
+                        className="kim-quote-workbench-action primary"
                         onClick={saveQuoteFromWorkbench}
                         type="button"
                       >
                         <FilePlus2 size={13} strokeWidth={2.2} />
-                        {editingQuoteId ? "수정 후 발송" : "견적함에 저장"}
+                        {editingQuoteId ? "수정 후 발송" : "작성 후 발송"}
                       </button>
                     </div>
                   </div>
@@ -4909,7 +4876,6 @@ function KimMinjunDetailContent({
                                   {isConditionSaved ? (
                                     <button className="edit" onClick={() => editManualQuoteCondition(condition.id, condition.round)} type="button">수정</button>
                                   ) : null}
-                                  <button type="button">재입력</button>
                                 </div>
                               </header>
                               <div className="kim-manual-compare-body">
