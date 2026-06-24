@@ -998,6 +998,13 @@ function KimMinjunDetailContent({
   }, [detailOverlayOpen]);
   const solutionWorkbenchCanQuery =solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
   const quoteDraftReady = isQuoteDraftSaved && !isQuoteDraftDirty;
+  // 워크벤치 헤더 차량명: 실시간 선택(workbenchVehicle/trimDetail) 우선, prefill 로드 전엔 수정 견적 저장 텍스트로 폴백(잔상/빈깜빡임 제거).
+  const editingQuote = editingQuoteId ? quotes.find((q) => q.id === editingQuoteId) : undefined;
+  const workbenchVehicleLabel =
+    [workbenchVehicle?.brand?.name, workbenchVehicle?.model?.name, trimDetail?.trimName ?? trimDetail?.name].filter(Boolean).join(" ")
+    || [editingQuote?.brand, editingQuote?.model, editingQuote?.trim].filter(Boolean).join(" ")
+    || "차량 미선택";
+  const workbenchFirstTermMonths = manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60;
   const sortedCustomerMemos = sortKimCustomerMemosByCreatedAt(customerMemos);
   const sortedCheckItems = sortKimCheckItemsByWorkRule(checkItems, completedCheckItems);
   const sortedSchedules = sortKimSchedulesByDateTime(schedules);
@@ -1254,6 +1261,15 @@ function KimMinjunDetailContent({
       recomputePricing();
     });
     markQuoteDraftChanged();
+  }
+
+  // 워크벤치 열기/수정 진입 시 이전 견적 차량 잔상 제거(비동기 prefill 전 즉시 리셋).
+  function resetWorkbenchVehicle() {
+    setTrimDetail(null);
+    setWorkbenchVehicle(null);
+    setSelectedWorkbenchOptionIds([]);
+    setExteriorColor(null);
+    setInteriorColor(null);
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -4116,6 +4132,7 @@ function KimMinjunDetailContent({
                   setEditingQuoteId(null);
                   persistedQuoteIdRef.current = null;
                   setEditPrefill(null);
+                  resetWorkbenchVehicle();
                   setManualQuoteCards([...kimManualQuoteConditionCards]);
                   setManualTermMonths({});
                   setSavedManualQuoteConditionIds([]);
@@ -4410,6 +4427,7 @@ function KimMinjunDetailContent({
               setManualTermMonths(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.termMonths])));
               setEditingQuoteId(openQuoteAction.id);
               persistedQuoteIdRef.current = null;
+              resetWorkbenchVehicle();
               setSolutionWorkbenchPurchaseMethod(normalizeKimQuotePurchaseMethod(openQuoteAction.financeType));
               setSolutionWorkbenchEntryMode(openQuoteAction.source === "solution" ? "solution" : openQuoteAction.source === "original" ? "original" : "manual");
               setSolutionWorkbenchModeMenu(null);
@@ -4625,7 +4643,7 @@ function KimMinjunDetailContent({
                     <ChevronRight size={18} strokeWidth={2.4} />
                     <strong>{editingQuoteId ? "견적 수정" : "새 견적 작성"}</strong>
                   </h2>
-                  <p><span>최근 견적 {quotes.length}개</span><i aria-hidden="true" /><mark>{[workbenchVehicle?.brand?.name, workbenchVehicle?.model?.name, trimDetail?.trimName ?? trimDetail?.name].filter(Boolean).join(" ") || "차량 미선택"} · {solutionWorkbenchPurchaseMethod} {manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60}개월</mark><span>{editingQuoteId ? "견적 수정 중" : "견적 작성"}</span></p>
+                  <p><span>최근 견적 {quotes.length}개</span><i aria-hidden="true" /><mark>{workbenchVehicleLabel} · {solutionWorkbenchPurchaseMethod} {workbenchFirstTermMonths}개월</mark><span>{editingQuoteId ? "견적 수정 중" : "견적 작성"}</span></p>
                 </div>
                 <div className="kim-quote-workbench-head-tools" aria-label="견적 작성 모드">
                   <div className="kim-quote-workbench-mode-select" data-workbench-mode="purchase">
