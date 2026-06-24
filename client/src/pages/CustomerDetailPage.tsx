@@ -4940,30 +4940,6 @@ function KimMinjunDetailContent({
                     </section>
 
                     <div className="kim-app-form-split kim-app-legacy-form-split">
-                      <div className="kim-app-form-section kim-app-core-section">
-                        <header>
-                          <strong>🧾 기존 세부 견적 수기 입력</strong>
-                        </header>
-                        <div className="kim-app-form-section-body">
-                          <div className="kim-app-condition-grid">
-                            <label><span>구매방식</span><div className="kim-jeff-segment"><button className="active" type="button">운용리스</button></div></label>
-                            <label><span>자동차세</span><div className="kim-jeff-segment"><button className="active" type="button">불포함</button><button type="button">포함</button></div></label>
-                            <label><span>금융사</span><select defaultValue="우리금융캐피탈"><option>우리금융캐피탈</option><option>iM캐피탈</option><option>하나캐피탈</option></select></label>
-                            <label><span>전기차 보조금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">비해당</button><button type="button">해당</button></div><input disabled defaultValue="0" /></div></label>
-                            <label><span>리스기간</span><div className="kim-jeff-segment wide"><button type="button">12개월</button><button type="button">24개월</button><button type="button">36개월</button><button type="button">48개월</button><button className="active" type="button">60개월</button></div></label>
-                            <label><span>금리</span><input readOnly value="5.32%" /></label>
-                            <label><span>보증금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button type="button">없음</button><button type="button">금액</button><button className="active" type="button">%</button></div><input defaultValue="30" /></div></label>
-                            <label><span>반납까지 총 비용</span><input readOnly value="167,652,170원" /></label>
-                            <label><span>선수금</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">없음</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="0" /></div></label>
-                            <label><span>인수까지 총 비용</span><input readOnly value="239,505,410원" /></label>
-                            <label><span>잔존가치</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">최대</button><button type="button">금액</button><button type="button">%</button></div><input defaultValue="71,853,240" /></div></label>
-                            <label><span>출고 전 납입 금액</span><input readOnly value="72,900,000원" /></label>
-                            <label><span>약정주행거리</span><div className="kim-app-combo-control"><div className="kim-jeff-segment"><button className="active" type="button">기본</button><button type="button">변경</button></div><select defaultValue="20,000km / 년"><option>20,000km / 년</option><option>30,000km / 년</option></select></div></label>
-                            <label><span>월 납입금</span><input defaultValue="2,398,000원" /></label>
-                          </div>
-                        </div>
-                      </div>
-
                       <div className="kim-app-form-section kim-app-delivery-section">
                         <header>
                           <strong>📋 추가 안내 사항</strong>

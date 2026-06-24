@@ -12308,6 +12308,7 @@ select.kim-jeff-discount-label {
 
 .kim-app-legacy-form-split {
   border-top: 2px solid #e5e7eb;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .kim-app-form-split .kim-app-form-section {
