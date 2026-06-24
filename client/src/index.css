@@ -12308,6 +12308,7 @@ select.kim-jeff-discount-label {
 
 .kim-app-legacy-form-split {
   border-top: 2px solid #e5e7eb;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .kim-app-form-split .kim-app-form-section {
@@ -12352,6 +12353,11 @@ select.kim-jeff-discount-label {
 
 .kim-app-guidance-grid label.wide {
   grid-column: 1 / -1;
+}
+
+/* textarea row(추천이유)도 single-line row와 동일한 위아래 여백(4.5px): textarea 44 + 9 = 53 */
+.kim-app-guidance-grid label:has(textarea) {
+  min-height: 53px;
 }
 
 .kim-app-guidance-grid label:nth-child(-n + 2) {
@@ -12522,7 +12528,7 @@ select.kim-jeff-discount-label {
 }
 
 .kim-app-guidance-grid textarea {
-  height: 29px;
+  height: 44px;
   resize: none;
   padding: 5px 9px;
   overflow: hidden;
