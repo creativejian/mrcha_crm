@@ -12355,6 +12355,11 @@ select.kim-jeff-discount-label {
   grid-column: 1 / -1;
 }
 
+/* textarea row(추천이유)도 single-line row와 동일한 위아래 여백(4.5px): textarea 44 + 9 = 53 */
+.kim-app-guidance-grid label:has(textarea) {
+  min-height: 53px;
+}
+
 .kim-app-guidance-grid label:nth-child(-n + 2) {
   border-top: 0;
 }
@@ -12523,9 +12528,9 @@ select.kim-jeff-discount-label {
 }
 
 .kim-app-guidance-grid textarea {
-  height: 50px;
+  height: 44px;
   resize: none;
-  padding: 8px 9px;
+  padding: 5px 9px;
   overflow: hidden;
 }
 
