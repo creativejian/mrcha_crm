@@ -939,6 +939,7 @@ function KimMinjunDetailContent({
   const checkBodyRef = useRef<HTMLDivElement>(null);
   const scheduleBodyRef = useRef<HTMLDivElement>(null);
   const quoteBodyRef = useRef<HTMLDivElement>(null);
+  const prevQuoteLenRef = useRef(0); // 견적함 자동 하단스크롤: 첫 로드(0→N) 제외, 새 추가(N→N+1)만
   const documentBodyRef = useRef<HTMLDivElement>(null);
   const quoteWorkbenchOriginalInputRef = useRef<HTMLInputElement>(null);
   const quoteDetailFormRef = useRef<HTMLDivElement>(null);
@@ -1507,12 +1508,13 @@ function KimMinjunDetailContent({
   }, [customerMemos.length, addingCustomerMemo]);
 
   useEffect(() => {
-    const containers = [quoteBodyRef.current];
+    const container = quoteBodyRef.current;
+    // 첫 로드(0→N)는 상단 유지, 새 견적 추가(N→N+1)만 그 견적이 보이게 하단으로.
+    const grew = quotes.length > prevQuoteLenRef.current && prevQuoteLenRef.current > 0;
+    prevQuoteLenRef.current = quotes.length;
+    if (!grew || !container) return;
     const frame = window.requestAnimationFrame(() => {
-      containers.forEach((container) => {
-        if (!container) return;
-        container.scrollTop = container.scrollHeight;
-      });
+      container.scrollTop = container.scrollHeight;
     });
     return () => window.cancelAnimationFrame(frame);
   }, [quotes.length]);

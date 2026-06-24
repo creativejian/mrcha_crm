@@ -7921,6 +7921,7 @@ th input:focus-visible {
   gap: 12px;
   min-height: 236px;
   overflow: hidden;
+  overscroll-behavior: contain; /* 내부 스크롤 끝에서 전체 화면으로 전파(체이닝) 차단 */
   background: #fff;
   padding: 13px 14px;
 }
