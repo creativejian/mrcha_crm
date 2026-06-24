@@ -1369,6 +1369,7 @@ function KimMinjunDetailContent({
     if (!form) return ["세부 견적 작성 영역을 확인해 주세요."];
     const missing: string[] = [];
     form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((field) => {
+      if (field.closest(".kim-app-guidance-grid")) return; // 추가 안내 사항은 선택 입력(빈값 허용)
       const label = field.closest("label")?.querySelector("span")?.textContent?.trim() ?? "필수 항목";
       const value = field.value.trim();
       if (!value) {
@@ -4955,39 +4956,39 @@ function KimMinjunDetailContent({
                           <div className="kim-app-guidance-grid">
                             <label>
                               <span>출고시기 코멘트</span>
-                              <select value={guidance.deliveryComment} onChange={(e) => setGuidance((g) => ({ ...g, deliveryComment: e.currentTarget.value }))}>
+                              <select value={guidance.deliveryComment} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, deliveryComment: v })); }}>
                                 {QUOTE_GUIDANCE_OPTIONS.deliveryComment.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label><span>서비스 1</span><input value={guidance.services[0] ?? ""} onChange={(e) => setGuidance((g) => { const s = [...g.services]; s[0] = e.currentTarget.value; return { ...g, services: s }; })} /></label>
+                            <label><span>서비스 1</span><input value={guidance.services[0] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[0] = v; return { ...g, services: s }; }); }} /></label>
                             <label>
                               <span>재고여부</span>
-                              <select value={guidance.stockNotice} onChange={(e) => setGuidance((g) => ({ ...g, stockNotice: e.currentTarget.value }))}>
+                              <select value={guidance.stockNotice} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, stockNotice: v })); }}>
                                 {QUOTE_GUIDANCE_OPTIONS.stockNotice.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label><span>서비스 2</span><input value={guidance.services[1] ?? ""} onChange={(e) => setGuidance((g) => { const s = [...g.services]; s[1] = e.currentTarget.value; return { ...g, services: s }; })} /></label>
+                            <label><span>서비스 2</span><input value={guidance.services[1] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[1] = v; return { ...g, services: s }; }); }} /></label>
                             <label>
                               <span>예상 출고 기간</span>
-                              <select value={guidance.expectedDelivery} onChange={(e) => setGuidance((g) => ({ ...g, expectedDelivery: e.currentTarget.value }))}>
+                              <select value={guidance.expectedDelivery} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, expectedDelivery: v })); }}>
                                 {QUOTE_GUIDANCE_OPTIONS.expectedDelivery.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label><span>서비스 3</span><input value={guidance.services[2] ?? ""} onChange={(e) => setGuidance((g) => { const s = [...g.services]; s[2] = e.currentTarget.value; return { ...g, services: s }; })} /></label>
+                            <label><span>서비스 3</span><input value={guidance.services[2] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[2] = v; return { ...g, services: s }; }); }} /></label>
                             <label>
                               <span>고객 지역</span>
-                              <select value={guidance.customerRegion} onChange={(e) => setGuidance((g) => ({ ...g, customerRegion: e.currentTarget.value }))}>
+                              <select value={guidance.customerRegion} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, customerRegion: v })); }}>
                                 {QUOTE_GUIDANCE_OPTIONS.customerRegion.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label><span>서비스 4</span><input value={guidance.services[3] ?? ""} onChange={(e) => setGuidance((g) => { const s = [...g.services]; s[3] = e.currentTarget.value; return { ...g, services: s }; })} /></label>
+                            <label><span>서비스 4</span><input value={guidance.services[3] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[3] = v; return { ...g, services: s }; }); }} /></label>
                             <label className="wide">
                               <span>핵심포인트</span>
-                              <select value={guidance.keyPoint} onChange={(e) => setGuidance((g) => ({ ...g, keyPoint: e.currentTarget.value }))}>
+                              <select value={guidance.keyPoint} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, keyPoint: v })); }}>
                                 {QUOTE_GUIDANCE_OPTIONS.keyPoint.map((o) => <option key={o}>{o}</option>)}
                               </select>
                             </label>
-                            <label className="wide"><span>추천이유</span><textarea value={guidance.recommendReason} onChange={(e) => setGuidance((g) => ({ ...g, recommendReason: e.currentTarget.value }))} rows={2} /></label>
+                            <label className="wide"><span>추천이유</span><textarea value={guidance.recommendReason} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, recommendReason: v })); }} rows={2} /></label>
                           </div>
                         </div>
                       </div>
