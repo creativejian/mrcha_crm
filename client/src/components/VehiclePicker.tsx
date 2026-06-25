@@ -2,7 +2,8 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useOutsideClick } from "@/lib/useOutsideClick";
-import { fetchBrands, fetchModels, fetchTrims, fetchWorkbenchVehicle, type Brand, type Model, type Trim, type TrimDetail } from "@/lib/vehicles";
+import { fetchBrands, fetchModels, fetchTrims, type Brand, type Model, type Trim, type TrimDetail } from "@/lib/vehicles";
+import { fetchWorkbenchVehicleCached } from "@/lib/vehicles-cache";
 
 export type VehicleSelection = { brand?: Brand; model?: Model; trim?: Trim; trimDetail?: TrimDetail };
 
@@ -35,7 +36,7 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
     // loading 초기값이 이미 "brand"라 동기 setState 없이 로딩 표시가 유지된다(set-state-in-effect 회피).
     (async () => {
       try {
-        const { brands: brandList, models: modelList, trims: trimList, trimDetail } = await fetchWorkbenchVehicle(initialTrimId);
+        const { brands: brandList, models: modelList, trims: trimList, trimDetail } = await fetchWorkbenchVehicleCached(initialTrimId);
         if (cancelled) return;
         setBrands(brandList);
         setModels(modelList);

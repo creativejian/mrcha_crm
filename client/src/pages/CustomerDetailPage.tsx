@@ -13,6 +13,7 @@ import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker
 import { buildAppCardModel, type AppCardModel } from "@/lib/kim-app-card";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
+import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 import type { MergeSource } from "@/lib/document-merge";
 import { nowMs, phoneChunks, formatKimRecentUpdateTime, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
@@ -4200,6 +4201,7 @@ function KimMinjunDetailContent({
                 <div
                   className={`kim-quote-row app-status-${quote.appStatus}${quoteDropTargetId === quote.id ? " is-file-drop-target" : ""}${openQuoteActionId === quote.id ? " is-action-open" : ""}`}
                   key={quote.id}
+                  onMouseEnter={() => { if (quote.trimId) prefetchWorkbenchVehicle(quote.trimId); }}
                   onDragEnter={(event) => {
                     if (!isDocumentFileDrag(event)) return;
                     event.preventDefault();
