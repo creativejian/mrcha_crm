@@ -71,47 +71,68 @@ export async function getTrimsByModel(modelId: number, executor: Executor = getD
 }
 
 export async function getTrimDetail(trimId: number, executor: Executor = getDefaultDb()) {
-  const [trim] = await executor
-    .select({
-      id: trimsInCatalog.id,
-      modelId: trimsInCatalog.modelId,
-      name: trimsInCatalog.name,
-      trimName: trimsInCatalog.trimName,
-      canonicalName: trimsInCatalog.canonicalName,
-      price: trimsInCatalog.price,
-      specs: trimsInCatalog.specs,
-      fuelType: trimsInCatalog.fuelType,
-      displacementCc: trimsInCatalog.displacementCc,
-      modelYear: trimsInCatalog.modelYear,
-      driveSystem: trimsInCatalog.driveSystem,
-      transmissionType: trimsInCatalog.transmissionType,
-      bodyStyle: trimsInCatalog.bodyStyle,
-      seatingCapacity: trimsInCatalog.seatingCapacity,
-      status: trimsInCatalog.status,
-      sortOrder: trimsInCatalog.sortOrder,
-      financialDiscountAmount: trimsInCatalog.financialDiscountAmount,
-      partnerDiscountAmount: trimsInCatalog.partnerDiscountAmount,
-      cashDiscountAmount: trimsInCatalog.cashDiscountAmount,
-      brandId: brandsInCatalog.id,
-      brandName: brandsInCatalog.name,
-      modelName: modelsInCatalog.name,
-    })
-    .from(trimsInCatalog)
-    .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
-    .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
-    .where(eq(trimsInCatalog.id, trimId));
+  const [trimRows, options, colors, noOptionRows] = await Promise.all([
+    executor
+      .select({
+        id: trimsInCatalog.id,
+        modelId: trimsInCatalog.modelId,
+        name: trimsInCatalog.name,
+        trimName: trimsInCatalog.trimName,
+        canonicalName: trimsInCatalog.canonicalName,
+        price: trimsInCatalog.price,
+        specs: trimsInCatalog.specs,
+        fuelType: trimsInCatalog.fuelType,
+        displacementCc: trimsInCatalog.displacementCc,
+        modelYear: trimsInCatalog.modelYear,
+        driveSystem: trimsInCatalog.driveSystem,
+        transmissionType: trimsInCatalog.transmissionType,
+        bodyStyle: trimsInCatalog.bodyStyle,
+        seatingCapacity: trimsInCatalog.seatingCapacity,
+        status: trimsInCatalog.status,
+        sortOrder: trimsInCatalog.sortOrder,
+        financialDiscountAmount: trimsInCatalog.financialDiscountAmount,
+        partnerDiscountAmount: trimsInCatalog.partnerDiscountAmount,
+        cashDiscountAmount: trimsInCatalog.cashDiscountAmount,
+        brandId: brandsInCatalog.id,
+        brandName: brandsInCatalog.name,
+        modelName: modelsInCatalog.name,
+      })
+      .from(trimsInCatalog)
+      .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
+      .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
+      .where(eq(trimsInCatalog.id, trimId)),
+    executor
+      .select({
+        id: trimOptionsInCatalog.id,
+        type: trimOptionsInCatalog.type,
+        name: trimOptionsInCatalog.name,
+        price: trimOptionsInCatalog.price,
+      })
+      .from(trimOptionsInCatalog)
+      .where(eq(trimOptionsInCatalog.trimId, trimId)),
+    executor
+      .select({
+        id: colorsInCatalog.id,
+        colorType: colorsInCatalog.colorType,
+        name: colorsInCatalog.name,
+        code: colorsInCatalog.code,
+        hexValue: colorsInCatalog.hexValue,
+        sortOrder: colorsInCatalog.sortOrder,
+      })
+      .from(colorsInCatalog)
+      .where(eq(colorsInCatalog.trimId, trimId))
+      .orderBy(asc(colorsInCatalog.sortOrder)),
+    executor
+      .select({
+        note: trimNoOptionsInCatalog.note,
+        checkedAt: trimNoOptionsInCatalog.checkedAt,
+      })
+      .from(trimNoOptionsInCatalog)
+      .where(eq(trimNoOptionsInCatalog.trimId, trimId)),
+  ]);
 
+  const trim = trimRows[0];
   if (!trim) return null;
-
-  const options = await executor
-    .select({
-      id: trimOptionsInCatalog.id,
-      type: trimOptionsInCatalog.type,
-      name: trimOptionsInCatalog.name,
-      price: trimOptionsInCatalog.price,
-    })
-    .from(trimOptionsInCatalog)
-    .where(eq(trimOptionsInCatalog.trimId, trimId));
 
   const optionIds = options.map((o) => o.id);
   const optionRelations = optionIds.length
@@ -126,26 +147,22 @@ export async function getTrimDetail(trimId: number, executor: Executor = getDefa
         .where(inArray(trimOptionRelationsInCatalog.optionId, optionIds))
     : [];
 
-  const colors = await executor
-    .select({
-      id: colorsInCatalog.id,
-      colorType: colorsInCatalog.colorType,
-      name: colorsInCatalog.name,
-      code: colorsInCatalog.code,
-      hexValue: colorsInCatalog.hexValue,
-      sortOrder: colorsInCatalog.sortOrder,
-    })
-    .from(colorsInCatalog)
-    .where(eq(colorsInCatalog.trimId, trimId))
-    .orderBy(asc(colorsInCatalog.sortOrder));
+  return { ...trim, options, optionRelations, colors, noOptions: noOptionRows[0] ?? null };
+}
 
-  const [noOptions] = await executor
-    .select({
-      note: trimNoOptionsInCatalog.note,
-      checkedAt: trimNoOptionsInCatalog.checkedAt,
-    })
-    .from(trimNoOptionsInCatalog)
-    .where(eq(trimNoOptionsInCatalog.trimId, trimId));
-
-  return { ...trim, options, optionRelations, colors, noOptions: noOptions ?? null };
+// 워크벤치 수정 진입 번들: trimDetail + 그 차량의 brand/model/trim 목록을 한 요청에서 병렬 조회.
+// trimDetail.brandId/modelId는 trim+join에서 이미 노출되어 models/trims를 좁힌다.
+export async function getWorkbenchVehicle(trimId: number, executor: Executor = getDefaultDb()) {
+  const [trimDetail, brands] = await Promise.all([
+    getTrimDetail(trimId, executor),
+    getBrands(executor),
+  ]);
+  if (!trimDetail) return null;
+  // model_id/brand_id는 DB not-null이지만 Drizzle이 leftJoin 컬럼을 nullable로 추론하므로 타입 가드 필요.
+  if (trimDetail.brandId === null || trimDetail.modelId === null) return null;
+  const [models, trims] = await Promise.all([
+    getModelsByBrand(trimDetail.brandId, executor),
+    getTrimsByModel(trimDetail.modelId, executor),
+  ]);
+  return { brands, models, trims, trimDetail };
 }
