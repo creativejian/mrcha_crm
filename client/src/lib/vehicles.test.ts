@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchBrands, fetchModels, fetchTrims, fetchTrimDetail } from "./vehicles";
+import { fetchBrands, fetchModels, fetchTrims, fetchTrimDetail, fetchWorkbenchVehicle } from "./vehicles";
 
 // apiFetch(./api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
 vi.mock("./supabase", () => ({
@@ -59,6 +59,15 @@ describe("vehicles api", () => {
     const result = await fetchTrimDetail(100);
     expect(calledUrl(spy)).toBe("/api/vehicles/trims/100");
     expect(result).toEqual(detail);
+  });
+
+  it("fetchWorkbenchVehicle GETs /api/vehicles/workbench?trimId=", async () => {
+    const bundle = { brands: [{ id: 1, name: "현대" }], models: [], trims: [], trimDetail: { id: 100 } };
+    const spy = vi.fn(async () => new Response(JSON.stringify(bundle), { status: 200 }));
+    vi.stubGlobal("fetch", spy);
+    const result = await fetchWorkbenchVehicle(100);
+    expect(calledUrl(spy)).toBe("/api/vehicles/workbench?trimId=100");
+    expect(result).toEqual(bundle);
   });
 
   it("throws on non-ok response", async () => {

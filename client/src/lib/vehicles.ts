@@ -78,3 +78,14 @@ export function fetchTrims(modelId: number): Promise<Trim[]> {
 export function fetchTrimDetail(trimId: number): Promise<TrimDetail> {
   return getJson<TrimDetail>(`/api/vehicles/trims/${trimId}`);
 }
+
+export type WorkbenchVehicle = {
+  brands: Brand[];
+  models: Model[];
+  trims: Trim[];
+  trimDetail: TrimDetail;
+};
+
+export function fetchWorkbenchVehicle(trimId: number): Promise<WorkbenchVehicle> {
+  return getJson<WorkbenchVehicle>(`/api/vehicles/workbench?trimId=${trimId}`);
+}
