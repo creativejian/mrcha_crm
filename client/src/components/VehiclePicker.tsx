@@ -2,9 +2,9 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useOutsideClick } from "@/lib/useOutsideClick";
-import { fetchBrands, fetchModels, fetchTrims, fetchTrimDetail, type Brand, type Model, type Trim } from "@/lib/vehicles";
+import { fetchBrands, fetchModels, fetchTrims, fetchWorkbenchVehicle, type Brand, type Model, type Trim, type TrimDetail } from "@/lib/vehicles";
 
-export type VehicleSelection = { brand?: Brand; model?: Model; trim?: Trim };
+export type VehicleSelection = { brand?: Brand; model?: Model; trim?: Trim; trimDetail?: TrimDetail };
 
 type Level = "brand" | "model" | "trim";
 
@@ -35,23 +35,18 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
     // loading 초기값이 이미 "brand"라 동기 setState 없이 로딩 표시가 유지된다(set-state-in-effect 회피).
     (async () => {
       try {
-        const detail = await fetchTrimDetail(initialTrimId);
-        const [brandList, modelList, trimList] = await Promise.all([
-          fetchBrands(),
-          fetchModels(detail.brandId),
-          fetchTrims(detail.modelId),
-        ]);
+        const { brands: brandList, models: modelList, trims: trimList, trimDetail } = await fetchWorkbenchVehicle(initialTrimId);
         if (cancelled) return;
         setBrands(brandList);
         setModels(modelList);
         setTrims(trimList);
-        const b = brandList.find((x) => x.id === detail.brandId);
-        const m = modelList.find((x) => x.id === detail.modelId);
-        const t = trimList.find((x) => x.id === detail.id);
+        const b = brandList.find((x) => x.id === trimDetail.brandId);
+        const m = modelList.find((x) => x.id === trimDetail.modelId);
+        const t = trimList.find((x) => x.id === trimDetail.id);
         if (b) setBrand(b);
         if (m) setModel(m);
         if (t) setTrim(t);
-        if (b && m && t) onChange?.({ brand: b, model: m, trim: t });
+        if (b && m && t) onChange?.({ brand: b, model: m, trim: t, trimDetail });
       } catch {
         if (!cancelled) setErrored("brand");
       } finally {
@@ -97,6 +92,7 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
   function selectTrim(next: Trim) {
     setTrim(next);
     setOpen(null);
+    // 드롭다운 직접 선택(신규·수정 모드 공통)은 trimDetail을 동봉하지 않는다 → 소비자가 fetchTrimDetail로 폴백(applyTrimToPricing). 번들 trimDetail 동봉은 수정 진입 마운트 경로만.
     onChange?.({ brand, model, trim: next });
   }
 

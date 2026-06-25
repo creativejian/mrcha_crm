@@ -25,6 +25,17 @@ beforeEach(() => {
           { status: 200 },
         );
       }
+      if (url.startsWith("/api/vehicles/workbench")) {
+        return new Response(
+          JSON.stringify({
+            brands: [{ id: 1, name: "현대", logoUrl: null, isDomestic: true, isPopular: true, sortOrder: 1, brandCode: 1 }],
+            models: [{ id: 10, brandId: 1, name: "팰리세이드", imageUrl: null, category: null, status: "판매중", sortOrder: 1, modelCode: 1 }],
+            trims: [{ id: 100, modelId: 10, name: "Exclusive", trimName: "Exclusive", canonicalName: null, price: 50000000, fuelType: null, displacementCc: null, modelYear: null, driveSystem: null, transmissionType: null, bodyStyle: null, seatingCapacity: null, status: "판매중", sortOrder: 1 }],
+            trimDetail: { id: 100, modelId: 10, name: "Exclusive", trimName: "Exclusive", canonicalName: null, price: 50000000, specs: null, fuelType: null, displacementCc: null, modelYear: null, driveSystem: null, transmissionType: null, bodyStyle: null, seatingCapacity: null, status: "판매중", sortOrder: 1, financialDiscountAmount: null, partnerDiscountAmount: null, cashDiscountAmount: null, brandId: 1, brandName: "현대", modelName: "팰리세이드", options: [], optionRelations: [], colors: [], noOptions: null },
+          }),
+          { status: 200 },
+        );
+      }
       if (url.includes("/api/vehicles/trims/")) {
         // fetchTrimDetail(trimId): PR2a ancestry(brandId/brandName/modelName) 포함
         return new Response(
@@ -75,6 +86,7 @@ describe("VehiclePicker", () => {
         brand: expect.objectContaining({ id: 1 }),
         model: expect.objectContaining({ id: 10 }),
         trim: expect.objectContaining({ id: 100 }),
+        trimDetail: expect.objectContaining({ id: 100 }),
       }),
     );
   });

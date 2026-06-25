@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import type { DbVariables } from "../middleware/db";
-import { getBrands, getModelsByBrand, getTrimDetail, getTrimsByModel } from "../db/queries/vehicles";
+import { getBrands, getModelsByBrand, getTrimDetail, getTrimsByModel, getWorkbenchVehicle } from "../db/queries/vehicles";
 
 const idSchema = z.coerce.number().int().positive();
 
@@ -28,4 +28,11 @@ vehicles.get("/trims/:trimId", zValidator("param", z.object({ trimId: idSchema }
   const detail = await getTrimDetail(trimId, c.var.db);
   if (!detail) return c.json({ error: "Trim not found" }, 404);
   return c.json(detail);
+});
+
+vehicles.get("/workbench", zValidator("query", z.object({ trimId: idSchema })), async (c) => {
+  const { trimId } = c.req.valid("query");
+  const data = await getWorkbenchVehicle(trimId, c.var.db);
+  if (!data) return c.json({ error: "Trim not found" }, 404);
+  return c.json(data);
 });

@@ -1302,7 +1302,7 @@ function KimMinjunDetailContent({
     const trim = selection.trim;
     if (!trim) return;
     try {
-      const detail = await fetchTrimDetail(trim.id);
+      const detail = selection.trimDetail ?? await fetchTrimDetail(trim.id);
       const prefill = editPrefill;
       setTrimDetail(detail);
       setWorkbenchVehicle(selection);
