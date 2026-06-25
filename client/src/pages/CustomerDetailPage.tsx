@@ -769,6 +769,7 @@ function KimMinjunDetailContent({
   onEditorOpenChange,
   onToast,
   onWorkflowChange,
+  onQuotesPersisted,
 }: {
   chanceOverride?: CustomerChanceOption;
   customer: Customer;
@@ -777,6 +778,7 @@ function KimMinjunDetailContent({
   onEditorOpenChange?: CustomerDetailPageProps["onEditorOpenChange"];
   onToast: (message: string) => void;
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
+  onQuotesPersisted?: () => void;
 }) {
   const [statusValues, setStatusValues] = useState<Record<KimStatusFieldKey, string>>(() => ({
     phone: detail.phone ? formatPhone(detail.phone) : "미입력",
@@ -2323,7 +2325,7 @@ function KimMinjunDetailContent({
           ...scenarioField,
           ...(send ? { status: "고객 확인 전", appStatus: "sent", bumpRevision: true } : {}),
         };
-        void apiUpdateQuote(customer.id, targetId, patch).catch(() => { setQuotes(prevQuotes); onToast(send ? "발송에 실패했습니다." : "저장에 실패했습니다."); });
+        void apiUpdateQuote(customer.id, targetId, patch).then(() => onQuotesPersisted?.()).catch(() => { setQuotes(prevQuotes); onToast(send ? "발송에 실패했습니다." : "저장에 실패했습니다."); });
       }
     } else {
       const tempId = `kim-quote-workbench-${nowMs()}`;
@@ -2364,6 +2366,7 @@ function KimMinjunDetailContent({
             if (send && !id.startsWith("kim-")) {
               void apiUpdateQuote(cid, id, { status: "고객 확인 전", appStatus: "sent", bumpRevision: true }).catch(() => onToast("발송에 실패했습니다."));
             }
+            onQuotesPersisted?.();
           })
           .catch(() => { setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("저장에 실패했습니다."); });
       }
@@ -5332,6 +5335,14 @@ export function CustomerDetailPage({
     };
   }, [isKimMinjun, customer.id]);
 
+  // 견적 저장/발송 성공 후 현재 마운트의 detail을 재동기화한다. apiUpdate/CreateQuote가 이미
+  // invalidateCustomerDetail을 호출하므로 fetch는 fresh. detail.quotes가 stale이면 수정 진입
+  // editPrefill(옵션/색상/가격)이 옛 값으로 복원되던 버그를 막는다.
+  function reloadDetail() {
+    if (!customer.id) return;
+    fetchCustomerDetail(customer.id).then((data) => setDetail(data)).catch(() => {});
+  }
+
   return (
     <div className={`customer-detail-console-page ${drawerMode ? "drawer" : ""} ${isKimMinjun ? "kim-detail-mode" : ""}`}>
       {isKimMinjun ? null : (
@@ -5396,6 +5407,7 @@ export function CustomerDetailPage({
             onEditorOpenChange={onEditorOpenChange}
             onToast={onToast}
             onWorkflowChange={onWorkflowChange}
+            onQuotesPersisted={reloadDetail}
           />
         ) : (
           <div className="kim-detail-skeleton" aria-hidden="true" />
