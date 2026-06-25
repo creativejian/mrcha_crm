@@ -9779,6 +9779,10 @@ th input:focus-visible {
   cursor: not-allowed;
 }
 
+.kim-quote-workbench-head .kim-quote-workbench-action.complete.is-disabled {
+  opacity: 0.55;
+}
+
 .kim-quote-workbench-head .kim-quote-workbench-action.primary.is-disabled {
   border-color: rgba(148, 163, 184, 0.34);
   background: #c7cdd4;
