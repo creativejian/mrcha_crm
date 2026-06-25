@@ -124,12 +124,14 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
     );
   }
 
+  const editLoading = initialTrimId != null && loading != null && !brand;
+
   return (
     <div className="kim-vehicle-picker" ref={rootRef}>
       <div className="kim-vehicle-picker-anchor">
         <button className="kim-jeff-picker-row" type="button" onClick={() => setOpen(open === "brand" ? null : "brand")}>
           <span>제조사</span>
-          <b className={brand ? "" : "muted"}>{brand?.name ?? "선택"}</b>
+          <b className={brand ? "" : "muted"}>{editLoading ? <span className="kim-vehicle-skeleton" /> : (brand?.name ?? "선택")}</b>
           <ChevronDown size={15} />
         </button>
         {renderMenu(
@@ -145,7 +147,7 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
       <div className="kim-vehicle-picker-anchor">
         <button className="kim-jeff-picker-row" type="button" disabled={!brand} onClick={() => setOpen(open === "model" ? null : "model")}>
           <span>모델</span>
-          <b className={model ? "" : "muted"}>{model?.name ?? "선택"}</b>
+          <b className={model ? "" : "muted"}>{editLoading ? <span className="kim-vehicle-skeleton" /> : (model?.name ?? "선택")}</b>
           <ChevronDown size={15} />
         </button>
         {renderMenu(
@@ -161,7 +163,7 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
       <div className="kim-vehicle-picker-anchor">
         <button className="kim-jeff-picker-row" type="button" disabled={!model} onClick={() => setOpen(open === "trim" ? null : "trim")}>
           <span>트림</span>
-          <b className={trim ? "" : "muted"}>{trim ? trim.trimName ?? trim.name : "선택"}</b>
+          <b className={trim ? "" : "muted"}>{editLoading ? <span className="kim-vehicle-skeleton" /> : (trim ? trim.trimName ?? trim.name : "선택")}</b>
           <ChevronDown size={15} />
         </button>
         {renderMenu(

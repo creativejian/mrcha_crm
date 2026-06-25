@@ -4859,9 +4859,19 @@ function KimMinjunDetailContent({
                     </div>
                     <div className="kim-jeff-section">
                       <h4>🎨 옵션 / 컬러</h4>
-                      <OptionPicker key={trimDetail?.id ?? "none"} options={trimDetail?.options ?? []} relations={trimDetail?.optionRelations ?? []} initialSelectedIds={selectedWorkbenchOptionIds} onChange={applyOptionTotal} />
-                      <ColorPicker colorType="exterior" colors={trimDetail?.colors ?? []} value={exteriorColor} onChange={(c) => { setExteriorColor(c); markQuoteDraftChanged(); }} />
-                      <ColorPicker colorType="interior" colors={trimDetail?.colors ?? []} value={interiorColor} onChange={(c) => { setInteriorColor(c); markQuoteDraftChanged(); }} />
+                      {editingQuoteId && !trimDetail ? (
+                        <div className="kim-jeff-skeleton-group" aria-hidden="true">
+                          <div className="kim-jeff-skeleton-row" />
+                          <div className="kim-jeff-skeleton-row" />
+                          <div className="kim-jeff-skeleton-row" />
+                        </div>
+                      ) : (
+                        <>
+                          <OptionPicker key={trimDetail?.id ?? "none"} options={trimDetail?.options ?? []} relations={trimDetail?.optionRelations ?? []} initialSelectedIds={selectedWorkbenchOptionIds} onChange={applyOptionTotal} />
+                          <ColorPicker colorType="exterior" colors={trimDetail?.colors ?? []} value={exteriorColor} onChange={(c) => { setExteriorColor(c); markQuoteDraftChanged(); }} />
+                          <ColorPicker colorType="interior" colors={trimDetail?.colors ?? []} value={interiorColor} onChange={(c) => { setInteriorColor(c); markQuoteDraftChanged(); }} />
+                        </>
+                      )}
                     </div>
                     <div className="kim-jeff-section">
                       <h4>💰 할인</h4>
