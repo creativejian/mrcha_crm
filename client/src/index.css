@@ -16812,3 +16812,33 @@ body.kim-detail-overlay-open .customer-detail-drawer {
   flex: 1;
   min-width: 0;
 }
+
+.kim-vehicle-skeleton {
+  display: inline-block;
+  width: 84px;
+  height: 13px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #ececec 25%, #f4f4f4 37%, #ececec 63%);
+  background-size: 400% 100%;
+  animation: kim-skeleton-shimmer 1.2s ease-in-out infinite;
+  vertical-align: middle;
+}
+
+.kim-jeff-skeleton-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kim-jeff-skeleton-row {
+  height: 38px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #ececec 25%, #f4f4f4 37%, #ececec 63%);
+  background-size: 400% 100%;
+  animation: kim-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes kim-skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}

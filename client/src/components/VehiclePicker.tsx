@@ -2,7 +2,8 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useOutsideClick } from "@/lib/useOutsideClick";
-import { fetchBrands, fetchModels, fetchTrims, fetchWorkbenchVehicle, type Brand, type Model, type Trim, type TrimDetail } from "@/lib/vehicles";
+import { fetchBrands, fetchModels, fetchTrims, type Brand, type Model, type Trim, type TrimDetail } from "@/lib/vehicles";
+import { fetchWorkbenchVehicleCached } from "@/lib/vehicles-cache";
 
 export type VehicleSelection = { brand?: Brand; model?: Model; trim?: Trim; trimDetail?: TrimDetail };
 
@@ -35,7 +36,7 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
     // loading 초기값이 이미 "brand"라 동기 setState 없이 로딩 표시가 유지된다(set-state-in-effect 회피).
     (async () => {
       try {
-        const { brands: brandList, models: modelList, trims: trimList, trimDetail } = await fetchWorkbenchVehicle(initialTrimId);
+        const { brands: brandList, models: modelList, trims: trimList, trimDetail } = await fetchWorkbenchVehicleCached(initialTrimId);
         if (cancelled) return;
         setBrands(brandList);
         setModels(modelList);
@@ -123,12 +124,14 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
     );
   }
 
+  const editLoading = initialTrimId != null && loading != null && !brand;
+
   return (
     <div className="kim-vehicle-picker" ref={rootRef}>
       <div className="kim-vehicle-picker-anchor">
         <button className="kim-jeff-picker-row" type="button" onClick={() => setOpen(open === "brand" ? null : "brand")}>
           <span>제조사</span>
-          <b className={brand ? "" : "muted"}>{brand?.name ?? "선택"}</b>
+          <b className={brand ? "" : "muted"}>{editLoading ? <span className="kim-vehicle-skeleton" /> : (brand?.name ?? "선택")}</b>
           <ChevronDown size={15} />
         </button>
         {renderMenu(
@@ -144,7 +147,7 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
       <div className="kim-vehicle-picker-anchor">
         <button className="kim-jeff-picker-row" type="button" disabled={!brand} onClick={() => setOpen(open === "model" ? null : "model")}>
           <span>모델</span>
-          <b className={model ? "" : "muted"}>{model?.name ?? "선택"}</b>
+          <b className={model ? "" : "muted"}>{editLoading ? <span className="kim-vehicle-skeleton" /> : (model?.name ?? "선택")}</b>
           <ChevronDown size={15} />
         </button>
         {renderMenu(
@@ -160,7 +163,7 @@ export function VehiclePicker({ initialTrimId, onChange }: { initialTrimId?: num
       <div className="kim-vehicle-picker-anchor">
         <button className="kim-jeff-picker-row" type="button" disabled={!model} onClick={() => setOpen(open === "trim" ? null : "trim")}>
           <span>트림</span>
-          <b className={trim ? "" : "muted"}>{trim ? trim.trimName ?? trim.name : "선택"}</b>
+          <b className={trim ? "" : "muted"}>{editLoading ? <span className="kim-vehicle-skeleton" /> : (trim ? trim.trimName ?? trim.name : "선택")}</b>
           <ChevronDown size={15} />
         </button>
         {renderMenu(
