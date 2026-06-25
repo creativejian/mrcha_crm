@@ -2242,6 +2242,13 @@ function KimMinjunDetailContent({
   function persistWorkbenchQuote({ send }: { send: boolean }) {
     const missing = validateQuoteDetailDraft();
     if (missing.length > 0) { onToast(missing.slice(0, 3).join(" ")); return; }
+    // 차량 로딩/선택 가드: trimDetail은 fetchTrimDetail(async) 완료 후 채워진다.
+    // 로딩 중(null)에 저장하면 brand/model/trim/trimId가 null로 UPDATE되어
+    // 수정 시 기존 차량 정보를 덮어쓴다(데이터 손실). 로딩 완료까지 차단.
+    if (!trimDetail || !workbenchVehicle) {
+      onToast(editingQuoteId ? "차량 정보를 불러오는 중입니다. 잠시 후 다시 시도해 주세요." : "차량을 먼저 선택해 주세요.");
+      return;
+    }
 
     const source: KimQuoteItem["source"] = solutionWorkbenchEntryMode === "solution" ? "solution" : solutionWorkbenchEntryMode === "original" ? "original" : "manual";
     const sourceLabel = source === "solution" ? "솔루션 조회 조건" : source === "original" ? "원본 인식 후 보정" : "수기 입력 조건";
@@ -4775,7 +4782,7 @@ function KimMinjunDetailContent({
                         초기화
                       </button>
                       <button
-                        className={`kim-quote-workbench-action complete${isQuoteDraftSaved && !isQuoteDraftDirty ? " is-saved" : ""}`}
+                        className={`kim-quote-workbench-action complete${isQuoteDraftSaved && !isQuoteDraftDirty ? " is-saved" : ""}${!trimDetail ? " is-disabled" : ""}`}
                         onClick={saveQuoteDetailDraft}
                         type="button"
                       >
@@ -4815,7 +4822,7 @@ function KimMinjunDetailContent({
                         앱카드보기
                       </button>
                       <button
-                        className="kim-quote-workbench-action primary"
+                        className={`kim-quote-workbench-action primary${!trimDetail ? " is-disabled" : ""}`}
                         onClick={saveQuoteFromWorkbench}
                         type="button"
                       >
