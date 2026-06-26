@@ -2,13 +2,15 @@
 // "표시 문자열 ↔ 구조화 값" 파싱/포맷과 그에 쓰는 옵션 상수·타입을 한곳에 모은다.
 // 데이터 소스(DB/mock)와 무관한 순수 변환이라 단위 테스트가 쉽다.
 
+import { SOURCE_AUTOMATIC_OPTIONS, SOURCE_MANUAL_OPTIONS, SOURCE_LEGACY_AUTOMATIC_OPTIONS } from "@/data/customers";
+
 export type KimCustomerType = "개인" | "개인사업자" | "법인사업자";
 export type KimAdvisorTeam = "인천본사" | "상담팀" | "견적팀" | "계약팀" | "출고팀";
 
 export const kimCustomerTypeOptions: KimCustomerType[] = ["개인", "개인사업자", "법인사업자"];
-export const kimAutomaticSourceOptions = ["앱 견적비교", "앱 AI상담", "앱 상담원 연결", "디엘(상담)", "디엘(견적서)"];
-export const kimLegacyAutomaticSourceOptions = ["디엘홈페이지"];
-export const kimManualSourceOptions = ["대표전화", "카카오", "소개", "추천", "재구매", "유튜브", "검색", "기타"];
+export const kimAutomaticSourceOptions = SOURCE_AUTOMATIC_OPTIONS;
+export const kimLegacyAutomaticSourceOptions = SOURCE_LEGACY_AUTOMATIC_OPTIONS;
+export const kimManualSourceOptions = SOURCE_MANUAL_OPTIONS;
 export const kimAdvisorOptions: Record<KimAdvisorTeam, string[]> = {
   인천본사: ["김지안", "이주선"],
   상담팀: ["이주선", "김지안", "문태호"],
