@@ -10,6 +10,7 @@ import {
   smallint,
   bigint,
   date,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // CRM 운영 스키마. drizzle은 catalog + crm만 관리(public=앱 소유, 불가침).
@@ -198,3 +199,22 @@ export const quoteScenarios = crm.table("quote_scenarios", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ── 업무 어휘 lookup (enum/lookup 정리 1차 슬라이스: 진행상태 파일럿) ────────────
+// category로 도메인 구분(이번엔 status_group/status), parent_value로 종속(1차→2차).
+// value는 현행 text 값 그대로라 customers 컬럼/기존 데이터는 무변경.
+export const lookupValues = crm.table(
+  "lookup_values",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    category: text("category").notNull(), // "status_group" | "status"
+    value: text("value").notNull(), // 현행 text 값: "계약완료" / "출고완료"
+    label: text("label"), // 표시명. null이면 value 사용
+    parentValue: text("parent_value"), // status→부모 group value, status_group→null
+    sortOrder: integer("sort_order").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("lookup_values_category_value_key").on(table.category, table.value)],
+);

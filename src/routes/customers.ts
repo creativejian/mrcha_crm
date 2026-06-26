@@ -10,6 +10,7 @@ import {
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
+import { validateStatusSelection } from "../db/queries/lookups";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
@@ -44,7 +45,18 @@ customers.patch(
   "/:id",
   zValidator("param", z.object({ id: z.uuid() })),
   zValidator("json", customerWriteSchema),
-  (c) => run(c, () => updateCustomer(c.req.valid("param").id, c.req.valid("json"), c.var.db), "고객을 찾을 수 없습니다."),
+  async (c) => {
+    const patch = c.req.valid("json");
+    // 진행상태(1차/2차) 키가 올 때만 lookup 종속 검증. 그 외엔 추가 왕복 0.
+    if (patch.statusGroup !== undefined || patch.status !== undefined) {
+      const error = await validateStatusSelection(
+        { statusGroup: patch.statusGroup, status: patch.status },
+        c.var.db,
+      );
+      if (error) return c.json({ error }, 400);
+    }
+    return run(c, () => updateCustomer(c.req.valid("param").id, patch, c.var.db), "고객을 찾을 수 없습니다.");
+  },
 );
 
 // ── 자식 컬렉션 CRUD (메모/할일/일정) ──────────────────────────────
