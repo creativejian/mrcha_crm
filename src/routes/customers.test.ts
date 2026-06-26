@@ -861,3 +861,30 @@ test("schedule type 검증: 없는 type POST → 400, 유효 → 201", async () 
   const schId = ((await ok.json()) as { id: string }).id;
   await app.request(`/api/customers/${cid}/schedules/${schId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
 });
+
+test("customerType enum: 잘못된 값 → 400 / 유효 → 200(원복)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; customerType: string | null }>;
+  const target = list[0];
+  expect((await app.request(`/api/customers/${target.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ customerType: "외계인" }) })).status).toBe(400);
+  try {
+    expect((await app.request(`/api/customers/${target.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ customerType: "개인" }) })).status).toBe(200);
+  } finally {
+    await app.request(`/api/customers/${target.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ customerType: target.customerType }) });
+  }
+});
+
+test("purchaseMethod enum: 잘못된 값 견적 생성 → 400", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const res = await app.request(`/api/customers/${cid}/quotes`, {
+    method: "POST", headers: h,
+    body: JSON.stringify({ entryMode: "manual", scenario: { purchaseMethod: "비교 견적" } }),
+  });
+  expect(res.status).toBe(400);
+});
