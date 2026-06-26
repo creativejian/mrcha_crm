@@ -60,6 +60,11 @@ customers.patch(
       const error = await validateLookupValue("chance", patch.chance, c.var.db);
       if (error) return c.json({ error }, 400);
     }
+    // 유입 경로(source) 닫힌 집합 검증.
+    if (patch.source !== undefined) {
+      const error = await validateLookupValue("source", patch.source, c.var.db);
+      if (error) return c.json({ error }, 400);
+    }
     return run(c, () => updateCustomer(c.req.valid("param").id, patch, c.var.db), "고객을 찾을 수 없습니다.");
   },
 );
@@ -175,22 +180,44 @@ customers.delete("/:id/memos/:childId", zValidator("param", childParam), (c) => 
   return run(c, () => deleteMemo(p.id, p.childId, c.var.db), "메모를 찾을 수 없습니다.");
 });
 
-customers.post("/:id/tasks", zValidator("param", idParam), zValidator("json", taskBody), async (c) =>
-  c.json(await addTask(c.req.valid("param").id, c.req.valid("json"), c.var.db), 201));
-customers.patch("/:id/tasks/:childId", zValidator("param", childParam), zValidator("json", taskBody), (c) => {
+customers.post("/:id/tasks", zValidator("param", idParam), zValidator("json", taskBody), async (c) => {
+  const body = c.req.valid("json");
+  if (body.category !== undefined) {
+    const error = await validateLookupValue("task_category", body.category, c.var.db);
+    if (error) return c.json({ error }, 400);
+  }
+  return c.json(await addTask(c.req.valid("param").id, body, c.var.db), 201);
+});
+customers.patch("/:id/tasks/:childId", zValidator("param", childParam), zValidator("json", taskBody), async (c) => {
   const p = c.req.valid("param");
-  return run(c, () => updateTask(p.id, p.childId, c.req.valid("json"), c.var.db), "할 일을 찾을 수 없습니다.");
+  const body = c.req.valid("json");
+  if (body.category !== undefined) {
+    const error = await validateLookupValue("task_category", body.category, c.var.db);
+    if (error) return c.json({ error }, 400);
+  }
+  return run(c, () => updateTask(p.id, p.childId, body, c.var.db), "할 일을 찾을 수 없습니다.");
 });
 customers.delete("/:id/tasks/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
   return run(c, () => deleteTask(p.id, p.childId, c.var.db), "할 일을 찾을 수 없습니다.");
 });
 
-customers.post("/:id/schedules", zValidator("param", idParam), zValidator("json", scheduleBody), async (c) =>
-  c.json(await addSchedule(c.req.valid("param").id, c.req.valid("json"), c.var.db), 201));
-customers.patch("/:id/schedules/:childId", zValidator("param", childParam), zValidator("json", scheduleBody), (c) => {
+customers.post("/:id/schedules", zValidator("param", idParam), zValidator("json", scheduleBody), async (c) => {
+  const body = c.req.valid("json");
+  if (body.type !== undefined) {
+    const error = await validateLookupValue("schedule_type", body.type, c.var.db);
+    if (error) return c.json({ error }, 400);
+  }
+  return c.json(await addSchedule(c.req.valid("param").id, body, c.var.db), 201);
+});
+customers.patch("/:id/schedules/:childId", zValidator("param", childParam), zValidator("json", scheduleBody), async (c) => {
   const p = c.req.valid("param");
-  return run(c, () => updateSchedule(p.id, p.childId, c.req.valid("json"), c.var.db), "일정을 찾을 수 없습니다.");
+  const body = c.req.valid("json");
+  if (body.type !== undefined) {
+    const error = await validateLookupValue("schedule_type", body.type, c.var.db);
+    if (error) return c.json({ error }, 400);
+  }
+  return run(c, () => updateSchedule(p.id, p.childId, body, c.var.db), "일정을 찾을 수 없습니다.");
 });
 customers.delete("/:id/schedules/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");

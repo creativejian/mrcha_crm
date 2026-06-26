@@ -821,3 +821,43 @@ test("서류 doc_type 검증: 유효 docType 업로드→PATCH(없는값 400·�
     await getDefaultDb().delete(customerDocuments).where(eq(customerDocuments.id, doc.id));
   }
 });
+
+test("source 검증: 없는 source → 400 / 유효 → 200(원복)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; source: string | null }>;
+  const target = list[0];
+  expect((await app.request(`/api/customers/${target.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ source: "없는경로" }) })).status).toBe(400);
+  try {
+    expect((await app.request(`/api/customers/${target.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ source: "대표전화" }) })).status).toBe(200);
+  } finally {
+    await app.request(`/api/customers/${target.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ source: target.source }) });
+  }
+});
+
+test("task category 검증: 없는 category POST → 400, 유효 → 201", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  expect((await app.request(`/api/customers/${cid}/tasks`, { method: "POST", headers: h, body: JSON.stringify({ category: "없는분류", body: "x" }) })).status).toBe(400);
+  const ok = await app.request(`/api/customers/${cid}/tasks`, { method: "POST", headers: h, body: JSON.stringify({ category: "견적", body: "x" }) });
+  expect(ok.status).toBe(201);
+  const taskId = ((await ok.json()) as { id: string }).id;
+  await app.request(`/api/customers/${cid}/tasks/${taskId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+});
+
+test("schedule type 검증: 없는 type POST → 400, 유효 → 201", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  expect((await app.request(`/api/customers/${cid}/schedules`, { method: "POST", headers: h, body: JSON.stringify({ type: "없는종류", scheduledDate: "2026-06-01" }) })).status).toBe(400);
+  const ok = await app.request(`/api/customers/${cid}/schedules`, { method: "POST", headers: h, body: JSON.stringify({ type: "견적", scheduledDate: "2026-06-01" }) });
+  expect(ok.status).toBe(201);
+  const schId = ((await ok.json()) as { id: string }).id;
+  await app.request(`/api/customers/${cid}/schedules/${schId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+});
