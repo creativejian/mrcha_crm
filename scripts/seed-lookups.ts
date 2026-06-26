@@ -1,6 +1,6 @@
 import { and, inArray } from "drizzle-orm";
 
-import { customerStatusGroups } from "../client/src/data/customers";
+import { CHANCE_OPTIONS, customerStatusGroups } from "../client/src/data/customers";
 import { getDefaultDb } from "../src/db/client";
 import { lookupValues } from "../src/db/schema";
 
@@ -23,8 +23,13 @@ async function main() {
     });
   }
 
-  // 멱등: 이 두 카테고리를 지우고 재삽입.
-  await db.delete(lookupValues).where(and(inArray(lookupValues.category, ["status_group", "status"])));
+  // 계약 가능성(chance) — 종속 없는 닫힌 집합(CHANCE_OPTIONS).
+  CHANCE_OPTIONS.forEach((value, i) => {
+    rows.push({ category: "chance", value, parentValue: null, sortOrder: i });
+  });
+
+  // 멱등: 이 카테고리들을 지우고 재삽입.
+  await db.delete(lookupValues).where(and(inArray(lookupValues.category, ["status_group", "status", "chance"])));
   // 중복 (category,value) 제거 후 삽입(중복 status는 첫 그룹만).
   const seen = new Set<string>();
   const deduped = rows.filter((r) => {
@@ -35,7 +40,7 @@ async function main() {
   });
   await db.insert(lookupValues).values(deduped);
 
-  console.log(`seeded lookup_values: ${deduped.length} rows (status_group/status)`);
+  console.log(`seeded lookup_values: ${deduped.length} rows (status_group/status/chance)`);
 }
 
 main().then(

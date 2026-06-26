@@ -34,3 +34,25 @@ export async function validateStatusSelection(
   );
   return checkStatusSelection(activeGroups, statusParent, sel);
 }
+
+// 종속 없는 닫힌 집합 도메인의 단일 값 검증(예: chance). value null → 통과(왕복 0).
+// (category, value, active) 1행이 있으면 OK, 없으면 에러 메시지(400 본문). 닫힌 도메인 재사용.
+export async function validateLookupValue(
+  category: string,
+  value: string | null | undefined,
+  executor: Executor = getDefaultDb(),
+): Promise<string | null> {
+  if (value == null) return null;
+  const rows = await executor
+    .select({ value: lookupValues.value })
+    .from(lookupValues)
+    .where(
+      and(
+        eq(lookupValues.category, category),
+        eq(lookupValues.value, value),
+        eq(lookupValues.active, true),
+      ),
+    )
+    .limit(1);
+  return rows.length ? null : `유효하지 않은 ${category} 값입니다: ${value}`;
+}

@@ -10,7 +10,7 @@ import {
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
-import { validateStatusSelection } from "../db/queries/lookups";
+import { validateLookupValue, validateStatusSelection } from "../db/queries/lookups";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
@@ -53,6 +53,11 @@ customers.patch(
         { statusGroup: patch.statusGroup, status: patch.status },
         c.var.db,
       );
+      if (error) return c.json({ error }, 400);
+    }
+    // 계약 가능성(chance) 닫힌 집합 검증. chance 키가 올 때만 1쿼리.
+    if (patch.chance !== undefined) {
+      const error = await validateLookupValue("chance", patch.chance, c.var.db);
       if (error) return c.json({ error }, 400);
     }
     return run(c, () => updateCustomer(c.req.valid("param").id, patch, c.var.db), "고객을 찾을 수 없습니다.");
