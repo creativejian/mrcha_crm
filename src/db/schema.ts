@@ -10,12 +10,44 @@ import {
   smallint,
   bigint,
   date,
-  uniqueIndex,
+  check,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
+import {
+  CHANCE_OPTIONS,
+  SOURCE_OPTIONS,
+  DOC_TYPE_OPTIONS,
+  TASK_CATEGORY_OPTIONS,
+  SCHEDULE_TYPE_OPTIONS,
+  PURCHASE_METHOD_OPTIONS,
+  CUSTOMER_TYPE_OPTIONS,
+  customerStatusGroups,
+} from "../../client/src/data/customers";
 
 // CRM 운영 스키마. drizzle은 catalog + crm만 관리(public=앱 소유, 불가침).
 // 외부 FK(catalog.*, public.*)는 Phase B(catalog adopt) 후 별도 추가. 여기선 crm 내부 FK만.
 export const crm = pgSchema("crm");
+
+// ── 어휘/기술값 CHECK 사전 (코드 SSOT, lookup_values 폐기 후 단일 출처) ──────────
+const STATUS_GROUP_OPTIONS = Object.keys(customerStatusGroups);
+const STATUS_OPTIONS = [...new Set(Object.values(customerStatusGroups).flat())];
+const ENTRY_MODES = ["manual", "solution", "original"];
+const APP_STATUSES = ["draft", "queued", "sent", "viewed"];
+const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"];
+const ACQ_TAX_MODES = ["normal", "hybrid", "electric", "manual"];
+const QUOTE_DISPLAY_STATUSES = ["고객 확인 전", "고객 열람"];
+
+// nullable 컬럼 IN CHECK(기존 null 보존). 값=코드 상수 SSOT에서 sql.join. 종속(그룹-상태)은 앱 검증.
+// 값은 sql.raw로 리터럴 inline(마이그에 박제). param(`sql`${v}``)이면 $1 placeholder로 새 나가 깨짐.
+function inListCheck(col: AnyPgColumn, values: readonly string[]) {
+  const list = sql.join(
+    values.map((v) => sql.raw(`'${v.replace(/'/g, "''")}'`)),
+    sql`, `,
+  );
+  return sql`${col} IS NULL OR ${col} IN (${list})`;
+}
 
 // ── 고객 마스터 (니즈 1:1 인라인) ─────────────────────────────────────────────
 export const customers = crm.table("customers", {
@@ -49,7 +81,13 @@ export const customers = crm.table("customers", {
   needMemo: text("need_memo"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  check("customers_status_group_check", inListCheck(t.statusGroup, STATUS_GROUP_OPTIONS)),
+  check("customers_status_check", inListCheck(t.status, STATUS_OPTIONS)),
+  check("customers_chance_check", inListCheck(t.chance, CHANCE_OPTIONS)),
+  check("customers_source_check", inListCheck(t.source, SOURCE_OPTIONS)),
+  check("customers_customer_type_check", inListCheck(t.customerType, CUSTOMER_TYPE_OPTIONS)),
+]);
 
 // ── 고객 자식 테이블 (1:N) ────────────────────────────────────────────────────
 export const customerTasks = crm.table("customer_tasks", {
@@ -62,7 +100,7 @@ export const customerTasks = crm.table("customer_tasks", {
   body: text("body"),
   done: boolean("done").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [check("customer_tasks_category_check", inListCheck(t.category, TASK_CATEGORY_OPTIONS))]);
 
 export const customerSchedules = crm.table("customer_schedules", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -75,7 +113,7 @@ export const customerSchedules = crm.table("customer_schedules", {
   memo: text("memo"),
   done: boolean("done").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [check("customer_schedules_type_check", inListCheck(t.type, SCHEDULE_TYPE_OPTIONS))]);
 
 export const customerDocuments = crm.table("customer_documents", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -91,7 +129,7 @@ export const customerDocuments = crm.table("customer_documents", {
   thumbPath: text("thumb_path"),
   sortOrder: integer("sort_order"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [check("customer_documents_doc_type_check", inListCheck(t.docType, DOC_TYPE_OPTIONS))]);
 
 export const customerMemos = crm.table("customer_memos", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -166,7 +204,13 @@ export const quotes = crm.table("quotes", {
   viewedAt: timestamp("viewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  check("quotes_entry_mode_check", inListCheck(t.entryMode, ENTRY_MODES)),
+  check("quotes_app_status_check", inListCheck(t.appStatus, APP_STATUSES)),
+  check("quotes_decision_status_check", inListCheck(t.decisionStatus, DECISION_STATUSES)),
+  check("quotes_acquisition_tax_mode_check", inListCheck(t.acquisitionTaxMode, ACQ_TAX_MODES)),
+  check("quotes_status_check", inListCheck(t.status, QUOTE_DISPLAY_STATUSES)),
+]);
 
 export const quoteScenarios = crm.table("quote_scenarios", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -197,23 +241,4 @@ export const quoteScenarios = crm.table("quote_scenarios", {
   interestRate: numeric("interest_rate"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
-
-// ── 업무 어휘 lookup (enum/lookup 정리 1차 슬라이스: 진행상태 파일럿) ────────────
-// category로 도메인 구분(이번엔 status_group/status), parent_value로 종속(1차→2차).
-// value는 현행 text 값 그대로라 customers 컬럼/기존 데이터는 무변경.
-export const lookupValues = crm.table(
-  "lookup_values",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    category: text("category").notNull(), // "status_group" | "status"
-    value: text("value").notNull(), // 현행 text 값: "계약완료" / "출고완료"
-    label: text("label"), // 표시명. null이면 value 사용
-    parentValue: text("parent_value"), // status→부모 group value, status_group→null
-    sortOrder: integer("sort_order").notNull().default(0),
-    active: boolean("active").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-  },
-  (table) => [uniqueIndex("lookup_values_category_value_key").on(table.category, table.value)],
-);
+}, (t) => [check("quote_scenarios_purchase_method_check", inListCheck(t.purchaseMethod, PURCHASE_METHOD_OPTIONS))]);

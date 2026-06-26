@@ -50,6 +50,13 @@
       "when": 1782452118274,
       "tag": "0006_daily_shiver_man",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782471224233,
+      "tag": "0007_tricky_iron_patriot",
+      "breakpoints": true
     }
   ]
 }
