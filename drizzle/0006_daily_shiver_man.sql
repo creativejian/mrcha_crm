@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."customer_documents" DROP COLUMN "title";

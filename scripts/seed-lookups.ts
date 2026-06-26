@@ -1,6 +1,6 @@
 import { and, inArray } from "drizzle-orm";
 
-import { CHANCE_OPTIONS, customerStatusGroups } from "../client/src/data/customers";
+import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, customerStatusGroups } from "../client/src/data/customers";
 import { getDefaultDb } from "../src/db/client";
 import { lookupValues } from "../src/db/schema";
 
@@ -28,8 +28,13 @@ async function main() {
     rows.push({ category: "chance", value, parentValue: null, sortOrder: i });
   });
 
+  // 서류 종류(doc_type) — 닫힌 집합(DOC_TYPE_OPTIONS).
+  DOC_TYPE_OPTIONS.forEach((value, i) => {
+    rows.push({ category: "doc_type", value, parentValue: null, sortOrder: i });
+  });
+
   // 멱등: 이 카테고리들을 지우고 재삽입.
-  await db.delete(lookupValues).where(and(inArray(lookupValues.category, ["status_group", "status", "chance"])));
+  await db.delete(lookupValues).where(and(inArray(lookupValues.category, ["status_group", "status", "chance", "doc_type"])));
   // 중복 (category,value) 제거 후 삽입(중복 status는 첫 그룹만).
   const seen = new Set<string>();
   const deduped = rows.filter((r) => {
@@ -40,7 +45,7 @@ async function main() {
   });
   await db.insert(lookupValues).values(deduped);
 
-  console.log(`seeded lookup_values: ${deduped.length} rows (status_group/status/chance)`);
+  console.log(`seeded lookup_values: ${deduped.length} rows (status_group/status/chance/doc_type)`);
 }
 
 main().then(

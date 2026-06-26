@@ -785,3 +785,39 @@ test("chance 검증: chance=null(해제)은 통과 → 200", async () => {
     });
   }
 });
+
+test("서류 doc_type 검증: 업로드 시 없는 docType → 400", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const auth = { Authorization: `Bearer ${token}` };
+  const list = (await (await app.request("/api/customers", { headers: auth })).json()) as Array<{ id: string }>;
+  const fd = new FormData();
+  fd.append("file", new File([new Uint8Array([1, 2, 3])], "x.png", { type: "image/png" }));
+  fd.append("docType", "존재하지않는종류");
+  const res = await app.request(`/api/customers/${list[0].id}/documents`, { method: "POST", headers: auth, body: fd });
+  expect(res.status).toBe(400);
+});
+
+test("서류 doc_type 검증: 유효 docType 업로드→PATCH(없는값 400·유효 200)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const auth = { Authorization: `Bearer ${token}` };
+  const h = { ...auth, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: auth })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const fd = new FormData();
+  fd.append("file", new File([new Uint8Array([1, 2, 3])], "사업자등록증.png", { type: "image/png" }));
+  fd.append("docType", "사업자등록증");
+  const up = await app.request(`/api/customers/${cid}/documents`, { method: "POST", headers: auth, body: fd });
+  expect(up.status).toBe(201);
+  const doc = (await up.json()) as { id: string };
+  try {
+    const bad = await app.request(`/api/customers/${cid}/documents/${doc.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ docType: "없는종류" }) });
+    expect(bad.status).toBe(400);
+    const ok = await app.request(`/api/customers/${cid}/documents/${doc.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ docType: "기타서류" }) });
+    expect(ok.status).toBe(200);
+  } finally {
+    // 공유 master DB라 throwaway 서류 정리.
+    await getDefaultDb().delete(customerDocuments).where(eq(customerDocuments.id, doc.id));
+  }
+});

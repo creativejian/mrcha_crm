@@ -17,7 +17,6 @@ export async function nextSortOrder(customerId: string, ex: Executor = getDefaul
 export async function addDocument(
   customerId: string,
   v: {
-    title?: string | null;
     docType?: string | null;
     fileName?: string | null;
     fileSize?: number | null;
@@ -32,7 +31,6 @@ export async function addDocument(
     .insert(customerDocuments)
     .values({
       customerId,
-      title: v.title ?? null,
       docType: v.docType ?? null,
       fileName: v.fileName ?? null,
       fileSize: v.fileSize ?? null,

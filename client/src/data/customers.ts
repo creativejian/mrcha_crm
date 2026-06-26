@@ -34,6 +34,33 @@ export type Customer = {
 // 계약 가능성 옵션. CustomerManagementPage 가능성 popover·필터, CustomerDetailPage 상태 편집에 공유.
 export const CHANCE_OPTIONS: readonly CustomerChanceOption[] = ["높음", "중간", "낮음", "보류", "확정"];
 
+// 서류 분류 종류(닫힌 집합 22종). classifyKimDocumentFile(파일명 자동분류) 반환값과 동일.
+// CustomerDetailPage 분류 select + seed-lookups(category="doc_type") 공유 SSOT.
+export const DOC_TYPE_OPTIONS: readonly string[] = [
+  "면허증",
+  "주민등록등본",
+  "원천징수영수증",
+  "사업자등록증",
+  "부가세과세증명원",
+  "소득금액증명원",
+  "자동이체통장사본",
+  "매매계약서",
+  "리스승인서",
+  "계약사실확인서",
+  "법인(점)주주명부",
+  "법인(점)등기부등본",
+  "법인(점)법인인감증명서",
+  "법인(점)개인인감증명서",
+  "법인(점)재무제표(당해)",
+  "법인(점)재무제표(전기)",
+  "등록(점)자동차등록증",
+  "등록(점)세금계산서",
+  "등록(점)취득세납부영수증",
+  "등록(점)등록비영수증",
+  "등록(점)보험가입증명서",
+  "기타서류",
+];
+
 // 관리 상태(최종 업데이트) 옵션. CustomerManageStatus 유니온과 값이 1:1.
 export const CUSTOMER_MANAGE_STATUSES: readonly CustomerManageStatus[] = ["정상", "확인필요", "재문의", "지연", "장기방치"];
 

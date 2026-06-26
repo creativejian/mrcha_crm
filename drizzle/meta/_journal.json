@@ -43,6 +43,13 @@
       "when": 1782435927563,
       "tag": "0005_sour_lord_hawal",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782452118274,
+      "tag": "0006_daily_shiver_man",
+      "breakpoints": true
     }
   ]
 }
