@@ -86,7 +86,9 @@ export const lookupValues = crm.table("lookup_values", {
 - `customers` PATCH 흐름(`src/routes/customers.ts`, `customerWriteSchema` 통과 후):
   - body에 `statusGroup`/`status`가 **포함될 때만** `validateStatusSelection` 호출.
     - `statusGroup` 값이 `category='status_group'` AND `active`에 존재하는지.
-    - `status` 값이 `category='status'` AND `active` AND `parent_value=statusGroup`인지(종속).
+    - `status` 값이 `category='status'` AND `active`에 존재하는지.
+    - **둘 다** 올 때만 `status`의 `parent_value=statusGroup` 종속까지 검증한다.
+      한쪽만 단독 전송되면 그 값의 유효성만 보고 종속은 건너뛴다(기존 PATCH 경로 보존).
     - 위반 시 400(명확한 메시지: 어느 값이/어느 종속이 어긋났는지).
   - 같은 요청 연결에서 lookup 1쿼리(`category IN ('status_group','status')` 한 번 읽어 메모리
     판정) → 추가 왕복 조건부 +1. status를 안 바꾸는 PATCH는 추가 왕복 0.
@@ -126,7 +128,8 @@ export const lookupValues = crm.table("lookup_values", {
 
 - `bun run typecheck` 0 · `bun run lint` 0.
 - 종속 판정은 **순수 함수로 분리**(active value 목록 + {group,status}를 받아 판정,
-  DB 미접근) → `bun run test:unit`으로 유효/없는값/종속불일치/미입력 케이스 단위테스트.
+  DB 미접근) → **`bun run test:server`**(bun)로 유효/없는값/종속불일치/미입력 케이스
+  단위테스트. (vitest는 `client/src`·`test`만 잡고 `src/**/*.test.ts`는 bun이 잡음.)
 - 서버 테스트(`bun test --env-file=.env.local`): 진행상태 lookup 라운드트립
   — 유효 group+status PATCH 200, 없는 status 400, 종속 안 맞는 status(group과 불일치) 400,
   status 미포함 PATCH는 검증 건너뜀 200.
