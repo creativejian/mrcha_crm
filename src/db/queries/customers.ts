@@ -81,9 +81,9 @@ export async function getCustomer(id: string, executor: Executor = getDefaultDb(
   if (!customer) return null;
   // 자식 6개는 병렬(존재 확인 후 1회 배치). quotes는 scenarios 묶음을 위해 id 목록을 먼저 받아야 하므로 그 뒤 1 왕복 추가.
   const [tasks, schedules, memos, documents, consults, quoteRows] = await Promise.all([
-    executor.select().from(customerTasks).where(eq(customerTasks.customerId, id)),
-    executor.select().from(customerSchedules).where(eq(customerSchedules.customerId, id)),
-    executor.select().from(customerMemos).where(eq(customerMemos.customerId, id)),
+    executor.select().from(customerTasks).where(eq(customerTasks.customerId, id)).orderBy(asc(customerTasks.createdAt)),
+    executor.select().from(customerSchedules).where(eq(customerSchedules.customerId, id)).orderBy(asc(customerSchedules.createdAt)),
+    executor.select().from(customerMemos).where(eq(customerMemos.customerId, id)).orderBy(asc(customerMemos.createdAt)),
     executor
       .select({
         id: customerDocuments.id,
