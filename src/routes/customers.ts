@@ -271,6 +271,10 @@ customers.post("/:id/documents", zValidator("param", idParam), async (c) => {
   if (!(file instanceof File)) return c.json({ error: "파일이 필요합니다." }, 400);
   if (!isAllowedMime(file.type)) return c.json({ error: "허용되지 않는 파일 형식입니다." }, 415);
   if (file.size > MAX_DOC_BYTES) return c.json({ error: "파일이 너무 큽니다(최대 20MB)." }, 413);
+  if (docType !== null) {
+    const error = await validateLookupValue("doc_type", docType, c.var.db);
+    if (error) return c.json({ error }, 400);
+  }
 
   const env = c.env as StorageEnv;
   const objectId = crypto.randomUUID();
@@ -307,9 +311,14 @@ customers.patch("/:id/documents/reorder", zValidator("param", idParam), zValidat
   return c.json({ ok: true });
 });
 
-customers.patch("/:id/documents/:childId", zValidator("param", childParam), zValidator("json", z.object({ docType: z.string().nullable().optional() })), (c) => {
+customers.patch("/:id/documents/:childId", zValidator("param", childParam), zValidator("json", z.object({ docType: z.string().nullable().optional() })), async (c) => {
   const p = c.req.valid("param");
-  return run(c, () => updateDocument(p.id, p.childId, c.req.valid("json"), c.var.db), "서류를 찾을 수 없습니다.");
+  const body = c.req.valid("json");
+  if (body.docType !== undefined) {
+    const error = await validateLookupValue("doc_type", body.docType, c.var.db);
+    if (error) return c.json({ error }, 400);
+  }
+  return run(c, () => updateDocument(p.id, p.childId, body, c.var.db), "서류를 찾을 수 없습니다.");
 });
 
 customers.delete("/:id/documents/:childId", zValidator("param", childParam), async (c) => {
