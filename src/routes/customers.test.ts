@@ -737,3 +737,51 @@ test("진행상태 검증: status 키 없는 PATCH는 검증 건너뜀 → 200",
   });
   expect(res.status).toBe(200);
 });
+
+test("chance 검증: 없는 chance 값 → 400", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const res = await app.request(`/api/customers/${list[0].id}`, {
+    method: "PATCH", headers: h, body: JSON.stringify({ chance: "존재하지않는값" }),
+  });
+  expect(res.status).toBe(400);
+});
+
+test("chance 검증: 유효한 chance → 200(원복)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; chance: string | null }>;
+  const target = list[0];
+  try {
+    const res = await app.request(`/api/customers/${target.id}`, {
+      method: "PATCH", headers: h, body: JSON.stringify({ chance: "높음" }),
+    });
+    expect(res.status).toBe(200);
+  } finally {
+    // 원래 값으로 복원(공유 master DB).
+    await app.request(`/api/customers/${target.id}`, {
+      method: "PATCH", headers: h, body: JSON.stringify({ chance: target.chance }),
+    });
+  }
+});
+
+test("chance 검증: chance=null(해제)은 통과 → 200", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; chance: string | null }>;
+  const target = list[0];
+  try {
+    const res = await app.request(`/api/customers/${target.id}`, {
+      method: "PATCH", headers: h, body: JSON.stringify({ chance: null }),
+    });
+    expect(res.status).toBe(200);
+  } finally {
+    await app.request(`/api/customers/${target.id}`, {
+      method: "PATCH", headers: h, body: JSON.stringify({ chance: target.chance }),
+    });
+  }
+});
