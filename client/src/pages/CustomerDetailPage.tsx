@@ -1,6 +1,6 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
-import { CHANCE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
+import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
@@ -323,30 +323,6 @@ const kimCheckCategoryOptions = ["체크", "견적", "안내", "요청", "내부
 const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
 const kimScheduleTypeOptions = ["재연락", "결정확인", "체크", "견적", "안내", "요청", "내부", "심사"];
 const kimQuotePurchaseMethodOptions: KimQuotePurchaseMethod[] = ["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"];
-const kimDocumentTypeOptions = [
-  "면허증",
-  "주민등록등본",
-  "원천징수영수증",
-  "사업자등록증",
-  "부가세과세증명원",
-  "소득금액증명원",
-  "자동이체통장사본",
-  "매매계약서",
-  "리스승인서",
-  "계약사실확인서",
-  "법인(점)주주명부",
-  "법인(점)등기부등본",
-  "법인(점)법인인감증명서",
-  "법인(점)개인인감증명서",
-  "법인(점)재무제표(당해)",
-  "법인(점)재무제표(전기)",
-  "등록(점)자동차등록증",
-  "등록(점)세금계산서",
-  "등록(점)취득세납부영수증",
-  "등록(점)등록비영수증",
-  "등록(점)보험가입증명서",
-  "기타서류",
-];
 const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
 
@@ -5157,7 +5133,7 @@ function KimMinjunDetailContent({
                   </span>
                   <div>
                     <select className="kim-doc-type-native-select" aria-label={`${doc.fileName} 문서 종류 변경`} value={doc.title} onChange={(event) => updateDocumentType(doc.id, event.target.value)}>
-                      {kimDocumentTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                      {DOC_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
                     </select>
                     <p>{doc.status} · {doc.fileName} · {formatKimFileSize(doc.fileSize)}</p>
                   </div>
