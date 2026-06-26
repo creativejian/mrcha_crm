@@ -10,7 +10,7 @@ import {
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
-import { validateLookupValue, validateStatusSelection } from "../db/queries/lookups";
+import { validateLookupValue, validateStatusSelection } from "../lib/lookup-validate";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
@@ -49,20 +49,17 @@ customers.patch(
     const patch = c.req.valid("json");
     // 진행상태(1차/2차) 키가 올 때만 lookup 종속 검증. 그 외엔 추가 왕복 0.
     if (patch.statusGroup !== undefined || patch.status !== undefined) {
-      const error = await validateStatusSelection(
-        { statusGroup: patch.statusGroup, status: patch.status },
-        c.var.db,
-      );
+      const error = validateStatusSelection({ statusGroup: patch.statusGroup, status: patch.status });
       if (error) return c.json({ error }, 400);
     }
     // 계약 가능성(chance) 닫힌 집합 검증. chance 키가 올 때만 1쿼리.
     if (patch.chance !== undefined) {
-      const error = await validateLookupValue("chance", patch.chance, c.var.db);
+      const error = validateLookupValue("chance", patch.chance);
       if (error) return c.json({ error }, 400);
     }
     // 유입 경로(source) 닫힌 집합 검증.
     if (patch.source !== undefined) {
-      const error = await validateLookupValue("source", patch.source, c.var.db);
+      const error = validateLookupValue("source", patch.source);
       if (error) return c.json({ error }, 400);
     }
     return run(c, () => updateCustomer(c.req.valid("param").id, patch, c.var.db), "고객을 찾을 수 없습니다.");
@@ -183,7 +180,7 @@ customers.delete("/:id/memos/:childId", zValidator("param", childParam), (c) => 
 customers.post("/:id/tasks", zValidator("param", idParam), zValidator("json", taskBody), async (c) => {
   const body = c.req.valid("json");
   if (body.category !== undefined) {
-    const error = await validateLookupValue("task_category", body.category, c.var.db);
+    const error = validateLookupValue("task_category", body.category);
     if (error) return c.json({ error }, 400);
   }
   return c.json(await addTask(c.req.valid("param").id, body, c.var.db), 201);
@@ -192,7 +189,7 @@ customers.patch("/:id/tasks/:childId", zValidator("param", childParam), zValidat
   const p = c.req.valid("param");
   const body = c.req.valid("json");
   if (body.category !== undefined) {
-    const error = await validateLookupValue("task_category", body.category, c.var.db);
+    const error = validateLookupValue("task_category", body.category);
     if (error) return c.json({ error }, 400);
   }
   return run(c, () => updateTask(p.id, p.childId, body, c.var.db), "할 일을 찾을 수 없습니다.");
@@ -205,7 +202,7 @@ customers.delete("/:id/tasks/:childId", zValidator("param", childParam), (c) => 
 customers.post("/:id/schedules", zValidator("param", idParam), zValidator("json", scheduleBody), async (c) => {
   const body = c.req.valid("json");
   if (body.type !== undefined) {
-    const error = await validateLookupValue("schedule_type", body.type, c.var.db);
+    const error = validateLookupValue("schedule_type", body.type);
     if (error) return c.json({ error }, 400);
   }
   return c.json(await addSchedule(c.req.valid("param").id, body, c.var.db), 201);
@@ -214,7 +211,7 @@ customers.patch("/:id/schedules/:childId", zValidator("param", childParam), zVal
   const p = c.req.valid("param");
   const body = c.req.valid("json");
   if (body.type !== undefined) {
-    const error = await validateLookupValue("schedule_type", body.type, c.var.db);
+    const error = validateLookupValue("schedule_type", body.type);
     if (error) return c.json({ error }, 400);
   }
   return run(c, () => updateSchedule(p.id, p.childId, body, c.var.db), "일정을 찾을 수 없습니다.");
@@ -299,7 +296,7 @@ customers.post("/:id/documents", zValidator("param", idParam), async (c) => {
   if (!isAllowedMime(file.type)) return c.json({ error: "허용되지 않는 파일 형식입니다." }, 415);
   if (file.size > MAX_DOC_BYTES) return c.json({ error: "파일이 너무 큽니다(최대 20MB)." }, 413);
   if (docType !== null) {
-    const error = await validateLookupValue("doc_type", docType, c.var.db);
+    const error = validateLookupValue("doc_type", docType);
     if (error) return c.json({ error }, 400);
   }
 
@@ -342,7 +339,7 @@ customers.patch("/:id/documents/:childId", zValidator("param", childParam), zVal
   const p = c.req.valid("param");
   const body = c.req.valid("json");
   if (body.docType !== undefined) {
-    const error = await validateLookupValue("doc_type", body.docType, c.var.db);
+    const error = validateLookupValue("doc_type", body.docType);
     if (error) return c.json({ error }, 400);
   }
   return run(c, () => updateDocument(p.id, p.childId, body, c.var.db), "서류를 찾을 수 없습니다.");
