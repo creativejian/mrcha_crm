@@ -37,7 +37,6 @@ const ENTRY_MODES = ["manual", "solution", "original"];
 const APP_STATUSES = ["draft", "queued", "sent", "viewed"];
 const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"];
 const ACQ_TAX_MODES = ["normal", "hybrid", "electric", "manual"];
-const QUOTE_DISPLAY_STATUSES = ["고객 확인 전", "고객 열람"];
 
 // nullable 컬럼 IN CHECK(기존 null 보존). 값=코드 상수 SSOT에서 sql.join. 종속(그룹-상태)은 앱 검증.
 // 값은 sql.raw로 리터럴 inline(마이그에 박제). param(`sql`${v}``)이면 $1 placeholder로 새 나가 깨짐.
@@ -209,7 +208,6 @@ export const quotes = crm.table("quotes", {
   check("quotes_app_status_check", inListCheck(t.appStatus, APP_STATUSES)),
   check("quotes_decision_status_check", inListCheck(t.decisionStatus, DECISION_STATUSES)),
   check("quotes_acquisition_tax_mode_check", inListCheck(t.acquisitionTaxMode, ACQ_TAX_MODES)),
-  check("quotes_status_check", inListCheck(t.status, QUOTE_DISPLAY_STATUSES)),
 ]);
 
 export const quoteScenarios = crm.table("quote_scenarios", {
