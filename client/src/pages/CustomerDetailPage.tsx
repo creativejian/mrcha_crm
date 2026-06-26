@@ -1,6 +1,6 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
-import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, SCHEDULE_TYPE_OPTIONS, TASK_CATEGORY_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
+import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, PURCHASE_METHOD_OPTIONS, SCHEDULE_TYPE_OPTIONS, TASK_CATEGORY_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
@@ -95,7 +95,7 @@ type KimNeedsState = {
 
 
 type KimQuoteEntryMode = "solution" | "manual" | "original";
-type KimQuotePurchaseMethod = "장기렌트" | "운용리스" | "금융리스" | "중고리스" | "할부" | "일시불";
+type KimQuotePurchaseMethod = PurchaseMethod;
 type KimRecognizedQuoteFile = { file: File; fileName: string; fileSize: number; mimeType: string };
 type KimEditScenario = {
   scenarioNo: number;
@@ -320,7 +320,7 @@ const kimPersonalJobDetailOptions = ["4대보험", "프리랜서", "무직", "�
 
 
 const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
-const kimQuotePurchaseMethodOptions: KimQuotePurchaseMethod[] = ["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"];
+const kimQuotePurchaseMethodOptions = PURCHASE_METHOD_OPTIONS;
 const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
 
