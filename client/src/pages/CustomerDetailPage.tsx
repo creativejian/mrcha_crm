@@ -660,18 +660,12 @@ function KimSourceStatusEditor({
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
   const initialSource = parseKimSourceValue(initialValue);
-  const [selectedSource, setSelectedSource] = useState(initialSource.selected);
 
   return (
     <form className="kim-edit-form" onSubmit={onSubmit}>
       <label>
         <span>상담경로 수정</span>
-        <select
-          autoFocus
-          defaultValue={initialSource.selected}
-          name="source"
-          onChange={(event) => setSelectedSource(event.currentTarget.value)}
-        >
+        <select autoFocus defaultValue={initialSource} name="source">
           <optgroup label="자동 접수">
             {kimAutomaticSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </optgroup>
@@ -680,12 +674,6 @@ function KimSourceStatusEditor({
           </optgroup>
         </select>
       </label>
-      {selectedSource === "기타" ? (
-        <label>
-          <span>기타 경로</span>
-          <input defaultValue={initialSource.custom} name="customSource" placeholder="예: 블로그, 전시장 방문, 딜러 소개" />
-        </label>
-      ) : null}
       <div className="kim-edit-actions">
         <button type="button" onClick={onCancel}>취소</button>
         <button className="primary" type="submit">저장</button>
@@ -1893,9 +1881,7 @@ function KimMinjunDetailContent({
   function saveSourceField(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const source = String(formData.get("source") ?? "").trim();
-    const customSource = String(formData.get("customSource") ?? "").trim();
-    const nextSource = source === "기타" ? customSource || "기타" : source;
+    const nextSource = String(formData.get("source") ?? "").trim();
     if (!nextSource) return;
     const prevSource = statusValues.source;
     setStatusValues((current) => ({ ...current, source: nextSource }));

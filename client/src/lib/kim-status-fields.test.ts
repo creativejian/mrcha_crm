@@ -42,10 +42,10 @@ describe("거주지 (location)", () => {
 });
 
 describe("상담경로 (source)", () => {
-  it("parseKimSourceValue는 등록 옵션/레거시/기타를 가른다", () => {
-    expect(parseKimSourceValue("앱 견적비교")).toEqual({ selected: "앱 견적비교", custom: "" });
-    expect(parseKimSourceValue("디엘홈페이지")).toEqual({ selected: "디엘(상담)", custom: "" });
-    expect(parseKimSourceValue("지인 소개행사")).toEqual({ selected: "기타", custom: "지인 소개행사" });
+  it("parseKimSourceValue는 등록 옵션/레거시를 정규화하고 미등록은 기타로", () => {
+    expect(parseKimSourceValue("앱 견적비교")).toBe("앱 견적비교");
+    expect(parseKimSourceValue("디엘홈페이지")).toBe("디엘(상담)");
+    expect(parseKimSourceValue("지인 소개행사")).toBe("기타");
   });
   it("isKimAutomaticSource는 자동+레거시 소스를 true", () => {
     expect(isKimAutomaticSource("앱 견적비교")).toBe(true);

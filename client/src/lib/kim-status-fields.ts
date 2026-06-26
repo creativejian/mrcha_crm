@@ -70,11 +70,11 @@ export function formatKimLocationValue(province: string, detail: string) {
 
 // --- 상담경로 ---
 
-export function parseKimSourceValue(value: string) {
+export function parseKimSourceValue(value: string): string {
   const allOptions = [...kimAutomaticSourceOptions, ...kimManualSourceOptions];
-  if (allOptions.includes(value)) return { selected: value, custom: "" };
-  if (value === "디엘홈페이지") return { selected: "디엘(상담)", custom: "" };
-  return { selected: "기타", custom: value };
+  if (allOptions.includes(value)) return value;
+  if (kimLegacyAutomaticSourceOptions.includes(value)) return "디엘(상담)";
+  return "기타";
 }
 
 export function isKimAutomaticSource(value: string) {
