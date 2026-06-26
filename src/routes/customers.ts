@@ -22,7 +22,7 @@ export const customers = new Hono<{ Variables: DbVariables }>();
 export const customerWriteSchema = z.object({
   phone: z.string().nullable().optional(),
   residence: z.string().nullable().optional(),
-  customerType: z.string().nullable().optional(),
+  customerType: z.enum(["개인", "개인사업자", "법인사업자"]).nullable().optional(),
   customerTypeDetail: z.string().nullable().optional(),
   source: z.string().nullable().optional(),
   statusGroup: z.string().nullable().optional(),
@@ -78,7 +78,7 @@ const scheduleBody = z.object({ scheduledDate: z.string().nullable().optional(),
 const quoteScenarioBody = z.object({
   scenarioNo: z.number().int().nullable().optional(),
   isSaved: z.boolean().optional(),
-  purchaseMethod: z.string().nullable().optional(),
+  purchaseMethod: z.enum(["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"]).nullable().optional(),
   termMonths: z.number().int().nullable().optional(),
   monthlyPayment: z.string().nullable().optional(),
   lender: z.string().nullable().optional(),
