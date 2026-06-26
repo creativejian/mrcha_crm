@@ -1,6 +1,6 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
-import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
+import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, SCHEDULE_TYPE_OPTIONS, TASK_CATEGORY_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
@@ -319,9 +319,7 @@ const kimPurchaseTagSelectionLimit = 4;
 const kimPersonalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];
 
 
-const kimCheckCategoryOptions = ["체크", "견적", "안내", "요청", "내부", "심사"];
 const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
-const kimScheduleTypeOptions = ["재연락", "결정확인", "체크", "견적", "안내", "요청", "내부", "심사"];
 const kimQuotePurchaseMethodOptions: KimQuotePurchaseMethod[] = ["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"];
 const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
@@ -662,18 +660,12 @@ function KimSourceStatusEditor({
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
   const initialSource = parseKimSourceValue(initialValue);
-  const [selectedSource, setSelectedSource] = useState(initialSource.selected);
 
   return (
     <form className="kim-edit-form" onSubmit={onSubmit}>
       <label>
         <span>상담경로 수정</span>
-        <select
-          autoFocus
-          defaultValue={initialSource.selected}
-          name="source"
-          onChange={(event) => setSelectedSource(event.currentTarget.value)}
-        >
+        <select autoFocus defaultValue={initialSource} name="source">
           <optgroup label="자동 접수">
             {kimAutomaticSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </optgroup>
@@ -682,12 +674,6 @@ function KimSourceStatusEditor({
           </optgroup>
         </select>
       </label>
-      {selectedSource === "기타" ? (
-        <label>
-          <span>기타 경로</span>
-          <input defaultValue={initialSource.custom} name="customSource" placeholder="예: 블로그, 전시장 방문, 딜러 소개" />
-        </label>
-      ) : null}
       <div className="kim-edit-actions">
         <button type="button" onClick={onCancel}>취소</button>
         <button className="primary" type="submit">저장</button>
@@ -1895,9 +1881,7 @@ function KimMinjunDetailContent({
   function saveSourceField(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const source = String(formData.get("source") ?? "").trim();
-    const customSource = String(formData.get("customSource") ?? "").trim();
-    const nextSource = source === "기타" ? customSource || "기타" : source;
+    const nextSource = String(formData.get("source") ?? "").trim();
     if (!nextSource) return;
     const prevSource = statusValues.source;
     setStatusValues((current) => ({ ...current, source: nextSource }));
@@ -2947,7 +2931,7 @@ function KimMinjunDetailContent({
             </label>
           </div>
           <div className="kim-check-composer-controls kim-schedule-type-controls" aria-label="예정 일정 분류">
-            {kimScheduleTypeOptions.map((option) => (
+            {SCHEDULE_TYPE_OPTIONS.map((option) => (
               <label key={option}>
                 <input defaultChecked={(item?.type ?? "재연락") === option} name="type" type="radio" value={option} />
                 <span>{option}</span>
@@ -3033,7 +3017,7 @@ function KimMinjunDetailContent({
             ) : null}
           </div>
           <div className="kim-check-composer-controls" aria-label="해야 할 일 분류 수정">
-            {kimCheckCategoryOptions.map((option) => (
+            {TASK_CATEGORY_OPTIONS.map((option) => (
               <label key={option}>
                 <input defaultChecked={item.category === option} name="category" type="radio" value={option} />
                 <span>{option}</span>
@@ -4014,7 +3998,7 @@ function KimMinjunDetailContent({
                     ) : null}
                   </div>
                   <div className="kim-check-composer-controls" aria-label="해야 할 일 분류">
-                    {kimCheckCategoryOptions.map((option) => (
+                    {TASK_CATEGORY_OPTIONS.map((option) => (
                       <label key={option}>
                         <input defaultChecked={option === "체크"} name="category" type="radio" value={option} />
                         <span>{option}</span>

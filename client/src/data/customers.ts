@@ -61,6 +61,18 @@ export const DOC_TYPE_OPTIONS: readonly string[] = [
   "기타서류",
 ];
 
+// 유입 경로(source) — 자동/수동 + 합본. kim-status-fields가 re-export, seed/검증에 공유.
+export const SOURCE_AUTOMATIC_OPTIONS: readonly string[] = ["앱 견적비교", "앱 AI상담", "앱 상담원 연결", "디엘(상담)", "디엘(견적서)"];
+export const SOURCE_MANUAL_OPTIONS: readonly string[] = ["대표전화", "카카오", "소개", "추천", "재구매", "유튜브", "검색", "기타"];
+export const SOURCE_OPTIONS: readonly string[] = [...SOURCE_AUTOMATIC_OPTIONS, ...SOURCE_MANUAL_OPTIONS];
+export const SOURCE_LEGACY_AUTOMATIC_OPTIONS: readonly string[] = ["디엘홈페이지"];
+
+// 할일 분류(tasks.category) — 닫힌 6종.
+export const TASK_CATEGORY_OPTIONS: readonly string[] = ["체크", "견적", "안내", "요청", "내부", "심사"];
+
+// 일정 종류(schedules.type) — 닫힌 8종.
+export const SCHEDULE_TYPE_OPTIONS: readonly string[] = ["재연락", "결정확인", "체크", "견적", "안내", "요청", "내부", "심사"];
+
 // 관리 상태(최종 업데이트) 옵션. CustomerManageStatus 유니온과 값이 1:1.
 export const CUSTOMER_MANAGE_STATUSES: readonly CustomerManageStatus[] = ["정상", "확인필요", "재문의", "지연", "장기방치"];
 

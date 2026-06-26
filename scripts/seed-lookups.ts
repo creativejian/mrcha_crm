@@ -1,6 +1,6 @@
 import { and, inArray } from "drizzle-orm";
 
-import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, customerStatusGroups } from "../client/src/data/customers";
+import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, SOURCE_OPTIONS, TASK_CATEGORY_OPTIONS, SCHEDULE_TYPE_OPTIONS, customerStatusGroups } from "../client/src/data/customers";
 import { getDefaultDb } from "../src/db/client";
 import { lookupValues } from "../src/db/schema";
 
@@ -33,8 +33,23 @@ async function main() {
     rows.push({ category: "doc_type", value, parentValue: null, sortOrder: i });
   });
 
+  // 유입 경로(source) — 닫힌 13종(자동+수동).
+  SOURCE_OPTIONS.forEach((value, i) => {
+    rows.push({ category: "source", value, parentValue: null, sortOrder: i });
+  });
+
+  // 할일 분류(task_category) — 닫힌 6종.
+  TASK_CATEGORY_OPTIONS.forEach((value, i) => {
+    rows.push({ category: "task_category", value, parentValue: null, sortOrder: i });
+  });
+
+  // 일정 종류(schedule_type) — 닫힌 8종.
+  SCHEDULE_TYPE_OPTIONS.forEach((value, i) => {
+    rows.push({ category: "schedule_type", value, parentValue: null, sortOrder: i });
+  });
+
   // 멱등: 이 카테고리들을 지우고 재삽입.
-  await db.delete(lookupValues).where(and(inArray(lookupValues.category, ["status_group", "status", "chance", "doc_type"])));
+  await db.delete(lookupValues).where(and(inArray(lookupValues.category, ["status_group", "status", "chance", "doc_type", "source", "task_category", "schedule_type"])));
   // 중복 (category,value) 제거 후 삽입(중복 status는 첫 그룹만).
   const seen = new Set<string>();
   const deduped = rows.filter((r) => {
@@ -45,7 +60,7 @@ async function main() {
   });
   await db.insert(lookupValues).values(deduped);
 
-  console.log(`seeded lookup_values: ${deduped.length} rows (status_group/status/chance/doc_type)`);
+  console.log(`seeded lookup_values: ${deduped.length} rows (status_group/status/chance/doc_type/source/task_category/schedule_type)`);
 }
 
 main().then(
