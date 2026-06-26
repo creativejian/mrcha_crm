@@ -291,10 +291,10 @@ customers.post("/:id/documents", zValidator("param", idParam), async (c) => {
     const sortOrder = await nextSortOrder(customerId, c.var.db);
     const row = await addDocument(
       customerId,
-      { title: docType, docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, filePath: path, thumbPath, sortOrder },
+      { docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, filePath: path, thumbPath, sortOrder },
       c.var.db,
     );
-    return c.json({ id: row.id, title: docType, docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, sortOrder, createdAt: row.createdAt }, 201);
+    return c.json({ id: row.id, docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, sortOrder, createdAt: row.createdAt }, 201);
   } catch (e) {
     await removeObject(env, path).catch(() => undefined); // 보상 삭제
     if (thumbPath) await removeObject(env, thumbPath).catch(() => undefined);

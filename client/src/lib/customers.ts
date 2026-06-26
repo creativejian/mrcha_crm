@@ -79,7 +79,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
 type CustomerDetailTask = { id: string; category: string | null; due: string | null; body: string | null; done: boolean };
 type CustomerDetailSchedule = { id: string; scheduledDate: string | null; scheduledTime: string | null; type: string | null; memo: string | null; done: boolean };
 type CustomerDetailMemo = { id: string; body: string | null; createdAt: string | null };
-type CustomerDetailDocument = { id: string; title: string | null; docType: string | null; fileName: string | null; fileSize: number | null; fileMime: string | null; sortOrder: number | null; createdAt: string | null };
+type CustomerDetailDocument = { id: string; docType: string | null; fileName: string | null; fileSize: number | null; fileMime: string | null; sortOrder: number | null; createdAt: string | null };
 
 export type CustomerDetailResponse = {
   id: string;

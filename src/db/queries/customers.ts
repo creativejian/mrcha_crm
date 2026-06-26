@@ -88,7 +88,6 @@ export async function getCustomer(id: string, executor: Executor = getDefaultDb(
       .select({
         id: customerDocuments.id,
         customerId: customerDocuments.customerId,
-        title: customerDocuments.title,
         docType: customerDocuments.docType,
         fileName: customerDocuments.fileName,
         fileSize: customerDocuments.fileSize,

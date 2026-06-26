@@ -82,7 +82,6 @@ export const customerDocuments = crm.table("customer_documents", {
   customerId: uuid("customer_id")
     .notNull()
     .references(() => customers.id, { onDelete: "cascade" }),
-  title: text("title"),
   docType: text("doc_type"),
   fileName: text("file_name"),
   fileSize: integer("file_size"),
