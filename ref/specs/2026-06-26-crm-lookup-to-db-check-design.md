@@ -134,3 +134,9 @@ CHECK 값은 nullable 컬럼이면 `col IS NULL OR col IN (...)` 형태(기존 n
 - 브랜치(`feat/crm-lookup-to-db-check`) → PR → squash 머지. skip-ci 토큰 금지. `any` 금지.
 - DB 변경은 `db:generate`→`db:migrate`만(`db:push` 금지), `schemaFilter:["crm"]`.
 - 팀 공유 결정 — 구현 착수 전 이사님 공유, AGENTS.md/brief 반영.
+
+## 구현 결과 정정 (2026-06-26)
+
+- **최종 범위 = 13컬럼(어휘 9 + 기술값 4).** `quotes.status`는 구현 중 닫힌집합이 아님이 판명되어 제외. `createQuote`가 `body.status`를 자유 저장하고 코드/테스트가 `작성중`·`발송완료`·`고객 확인 전`·`고객 열람` 등을 분산 생성 — 실측 5건(sent/viewed)만 보고 닫힌집합으로 오판했음. `priority`처럼 보류.
+- **마이그**: `0007`(DROP lookup_values + 14 CHECK) + `0008`(quotes_status_check DROP). CHECK 값은 `sql.raw` 리터럴 inline(param `sql`${v}``이면 `$1` placeholder로 새 나가 깨짐).
+- **검증**: typecheck 0 · lint 0 · test:unit 234 · test:server 104 · build OK. master 적용 완료, 사전 밖 UPDATE 거부 실측.

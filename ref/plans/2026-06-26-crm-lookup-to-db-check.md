@@ -494,4 +494,11 @@ EOF
 - **순서 의존**: Task0(garbage 삭제) → Task2 Step5(마이그 ALTER) 필수 선행. Task1(코드)은 lookup DROP과 독립이나 한 PR로 일관 적용.
 - **타입 일관성**: `buildStatusMaps` 반환 타입 = `checkStatusSelection` 2번째 인자 = `validateStatusSelection` 내부 사용, 전부 `ReadonlyMap<string, ReadonlySet<string>>`로 일치.
 - **리스크**: drizzle `check()` 마이그 생성 불확실 → Task2 Step4 산출물 검증 + 수동 폴백. 공유 master 변경 2회(garbage 삭제·마이그)는 사용자 확인 게이트.
+
+## 구현 결과 (2026-06-26)
+
+- **quotes.status 자유필드 판명 → CHECK 제외. 최종 13컬럼(기술값 5→4).** `0008`로 `quotes_status_check` DROP(0007에서 추가됐던 것). master 변경 3회(garbage·0007·0008) 사용자 확인.
+- **Task3(seed/package)는 typecheck 의존으로 Task2에 흡수**(seed-lookups가 삭제된 lookupValues import).
+- **검증 framework**: status-lookup/lookup-validate는 `bun:test`(test:server), vitest(test:unit)는 client/src·test만 — plan의 `test:unit src/lib/...` 가정 정정. CHECK 값은 drizzle `check()`에서 param이 아니라 `sql.raw` 리터럴이어야 마이그에 박제됨.
+- **검증**: typecheck 0 · lint 0 · test:unit 234 · test:server 104 · build OK. 0007·0008 master 적용 완료.
 ```
