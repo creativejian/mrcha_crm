@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."quotes" DROP CONSTRAINT "quotes_status_check";

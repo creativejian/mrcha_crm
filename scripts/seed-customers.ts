@@ -163,7 +163,7 @@ async function main() {
         validUntil: dayOffset(-1),
         sentAt: null as Date | null,
         viewedAt: null as Date | null,
-        scenario: { purchaseMethod: "비교 견적", lender: null as string | null, termMonths: null as number | null, monthlyPayment: null as string | null },
+        scenario: { purchaseMethod: "운용리스", lender: null as string | null, termMonths: null as number | null, monthlyPayment: null as string | null },
       },
     ];
     for (const q of quoteSeeds) {
