@@ -682,3 +682,58 @@ test("견적 다중 시나리오(#4c-3a): scenario 단수 하위호환 — 1건 
     if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
   }
 });
+
+test("진행상태 검증: 종속 안 맞는 status → 400", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  // 신규 그룹에 속하지 않는 "출고완료"(계약완료 소속) → 종속 위반.
+  const res = await app.request(`/api/customers/${cid}`, {
+    method: "PATCH", headers: h, body: JSON.stringify({ statusGroup: "신규", status: "출고완료" }),
+  });
+  expect(res.status).toBe(400);
+});
+
+test("진행상태 검증: 없는 status → 400", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const res = await app.request(`/api/customers/${list[0].id}`, {
+    method: "PATCH", headers: h, body: JSON.stringify({ statusGroup: "계약완료", status: "존재하지않는상태" }),
+  });
+  expect(res.status).toBe(400);
+});
+
+test("진행상태 검증: 유효한 group+status → 200(원복)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; statusGroup: string | null; status: string | null }>;
+  const target = list[0];
+  try {
+    const res = await app.request(`/api/customers/${target.id}`, {
+      method: "PATCH", headers: h, body: JSON.stringify({ statusGroup: "계약완료", status: "출고완료" }),
+    });
+    expect(res.status).toBe(200);
+  } finally {
+    // 원래 값으로 복원(공유 master DB).
+    await app.request(`/api/customers/${target.id}`, {
+      method: "PATCH", headers: h, body: JSON.stringify({ statusGroup: target.statusGroup, status: target.status }),
+    });
+  }
+});
+
+test("진행상태 검증: status 키 없는 PATCH는 검증 건너뜀 → 200", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; source: string | null }>;
+  const target = list[0];
+  const res = await app.request(`/api/customers/${target.id}`, {
+    method: "PATCH", headers: h, body: JSON.stringify({ source: target.source }),
+  });
+  expect(res.status).toBe(200);
+});
