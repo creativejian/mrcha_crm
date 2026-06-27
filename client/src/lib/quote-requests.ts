@@ -95,3 +95,30 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
 export async function fetchAppQuoteRequests(): Promise<AppQuoteRequest[]> {
   return (await getJson<AppQuoteRequestRow[]>("/api/quote-requests")).map(toAppQuoteRequest);
 }
+
+// 인박스 목록 캐시 + inflight dedupe (고객 상세 detailCache와 동형, 단일 키).
+// - 사이드메뉴 hover 프리패치·재진입은 캐시 hit으로 즉시(왕복 0) → 배포 cold 로딩 완화.
+// - 실시간 INSERT(signal)·60s 폴백은 force=true로 캐시를 우회(항상 fresh, 새 요청 반영).
+const INBOX_TTL_MS = 60_000;
+let inboxCache: { value: AppQuoteRequest[]; at: number } | null = null;
+let inboxInflight: Promise<AppQuoteRequest[]> | null = null;
+
+export function fetchAppQuoteRequestsCached(force = false): Promise<AppQuoteRequest[]> {
+  if (!force && inboxCache && Date.now() - inboxCache.at < INBOX_TTL_MS) return Promise.resolve(inboxCache.value);
+  if (!force && inboxInflight) return inboxInflight;
+  const p = fetchAppQuoteRequests()
+    .then((value) => {
+      inboxCache = { value, at: Date.now() };
+      return value;
+    })
+    .finally(() => {
+      if (inboxInflight === p) inboxInflight = null;
+    });
+  if (!force) inboxInflight = p;
+  return p;
+}
+
+// 사이드메뉴 '앱 견적요청' hover가 호출. 백그라운드 워밍(결과/에러 무시).
+export function prefetchAppQuoteRequests(): void {
+  void fetchAppQuoteRequestsCached().catch(() => {});
+}
