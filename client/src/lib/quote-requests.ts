@@ -1,5 +1,5 @@
-import { formatActivity } from "./customers";
-import { getJson } from "./http";
+import { formatActivity, invalidateCustomerDetail } from "./customers";
+import { getJson, sendJson } from "./http";
 import { formatPriceRangeKorean } from "./price-format";
 
 // 백엔드 listQuoteRequests 응답 1행(camelCase, null 가능).
@@ -55,6 +55,9 @@ export type AppQuoteRequest = {
   optionLabel: string;
   statusLabel: string;
   matchLabel: string;
+  matchedCustomerId: string | null;
+  matchedCustomerName: string | null;
+  matchedCustomerCode: string | null;
   matchType: AppQuoteRequestRow["matchType"];
 };
 
@@ -88,6 +91,9 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
     optionLabel: row.optionCount > 0 ? `${row.optionCount}개` : "없음",
     statusLabel: row.status ? (STATUS_LABEL[row.status] ?? row.status) : "—",
     matchLabel,
+    matchedCustomerId: row.matchedCustomerId,
+    matchedCustomerName: row.matchedCustomerName,
+    matchedCustomerCode: row.matchedCustomerCode,
     matchType: row.matchType,
   };
 }
@@ -121,4 +127,22 @@ export function fetchAppQuoteRequestsCached(force = false): Promise<AppQuoteRequ
 // 사이드메뉴 '앱 견적요청' hover가 호출. 백그라운드 워밍(결과/에러 무시).
 export function prefetchAppQuoteRequests(): void {
   void fetchAppQuoteRequestsCached().catch(() => {});
+}
+
+type PromoteResult = { id: string; customerCode: string; name: string };
+
+// 전화 매칭된 기존 고객에 연결. 성공 시 인박스 캐시 fresh + 그 고객 상세 캐시 무효화.
+export async function linkRequestToCustomer(requestId: string, customerId: string): Promise<PromoteResult> {
+  const r = await sendJson<PromoteResult>(`/api/quote-requests/${requestId}/link`, "POST", { customerId });
+  await fetchAppQuoteRequestsCached(true);
+  invalidateCustomerDetail(customerId);
+  return r;
+}
+
+// 미매칭 요청 → 신규 고객 생성. 성공 시 인박스 캐시 fresh + 생성 고객 상세 캐시 무효화.
+export async function createCustomerFromRequest(requestId: string): Promise<PromoteResult> {
+  const r = await sendJson<PromoteResult>(`/api/quote-requests/${requestId}/create-customer`, "POST");
+  await fetchAppQuoteRequestsCached(true);
+  invalidateCustomerDetail(r.id);
+  return r;
 }
