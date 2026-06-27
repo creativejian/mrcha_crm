@@ -8,27 +8,47 @@ const MATCH_CLASS: Record<AppQuoteRequest["matchType"], string> = {
   none: "app-req-match none",
 };
 
-export function AppRequestsPage() {
+type AppRequestsPageProps = {
+  signal: number;
+  onRead: () => void;
+};
+
+export function AppRequestsPage({ signal, onRead }: AppRequestsPageProps) {
   const [rows, setRows] = useState<AppQuoteRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  // 인박스 진입 시 새 요청 카운트 리셋(= 봤다).
+  useEffect(() => {
+    onRead();
+  }, [onRead]);
+
+  // 초기 로드 + signal(실시간 INSERT) 변경 시 재fetch + 60초 폴링 폴백(Realtime 끊김 보험).
+  // 재fetch는 loading을 다시 켜지 않아 자동갱신 시 깜빡임이 없다(첫 로드만 안내 문구).
   useEffect(() => {
     let alive = true;
-    fetchAppQuoteRequests()
-      .then((data) => {
-        if (alive) setRows(data);
-      })
-      .catch(() => {
-        if (alive) setError(true);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
+    const load = () => {
+      fetchAppQuoteRequests()
+        .then((d) => {
+          if (alive) {
+            setRows(d);
+            setError(false);
+          }
+        })
+        .catch(() => {
+          if (alive) setError(true);
+        })
+        .finally(() => {
+          if (alive) setLoading(false);
+        });
+    };
+    load();
+    const id = window.setInterval(load, 60000);
     return () => {
       alive = false;
+      window.clearInterval(id);
     };
-  }, []);
+  }, [signal]);
 
   return (
     <div className="app-requests-page">

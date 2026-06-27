@@ -16860,3 +16860,6 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .app-req-match.linked { background: #ece8ff; color: var(--brand); }
 .app-req-match.maybe { background: #fff4e5; color: #b76e00; }
 .app-req-match.none { background: #f4f4f3; color: #7f858c; }
+
+/* 앱 견적요청 실시간 알림 — popover 상단 실 항목 강조 */
+.notification-item.app-request-new { border-left: 2px solid var(--brand); }

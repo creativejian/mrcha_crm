@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups } from "@/data/customers";
 import { fetchCustomers, updateCustomer, type CustomerWritePatch } from "@/lib/customers";
+import { fetchAppQuoteRequests } from "@/lib/quote-requests";
+import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { customerCodeFromLocation } from "@/lib/customer-route";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
@@ -162,6 +164,33 @@ export function App() {
     }, 1800);
   }, []);
 
+  const [newAppRequestCount, setNewAppRequestCount] = useState(0);
+  const [appRequestSignal, setAppRequestSignal] = useState(0);
+  const locationRef = useRef(location.pathname);
+  const markAppRequestsRead = useCallback(() => setNewAppRequestCount(0), []);
+
+  // 콜백이 항상 현재 경로를 읽도록 ref 동기화. useLayoutEffect라 paint 전(commit 단계)에 갱신돼
+  // 내비 직후 race를 제거하면서 react-hooks/refs(렌더 중 ref 갱신 금지)도 위반하지 않는다.
+  useLayoutEffect(() => {
+    locationRef.current = location.pathname;
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!auth.authed) return;
+    return subscribeNewQuoteRequests(() => {
+      // 인박스 자동갱신은 항상 트리거.
+      setAppRequestSignal((s) => s + 1);
+      // 이미 인박스를 보고 있으면 토스트/카운트는 생략(자동갱신으로 보임).
+      if (locationRef.current.startsWith("/app-requests")) return;
+      setNewAppRequestCount((c) => c + 1);
+      fetchAppQuoteRequests()
+        .then((rows) =>
+          showToast(rows[0] ? `새 앱 견적요청: ${rows[0].vehicleLabel}` : "새 앱 견적요청이 도착했습니다"),
+        )
+        .catch(() => showToast("새 앱 견적요청이 도착했습니다"));
+    });
+  }, [auth.authed, showToast]);
+
   useEffect(() => () => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
   }, []);
@@ -278,7 +307,7 @@ export function App() {
             />
           }
         />
-        <Route path="/app-requests" element={<AppRequestsPage />} />
+        <Route path="/app-requests" element={<AppRequestsPage signal={appRequestSignal} onRead={markAppRequestsRead} />} />
         <Route path="/customer-detail" element={<Navigate to="/customers" replace />} />
         <Route
           path="/customer-detail/:code"
@@ -328,6 +357,7 @@ export function App() {
           onNavigate={handleViewChange}
           onOpenCustomer={openCustomerDetailPanel}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+          newAppRequestCount={newAppRequestCount}
         />
         {/* customer-detail 전체화면은 CustomerDetailPage 자체 헤더가 있어 공통 헤더를 숨겨 중복을 막는다. */}
         {activeView !== "dashboard-preview" && activeView !== "customer-detail" && (
