@@ -307,7 +307,7 @@ export function App() {
             />
           }
         />
-        <Route path="/app-requests" element={<AppRequestsPage signal={appRequestSignal} onRead={markAppRequestsRead} />} />
+        <Route path="/app-requests" element={<AppRequestsPage signal={appRequestSignal} onRead={markAppRequestsRead} onToast={showToast} />} />
         <Route path="/customer-detail" element={<Navigate to="/customers" replace />} />
         <Route
           path="/customer-detail/:code"

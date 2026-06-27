@@ -65,4 +65,11 @@ describe("toAppQuoteRequest", () => {
     expect(r.requesterName).toBe("이름없음");
     expect(r.vehicleLabel).toBe("차량 미지정");
   });
+
+  it("matched 고객 필드(id/name/code)를 노출한다", () => {
+    const r = toAppQuoteRequest({ ...base, matchType: "phone", matchedCustomerId: "c1", matchedCustomerName: "한소희", matchedCustomerCode: "CU-2605-0001" });
+    expect(r.matchedCustomerId).toBe("c1");
+    expect(r.matchedCustomerName).toBe("한소희");
+    expect(r.matchedCustomerCode).toBe("CU-2605-0001");
+  });
 });

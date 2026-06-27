@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 
-import { fetchAppQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
+import { createCustomerFromRequest, fetchAppQuoteRequestsCached, linkRequestToCustomer, type AppQuoteRequest } from "@/lib/quote-requests";
 
 const MATCH_CLASS: Record<AppQuoteRequest["matchType"], string> = {
   app_user: "app-req-match linked",
@@ -11,12 +12,41 @@ const MATCH_CLASS: Record<AppQuoteRequest["matchType"], string> = {
 type AppRequestsPageProps = {
   signal: number;
   onRead: () => void;
+  onToast: (message: string) => void;
 };
 
-export function AppRequestsPage({ signal, onRead }: AppRequestsPageProps) {
+export function AppRequestsPage({ signal, onRead, onToast }: AppRequestsPageProps) {
   const [rows, setRows] = useState<AppQuoteRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [actingId, setActingId] = useState<string | null>(null);
+
+  async function handleCreate(r: AppQuoteRequest) {
+    setActingId(r.id);
+    try {
+      const created = await createCustomerFromRequest(r.id);
+      onToast(`${created.customerCode} ${created.name} 고객 생성`);
+      setRows(await fetchAppQuoteRequestsCached(false));
+    } catch {
+      onToast("고객 생성에 실패했습니다");
+    } finally {
+      setActingId(null);
+    }
+  }
+
+  async function handleLink(r: AppQuoteRequest) {
+    if (!r.matchedCustomerId) return;
+    setActingId(r.id);
+    try {
+      const linked = await linkRequestToCustomer(r.id, r.matchedCustomerId);
+      onToast(`${linked.name} 고객에 연결했습니다`);
+      setRows(await fetchAppQuoteRequestsCached(false));
+    } catch {
+      onToast("연결에 실패했습니다");
+    } finally {
+      setActingId(null);
+    }
+  }
 
   // 인박스 진입 시 새 요청 카운트 리셋(= 봤다).
   useEffect(() => {
@@ -95,8 +125,17 @@ export function AppRequestsPage({ signal, onRead }: AppRequestsPageProps) {
                 </td>
                 <td>{r.optionLabel}</td>
                 <td>{r.statusLabel}</td>
-                <td>
+                <td className="app-req-match-cell">
                   <span className={MATCH_CLASS[r.matchType]}>{r.matchLabel}</span>
+                  {r.matchType === "none" && (
+                    <button className="app-req-action" disabled={actingId === r.id} onClick={() => handleCreate(r)} type="button">신규 생성</button>
+                  )}
+                  {r.matchType === "phone" && (
+                    <button className="app-req-action" disabled={actingId === r.id} onClick={() => handleLink(r)} type="button">{r.matchedCustomerName ?? "고객"}에 연결</button>
+                  )}
+                  {r.matchType === "app_user" && r.matchedCustomerCode && (
+                    <Link className="app-req-action link" to={`/customer-detail/${r.matchedCustomerCode}`}>고객 보기</Link>
+                  )}
                 </td>
               </tr>
             ))}
