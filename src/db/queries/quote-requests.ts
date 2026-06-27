@@ -1,4 +1,4 @@
-import { desc, eq, inArray, or } from "drizzle-orm";
+import { desc, eq, inArray, like, or } from "drizzle-orm";
 
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
@@ -138,4 +138,105 @@ export async function listQuoteRequests(executor: Executor = getDefaultDb()): Pr
       matchType,
     };
   });
+}
+
+// 다음 고객 코드 CU-YYMM-#### (현재월 기준, 기존 최대 시퀀스 +1). customer_code UNIQUE라 서버가 canonical 생성.
+// customer-quotes.ts nextQuoteCode와 동형(QT→CU, quotes→customers).
+export async function nextCustomerCode(ex: Executor = getDefaultDb()): Promise<string> {
+  const now = new Date();
+  const yymm = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const prefix = `CU-${yymm}-`;
+  const rows = await ex.select({ code: customers.customerCode }).from(customers).where(like(customers.customerCode, `${prefix}%`));
+  const max = rows.reduce((m, r) => {
+    const match = r.code.match(/-(\d{4})$/);
+    return match ? Math.max(m, Number(match[1])) : m;
+  }, 0);
+  return `${prefix}${String(max + 1).padStart(4, "0")}`;
+}
+
+// payment_method 한글 — S1 프론트 PAYMENT_METHOD_LABEL과 동일 어휘. customers.need_method는 한글로 저장한다.
+const NEED_METHOD_LABEL: Record<string, string> = {
+  lease: "운용리스",
+  rent: "장기렌트",
+  installment: "할부",
+  cash: "일시불",
+};
+
+// 요청의 user_id를 대상 고객의 app_user_id에 set(전화 매칭된 기존 고객 연결). 요청/고객 없으면 null.
+export async function linkRequestToCustomer(
+  requestId: string,
+  customerId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<{ id: string; customerCode: string; name: string } | null> {
+  const [req] = await ex.select({ userId: quoteRequests.userId }).from(quoteRequests).where(eq(quoteRequests.id, requestId));
+  if (!req) return null;
+  const [row] = await ex
+    .update(customers)
+    .set({ appUserId: req.userId, updatedAt: new Date() })
+    .where(eq(customers.id, customerId))
+    .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
+  return row ?? null;
+}
+
+// profiles + 요청 데이터로 신규 customers INSERT(app_user_id 연결). 같은 user로 이미 고객 있으면 기존 반환(중복 방지).
+// 요청 없으면 null. 라우트가 transaction으로 감싸 호출(ex=tx) — 채번+insert 원자성.
+export async function createCustomerFromRequest(
+  requestId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<{ id: string; customerCode: string; name: string } | null> {
+  const [req] = await ex
+    .select({
+      userId: quoteRequests.userId,
+      trimId: quoteRequests.trimId,
+      paymentMethod: quoteRequests.paymentMethod,
+      createdAt: quoteRequests.createdAt,
+    })
+    .from(quoteRequests)
+    .where(eq(quoteRequests.id, requestId));
+  if (!req) return null;
+
+  const [existing] = await ex
+    .select({ id: customers.id, customerCode: customers.customerCode, name: customers.name })
+    .from(customers)
+    .where(eq(customers.appUserId, req.userId));
+  if (existing) return existing;
+
+  const [profile] = await ex
+    .select({ fullName: profiles.fullName, phoneNumber: profiles.phoneNumber })
+    .from(profiles)
+    .where(eq(profiles.id, req.userId));
+
+  let needModel: string | null = null;
+  let needTrim: string | null = null;
+  if (req.trimId != null) {
+    const [t] = await ex
+      .select({ trimName: trimsInCatalog.trimName, modelName: modelsInCatalog.name, brandName: brandsInCatalog.name })
+      .from(trimsInCatalog)
+      .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
+      .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
+      .where(eq(trimsInCatalog.id, req.trimId));
+    if (t) {
+      needModel = [t.brandName, t.modelName].filter(Boolean).join(" ") || null;
+      needTrim = t.trimName;
+    }
+  }
+
+  const customerCode = await nextCustomerCode(ex);
+  const [row] = await ex
+    .insert(customers)
+    .values({
+      customerCode,
+      name: profile?.fullName ?? "이름미상",
+      phone: profile?.phoneNumber ?? null,
+      appUserId: req.userId,
+      needModel,
+      needTrim,
+      needMethod: req.paymentMethod ? (NEED_METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod) : null,
+      source: "앱 견적비교",
+      statusGroup: "신규",
+      status: "상담접수",
+      receivedAt: new Date(req.createdAt),
+    })
+    .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
+  return row;
 }
