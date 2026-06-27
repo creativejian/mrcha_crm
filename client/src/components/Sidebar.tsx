@@ -221,6 +221,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
                 {collapsed && <SidebarFlyout title="고객 관리" items={customerModes.map(([mode, label]) => ({ active: visibleActiveView === "customers" && customerMode === mode, label, onClick: () => { onCustomerModeChange(mode); navigate("customers"); } }))} />}
               </div>
               <button aria-label="고객 상세" className={navButtonClass(visibleActiveView === "customer-detail")} data-label="고객 상세" onClick={() => navigate("customer-detail")} type="button"><MenuIcon name="detail" /><span>고객 상세</span></button>
+              <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span></button>
               <button aria-label="상담 파이프라인" className={navButtonClass(visibleActiveView === "pipeline")} data-label="상담 파이프라인" onClick={() => navigate("pipeline")} type="button"><MenuIcon name="pipeline" /><span>상담 파이프라인</span></button>
               <button aria-label="견적 관리" className={navButtonClass(visibleActiveView === "quotes")} data-label="견적 관리" onClick={() => navigate("quotes")} type="button"><MenuIcon name="quotes" /><span>견적 관리</span></button>
               <button aria-label="계약 / 출고" className={navButtonClass(visibleActiveView === "delivery")} data-label="계약 / 출고" onClick={() => navigate("delivery")} type="button"><MenuIcon name="delivery" /><span>계약 / 출고</span></button>

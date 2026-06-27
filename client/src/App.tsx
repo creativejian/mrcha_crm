@@ -9,6 +9,7 @@ import { customerCodeFromLocation } from "@/lib/customer-route";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
+import { AppRequestsPage } from "@/pages/AppRequestsPage";
 import { AdvisorDashboardPage, AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
 import { ChatPage } from "@/pages/ChatPage";
 import { CustomerDetailPage } from "@/pages/CustomerDetailPage";
@@ -23,7 +24,7 @@ import { PartnersPage } from "@/pages/PartnersPage";
 import { PipelinePage } from "@/pages/PipelinePage";
 import { QuotesPage } from "@/pages/QuotesPage";
 
-type ViewKey = "advisor-dashboard" | "dashboard-preview" | "admin-dashboard" | "chat" | "customers" | "customer-detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance";
+type ViewKey = "advisor-dashboard" | "dashboard-preview" | "admin-dashboard" | "chat" | "customers" | "app-requests" | "customer-detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance";
 
 const VIEW_TO_PATH: Record<ViewKey, string> = {
   "advisor-dashboard": "/",
@@ -31,6 +32,7 @@ const VIEW_TO_PATH: Record<ViewKey, string> = {
   "admin-dashboard": "/admin-dashboard",
   chat: "/chat",
   customers: "/customers",
+  "app-requests": "/app-requests",
   "customer-detail": "/customer-detail",
   pipeline: "/pipeline",
   quotes: "/quotes",
@@ -53,6 +55,7 @@ const viewMeta: Record<ViewKey, [string, string]> = {
   "admin-dashboard": ["경영 리포트", "전체 운영, 상담 전환, 매출/지출, 직원 생산성 등 차선생의 주요 지표를 리포트 단위로 확인합니다."],
   chat: ["실시간 상담", "앱에서 상담원 연결을 요청한 고객을 접수하고, AI 상담 요약을 보며 실시간 상담으로 전환합니다."],
   customers: ["고객 관리", "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다."],
+  "app-requests": ["앱 견적요청", "앱에서 고객이 직접 만든 견적요청을 확인하고, 추후 고객·견적으로 연결합니다."],
   "customer-detail": ["고객 상세", "AI 요약, 상담 메모, 타임라인, 견적, 다음 액션을 한 화면에서 처리합니다."],
   pipeline: ["상담 파이프라인", "상담 진행 단계를 칸반 방식으로 관리하고 상태 변경 로그를 남기는 구조입니다."],
   quotes: ["견적 관리", "견적을 구조화 데이터로 등록하고, 비교한 뒤 앱으로 송출하는 실무 화면입니다."],
@@ -275,6 +278,7 @@ export function App() {
             />
           }
         />
+        <Route path="/app-requests" element={<AppRequestsPage />} />
         <Route path="/customer-detail" element={<Navigate to="/customers" replace />} />
         <Route
           path="/customer-detail/:code"

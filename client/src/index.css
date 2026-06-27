@@ -16842,3 +16842,21 @@ body.kim-detail-overlay-open .customer-detail-drawer {
   0% { background-position: 100% 50%; }
   100% { background-position: 0 50%; }
 }
+
+/* 앱 견적요청 인박스(S1) */
+.app-requests-page { padding: 18px 20px; }
+.app-requests-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.app-requests-head strong { font-size: 15px; font-weight: 700; }
+.app-requests-count { font-size: 12px; color: #7f858c; }
+.app-requests-empty { padding: 40px; text-align: center; color: #7f858c; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; }
+.app-requests-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.app-requests-table th { text-align: left; font-weight: 600; color: #5f6872; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.app-requests-table td { padding: 9px 10px; border-bottom: 1px solid #f0f0ee; vertical-align: top; }
+.app-req-date { white-space: nowrap; color: #5f6872; }
+.app-req-vehicle { max-width: 280px; display: flex; flex-direction: column; gap: 2px; }
+.app-req-terms { display: flex; flex-direction: column; gap: 2px; }
+.app-req-sub { color: #7f858c; }
+.app-req-match { display: inline-block; padding: 2px 8px; border-radius: 5px; font-weight: 600; white-space: nowrap; }
+.app-req-match.linked { background: #ece8ff; color: var(--brand); }
+.app-req-match.maybe { background: #fff4e5; color: #b76e00; }
+.app-req-match.none { background: #f4f4f3; color: #7f858c; }
