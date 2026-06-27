@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { fetchAppQuoteRequests, type AppQuoteRequest } from "@/lib/quote-requests";
+import { fetchAppQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 
 const MATCH_CLASS: Record<AppQuoteRequest["matchType"], string> = {
   app_user: "app-req-match linked",
@@ -24,11 +24,13 @@ export function AppRequestsPage({ signal, onRead }: AppRequestsPageProps) {
   }, [onRead]);
 
   // 초기 로드 + signal(실시간 INSERT) 변경 시 재fetch + 60초 폴링 폴백(Realtime 끊김 보험).
-  // 재fetch는 loading을 다시 켜지 않아 자동갱신 시 깜빡임이 없다(첫 로드만 안내 문구).
+  // 첫 진입은 캐시 허용(force=false) — 사이드메뉴 hover 프리패치가 채워두면 즉시 표시.
+  // signal 변경/폴백은 force=true로 캐시 우회(항상 fresh). 재fetch는 loading을 다시 켜지 않아 깜빡임 없음.
+  const firstLoadRef = useRef(true);
   useEffect(() => {
     let alive = true;
-    const load = () => {
-      fetchAppQuoteRequests()
+    const load = (force: boolean) => {
+      fetchAppQuoteRequestsCached(force)
         .then((d) => {
           if (alive) {
             setRows(d);
@@ -42,8 +44,9 @@ export function AppRequestsPage({ signal, onRead }: AppRequestsPageProps) {
           if (alive) setLoading(false);
         });
     };
-    load();
-    const id = window.setInterval(load, 60000);
+    load(!firstLoadRef.current);
+    firstLoadRef.current = false;
+    const id = window.setInterval(() => load(true), 60000);
     return () => {
       alive = false;
       window.clearInterval(id);
