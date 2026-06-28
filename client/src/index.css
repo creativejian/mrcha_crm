@@ -9294,6 +9294,13 @@ th input:focus-visible {
   line-height: 1.45;
 }
 
+.kim-list-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--muted, #8a8f98);
+  text-align: center;
+}
+
 .kim-doc-type-native-select {
   width: auto;
   min-width: 0;

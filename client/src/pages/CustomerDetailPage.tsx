@@ -3795,7 +3795,9 @@ function KimMinjunDetailContent({
             </div>
             <div className="kim-customer-memo-body" ref={customerMemoBodyRef}>
               <div className="kim-customer-memo-list">
-                {sortedCustomerMemos.map((item, index) => {
+                {sortedCustomerMemos.length === 0 && !addingCustomerMemo ? (
+                  <div className="kim-list-empty">등록된 메모가 없습니다.</div>
+                ) : sortedCustomerMemos.map((item, index) => {
                   const shouldOpenDeletePopoverAbove = !addingCustomerMemo && index === sortedCustomerMemos.length - 1;
 
                   if (editingCustomerMemoId === item.id) {
@@ -3915,7 +3917,9 @@ function KimMinjunDetailContent({
           </div>
           <div className="kim-mvp-card-body" ref={checkBodyRef}>
             <div className="kim-check-list">
-              {sortedCheckItems.map((item, index) => {
+              {sortedCheckItems.length === 0 && !addingCheckItem ? (
+                <div className="kim-list-empty">등록된 할 일이 없습니다.</div>
+              ) : sortedCheckItems.map((item, index) => {
                 const isCompleted = completedCheckItems.includes(item.id);
                 const shouldOpenCheckConfirmAbove = !addingCheckItem && index === sortedCheckItems.length - 1;
                 const shouldOpenCheckDeleteAbove = !addingCheckItem && index === sortedCheckItems.length - 1;
@@ -4055,7 +4059,9 @@ function KimMinjunDetailContent({
           </div>
           <div className="kim-mvp-card-body" ref={scheduleBodyRef}>
             <div className="kim-schedule-list">
-              {sortedSchedules.map((schedule, index) => {
+              {sortedSchedules.length === 0 && !addingScheduleItem ? (
+                <div className="kim-list-empty">예정된 일정이 없습니다.</div>
+              ) : sortedSchedules.map((schedule, index) => {
                 const isCompleted = completedScheduleKeys.includes(scheduleRecordKey(schedule));
                 const isEditing = editingScheduleId === schedule.id;
                 const shouldOpenScheduleCompleteAbove = !addingScheduleItem && index > 0 && index === sortedSchedules.length - 1;
@@ -4173,7 +4179,9 @@ function KimMinjunDetailContent({
           </div>
           <div className="kim-mvp-card-body" ref={quoteBodyRef}>
             <div className="kim-quote-list">
-              {quotes.map((quote) => {
+              {quotes.length === 0 ? (
+                <div className="kim-list-empty">작성된 견적이 없습니다.</div>
+              ) : quotes.map((quote) => {
                 return (
                 <div
                   className={`kim-quote-row app-status-${quote.appStatus}${quoteDropTargetId === quote.id ? " is-file-drop-target" : ""}${openQuoteActionId === quote.id ? " is-action-open" : ""}`}
