@@ -205,6 +205,7 @@ export type QuoteCreateBody = {
   modelName?: string | null;
   trimName?: string | null;
   note?: string | null;
+  sourceQuoteRequestId?: string | null; // 앱 견적요청 승격(S3) 출처. loose id(FK 없음).
   // #4c-2 워크벤치 스냅샷
   trimId?: number | null;
   basePrice?: string | null;
@@ -283,6 +284,7 @@ export async function createQuote(
     modelName: body.modelName ?? null,
     trimName: body.trimName ?? null,
     note: body.note ?? null,
+    sourceQuoteRequestId: body.sourceQuoteRequestId ?? null,
     guidance: body.guidance ?? null,
     trimId: body.trimId ?? null,
     basePrice: body.basePrice ?? null,

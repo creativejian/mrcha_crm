@@ -84,6 +84,7 @@ export type QuoteCreatePayload = {
   modelName?: string | null;
   trimName?: string | null;
   note?: string | null;
+  sourceQuoteRequestId?: string | null;
   // #4c-2 워크벤치 스냅샷(trim_id/color_id는 catalog FK라 실존 id만)
   trimId?: number | null;
   basePrice?: string | null;
