@@ -1,11 +1,13 @@
 import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, PURCHASE_METHOD_OPTIONS, SCHEDULE_TYPE_OPTIONS, TASK_CATEGORY_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
+import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { ColorPicker } from "@/components/ColorPicker";
 import { KimAppCardPreview } from "@/components/KimAppCardPreview";
 import { OptionPicker } from "@/components/OptionPicker";
@@ -839,6 +841,9 @@ function KimMinjunDetailContent({
   const persistedQuoteIdRef = useRef<string | null>(null);
   const [guidance, setGuidance] = useState<QuoteGuidance>(DEFAULT_QUOTE_GUIDANCE);
   const [editPrefill, setEditPrefill] = useState<KimEditPrefill | null>(null);
+  // 앱 견적요청 승격(S3) prefill. editPrefill(수정·가격 포함)과 별개 — 차량/옵션만 채우고 가격은 catalog 계산.
+  const [quoteRequestPrefill, setQuoteRequestPrefill] = useState<{ trimId: number | null; optionIds: number[] } | null>(null);
+  const [sourceQuoteRequestId, setSourceQuoteRequestId] = useState<string | null>(null);
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<KimRecognizedQuoteFile | null>(null);
   const [isQuoteWorkbenchOriginalDragActive, setIsQuoteWorkbenchOriginalDragActive] = useState(false);
   const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
@@ -969,6 +974,51 @@ function KimMinjunDetailContent({
     document.body.classList.add("kim-detail-overlay-open");
     return () => document.body.classList.remove("kim-detail-overlay-open");
   }, [detailOverlayOpen]);
+
+  // 앱 견적요청 승격(S3): 인박스에서 /customer-detail/:code?quoteRequest=<id>로 진입하면
+  // 요청 단건을 fetch해 워크벤치를 차량/구매방식/옵션 prefill된 채 연다(가격은 catalog 계산 보존).
+  const location = useLocation();
+  const navigate = useNavigate();
+  const quoteRequestPrefillRef = useRef(false); // StrictMode/재렌더 중복 방지
+  useEffect(() => {
+    const reqId = new URLSearchParams(location.search).get("quoteRequest");
+    if (!reqId || quoteRequestPrefillRef.current) return;
+    quoteRequestPrefillRef.current = true;
+    let cancelled = false; // unmount/이동 가드(quoteRequestPrefillRef 중복방지와 별개)
+    void fetchQuoteRequestDetail(reqId)
+      .then((detail) => {
+        if (cancelled) return;
+        // 신규 워크벤치 열기와 동일한 리셋(견적함 + 버튼 onClick과 정렬)
+        setConfirmingQuoteDeleteId(null);
+        setEditingQuoteId(null);
+        persistedQuoteIdRef.current = null;
+        setEditPrefill(null);
+        resetWorkbenchVehicle();
+        setGuidance(DEFAULT_QUOTE_GUIDANCE);
+        setManualQuoteCards([...kimManualQuoteConditionCards]);
+        setManualTermMonths({});
+        setSavedManualQuoteConditionIds([]);
+        setRecognizedQuoteFile(null);
+        setSolutionWorkbenchEntryMode("manual");
+        setSolutionWorkbenchModeMenu(null);
+        setSolutionWorkbenchPurchaseMethod(primaryKimQuotePurchaseMethod(purchaseFields)); // 고객 기본값 먼저(+onClick과 동일)
+        // 견적요청 prefill 설정
+        setQuoteRequestPrefill({ trimId: detail.trimId, optionIds: detail.optionIds });
+        setSourceQuoteRequestId(reqId);
+        // purchaseMethod(한글)가 워크벤치 옵션 목록에 있으면 override, 없으면 위 고객 기본값 유지(stale 방지).
+        if (detail.purchaseMethod && kimQuotePurchaseMethodOptions.includes(detail.purchaseMethod as KimQuotePurchaseMethod)) {
+          setSolutionWorkbenchPurchaseMethod(detail.purchaseMethod as KimQuotePurchaseMethod);
+        }
+        setIsQuoteSolutionWorkbenchOpen(true);
+      })
+      .catch(() => { if (!cancelled) onToast("견적요청 정보를 불러오지 못했습니다."); })
+      .finally(() => {
+        // URL에서 파라미터 제거(뒤로가기/재렌더 재오픈 방지). unmount 후엔 navigate 금지.
+        if (!cancelled) navigate(`/customer-detail/${customer.customerId}`, { replace: true });
+      });
+    return () => { cancelled = true; };
+  }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps -- 진입 시 1회 prefill
+
   const solutionWorkbenchCanQuery =solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
   const quoteDraftReady = isQuoteDraftSaved && !isQuoteDraftDirty;
   // 워크벤치 헤더 차량명: 실시간 선택(workbenchVehicle/trimDetail) 우선, prefill 로드 전엔 수정 견적 저장 텍스트로 폴백(잔상/빈깜빡임 제거).
@@ -1269,9 +1319,10 @@ function KimMinjunDetailContent({
     try {
       const detail = selection.trimDetail ?? await fetchTrimDetail(trim.id);
       const prefill = editPrefill;
+      const qrPrefill = quoteRequestPrefill; // 견적요청 옵션(가격은 catalog 계산)
       setTrimDetail(detail);
       setWorkbenchVehicle(selection);
-      setSelectedWorkbenchOptionIds(prefill ? prefill.optionIds : []);
+      setSelectedWorkbenchOptionIds(prefill ? prefill.optionIds : (qrPrefill?.optionIds ?? []));
       setExteriorColor(prefill ? detail.colors.find((c) => c.id === prefill.exteriorColorId) ?? null : null);
       setInteriorColor(prefill ? detail.colors.find((c) => c.id === prefill.interiorColorId) ?? null : null);
       const root = pricingPanelRef.current;
@@ -1292,7 +1343,10 @@ function KimMinjunDetailContent({
         if (primaryDiscount) primaryDiscount.value = formatMoney(prefill.pricing.discount);
       } else {
         setInput("base", detail.price);
-        setInput("option", 0);
+        const qrOptionTotal = qrPrefill
+          ? detail.options.filter((o) => qrPrefill.optionIds.includes(o.id)).reduce((s, o) => s + (o.price ?? 0), 0)
+          : 0;
+        setInput("option", qrOptionTotal);
         setInput("discount", detail.financialDiscountAmount ?? 0);
         if (primaryDiscount) primaryDiscount.value = formatMoney(detail.financialDiscountAmount ?? 0);
       }
@@ -1300,6 +1354,7 @@ function KimMinjunDetailContent({
       recomputePricing();
       markQuoteDraftChanged();
       setEditPrefill(null);
+      setQuoteRequestPrefill(null); // 견적요청 차량/옵션 prefill 1회 소비(차량 재선택 시 재적용 방지). sourceQuoteRequestId는 저장 때 필요해 유지.
     } catch (error) {
       console.warn("트림 상세 로드 실패", error);
     }
@@ -2316,6 +2371,7 @@ function KimMinjunDetailContent({
           quoteRound: "1차",
           stockStatus: "재고확인중",
           note: sourceLabel,
+          sourceQuoteRequestId: sourceQuoteRequestId ?? null,
           ...snapshot,
           ...(builtScenarios.length ? { scenarios: builtScenarios } : { scenario: { purchaseMethod: solutionWorkbenchPurchaseMethod } }),
         };
@@ -2326,6 +2382,7 @@ function KimMinjunDetailContent({
             if (send && !id.startsWith("kim-")) {
               void apiUpdateQuote(cid, id, { status: "고객 확인 전", appStatus: "sent", bumpRevision: true }).catch(() => onToast("발송에 실패했습니다."));
             }
+            if (sourceQuoteRequestId) void fetchAppQuoteRequestsCached(true); // 견적요청→견적 INSERT 시 인박스 캐시 fresh(배지 갱신)
             onQuotesPersisted?.();
           })
           .catch(() => { setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("저장에 실패했습니다."); });
@@ -4142,6 +4199,7 @@ function KimMinjunDetailContent({
                   setEditingQuoteId(null);
                   persistedQuoteIdRef.current = null;
                   setEditPrefill(null);
+                  setSourceQuoteRequestId(null);
                   resetWorkbenchVehicle();
                   setGuidance(DEFAULT_QUOTE_GUIDANCE);
                   setManualQuoteCards([...kimManualQuoteConditionCards]);
@@ -4440,6 +4498,7 @@ function KimMinjunDetailContent({
               setManualTermMonths(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.termMonths])));
               setEditingQuoteId(openQuoteAction.id);
               persistedQuoteIdRef.current = null;
+              setSourceQuoteRequestId(null);
               resetWorkbenchVehicle();
               setGuidance(dq?.guidance ?? DEFAULT_QUOTE_GUIDANCE);
               setSolutionWorkbenchPurchaseMethod(normalizeKimQuotePurchaseMethod(openQuoteAction.financeType));
@@ -4818,7 +4877,7 @@ function KimMinjunDetailContent({
                   <div className="kim-jeff-top-grid">
                     <div className="kim-jeff-section">
                       <h4>🚘 차량 선택</h4>
-                      <VehiclePicker key={editingQuoteId ?? "new"} initialTrimId={editingQuoteId ? openQuoteActionTrimId() : undefined} onChange={(selection) => { void applyTrimToPricing(selection); }} />
+                      <VehiclePicker key={editingQuoteId ?? "new"} initialTrimId={editingQuoteId ? openQuoteActionTrimId() : (quoteRequestPrefill?.trimId ?? undefined)} onChange={(selection) => { void applyTrimToPricing(selection); }} />
                     </div>
                     <div className="kim-jeff-section">
                       <h4>🎨 옵션 / 컬러</h4>

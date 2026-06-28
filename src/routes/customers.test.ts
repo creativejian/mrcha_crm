@@ -13,7 +13,9 @@ import { eq } from "drizzle-orm";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
-import { customerDocuments, quotes, quoteScenarios } from "../db/schema";
+import { createQuote } from "../db/queries/customer-quotes";
+import { quoteRequests as quoteRequestsTable } from "../db/public-app";
+import { customerDocuments, customers, quotes, quoteScenarios } from "../db/schema";
 import { customerWriteSchema } from "./customers";
 
 test("GET /api/customers → 200, 배열", async () => {
@@ -887,4 +889,18 @@ test("purchaseMethod enum: 잘못된 값 견적 생성 → 400", async () => {
     body: JSON.stringify({ entryMode: "manual", scenario: { purchaseMethod: "비교 견적" } }),
   });
   expect(res.status).toBe(400);
+});
+
+test("createQuote: sourceQuoteRequestId를 INSERT에 저장 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+  const [req] = await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
+  await expect(
+    db.transaction(async (tx) => {
+      const created = await createQuote(cust.id, { sourceQuoteRequestId: req.id, status: "작성중" }, tx);
+      const [q] = await tx.select({ src: quotes.sourceQuoteRequestId }).from(quotes).where(eq(quotes.id, created.id));
+      expect(q.src).toBe(req.id);
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
 });

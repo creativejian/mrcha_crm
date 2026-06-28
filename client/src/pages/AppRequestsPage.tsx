@@ -127,6 +127,9 @@ export function AppRequestsPage({ signal, onRead, onToast }: AppRequestsPageProp
                 <td>{r.statusLabel}</td>
                 <td className="app-req-match-cell">
                   <span className={MATCH_CLASS[r.matchType]}>{r.matchLabel}</span>
+                  {r.promotedQuoteCount > 0 && (
+                    <span className="app-req-promoted">견적 {r.promotedQuoteCount}건</span>
+                  )}
                   {r.matchType === "none" && (
                     <button className="app-req-action" disabled={actingId === r.id} onClick={() => handleCreate(r)} type="button">신규 생성</button>
                   )}
@@ -134,7 +137,10 @@ export function AppRequestsPage({ signal, onRead, onToast }: AppRequestsPageProp
                     <button className="app-req-action" disabled={actingId === r.id} onClick={() => handleLink(r)} type="button">{r.matchedCustomerName ?? "고객"}에 연결</button>
                   )}
                   {r.matchType === "app_user" && r.matchedCustomerCode && (
-                    <Link className="app-req-action link" to={`/customer-detail/${r.matchedCustomerCode}`}>고객 보기</Link>
+                    <>
+                      <Link className="app-req-action" to={`/customer-detail/${r.matchedCustomerCode}?quoteRequest=${r.id}`}>견적 작성</Link>
+                      <Link className="app-req-action link" to={`/customer-detail/${r.matchedCustomerCode}`}>고객 보기</Link>
+                    </>
                   )}
                 </td>
               </tr>

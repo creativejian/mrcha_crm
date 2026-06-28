@@ -106,6 +106,7 @@ const quoteCreateBody = z.object({
   modelName: z.string().nullable().optional(),
   trimName: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
+  sourceQuoteRequestId: z.uuid().nullable().optional(),
   guidance: quoteGuidanceSchema.nullable().optional(),
   // #4c-2 워크벤치 스냅샷(전부 optional, composer는 미전송)
   trimId: z.number().int().nullable().optional(),

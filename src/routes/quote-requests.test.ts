@@ -4,8 +4,9 @@ import { eq } from "drizzle-orm";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
-import { createCustomerFromRequest, linkRequestToCustomer } from "../db/queries/quote-requests";
-import { quoteRequests as quoteRequestsTable } from "../db/public-app";
+import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests } from "../db/queries/quote-requests";
+import { createQuote } from "../db/queries/customer-quotes";
+import { quoteRequests as quoteRequestsTable, quoteRequestOptions as quoteRequestOptionsTable } from "../db/public-app";
 import { customers } from "../db/schema";
 
 test("GET /api/quote-requests → 200, 배열", async () => {
@@ -88,4 +89,51 @@ test("linkRequestToCustomer: 없는 요청 → null", async () => {
   const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
   const r = await linkRequestToCustomer("00000000-0000-0000-0000-000000000000", cust.id);
   expect(r).toBeNull();
+});
+
+test("getQuoteRequestDetail: 요청의 trimId·paymentMethod·optionIds 반환", async () => {
+  const db = getDefaultDb();
+  // 옵션이 있는 요청을 하나 고른다(없으면 첫 요청).
+  const [opt] = await db.select({ reqId: quoteRequestOptionsTable.quoteRequestId, optId: quoteRequestOptionsTable.trimOptionId }).from(quoteRequestOptionsTable).limit(1);
+  const targetId = opt?.reqId
+    ?? (await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1))[0].id;
+  const detail = await getQuoteRequestDetail(targetId);
+  expect(detail).not.toBeNull();
+  expect(detail!.id).toBe(targetId);
+  expect(Array.isArray(detail!.optionIds)).toBe(true);
+  // 옵션 있는 요청을 골랐다면 실제로 채워지는지 검증(빈 배열 false positive 방지). opt 폴백 시엔 옵션 0개 가능.
+  if (opt) expect(detail!.optionIds.length).toBeGreaterThan(0);
+  // trimId는 number 또는 null
+  expect(detail!.trimId === null || typeof detail!.trimId === "number").toBe(true);
+});
+
+test("getQuoteRequestDetail: 없는 요청 → null", async () => {
+  const detail = await getQuoteRequestDetail("00000000-0000-0000-0000-000000000000");
+  expect(detail).toBeNull();
+});
+
+test("GET /api/quote-requests/:id → 200 + detail 형태", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const [req] = await getDefaultDb().select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
+  const res = await app.request(`/api/quote-requests/${req.id}`, { headers: { Authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as { id: string; trimId: number | null; paymentMethod: string | null; optionIds: number[] };
+  expect(body.id).toBe(req.id);
+  expect(Array.isArray(body.optionIds)).toBe(true);
+});
+
+test("listQuoteRequests: source가 붙은 견적이 있으면 promotedQuoteCount 증가 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+  const [req] = await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
+  await expect(
+    db.transaction(async (tx) => {
+      const before = (await listQuoteRequests(tx)).find((r) => r.id === req.id);
+      await createQuote(cust.id, { sourceQuoteRequestId: req.id }, tx);
+      const after = (await listQuoteRequests(tx)).find((r) => r.id === req.id);
+      expect(after?.promotedQuoteCount).toBe((before?.promotedQuoteCount ?? 0) + 1);
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
 });
