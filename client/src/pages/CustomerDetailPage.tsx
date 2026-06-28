@@ -2502,7 +2502,7 @@ function KimMinjunDetailContent({
       void apiUpdateQuote(customer.id, id, { status: "고객 확인 전", appStatus: "sent" }).catch(() => { setQuotes(prevQuotes); onToast("발송 저장에 실패했습니다."); });
     }
     markRecentUpdate("견적함");
-    onToast(`김민준 고객 앱 견적함으로 발송했습니다. 대상: CU-2605-0020`);
+    onToast(`${customer.name} 고객 앱 견적함으로 발송했습니다. 대상: ${customer.customerId}`);
   }
 
   function updateQuoteDecisionStatus(id: string, decisionStatus: KimQuoteItem["decisionStatus"]) {
@@ -2712,7 +2712,7 @@ function KimMinjunDetailContent({
       const objectUrl = URL.createObjectURL(pdfBlob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = "김민준-서류.pdf";
+      anchor.download = `${customer.name}-서류.pdf`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -3641,7 +3641,7 @@ function KimMinjunDetailContent({
               );
             })}
           </div>
-          <div className="kim-workflow-strip" aria-label="김민준 업무 상태">
+          <div className="kim-workflow-strip" aria-label={`${customer.name} 업무 상태`}>
             {kimMinjunWorkflowMeta.map((field) => (
               <div className="kim-edit-anchor workflow" key={field.key} ref={openEditor?.kind === "workflow" && openEditor.key === field.key ? editorRef : undefined}>
                 <button className={`kim-workflow-card ${field.tone}`} onClick={() => openWorkflowEditor(field.key)} type="button">
@@ -3690,8 +3690,8 @@ function KimMinjunDetailContent({
         </div>
       </section>
 
-      <section className="kim-workspace-band" aria-label="김민준 실무 영역">
-        <section className="kim-condition-consult-grid" aria-label="김민준 구매조건과 고객 메모">
+      <section className="kim-workspace-band" aria-label={`${customer.name} 실무 영역`}>
+        <section className="kim-condition-consult-grid" aria-label={`${customer.name} 구매조건과 고객 메모`}>
           <section className="detail-section kim-purchase-conditions" aria-label="상세 구매조건" ref={openEditor?.kind === "purchase" ? editorRef : undefined}>
             <div className="kim-mvp-card-head">
               <div className="kim-mvp-title-row">
@@ -3888,7 +3888,7 @@ function KimMinjunDetailContent({
           </section>
         </section>
 
-        <section className="kim-mvp-ops-grid" aria-label="김민준 고객 운영 기능">
+        <section className="kim-mvp-ops-grid" aria-label={`${customer.name} 고객 운영 기능`}>
         <article className="detail-section kim-mvp-card kim-check-card">
           <div className="kim-mvp-card-head">
             <div className="kim-mvp-title-row">
@@ -4389,7 +4389,7 @@ function KimMinjunDetailContent({
             {confirmingQuoteSendId === openQuoteAction.id ? (
               <div className="kim-quote-send-confirm" role="dialog" aria-label="견적 앱 발송 확인">
                 <strong>앱 견적함으로 발송</strong>
-                <p>김민준(CU-2605-0020) 고객에게 견적을 보내고 푸시알림을 발송합니다.</p>
+                <p>{customer.name}({customer.customerId}) 고객에게 견적을 보내고 푸시알림을 발송합니다.</p>
                 <div>
                   <button type="button" onClick={() => setConfirmingQuoteSendId(null)}>취소</button>
                   <button className="primary" type="button" onClick={() => {
@@ -4664,8 +4664,8 @@ function KimMinjunDetailContent({
                   <h2>
                     <span>고객 관리</span>
                     <ChevronRight size={18} strokeWidth={2.4} />
-                    <span>김민준</span>
-                    <em className="num">CU-2605-0020</em>
+                    <span>{customer.name}</span>
+                    <em className="num">{customer.customerId}</em>
                     <ChevronRight size={18} strokeWidth={2.4} />
                     <strong>{editingQuoteId ? "견적 수정" : "새 견적 작성"}</strong>
                   </h2>
