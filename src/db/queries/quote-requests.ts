@@ -140,6 +140,31 @@ export async function listQuoteRequests(executor: Executor = getDefaultDb()): Pr
   });
 }
 
+export type QuoteRequestDetail = {
+  id: string;
+  trimId: number | null;
+  paymentMethod: string | null;
+  optionIds: number[];
+};
+
+// prefill용 단건 조회. 요청 1행 + 옵션(trim_option_id) 배열. 없으면 null.
+export async function getQuoteRequestDetail(
+  requestId: string,
+  executor: Executor = getDefaultDb(),
+): Promise<QuoteRequestDetail | null> {
+  const [req] = await executor
+    .select({ id: quoteRequests.id, trimId: quoteRequests.trimId, paymentMethod: quoteRequests.paymentMethod })
+    .from(quoteRequests)
+    .where(eq(quoteRequests.id, requestId));
+  if (!req) return null;
+  const opts = await executor
+    .select({ optId: quoteRequestOptions.trimOptionId })
+    .from(quoteRequestOptions)
+    .where(eq(quoteRequestOptions.quoteRequestId, requestId));
+  const optionIds = opts.map((o) => o.optId).filter((v): v is number => v != null);
+  return { id: req.id, trimId: req.trimId, paymentMethod: req.paymentMethod, optionIds };
+}
+
 // 다음 고객 코드 CU-YYMM-#### (현재월 기준, 기존 최대 시퀀스 +1). customer_code UNIQUE라 서버가 canonical 생성.
 // customer-quotes.ts nextQuoteCode와 동형(QT→CU, quotes→customers).
 export async function nextCustomerCode(ex: Executor = getDefaultDb()): Promise<string> {
