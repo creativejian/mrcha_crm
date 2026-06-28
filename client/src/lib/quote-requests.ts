@@ -21,11 +21,12 @@ export type AppQuoteRequestRow = {
   matchedCustomerId: string | null;
   matchedCustomerName: string | null;
   matchedCustomerCode: string | null;
+  promotedQuoteCount: number;
   matchType: "app_user" | "phone" | "none";
 };
 
 // 앱 enum → 한글. Flutter 앱 SSOT(purchase_method.dart / deposit_type.dart / quote_status.dart)와 일치.
-const PAYMENT_METHOD_LABEL: Record<string, string> = {
+export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   lease: "운용리스",
   rent: "장기렌트",
   installment: "할부",
@@ -58,6 +59,7 @@ export type AppQuoteRequest = {
   matchedCustomerId: string | null;
   matchedCustomerName: string | null;
   matchedCustomerCode: string | null;
+  promotedQuoteCount: number;
   matchType: AppQuoteRequestRow["matchType"];
 };
 
@@ -94,12 +96,33 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
     matchedCustomerId: row.matchedCustomerId,
     matchedCustomerName: row.matchedCustomerName,
     matchedCustomerCode: row.matchedCustomerCode,
+    promotedQuoteCount: row.promotedQuoteCount,
     matchType: row.matchType,
   };
 }
 
 export async function fetchAppQuoteRequests(): Promise<AppQuoteRequest[]> {
   return (await getJson<AppQuoteRequestRow[]>("/api/quote-requests")).map(toAppQuoteRequest);
+}
+
+// prefill용 단건. paymentMethod는 한글 라벨(워크벤치 구매방식 옵션과 일치)로 변환해 반환.
+export type QuoteRequestPrefill = {
+  id: string;
+  trimId: number | null;
+  optionIds: number[];
+  purchaseMethod: string | null;
+};
+
+export async function fetchQuoteRequestDetail(id: string): Promise<QuoteRequestPrefill> {
+  const d = await getJson<{ id: string; trimId: number | null; paymentMethod: string | null; optionIds: number[] }>(
+    `/api/quote-requests/${id}`,
+  );
+  return {
+    id: d.id,
+    trimId: d.trimId,
+    optionIds: d.optionIds,
+    purchaseMethod: d.paymentMethod ? (PAYMENT_METHOD_LABEL[d.paymentMethod] ?? d.paymentMethod) : null,
+  };
 }
 
 // 인박스 목록 캐시 + inflight dedupe (고객 상세 detailCache와 동형, 단일 키).

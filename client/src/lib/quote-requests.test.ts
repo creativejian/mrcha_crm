@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
+import { fetchQuoteRequestDetail, toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
+
+// apiFetch(./api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
+vi.mock("./supabase", () => ({
+  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
+}));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 const base: AppQuoteRequestRow = {
   id: "q1",
@@ -20,6 +30,7 @@ const base: AppQuoteRequestRow = {
   matchedCustomerId: null,
   matchedCustomerName: null,
   matchedCustomerCode: null,
+  promotedQuoteCount: 0,
   matchType: "none",
 };
 
@@ -71,5 +82,25 @@ describe("toAppQuoteRequest", () => {
     expect(r.matchedCustomerId).toBe("c1");
     expect(r.matchedCustomerName).toBe("한소희");
     expect(r.matchedCustomerCode).toBe("CU-2605-0001");
+  });
+});
+
+describe("toAppQuoteRequest promotedQuoteCount", () => {
+  it("역참조 카운트를 그대로 노출", () => {
+    expect(toAppQuoteRequest({ ...base, promotedQuoteCount: 3 }).promotedQuoteCount).toBe(3);
+    expect(toAppQuoteRequest({ ...base, promotedQuoteCount: 0 }).promotedQuoteCount).toBe(0);
+  });
+});
+
+describe("fetchQuoteRequestDetail", () => {
+  it("GET /api/quote-requests/:id 호출 + paymentMethod 한글 매핑", async () => {
+    // apiFetch는 fetch(url, { headers }) 형태로 호출하므로 첫 인자(URL)만 검증한다.
+    const spy = vi.fn(async () => new Response(JSON.stringify({ id: "r1", trimId: 100, paymentMethod: "lease", optionIds: [1, 2] }), { status: 200 }));
+    vi.stubGlobal("fetch", spy);
+    const d = await fetchQuoteRequestDetail("r1");
+    expect((spy.mock.calls[0] as unknown[])[0]).toBe("/api/quote-requests/r1");
+    expect(d.trimId).toBe(100);
+    expect(d.optionIds).toEqual([1, 2]);
+    expect(d.purchaseMethod).toBe("운용리스"); // lease → 한글
   });
 });
