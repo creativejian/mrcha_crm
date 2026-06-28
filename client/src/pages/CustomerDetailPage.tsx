@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, Maximize2, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RefreshCcw, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
+import { BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, PURCHASE_METHOD_OPTIONS, SCHEDULE_TYPE_OPTIONS, TASK_CATEGORY_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
@@ -18,7 +18,7 @@ import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles
 import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 import type { MergeSource } from "@/lib/document-merge";
-import { nowMs, phoneChunks, formatKimRecentUpdateTime, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
+import { nowMs, formatKimRecentUpdateTime, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
 import { type KimScheduleItem, type KimCheckItem, type KimCustomerMemoItem, scheduleRecordKey, sortKimCustomerMemosByCreatedAt, sortKimCheckItemsByWorkRule, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
 import { type KimCustomerType, type KimAdvisorTeam, kimCustomerTypeOptions, kimAutomaticSourceOptions, kimManualSourceOptions, kimAdvisorOptions, kimRegionOptions, parseKimJobValue, formatKimJobValue, parseKimLocationValue, formatKimLocationValue, parseKimSourceValue, parseKimAdvisorValue, formatKimAdvisorValue, isKimAutomaticSource, hasKimAppSourceQueue, hasKimQuoteAttachments } from "@/lib/kim-status-fields";
 import { type KimPurchaseFloatingKind, type KimPurchasePopoverFrame, type KimQuoteActionFrame, type KimQuoteStatusTooltip, isKimPurchaseFloatingKind, calculateKimPurchasePopoverFrame, calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
@@ -33,12 +33,6 @@ type CustomerDetailPageProps = {
   onToast: (message: string) => void;
   onWorkflowChange?: (customerNo: number, next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus }) => void;
   variant?: "page" | "drawer";
-};
-
-type DetailMetric = {
-  label: string;
-  value: string;
-  tone?: "accent" | "quiet";
 };
 
 type KimStatusFieldKey = "phone" | "job" | "location" | "source" | "advisor" | "assignedAt";
@@ -147,27 +141,6 @@ const chanceByPriority: Record<string, string> = {
   완료: "확정",
 };
 
-const vehicleDetailByName: Record<string, DetailMetric[]> = {
-  "Maybach S-Class": [
-    { label: "모델", value: "Maybach S-Class" },
-    { label: "트림", value: "S 500 4M Long" },
-    { label: "비교 차종", value: "GLC · X3", tone: "accent" },
-    { label: "핵심 조건", value: "총비용 · 중도해지 리스크" },
-  ],
-  팰리세이드: [
-    { label: "모델", value: "팰리세이드" },
-    { label: "트림", value: "2.5T 하이브리드 · 9인승" },
-    { label: "용도", value: "패밀리 SUV" },
-    { label: "핵심 조건", value: "렌트와 리스 차이 이해" },
-  ],
-  GV80: [
-    { label: "모델", value: "GV80" },
-    { label: "트림", value: "2.5T 가솔린" },
-    { label: "심사 포인트", value: "사업자 증빙", tone: "accent" },
-    { label: "핵심 조건", value: "승인 금융사 우선 압축" },
-  ],
-};
-
 function chanceLabel(customer: Customer) {
   if (customer.statusGroup === "계약완료" || customer.status === "출고완료") return "확정";
   if (customer.statusGroup === "불발") return "낮음";
@@ -182,26 +155,6 @@ function sourceType(source: string) {
   return "직접/소개";
 }
 
-function detailRows(customer: Customer): DetailMetric[] {
-  return [
-    { label: "고객번호", value: customer.customerId },
-    { label: "고객유형", value: [customer.customerType, customer.customerTypeDetail].filter(Boolean).join(" · ") },
-    { label: "연락처", value: customer.phone },
-    { label: "접수", value: `${customer.source} · ${customer.receivedAt}` },
-    { label: "배정", value: `${customer.advisor} · ${customer.assignedAt}` },
-    { label: "응답", value: customer.talkCount === "0/0" ? "상담 시작 전" : `상담 ${customer.talkCount}` },
-  ];
-}
-
-function vehicleRows(customer: Customer): DetailMetric[] {
-  return vehicleDetailByName[customer.vehicle] ?? [
-    { label: "모델", value: customer.vehicle },
-    { label: "구매방식", value: customer.method },
-    { label: "상담 상태", value: customer.status },
-    { label: "핵심 조건", value: customer.nextAction },
-  ];
-}
-
 function timelineRows(customer: Customer) {
   return [
     { kind: "접수", title: `${sourceType(customer.source)} 접수`, meta: customer.receivedAt, body: `${customer.source} 경로로 고객 문의가 들어왔습니다.` },
@@ -212,10 +165,10 @@ function timelineRows(customer: Customer) {
 }
 
 const kimMaybachQuotePricingMock: PricingInputs = {
-  basePrice: 243000000,
+  basePrice: 0,
   optionPrice: 0,
-  discount: 6500000,
-  acquisitionTax: 13531000,
+  discount: 0,
+  acquisitionTax: 0,
   bond: 0,
   delivery: 0,
   incidental: 0,
@@ -279,16 +232,18 @@ const kimManualQuoteConditionCards: KimManualCard[] = [
   },
 ] as const;
 
+// 구매방식·출고 희망 시기는 purchaseFields 초기화에서 detail.needMethod/needTiming로 덮어씀.
+// 나머지는 crm 컬럼 없는 견적 도메인 값이라 데이터 소스 없음 → 빈값(렌더 시 "미정").
 const kimMinjunPurchaseFields = [
-  { label: "구매방식", value: "운용리스" },
-  { label: "계약기간", value: "60개월" },
-  { label: "초기비용", value: "보증금 30%" },
-  { label: "연간 주행거리", value: "확인 필요" },
-  { label: "인도 방식", value: "협의 필요" },
-  { label: "출고 희망 시기", value: "좋은 조건 즉시" },
-  { label: "계약 포커스", value: "#월 납입 최소 #총 비용 최소 #빠른 출고" },
-  { label: "고객 특이사항", value: "#카톡 선호 #가족과 상의" },
-  { label: "심사 특이사항", value: "#4대보험 확인 #재직 확인 전" },
+  { label: "구매방식", value: "" },
+  { label: "계약기간", value: "" },
+  { label: "초기비용", value: "" },
+  { label: "연간 주행거리", value: "" },
+  { label: "인도 방식", value: "" },
+  { label: "출고 희망 시기", value: "" },
+  { label: "계약 포커스", value: "" },
+  { label: "고객 특이사항", value: "" },
+  { label: "심사 특이사항", value: "" },
 ];
 
 const kimMinjunStatusFieldMeta = [
@@ -2549,7 +2504,7 @@ function KimMinjunDetailContent({
       void apiUpdateQuote(customer.id, id, { status: "고객 확인 전", appStatus: "sent" }).catch(() => { setQuotes(prevQuotes); onToast("발송 저장에 실패했습니다."); });
     }
     markRecentUpdate("견적함");
-    onToast(`김민준 고객 앱 견적함으로 발송했습니다. 대상: CU-2605-0020`);
+    onToast(`${customer.name} 고객 앱 견적함으로 발송했습니다. 대상: ${customer.customerId}`);
   }
 
   function updateQuoteDecisionStatus(id: string, decisionStatus: KimQuoteItem["decisionStatus"]) {
@@ -2759,7 +2714,7 @@ function KimMinjunDetailContent({
       const objectUrl = URL.createObjectURL(pdfBlob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = "김민준-서류.pdf";
+      anchor.download = `${customer.name}-서류.pdf`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -3688,7 +3643,7 @@ function KimMinjunDetailContent({
               );
             })}
           </div>
-          <div className="kim-workflow-strip" aria-label="김민준 업무 상태">
+          <div className="kim-workflow-strip" aria-label={`${customer.name} 업무 상태`}>
             {kimMinjunWorkflowMeta.map((field) => (
               <div className="kim-edit-anchor workflow" key={field.key} ref={openEditor?.kind === "workflow" && openEditor.key === field.key ? editorRef : undefined}>
                 <button className={`kim-workflow-card ${field.tone}`} onClick={() => openWorkflowEditor(field.key)} type="button">
@@ -3737,8 +3692,8 @@ function KimMinjunDetailContent({
         </div>
       </section>
 
-      <section className="kim-workspace-band" aria-label="김민준 실무 영역">
-        <section className="kim-condition-consult-grid" aria-label="김민준 구매조건과 고객 메모">
+      <section className="kim-workspace-band" aria-label={`${customer.name} 실무 영역`}>
+        <section className="kim-condition-consult-grid" aria-label={`${customer.name} 구매조건과 고객 메모`}>
           <section className="detail-section kim-purchase-conditions" aria-label="상세 구매조건" ref={openEditor?.kind === "purchase" ? editorRef : undefined}>
             <div className="kim-mvp-card-head">
               <div className="kim-mvp-title-row">
@@ -3748,6 +3703,7 @@ function KimMinjunDetailContent({
             </div>
             <div className="kim-purchase-condition-body">
               {purchaseFields.map((field) => {
+                const displayValue = field.value || "미정";
                 const itemButton = (
                   <button
                     className="kim-purchase-condition-item"
@@ -3794,12 +3750,12 @@ function KimMinjunDetailContent({
                     type="button"
                   >
                     <span>{field.label}</span>
-                    {isKimPurchaseTagField(field.label) && field.value !== "확인 필요" ? (
+                    {isKimPurchaseTagField(field.label) && field.value !== "확인 필요" && field.value.trim() !== "" ? (
                       <strong className="is-tag-list">
                         {kimPurchaseTags(field.value).map((tag) => <span key={tag}>{tag}</span>)}
                       </strong>
                     ) : (
-                      <strong className={kimPurchaseValueClass(field.value)}>{field.value}</strong>
+                      <strong className={kimPurchaseValueClass(displayValue)}>{displayValue}</strong>
                     )}
                   </button>
                 );
@@ -3839,7 +3795,9 @@ function KimMinjunDetailContent({
             </div>
             <div className="kim-customer-memo-body" ref={customerMemoBodyRef}>
               <div className="kim-customer-memo-list">
-                {sortedCustomerMemos.map((item, index) => {
+                {sortedCustomerMemos.length === 0 && !addingCustomerMemo ? (
+                  <div className="kim-list-empty">등록된 메모가 없습니다.</div>
+                ) : sortedCustomerMemos.map((item, index) => {
                   const shouldOpenDeletePopoverAbove = !addingCustomerMemo && index === sortedCustomerMemos.length - 1;
 
                   if (editingCustomerMemoId === item.id) {
@@ -3935,7 +3893,7 @@ function KimMinjunDetailContent({
           </section>
         </section>
 
-        <section className="kim-mvp-ops-grid" aria-label="김민준 고객 운영 기능">
+        <section className="kim-mvp-ops-grid" aria-label={`${customer.name} 고객 운영 기능`}>
         <article className="detail-section kim-mvp-card kim-check-card">
           <div className="kim-mvp-card-head">
             <div className="kim-mvp-title-row">
@@ -3959,7 +3917,9 @@ function KimMinjunDetailContent({
           </div>
           <div className="kim-mvp-card-body" ref={checkBodyRef}>
             <div className="kim-check-list">
-              {sortedCheckItems.map((item, index) => {
+              {sortedCheckItems.length === 0 && !addingCheckItem ? (
+                <div className="kim-list-empty">등록된 할 일이 없습니다.</div>
+              ) : sortedCheckItems.map((item, index) => {
                 const isCompleted = completedCheckItems.includes(item.id);
                 const shouldOpenCheckConfirmAbove = !addingCheckItem && index === sortedCheckItems.length - 1;
                 const shouldOpenCheckDeleteAbove = !addingCheckItem && index === sortedCheckItems.length - 1;
@@ -4099,7 +4059,9 @@ function KimMinjunDetailContent({
           </div>
           <div className="kim-mvp-card-body" ref={scheduleBodyRef}>
             <div className="kim-schedule-list">
-              {sortedSchedules.map((schedule, index) => {
+              {sortedSchedules.length === 0 && !addingScheduleItem ? (
+                <div className="kim-list-empty">예정된 일정이 없습니다.</div>
+              ) : sortedSchedules.map((schedule, index) => {
                 const isCompleted = completedScheduleKeys.includes(scheduleRecordKey(schedule));
                 const isEditing = editingScheduleId === schedule.id;
                 const shouldOpenScheduleCompleteAbove = !addingScheduleItem && index > 0 && index === sortedSchedules.length - 1;
@@ -4217,7 +4179,9 @@ function KimMinjunDetailContent({
           </div>
           <div className="kim-mvp-card-body" ref={quoteBodyRef}>
             <div className="kim-quote-list">
-              {quotes.map((quote) => {
+              {quotes.length === 0 ? (
+                <div className="kim-list-empty">작성된 견적이 없습니다.</div>
+              ) : quotes.map((quote) => {
                 return (
                 <div
                   className={`kim-quote-row app-status-${quote.appStatus}${quoteDropTargetId === quote.id ? " is-file-drop-target" : ""}${openQuoteActionId === quote.id ? " is-action-open" : ""}`}
@@ -4436,7 +4400,7 @@ function KimMinjunDetailContent({
             {confirmingQuoteSendId === openQuoteAction.id ? (
               <div className="kim-quote-send-confirm" role="dialog" aria-label="견적 앱 발송 확인">
                 <strong>앱 견적함으로 발송</strong>
-                <p>김민준(CU-2605-0020) 고객에게 견적을 보내고 푸시알림을 발송합니다.</p>
+                <p>{customer.name}({customer.customerId}) 고객에게 견적을 보내고 푸시알림을 발송합니다.</p>
                 <div>
                   <button type="button" onClick={() => setConfirmingQuoteSendId(null)}>취소</button>
                   <button className="primary" type="button" onClick={() => {
@@ -4711,8 +4675,8 @@ function KimMinjunDetailContent({
                   <h2>
                     <span>고객 관리</span>
                     <ChevronRight size={18} strokeWidth={2.4} />
-                    <span>김민준</span>
-                    <em className="num">CU-2605-0020</em>
+                    <span>{customer.name}</span>
+                    <em className="num">{customer.customerId}</em>
                     <ChevronRight size={18} strokeWidth={2.4} />
                     <strong>{editingQuoteId ? "견적 수정" : "새 견적 작성"}</strong>
                   </h2>
@@ -5325,22 +5289,16 @@ export function CustomerDetailPage({
   chanceOverride,
   customer,
   manageStatusOverride,
-  onBack,
-  onFullScreen,
   onEditorOpenChange,
   onToast,
   onWorkflowChange,
   variant = "page",
 }: CustomerDetailPageProps) {
-  const chance = chanceLabel(customer);
-  const phone = phoneChunks(customer.phone);
-  const isContracted = chance === "확정";
   const drawerMode = variant === "drawer";
-  const isKimMinjun = customer.customerId === "CU-2605-0020";
   const [detail, setDetail] = useState<CustomerDetailData | null>(null);
   const [detailError, setDetailError] = useState(false);
   useEffect(() => {
-    if (!isKimMinjun || !customer.id) return;
+    if (!customer.id) return;
     let cancelled = false;
     fetchCustomerDetail(customer.id)
       .then((data) => {
@@ -5352,7 +5310,7 @@ export function CustomerDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [isKimMinjun, customer.id]);
+  }, [customer.id]);
 
   // 견적 저장/발송 성공 후 현재 마운트의 detail을 재동기화한다. apiUpdate/CreateQuote가 이미
   // invalidateCustomerDetail을 호출하므로 fetch는 fresh. detail.quotes가 stale이면 수정 진입
@@ -5363,173 +5321,23 @@ export function CustomerDetailPage({
   }
 
   return (
-    <div className={`customer-detail-console-page ${drawerMode ? "drawer" : ""} ${isKimMinjun ? "kim-detail-mode" : ""}`}>
-      {isKimMinjun ? null : (
-        <>
-      <section className="customer-detail-summary">
-        <div className="customer-detail-identity">
-          <div className="customer-detail-avatar" aria-hidden="true">{customer.name.slice(0, 1)}</div>
-          <div>
-            <div className="customer-detail-name-row">
-              <h2>{customer.name}</h2>
-              <span className="customer-detail-code num">{customer.customerId}</span>
-              <span className="customer-detail-type">{customer.customerType} · {customer.customerTypeDetail}</span>
-            </div>
-            <div className="customer-detail-contact-row">
-              <span><Phone size={13} strokeWidth={2.2} />{phone.join("-")}</span>
-              <span><UserRound size={13} strokeWidth={2.2} />{customer.advisor} · {customer.team}</span>
-              <span><CalendarClock size={13} strokeWidth={2.2} />{customer.source} · {customer.receivedAt}</span>
-            </div>
-          </div>
-        </div>
-        <div className="customer-detail-status-strip" aria-label="고객 현재 운영 상태">
-          <button className="detail-stage-pill" type="button">
-            <span>{customer.statusGroup}</span>
-            <em>›</em>
-            <strong>{customer.status}</strong>
-          </button>
-          <button className={`detail-chance-pill ${isContracted ? "confirmed" : ""}`} type="button">{chance}</button>
-          <button className="detail-manage-pill" type="button">{isContracted ? "완료 관리" : "정상"}</button>
-        </div>
-      </section>
-
-      <section className="customer-detail-action-rail" aria-label="고객 상세 액션">
-        <div className="customer-detail-panel-controls">
-          <button className="detail-back-button" onClick={onBack} type="button">
-            {drawerMode ? <X size={14} /> : <ArrowLeft size={14} />}
-            {drawerMode ? "닫기" : "전체 보기"}
-          </button>
-          {drawerMode && onFullScreen ? (
-            <button className="detail-back-button" onClick={onFullScreen} type="button"><Maximize2 size={14} />전체 화면</button>
-          ) : null}
-        </div>
-        <div className="customer-detail-action-group">
-          <button onClick={() => onToast(`${customer.name} 담당자 변경 패널 자리입니다.`)} type="button"><RefreshCcw size={13} />담당자 변경</button>
-          <button onClick={() => onToast(`${customer.name} 상담 메모를 추가합니다.`)} type="button"><MessageSquareText size={13} />상담 메모</button>
-          <button onClick={() => onToast(`${customer.name} 견적 작성 화면으로 이동합니다.`)} type="button"><FileText size={13} />견적 작성</button>
-          <button className="primary" onClick={() => onToast(`${customer.name} 고객 앱으로 견적 발송 준비를 시작합니다.`)} type="button"><Send size={13} />앱으로 견적 발송</button>
-        </div>
-      </section>
-        </>
-      )}
-
-      {isKimMinjun ? (
-        detailError ? (
-          <div className="kim-detail-loading">고객 정보를 불러오지 못했습니다.</div>
-        ) : detail ? (
-          <KimMinjunDetailContent
-            key={customer.id}
-            detail={detail}
-            chanceOverride={chanceOverride}
-            customer={customer}
-            manageStatusOverride={manageStatusOverride}
-            onEditorOpenChange={onEditorOpenChange}
-            onToast={onToast}
-            onWorkflowChange={onWorkflowChange}
-            onQuotesPersisted={reloadDetail}
-          />
-        ) : (
-          <div className="kim-detail-skeleton" aria-hidden="true" />
-        )
+    <div className={`customer-detail-console-page ${drawerMode ? "drawer" : ""} kim-detail-mode`}>
+      {detailError ? (
+        <div className="kim-detail-loading">고객 정보를 불러오지 못했습니다.</div>
+      ) : detail ? (
+        <KimMinjunDetailContent
+          key={customer.id}
+          detail={detail}
+          chanceOverride={chanceOverride}
+          customer={customer}
+          manageStatusOverride={manageStatusOverride}
+          onEditorOpenChange={onEditorOpenChange}
+          onToast={onToast}
+          onWorkflowChange={onWorkflowChange}
+          onQuotesPersisted={reloadDetail}
+        />
       ) : (
-      <div className="customer-detail-layout">
-        <main className="customer-detail-main">
-          <section className="detail-section timeline-section">
-            <div className="detail-section-head">
-              <div>
-                <h3>상담 타임라인</h3>
-                <p>접수부터 상태 변경, 메모, 견적 액션까지 고객 흐름을 시간순으로 봅니다.</p>
-              </div>
-              <span className="detail-section-count num">{timelineRows(customer).length}</span>
-            </div>
-            <div className="detail-timeline">
-              {timelineRows(customer).map((item) => (
-                <article className="detail-timeline-item" key={`${item.kind}-${item.title}`}>
-                  <span className="detail-timeline-kind">{item.kind}</span>
-                  <div>
-                    <div className="detail-timeline-title">
-                      <strong>{item.title}</strong>
-                      <span>{item.meta}</span>
-                    </div>
-                    <p>{item.body}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="detail-section">
-            <div className="detail-section-head">
-              <div>
-                <h3>상담 메모 · 문의 사항</h3>
-                <p>전체 보기의 상담 메모 컬럼을 상세에서 원문 단위로 관리합니다.</p>
-              </div>
-              <button className="detail-inline-button" onClick={() => onToast("상담 메모 편집 모드는 다음 단계에서 연결합니다.")} type="button">수정</button>
-            </div>
-            <div className="detail-note-box">{customer.nextAction}</div>
-          </section>
-
-          <section className="detail-section">
-            <div className="detail-tabs" role="tablist" aria-label="고객 상세 작업 탭">
-              {["상담 기록", "고객 정보", "차량/견적", "계약/출고", "문서", "변경 이력"].map((tab, index) => (
-                <button aria-selected={index === 0} className={index === 0 ? "active" : ""} key={tab} role="tab" type="button">{tab}</button>
-              ))}
-            </div>
-            <div className="detail-record-grid">
-              <div>
-                <span>최근 상담 요약</span>
-                <strong>{customer.aiSummary}</strong>
-              </div>
-              <div>
-                <span>다음 액션</span>
-                <strong>{customer.nextAction}</strong>
-              </div>
-            </div>
-          </section>
-        </main>
-
-        <aside className="customer-detail-side">
-          <section className="detail-section">
-            <div className="detail-section-head compact">
-              <h3>고객 스냅샷</h3>
-            </div>
-            <div className="detail-kv-list">
-              {detailRows(customer).map((row) => (
-                <div className="detail-kv-row" key={row.label}>
-                  <span>{row.label}</span>
-                  <strong className={row.label === "연락처" || row.label === "고객번호" ? "num" : ""}>{row.value}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="detail-section">
-            <div className="detail-section-head compact">
-              <h3>차량 · 구매방식</h3>
-              <span className="detail-mini-badge">{customer.method}</span>
-            </div>
-            <div className="detail-kv-list">
-              {vehicleRows(customer).map((row) => (
-                <div className="detail-kv-row" key={row.label}>
-                  <span>{row.label}</span>
-                  <strong className={row.tone === "accent" ? "accent" : ""}>{row.value}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="detail-section ai-section">
-            <div className="detail-section-head compact">
-              <h3><Bot size={15} /> AI 힌트</h3>
-            </div>
-            <p>{customer.aiSummary}</p>
-            <div className="detail-ai-next">
-              <History size={14} />
-              <span>상담 메모, 진행 상태, 계약 가능성 변경 이력을 기준으로 다음 액션을 추천하는 자리입니다.</span>
-            </div>
-          </section>
-        </aside>
-      </div>
+        <div className="kim-detail-skeleton" aria-hidden="true" />
       )}
     </div>
   );

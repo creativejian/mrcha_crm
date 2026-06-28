@@ -5275,48 +5275,6 @@ th input:focus-visible {
   background: #fff;
 }
 
-.customer-detail-identity {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.customer-detail-avatar {
-  width: 38px;
-  height: 38px;
-  border: 1px solid rgba(var(--brand-rgb), 0.2);
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  background: #f4f1ff;
-  color: var(--brand);
-  font-size: 15px;
-  font-weight: 820;
-}
-
-.customer-detail-name-row,
-.customer-detail-contact-row,
-.customer-detail-status-strip,
-.customer-detail-action-group {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.customer-detail-name-row {
-  gap: 8px;
-}
-
-.customer-detail-name-row h2 {
-  margin: 0;
-  color: #172026;
-  font-size: 20px;
-  font-weight: 680;
-  line-height: 1.2;
-}
-
 .customer-detail-code,
 .customer-detail-type {
   border: 1px solid #e5e5e3;
@@ -5331,26 +5289,6 @@ th input:focus-visible {
   font-weight: 560;
   line-height: 1;
   white-space: nowrap;
-}
-
-.customer-detail-contact-row {
-  gap: 14px;
-  margin-top: 6px;
-  color: #737a82;
-  font-size: 12px;
-  font-weight: 520;
-}
-
-.customer-detail-contact-row span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.customer-detail-contact-row svg {
-  color: #9aa1a8;
 }
 
 .kim-detail-summary {
@@ -5438,14 +5376,6 @@ th input:focus-visible {
   min-width: max-content;
 }
 
-.customer-detail-status-strip {
-  justify-content: flex-end;
-  gap: 7px;
-}
-
-.detail-stage-pill,
-.detail-chance-pill,
-.detail-manage-pill,
 .detail-mini-badge {
   min-height: 26px;
   border: 1px solid rgba(255, 255, 255, 0.64);
@@ -5464,45 +5394,6 @@ th input:focus-visible {
   white-space: nowrap;
 }
 
-.detail-stage-pill em {
-  color: #a5adb5;
-  font-style: normal;
-}
-
-.detail-stage-pill strong {
-  color: var(--brand);
-  font-weight: 840;
-}
-
-.detail-chance-pill {
-  background: #f4f1ff;
-  color: var(--brand);
-}
-
-.detail-chance-pill.confirmed,
-.detail-manage-pill {
-  background: #e8f7ef;
-  color: #08783b;
-}
-
-.customer-detail-action-rail {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-  margin-bottom: 10px;
-}
-
-.customer-detail-panel-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.detail-back-button,
-.customer-detail-action-group button,
 .detail-inline-button {
   box-sizing: border-box;
   height: 28px;
@@ -5522,8 +5413,6 @@ th input:focus-visible {
   transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, color 0.14s ease, transform 0.14s ease;
 }
 
-.detail-back-button:hover,
-.customer-detail-action-group button:hover,
 .detail-inline-button:hover {
   border-color: rgba(var(--brand-rgb), 0.42);
   background: #fff;
@@ -5550,26 +5439,6 @@ th input:focus-visible {
   color: var(--brand);
   box-shadow: 0 2px 2px rgba(15, 23, 42, 0.1), 0 6px 12px rgba(15, 23, 42, 0.12), 0 0 0 2px rgba(var(--brand-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.88);
   transform: translateY(-1.75px);
-}
-
-.customer-detail-action-group {
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.customer-detail-action-group button.primary {
-  border-color: #111;
-  background: #111;
-  color: #fff;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
-}
-
-.customer-detail-action-group button.primary:hover {
-  border-color: var(--brand);
-  background: var(--brand);
-  box-shadow: 0 4px 10px rgba(var(--brand-rgb), 0.24);
-  color: #fff;
-  transform: translateY(-1px);
 }
 
 .customer-detail-layout {
@@ -9292,6 +9161,13 @@ th input:focus-visible {
   font-size: 11.5px;
   font-weight: 540;
   line-height: 1.45;
+}
+
+.kim-list-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--muted, #8a8f98);
+  text-align: center;
 }
 
 .kim-doc-type-native-select {
@@ -14897,7 +14773,6 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 
   .customer-detail-summary,
   .customer-detail-layout,
-  .customer-detail-action-rail,
   .detail-record-grid,
   .kim-customer-dashboard,
   .kim-minjun-detail-layout,
@@ -14915,12 +14790,6 @@ body.kim-detail-overlay-open .customer-detail-drawer {
   .customer-detail-drawer {
     width: min(860px, calc(100vw - 280px));
     min-width: min(720px, 100vw);
-  }
-
-  .customer-detail-status-strip,
-  .customer-detail-action-group {
-    justify-content: flex-start;
-    flex-wrap: wrap;
   }
 
   .detail-record-grid > div + div {
