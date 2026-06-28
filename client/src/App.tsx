@@ -117,11 +117,11 @@ export function App() {
     prefetchCatalog();
   }, []);
 
-  useEffect(() => {
-    let alive = true;
+  // 고객 목록 로드/재로드. 마운트 시 1회 + 인박스(S2)에서 신규 고객 생성 후 재호출해 stale 방지.
+  // App은 최상위라 사실상 unmount되지 않음(로그아웃 시에만) → setState-after-unmount race는 무시 가능.
+  const reloadCustomers = useCallback(() => {
     fetchCustomers()
       .then((list) => {
-        if (!alive) return;
         setCustomers(list);
         setChanceOverrides(
           Object.fromEntries(list.filter((c) => c.chance).map((c) => [c.no, c.chance as CustomerChanceOption])),
@@ -130,14 +130,14 @@ export function App() {
         setCustomersLoaded(true);
       })
       .catch(() => {
-        if (!alive) return;
         setCustomersError(true);
         setCustomersLoaded(true);
       });
-    return () => {
-      alive = false;
-    };
   }, []);
+
+  useEffect(() => {
+    reloadCustomers();
+  }, [reloadCustomers]);
 
   const [title, desc] = activeView === "customers"
     ? [
@@ -307,7 +307,7 @@ export function App() {
             />
           }
         />
-        <Route path="/app-requests" element={<AppRequestsPage signal={appRequestSignal} onRead={markAppRequestsRead} onToast={showToast} />} />
+        <Route path="/app-requests" element={<AppRequestsPage signal={appRequestSignal} onRead={markAppRequestsRead} onToast={showToast} onCustomerListChanged={reloadCustomers} />} />
         <Route path="/customer-detail" element={<Navigate to="/customers" replace />} />
         <Route
           path="/customer-detail/:code"

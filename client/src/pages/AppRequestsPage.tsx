@@ -13,9 +13,10 @@ type AppRequestsPageProps = {
   signal: number;
   onRead: () => void;
   onToast: (message: string) => void;
+  onCustomerListChanged: () => void;
 };
 
-export function AppRequestsPage({ signal, onRead, onToast }: AppRequestsPageProps) {
+export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged }: AppRequestsPageProps) {
   const [rows, setRows] = useState<AppQuoteRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -26,6 +27,7 @@ export function AppRequestsPage({ signal, onRead, onToast }: AppRequestsPageProp
     try {
       const created = await createCustomerFromRequest(r.id);
       onToast(`${created.customerCode} ${created.name} 고객 생성`);
+      onCustomerListChanged(); // App 고객 목록 갱신(신규 고객이 목록에 stale로 안 뜨던 버그 방지)
       setRows(await fetchAppQuoteRequestsCached(false));
     } catch {
       onToast("고객 생성에 실패했습니다");
