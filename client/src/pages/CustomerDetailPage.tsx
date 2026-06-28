@@ -165,10 +165,10 @@ function timelineRows(customer: Customer) {
 }
 
 const kimMaybachQuotePricingMock: PricingInputs = {
-  basePrice: 243000000,
+  basePrice: 0,
   optionPrice: 0,
-  discount: 6500000,
-  acquisitionTax: 13531000,
+  discount: 0,
+  acquisitionTax: 0,
   bond: 0,
   delivery: 0,
   incidental: 0,
@@ -232,16 +232,18 @@ const kimManualQuoteConditionCards: KimManualCard[] = [
   },
 ] as const;
 
+// 구매방식·출고 희망 시기는 purchaseFields 초기화에서 detail.needMethod/needTiming로 덮어씀.
+// 나머지는 crm 컬럼 없는 견적 도메인 값이라 데이터 소스 없음 → 빈값(렌더 시 "미정").
 const kimMinjunPurchaseFields = [
-  { label: "구매방식", value: "운용리스" },
-  { label: "계약기간", value: "60개월" },
-  { label: "초기비용", value: "보증금 30%" },
-  { label: "연간 주행거리", value: "확인 필요" },
-  { label: "인도 방식", value: "협의 필요" },
-  { label: "출고 희망 시기", value: "좋은 조건 즉시" },
-  { label: "계약 포커스", value: "#월 납입 최소 #총 비용 최소 #빠른 출고" },
-  { label: "고객 특이사항", value: "#카톡 선호 #가족과 상의" },
-  { label: "심사 특이사항", value: "#4대보험 확인 #재직 확인 전" },
+  { label: "구매방식", value: "" },
+  { label: "계약기간", value: "" },
+  { label: "초기비용", value: "" },
+  { label: "연간 주행거리", value: "" },
+  { label: "인도 방식", value: "" },
+  { label: "출고 희망 시기", value: "" },
+  { label: "계약 포커스", value: "" },
+  { label: "고객 특이사항", value: "" },
+  { label: "심사 특이사항", value: "" },
 ];
 
 const kimMinjunStatusFieldMeta = [
@@ -3701,6 +3703,7 @@ function KimMinjunDetailContent({
             </div>
             <div className="kim-purchase-condition-body">
               {purchaseFields.map((field) => {
+                const displayValue = field.value || "미정";
                 const itemButton = (
                   <button
                     className="kim-purchase-condition-item"
@@ -3747,12 +3750,12 @@ function KimMinjunDetailContent({
                     type="button"
                   >
                     <span>{field.label}</span>
-                    {isKimPurchaseTagField(field.label) && field.value !== "확인 필요" ? (
+                    {isKimPurchaseTagField(field.label) && field.value !== "확인 필요" && field.value.trim() !== "" ? (
                       <strong className="is-tag-list">
                         {kimPurchaseTags(field.value).map((tag) => <span key={tag}>{tag}</span>)}
                       </strong>
                     ) : (
-                      <strong className={kimPurchaseValueClass(field.value)}>{field.value}</strong>
+                      <strong className={kimPurchaseValueClass(displayValue)}>{displayValue}</strong>
                     )}
                   </button>
                 );
