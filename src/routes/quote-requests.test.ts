@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
-import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer } from "../db/queries/quote-requests";
+import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests } from "../db/queries/quote-requests";
+import { createQuote } from "../db/queries/customer-quotes";
 import { quoteRequests as quoteRequestsTable, quoteRequestOptions as quoteRequestOptionsTable } from "../db/public-app";
 import { customers } from "../db/schema";
 
@@ -120,4 +121,19 @@ test("GET /api/quote-requests/:id → 200 + detail 형태", async () => {
   const body = (await res.json()) as { id: string; trimId: number | null; paymentMethod: string | null; optionIds: number[] };
   expect(body.id).toBe(req.id);
   expect(Array.isArray(body.optionIds)).toBe(true);
+});
+
+test("listQuoteRequests: source가 붙은 견적이 있으면 promotedQuoteCount 증가 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+  const [req] = await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
+  await expect(
+    db.transaction(async (tx) => {
+      const before = (await listQuoteRequests(tx)).find((r) => r.id === req.id);
+      await createQuote(cust.id, { sourceQuoteRequestId: req.id }, tx);
+      const after = (await listQuoteRequests(tx)).find((r) => r.id === req.id);
+      expect(after?.promotedQuoteCount).toBe((before?.promotedQuoteCount ?? 0) + 1);
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
 });

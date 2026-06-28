@@ -3,7 +3,7 @@ import { desc, eq, inArray, like, or } from "drizzle-orm";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles, quoteRequestOptions, quoteRequests } from "../public-app";
-import { customers } from "../schema";
+import { customers, quotes } from "../schema";
 
 export type AppQuoteRequestRow = {
   id: string;
@@ -23,6 +23,7 @@ export type AppQuoteRequestRow = {
   matchedCustomerId: string | null;
   matchedCustomerName: string | null;
   matchedCustomerCode: string | null;
+  promotedQuoteCount: number;
   matchType: "app_user" | "phone" | "none";
 };
 
@@ -51,15 +52,15 @@ export async function listQuoteRequests(executor: Executor = getDefaultDb()): Pr
 
   if (rows.length === 0) return [];
 
-  // 2~4. trims(차량명)·options(개수)·customers(매칭)는 rows에만 의존해 서로 독립.
-  // CF(Hyperdrive)는 왕복당 RTT가 커서 직렬 4왕복이 느리다 → Promise.all로 병렬화(4→2왕복).
+  // 2~5. trims(차량명)·options(개수)·customers(매칭)·quotes(승격 역참조)는 rows에만 의존해 서로 독립.
+  // CF(Hyperdrive)는 왕복당 RTT가 커서 직렬 5왕복이 느리다 → Promise.all로 병렬화(5→2왕복).
   const trimIds = [...new Set(rows.map((r) => r.trimId).filter((v): v is number => v != null))];
   const reqIds = rows.map((r) => r.id);
   const phones = [...new Set(rows.map((r) => r.requesterPhone).filter((v): v is string => v != null))];
   // userId는 schema에서 notNull + 위 early-return 이후라 항상 1개 이상 → or()가 빈 WHERE를 만들지 않음(customers 전체 스캔 방지)
   const userIds = [...new Set(rows.map((r) => r.userId))];
 
-  const [trimRows, optRows, custRows] = await Promise.all([
+  const [trimRows, optRows, custRows, promoRows] = await Promise.all([
     trimIds.length
       ? executor
           .select({
@@ -94,12 +95,21 @@ export async function listQuoteRequests(executor: Executor = getDefaultDb()): Pr
           userIds.length ? inArray(customers.appUserId, userIds) : undefined,
         ),
       ),
+    executor
+      .select({ sourceId: quotes.sourceQuoteRequestId })
+      .from(quotes)
+      .where(inArray(quotes.sourceQuoteRequestId, reqIds)),
   ]);
 
   const trimMap = new Map(trimRows.map((t) => [t.id, t]));
 
   const optCount = new Map<string, number>();
   for (const o of optRows) optCount.set(o.quoteRequestId, (optCount.get(o.quoteRequestId) ?? 0) + 1);
+
+  const promoCount = new Map<string, number>();
+  for (const p of promoRows) {
+    if (p.sourceId) promoCount.set(p.sourceId, (promoCount.get(p.sourceId) ?? 0) + 1);
+  }
 
   // 매칭: app_user_id 직접연결 > phone 일치 (둘 다 표시용 read)
   const custByPhone = new Map<string, { id: string; name: string; code: string }>();
@@ -135,6 +145,7 @@ export async function listQuoteRequests(executor: Executor = getDefaultDb()): Pr
       matchedCustomerId: matched?.id ?? null,
       matchedCustomerName: matched?.name ?? null,
       matchedCustomerCode: matched?.code ?? null,
+      promotedQuoteCount: promoCount.get(r.id) ?? 0,
       matchType,
     };
   });
