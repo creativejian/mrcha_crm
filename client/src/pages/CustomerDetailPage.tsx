@@ -7,7 +7,7 @@ import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMo
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
 import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
-import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
+import { fetchCustomerQuoteRequests, fetchQuoteRequestDetail, fetchAppQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 import { ColorPicker } from "@/components/ColorPicker";
 import { KimAppCardPreview } from "@/components/KimAppCardPreview";
 import { OptionPicker } from "@/components/OptionPicker";
@@ -718,6 +718,8 @@ function KimMinjunDetailContent({
     method: detail.needMethod ?? "",
     memo: detail.needMemo ?? "",
   }));
+  // 앱 유입 고객(detail.appUserId)이면 그 고객의 앱 견적요청 카드 목록. 수기 고객은 null → 기존 단일 need 카드.
+  const [appRequests, setAppRequests] = useState<AppQuoteRequest[] | null>(null);
   const [purchaseFields, setPurchaseFields] = useState(() =>
     kimMinjunPurchaseFields.map((field) =>
       field.label === "구매방식"
@@ -930,8 +932,36 @@ function KimMinjunDetailContent({
     return () => document.body.classList.remove("kim-detail-overlay-open");
   }, [detailOverlayOpen]);
 
-  // 앱 견적요청 승격(S3): 인박스에서 /customer-detail/:code?quoteRequest=<id>로 진입하면
-  // 요청 단건을 fetch해 워크벤치를 차량/구매방식/옵션 prefill된 채 연다(가격은 catalog 계산 보존).
+  // 앱 견적요청 → 워크벤치 prefill 오픈(차량/구매방식/옵션). 가격은 catalog 계산 보존.
+  // 인박스 진입(URL ?quoteRequest=) + 니즈 카드 "견적 작성" 양쪽이 호출. hoisted 함수(useCallback 미사용 — 기존 패턴).
+  function openWorkbenchForQuoteRequest(reqId: string): Promise<void> {
+    return fetchQuoteRequestDetail(reqId).then((detail) => {
+      // 신규 워크벤치 열기와 동일한 리셋(견적함 + 버튼 onClick과 정렬)
+      setConfirmingQuoteDeleteId(null);
+      setEditingQuoteId(null);
+      persistedQuoteIdRef.current = null;
+      setEditPrefill(null);
+      resetWorkbenchVehicle();
+      setGuidance(DEFAULT_QUOTE_GUIDANCE);
+      setManualQuoteCards([...kimManualQuoteConditionCards]);
+      setManualTermMonths({});
+      setSavedManualQuoteConditionIds([]);
+      setRecognizedQuoteFile(null);
+      setSolutionWorkbenchEntryMode("manual");
+      setSolutionWorkbenchModeMenu(null);
+      setSolutionWorkbenchPurchaseMethod(primaryKimQuotePurchaseMethod(purchaseFields)); // 고객 기본값 먼저(+onClick과 동일)
+      // 견적요청 prefill 설정
+      setQuoteRequestPrefill({ trimId: detail.trimId, optionIds: detail.optionIds });
+      setSourceQuoteRequestId(reqId);
+      // purchaseMethod(한글)가 워크벤치 옵션 목록에 있으면 override, 없으면 위 고객 기본값 유지(stale 방지).
+      if (detail.purchaseMethod && kimQuotePurchaseMethodOptions.includes(detail.purchaseMethod as KimQuotePurchaseMethod)) {
+        setSolutionWorkbenchPurchaseMethod(detail.purchaseMethod as KimQuotePurchaseMethod);
+      }
+      setIsQuoteSolutionWorkbenchOpen(true);
+    });
+  }
+
+  // 앱 견적요청 승격(S3): 인박스에서 /customer-detail/:code?quoteRequest=<id>로 진입하면 워크벤치 prefill 오픈.
   const location = useLocation();
   const navigate = useNavigate();
   const quoteRequestPrefillRef = useRef(false); // StrictMode/재렌더 중복 방지
@@ -940,32 +970,7 @@ function KimMinjunDetailContent({
     if (!reqId || quoteRequestPrefillRef.current) return;
     quoteRequestPrefillRef.current = true;
     let cancelled = false; // unmount/이동 가드(quoteRequestPrefillRef 중복방지와 별개)
-    void fetchQuoteRequestDetail(reqId)
-      .then((detail) => {
-        if (cancelled) return;
-        // 신규 워크벤치 열기와 동일한 리셋(견적함 + 버튼 onClick과 정렬)
-        setConfirmingQuoteDeleteId(null);
-        setEditingQuoteId(null);
-        persistedQuoteIdRef.current = null;
-        setEditPrefill(null);
-        resetWorkbenchVehicle();
-        setGuidance(DEFAULT_QUOTE_GUIDANCE);
-        setManualQuoteCards([...kimManualQuoteConditionCards]);
-        setManualTermMonths({});
-        setSavedManualQuoteConditionIds([]);
-        setRecognizedQuoteFile(null);
-        setSolutionWorkbenchEntryMode("manual");
-        setSolutionWorkbenchModeMenu(null);
-        setSolutionWorkbenchPurchaseMethod(primaryKimQuotePurchaseMethod(purchaseFields)); // 고객 기본값 먼저(+onClick과 동일)
-        // 견적요청 prefill 설정
-        setQuoteRequestPrefill({ trimId: detail.trimId, optionIds: detail.optionIds });
-        setSourceQuoteRequestId(reqId);
-        // purchaseMethod(한글)가 워크벤치 옵션 목록에 있으면 override, 없으면 위 고객 기본값 유지(stale 방지).
-        if (detail.purchaseMethod && kimQuotePurchaseMethodOptions.includes(detail.purchaseMethod as KimQuotePurchaseMethod)) {
-          setSolutionWorkbenchPurchaseMethod(detail.purchaseMethod as KimQuotePurchaseMethod);
-        }
-        setIsQuoteSolutionWorkbenchOpen(true);
-      })
+    void openWorkbenchForQuoteRequest(reqId)
       .catch(() => { if (!cancelled) onToast("견적요청 정보를 불러오지 못했습니다."); })
       .finally(() => {
         // URL에서 파라미터 제거(뒤로가기/재렌더 재오픈 방지). unmount 후엔 navigate 금지.
@@ -973,6 +978,28 @@ function KimMinjunDetailContent({
       });
     return () => { cancelled = true; };
   }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps -- 진입 시 1회 prefill
+
+  // detail.appUserId 있으면 그 고객 요청 fetch(카드 목록). 없으면 null 유지(폴백 단일 카드).
+  useEffect(() => {
+    const cid = customer.id; // .then 클로저에서 narrow 유지용(string|undefined)
+    if (!detail.appUserId || !cid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 앱 고객 아니면 카드 목록 비움(외부 값 동기화)
+      setAppRequests(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchCustomerQuoteRequests(cid)
+      .then((r) => { if (!cancelled) setAppRequests(r); })
+      .catch(() => { if (!cancelled) setAppRequests([]); });
+    return () => { cancelled = true; };
+  }, [detail.appUserId, customer.id]);
+
+  // 견적 승격 성공 후 배지(견적 N건) 갱신용 재fetch. 앱 고객일 때만 의미.
+  function reloadAppRequests() {
+    const cid = customer.id;
+    if (!detail.appUserId || !cid) return;
+    void fetchCustomerQuoteRequests(cid).then(setAppRequests).catch(() => undefined);
+  }
 
   const solutionWorkbenchCanQuery =solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
   const quoteDraftReady = isQuoteDraftSaved && !isQuoteDraftDirty;
@@ -2337,7 +2364,7 @@ function KimMinjunDetailContent({
             if (send && !id.startsWith("kim-")) {
               void apiUpdateQuote(cid, id, { status: "고객 확인 전", appStatus: "sent", bumpRevision: true }).catch(() => onToast("발송에 실패했습니다."));
             }
-            if (sourceQuoteRequestId) void fetchAppQuoteRequestsCached(true); // 견적요청→견적 INSERT 시 인박스 캐시 fresh(배지 갱신)
+            if (sourceQuoteRequestId) { void fetchAppQuoteRequestsCached(true); reloadAppRequests(); } // 견적요청→견적 INSERT 시 인박스 캐시 + 니즈 카드 배지 갱신
             onQuotesPersisted?.();
           })
           .catch(() => { setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("저장에 실패했습니다."); });
@@ -3671,24 +3698,70 @@ function KimMinjunDetailContent({
 
       <section className="detail-section kim-needs-dashboard">
         <div className="kim-needs-field">
-          <div className="kim-edit-anchor needs" ref={openEditor?.kind === "needs" ? editorRef : undefined}>
-          <button className="kim-needs-floating-card" onClick={() => toggleEditor({ kind: "needs" })} type="button">
-            <div className="kim-needs-card-main">
-              <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
-              <div className="kim-needs-card-copy">
-                <h3>{needs.model}</h3>
-                <p>{needs.trim}</p>
-                <span>{needs.colors}</span>
+          {detail.appUserId ? (
+            <div className="kim-needs-request-list">
+              {appRequests === null ? (
+                <p className="kim-needs-request-status">앱 견적요청 불러오는 중…</p>
+              ) : appRequests.length === 0 ? (
+                <p className="kim-needs-request-status">앱 견적요청이 없습니다.</p>
+              ) : (
+                appRequests.map((req) => (
+                  <div className="kim-needs-floating-card kim-needs-request-card" key={req.id}>
+                    <div className="kim-needs-card-main">
+                      <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
+                      <div className="kim-needs-card-copy">
+                        <h3>{req.vehicleLabel}</h3>
+                        <p>{req.paymentLabel} · 옵션 {req.optionLabel}</p>
+                        <span>{req.periodLabel} · {req.depositLabel}</span>
+                      </div>
+                      <div className="kim-needs-request-actions">
+                        {req.promotedQuoteCount > 0 ? (
+                          <span className="kim-needs-request-badge">견적 {req.promotedQuoteCount}건</span>
+                        ) : null}
+                        <button
+                          className="kim-needs-request-create"
+                          onClick={() => { void openWorkbenchForQuoteRequest(req.id).catch(() => onToast("견적요청 정보를 불러오지 못했습니다.")); }}
+                          type="button"
+                        >
+                          견적 작성
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              {/* 문의사항·관심 색상은 고객 단위(요청별 아님) — 카드 아래 유지 */}
+              <div className="kim-needs-customer-meta">
+                <div className="kim-needs-card-memo">
+                  <span>문의사항</span>
+                  <p>{needs.memo || "—"}</p>
+                </div>
+                <div className="kim-needs-card-memo">
+                  <span>관심 색상</span>
+                  <p>{needs.colors}</p>
+                </div>
               </div>
-              <span className="kim-needs-method-badge">{needs.method}</span>
             </div>
-            <div className="kim-needs-card-memo">
-              <span>문의사항</span>
-              <p>{needs.memo}</p>
+          ) : (
+            <div className="kim-edit-anchor needs" ref={openEditor?.kind === "needs" ? editorRef : undefined}>
+              <button className="kim-needs-floating-card" onClick={() => toggleEditor({ kind: "needs" })} type="button">
+                <div className="kim-needs-card-main">
+                  <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
+                  <div className="kim-needs-card-copy">
+                    <h3>{needs.model}</h3>
+                    <p>{needs.trim}</p>
+                    <span>{needs.colors}</span>
+                  </div>
+                  <span className="kim-needs-method-badge">{needs.method}</span>
+                </div>
+                <div className="kim-needs-card-memo">
+                  <span>문의사항</span>
+                  <p>{needs.memo}</p>
+                </div>
+              </button>
+              {openEditor?.kind === "needs" ? renderNeedsEditor() : null}
             </div>
-          </button>
-          {openEditor?.kind === "needs" ? renderNeedsEditor() : null}
-          </div>
+          )}
         </div>
       </section>
 
