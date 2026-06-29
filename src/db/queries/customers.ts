@@ -56,6 +56,15 @@ export async function updateCustomer(
   return row ?? null;
 }
 
+// 고객의 app_user_id만 조회. 없는 고객은 null(라우트 404), 있으면 {appUserId}(null이면 수기 고객).
+export async function getCustomerAppUserId(
+  id: string,
+  executor: Executor = getDefaultDb(),
+): Promise<{ appUserId: string | null } | null> {
+  const [row] = await executor.select({ appUserId: customers.appUserId }).from(customers).where(eq(customers.id, id));
+  return row ?? null;
+}
+
 export async function listCustomers(executor: Executor = getDefaultDb()): Promise<CustomerListRow[]> {
   return executor
     .select({ ...getTableColumns(customers), latestTask: latestTaskBody })

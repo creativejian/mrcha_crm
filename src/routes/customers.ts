@@ -2,7 +2,8 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { getCustomer, listCustomers, updateCustomer } from "../db/queries/customers";
+import { getCustomer, getCustomerAppUserId, listCustomers, updateCustomer } from "../db/queries/customers";
+import { listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import {
   addMemo, updateMemo, deleteMemo,
   addTask, updateTask, deleteTask,
@@ -40,6 +41,19 @@ customers.get("/", async (c) => c.json(await listCustomers(c.var.db)));
 
 customers.get("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) =>
   run(c, () => getCustomer(c.req.valid("param").id, c.var.db), "고객을 찾을 수 없습니다."));
+
+// 고객 상세 니즈 영역: 그 고객(app_user_id)의 앱 견적요청 목록. 수기 고객(app_user 없음)은 빈 배열.
+customers.get("/:id/quote-requests", zValidator("param", z.object({ id: z.uuid() })), (c) =>
+  run(
+    c,
+    async () => {
+      const found = await getCustomerAppUserId(c.req.valid("param").id, c.var.db);
+      if (!found) return null; // 고객 없음 → 404
+      return found.appUserId ? listQuoteRequestsByUser(found.appUserId, c.var.db) : [];
+    },
+    "고객을 찾을 수 없습니다.",
+  ),
+);
 
 customers.patch(
   "/:id",

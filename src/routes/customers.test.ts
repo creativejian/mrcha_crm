@@ -8,7 +8,7 @@ mock.module("../lib/storage", () => ({
 }));
 
 import { test, expect } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
@@ -903,4 +903,53 @@ test("createQuote: sourceQuoteRequestId를 INSERT에 저장 (tx 롤백)", async 
       throw new Error("ROLLBACK");
     }),
   ).rejects.toThrow("ROLLBACK");
+});
+
+test("GET /api/customers/:id/quote-requests 무토큰 → 401", async () => {
+  const { keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const [cust] = await getDefaultDb().select({ id: customers.id }).from(customers).limit(1);
+  const res = await app.request(`/api/customers/${cust.id}/quote-requests`);
+  expect(res.status).toBe(401);
+});
+
+test("GET /api/customers/:id/quote-requests 없는 고객 → 404", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/customers/00000000-0000-0000-0000-000000000000/quote-requests", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(res.status).toBe(404);
+});
+
+test("GET /api/customers/:id/quote-requests 수기 고객(app_user_id 없음) → 200 빈 배열", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const [cust] = await getDefaultDb().select({ id: customers.id }).from(customers).where(isNull(customers.appUserId)).limit(1);
+  const res = await app.request(`/api/customers/${cust.id}/quote-requests`, { headers: { Authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual([]);
+});
+
+test("GET /api/customers/:id/quote-requests 앱 유입 고객 → 200 배열(요청 행 형태)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  // app_user_id가 실제 요청을 가진 고객을 join으로 고른다 → 빈 응답으로 shape 단언이 비는 것 방지(요청 보유 보장).
+  const [cust] = await getDefaultDb()
+    .select({ id: customers.id })
+    .from(customers)
+    .innerJoin(quoteRequestsTable, eq(quoteRequestsTable.userId, customers.appUserId))
+    .limit(1);
+  // 그런 고객이 DB에 없으면 이 단언은 건너뛴다(데이터 의존). 김지안 등 app-created 고객+요청 존재 시 검증.
+  if (!cust) return;
+  const res = await app.request(`/api/customers/${cust.id}/quote-requests`, { headers: { Authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as Array<{ id: string; optionCount: number; matchType: string }>;
+  expect(Array.isArray(body)).toBe(true);
+  expect(body.length).toBeGreaterThan(0); // 요청 보유 고객을 골랐으므로 ≥1 — shape 루프가 실제로 돈다
+  for (const r of body) {
+    expect(typeof r.id).toBe("string");
+    expect(typeof r.optionCount).toBe("number");
+    expect(["app_user", "phone", "none"]).toContain(r.matchType);
+  }
 });
