@@ -13,6 +13,7 @@ import { KimAppCardPreview } from "@/components/KimAppCardPreview";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
 import { buildAppCardModel, type AppCardModel } from "@/lib/kim-app-card";
+import { initialFinalUpdateByCustomerId, finalUpdateStatus } from "@/lib/customer-table";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
 import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
@@ -280,6 +281,14 @@ const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"
 const kimQuotePurchaseMethodOptions = PURCHASE_METHOD_OPTIONS;
 // 니즈 색상 미설정 기본 표시값. 앱 분기에선 이 sentinel이면 "관심 색상" 줄을 숨긴다(노이즈 제거).
 const KIM_NEEDS_COLOR_PLACEHOLDER = "외장 컬러 미정 · 내장 컬러 미정";
+
+// 상세 관리 상태 = 목록과 동일 규칙. override(워크플로우 변경) 있으면 그것, 없으면 목록과 같은 mock map 계산,
+// 둘 다 없으면 ""(신규·상담접수 등 아직 관리 상태 없음 → 목록처럼 공백). 무조건 "정상" 폴백 금지.
+function resolveKimManageStatus(override: CustomerManageStatus | undefined, customerCode: string): CustomerManageStatus | "" {
+  if (override) return override;
+  const info = initialFinalUpdateByCustomerId[customerCode];
+  return info ? (finalUpdateStatus(info).label as CustomerManageStatus) : "";
+}
 const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
 
@@ -712,7 +721,7 @@ function KimMinjunDetailContent({
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
   const [stageStatus, setStageStatus] = useState(customer.status);
   const [chance, setChance] = useState<CustomerChanceOption>(chanceOverride ?? chanceLabel(customer) as CustomerChanceOption);
-  const [manage, setManage] = useState<CustomerManageStatus>(manageStatusOverride ?? "정상");
+  const [manage, setManage] = useState<CustomerManageStatus | "">(() => resolveKimManageStatus(manageStatusOverride, customer.customerId));
   const [needs, setNeeds] = useState<KimNeedsState>(() => ({
     model: detail.needModel ?? "",
     trim: detail.needTrim ?? "",
@@ -1465,8 +1474,8 @@ function KimMinjunDetailContent({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- manageStatusOverride 변경 시 관리 상태를 동기화하는 의도된 effect
-    setManage(manageStatusOverride ?? "정상");
-  }, [manageStatusOverride]);
+    setManage(resolveKimManageStatus(manageStatusOverride, customer.customerId));
+  }, [manageStatusOverride, customer.customerId]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -3092,7 +3101,7 @@ function KimMinjunDetailContent({
   function workflowValue(key: KimWorkflowKey) {
     if (key === "stage") return `${stageGroup} · ${stageStatus}`;
     if (key === "chance") return chance;
-    return manage;
+    return manage || "—"; // 관리 상태 없음(신규·상담접수)이면 목록 공백과 동치인 "—"
   }
 
   function openWorkflowEditor(key: KimWorkflowKey) {
