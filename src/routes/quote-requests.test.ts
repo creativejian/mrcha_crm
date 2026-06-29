@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
-import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests } from "../db/queries/quote-requests";
+import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests, listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import { createQuote } from "../db/queries/customer-quotes";
 import { quoteRequests as quoteRequestsTable, quoteRequestOptions as quoteRequestOptionsTable } from "../db/public-app";
 import { customers } from "../db/schema";
@@ -136,4 +136,33 @@ test("listQuoteRequests: source가 붙은 견적이 있으면 promotedQuoteCount
       throw new Error("ROLLBACK");
     }),
   ).rejects.toThrow("ROLLBACK");
+});
+
+test("listQuoteRequestsByUser: 해당 user 요청만 반환(id 집합 일치)", async () => {
+  const db = getDefaultDb();
+  const [req] = await db.select({ userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
+  const userReqIds = (
+    await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).where(eq(quoteRequestsTable.userId, req.userId))
+  ).map((r) => r.id);
+  const result = await listQuoteRequestsByUser(req.userId);
+  expect(result.length).toBe(userReqIds.length);
+  const idSet = new Set(userReqIds);
+  for (const r of result) expect(idSet.has(r.id)).toBe(true);
+});
+
+test("listQuoteRequestsByUser: 없는 user → 빈 배열", async () => {
+  const result = await listQuoteRequestsByUser("00000000-0000-0000-0000-000000000000");
+  expect(result).toEqual([]);
+});
+
+test("listQuoteRequests(전체) 길이 ≥ listQuoteRequestsByUser(부분) — 추출 회귀 가드", async () => {
+  const db = getDefaultDb();
+  const [req] = await db.select({ userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
+  const all = await listQuoteRequests();
+  const sub = await listQuoteRequestsByUser(req.userId);
+  expect(all.length).toBeGreaterThanOrEqual(sub.length);
+  for (const r of all) {
+    expect(typeof r.optionCount).toBe("number");
+    expect(["app_user", "phone", "none"]).toContain(r.matchType);
+  }
 });

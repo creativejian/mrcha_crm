@@ -27,33 +27,33 @@ export type AppQuoteRequestRow = {
   matchType: "app_user" | "phone" | "none";
 };
 
-// 앱 견적요청 인박스(읽기). public(요청+요청자) + catalog(차량명) + crm(매칭) 3스키마를
-// 단일 연결로 batch read. N+1 회피: trim/options/customers를 IN 묶음으로 한 번씩.
-export async function listQuoteRequests(executor: Executor = getDefaultDb()): Promise<AppQuoteRequestRow[]> {
-  // 1. 요청 + 요청자(profiles) — 최신순
-  const rows = await executor
-    .select({
-      id: quoteRequests.id,
-      createdAt: quoteRequests.createdAt,
-      userId: quoteRequests.userId,
-      trimId: quoteRequests.trimId,
-      paymentMethod: quoteRequests.paymentMethod,
-      period: quoteRequests.period,
-      depositType: quoteRequests.depositType,
-      rentalDeposit: quoteRequests.rentalDeposit,
-      trimPrice: quoteRequests.trimPrice,
-      status: quoteRequests.status,
-      requesterName: profiles.fullName,
-      requesterPhone: profiles.phoneNumber,
-    })
-    .from(quoteRequests)
-    .leftJoin(profiles, eq(profiles.id, quoteRequests.userId))
-    .orderBy(desc(quoteRequests.createdAt));
+// 헬퍼/두 함수 공통 base row(rows 조회 결과 1행). 아래 quoteRequestBaseSelect와 컬럼이 1:1로 맞아야 한다
+// (select에 컬럼을 더하면 이 타입에도 추가할 것 — 안 그러면 헬퍼에서 그 컬럼이 안 보임).
+type QuoteRequestBaseRow = {
+  id: string;
+  createdAt: string;
+  userId: string;
+  trimId: number | null;
+  paymentMethod: string | null;
+  period: number | null;
+  depositType: string | null;
+  rentalDeposit: number | null;
+  trimPrice: number | null;
+  status: string | null;
+  requesterName: string | null;
+  requesterPhone: string | null;
+};
 
+// rows(요청+요청자) → catalog(차량명)·options·customers(매칭)·quotes(승격 역참조) batch read + map.
+// listQuoteRequests(전체)와 listQuoteRequestsByUser(user 필터)가 공유 — rows만 다르게 넣는다.
+async function buildAppQuoteRequestRows(
+  rows: QuoteRequestBaseRow[],
+  executor: Executor,
+): Promise<AppQuoteRequestRow[]> {
   if (rows.length === 0) return [];
 
-  // 2~5. trims(차량명)·options(개수)·customers(매칭)·quotes(승격 역참조)는 rows에만 의존해 서로 독립.
-  // CF(Hyperdrive)는 왕복당 RTT가 커서 직렬 5왕복이 느리다 → Promise.all로 병렬화(5→2왕복).
+  // trims(차량명)·options(개수)·customers(매칭)·quotes(승격 역참조)는 rows에만 의존해 서로 독립.
+  // CF(Hyperdrive)는 왕복당 RTT가 커서 직렬 4왕복이 느리다 → Promise.all로 병렬화.
   const trimIds = [...new Set(rows.map((r) => r.trimId).filter((v): v is number => v != null))];
   const reqIds = rows.map((r) => r.id);
   const phones = [...new Set(rows.map((r) => r.requesterPhone).filter((v): v is string => v != null))];
@@ -149,6 +149,46 @@ export async function listQuoteRequests(executor: Executor = getDefaultDb()): Pr
       matchType,
     };
   });
+}
+
+// rows 조회 공통 select 컬럼(전체/필터 동일). where만 호출부에서 더한다.
+const quoteRequestBaseSelect = {
+  id: quoteRequests.id,
+  createdAt: quoteRequests.createdAt,
+  userId: quoteRequests.userId,
+  trimId: quoteRequests.trimId,
+  paymentMethod: quoteRequests.paymentMethod,
+  period: quoteRequests.period,
+  depositType: quoteRequests.depositType,
+  rentalDeposit: quoteRequests.rentalDeposit,
+  trimPrice: quoteRequests.trimPrice,
+  status: quoteRequests.status,
+  requesterName: profiles.fullName,
+  requesterPhone: profiles.phoneNumber,
+} as const;
+
+// 앱 견적요청 인박스(읽기, 전체). public(요청+요청자) + catalog(차량명) + crm(매칭) 3스키마 batch read.
+export async function listQuoteRequests(executor: Executor = getDefaultDb()): Promise<AppQuoteRequestRow[]> {
+  const rows = await executor
+    .select(quoteRequestBaseSelect)
+    .from(quoteRequests)
+    .leftJoin(profiles, eq(profiles.id, quoteRequests.userId))
+    .orderBy(desc(quoteRequests.createdAt));
+  return buildAppQuoteRequestRows(rows, executor);
+}
+
+// 한 고객(app_user_id)의 견적요청만. 고객 상세 니즈 영역 카드 목록용.
+export async function listQuoteRequestsByUser(
+  appUserId: string,
+  executor: Executor = getDefaultDb(),
+): Promise<AppQuoteRequestRow[]> {
+  const rows = await executor
+    .select(quoteRequestBaseSelect)
+    .from(quoteRequests)
+    .leftJoin(profiles, eq(profiles.id, quoteRequests.userId))
+    .where(eq(quoteRequests.userId, appUserId))
+    .orderBy(desc(quoteRequests.createdAt));
+  return buildAppQuoteRequestRows(rows, executor);
 }
 
 export type QuoteRequestDetail = {
