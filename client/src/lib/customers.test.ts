@@ -80,6 +80,7 @@ const detailRes: CustomerDetailResponse = {
   source: "디엘(견적서)",
   assignedAt: null,
   receivedAt: "2026-05-14T12:56:00+09:00",
+  appUserId: "user-1",
   needModel: "Maybach S-Class",
   needTrim: "S 500 4M Long",
   needColors: "외장 컬러 미정 · 내장 컬러 미정",
@@ -161,5 +162,9 @@ describe("toCustomerDetail", () => {
     expect(d.quotes[0].scenarios[0].purchaseMethod).toBe("운용리스");
     const partial = { ...detailRes, quotes: undefined } as unknown as CustomerDetailResponse;
     expect(toCustomerDetail(partial).quotes).toEqual([]);
+  });
+  it("appUserId를 그대로 전달(앱 유입 여부 분기용)", () => {
+    expect(toCustomerDetail(detailRes).appUserId).toBe("user-1");
+    expect(toCustomerDetail({ ...detailRes, appUserId: null }).appUserId).toBeNull();
   });
 });

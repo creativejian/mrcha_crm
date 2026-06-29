@@ -6799,6 +6799,78 @@ th input:focus-visible {
   line-height: 1.55;
 }
 
+.kim-needs-request-list {
+  width: 100%;
+  max-height: calc(100% - 48px);
+  display: grid;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.kim-needs-request-card {
+  max-height: none;
+}
+
+.kim-needs-request-status {
+  margin: 0;
+  padding: 18px 10px;
+  text-align: center;
+  color: #8f969c;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.kim-needs-request-actions {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 6px;
+}
+
+.kim-needs-request-badge {
+  border: 1px solid rgba(var(--brand-rgb), 0.26);
+  border-radius: 6px;
+  background: #f4f1ff;
+  color: var(--brand);
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.kim-needs-request-create {
+  min-height: 28px;
+  border: 1px solid rgba(var(--brand-rgb), 0.26);
+  border-radius: 7px;
+  background: var(--brand);
+  color: #fff;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 26px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-needs-request-create:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
+}
+
+.kim-needs-customer-meta {
+  border: 1px solid #dededb;
+  border-radius: 7px;
+  background: #fff;
+  display: grid;
+  gap: 2px;
+}
+
+.kim-needs-customer-meta .kim-needs-card-memo:first-child {
+  border-top: 0;
+}
+
 .kim-work-dashboard,
 .kim-reference-dashboard {
   grid-column: 1 / -1;
