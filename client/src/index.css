@@ -6680,12 +6680,11 @@ th input:focus-visible {
 
 /* 앱 분기: 카드 목록은 콘텐츠 높이에 맞춰 hug(상단 정렬, 위/아래 여백=좌우 24px와 동일).
    수기 단일 카드는 기존 stretch 캔버스(가운데 정렬) 유지. */
-.kim-needs-dashboard.is-app {
-  align-self: start;
-}
+/* 앱 분기: 카드 목록이 박스 위(좌상단)에서부터 흐르도록 grid 가운데정렬을 끄고 일반 블록 흐름으로.
+   박스는 콘텐츠 높이에 맞게 hug(수기 단일 카드 캔버스는 base 규칙 그대로 유지). */
 .kim-needs-dashboard.is-app .kim-needs-field {
   min-height: 0;
-  align-content: start;
+  display: block;
 }
 
 .kim-needs-field {
@@ -6811,19 +6810,16 @@ th input:focus-visible {
 
 .kim-needs-app {
   width: 100%;
-  max-height: calc(100% - 48px);
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
 /* 카드 목록만 스크롤. overscroll-behavior:contain → 끝에서 부모 드로어로 스크롤 전파 차단. */
 .kim-needs-request-scroll {
-  min-height: 0;
   max-height: min(72vh, 760px);
-  display: grid;
-  grid-auto-rows: max-content;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   overflow-y: auto;
   overscroll-behavior: contain;
