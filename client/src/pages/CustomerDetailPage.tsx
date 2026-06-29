@@ -1,11 +1,10 @@
 import { BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, PURCHASE_METHOD_OPTIONS, SCHEDULE_TYPE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
+import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, PURCHASE_METHOD_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
-import { addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchCustomerQuoteRequests, fetchQuoteRequestDetail, fetchAppQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 import { ColorPicker } from "@/components/ColorPicker";
@@ -19,8 +18,7 @@ import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles
 import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 import type { MergeSource } from "@/lib/document-merge";
-import { nowMs, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime } from "@/lib/kim-detail-utils";
-import { type KimScheduleItem, scheduleRecordKey, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
+import { nowMs, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime } from "@/lib/kim-detail-utils";
 import { type KimCustomerType, type KimAdvisorTeam, kimCustomerTypeOptions, kimAutomaticSourceOptions, kimManualSourceOptions, kimAdvisorOptions, kimRegionOptions, parseKimJobValue, formatKimJobValue, parseKimLocationValue, formatKimLocationValue, parseKimSourceValue, parseKimAdvisorValue, formatKimAdvisorValue, isKimAutomaticSource, hasKimAppSourceQueue, hasKimQuoteAttachments } from "@/lib/kim-status-fields";
 import { type KimPurchaseFloatingKind, type KimPurchasePopoverFrame, type KimQuoteActionFrame, type KimQuoteStatusTooltip, isKimPurchaseFloatingKind, calculateKimPurchasePopoverFrame, calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
 import { type KimRecentUpdate, type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "@/components/customer-detail/types";
@@ -29,6 +27,8 @@ import { CustomerMemos } from "@/components/customer-detail/CustomerMemos";
 import { useCustomerMemos } from "@/components/customer-detail/hooks/useCustomerMemos";
 import { CustomerChecks } from "@/components/customer-detail/CustomerChecks";
 import { useCustomerChecks } from "@/components/customer-detail/hooks/useCustomerChecks";
+import { CustomerSchedules } from "@/components/customer-detail/CustomerSchedules";
+import { useCustomerSchedules } from "@/components/customer-detail/hooks/useCustomerSchedules";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -274,8 +274,6 @@ function resolveKimManageStatus(override: CustomerManageStatus | undefined, cust
   const info = initialFinalUpdateByCustomerId[customerCode];
   return info ? (finalUpdateStatus(info).label as CustomerManageStatus) : "";
 }
-const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
-const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
 
 function kimEditorMatches(openEditor: KimOpenEditor | null, next: KimOpenEditor) {
   if (!openEditor || openEditor.kind !== next.kind) return false;
@@ -413,21 +411,6 @@ function kimDocumentFileIcon(kind: string) {
   if (kind === "이미지") return <Image size={13} strokeWidth={2.25} />;
   if (kind === "PDF") return <FileText size={13} strokeWidth={2.25} />;
   return <File size={13} strokeWidth={2.25} />;
-}
-
-function parseScheduleTimeParts(value?: string) {
-  const [rawHour, rawMinute] = (value || "10:00").split(":");
-  const hour = kimScheduleHourOptions.includes(rawHour) ? rawHour : "10";
-  const minute = kimScheduleMinuteOptions.includes(rawMinute) ? rawMinute : "00";
-  return { hour, minute };
-}
-
-function scheduleTimeFromFormData(formData: FormData) {
-  const hour = String(formData.get("scheduleHour") ?? "10");
-  const minute = String(formData.get("scheduleMinute") ?? "00");
-  const safeHour = kimScheduleHourOptions.includes(hour) ? hour : "10";
-  const safeMinute = kimScheduleMinuteOptions.includes(minute) ? minute : "00";
-  return `${safeHour}:${safeMinute}`;
 }
 
 function kimChanceOptionClass(option: CustomerChanceOption, selected: boolean) {
@@ -702,22 +685,6 @@ function KimMinjunDetailContent({
   const [initialCostUnit, setInitialCostUnit] = useState<KimInitialCostUnit>("%");
   const [initialCostAmount, setInitialCostAmount] = useState("30");
   const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<KimPurchasePopoverFrame | null>(null);
-  const [schedules, setSchedules] = useState<KimScheduleItem[]>(() =>
-    detail.schedules.map((s) => ({
-      id: s.id,
-      date: s.scheduledDate ?? "",
-      time: s.scheduledTime ?? "",
-      type: s.type ?? "",
-      memo: s.memo ?? "",
-    })),
-  );
-  const [completedScheduleKeys, setCompletedScheduleKeys] = useState<string[]>(() =>
-    detail.schedules.filter((s) => s.done).map((s) => s.id),
-  );
-  const [addingScheduleItem, setAddingScheduleItem] = useState(false);
-  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
-  const [confirmingScheduleCompleteId, setConfirmingScheduleCompleteId] = useState<string | null>(null);
-  const [confirmingScheduleDeleteId, setConfirmingScheduleDeleteId] = useState<string | null>(null);
   const memos = useCustomerMemos({ detail, customer, onToast, markRecentUpdate });
   const checks = useCustomerChecks({ detail, customer, onToast, markRecentUpdate });
   const [quotes, setQuotes] = useState<KimQuoteItem[]>(() => detail.quotes.map((q) => toKimQuoteItem(q, Date.now())));
@@ -798,13 +765,11 @@ function KimMinjunDetailContent({
   const [openEditor, setOpenEditor] = useState<OpenEditorState | null>(null);
   const [recentUpdate, setRecentUpdate] = useState<KimRecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
   const [recentUpdateNow, setRecentUpdateNow] = useState(() => Date.now());
+  // 예정 일정 영역 — setOpenEditor(saveSchedule이 닫음)가 위에서 선언돼야 해서 여기서 호출.
+  const schedules = useCustomerSchedules({ detail, customer, onToast, markRecentUpdate, onCloseFloatingEditor: () => setOpenEditor(null) });
   const editorRef = useRef<HTMLDivElement>(null);
-  const scheduleCompleteRef = useRef<HTMLDivElement>(null);
-  const scheduleDeleteRef = useRef<HTMLDivElement>(null);
-  const scheduleEditRef = useRef<HTMLFormElement>(null);
   const documentDeleteRef = useRef<HTMLDivElement>(null);
   const consultBodyRef = useRef<HTMLDivElement>(null);
-  const scheduleBodyRef = useRef<HTMLDivElement>(null);
   const quoteBodyRef = useRef<HTMLDivElement>(null);
   const prevQuoteLenRef = useRef(0); // 견적함 자동 하단스크롤: 첫 로드(0→N) 제외, 새 추가(N→N+1)만
   const documentBodyRef = useRef<HTMLDivElement>(null);
@@ -961,7 +926,6 @@ function KimMinjunDetailContent({
     scenario: cardScenario,
   });
   const workbenchFirstTermMonths = manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60;
-  const sortedSchedules = sortKimSchedulesByDateTime(schedules);
 
   function jeffMoneyInputFromTarget(target: EventTarget | null) {
     if (!(target instanceof HTMLInputElement) || !target.closest(".kim-jeff-money-input")) return null;
@@ -1395,9 +1359,9 @@ function KimMinjunDetailContent({
   }, []);
 
   useEffect(() => {
-    onEditorOpenChange?.(openEditor !== null || memos.editorOpen || checks.editorOpen || addingScheduleItem || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingScheduleId !== null || editingQuoteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
+    onEditorOpenChange?.(openEditor !== null || memos.editorOpen || checks.editorOpen || schedules.editorOpen || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingQuoteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
     return () => onEditorOpenChange?.(false);
-  }, [addingScheduleItem, checks.editorOpen, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, confirmingScheduleDeleteId, editingScheduleId, editingQuoteId, isQuoteSolutionWorkbenchOpen, memos.editorOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId]);
+  }, [checks.editorOpen, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, editingQuoteId, isQuoteSolutionWorkbenchOpen, memos.editorOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId, schedules.editorOpen]);
 
   useEffect(() => {
     if (!solutionWorkbenchCanQuery && solutionWorkbenchEntryMode === "solution") {
@@ -1535,46 +1499,6 @@ function KimMinjunDetailContent({
   }, [pinnedQuoteStatus]);
 
   useEffect(() => {
-    if (!confirmingScheduleCompleteId) return;
-
-    function closeScheduleComplete(event: PointerEvent) {
-      if (scheduleCompleteRef.current?.contains(event.target as Node)) return;
-      setConfirmingScheduleCompleteId(null);
-    }
-
-    function closeScheduleCompleteByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setConfirmingScheduleCompleteId(null);
-    }
-
-    document.addEventListener("pointerdown", closeScheduleComplete, true);
-    document.addEventListener("keydown", closeScheduleCompleteByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeScheduleComplete, true);
-      document.removeEventListener("keydown", closeScheduleCompleteByKeyboard);
-    };
-  }, [confirmingScheduleCompleteId]);
-
-  useEffect(() => {
-    if (!confirmingScheduleDeleteId) return;
-
-    function closeScheduleDelete(event: PointerEvent) {
-      if (scheduleDeleteRef.current?.contains(event.target as Node)) return;
-      setConfirmingScheduleDeleteId(null);
-    }
-
-    function closeScheduleDeleteByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setConfirmingScheduleDeleteId(null);
-    }
-
-    document.addEventListener("pointerdown", closeScheduleDelete, true);
-    document.addEventListener("keydown", closeScheduleDeleteByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeScheduleDelete, true);
-      document.removeEventListener("keydown", closeScheduleDeleteByKeyboard);
-    };
-  }, [confirmingScheduleDeleteId]);
-
-  useEffect(() => {
     if (!confirmingDocumentDeleteId) return;
 
     function closeDocumentDelete(event: PointerEvent) {
@@ -1593,39 +1517,6 @@ function KimMinjunDetailContent({
       document.removeEventListener("keydown", closeDocumentDeleteByKeyboard);
     };
   }, [confirmingDocumentDeleteId]);
-
-  useEffect(() => {
-    if (!editingScheduleId) return;
-
-    const frame = window.requestAnimationFrame(() => {
-      const container = scheduleBodyRef.current;
-      const form = scheduleEditRef.current;
-      if (!container || !form) return;
-      const containerRect = container.getBoundingClientRect();
-      const formRect = form.getBoundingClientRect();
-      const bottomOverflow = formRect.bottom - containerRect.bottom + 8;
-      const topOverflow = containerRect.top - formRect.top + 8;
-      if (bottomOverflow > 0) container.scrollTop += bottomOverflow;
-      else if (topOverflow > 0) container.scrollTop -= topOverflow;
-    });
-
-    function cancelScheduleEdit(event: PointerEvent) {
-      if (scheduleEditRef.current?.contains(event.target as Node)) return;
-      setEditingScheduleId(null);
-    }
-
-    function cancelScheduleEditByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setEditingScheduleId(null);
-    }
-
-    document.addEventListener("pointerdown", cancelScheduleEdit, true);
-    document.addEventListener("keydown", cancelScheduleEditByKeyboard);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      document.removeEventListener("pointerdown", cancelScheduleEdit, true);
-      document.removeEventListener("keydown", cancelScheduleEditByKeyboard);
-    };
-  }, [editingScheduleId]);
 
   function toggleEditor(next: KimOpenEditor) {
     if (!isKimPurchaseFloatingKind(next.kind)) {
@@ -2554,149 +2445,6 @@ function KimMinjunDetailContent({
     }
   }
 
-  function saveSchedule(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const nextSchedule = {
-      id: `kim-schedule-${nowMs()}`,
-      date: String(formData.get("date") ?? ""),
-      time: scheduleTimeFromFormData(formData),
-      type: String(formData.get("type") ?? "재연락"),
-      memo: String(formData.get("memo") ?? "").trim(),
-    };
-    if (!nextSchedule.date) {
-      onToast("예정 날짜를 선택해주세요.");
-      return;
-    }
-    if (!nextSchedule.memo) return;
-    setSchedules((current) => [...current, nextSchedule]);
-    setAddingScheduleItem(false);
-    setOpenEditor(null);
-    markRecentUpdate("예정 일정");
-    onToast("예정 일정이 생성되었습니다.");
-    if (!customer.id) return;
-    void addSchedule(customer.id, { scheduledDate: nextSchedule.date, scheduledTime: nextSchedule.time, type: nextSchedule.type, memo: nextSchedule.memo })
-      .then((res) => setSchedules((current) => current.map((s) => (s.id === nextSchedule.id ? { ...s, id: res.id } : s))))
-      .catch(() => { setSchedules((current) => current.filter((s) => s.id !== nextSchedule.id)); onToast("저장에 실패했습니다"); });
-  }
-
-  function updateSchedule(event: SyntheticEvent<HTMLFormElement>, id: string) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const date = String(formData.get("date") ?? "");
-    const time = scheduleTimeFromFormData(formData);
-    const type = String(formData.get("type") ?? "재연락");
-    const memo = String(formData.get("memo") ?? "").trim();
-    if (!date) {
-      onToast("예정 날짜를 선택해주세요.");
-      return;
-    }
-    if (!memo) return;
-    const prevSchedules = schedules;
-    setSchedules((current) => current.map((item) => (
-      item.id === id ? { ...item, date, time, type, memo } : item
-    )));
-    setEditingScheduleId(null);
-    markRecentUpdate("예정 일정");
-    onToast("예정 일정을 수정했습니다.");
-    if (customer.id && !id.startsWith("kim-")) {
-      void apiUpdateSchedule(customer.id, id, { scheduledDate: date, scheduledTime: time, type, memo }).catch(() => { setSchedules(prevSchedules); onToast("저장에 실패했습니다"); });
-    }
-  }
-
-  function deleteSchedule(id: string) {
-    const prevSchedules = schedules;
-    const prevCompleted = completedScheduleKeys;
-    setSchedules((current) => current.filter((item) => item.id !== id));
-    setCompletedScheduleKeys((current) => current.filter((key) => key !== id));
-    setEditingScheduleId((current) => (current === id ? null : current));
-    setConfirmingScheduleDeleteId(null);
-    markRecentUpdate("예정 일정");
-    onToast("예정 일정을 삭제했습니다.");
-    if (customer.id && !id.startsWith("kim-")) {
-      void apiDeleteSchedule(customer.id, id).catch(() => { setSchedules(prevSchedules); setCompletedScheduleKeys(prevCompleted); onToast("삭제에 실패했습니다"); });
-    }
-  }
-
-  function toggleScheduleComplete(item: KimScheduleItem) {
-    const key = scheduleRecordKey(item);
-    const nextDone = !completedScheduleKeys.includes(key);
-    const prevCompleted = completedScheduleKeys;
-    setCompletedScheduleKeys((current) => (
-      current.includes(key) ? current.filter((completedKey) => completedKey !== key) : [...current, key]
-    ));
-    setConfirmingScheduleCompleteId(null);
-    markRecentUpdate("예정 일정");
-    if (customer.id && !item.id.startsWith("kim-")) {
-      void apiUpdateSchedule(customer.id, item.id, { done: nextDone }).catch(() => { setCompletedScheduleKeys(prevCompleted); onToast("저장에 실패했습니다"); });
-    }
-  }
-
-  function renderScheduleInlineForm(item?: KimScheduleItem) {
-    const isEditing = Boolean(item);
-    const timeParts = parseScheduleTimeParts(item?.time);
-    return (
-      <form
-        className="kim-schedule-composer"
-        key={item ? `${item.id}-edit` : "schedule-add"}
-        ref={isEditing ? scheduleEditRef : undefined}
-        onKeyDown={(event) => {
-          if (event.key !== "Escape") return;
-          event.preventDefault();
-          if (isEditing) setEditingScheduleId(null);
-          else setAddingScheduleItem(false);
-        }}
-        onSubmit={(event) => (item ? updateSchedule(event, item.id) : saveSchedule(event))}
-      >
-        <div className="kim-schedule-composer-top">
-          <div className="kim-schedule-datetime-group">
-            <label className="kim-schedule-date-field">
-              <input aria-label="예정 날짜" autoFocus defaultValue={item?.date ?? formatDateInputValue()} name="date" type="date" />
-            </label>
-            <label className="kim-schedule-time-field">
-              <span className="kim-schedule-time-picker">
-                <select aria-label="예정 일정 시" defaultValue={timeParts.hour} name="scheduleHour">
-                  {kimScheduleHourOptions.map((hour) => (
-                    <option key={hour} value={hour}>{hour}</option>
-                  ))}
-                </select>
-                <b aria-hidden="true">:</b>
-                <select aria-label="예정 일정 분" defaultValue={timeParts.minute} name="scheduleMinute">
-                  {kimScheduleMinuteOptions.map((minute) => (
-                    <option key={minute} value={minute}>{minute}</option>
-                  ))}
-                </select>
-              </span>
-            </label>
-          </div>
-          <div className="kim-check-composer-controls kim-schedule-type-controls" aria-label="예정 일정 분류">
-            {SCHEDULE_TYPE_OPTIONS.map((option) => (
-              <label key={option}>
-                <input defaultChecked={(item?.type ?? "재연락") === option} name="type" type="radio" value={option} />
-                <span>{option}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div className="kim-check-composer-main">
-          <textarea
-            aria-label="예정 일정 메모"
-            defaultValue={item?.memo ?? ""}
-            name="memo"
-            rows={2}
-          />
-        </div>
-        <div className="kim-check-composer-actions">
-          <button type="button" onClick={() => {
-            if (isEditing) setEditingScheduleId(null);
-            else setAddingScheduleItem(false);
-          }}>취소</button>
-          <button className="primary" type="submit">저장</button>
-        </div>
-      </form>
-    );
-  }
-
   function workflowValue(key: KimWorkflowKey) {
     if (key === "stage") return `${stageGroup} · ${stageStatus}`;
     if (key === "chance") return chance;
@@ -3471,111 +3219,7 @@ function KimMinjunDetailContent({
         <section className="kim-mvp-ops-grid" aria-label={`${customer.name} 고객 운영 기능`}>
         <CustomerChecks {...checks} />
 
-        <article className="detail-section kim-mvp-card kim-schedule-card">
-          <div className="kim-mvp-card-head">
-            <div className="kim-mvp-title-row">
-              <i aria-hidden="true" className="kim-mvp-title-icon"><CalendarClock size={14} strokeWidth={2.2} /></i>
-              <h3>예정 일정</h3>
-              <span>{schedules.length}개</span>
-              <em>다시 움직일 시점</em>
-            </div>
-            <button
-              aria-label="예정 일정 추가"
-              className="kim-mvp-add-circle"
-              onClick={() => {
-                setEditingScheduleId(null);
-                setConfirmingScheduleDeleteId(null);
-                setAddingScheduleItem((current) => !current);
-              }}
-              type="button"
-            >{addingScheduleItem ? "×" : "+"}</button>
-          </div>
-          <div className="kim-mvp-card-body" ref={scheduleBodyRef}>
-            <div className="kim-schedule-list">
-              {sortedSchedules.length === 0 && !addingScheduleItem ? (
-                <div className="kim-list-empty">예정된 일정이 없습니다.</div>
-              ) : sortedSchedules.map((schedule, index) => {
-                const isCompleted = completedScheduleKeys.includes(scheduleRecordKey(schedule));
-                const isEditing = editingScheduleId === schedule.id;
-                const shouldOpenScheduleCompleteAbove = !addingScheduleItem && index > 0 && index === sortedSchedules.length - 1;
-                const shouldOpenScheduleDeleteAbove = !addingScheduleItem && index > 0 && index === sortedSchedules.length - 1;
-                if (isEditing) return renderScheduleInlineForm(schedule);
-                return (
-                  <div
-                    className={`kim-schedule-row${isCompleted ? " is-completed" : ""}`}
-                    key={scheduleRecordKey(schedule)}
-                    onClick={() => {
-                      setAddingScheduleItem(false);
-                      setConfirmingScheduleDeleteId(null);
-                      setEditingScheduleId(schedule.id);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      setAddingScheduleItem(false);
-                      setConfirmingScheduleDeleteId(null);
-                      setEditingScheduleId(schedule.id);
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <span>{formatScheduleDateLabel(schedule.date)}{schedule.time ? ` ${schedule.time}` : ""}</span>
-                    <div>
-                      <p><strong>{schedule.type}</strong><em>·</em>{schedule.memo}</p>
-                    </div>
-                    <div className="kim-schedule-row-actions">
-                      <button
-                        aria-label={isCompleted ? "일정 완료 취소" : "일정 완료"}
-                        aria-pressed={isCompleted}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setEditingScheduleId(null);
-                          setConfirmingScheduleDeleteId(null);
-                          setConfirmingScheduleCompleteId((current) => (current === schedule.id ? null : schedule.id));
-                        }}
-                        type="button"
-                      >
-                        <Check size={13} strokeWidth={2.6} />
-                      </button>
-                      <button
-                        aria-label="예정 일정 삭제"
-                        className="delete"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setEditingScheduleId(null);
-                          setConfirmingScheduleCompleteId(null);
-                          setConfirmingScheduleDeleteId((current) => (current === schedule.id ? null : schedule.id));
-                        }}
-                        type="button"
-                      >
-                        <Trash2 size={13} strokeWidth={2.3} />
-                      </button>
-                    </div>
-                    {confirmingScheduleCompleteId === schedule.id ? (
-                      <div className={`kim-check-confirm-popover${shouldOpenScheduleCompleteAbove ? " is-above" : ""}`} ref={scheduleCompleteRef} role="dialog" aria-label="예정 일정 상태 변경 확인" onClick={(event) => event.stopPropagation()}>
-                        <p>{isCompleted ? "완료한 일정을 되돌릴까요?" : "해당 일정을 완료 처리할까요?"}</p>
-                        <div>
-                          <button type="button" onClick={() => setConfirmingScheduleCompleteId(null)}>취소</button>
-                          <button className={isCompleted ? "neutral" : "primary"} type="button" onClick={() => toggleScheduleComplete(schedule)}>{isCompleted ? "되돌림" : "완료"}</button>
-                        </div>
-                      </div>
-                    ) : null}
-                    {confirmingScheduleDeleteId === schedule.id ? (
-                      <div className={`kim-check-confirm-popover delete${shouldOpenScheduleDeleteAbove ? " is-above" : ""}`} ref={scheduleDeleteRef} role="dialog" aria-label="예정 일정 삭제 확인" onClick={(event) => event.stopPropagation()}>
-                        <p>해당 일정을 삭제하시겠습니까?</p>
-                        <div>
-                          <button type="button" onClick={() => setConfirmingScheduleDeleteId(null)}>아니요</button>
-                          <button className="danger" type="button" onClick={() => deleteSchedule(schedule.id)}>삭제</button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-            {addingScheduleItem ? renderScheduleInlineForm() : null}
-          </div>
-        </article>
+        <CustomerSchedules {...schedules} />
 
         <article className="detail-section kim-mvp-card kim-quote-card compact">
           <div className="kim-mvp-card-head">

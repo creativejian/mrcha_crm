@@ -39,6 +39,24 @@ export function formatScheduleDateLabel(value: string) {
   return `${Number(month)}/${Number(day)}`;
 }
 
+export const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
+export const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
+
+export function parseScheduleTimeParts(value?: string) {
+  const [rawHour, rawMinute] = (value || "10:00").split(":");
+  const hour = kimScheduleHourOptions.includes(rawHour) ? rawHour : "10";
+  const minute = kimScheduleMinuteOptions.includes(rawMinute) ? rawMinute : "00";
+  return { hour, minute };
+}
+
+export function scheduleTimeFromFormData(formData: FormData) {
+  const hour = String(formData.get("scheduleHour") ?? "10");
+  const minute = String(formData.get("scheduleMinute") ?? "00");
+  const safeHour = kimScheduleHourOptions.includes(hour) ? hour : "10";
+  const safeMinute = kimScheduleMinuteOptions.includes(minute) ? minute : "00";
+  return `${safeHour}:${safeMinute}`;
+}
+
 export function formatKimRecentUpdateTime(updatedAt: number, now: number) {
   const elapsedMinutes = Math.max(0, Math.floor((now - updatedAt) / 60000));
   if (elapsedMinutes < 10) return "방금 전";
