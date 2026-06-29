@@ -1,11 +1,11 @@
 import { BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, File, FilePlus2, FileText, FileUp, FolderOpen, GripVertical, History, Image, ListChecks, MapPin, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, PURCHASE_METHOD_OPTIONS, SCHEDULE_TYPE_OPTIONS, TASK_CATEGORY_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
+import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, PURCHASE_METHOD_OPTIONS, SCHEDULE_TYPE_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
-import { addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
+import { addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchCustomerQuoteRequests, fetchQuoteRequestDetail, fetchAppQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 import { ColorPicker } from "@/components/ColorPicker";
@@ -19,14 +19,16 @@ import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles
 import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 import type { MergeSource } from "@/lib/document-merge";
-import { nowMs, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
-import { type KimScheduleItem, type KimCheckItem, scheduleRecordKey, sortKimCheckItemsByWorkRule, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
+import { nowMs, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime } from "@/lib/kim-detail-utils";
+import { type KimScheduleItem, scheduleRecordKey, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
 import { type KimCustomerType, type KimAdvisorTeam, kimCustomerTypeOptions, kimAutomaticSourceOptions, kimManualSourceOptions, kimAdvisorOptions, kimRegionOptions, parseKimJobValue, formatKimJobValue, parseKimLocationValue, formatKimLocationValue, parseKimSourceValue, parseKimAdvisorValue, formatKimAdvisorValue, isKimAutomaticSource, hasKimAppSourceQueue, hasKimQuoteAttachments } from "@/lib/kim-status-fields";
 import { type KimPurchaseFloatingKind, type KimPurchasePopoverFrame, type KimQuoteActionFrame, type KimQuoteStatusTooltip, isKimPurchaseFloatingKind, calculateKimPurchasePopoverFrame, calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
 import { type KimRecentUpdate, type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "@/components/customer-detail/types";
 import { CustomerDetailHeader } from "@/components/customer-detail/CustomerDetailHeader";
 import { CustomerMemos } from "@/components/customer-detail/CustomerMemos";
 import { useCustomerMemos } from "@/components/customer-detail/hooks/useCustomerMemos";
+import { CustomerChecks } from "@/components/customer-detail/CustomerChecks";
+import { useCustomerChecks } from "@/components/customer-detail/hooks/useCustomerChecks";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -261,7 +263,6 @@ const kimPurchaseTagSelectionLimit = 4;
 const kimPersonalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];
 
 
-const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
 const kimQuotePurchaseMethodOptions = PURCHASE_METHOD_OPTIONS;
 // 니즈 색상 미설정 기본 표시값. 앱 분기에선 이 sentinel이면 "관심 색상" 줄을 숨긴다(노이즈 제거).
 const KIM_NEEDS_COLOR_PLACEHOLDER = "외장 컬러 미정 · 내장 컬러 미정";
@@ -427,10 +428,6 @@ function scheduleTimeFromFormData(formData: FormData) {
   const safeHour = kimScheduleHourOptions.includes(hour) ? hour : "10";
   const safeMinute = kimScheduleMinuteOptions.includes(minute) ? minute : "00";
   return `${safeHour}:${safeMinute}`;
-}
-
-function kimCheckDueSelection(value: string) {
-  return kimCheckDueOptions.includes(value) ? value : "지정";
 }
 
 function kimChanceOptionClass(option: CustomerChanceOption, selected: boolean) {
@@ -721,24 +718,8 @@ function KimMinjunDetailContent({
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [confirmingScheduleCompleteId, setConfirmingScheduleCompleteId] = useState<string | null>(null);
   const [confirmingScheduleDeleteId, setConfirmingScheduleDeleteId] = useState<string | null>(null);
-  const [checkItems, setCheckItems] = useState<KimCheckItem[]>(() =>
-    detail.tasks.map((t) => ({
-      id: t.id,
-      category: t.category ?? "",
-      due: t.due ?? "",
-      body: t.body ?? "",
-    })),
-  );
-  const [completedCheckItems, setCompletedCheckItems] = useState<string[]>(() =>
-    detail.tasks.filter((t) => t.done).map((t) => t.id),
-  );
-  const [addingCheckItem, setAddingCheckItem] = useState(false);
-  const [selectedCheckDue, setSelectedCheckDue] = useState("오늘");
-  const [selectedEditingCheckDue, setSelectedEditingCheckDue] = useState("오늘");
-  const [editingCheckItemId, setEditingCheckItemId] = useState<string | null>(null);
-  const [confirmingCheckItemTitle, setConfirmingCheckItemTitle] = useState<string | null>(null);
-  const [confirmingCheckItemDeleteId, setConfirmingCheckItemDeleteId] = useState<string | null>(null);
   const memos = useCustomerMemos({ detail, customer, onToast, markRecentUpdate });
+  const checks = useCustomerChecks({ detail, customer, onToast, markRecentUpdate });
   const [quotes, setQuotes] = useState<KimQuoteItem[]>(() => detail.quotes.map((q) => toKimQuoteItem(q, Date.now())));
   const [isQuoteSolutionWorkbenchOpen, setIsQuoteSolutionWorkbenchOpen] = useState(false);
   const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(kimMinjunPurchaseFields));
@@ -818,15 +799,11 @@ function KimMinjunDetailContent({
   const [recentUpdate, setRecentUpdate] = useState<KimRecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
   const [recentUpdateNow, setRecentUpdateNow] = useState(() => Date.now());
   const editorRef = useRef<HTMLDivElement>(null);
-  const checkConfirmRef = useRef<HTMLDivElement>(null);
-  const checkDeleteRef = useRef<HTMLDivElement>(null);
-  const checkEditRef = useRef<HTMLFormElement>(null);
   const scheduleCompleteRef = useRef<HTMLDivElement>(null);
   const scheduleDeleteRef = useRef<HTMLDivElement>(null);
   const scheduleEditRef = useRef<HTMLFormElement>(null);
   const documentDeleteRef = useRef<HTMLDivElement>(null);
   const consultBodyRef = useRef<HTMLDivElement>(null);
-  const checkBodyRef = useRef<HTMLDivElement>(null);
   const scheduleBodyRef = useRef<HTMLDivElement>(null);
   const quoteBodyRef = useRef<HTMLDivElement>(null);
   const prevQuoteLenRef = useRef(0); // 견적함 자동 하단스크롤: 첫 로드(0→N) 제외, 새 추가(N→N+1)만
@@ -834,7 +811,6 @@ function KimMinjunDetailContent({
   const quoteWorkbenchOriginalInputRef = useRef<HTMLInputElement>(null);
   const quoteDetailFormRef = useRef<HTMLDivElement>(null);
   const timelineItems = timelineRows(customer);
-  const remainingCheckCount = checkItems.filter((item) => !completedCheckItems.includes(item.id)).length;
   const receivedDocumentCount = documents.length;
   const openQuoteAction = quotes.find((quote) => quote.id === openQuoteActionId) ?? null;
   const activeQuoteStatusTooltip = pinnedQuoteStatus ?? hoveredQuoteStatus;
@@ -985,7 +961,6 @@ function KimMinjunDetailContent({
     scenario: cardScenario,
   });
   const workbenchFirstTermMonths = manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60;
-  const sortedCheckItems = sortKimCheckItemsByWorkRule(checkItems, completedCheckItems);
   const sortedSchedules = sortKimSchedulesByDateTime(schedules);
 
   function jeffMoneyInputFromTarget(target: EventTarget | null) {
@@ -1396,18 +1371,6 @@ function KimMinjunDetailContent({
     });
   }
 
-  function openCheckItemEdit(item: KimCheckItem) {
-    setAddingCheckItem(false);
-    setConfirmingCheckItemTitle(null);
-    setSelectedEditingCheckDue(kimCheckDueSelection(item.due));
-    setEditingCheckItemId(item.id);
-  }
-
-  function cancelCheckItemEdit() {
-    setEditingCheckItemId(null);
-    setSelectedEditingCheckDue("오늘");
-  }
-
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- customer prop이 바뀔 때 진행 상태를 외부 값과 동기화하는 의도된 effect
     setStageGroup(customer.statusGroup);
@@ -1432,9 +1395,9 @@ function KimMinjunDetailContent({
   }, []);
 
   useEffect(() => {
-    onEditorOpenChange?.(openEditor !== null || memos.editorOpen || addingCheckItem || addingScheduleItem || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingCheckItemId !== null || editingScheduleId !== null || editingQuoteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
+    onEditorOpenChange?.(openEditor !== null || memos.editorOpen || checks.editorOpen || addingScheduleItem || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingScheduleId !== null || editingQuoteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
     return () => onEditorOpenChange?.(false);
-  }, [addingCheckItem, addingScheduleItem, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, confirmingScheduleDeleteId, editingCheckItemId, editingScheduleId, editingQuoteId, isQuoteSolutionWorkbenchOpen, memos.editorOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId]);
+  }, [addingScheduleItem, checks.editorOpen, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, confirmingScheduleDeleteId, editingScheduleId, editingQuoteId, isQuoteSolutionWorkbenchOpen, memos.editorOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId]);
 
   useEffect(() => {
     if (!solutionWorkbenchCanQuery && solutionWorkbenchEntryMode === "solution") {
@@ -1570,79 +1533,6 @@ function KimMinjunDetailContent({
       document.removeEventListener("keydown", closePinnedQuoteStatusByKeyboard);
     };
   }, [pinnedQuoteStatus]);
-
-  useEffect(() => {
-    if (!confirmingCheckItemTitle) return;
-
-    function closeCheckConfirm(event: PointerEvent) {
-      if (checkConfirmRef.current?.contains(event.target as Node)) return;
-      setConfirmingCheckItemTitle(null);
-    }
-
-    function closeCheckConfirmByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setConfirmingCheckItemTitle(null);
-    }
-
-    document.addEventListener("pointerdown", closeCheckConfirm, true);
-    document.addEventListener("keydown", closeCheckConfirmByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeCheckConfirm, true);
-      document.removeEventListener("keydown", closeCheckConfirmByKeyboard);
-    };
-  }, [confirmingCheckItemTitle]);
-
-  useEffect(() => {
-    if (!confirmingCheckItemDeleteId) return;
-
-    function closeCheckDelete(event: PointerEvent) {
-      if (checkDeleteRef.current?.contains(event.target as Node)) return;
-      setConfirmingCheckItemDeleteId(null);
-    }
-
-    function closeCheckDeleteByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setConfirmingCheckItemDeleteId(null);
-    }
-
-    document.addEventListener("pointerdown", closeCheckDelete, true);
-    document.addEventListener("keydown", closeCheckDeleteByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeCheckDelete, true);
-      document.removeEventListener("keydown", closeCheckDeleteByKeyboard);
-    };
-  }, [confirmingCheckItemDeleteId]);
-
-  useEffect(() => {
-    if (!editingCheckItemId) return;
-
-    const frame = window.requestAnimationFrame(() => {
-      const container = checkBodyRef.current;
-      const form = checkEditRef.current;
-      if (!container || !form) return;
-      const containerRect = container.getBoundingClientRect();
-      const formRect = form.getBoundingClientRect();
-      const bottomOverflow = formRect.bottom - containerRect.bottom + 8;
-      const topOverflow = containerRect.top - formRect.top + 8;
-      if (bottomOverflow > 0) container.scrollTop += bottomOverflow;
-      else if (topOverflow > 0) container.scrollTop -= topOverflow;
-    });
-
-    function cancelCheckEdit(event: PointerEvent) {
-      if (checkEditRef.current?.contains(event.target as Node)) return;
-      cancelCheckItemEdit();
-    }
-
-    function cancelCheckEditByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") cancelCheckItemEdit();
-    }
-
-    document.addEventListener("pointerdown", cancelCheckEdit, true);
-    document.addEventListener("keydown", cancelCheckEditByKeyboard);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      document.removeEventListener("pointerdown", cancelCheckEdit, true);
-      document.removeEventListener("keydown", cancelCheckEditByKeyboard);
-    };
-  }, [editingCheckItemId]);
 
   useEffect(() => {
     if (!confirmingScheduleCompleteId) return;
@@ -2728,57 +2618,6 @@ function KimMinjunDetailContent({
     }
   }
 
-  function saveCheckItem(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const body = String(formData.get("body") ?? "").trim();
-    if (!body) return;
-    const category = String(formData.get("category") ?? "체크");
-    const dueSelection = String(formData.get("due") ?? "오늘");
-    const dueDate = String(formData.get("dueDate") ?? "");
-    if (dueSelection === "지정" && !dueDate) {
-      onToast("마감 날짜를 선택해주세요.");
-      return;
-    }
-    const due = dueSelection === "지정" ? formatShortDateLabel(dueDate) : dueSelection;
-    const tempId = `kim-check-${Date.now()}`;
-    setCheckItems((current) => [...current, { id: tempId, category, due, body }]);
-    setAddingCheckItem(false);
-    setSelectedCheckDue("오늘");
-    markRecentUpdate("해야 할 일");
-    onToast("해야 할 일이 추가되었습니다.");
-    if (!customer.id) return;
-    void addTask(customer.id, { category, due, body })
-      .then((res) => setCheckItems((current) => current.map((t) => (t.id === tempId ? { ...t, id: res.id } : t))))
-      .catch(() => { setCheckItems((current) => current.filter((t) => t.id !== tempId)); onToast("저장에 실패했습니다"); });
-  }
-
-  function updateCheckItem(event: SyntheticEvent<HTMLFormElement>, id: string, currentDue: string) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const body = String(formData.get("body") ?? "").trim();
-    if (!body) return;
-    const category = String(formData.get("category") ?? "체크");
-    const dueSelection = String(formData.get("due") ?? currentDue);
-    const dueDate = String(formData.get("dueDate") ?? "");
-    const currentDueIsCustom = !kimCheckDueOptions.includes(currentDue);
-    if (dueSelection === "지정" && !dueDate && !currentDueIsCustom) {
-      onToast("마감 날짜를 선택해주세요.");
-      return;
-    }
-    const due = dueSelection === "지정" ? (dueDate ? formatShortDateLabel(dueDate) : currentDue) : dueSelection;
-    const prevCheckItems = checkItems;
-    setCheckItems((current) => current.map((item) => (
-      item.id === id ? { ...item, category, due, body } : item
-    )));
-    cancelCheckItemEdit();
-    markRecentUpdate("해야 할 일");
-    onToast("해야 할 일을 수정했습니다.");
-    if (customer.id && !id.startsWith("kim-")) {
-      void updateTask(customer.id, id, { category, due, body }).catch(() => { setCheckItems(prevCheckItems); onToast("저장에 실패했습니다"); });
-    }
-  }
-
   function toggleScheduleComplete(item: KimScheduleItem) {
     const key = scheduleRecordKey(item);
     const nextDone = !completedScheduleKeys.includes(key);
@@ -2852,96 +2691,6 @@ function KimMinjunDetailContent({
             if (isEditing) setEditingScheduleId(null);
             else setAddingScheduleItem(false);
           }}>취소</button>
-          <button className="primary" type="submit">저장</button>
-        </div>
-      </form>
-    );
-  }
-
-  function toggleCheckItem(id: string) {
-    const nextDone = !completedCheckItems.includes(id);
-    const prevCompleted = completedCheckItems;
-    setCompletedCheckItems((current) => (
-      current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id]
-    ));
-    setConfirmingCheckItemTitle(null);
-    markRecentUpdate("해야 할 일");
-    if (customer.id && !id.startsWith("kim-")) {
-      void updateTask(customer.id, id, { done: nextDone }).catch(() => { setCompletedCheckItems(prevCompleted); onToast("저장에 실패했습니다"); });
-    }
-  }
-
-  function deleteCheckItem(id: string) {
-    const prevCheckItems = checkItems;
-    const prevCompleted = completedCheckItems;
-    setCheckItems((current) => current.filter((item) => item.id !== id));
-    setCompletedCheckItems((current) => current.filter((itemId) => itemId !== id));
-    setEditingCheckItemId((current) => (current === id ? null : current));
-    setConfirmingCheckItemTitle(null);
-    setConfirmingCheckItemDeleteId(null);
-    markRecentUpdate("해야 할 일");
-    onToast("해야 할 일을 삭제했습니다.");
-    if (customer.id && !id.startsWith("kim-")) {
-      void deleteTask(customer.id, id).catch(() => { setCheckItems(prevCheckItems); setCompletedCheckItems(prevCompleted); onToast("삭제에 실패했습니다"); });
-    }
-  }
-
-  function renderCheckItemEditForm(item: KimCheckItem) {
-    return (
-      <form
-        className="kim-check-edit-row"
-        key={`${item.id}-edit`}
-        ref={checkEditRef}
-        onKeyDown={(event) => {
-          if (event.key !== "Escape") return;
-          event.preventDefault();
-          cancelCheckItemEdit();
-        }}
-        onSubmit={(event) => updateCheckItem(event, item.id, item.due)}
-      >
-        <div className="kim-check-composer-pickers">
-          <div className="kim-check-due-stack">
-            <div className="kim-check-composer-controls due" aria-label="해야 할 일 마감 수정">
-              {kimCheckDueOptions.map((option) => (
-                <label key={option}>
-                  <input checked={selectedEditingCheckDue === option} name="due" onChange={() => setSelectedEditingCheckDue(option)} type="radio" value={option} />
-                  <span>{option}</span>
-                </label>
-              ))}
-            </div>
-            {selectedEditingCheckDue === "지정" ? (
-              <label className="kim-check-date-field compact">
-                <span>마감 날짜</span>
-                <input defaultValue={parseKimCheckDueDate(item.due)} name="dueDate" type="date" />
-              </label>
-            ) : null}
-          </div>
-          <div className="kim-check-composer-controls" aria-label="해야 할 일 분류 수정">
-            {TASK_CATEGORY_OPTIONS.map((option) => (
-              <label key={option}>
-                <input defaultChecked={item.category === option} name="category" type="radio" value={option} />
-                <span>{option}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div className="kim-check-composer-main">
-          <textarea
-            aria-label="해야 할 일 내용 수정"
-            autoFocus
-            defaultValue={item.body}
-            name="body"
-            onFocus={(event) => {
-              const target = event.currentTarget;
-              window.requestAnimationFrame(() => {
-                target.setSelectionRange(target.value.length, target.value.length);
-              });
-            }}
-            rows={2}
-          />
-        </div>
-        <div className="kim-check-composer-actions">
-          <button type="button" onClick={cancelCheckItemEdit}>취소</button>
           <button className="primary" type="submit">저장</button>
         </div>
       </form>
@@ -3720,149 +3469,7 @@ function KimMinjunDetailContent({
         </section>
 
         <section className="kim-mvp-ops-grid" aria-label={`${customer.name} 고객 운영 기능`}>
-        <article className="detail-section kim-mvp-card kim-check-card">
-          <div className="kim-mvp-card-head">
-            <div className="kim-mvp-title-row">
-              <i aria-hidden="true" className="kim-mvp-title-icon"><Check size={14} strokeWidth={2.2} /></i>
-              <h3>해야 할 일</h3>
-              <span>{remainingCheckCount}개</span>
-              <em>상담사가 처리할 업무</em>
-            </div>
-            <button
-              aria-label="해야 할 일 추가"
-              className="kim-mvp-add-circle"
-              onClick={() => {
-                cancelCheckItemEdit();
-                setAddingCheckItem((current) => {
-                  if (current) setSelectedCheckDue("오늘");
-                  return !current;
-                });
-              }}
-              type="button"
-            >{addingCheckItem ? "×" : "+"}</button>
-          </div>
-          <div className="kim-mvp-card-body" ref={checkBodyRef}>
-            <div className="kim-check-list">
-              {sortedCheckItems.length === 0 && !addingCheckItem ? (
-                <div className="kim-list-empty">등록된 할 일이 없습니다.</div>
-              ) : sortedCheckItems.map((item, index) => {
-                const isCompleted = completedCheckItems.includes(item.id);
-                const shouldOpenCheckConfirmAbove = !addingCheckItem && index === sortedCheckItems.length - 1;
-                const shouldOpenCheckDeleteAbove = !addingCheckItem && index === sortedCheckItems.length - 1;
-                const isEditing = editingCheckItemId === item.id;
-                if (isEditing) return renderCheckItemEditForm(item);
-
-                return (
-                  <div
-                    className={`kim-check-row${isCompleted ? " is-completed" : ""}`}
-                    key={item.id}
-                    onClick={() => {
-                      openCheckItemEdit(item);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      openCheckItemEdit(item);
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <span>{item.due} · {item.category}</span>
-                    <div>
-                      <strong>{item.body}</strong>
-                    </div>
-                    <div className="kim-check-row-actions">
-                      <button
-                        aria-label={isCompleted ? "해야 할 일 완료 취소" : "해야 할 일 완료"}
-                        aria-pressed={isCompleted}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          cancelCheckItemEdit();
-                          setConfirmingCheckItemDeleteId(null);
-                          setConfirmingCheckItemTitle((current) => (current === item.id ? null : item.id));
-                        }}
-                        type="button"
-                      >
-                        <Check size={13} strokeWidth={2.6} />
-                      </button>
-                      <button
-                        aria-label="해야 할 일 삭제"
-                        className="delete"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          cancelCheckItemEdit();
-                          setConfirmingCheckItemTitle(null);
-                          setConfirmingCheckItemDeleteId((current) => (current === item.id ? null : item.id));
-                        }}
-                        type="button"
-                      >
-                        <Trash2 size={13} strokeWidth={2.3} />
-                      </button>
-                    </div>
-                    {confirmingCheckItemTitle === item.id ? (
-                      <div className={`kim-check-confirm-popover${shouldOpenCheckConfirmAbove ? " is-above" : ""}`} ref={checkConfirmRef} role="dialog" aria-label="해야 할 일 상태 변경 확인" onClick={(event) => event.stopPropagation()}>
-                        <p>{isCompleted ? "완료한 일을 다시 진행 중으로 되돌릴까요?" : "해당 할 일을 완료 처리할까요?"}</p>
-                        <div>
-                          <button type="button" onClick={() => setConfirmingCheckItemTitle(null)}>취소</button>
-                          <button className={isCompleted ? "neutral" : "primary"} type="button" onClick={() => toggleCheckItem(item.id)}>{isCompleted ? "되돌림" : "완료"}</button>
-                        </div>
-                      </div>
-                    ) : null}
-                    {confirmingCheckItemDeleteId === item.id ? (
-                      <div className={`kim-check-confirm-popover delete${shouldOpenCheckDeleteAbove ? " is-above" : ""}`} ref={checkDeleteRef} role="dialog" aria-label="해야 할 일 삭제 확인" onClick={(event) => event.stopPropagation()}>
-                        <p>해당 할 일을 삭제하시겠습니까?</p>
-                        <div>
-                          <button type="button" onClick={() => setConfirmingCheckItemDeleteId(null)}>아니요</button>
-                          <button className="danger" type="button" onClick={() => deleteCheckItem(item.id)}>삭제</button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-            {addingCheckItem ? (
-              <form className="kim-check-composer" onSubmit={saveCheckItem}>
-                <div className="kim-check-composer-pickers">
-                  <div className="kim-check-due-stack">
-                    <div className="kim-check-composer-controls due" aria-label="해야 할 일 마감">
-                      {kimCheckDueOptions.map((option) => (
-                        <label key={option}>
-                          <input checked={selectedCheckDue === option} name="due" onChange={() => setSelectedCheckDue(option)} type="radio" value={option} />
-                          <span>{option}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {selectedCheckDue === "지정" ? (
-                      <label className="kim-check-date-field">
-                        <span>마감 날짜</span>
-                        <input name="dueDate" type="date" />
-                      </label>
-                    ) : null}
-                  </div>
-                  <div className="kim-check-composer-controls" aria-label="해야 할 일 분류">
-                    {TASK_CATEGORY_OPTIONS.map((option) => (
-                      <label key={option}>
-                        <input defaultChecked={option === "체크"} name="category" type="radio" value={option} />
-                        <span>{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="kim-check-composer-main">
-                  <textarea aria-label="해야 할 일 내용" autoFocus name="body" rows={2} />
-                </div>
-                <div className="kim-check-composer-actions">
-                  <button type="button" onClick={() => {
-                    setAddingCheckItem(false);
-                    setSelectedCheckDue("오늘");
-                  }}>취소</button>
-                  <button className="primary" type="submit">저장</button>
-                </div>
-              </form>
-            ) : null}
-          </div>
-        </article>
+        <CustomerChecks {...checks} />
 
         <article className="detail-section kim-mvp-card kim-schedule-card">
           <div className="kim-mvp-card-head">

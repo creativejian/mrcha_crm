@@ -183,3 +183,11 @@ export function parseKimCheckDueDate(value: string, date = new Date()) {
   if (!month || !day) return "";
   return `${date.getFullYear()}-${String(Number(month)).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
 }
+
+// 해야 할 일 마감 선택지. 마지막 "지정"은 임의 날짜 입력 분기.
+export const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
+
+// 저장된 due 값이 표준 선택지에 없으면 "지정"(임의 날짜)으로 본다.
+export function kimCheckDueSelection(value: string) {
+  return kimCheckDueOptions.includes(value) ? value : "지정";
+}
