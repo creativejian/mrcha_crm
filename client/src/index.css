@@ -16814,7 +16814,7 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .app-requests-empty { padding: 40px; text-align: center; color: #7f858c; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; }
 .app-requests-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .app-requests-table th { text-align: left; font-weight: 600; color: #5f6872; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-.app-requests-table td { padding: 9px 10px; border-bottom: 1px solid #f0f0ee; vertical-align: middle; }
+.app-requests-table td { padding: 9px 10px; border-bottom: 1px solid #f0f0ee; vertical-align: top; }
 .app-req-date { white-space: nowrap; color: #5f6872; }
 /* 차량/조건 셀은 td를 flex로 만들지 않고(table-cell 유지) 내부 span만 block으로 쌓아
    다른 단일라인 컬럼과 vertical-align:top 기준을 동일하게(행 내 세로정렬 일치). */
@@ -16831,8 +16831,8 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .notification-item.app-request-new { border-left: 2px solid var(--brand); }
 
 /* 앱 견적요청 인박스 — 유입 액션 버튼 */
-/* td는 table-cell(vertical-align:middle)로 행 가운데 정렬, flex는 안쪽 div에(Safari flex-td 버그 회피). */
-.app-req-match-inner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* td는 table-cell(vertical-align:top)로 상단 정렬, flex는 안쪽 div에(Safari flex-td 버그 회피). */
+.app-req-match-inner { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
 .app-req-action { padding: 3px 10px; border: 1px solid var(--line); border-radius: 5px; background: #fff; font-size: 12px; font-weight: 600; color: var(--brand); cursor: pointer; white-space: nowrap; }
 .app-req-action:hover { background: #f4f1ff; border-color: var(--brand); }
 .app-req-action:disabled { opacity: 0.5; cursor: default; }
