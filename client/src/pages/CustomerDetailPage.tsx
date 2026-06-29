@@ -19,11 +19,12 @@ import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles
 import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 import type { MergeSource } from "@/lib/document-merge";
-import { nowMs, formatKimRecentUpdateTime, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
+import { nowMs, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
 import { type KimScheduleItem, type KimCheckItem, type KimCustomerMemoItem, scheduleRecordKey, sortKimCustomerMemosByCreatedAt, sortKimCheckItemsByWorkRule, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
 import { type KimCustomerType, type KimAdvisorTeam, kimCustomerTypeOptions, kimAutomaticSourceOptions, kimManualSourceOptions, kimAdvisorOptions, kimRegionOptions, parseKimJobValue, formatKimJobValue, parseKimLocationValue, formatKimLocationValue, parseKimSourceValue, parseKimAdvisorValue, formatKimAdvisorValue, isKimAutomaticSource, hasKimAppSourceQueue, hasKimQuoteAttachments } from "@/lib/kim-status-fields";
 import { type KimPurchaseFloatingKind, type KimPurchasePopoverFrame, type KimQuoteActionFrame, type KimQuoteStatusTooltip, isKimPurchaseFloatingKind, calculateKimPurchasePopoverFrame, calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
-import { type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "@/components/customer-detail/types";
+import { type KimRecentUpdate, type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "@/components/customer-detail/types";
+import { CustomerDetailHeader } from "@/components/customer-detail/CustomerDetailHeader";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -112,11 +113,6 @@ type KimDocumentItem = {
   mimeType?: string;
   objectUrl?: string;
   file?: File;
-};
-
-type KimRecentUpdate = {
-  section: string;
-  updatedAt: number;
 };
 
 const chanceByPriority: Record<string, string> = {
@@ -277,30 +273,6 @@ function resolveKimManageStatus(override: CustomerManageStatus | undefined, cust
 }
 const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
-
-function KimMinjunDetailHeader({ now, recentUpdate, name, customerCode, receivedLabel }: { now: number; recentUpdate: KimRecentUpdate; name: string; customerCode: string; receivedLabel: string }) {
-  return (
-    <section className="customer-detail-summary kim-detail-summary">
-      <div className="kim-header-main">
-        <div className="kim-header-read">
-          <div className="kim-header-primary">
-            <h2 className="kim-header-breadcrumb">
-              <span>고객 관리</span>
-              <ChevronRight size={18} strokeWidth={2.2} />
-              <span>{name}</span>
-              <em className="kim-header-code-text num">{customerCode}</em>
-              <em className="kim-header-received-text num">{receivedLabel ? `· ${receivedLabel} 접수` : ""}</em>
-            </h2>
-            <p>
-              {formatKimRecentUpdateTime(recentUpdate.updatedAt, now)}{" "}
-              <span className="kim-header-update-mark">{recentUpdate.section} 업데이트</span>
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 function kimEditorMatches(openEditor: KimOpenEditor | null, next: KimOpenEditor) {
   if (!openEditor || openEditor.kind !== next.kind) return false;
@@ -3601,7 +3573,7 @@ function KimMinjunDetailContent({
   return (
     <div className="kim-customer-dashboard">
       <div className="kim-left-dashboard">
-        <KimMinjunDetailHeader now={recentUpdateNow} recentUpdate={recentUpdate} name={detail.name} customerCode={detail.customerCode} receivedLabel={formatActivity(detail.receivedAt)} />
+        <CustomerDetailHeader now={recentUpdateNow} recentUpdate={recentUpdate} name={detail.name} customerCode={detail.customerCode} receivedLabel={formatActivity(detail.receivedAt)} />
         <section className="detail-section kim-status-dashboard">
           <div className="kim-status-grid">
             {kimMinjunStatusFieldMeta.map((field) => {

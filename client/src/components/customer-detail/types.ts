@@ -5,6 +5,11 @@
 export type KimStatusFieldKey = "phone" | "job" | "location" | "source" | "advisor" | "assignedAt";
 export type KimWorkflowKey = "stage" | "chance" | "manage";
 
+export type KimRecentUpdate = {
+  section: string;
+  updatedAt: number;
+};
+
 export type OpenEditorState =
   | { kind: "status"; key: KimStatusFieldKey }
   | { kind: "workflow"; key: KimWorkflowKey }
