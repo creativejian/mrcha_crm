@@ -29,7 +29,7 @@ export function CustomerMemos({ memos, count, adding, editingId, confirmingDelet
           {memos.length === 0 && !adding ? (
             <div className="kim-list-empty">등록된 메모가 없습니다.</div>
           ) : memos.map((item, index) => {
-            const shouldOpenDeletePopoverAbove = !adding && index === memos.length - 1;
+            const shouldOpenDeletePopoverAbove = !adding && memos.length > 1 && index === memos.length - 1;
 
             if (editingId === item.id) {
               return (
