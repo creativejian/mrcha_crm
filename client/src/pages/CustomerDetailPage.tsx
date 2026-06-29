@@ -5,7 +5,7 @@ import { CHANCE_OPTIONS, DOC_TYPE_OPTIONS, PURCHASE_METHOD_OPTIONS, SCHEDULE_TYP
 import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
-import { addMemo, updateMemo, deleteMemo, addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
+import { addTask, updateTask, deleteTask, addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchCustomerQuoteRequests, fetchQuoteRequestDetail, fetchAppQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 import { ColorPicker } from "@/components/ColorPicker";
@@ -20,11 +20,13 @@ import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 import type { MergeSource } from "@/lib/document-merge";
 import { nowMs, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatShortDateLabel, formatScheduleDateLabel, formatDateInputValue, formatKimFileSize, classifyKimDocumentFile, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
-import { type KimScheduleItem, type KimCheckItem, type KimCustomerMemoItem, scheduleRecordKey, sortKimCustomerMemosByCreatedAt, sortKimCheckItemsByWorkRule, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
+import { type KimScheduleItem, type KimCheckItem, scheduleRecordKey, sortKimCheckItemsByWorkRule, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
 import { type KimCustomerType, type KimAdvisorTeam, kimCustomerTypeOptions, kimAutomaticSourceOptions, kimManualSourceOptions, kimAdvisorOptions, kimRegionOptions, parseKimJobValue, formatKimJobValue, parseKimLocationValue, formatKimLocationValue, parseKimSourceValue, parseKimAdvisorValue, formatKimAdvisorValue, isKimAutomaticSource, hasKimAppSourceQueue, hasKimQuoteAttachments } from "@/lib/kim-status-fields";
 import { type KimPurchaseFloatingKind, type KimPurchasePopoverFrame, type KimQuoteActionFrame, type KimQuoteStatusTooltip, isKimPurchaseFloatingKind, calculateKimPurchasePopoverFrame, calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
 import { type KimRecentUpdate, type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "@/components/customer-detail/types";
 import { CustomerDetailHeader } from "@/components/customer-detail/CustomerDetailHeader";
+import { CustomerMemos } from "@/components/customer-detail/CustomerMemos";
+import { useCustomerMemos } from "@/components/customer-detail/hooks/useCustomerMemos";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -736,16 +738,7 @@ function KimMinjunDetailContent({
   const [editingCheckItemId, setEditingCheckItemId] = useState<string | null>(null);
   const [confirmingCheckItemTitle, setConfirmingCheckItemTitle] = useState<string | null>(null);
   const [confirmingCheckItemDeleteId, setConfirmingCheckItemDeleteId] = useState<string | null>(null);
-  const [customerMemos, setCustomerMemos] = useState<KimCustomerMemoItem[]>(() =>
-    detail.memos.map((m) => ({
-      id: m.id,
-      body: m.body ?? "",
-      createdAt: formatActivity(m.createdAt),
-    })),
-  );
-  const [addingCustomerMemo, setAddingCustomerMemo] = useState(false);
-  const [editingCustomerMemoId, setEditingCustomerMemoId] = useState<string | null>(null);
-  const [confirmingCustomerMemoDeleteId, setConfirmingCustomerMemoDeleteId] = useState<string | null>(null);
+  const memos = useCustomerMemos({ detail, customer, onToast, markRecentUpdate });
   const [quotes, setQuotes] = useState<KimQuoteItem[]>(() => detail.quotes.map((q) => toKimQuoteItem(q, Date.now())));
   const [isQuoteSolutionWorkbenchOpen, setIsQuoteSolutionWorkbenchOpen] = useState(false);
   const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(kimMinjunPurchaseFields));
@@ -831,11 +824,8 @@ function KimMinjunDetailContent({
   const scheduleCompleteRef = useRef<HTMLDivElement>(null);
   const scheduleDeleteRef = useRef<HTMLDivElement>(null);
   const scheduleEditRef = useRef<HTMLFormElement>(null);
-  const customerMemoDeleteRef = useRef<HTMLDivElement>(null);
-  const customerMemoEditRef = useRef<HTMLFormElement>(null);
   const documentDeleteRef = useRef<HTMLDivElement>(null);
   const consultBodyRef = useRef<HTMLDivElement>(null);
-  const customerMemoBodyRef = useRef<HTMLDivElement>(null);
   const checkBodyRef = useRef<HTMLDivElement>(null);
   const scheduleBodyRef = useRef<HTMLDivElement>(null);
   const quoteBodyRef = useRef<HTMLDivElement>(null);
@@ -995,7 +985,6 @@ function KimMinjunDetailContent({
     scenario: cardScenario,
   });
   const workbenchFirstTermMonths = manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60;
-  const sortedCustomerMemos = sortKimCustomerMemosByCreatedAt(customerMemos);
   const sortedCheckItems = sortKimCheckItemsByWorkRule(checkItems, completedCheckItems);
   const sortedSchedules = sortKimSchedulesByDateTime(schedules);
 
@@ -1443,9 +1432,9 @@ function KimMinjunDetailContent({
   }, []);
 
   useEffect(() => {
-    onEditorOpenChange?.(openEditor !== null || addingCustomerMemo || addingCheckItem || addingScheduleItem || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingCheckItemId !== null || editingCustomerMemoId !== null || editingScheduleId !== null || editingQuoteId !== null || confirmingCustomerMemoDeleteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
+    onEditorOpenChange?.(openEditor !== null || memos.editorOpen || addingCheckItem || addingScheduleItem || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || previewDocumentId !== null || editingCheckItemId !== null || editingScheduleId !== null || editingQuoteId !== null || confirmingScheduleDeleteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null || confirmingDocumentDeleteId !== null);
     return () => onEditorOpenChange?.(false);
-  }, [addingCheckItem, addingCustomerMemo, addingScheduleItem, confirmingCustomerMemoDeleteId, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, confirmingScheduleDeleteId, editingCheckItemId, editingCustomerMemoId, editingScheduleId, editingQuoteId, isQuoteSolutionWorkbenchOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId]);
+  }, [addingCheckItem, addingScheduleItem, confirmingDocumentDeleteId, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, confirmingScheduleDeleteId, editingCheckItemId, editingScheduleId, editingQuoteId, isQuoteSolutionWorkbenchOpen, memos.editorOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewDocumentId, previewQuoteId, previewSentQuoteId]);
 
   useEffect(() => {
     if (!solutionWorkbenchCanQuery && solutionWorkbenchEntryMode === "solution") {
@@ -1490,15 +1479,6 @@ function KimMinjunDetailContent({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [openEditor?.kind, timelineItems.length]);
-
-  useEffect(() => {
-    const container = customerMemoBodyRef.current;
-    if (!container) return;
-    const frame = window.requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [customerMemos.length, addingCustomerMemo]);
 
   useEffect(() => {
     const container = quoteBodyRef.current;
@@ -1590,46 +1570,6 @@ function KimMinjunDetailContent({
       document.removeEventListener("keydown", closePinnedQuoteStatusByKeyboard);
     };
   }, [pinnedQuoteStatus]);
-
-  useEffect(() => {
-    if (!confirmingCustomerMemoDeleteId) return;
-
-    function closeConfirm(event: PointerEvent) {
-      if (customerMemoDeleteRef.current?.contains(event.target as Node)) return;
-      setConfirmingCustomerMemoDeleteId(null);
-    }
-
-    function closeConfirmByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setConfirmingCustomerMemoDeleteId(null);
-    }
-
-    document.addEventListener("pointerdown", closeConfirm, true);
-    document.addEventListener("keydown", closeConfirmByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeConfirm, true);
-      document.removeEventListener("keydown", closeConfirmByKeyboard);
-    };
-  }, [confirmingCustomerMemoDeleteId]);
-
-  useEffect(() => {
-    if (!editingCustomerMemoId) return;
-
-    function cancelMemoEdit(event: PointerEvent) {
-      if (customerMemoEditRef.current?.contains(event.target as Node)) return;
-      setEditingCustomerMemoId(null);
-    }
-
-    function cancelMemoEditByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setEditingCustomerMemoId(null);
-    }
-
-    document.addEventListener("pointerdown", cancelMemoEdit, true);
-    document.addEventListener("keydown", cancelMemoEditByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", cancelMemoEdit, true);
-      document.removeEventListener("keydown", cancelMemoEditByKeyboard);
-    };
-  }, [editingCustomerMemoId]);
 
   useEffect(() => {
     if (!confirmingCheckItemTitle) return;
@@ -2839,54 +2779,6 @@ function KimMinjunDetailContent({
     }
   }
 
-  function saveCustomerMemo(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const body = String(formData.get("body") ?? "").trim();
-    if (!body) return;
-    const tempId = `kim-customer-memo-${Date.now()}`;
-    setCustomerMemos((current) => [...current, { id: tempId, body, createdAt: formatKoreanShortTime() }]);
-    setAddingCustomerMemo(false);
-    setEditingCustomerMemoId(null);
-    setConfirmingCustomerMemoDeleteId(null);
-    markRecentUpdate("고객 메모");
-    onToast("고객 메모가 추가되었습니다.");
-    if (!customer.id) return;
-    void addMemo(customer.id, { body })
-      .then((res) => setCustomerMemos((current) => current.map((m) => (m.id === tempId ? { ...m, id: res.id, createdAt: formatActivity(res.createdAt) } : m))))
-      .catch(() => { setCustomerMemos((current) => current.filter((m) => m.id !== tempId)); onToast("저장에 실패했습니다"); });
-  }
-
-  function updateCustomerMemo(event: SyntheticEvent<HTMLFormElement>, id: string) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const body = String(formData.get("body") ?? "").trim();
-    if (!body) return;
-    const prevMemos = customerMemos;
-    setCustomerMemos((current) => current.map((item) => (
-      item.id === id ? { ...item, body } : item
-    )));
-    setEditingCustomerMemoId(null);
-    setConfirmingCustomerMemoDeleteId(null);
-    markRecentUpdate("고객 메모");
-    onToast("고객 메모를 수정했습니다.");
-    if (customer.id && !id.startsWith("kim-")) {
-      void updateMemo(customer.id, id, { body }).catch(() => { setCustomerMemos(prevMemos); onToast("저장에 실패했습니다"); });
-    }
-  }
-
-  function deleteCustomerMemo(id: string) {
-    const prevMemos = customerMemos;
-    setCustomerMemos((current) => current.filter((item) => item.id !== id));
-    setEditingCustomerMemoId((current) => (current === id ? null : current));
-    setConfirmingCustomerMemoDeleteId(null);
-    markRecentUpdate("고객 메모");
-    onToast("고객 메모를 삭제했습니다.");
-    if (customer.id && !id.startsWith("kim-")) {
-      void deleteMemo(customer.id, id).catch(() => { setCustomerMemos(prevMemos); onToast("삭제에 실패했습니다"); });
-    }
-  }
-
   function toggleScheduleComplete(item: KimScheduleItem) {
     const key = scheduleRecordKey(item);
     const nextDone = !completedScheduleKeys.includes(key);
@@ -3824,124 +3716,7 @@ function KimMinjunDetailContent({
             {openEditor?.kind === "purchase" ? renderPurchaseEditor() : null}
           </section>
 
-          <section className="detail-section kim-mvp-section kim-customer-memo-section">
-            <div className="kim-mvp-section-head">
-              <div className="kim-mvp-title-row">
-                <i aria-hidden="true" className="kim-mvp-title-icon"><FileText size={14} strokeWidth={2.2} /></i>
-                <h3>고객 메모</h3>
-                <span className="kim-customer-memo-count">{customerMemos.length}개</span>
-                <em>고객별 참고사항</em>
-              </div>
-              <button
-                aria-label="고객 메모 추가"
-                className="kim-customer-memo-add-button"
-                onClick={() => {
-                  setEditingCustomerMemoId(null);
-                  setAddingCustomerMemo((current) => !current);
-                }}
-                type="button"
-              >
-                <span aria-hidden="true">{addingCustomerMemo ? "×" : "+"}</span>
-              </button>
-            </div>
-            <div className="kim-customer-memo-body" ref={customerMemoBodyRef}>
-              <div className="kim-customer-memo-list">
-                {sortedCustomerMemos.length === 0 && !addingCustomerMemo ? (
-                  <div className="kim-list-empty">등록된 메모가 없습니다.</div>
-                ) : sortedCustomerMemos.map((item, index) => {
-                  const shouldOpenDeletePopoverAbove = !addingCustomerMemo && index === sortedCustomerMemos.length - 1;
-
-                  if (editingCustomerMemoId === item.id) {
-                    return (
-                      <form
-                        className="kim-customer-memo-edit-row"
-                        key={item.id}
-                        ref={customerMemoEditRef}
-                        onKeyDown={(event) => {
-                          if (event.key !== "Escape") return;
-                          event.preventDefault();
-                          setEditingCustomerMemoId(null);
-                        }}
-                        onSubmit={(event) => updateCustomerMemo(event, item.id)}
-                      >
-                        <span>{item.createdAt}</span>
-                        <textarea aria-label="고객 메모 내용" autoFocus defaultValue={item.body} name="body" rows={2} />
-                        <div className="kim-customer-memo-edit-actions">
-                          <button type="button" onClick={() => setEditingCustomerMemoId(null)}>취소</button>
-                          <button className="primary" type="submit">저장</button>
-                        </div>
-                      </form>
-                    );
-                  }
-
-                  return (
-                    <article
-                      className="kim-customer-memo-row"
-                      key={item.id}
-                      onClick={() => {
-                        setAddingCustomerMemo(false);
-                        setEditingCustomerMemoId(item.id);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter" && event.key !== " ") return;
-                        event.preventDefault();
-                        setAddingCustomerMemo(false);
-                        setEditingCustomerMemoId(item.id);
-                      }}
-                      role="button"
-                      tabIndex={0}
-                    >
-                      <span>{item.createdAt}</span>
-                      <p>{item.body}</p>
-                      <button
-                        aria-label="고객 메모 삭제"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setEditingCustomerMemoId(null);
-                          setConfirmingCustomerMemoDeleteId((current) => (current === item.id ? null : item.id));
-                        }}
-                        type="button"
-                      >
-                        <Trash2 size={13} strokeWidth={2.3} />
-                      </button>
-                      {confirmingCustomerMemoDeleteId === item.id ? (
-                        <div
-                          className={`kim-customer-memo-delete-popover${shouldOpenDeletePopoverAbove ? " is-above" : ""}`}
-                          ref={customerMemoDeleteRef}
-                          role="dialog"
-                          aria-label="고객 메모 삭제 확인"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <p>해당 메모를 삭제하시겠습니까?</p>
-                          <div>
-                            <button type="button" onClick={(event) => {
-                              event.stopPropagation();
-                              setConfirmingCustomerMemoDeleteId(null);
-                            }}>아니요</button>
-                            <button className="danger" type="button" onClick={(event) => {
-                              event.stopPropagation();
-                              deleteCustomerMemo(item.id);
-                            }}>삭제</button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                })}
-              </div>
-              {addingCustomerMemo ? (
-                <form className="kim-customer-memo-composer" onSubmit={saveCustomerMemo}>
-                  <label>
-                    <textarea aria-label="고객 메모" autoFocus name="body" rows={3} />
-                  </label>
-                  <div className="kim-customer-memo-composer-actions">
-                    <button type="button" onClick={() => setAddingCustomerMemo(false)}>취소</button>
-                    <button className="primary" type="submit">저장</button>
-                  </div>
-                </form>
-              ) : null}
-            </div>
-          </section>
+          <CustomerMemos {...memos} />
         </section>
 
         <section className="kim-mvp-ops-grid" aria-label={`${customer.name} 고객 운영 기능`}>
