@@ -6799,12 +6799,26 @@ th input:focus-visible {
   line-height: 1.55;
 }
 
-.kim-needs-request-list {
+.kim-needs-app {
   width: 100%;
   max-height: calc(100% - 48px);
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+/* 카드 목록만 스크롤. overscroll-behavior:contain → 끝에서 부모 드로어로 스크롤 전파 차단. */
+.kim-needs-request-scroll {
+  min-height: 0;
+  max-height: min(48vh, 460px);
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 10px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 6px;
+  margin: -2px -6px;
 }
 
 .kim-needs-request-card {
