@@ -16821,7 +16821,8 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .app-req-vehicle { max-width: 280px; }
 .app-req-vehicle > span, .app-req-terms > span { display: block; }
 .app-req-sub { display: block; margin-top: 2px; color: #7f858c; }
-.app-req-match { display: inline-block; padding: 2px 8px; border-radius: 5px; font-weight: 600; white-space: nowrap; }
+/* 칩 높이를 액션 버튼(padding 3px + border 1px)과 동일하게 — 투명 border로 박스 높이 일치. */
+.app-req-match { display: inline-block; padding: 3px 8px; border: 1px solid transparent; border-radius: 5px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .app-req-match.linked { background: #ece8ff; color: var(--brand); }
 .app-req-match.maybe { background: #fff4e5; color: #b76e00; }
 .app-req-match.none { background: #f4f4f3; color: #7f858c; }
