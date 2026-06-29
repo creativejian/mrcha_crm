@@ -3698,7 +3698,7 @@ function KimMinjunDetailContent({
         </section>
       </div>
 
-      <section className="detail-section kim-needs-dashboard">
+      <section className={`detail-section kim-needs-dashboard${detail.appUserId ? " is-app" : ""}`}>
         <div className="kim-needs-field">
           {detail.appUserId ? (
             <div className="kim-needs-app">

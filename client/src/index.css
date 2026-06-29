@@ -6678,6 +6678,16 @@ th input:focus-visible {
   margin-top: 6px;
 }
 
+/* 앱 분기: 카드 목록은 콘텐츠 높이에 맞춰 hug(상단 정렬, 위/아래 여백=좌우 24px와 동일).
+   수기 단일 카드는 기존 stretch 캔버스(가운데 정렬) 유지. */
+.kim-needs-dashboard.is-app {
+  align-self: start;
+}
+.kim-needs-dashboard.is-app .kim-needs-field {
+  min-height: 0;
+  align-content: start;
+}
+
 .kim-needs-field {
   min-height: 100%;
   display: grid;
