@@ -113,11 +113,13 @@ export function vehicleDisplay(customer: Customer) {
   const display = vehicleDisplayByVehicle[customer.vehicle] ?? { title: customer.vehicle, trim: "트림 미확인" };
   const extraVehicles = extraVehicleDisplayByCustomerId[customer.customerId] ?? [];
   const extraMethods = extraPurchaseMethodDisplayByCustomerId[customer.customerId] ?? [];
+  // DB의 need_trim(vehicleTrim)이 있으면 우선(앱 유입 고객은 mock 룩업 테이블에 없어 "트림 미확인"이 떴음).
+  // 없을 때만 mock 축약(trimShort)/원문(trim)으로 폴백.
   return {
     ...display,
     extraVehicles,
     extraMethods,
-    trimLabel: display.trimShort ?? display.trim,
+    trimLabel: customer.vehicleTrim || display.trimShort || display.trim,
     method: customer.method,
   };
 }

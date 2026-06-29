@@ -18,6 +18,7 @@ export type CustomerRow = {
   chance: string | null;
   aiSummary: string | null;
   needModel: string | null;
+  needTrim: string | null;
   needMethod: string | null;
   receivedAt: string | null;
   assignedAt: string | null;
@@ -56,6 +57,7 @@ export function toCustomer(row: CustomerRow): Customer {
     customerTypeDetail: row.customerTypeDetail ?? "",
     phone: formatPhone(row.phone),
     vehicle: row.needModel ?? "",
+    vehicleTrim: row.needTrim ?? undefined,
     method: row.needMethod ?? "",
     advisor: "미배정",
     statusGroup: row.statusGroup ?? "",

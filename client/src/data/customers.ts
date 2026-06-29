@@ -14,6 +14,7 @@ export type Customer = {
   customerTypeDetail: string;
   phone: string;
   vehicle: string;
+  vehicleTrim?: string;
   method: string;
   advisor: string;
   statusGroup: string;

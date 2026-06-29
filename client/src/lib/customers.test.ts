@@ -16,6 +16,7 @@ const row: CustomerRow = {
   priority: "긴급",
   aiSummary: "요약",
   needModel: "Maybach S-Class",
+  needTrim: "S 500 4M Long",
   needMethod: "운용리스",
   receivedAt: "2026-05-14T12:56:00+09:00",
   assignedAt: "2026-05-14T13:04:00+09:00",
@@ -30,11 +31,15 @@ describe("toCustomer", () => {
     expect(c.customerId).toBe("CU-2605-0020");
     expect(c.no).toBe(26050020);
   });
-  it("needModel/needMethod를 vehicle/method로, latestTask를 nextAction으로", () => {
+  it("needModel/needTrim/needMethod를 vehicle/vehicleTrim/method로, latestTask를 nextAction으로", () => {
     const c = toCustomer(row);
     expect(c.vehicle).toBe("Maybach S-Class");
+    expect(c.vehicleTrim).toBe("S 500 4M Long");
     expect(c.method).toBe("운용리스");
     expect(c.nextAction).toBe("GLC 재고 확인");
+  });
+  it("needTrim 없으면 vehicleTrim은 undefined(목록은 트림 미확인 폴백)", () => {
+    expect(toCustomer({ ...row, needTrim: null }).vehicleTrim).toBeUndefined();
   });
   it("advisor는 미배정 폴백, null 필드는 빈 문자열", () => {
     const c = toCustomer({ ...row, latestTask: null, phone: null });
