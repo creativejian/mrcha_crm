@@ -26,3 +26,15 @@ export type OpenEditorState =
   | { kind: "purchaseReviewNotes" }
   | { kind: "timeline" }
   | { kind: "schedule" };
+
+// 서류함 항목(업로드 직후 메모리 file/objectUrl 포함). 서류 영역 훅·컴포넌트가 공유한다.
+export type KimDocumentItem = {
+  id: string;
+  title: string;
+  status: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+  objectUrl?: string;
+  file?: File;
+};

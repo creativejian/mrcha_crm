@@ -2,6 +2,8 @@
 // 타입/상수에 의존하지 않는(string·number·Date만 입출력) 함수만 모은다.
 // 컴포넌트 상태와 무관해 단위 테스트가 쉽고, 거대 페이지 컴포넌트에서 분리해 가독성을 높인다.
 
+import { type DragEvent as ReactDragEvent } from "react";
+
 export function nowMs() {
   return Date.now();
 }
@@ -145,6 +147,11 @@ export function kimDocumentFileKind(mimeType?: string, fileName = "") {
   if (mimeType?.startsWith("image/")) return "이미지";
   if (mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) return "PDF";
   return "파일";
+}
+
+// 드래그 데이터에 파일이 포함됐는지(=OS 파일 드롭) 판정. 서류함·견적 원본 드롭 영역이 공유.
+export function isDocumentFileDrag(event: ReactDragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer.types).includes("Files");
 }
 
 // --- 구매 조건 표시/태그 ---
