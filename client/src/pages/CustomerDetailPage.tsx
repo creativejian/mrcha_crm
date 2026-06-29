@@ -39,6 +39,8 @@ type CustomerDetailPageProps = {
   onEditorOpenChange?: (open: boolean) => void;
   onToast: (message: string) => void;
   onWorkflowChange?: (customerNo: number, next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus }) => void;
+  // 목록 표시 필드(직군/연락처/상담경로/차종·구매방식/상담메모=최신 미완료 task) 변경 시 호출 → 전체보기 목록 재페치(stale 방지).
+  onCustomerListChanged?: () => void;
   variant?: "page" | "drawer";
 };
 
@@ -344,6 +346,7 @@ function KimMinjunDetailContent({
   onEditorOpenChange,
   onToast,
   onWorkflowChange,
+  onCustomerListChanged,
   onQuotesPersisted,
 }: {
   chanceOverride?: CustomerChanceOption;
@@ -353,6 +356,7 @@ function KimMinjunDetailContent({
   onEditorOpenChange?: CustomerDetailPageProps["onEditorOpenChange"];
   onToast: (message: string) => void;
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
+  onCustomerListChanged?: CustomerDetailPageProps["onCustomerListChanged"];
   onQuotesPersisted?: () => void;
 }) {
   const [needs, setNeeds] = useState<KimNeedsState>(() => ({
@@ -379,7 +383,7 @@ function KimMinjunDetailContent({
   const [initialCostAmount, setInitialCostAmount] = useState("30");
   const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<KimPurchasePopoverFrame | null>(null);
   const memos = useCustomerMemos({ detail, customer, onToast, markRecentUpdate });
-  const checks = useCustomerChecks({ detail, customer, onToast, markRecentUpdate });
+  const checks = useCustomerChecks({ detail, customer, onToast, markRecentUpdate, onCustomerListChanged });
   const [quotes, setQuotes] = useState<KimQuoteItem[]>(() => detail.quotes.map((q) => toKimQuoteItem(q, Date.now())));
   const [isQuoteSolutionWorkbenchOpen, setIsQuoteSolutionWorkbenchOpen] = useState(false);
   const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(kimMinjunPurchaseFields));
@@ -974,10 +978,13 @@ function KimMinjunDetailContent({
   // 낙관 갱신 후 백그라운드 PATCH. 실패 시 rollback + 토스트(쓰기는 재시도 안 함).
   function savePatch(patch: CustomerWritePatch, rollback: () => void) {
     if (!customer.id) return;
-    void updateCustomer(customer.id, patch).catch(() => {
-      rollback();
-      onToast("저장에 실패했습니다");
-    });
+    // 성공(서버 반영) 후에만 목록 재페치 — 낙관 직후 페치하면 서버 반영 전이라 stale.
+    void updateCustomer(customer.id, patch)
+      .then(() => onCustomerListChanged?.())
+      .catch(() => {
+        rollback();
+        onToast("저장에 실패했습니다");
+      });
   }
 
   useEffect(() => {
@@ -3262,6 +3269,7 @@ export function CustomerDetailPage({
   onEditorOpenChange,
   onToast,
   onWorkflowChange,
+  onCustomerListChanged,
   variant = "page",
 }: CustomerDetailPageProps) {
   const drawerMode = variant === "drawer";
@@ -3304,6 +3312,7 @@ export function CustomerDetailPage({
           onEditorOpenChange={onEditorOpenChange}
           onToast={onToast}
           onWorkflowChange={onWorkflowChange}
+          onCustomerListChanged={onCustomerListChanged}
           onQuotesPersisted={reloadDetail}
         />
       ) : (

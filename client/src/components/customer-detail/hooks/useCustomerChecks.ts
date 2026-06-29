@@ -11,9 +11,11 @@ type UseCustomerChecksArgs = {
   customer: Customer; // customer.id (API)
   onToast: (message: string) => void;
   markRecentUpdate: (section: string) => void; // 부모 소유 recentUpdate 갱신(헤더가 사용) — 콜백 주입
+  // 전체보기 목록의 "상담 메모"는 최신 미완료 task body라, task 변경 성공 시 목록을 재페치한다.
+  onCustomerListChanged?: () => void;
 };
 
-export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate }: UseCustomerChecksArgs) {
+export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate, onCustomerListChanged }: UseCustomerChecksArgs) {
   const [checkItems, setCheckItems] = useState<KimCheckItem[]>(() =>
     detail.tasks.map((t) => ({
       id: t.id,
@@ -146,7 +148,7 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate 
     onToast("해야 할 일이 추가되었습니다.");
     if (!customer.id) return;
     void addTask(customer.id, { category, due, body })
-      .then((res) => setCheckItems((current) => current.map((t) => (t.id === tempId ? { ...t, id: res.id } : t))))
+      .then((res) => { setCheckItems((current) => current.map((t) => (t.id === tempId ? { ...t, id: res.id } : t))); onCustomerListChanged?.(); })
       .catch(() => { setCheckItems((current) => current.filter((t) => t.id !== tempId)); onToast("저장에 실패했습니다"); });
   }
 
@@ -172,7 +174,7 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate 
     markRecentUpdate("해야 할 일");
     onToast("해야 할 일을 수정했습니다.");
     if (customer.id && !id.startsWith("kim-")) {
-      void updateTask(customer.id, id, { category, due, body }).catch(() => { setCheckItems(prevCheckItems); onToast("저장에 실패했습니다"); });
+      void updateTask(customer.id, id, { category, due, body }).then(() => onCustomerListChanged?.()).catch(() => { setCheckItems(prevCheckItems); onToast("저장에 실패했습니다"); });
     }
   }
 
@@ -185,7 +187,7 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate 
     setConfirmingCheckItemTitle(null);
     markRecentUpdate("해야 할 일");
     if (customer.id && !id.startsWith("kim-")) {
-      void updateTask(customer.id, id, { done: nextDone }).catch(() => { setCompletedCheckItems(prevCompleted); onToast("저장에 실패했습니다"); });
+      void updateTask(customer.id, id, { done: nextDone }).then(() => onCustomerListChanged?.()).catch(() => { setCompletedCheckItems(prevCompleted); onToast("저장에 실패했습니다"); });
     }
   }
 
@@ -200,7 +202,7 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate 
     markRecentUpdate("해야 할 일");
     onToast("해야 할 일을 삭제했습니다.");
     if (customer.id && !id.startsWith("kim-")) {
-      void deleteTask(customer.id, id).catch(() => { setCheckItems(prevCheckItems); setCompletedCheckItems(prevCompleted); onToast("삭제에 실패했습니다"); });
+      void deleteTask(customer.id, id).then(() => onCustomerListChanged?.()).catch(() => { setCheckItems(prevCheckItems); setCompletedCheckItems(prevCompleted); onToast("삭제에 실패했습니다"); });
     }
   }
 

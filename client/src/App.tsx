@@ -320,6 +320,7 @@ export function App() {
                 onBack={() => navigate("/customers")}
                 onToast={showToast}
                 onWorkflowChange={updateCustomerWorkflow}
+                onCustomerListChanged={reloadCustomers}
                 variant="page"
               />
             ) : customersLoaded ? (
@@ -395,6 +396,7 @@ export function App() {
               onFullScreen={openCustomerDetailFullScreen}
               onToast={showToast}
               onWorkflowChange={updateCustomerWorkflow}
+              onCustomerListChanged={reloadCustomers}
               variant="drawer"
             />
           </aside>
