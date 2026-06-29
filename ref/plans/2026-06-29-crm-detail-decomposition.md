@@ -23,7 +23,7 @@
 
 각 영역 Task는 아래 7단계를 따른다. Task별 본문은 이 절차에 끼울 **영역-specific 인벤토리**(이동 대상·훅 시그니처·리네임 대상·얽힘 주의·검증 포인트)만 정의한다.
 
-- [ ] **A. 브랜치 생성**: `git switch -c refactor/crm-detail-<area>`
+- [ ] **A. 통합 브랜치에서 작업**: 모든 영역은 통합 브랜치 `refactor/crm-detail-decomposition`에 **순차 누적**한다(영역별 sub-브랜치 대신 — 2026-06-29 "로컬 누적→묶음 PR" 결정). main은 push/PR 전까지 불가침. 영역 시작 전 통합 브랜치에 체크아웃돼 있는지 확인.
 - [ ] **B. 이동 대상 식별**: 해당 영역의 state/ref/effect/렌더 헬퍼/JSX 블록을 grep으로 현재 위치 확인(Task 본문 인벤토리 기준).
 - [ ] **C. 영역 훅 생성** `client/src/components/customer-detail/hooks/use<Area>.ts`: 영역-로컬 state/ref/effect/핸들러를 옮긴다. cross-cutting(`openEditor`·`setOpenEditor`/`requestOpenEditor`·`markRecentUpdate`·overlay)은 **인자로 받고** `overlayOpen`(있으면)을 **반환**. 훅 반환 객체 시그니처는 Task 본문에 정의. **cross-cutting 래퍼가 부모에 아직 없으면**(`markRecentUpdate`/`requestOpenEditor`): 이 영역에서 부모에 `useCallback`으로 한 번 정의한 뒤(기존 `setRecentUpdate({section,updatedAt})`/`setOpenEditor` 동작 그대로 감쌈) 인자로 내려준다. 이미 있으면 재사용.
 - [ ] **D. 프레젠테이션 컴포넌트 생성** `client/src/components/customer-detail/<Area>.tsx`: 해당 JSX 블록 + 영역 렌더 헬퍼를 옮긴다. props = 훅 반환 + cross-cutting 필요분.
@@ -33,7 +33,7 @@
   - 김지안(`CU-2606-0001`) = 앱 견적요청 카드(앱 분기) 정상
   - 제임스 = 다요청 정상
   - 김민준(`CU-2605-0020`) = 풀데이터(수기 분기) 회귀 0
-  - 영역 동작(추가/수정/삭제/팝오버/스크롤) 직접 클릭 확인. OK 후 커밋 → PR → 머지.
+  - 영역 동작(추가/수정/삭제/팝오버/스크롤) 직접 클릭 확인. OK 후 통합 브랜치에 커밋하고 다음 영역으로. (GitHub PR/prod 배포는 전체 또는 묶음으로 마지막에.)
 
 ### 영역 훅 표준 반환 패턴
 
@@ -101,11 +101,11 @@ git commit -m "refactor(crm): 고객 상세 분해 스캐폴드 — 디렉터리
 - Modify: `client/src/components/KimMinjunDetailHeader.tsx`(파일명 포함) → `CustomerDetailHeader.tsx`
 - Modify: `client/src/pages/CustomerDetailPage.tsx`(import + 사용처)
 
-- [ ] **Step 1: 브랜치** `git switch -c refactor/crm-detail-header`
+- [ ] **Step 1: 통합 브랜치 확인**: `refactor/crm-detail-decomposition`에 체크아웃돼 있는지 확인(별도 sub-브랜치 만들지 않음).
 - [ ] **Step 2: 파일/식별자 리네임**: `KimMinjunDetailHeader` → `CustomerDetailHeader`. 파일 `git mv client/src/components/KimMinjunDetailHeader.tsx client/src/components/customer-detail/CustomerDetailHeader.tsx`(신규 디렉터리로 이동). props 타입명에 `Kim`이 있으면 함께. **CSS 클래스 `.kim-*` 문자열은 변경 금지**.
 - [ ] **Step 3: import 갱신**: `CustomerDetailPage.tsx`의 import 경로/이름과 JSX 사용처 갱신. 다른 import처 있으면 grep `KimMinjunDetailHeader`로 전수 확인.
 - [ ] **Step 4: 검증 게이트**(공통 G): typecheck0/lint0/build + 브라우저 3종(헤더 이름/코드/수신시간/최근업데이트 정상 표시).
-- [ ] **Step 5: 커밋 + PR + 머지**
+- [ ] **Step 5: 통합 브랜치에 커밋**
 
 ```bash
 git commit -m "refactor(crm): 고객 상세 헤더 KimMinjunDetailHeader→CustomerDetailHeader 리네임+이동"
