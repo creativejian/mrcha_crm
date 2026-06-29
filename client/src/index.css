@@ -7488,6 +7488,7 @@ th input:focus-visible {
   height: 196px;
   max-height: 196px;
   overflow-y: auto;
+  overscroll-behavior: contain; /* 내부 스크롤 끝에서 고객관리 배경으로 전파(체이닝) 차단 — 할일/견적함과 동일 */
   background: #fff;
 }
 
