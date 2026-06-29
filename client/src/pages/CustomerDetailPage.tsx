@@ -23,6 +23,7 @@ import { nowMs, formatKimRecentUpdateTime, formatKimNumberWithCommas, kimPurchas
 import { type KimScheduleItem, type KimCheckItem, type KimCustomerMemoItem, scheduleRecordKey, sortKimCustomerMemosByCreatedAt, sortKimCheckItemsByWorkRule, sortKimSchedulesByDateTime } from "@/lib/kim-schedule";
 import { type KimCustomerType, type KimAdvisorTeam, kimCustomerTypeOptions, kimAutomaticSourceOptions, kimManualSourceOptions, kimAdvisorOptions, kimRegionOptions, parseKimJobValue, formatKimJobValue, parseKimLocationValue, formatKimLocationValue, parseKimSourceValue, parseKimAdvisorValue, formatKimAdvisorValue, isKimAutomaticSource, hasKimAppSourceQueue, hasKimQuoteAttachments } from "@/lib/kim-status-fields";
 import { type KimPurchaseFloatingKind, type KimPurchasePopoverFrame, type KimQuoteActionFrame, type KimQuoteStatusTooltip, isKimPurchaseFloatingKind, calculateKimPurchasePopoverFrame, calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
+import { type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "@/components/customer-detail/types";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -36,8 +37,6 @@ type CustomerDetailPageProps = {
   variant?: "page" | "drawer";
 };
 
-type KimStatusFieldKey = "phone" | "job" | "location" | "source" | "advisor" | "assignedAt";
-type KimWorkflowKey = "stage" | "chance" | "manage";
 type KimInitialCostKind = "무보증" | "보증금" | "선수금";
 type KimInitialCostSelection = KimInitialCostKind | "";
 type KimInitialCostUnit = "%" | "금액";
@@ -65,22 +64,9 @@ const kimManualMileageOptions = [
   "40,000km / 년",
 ] as const;
 type KimAcquisitionTaxMode = "normal" | "hybrid" | "electric" | "manual";
-type KimOpenEditor =
-  | { kind: "status"; key: KimStatusFieldKey }
-  | { kind: "workflow"; key: KimWorkflowKey }
-  | { kind: "needs" }
-  | { kind: "purchase" }
-  | { kind: "purchaseMethod" }
-  | { kind: "purchaseTiming" }
-  | { kind: "purchaseCostFocus" }
-  | { kind: "purchaseTerm" }
-  | { kind: "purchaseInitialCost" }
-  | { kind: "purchaseAnnualMileage" }
-  | { kind: "purchaseDeliveryMethod" }
-  | { kind: "purchaseCustomerNotes" }
-  | { kind: "purchaseReviewNotes" }
-  | { kind: "timeline" }
-  | { kind: "schedule" };
+// 정의는 @/components/customer-detail/types 의 OpenEditorState 로 이동.
+// 본체 내 기존 KimOpenEditor 참조 보존을 위한 별칭(리네임은 다음 Task에서).
+type KimOpenEditor = OpenEditorState;
 
 type KimNeedsState = {
   model: string;
@@ -863,7 +849,7 @@ function KimMinjunDetailContent({
   const [loadedPreviewUrl, setLoadedPreviewUrl] = useState<string | null>(null);
   const [confirmingDocumentDeleteId, setConfirmingDocumentDeleteId] = useState<string | null>(null);
   const [isMergingDocuments, setIsMergingDocuments] = useState(false);
-  const [openEditor, setOpenEditor] = useState<KimOpenEditor | null>(null);
+  const [openEditor, setOpenEditor] = useState<OpenEditorState | null>(null);
   const [recentUpdate, setRecentUpdate] = useState<KimRecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
   const [recentUpdateNow, setRecentUpdateNow] = useState(() => Date.now());
   const editorRef = useRef<HTMLDivElement>(null);
