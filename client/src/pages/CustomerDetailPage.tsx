@@ -701,7 +701,7 @@ function KimMinjunDetailContent({
 }) {
   const [statusValues, setStatusValues] = useState<Record<KimStatusFieldKey, string>>(() => ({
     phone: detail.phone ? formatPhone(detail.phone) : "미입력",
-    job: formatKimJobValue((detail.customerType as KimCustomerType) ?? "개인", detail.customerTypeDetail ?? ""),
+    job: detail.customerType ? formatKimJobValue(detail.customerType as KimCustomerType, detail.customerTypeDetail ?? "") : "미입력",
     location: detail.residence ?? "확인 필요",
     source: detail.source ?? "미입력",
     advisor: "미배정",
