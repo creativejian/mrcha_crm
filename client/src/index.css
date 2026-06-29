@@ -16831,7 +16831,8 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .notification-item.app-request-new { border-left: 2px solid var(--brand); }
 
 /* 앱 견적요청 인박스 — 유입 액션 버튼 */
-.app-req-match-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* td는 table-cell(vertical-align:middle)로 행 가운데 정렬, flex는 안쪽 div에(Safari flex-td 버그 회피). */
+.app-req-match-inner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .app-req-action { padding: 3px 10px; border: 1px solid var(--line); border-radius: 5px; background: #fff; font-size: 12px; font-weight: 600; color: var(--brand); cursor: pointer; white-space: nowrap; }
 .app-req-action:hover { background: #f4f1ff; border-color: var(--brand); }
 .app-req-action:disabled { opacity: 0.5; cursor: default; }
