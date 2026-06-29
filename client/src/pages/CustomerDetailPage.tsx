@@ -1,8 +1,8 @@
-import { BriefcaseBusiness, Calculator, CalendarClock, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, FilePlus2, FileText, FileUp, History, ListChecks, MapPin, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Phone, RotateCcw, Route, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
+import { BriefcaseBusiness, Calculator, CarFront, Check, ChevronDown, ChevronRight, Download, Eye, FilePlus2, FileText, FileUp, ListChecks, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, RotateCcw, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { CHANCE_OPTIONS, PURCHASE_METHOD_OPTIONS, customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
-import { fetchCustomerDetail, formatActivity, formatPhone, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
+import { PURCHASE_METHOD_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
+import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
@@ -12,14 +12,12 @@ import { KimAppCardPreview } from "@/components/KimAppCardPreview";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker";
 import { buildAppCardModel, type AppCardModel } from "@/lib/kim-app-card";
-import { initialFinalUpdateByCustomerId, finalUpdateStatus } from "@/lib/customer-table";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
 import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
-import { nowMs, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, kimConsultKindClass, formatLocalPhone, localPhoneFrom, formatKoreanShortTime, formatKimFileSize, isDocumentFileDrag, kimDocumentFileKind, kimQuoteValidClass, formatKimAssignmentTime } from "@/lib/kim-detail-utils";
-import { type KimCustomerType, type KimAdvisorTeam, kimCustomerTypeOptions, kimAutomaticSourceOptions, kimManualSourceOptions, kimAdvisorOptions, kimRegionOptions, parseKimJobValue, formatKimJobValue, parseKimLocationValue, formatKimLocationValue, parseKimSourceValue, parseKimAdvisorValue, formatKimAdvisorValue, isKimAutomaticSource, hasKimAppSourceQueue, hasKimQuoteAttachments } from "@/lib/kim-status-fields";
+import { nowMs, formatKimNumberWithCommas, kimPurchaseValueClass, isKimPurchaseTagField, kimPurchaseTags, formatKoreanShortTime, formatKimFileSize, isDocumentFileDrag, kimDocumentFileKind, kimQuoteValidClass } from "@/lib/kim-detail-utils";
 import { type KimPurchaseFloatingKind, type KimPurchasePopoverFrame, type KimQuoteActionFrame, type KimQuoteStatusTooltip, isKimPurchaseFloatingKind, calculateKimPurchasePopoverFrame, calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
-import { type KimRecentUpdate, type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "@/components/customer-detail/types";
+import { type KimRecentUpdate, type OpenEditorState } from "@/components/customer-detail/types";
 import { CustomerDetailHeader } from "@/components/customer-detail/CustomerDetailHeader";
 import { CustomerMemos } from "@/components/customer-detail/CustomerMemos";
 import { useCustomerMemos } from "@/components/customer-detail/hooks/useCustomerMemos";
@@ -29,6 +27,8 @@ import { CustomerSchedules } from "@/components/customer-detail/CustomerSchedule
 import { useCustomerSchedules } from "@/components/customer-detail/hooks/useCustomerSchedules";
 import { CustomerDocuments } from "@/components/customer-detail/CustomerDocuments";
 import { useCustomerDocuments } from "@/components/customer-detail/hooks/useCustomerDocuments";
+import { StatusWorkflow } from "@/components/customer-detail/StatusWorkflow";
+import { useCustomerWorkflow } from "@/components/customer-detail/hooks/useCustomerWorkflow";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -107,38 +107,6 @@ type KimEditPrefill = {
   scenarios: KimEditScenario[];
   guidance: QuoteGuidance | null;
 };
-
-const chanceByPriority: Record<string, string> = {
-  긴급: "높음",
-  높음: "높음",
-  중간: "중간",
-  낮음: "낮음",
-  보류: "보류",
-  완료: "확정",
-};
-
-function chanceLabel(customer: Customer) {
-  if (customer.statusGroup === "계약완료" || customer.status === "출고완료") return "확정";
-  if (customer.statusGroup === "불발") return "낮음";
-  return chanceByPriority[customer.priority] ?? "중간";
-}
-
-function sourceType(source: string) {
-  if (source.includes("앱")) return "앱 유입";
-  if (source.includes("카카오")) return "카카오";
-  if (source.includes("대표전화")) return "전화";
-  if (source.includes("디엘")) return "구DB";
-  return "직접/소개";
-}
-
-function timelineRows(customer: Customer) {
-  return [
-    { kind: "접수", title: `${sourceType(customer.source)} 접수`, meta: customer.receivedAt, body: `${customer.source} 경로로 고객 문의가 들어왔습니다.` },
-    { kind: "배정", title: `${customer.advisor} 상담사 배정`, meta: customer.assignedAt, body: `${customer.team} 기준으로 담당자를 배정했습니다.` },
-    { kind: "상태", title: `${customer.statusGroup} > ${customer.status}`, meta: customer.date, body: "전체 보기의 진행 상태 컬럼과 동일한 업무 단계입니다." },
-    { kind: "메모", title: "상담 메모 업데이트", meta: "최근", body: customer.nextAction },
-  ];
-}
 
 const kimMaybachQuotePricingMock: PricingInputs = {
   basePrice: 0,
@@ -222,21 +190,6 @@ const kimMinjunPurchaseFields = [
   { label: "심사 특이사항", value: "" },
 ];
 
-const kimMinjunStatusFieldMeta = [
-  { key: "phone", label: "연락처", icon: Phone },
-  { key: "job", label: "직군", icon: BriefcaseBusiness },
-  { key: "location", label: "거주지", icon: MapPin },
-  { key: "source", label: "상담경로", icon: Route },
-  { key: "advisor", label: "담당자", icon: UserRound },
-  { key: "assignedAt", label: "배정시간", icon: CalendarClock },
-] satisfies { key: KimStatusFieldKey; label: string; icon: typeof Phone }[];
-
-const kimMinjunWorkflowMeta = [
-  { key: "stage", label: "진행 상태", tone: "stage" },
-  { key: "chance", label: "계약 가능성", tone: "chance" },
-  { key: "manage", label: "관리 상태", tone: "normal" },
-] satisfies { key: KimWorkflowKey; label: string; tone: string }[];
-
 const kimMethodOptions = ["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"];
 const kimContractTermOptions = ["12개월", "24개월", "36개월", "48개월", "60개월"];
 const kimInitialCostKindOptions: KimInitialCostKind[] = ["무보증", "보증금", "선수금"];
@@ -249,20 +202,11 @@ const kimContractFocusOptions = ["무보증 선호", "월 납입 최소", "총 �
 const kimCustomerNoteOptions = ["연락 잘 됨", "연락 어려움", "특정 시간 연락", "카톡 선호", "통화 선호", "문자 선호", "가족과 상의", "비교 많음", "결정 빠름", "조건 수용 빠름", "신중함", "진행 잘 따라옴"];
 const kimReviewNoteOptions = ["4대보험 확인", "재직 확인 전", "소득 증빙 필요", "신용점수 확인", "기대출 확인", "연체 이력 확인", "사업자 매출 확인", "공동명의 검토", "승인 우선"];
 const kimPurchaseTagSelectionLimit = 4;
-const kimPersonalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];
 
 
 const kimQuotePurchaseMethodOptions = PURCHASE_METHOD_OPTIONS;
 // 니즈 색상 미설정 기본 표시값. 앱 분기에선 이 sentinel이면 "관심 색상" 줄을 숨긴다(노이즈 제거).
 const KIM_NEEDS_COLOR_PLACEHOLDER = "외장 컬러 미정 · 내장 컬러 미정";
-
-// 상세 관리 상태 = 목록과 동일 규칙. override(워크플로우 변경) 있으면 그것, 없으면 목록과 같은 mock map 계산,
-// 둘 다 없으면 ""(신규·상담접수 등 아직 관리 상태 없음 → 목록처럼 공백). 무조건 "정상" 폴백 금지.
-function resolveKimManageStatus(override: CustomerManageStatus | undefined, customerCode: string): CustomerManageStatus | "" {
-  if (override) return override;
-  const info = initialFinalUpdateByCustomerId[customerCode];
-  return info ? (finalUpdateStatus(info).label as CustomerManageStatus) : "";
-}
 
 function kimEditorMatches(openEditor: KimOpenEditor | null, next: KimOpenEditor) {
   if (!openEditor || openEditor.kind !== next.kind) return false;
@@ -282,10 +226,6 @@ function kimEditorMatches(openEditor: KimOpenEditor | null, next: KimOpenEditor)
   if (openEditor.kind === "status" && next.kind === "status") return openEditor.key === next.key;
   if (openEditor.kind === "workflow" && next.kind === "workflow") return openEditor.key === next.key;
   return false;
-}
-
-function fieldLabel(key: KimStatusFieldKey) {
-  return kimMinjunStatusFieldMeta.find((field) => field.key === key)?.label ?? "항목";
 }
 
 function parseKimInitialCost(value: string) {
@@ -396,224 +336,6 @@ function createKimQuoteCode(existingQuotes: KimQuoteItem[]) {
   return `QT-${yearMonth}-${String(nextSequence).padStart(4, "0")}`;
 }
 
-function kimChanceOptionClass(option: CustomerChanceOption, selected: boolean) {
-  const toneByChance: Record<CustomerChanceOption, string> = {
-    높음: "chance-purple",
-    중간: "chance-neutral",
-    낮음: "chance-red",
-    보류: "chance-yellow",
-    확정: "chance-green",
-  };
-  return ["kim-chance-option", toneByChance[option], selected ? "active" : ""].filter(Boolean).join(" ");
-}
-
-function kimChanceValueClass(option: CustomerChanceOption) {
-  const toneByChance: Record<CustomerChanceOption, string> = {
-    높음: "chance-purple",
-    중간: "chance-neutral",
-    낮음: "chance-red",
-    보류: "chance-yellow",
-    확정: "chance-green",
-  };
-  return `kim-chance-value ${toneByChance[option]}`;
-}
-
-function isKimUnassignedStatus(key: KimStatusFieldKey, value: string) {
-  return (key === "advisor" || key === "assignedAt") && value === "미배정";
-}
-
-const kimMockQuoteAttachments = [
-  { label: "첨부 견적서 1", fileName: "첨부파일1" },
-  { label: "첨부 견적서 2", fileName: "첨부파일2" },
-];
-
-function KimPhoneStatusInput({ initialValue }: { initialValue: string }) {
-  // 010은 고정 prefix. 입력값은 뒤 8자리(4-4)만 다룬다. 폼 제출 시 name="value"=8자리, 저장 핸들러가 010 prepend.
-  const [value, setValue] = useState(() => localPhoneFrom(initialValue));
-
-  return (
-    <div className="kim-phone-input">
-      <span className="kim-phone-prefix" aria-hidden="true">010</span>
-      <input
-        aria-label="연락처 수정"
-        autoComplete="tel"
-        autoFocus
-        inputMode="numeric"
-        maxLength={9}
-        name="value"
-        onChange={(event) => setValue(formatLocalPhone(event.currentTarget.value))}
-        onFocus={(event) => {
-          const end = event.currentTarget.value.length;
-          event.currentTarget.setSelectionRange(end, end);
-        }}
-        placeholder="0000-0000"
-        type="tel"
-        value={value}
-      />
-    </div>
-  );
-}
-
-function KimJobStatusEditor({
-  initialValue,
-  onCancel,
-  onSubmit,
-}: {
-  initialValue: string;
-  onCancel: () => void;
-  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
-}) {
-  const initialJob = parseKimJobValue(initialValue);
-  const [customerType, setCustomerType] = useState<KimCustomerType>(initialJob.type);
-
-  return (
-    <form className="kim-edit-form" onSubmit={onSubmit}>
-      <label>
-        <span>직군 분류</span>
-        <select
-          autoFocus
-          defaultValue={initialJob.type}
-          name="customerType"
-          onChange={(event) => setCustomerType(event.currentTarget.value as KimCustomerType)}
-        >
-          {kimCustomerTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
-      </label>
-      {customerType === "개인" ? (
-        <label>
-          <span>상세 분류</span>
-          <select defaultValue={kimPersonalJobDetailOptions.includes(initialJob.detail) ? initialJob.detail : "4대보험"} name="customerTypeDetail">
-            {kimPersonalJobDetailOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-          </select>
-        </label>
-      ) : (
-        <label>
-          <span>{customerType === "개인사업자" ? "사업자명" : "법인명"}</span>
-          <input defaultValue={initialJob.type === customerType ? initialJob.detail : ""} name="customerTypeDetail" placeholder={customerType === "개인사업자" ? "예: 도윤컴퍼니" : "예: HJ모빌리티"} />
-        </label>
-      )}
-      <div className="kim-edit-actions">
-        <button type="button" onClick={onCancel}>취소</button>
-        <button className="primary" type="submit">저장</button>
-      </div>
-    </form>
-  );
-}
-
-function KimLocationStatusEditor({
-  initialValue,
-  onCancel,
-  onSubmit,
-}: {
-  initialValue: string;
-  onCancel: () => void;
-  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
-}) {
-  const initialLocation = parseKimLocationValue(initialValue);
-  const [province, setProvince] = useState(initialLocation.province);
-  const detailOptions = kimRegionOptions[province] ?? kimRegionOptions["확인 필요"];
-  const detailValue = detailOptions.includes(initialLocation.detail) ? initialLocation.detail : "확인 필요";
-
-  return (
-    <form className="kim-edit-form" onSubmit={onSubmit}>
-      <label>
-        <span>거주지 수정</span>
-        <select
-          autoFocus
-          defaultValue={initialLocation.province}
-          name="province"
-          onChange={(event) => setProvince(event.currentTarget.value)}
-        >
-          {Object.keys(kimRegionOptions).map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
-      </label>
-      <label>
-        <span>구/시 선택</span>
-        <select key={province} defaultValue={detailValue} name="detail">
-          {detailOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
-      </label>
-      <div className="kim-edit-actions">
-        <button type="button" onClick={onCancel}>취소</button>
-        <button className="primary" type="submit">저장</button>
-      </div>
-    </form>
-  );
-}
-
-function KimSourceStatusEditor({
-  initialValue,
-  onCancel,
-  onSubmit,
-}: {
-  initialValue: string;
-  onCancel: () => void;
-  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
-}) {
-  const initialSource = parseKimSourceValue(initialValue);
-
-  return (
-    <form className="kim-edit-form" onSubmit={onSubmit}>
-      <label>
-        <span>상담경로 수정</span>
-        <select autoFocus defaultValue={initialSource} name="source">
-          <optgroup label="자동 접수">
-            {kimAutomaticSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-          </optgroup>
-          <optgroup label="수동 접수">
-            {kimManualSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-          </optgroup>
-        </select>
-      </label>
-      <div className="kim-edit-actions">
-        <button type="button" onClick={onCancel}>취소</button>
-        <button className="primary" type="submit">저장</button>
-      </div>
-    </form>
-  );
-}
-
-function KimAdvisorStatusEditor({
-  initialValue,
-  onCancel,
-  onSubmit,
-}: {
-  initialValue: string;
-  onCancel: () => void;
-  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
-}) {
-  const initialAdvisor = parseKimAdvisorValue(initialValue);
-  const [team, setTeam] = useState<KimAdvisorTeam>(initialAdvisor.team);
-  const advisorOptions = kimAdvisorOptions[team];
-  const advisorValue = advisorOptions.includes(initialAdvisor.advisor) ? initialAdvisor.advisor : advisorOptions[0];
-
-  return (
-    <form className="kim-edit-form" onSubmit={onSubmit}>
-      <label>
-        <span>팀 선택</span>
-        <select
-          autoFocus
-          defaultValue={initialAdvisor.team}
-          name="team"
-          onChange={(event) => setTeam(event.currentTarget.value as KimAdvisorTeam)}
-        >
-          {Object.keys(kimAdvisorOptions).map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
-      </label>
-      <label>
-        <span>담당자 선택</span>
-        <select key={team} defaultValue={advisorValue} name="advisor">
-          {advisorOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
-      </label>
-      <div className="kim-edit-actions">
-        <button type="button" onClick={onCancel}>취소</button>
-        <button className="primary" type="submit">배정</button>
-      </div>
-    </form>
-  );
-}
-
 function KimMinjunDetailContent({
   chanceOverride,
   customer,
@@ -633,18 +355,6 @@ function KimMinjunDetailContent({
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
   onQuotesPersisted?: () => void;
 }) {
-  const [statusValues, setStatusValues] = useState<Record<KimStatusFieldKey, string>>(() => ({
-    phone: detail.phone ? formatPhone(detail.phone) : "미입력",
-    job: detail.customerType ? formatKimJobValue(detail.customerType as KimCustomerType, detail.customerTypeDetail ?? "") : "미입력",
-    location: detail.residence ?? "확인 필요",
-    source: detail.source ?? "미입력",
-    advisor: "미배정",
-    assignedAt: detail.assignedAt ? formatActivity(detail.assignedAt) : "미배정",
-  }));
-  const [stageGroup, setStageGroup] = useState(customer.statusGroup);
-  const [stageStatus, setStageStatus] = useState(customer.status);
-  const [chance, setChance] = useState<CustomerChanceOption>(chanceOverride ?? chanceLabel(customer) as CustomerChanceOption);
-  const [manage, setManage] = useState<CustomerManageStatus | "">(() => resolveKimManageStatus(manageStatusOverride, customer.customerId));
   const [needs, setNeeds] = useState<KimNeedsState>(() => ({
     model: detail.needModel ?? "",
     trim: detail.needTrim ?? "",
@@ -729,13 +439,13 @@ function KimMinjunDetailContent({
   const [recentUpdateNow, setRecentUpdateNow] = useState(() => Date.now());
   // 예정 일정 영역 — setOpenEditor(saveSchedule이 닫음)가 위에서 선언돼야 해서 여기서 호출.
   const schedules = useCustomerSchedules({ detail, customer, onToast, markRecentUpdate, onCloseFloatingEditor: () => setOpenEditor(null) });
+  // 상태+워크플로우 영역. openEditor/setOpenEditor/toggleEditor/savePatch는 부모 소유 공유 인프라(니즈·구매조건도 사용)라 인자로 주입.
+  const workflow = useCustomerWorkflow({ detail, customer, chanceOverride, manageStatusOverride, onToast, onWorkflowChange, markRecentUpdate, openEditor, setOpenEditor, toggleEditor, savePatch });
   const editorRef = useRef<HTMLDivElement>(null);
-  const consultBodyRef = useRef<HTMLDivElement>(null);
   const quoteBodyRef = useRef<HTMLDivElement>(null);
   const prevQuoteLenRef = useRef(0); // 견적함 자동 하단스크롤: 첫 로드(0→N) 제외, 새 추가(N→N+1)만
   const quoteWorkbenchOriginalInputRef = useRef<HTMLInputElement>(null);
   const quoteDetailFormRef = useRef<HTMLDivElement>(null);
-  const timelineItems = timelineRows(customer);
   const openQuoteAction = quotes.find((quote) => quote.id === openQuoteActionId) ?? null;
   const activeQuoteStatusTooltip = pinnedQuoteStatus ?? hoveredQuoteStatus;
   const activeQuoteStatus = activeQuoteStatusTooltip ? quotes.find((quote) => quote.id === activeQuoteStatusTooltip.id) ?? null : null;
@@ -1271,22 +981,6 @@ function KimMinjunDetailContent({
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- customer prop이 바뀔 때 진행 상태를 외부 값과 동기화하는 의도된 effect
-    setStageGroup(customer.statusGroup);
-    setStageStatus(customer.status);
-  }, [customer.status, customer.statusGroup]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- chanceOverride/customer 변경 시 계약 가능성을 동기화하는 의도된 effect
-    setChance(chanceOverride ?? chanceLabel(customer) as CustomerChanceOption);
-  }, [chanceOverride, customer]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- manageStatusOverride 변경 시 관리 상태를 동기화하는 의도된 effect
-    setManage(resolveKimManageStatus(manageStatusOverride, customer.customerId));
-  }, [manageStatusOverride, customer.customerId]);
-
-  useEffect(() => {
     const interval = window.setInterval(() => {
       setRecentUpdateNow(Date.now());
     }, 60000);
@@ -1331,16 +1025,6 @@ function KimMinjunDetailContent({
       document.removeEventListener("pointerdown", closeQuoteSolutionWorkbenchMenu, true);
     };
   }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu]);
-
-  useEffect(() => {
-    const container = consultBodyRef.current;
-    if (openEditor?.kind !== "timeline") return;
-    if (!container) return;
-    const frame = window.requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [openEditor?.kind, timelineItems.length]);
 
   useEffect(() => {
     const container = quoteBodyRef.current;
@@ -1448,118 +1132,6 @@ function KimMinjunDetailContent({
     }
     setPurchasePopoverFrame(calculateKimPurchasePopoverFrame(event.currentTarget, next.kind));
     setOpenEditor(next);
-  }
-
-  function openStatusEditor(next: KimOpenEditor) {
-    if (next.kind === "status" && next.key === "source" && isKimAutomaticSource(statusValues.source)) {
-      setOpenEditor(null);
-      onToast("자동 접수 경로는 수정할 수 없습니다.");
-      return;
-    }
-    if (next.kind === "status" && next.key === "assignedAt") {
-      setOpenEditor(null);
-      onToast("배정시간은 담당자 배정 시 자동 기록됩니다.");
-      return;
-    }
-    toggleEditor(next);
-  }
-
-  function openSourceEditorByKeyboard(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    openStatusEditor({ kind: "status", key: "source" });
-  }
-
-  function saveStatusField(event: SyntheticEvent<HTMLFormElement>, key: KimStatusFieldKey) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const value = String(formData.get("value") ?? "").trim();
-    if (!value) return;
-    const prev = statusValues[key];
-    if (key === "phone") {
-      const digits = `010${value.replace(/\D/g, "")}`; // 입력 8자리 + 010 고정 prefix = 11자리
-      const display = formatPhone(digits);
-      setStatusValues((current) => ({ ...current, phone: display }));
-      setOpenEditor(null);
-      markRecentUpdate("고객 정보");
-      onToast("연락처 수정 완료");
-      savePatch({ phone: digits }, () => setStatusValues((current) => ({ ...current, phone: prev })));
-      return;
-    }
-    setStatusValues((current) => ({ ...current, [key]: value }));
-    setOpenEditor(null);
-    markRecentUpdate("고객 정보");
-    onToast(`${fieldLabel(key)} 수정 완료`);
-  }
-
-  function saveJobField(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const customerType = String(formData.get("customerType") ?? "개인") as KimCustomerType;
-    const customerTypeDetail = String(formData.get("customerTypeDetail") ?? "").trim();
-    const nextJobValue = formatKimJobValue(customerType, customerTypeDetail);
-    const prevJob = statusValues.job;
-    setStatusValues((current) => ({ ...current, job: nextJobValue }));
-    setOpenEditor(null);
-    markRecentUpdate("고객 정보");
-    onToast("직군 수정 완료");
-    savePatch({ customerType, customerTypeDetail }, () => setStatusValues((current) => ({ ...current, job: prevJob })));
-  }
-
-  function saveLocationField(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const province = String(formData.get("province") ?? "확인 필요");
-    const detail = String(formData.get("detail") ?? "확인 필요");
-    const nextLocation = formatKimLocationValue(province, detail);
-    const prevLocation = statusValues.location;
-    setStatusValues((current) => ({ ...current, location: nextLocation }));
-    setOpenEditor(null);
-    markRecentUpdate("고객 정보");
-    onToast("거주지 수정 완료");
-    savePatch({ residence: nextLocation }, () => setStatusValues((current) => ({ ...current, location: prevLocation })));
-  }
-
-  function saveSourceField(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const nextSource = String(formData.get("source") ?? "").trim();
-    if (!nextSource) return;
-    const prevSource = statusValues.source;
-    setStatusValues((current) => ({ ...current, source: nextSource }));
-    setOpenEditor(null);
-    markRecentUpdate("고객 정보");
-    onToast("상담경로 수정 완료");
-    savePatch({ source: nextSource }, () => setStatusValues((current) => ({ ...current, source: prevSource })));
-  }
-
-  function saveAdvisorField(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const team = String(formData.get("team") ?? "인천본사") as KimAdvisorTeam;
-    const advisor = String(formData.get("advisor") ?? "").trim();
-    const nextAdvisor = formatKimAdvisorValue(team, advisor);
-    setStatusValues((current) => ({ ...current, advisor: nextAdvisor, assignedAt: formatKimAssignmentTime() }));
-    setOpenEditor(null);
-    markRecentUpdate("고객 정보");
-    onToast("담당자 배정 완료");
-  }
-
-  function selectStageGroup(nextGroup: string) {
-    const nextStatus = customerStatusGroups[nextGroup]?.[0] ?? nextGroup;
-    setStageGroup(nextGroup);
-    setStageStatus(nextStatus);
-    onWorkflowChange?.(customer.no, { statusGroup: nextGroup, status: nextStatus });
-    markRecentUpdate("진행 상태");
-    onToast("진행 상태 수정 완료");
-  }
-
-  function selectStageStatus(nextStatus: string) {
-    setStageStatus(nextStatus);
-    setOpenEditor(null);
-    onWorkflowChange?.(customer.no, { statusGroup: stageGroup, status: nextStatus });
-    markRecentUpdate("진행 상태");
-    onToast("진행 상태 수정 완료");
   }
 
   function saveNeeds(event: SyntheticEvent<HTMLFormElement>) {
@@ -2165,172 +1737,6 @@ function KimMinjunDetailContent({
     onToast("대표 시나리오를 변경했습니다.");
   }
 
-  function workflowValue(key: KimWorkflowKey) {
-    if (key === "stage") return `${stageGroup} · ${stageStatus}`;
-    if (key === "chance") return chance;
-    return manage || "—"; // 관리 상태 없음(신규·상담접수)이면 목록 공백과 동치인 "—"
-  }
-
-  function openWorkflowEditor(key: KimWorkflowKey) {
-    if (key === "manage") {
-      setOpenEditor(null);
-      onToast("관리 상태는 상담 메모와 최근 업데이트 기준으로 자동 반영됩니다.");
-      return;
-    }
-    toggleEditor({ kind: "workflow", key });
-  }
-
-  function renderStatusEditor(key: KimStatusFieldKey) {
-    return (
-      <div className="kim-edit-popover compact" role="dialog" aria-label={`${fieldLabel(key)} 수정`}>
-        {key === "job" ? (
-          <KimJobStatusEditor
-            initialValue={statusValues.job}
-            onCancel={() => setOpenEditor(null)}
-            onSubmit={saveJobField}
-          />
-        ) : key === "location" ? (
-          <KimLocationStatusEditor
-            initialValue={statusValues.location}
-            onCancel={() => setOpenEditor(null)}
-            onSubmit={saveLocationField}
-          />
-        ) : key === "source" ? (
-          <KimSourceStatusEditor
-            initialValue={statusValues.source}
-            onCancel={() => setOpenEditor(null)}
-            onSubmit={saveSourceField}
-          />
-        ) : key === "advisor" ? (
-          <KimAdvisorStatusEditor
-            initialValue={statusValues.advisor}
-            onCancel={() => setOpenEditor(null)}
-            onSubmit={saveAdvisorField}
-          />
-        ) : (
-        <form className="kim-edit-form" onSubmit={(event) => saveStatusField(event, key)}>
-          <label>
-            <span>{key === "phone" ? "연락처 수정" : fieldLabel(key)}</span>
-            {key === "phone" ? (
-              <KimPhoneStatusInput initialValue={statusValues[key]} />
-            ) : (
-              <input autoFocus defaultValue={statusValues[key]} name="value" />
-            )}
-          </label>
-          <div className="kim-edit-actions">
-            <button type="button" onClick={() => setOpenEditor(null)}>취소</button>
-            <button className="primary" type="submit">저장</button>
-          </div>
-        </form>
-        )}
-      </div>
-    );
-  }
-
-  function renderWorkflowEditor(key: KimWorkflowKey) {
-    if (key === "stage") {
-      const secondaryOptions = customerStatusGroups[stageGroup] ?? [];
-      return (
-        <div className="kim-edit-popover stage" role="dialog" aria-label="진행 상태 수정">
-          <div className="kim-choice-editor two-column">
-            <div>
-              <span className="kim-edit-label">1단계</span>
-              <div className="kim-choice-list">
-                {Object.keys(customerStatusGroups).map((group) => (
-                  <button className={group === stageGroup ? "active" : ""} key={group} onClick={() => selectStageGroup(group)} type="button">
-                    <span>{group}</span>
-                    {group === stageGroup && <Check size={13} strokeWidth={2.7} />}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="kim-edit-label">2단계</span>
-              <div className="kim-choice-list">
-                {secondaryOptions.map((status) => (
-                  <button className={status === stageStatus ? "active" : ""} key={status} onClick={() => selectStageStatus(status)} type="button">
-                    <span>{status}</span>
-                    {status === stageStatus && <Check size={13} strokeWidth={2.7} />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (key !== "chance") return null;
-
-    return (
-      <div className="kim-edit-popover compact" role="dialog" aria-label={`${key === "chance" ? "계약 가능성" : "관리 상태"} 수정`}>
-        <div className="kim-choice-list single">
-          {CHANCE_OPTIONS.map((option) => {
-            const selected = option === chance;
-            return (
-              <button
-                className={kimChanceOptionClass(option, selected)}
-                key={option}
-                onClick={() => {
-                  if (option === "확정" && stageGroup !== "계약완료") {
-                    onToast("계약완료 단계에서만 확정으로 변경할 수 있습니다.");
-                    return;
-                  }
-                  setChance(option);
-                  onWorkflowChange?.(customer.no, { chance: option });
-                  setOpenEditor(null);
-                  markRecentUpdate("계약 가능성");
-                  onToast("계약 가능성 수정 완료");
-                }}
-                type="button"
-              >
-                <span>{option}</span>
-                {selected && <Check size={13} strokeWidth={2.7} />}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  function renderTimelinePanel() {
-    return (
-      <div className="kim-timeline-popover" role="dialog" aria-label="상담 타임라인">
-        <div className="kim-timeline-popover-head">
-          <div className="kim-timeline-popover-title">
-            <i aria-hidden="true"><History size={17} strokeWidth={2.3} /></i>
-            <h3>상담 타임라인</h3>
-          </div>
-        </div>
-        <div className={`kim-consult-body kim-timeline-popover-body${timelineItems.length > 10 ? " is-scrollable" : ""}`} ref={consultBodyRef}>
-          <div className="kim-consult-timeline">
-            {timelineItems.map((item, index) => {
-              const isLatestMemo = item.kind === "메모" && !timelineItems.slice(index + 1).some((nextItem) => nextItem.kind === "메모");
-              return (
-                <article
-                  className={`kim-consult-event${kimConsultKindClass(item.kind)}${isLatestMemo ? " is-latest-memo" : " is-muted-history"}`}
-                  key={`${item.kind}-${item.title}-${item.meta}-${index}`}
-                >
-                  <span>{item.kind}</span>
-                  <div>
-                    <div className="kim-consult-event-head">
-                      <div>
-                        <strong>{item.title}</strong>
-                        <em>{item.meta}</em>
-                      </div>
-                    </div>
-                    <p>{item.body}</p>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   function renderNeedsEditor() {
     return (
       <div className="kim-edit-popover needs" role="dialog" aria-label="고객 니즈 수정">
@@ -2683,95 +2089,15 @@ function KimMinjunDetailContent({
     <div className="kim-customer-dashboard">
       <div className="kim-left-dashboard">
         <CustomerDetailHeader now={recentUpdateNow} recentUpdate={recentUpdate} name={detail.name} customerCode={detail.customerCode} receivedLabel={formatActivity(detail.receivedAt)} />
-        <section className="detail-section kim-status-dashboard">
-          <div className="kim-status-grid">
-            {kimMinjunStatusFieldMeta.map((field) => {
-              const Icon = field.icon;
-              if (field.key === "source") {
-                return (
-                  <div className="kim-edit-anchor" key={field.key} ref={openEditor?.kind === "status" && openEditor.key === field.key ? editorRef : undefined}>
-                    <div className="kim-status-field" onClick={() => openStatusEditor({ kind: "status", key: field.key })} onKeyDown={openSourceEditorByKeyboard} role="button" tabIndex={0}>
-                      <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
-                      <span className="kim-status-copy">
-                      <span>{field.label}</span>
-                      <strong className={`has-inline-actions${isKimUnassignedStatus(field.key, statusValues[field.key]) ? " is-unassigned" : ""}`}>
-                        {statusValues[field.key]}
-                        {hasKimAppSourceQueue(statusValues[field.key]) ? (
-                        <button
-                          aria-label="앱 상담 큐 보기"
-                          className="kim-app-queue-button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onToast("차선생 앱 상담 큐 패널 자리입니다.");
-                          }}
-                          type="button"
-                        >
-                          <MessageSquareText size={13} strokeWidth={2.4} />
-                        </button>
-                        ) : null}
-                        {hasKimQuoteAttachments(statusValues[field.key]) ? (
-                          <span className="kim-quote-attachment-actions" aria-label="첨부 견적서">
-                            {kimMockQuoteAttachments.map((attachment, index) => (
-                              <button
-                                aria-label={`${attachment.label} 보기`}
-                                className="kim-quote-attachment-button"
-                                key={attachment.label}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  onToast(`${attachment.fileName} 팝업 자리입니다.`);
-                                }}
-                                type="button"
-                              >
-                                <span>{index + 1}</span>
-                              </button>
-                            ))}
-                          </span>
-                        ) : null}
-                      </strong>
-                      </span>
-                    </div>
-                    {openEditor?.kind === "status" && openEditor.key === field.key ? renderStatusEditor(field.key) : null}
-                  </div>
-                );
-              }
-              return (
-                <div className="kim-edit-anchor" key={field.key} ref={openEditor?.kind === "status" && openEditor.key === field.key ? editorRef : undefined}>
-                  <button className="kim-status-field" onClick={() => openStatusEditor({ kind: "status", key: field.key })} type="button">
-                    <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
-                    <span className="kim-status-copy">
-                    <span>{field.label}</span>
-                    <strong className={isKimUnassignedStatus(field.key, statusValues[field.key]) ? "is-unassigned" : undefined}>{statusValues[field.key]}</strong>
-                    </span>
-                  </button>
-                  {openEditor?.kind === "status" && openEditor.key === field.key ? renderStatusEditor(field.key) : null}
-                </div>
-              );
-            })}
-          </div>
-          <div className="kim-workflow-strip" aria-label={`${customer.name} 업무 상태`}>
-            {kimMinjunWorkflowMeta.map((field) => (
-              <div className="kim-edit-anchor workflow" key={field.key} ref={openEditor?.kind === "workflow" && openEditor.key === field.key ? editorRef : undefined}>
-                <button className={`kim-workflow-card ${field.tone}`} onClick={() => openWorkflowEditor(field.key)} type="button">
-                  <span>{field.label}</span>
-                  <strong className={field.key === "chance" ? kimChanceValueClass(chance) : undefined}>{workflowValue(field.key)}</strong>
-                </button>
-                {openEditor?.kind === "workflow" && openEditor.key === field.key ? renderWorkflowEditor(field.key) : null}
-              </div>
-            ))}
-            <div className="kim-edit-anchor workflow timeline-action" ref={openEditor?.kind === "timeline" ? editorRef : undefined}>
-              <button
-                aria-label={`상담 타임라인 열기, ${timelineItems.length}개 이력`}
-                className="kim-timeline-open-button"
-                onClick={() => toggleEditor({ kind: "timeline" })}
-                type="button"
-              >
-                <History size={18} strokeWidth={2.2} />
-                <span>{timelineItems.length}</span>
-              </button>
-              {openEditor?.kind === "timeline" ? renderTimelinePanel() : null}
-            </div>
-          </div>
-        </section>
+        <StatusWorkflow
+          customer={customer}
+          onToast={onToast}
+          openEditor={openEditor}
+          setOpenEditor={setOpenEditor}
+          toggleEditor={toggleEditor}
+          editorRef={editorRef}
+          workflow={workflow}
+        />
       </div>
 
       <section className={`detail-section kim-needs-dashboard${detail.appUserId ? " is-app" : ""}`}>
