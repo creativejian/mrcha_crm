@@ -105,6 +105,11 @@ export async function fetchAppQuoteRequests(): Promise<AppQuoteRequest[]> {
   return (await getJson<AppQuoteRequestRow[]>("/api/quote-requests")).map(toAppQuoteRequest);
 }
 
+// 고객 상세 니즈 영역: 그 고객의 앱 견적요청 카드 목록. 인박스와 동일한 toAppQuoteRequest 어댑터 재사용.
+export async function fetchCustomerQuoteRequests(customerId: string): Promise<AppQuoteRequest[]> {
+  return (await getJson<AppQuoteRequestRow[]>(`/api/customers/${customerId}/quote-requests`)).map(toAppQuoteRequest);
+}
+
 // prefill용 단건. paymentMethod는 한글 라벨(워크벤치 구매방식 옵션과 일치)로 변환해 반환.
 export type QuoteRequestPrefill = {
   id: string;

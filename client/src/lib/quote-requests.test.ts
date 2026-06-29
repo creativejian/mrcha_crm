@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchQuoteRequestDetail, toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
+import { fetchCustomerQuoteRequests, fetchQuoteRequestDetail, toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
 
 // apiFetch(./api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
 vi.mock("./supabase", () => ({
@@ -102,5 +102,16 @@ describe("fetchQuoteRequestDetail", () => {
     expect(d.trimId).toBe(100);
     expect(d.optionIds).toEqual([1, 2]);
     expect(d.purchaseMethod).toBe("운용리스"); // lease → 한글
+  });
+});
+
+describe("fetchCustomerQuoteRequests", () => {
+  it("GET /api/customers/:id/quote-requests 호출 + 어댑터 적용", async () => {
+    const spy = vi.fn(async () => new Response(JSON.stringify([base]), { status: 200 }));
+    vi.stubGlobal("fetch", spy);
+    const list = await fetchCustomerQuoteRequests("cust-1");
+    expect((spy.mock.calls[0] as unknown[])[0]).toBe("/api/customers/cust-1/quote-requests");
+    expect(list).toHaveLength(1);
+    expect(list[0].vehicleLabel).toBe("기아 쏘렌토 · 26년형 노블레스"); // toAppQuoteRequest 적용 확인
   });
 });

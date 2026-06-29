@@ -85,6 +85,7 @@ type CustomerDetailDocument = { id: string; docType: string | null; fileName: st
 
 export type CustomerDetailResponse = {
   id: string;
+  appUserId: string | null;
   customerCode: string;
   name: string;
   phone: string | null;
@@ -110,6 +111,7 @@ export type CustomerDetailResponse = {
 export type CustomerDetailData = Pick<
   CustomerDetailResponse,
   | "id"
+  | "appUserId"
   | "customerCode"
   | "name"
   | "phone"
@@ -135,6 +137,7 @@ export type CustomerDetailData = Pick<
 export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailData {
   return {
     id: res.id,
+    appUserId: res.appUserId,
     customerCode: res.customerCode,
     name: res.name,
     phone: res.phone,
