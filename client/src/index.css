@@ -6820,7 +6820,7 @@ th input:focus-visible {
 /* 카드 목록만 스크롤. overscroll-behavior:contain → 끝에서 부모 드로어로 스크롤 전파 차단. */
 .kim-needs-request-scroll {
   min-height: 0;
-  max-height: min(48vh, 460px);
+  max-height: min(72vh, 760px);
   display: grid;
   grid-auto-rows: max-content;
   align-content: start;
