@@ -9,8 +9,9 @@ export type KimInitialCostKind = "무보증" | "보증금" | "선수금";
 export type KimInitialCostSelection = KimInitialCostKind | "";
 export type KimInitialCostUnit = "%" | "금액";
 
-// 구매방식·출고 희망 시기는 purchaseFields 초기화에서 detail.needMethod/needTiming로 덮어씀.
-// 나머지는 crm 컬럼 없는 견적 도메인 값이라 데이터 소스 없음 → 빈값(렌더 시 "미정").
+// 9필드 전부 crm.customers 컬럼(needMethod/needTiming/needContractTerm/needInitialCost/
+// needAnnualMileage/needDeliveryMethod/needContractFocus/needCustomerNote/needReviewNote)에 영속.
+// purchaseFields 초기화는 PURCHASE_FIELD_KEY로 detail.need*를 매핑(빈/없음은 렌더 시 "미정").
 export const kimMinjunPurchaseFields = [
   { label: "구매방식", value: "" },
   { label: "계약기간", value: "" },

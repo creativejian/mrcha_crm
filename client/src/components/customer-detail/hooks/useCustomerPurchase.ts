@@ -21,7 +21,7 @@ import {
 } from "../purchase-meta";
 
 type UseCustomerPurchaseArgs = {
-  detail: CustomerDetailData; // purchaseFields 초기값 매핑 소스(needMethod/needTiming)
+  detail: CustomerDetailData; // purchaseFields 초기값 매핑 소스(PURCHASE_FIELD_KEY로 9필드 전부)
   onToast: (message: string) => void;
   // 부모 소유 공유 인프라(상태·니즈도 사용). 훅은 인자로만 받아 쓴다.
   openEditor: OpenEditorState | null;
