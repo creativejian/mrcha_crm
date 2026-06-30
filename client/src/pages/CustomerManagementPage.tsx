@@ -3,6 +3,7 @@ import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useSta
 import { ADVISOR_NAMES, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import { badgeClass, finalUpdateStatus, finalUpdateStatusFromManage, firstResponseDisplay, initialFinalUpdateByCustomerId, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { prefetchCustomerDetail } from "@/lib/customers";
+import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
 
@@ -593,7 +594,12 @@ export function CustomerManagementPage({
       className: [onOpenCustomer ? "customer-row" : "", activeCustomerId === customer.customerId ? "detail-open" : ""].filter(Boolean).join(" ") || undefined,
       onClick: () => openCustomer(customer),
       onKeyDown: (event: KeyboardEvent<HTMLTableRowElement>) => openCustomerByKeyboard(event, customer),
-      onMouseEnter: onOpenCustomer && customer.id ? () => prefetchCustomerDetail(customer.id as string) : undefined,
+      onMouseEnter: onOpenCustomer && customer.id
+        ? () => {
+            prefetchCustomerDetail(customer.id as string);
+            if (customer.source === "앱 견적비교") prefetchCustomerQuoteRequests(customer.id as string);
+          }
+        : undefined,
       tabIndex: onOpenCustomer ? 0 : undefined,
     };
 
