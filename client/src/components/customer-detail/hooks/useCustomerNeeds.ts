@@ -1,7 +1,7 @@
 import { useEffect, useState, type Dispatch, type SetStateAction, type SyntheticEvent } from "react";
 
 import { type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { fetchCustomerQuoteRequests, type AppQuoteRequest } from "@/lib/quote-requests";
+import { fetchCustomerQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 
 import { KIM_NEEDS_COLOR_PLACEHOLDER, type KimNeedsState } from "../needs-meta";
 import { type OpenEditorState } from "../types";
@@ -40,7 +40,7 @@ export function useCustomerNeeds({
       return;
     }
     let cancelled = false;
-    void fetchCustomerQuoteRequests(detail.id)
+    void fetchCustomerQuoteRequestsCached(detail.id)
       .then((r) => { if (!cancelled) setAppRequests(r); })
       .catch(() => { if (!cancelled) setAppRequests([]); });
     return () => { cancelled = true; };
@@ -50,7 +50,7 @@ export function useCustomerNeeds({
   // 워크벤치(Task 9 미추출, 부모 보유)가 견적 INSERT 성공 시 호출 → 훅이 반환하면 부모가 needs.reloadAppRequests()로 중계.
   function reloadAppRequests() {
     if (!detail.appUserId) return;
-    void fetchCustomerQuoteRequests(detail.id).then(setAppRequests).catch(() => undefined);
+    void fetchCustomerQuoteRequestsCached(detail.id, true).then(setAppRequests).catch(() => undefined);
   }
 
   function saveNeeds(event: SyntheticEvent<HTMLFormElement>) {
