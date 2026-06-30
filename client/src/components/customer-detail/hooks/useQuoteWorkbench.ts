@@ -106,6 +106,10 @@ export function useQuoteWorkbench({
   const [selectedWorkbenchOptionIds, setSelectedWorkbenchOptionIds] = useState<number[]>([]);
   const quoteWorkbenchOriginalInputRef = useRef<HTMLInputElement>(null);
   const quoteDetailFormRef = useRef<HTMLDivElement>(null);
+  // 수정 진입 시점의 trimId를 고정. 작성완료(send:false)의 optimistic setQuotes가 quote.trimId를 새 차량으로 덮으면
+  // openQuoteActionTrimId→VehiclePicker initialTrimId가 흔들려 effect 재발화→applyTrimToPricing 2회 실행(editPrefill 소비됨)
+  // →exteriorColor/interiorColor/options 리셋되던 기존 버그 방지(리로딩 전 화면 보존).
+  const editEntryTrimIdRef = useRef<number | undefined>(undefined);
 
   // 앱 견적요청 → 워크벤치 prefill 오픈(차량/구매방식/옵션). 가격은 catalog 계산 보존.
   // 인박스 진입(URL ?quoteRequest=) + 니즈 카드 "견적 작성" 양쪽이 호출. hoisted 함수(useCallback 미사용 — 기존 패턴).
@@ -505,7 +509,7 @@ export function useQuoteWorkbench({
   // 수정모드 대상 견적의 catalog trimId(VehiclePicker 차량 복원용, PR1). 신규면 undefined.
   function openQuoteActionTrimId(): number | undefined {
     if (!editingQuoteId) return undefined;
-    return quoteList.quotes.find((q) => q.id === editingQuoteId)?.trimId;
+    return editEntryTrimIdRef.current; // live quotes 대신 진입 스냅샷 — optimistic trimId 갱신에 흔들리지 않음
   }
 
   function setManualDepositMode(conditionId: string, mode: KimManualDepositMode) {
@@ -876,6 +880,7 @@ export function useQuoteWorkbench({
       quoteList.handlers.setConfirmingQuoteContractEditId((current) => (current === quote.id ? null : quote.id));
       return;
     }
+    editEntryTrimIdRef.current = quote.trimId ?? undefined; // 진입 trimId 스냅샷 → openQuoteActionTrimId가 반환해 initialTrimId 안정화
     const dq = detail.quotes.find((q) => q.id === quote.id);
     const editScenarios: KimEditScenario[] = (dq?.scenarios ?? []).map((s) => ({
       scenarioNo: s.scenarioNo ?? 1,
