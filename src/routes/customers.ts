@@ -35,6 +35,13 @@ export const customerWriteSchema = z.object({
   needMethod: z.string().nullable().optional(),
   needTiming: z.string().nullable().optional(),
   needMemo: z.string().nullable().optional(),
+  needContractTerm: z.string().nullable().optional(),
+  needInitialCost: z.string().nullable().optional(),
+  needAnnualMileage: z.string().nullable().optional(),
+  needDeliveryMethod: z.string().nullable().optional(),
+  needContractFocus: z.string().nullable().optional(),
+  needCustomerNote: z.string().nullable().optional(),
+  needReviewNote: z.string().nullable().optional(),
 });
 
 customers.get("/", async (c) => c.json(await listCustomers(c.var.db)));

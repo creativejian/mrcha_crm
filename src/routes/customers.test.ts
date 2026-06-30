@@ -52,6 +52,44 @@ test("customerWriteSchema: 잘못된 타입 거부", () => {
   expect(r.success).toBe(false);
 });
 
+test("customerWriteSchema: 구매조건 7필드 파싱", () => {
+  const r = customerWriteSchema.safeParse({
+    needContractTerm: "36개월",
+    needInitialCost: "보증금 30%",
+    needAnnualMileage: "20,000km",
+    needDeliveryMethod: "탁송 요청",
+    needContractFocus: "#월 납입 최소 #총 비용 최소",
+    needCustomerNote: "#카톡 선호",
+    needReviewNote: null,
+  });
+  expect(r.success).toBe(true);
+  if (r.success) {
+    expect(r.data.needContractTerm).toBe("36개월");
+    expect(r.data.needContractFocus).toBe("#월 납입 최소 #총 비용 최소");
+  }
+});
+
+test("PATCH /api/customers/:id 구매조건 라운드트립 → 저장·복원", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  // 저장
+  const patched = await app.request(`/api/customers/${cid}`, {
+    method: "PATCH",
+    headers: h,
+    body: JSON.stringify({ needContractTerm: "36개월", needAnnualMileage: "20,000km" }),
+  });
+  expect(patched.status).toBe(200);
+  // 확인
+  const got = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as { needContractTerm: string | null; needAnnualMileage: string | null };
+  expect(got.needContractTerm).toBe("36개월");
+  expect(got.needAnnualMileage).toBe("20,000km");
+  // 복원(비파괴 — 다른 테스트 영향 차단)
+  await app.request(`/api/customers/${cid}`, { method: "PATCH", headers: h, body: JSON.stringify({ needContractTerm: null, needAnnualMileage: null }) });
+});
+
 test("PATCH /api/customers/:id 없는 uuid → 404", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
