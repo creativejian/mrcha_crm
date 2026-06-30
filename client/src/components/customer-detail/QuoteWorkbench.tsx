@@ -86,6 +86,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     handleJeffMoneyInputMouseUp,
     handlePricingPanelInput,
     markQuoteDraftChanged,
+    handleManualCardFieldEdit,
     applyTrimToPricing,
     applyOptionTotal,
     openQuoteActionTrimId,
@@ -407,8 +408,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
             <div
               className="kim-app-quote-form"
               key="quote-detail-manual-v2"
-              onChange={markQuoteDraftChanged}
-              onInput={markQuoteDraftChanged}
+              onChange={handleManualCardFieldEdit}
+              onInput={handleManualCardFieldEdit}
               ref={quoteDetailFormRef}
             >
               <section className="kim-app-form-section kim-manual-compare-section">

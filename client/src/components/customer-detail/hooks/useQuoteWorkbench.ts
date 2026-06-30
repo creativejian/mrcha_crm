@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router";
 
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
-import { type KimQuoteItem } from "@/lib/kim-quote";
+import { flattenPrimaryScenario, type CustomerDetailScenario, type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, type QuoteGuidance } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
@@ -611,26 +611,35 @@ export function useQuoteWorkbench({
     };
   }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu]);
 
-  // 비교카드(저장된 조건) → 시나리오 추출. INSERT/UPDATE 공유. termMonths 포함(PR2c-2).
+  // 비교카드 → 시나리오 추출. INSERT/UPDATE 공유. termMonths 포함(PR2c-2).
+  // 화면에 보이는 모든 카드(manualQuoteCards) 중 "채워진 카드"만 추출한다 — "조건 저장" 클릭 여부와 무관.
+  // 채워짐 = 저장된 카드(savedIds) OR 금융사 선택(미선택 아님) OR 월 납입금 입력(>0).
+  // 빈 비교 슬롯(manual-condition-2/3 기본값: 미선택·0)은 제외 → 불필요한 빈 시나리오/"비교 N" 오표시·데이터 손실 방지.
+  // 순서는 manualQuoteCards 순(round1 우선)이라 [0]=대표(round1) 보장. 빈 배열 가능 → 호출부에서 scenarios 키를 누락(서버 delete→insert 미발동).
   function extractWorkbenchScenarios(): ScenarioInput[] {
     const compareForm = quoteDetailFormRef.current;
-    return savedManualQuoteConditionIds.map((condId) => {
-      const card = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
-      const fieldVal = (f: string) => card?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? null;
-      const constCard = manualQuoteCards.find((c) => c.id === condId);
-      const depositMode = manualDepositModes[condId] ?? constCard?.depositMode ?? null;
-      const downPaymentMode = manualDownPaymentModes[condId] ?? constCard?.downPaymentMode ?? null;
-      const residualMode = manualResidualModes[condId] ?? constCard?.residualMode ?? null;
+    const scenarios: ScenarioInput[] = [];
+    for (const card of manualQuoteCards) {
+      const condId = card.id;
+      const cardEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
+      const fieldVal = (f: string) => cardEl?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? null;
+      const lenderRaw = fieldVal("lender");
+      const lender = lenderRaw && lenderRaw !== "미선택" ? lenderRaw : null;
+      const monthlyPayment = parseMonthlyPayment(fieldVal("monthly") ?? "");
+      const isFilled = savedManualQuoteConditionIds.includes(condId) || lender !== null || (monthlyPayment !== null && Number(monthlyPayment) > 0);
+      if (!isFilled) continue; // 빈 슬롯 제외(저장도 채워짐도 아님)
+      const depositMode = manualDepositModes[condId] ?? card.depositMode ?? null;
+      const downPaymentMode = manualDownPaymentModes[condId] ?? card.downPaymentMode ?? null;
+      const residualMode = manualResidualModes[condId] ?? card.residualMode ?? null;
       const mileageMode = manualMileageModes[condId] ?? "basic";
       const mileageValue = mileageMode === "basic" ? "20,000km / 년" : (manualMileageValues[condId] ?? "20,000km / 년");
-      const lenderRaw = fieldVal("lender");
-      return {
-        scenarioNo: Number(constCard?.round ?? 1),
+      scenarios.push({
+        scenarioNo: Number(card.round ?? 1),
         isSaved: true,
         purchaseMethod: solutionWorkbenchPurchaseMethod,
         termMonths: manualTermMonths[condId] ?? 60,
-        lender: lenderRaw && lenderRaw !== "미선택" ? lenderRaw : null,
-        monthlyPayment: parseMonthlyPayment(fieldVal("monthly") ?? ""),
+        lender,
+        monthlyPayment,
         depositMode,
         depositValue: depositMode === "none" ? null : parseMonthlyPayment(fieldVal("deposit") ?? ""),
         downPaymentMode,
@@ -639,19 +648,30 @@ export function useQuoteWorkbench({
         residualValue: residualMode === "max" ? null : parseMonthlyPayment(fieldVal("residual") ?? ""),
         mileageMode,
         mileageValue,
-      };
-    });
+      });
+    }
+    return scenarios;
   }
 
-  useEffect(() => {
-    if (!savedManualQuoteConditionIds.length) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 저장된 조건이 없으면 대표 시나리오 해제(의도된 동기화 effect)
-      setCardScenario(null);
-      return;
-    }
+  // 대표 시나리오(앱 미리보기 카드 model.scenario) 재계산 — DOM querySelector라 render 중이 아닌 핸들러/effect에서만 호출.
+  function refreshCardScenarioPreview() {
     setCardScenario(extractWorkbenchScenarios()[0] ?? null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- savedManualQuoteConditionIds 변경 시점에만 재추출(extract가 읽는 manualTermMonths 등 내부 state는 그 시점 최신 보장; dep 추가 시 중복 실행)
-  }, [savedManualQuoteConditionIds]);
+  }
+
+  // 카드 입력(금융사 select·월납입/보증금 등 input)이 바뀌면 미리보기 즉시 갱신 + draft dirty 표시.
+  // 폼 컨테이너 onInput/onChange가 카드 텍스트/select 변경을 위임 캐치(QuoteWorkbench.tsx). 저장 여부와 무관하게 갱신.
+  function handleManualCardFieldEdit() {
+    refreshCardScenarioPreview();
+    markQuoteDraftChanged();
+  }
+
+  // 저장/수정 클릭(savedIds)·모드/기간/주행/구매방식 등 state 변경 시 미리보기 동기화(state-driven 갱신).
+  // DOM 텍스트/금융사 select 변경은 handleManualCardFieldEdit가 담당(uncontrolled라 state에 없음).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 비교카드 state 변경 시 대표 시나리오 재추출(의도된 동기화 effect)
+    setCardScenario(extractWorkbenchScenarios()[0] ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 아래 dep 변경 시점에만 재추출(extract가 읽는 DOM/내부 state는 그 시점 최신; 함수/객체 dep 추가 시 매 렌더 실행)
+  }, [savedManualQuoteConditionIds, manualQuoteCards, manualTermMonths, manualDepositModes, manualDownPaymentModes, manualResidualModes, manualMileageModes, manualMileageValues, solutionWorkbenchPurchaseMethod]);
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
   // 신규는 첫 INSERT 후 반환 id를 editingQuoteId로 세팅 → 이후 UPDATE(중복 INSERT 방지).
@@ -703,7 +723,10 @@ export function useQuoteWorkbench({
       interiorColorHex: interiorColor?.hexValue ?? null,
       guidance,
     };
-    const scenarioField = savedManualQuoteConditionIds.length ? { scenarios: extractWorkbenchScenarios() } : {};
+    // 작성완료 시 화면의 채워진 카드 전체를 추출(savedIds 의존 제거). 빈 배열이면 scenarios 키를 누락 →
+    // 서버 delete→insert(customer-quotes.ts: if(patch.scenarios) {delete; insert})가 발동하지 않아 기존 시나리오 보존(빈배열 wipe 방지).
+    const scenarios = extractWorkbenchScenarios();
+    const scenarioField = scenarios.length ? { scenarios } : {};
     const optimisticVehicle = {
       source,
       brand: brandName ?? undefined,
@@ -719,6 +742,34 @@ export function useQuoteWorkbench({
       exteriorColorId: exteriorColor?.id ?? undefined,
       interiorColorId: interiorColor?.id ?? undefined,
     };
+    // 견적함 카드 즉시 반영(화면-only): 추출 시나리오(ScenarioInput[]) → 화면 타입(CustomerDetailScenario[]) +
+    // 대표 평탄화 4필드(financeType/term/monthlyPayment/lender, 카드 요약줄이 읽음) + primaryScenarioId(비교 아코디언 ★).
+    // 빈 배열이면 빈 객체 → optimistic도 기존 q 유지(빈 카드 작성완료 화면 정합, DB empty-wipe 가드와 동일 분기).
+    // 임시 scenario id(kim-scenario-…)는 서버 재페치 전까지만. setPrimaryScenario는 미매칭 id를 서버가 무시(no-op).
+    const optimisticScenarioFields: Partial<Pick<KimQuoteItem, "scenarios" | "primaryScenarioId" | "financeType" | "term" | "monthlyPayment" | "lender">> = (() => {
+      if (!scenarios.length) return {};
+      const tempBase = nowMs();
+      const displayScenarios: CustomerDetailScenario[] = scenarios.map((sc, i) => ({
+        id: `kim-scenario-${tempBase}-${sc.scenarioNo ?? i}`,
+        scenarioNo: sc.scenarioNo ?? null,
+        purchaseMethod: sc.purchaseMethod ?? null,
+        lender: sc.lender ?? null,
+        termMonths: sc.termMonths ?? null,
+        monthlyPayment: sc.monthlyPayment ?? null,
+        depositMode: sc.depositMode ?? null,
+        depositValue: sc.depositValue ?? null,
+        downPaymentMode: sc.downPaymentMode ?? null,
+        downPaymentValue: sc.downPaymentValue ?? null,
+        residualMode: sc.residualMode ?? null,
+        residualValue: sc.residualValue ?? null,
+        mileageMode: sc.mileageMode ?? null,
+        mileageValue: sc.mileageValue ?? null,
+        isSaved: sc.isSaved ?? false,
+      }));
+      // 대표 = scenario_no 최소(서버 insertScenarios 로직과 동일). 추출은 round1 우선이라 보통 [0].
+      const primary = displayScenarios.reduce((m, s) => ((s.scenarioNo ?? 0) < (m.scenarioNo ?? 0) ? s : m), displayScenarios[0]);
+      return { scenarios: displayScenarios, primaryScenarioId: primary.id, ...flattenPrimaryScenario(primary) };
+    })();
 
     // 수정 진입(editingQuoteId) 또는 신규 첫 작성완료 후(persistedQuoteIdRef)면 UPDATE.
     const targetId = editingQuoteId ?? persistedQuoteIdRef.current;
@@ -727,6 +778,7 @@ export function useQuoteWorkbench({
       quoteList.setQuotes((current) => current.map((q) => (q.id === targetId ? {
         ...q,
         ...optimisticVehicle,
+        ...optimisticScenarioFields,
         ...(send
           ? { status: "고객 확인 전", appStatus: "sent" as const, revision: (q.revision ?? 1) + 1, meta: `${savedAt} · 수정 후 재발송` }
           : { meta: `${savedAt} · 저장` }),
@@ -759,10 +811,10 @@ export function useQuoteWorkbench({
         note: sourceLabel,
         decisionStatus: "none",
         ...(recognizedQuoteFile ? { fileName: recognizedQuoteFile.fileName, fileSize: recognizedQuoteFile.fileSize, mimeType: recognizedQuoteFile.mimeType, file: recognizedQuoteFile.file } : {}),
+        ...optimisticScenarioFields, // 채워진 카드 있으면 대표 평탄화(financeType/term/lender) + scenarios 즉시 표시
       }]);
       if (customer.id) {
         const cid = customer.id; // .then 콜백에서 narrow 유지용
-        const builtScenarios = extractWorkbenchScenarios();
         const payload: QuoteCreatePayload = {
           entryMode: source,
           status: "작성중",
@@ -771,7 +823,8 @@ export function useQuoteWorkbench({
           note: sourceLabel,
           sourceQuoteRequestId: sourceQuoteRequestId ?? null,
           ...snapshot,
-          ...(builtScenarios.length ? { scenarios: builtScenarios } : { scenario: { purchaseMethod: solutionWorkbenchPurchaseMethod } }),
+          // 채워진 카드가 있으면 그 시나리오로 INSERT, 전혀 없으면 최소 대표(구매방식)만 — 절대 빈 배열을 보내지 않음.
+          ...(scenarios.length ? { scenarios } : { scenario: { purchaseMethod: solutionWorkbenchPurchaseMethod } }),
         };
         void apiCreateQuote(cid, payload)
           .then(({ id, quoteCode }) => {
@@ -1014,6 +1067,7 @@ export function useQuoteWorkbench({
       handleJeffMoneyInputMouseUp,
       handlePricingPanelInput,
       markQuoteDraftChanged,
+      handleManualCardFieldEdit,
       // 차량/옵션/할인
       applyTrimToPricing,
       applyOptionTotal,
