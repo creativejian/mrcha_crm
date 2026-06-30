@@ -2,6 +2,9 @@
 // 부모(CustomerDetailPage)도 일부를 import한다: 니즈 편집 폼의 구매방식 select(kimMethodOptions),
 // 워크벤치 기본 구매방식 시드(kimMinjunPurchaseFields). (본체에서 추출 — 동작/값 무변경.)
 
+import { ANNUAL_MILEAGE_OPTIONS, CONTRACT_TERM_OPTIONS, DELIVERY_METHOD_OPTIONS } from "@/data/customers";
+import { type CustomerWritePatch } from "@/lib/customers";
+
 export type KimInitialCostKind = "무보증" | "보증금" | "선수금";
 export type KimInitialCostSelection = KimInitialCostKind | "";
 export type KimInitialCostUnit = "%" | "금액";
@@ -21,11 +24,11 @@ export const kimMinjunPurchaseFields = [
 ];
 
 export const kimMethodOptions = ["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"];
-export const kimContractTermOptions = ["12개월", "24개월", "36개월", "48개월", "60개월"];
+export const kimContractTermOptions = CONTRACT_TERM_OPTIONS;
 export const kimInitialCostKindOptions: KimInitialCostKind[] = ["무보증", "보증금", "선수금"];
 export const kimInitialCostUnitOptions: KimInitialCostUnit[] = ["%", "금액"];
-export const kimAnnualMileageOptions = ["10,000km", "15,000km", "20,000km", "25,000km", "30,000km", "35,000km", "40,000km", "무제한"];
-export const kimDeliveryMethodOptions = ["탁송 요청", "매장 출고", "직접 수령", "협의 필요"];
+export const kimAnnualMileageOptions = ANNUAL_MILEAGE_OPTIONS;
+export const kimDeliveryMethodOptions = DELIVERY_METHOD_OPTIONS;
 export const kimTimingPresetOptions = ["좋은 조건 즉시", "이번 달", "다음 달", "3개월 이후"];
 export const kimTimingMonthOptions = Array.from({ length: 12 }, (_, index) => `${index + 1}월`);
 export const kimContractFocusOptions = ["무보증 선호", "월 납입 최소", "총 비용 최소", "반납 확정", "인수 확정", "승계 고려", "빠른 출고", "할인 민감", "승인 여부"];
@@ -45,3 +48,17 @@ export function parseKimInitialCost(value: string) {
   const unit = value.includes("만원") ? "금액" : "%";
   return { kind: kind as KimInitialCostKind, unit: unit as KimInitialCostUnit, amount: amount || "30" };
 }
+
+// 상세 구매조건 9필드 label → crm.customers 컬럼(camelCase) 매핑.
+// 초기화(detail.need*)와 savePatch가 공유하는 단일 출처. 매핑 없는 label은 영속 대상이 아니다.
+export const PURCHASE_FIELD_KEY: Record<string, keyof CustomerWritePatch> = {
+  "구매방식": "needMethod",
+  "출고 희망 시기": "needTiming",
+  "계약기간": "needContractTerm",
+  "초기비용": "needInitialCost",
+  "연간 주행거리": "needAnnualMileage",
+  "인도 방식": "needDeliveryMethod",
+  "계약 포커스": "needContractFocus",
+  "고객 특이사항": "needCustomerNote",
+  "심사 특이사항": "needReviewNote",
+};
