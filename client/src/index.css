@@ -5729,6 +5729,9 @@ th input:focus-visible {
 .kim-left-dashboard {
   display: grid;
   align-self: stretch;
+  /* 행을 콘텐츠 높이로 유지(상단 정렬). 안 그러면 우측 니즈 박스가 클 때 그리드 행이 커지고
+     grid 기본 align-content:stretch가 상태/워크플로우 칩까지 늘림(앱 고객서 칩 높이 들쭉날쭉). */
+  align-content: start;
 }
 
 .kim-minjun-detail-layout .customer-detail-main,
