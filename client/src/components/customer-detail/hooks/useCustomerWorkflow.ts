@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type Se
 
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { formatActivity, formatPhone, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { initialFinalUpdateByCustomerId, finalUpdateStatus } from "@/lib/customer-table";
+import { initialFinalUpdateByCustomerId, finalUpdateStatus, resolveChance } from "@/lib/customer-table";
 import { formatKimAssignmentTime } from "@/lib/kim-detail-utils";
 import { type KimAdvisorTeam, type KimCustomerType, formatKimAdvisorValue, formatKimJobValue, formatKimLocationValue, isKimAutomaticSource } from "@/lib/kim-status-fields";
 
@@ -14,21 +14,6 @@ type WorkflowChange = (
   customerNo: number,
   next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus },
 ) => void;
-
-const chanceByPriority: Record<string, string> = {
-  긴급: "높음",
-  높음: "높음",
-  중간: "중간",
-  낮음: "낮음",
-  보류: "보류",
-  완료: "확정",
-};
-
-function chanceLabel(customer: Customer) {
-  if (customer.statusGroup === "계약완료" || customer.status === "출고완료") return "확정";
-  if (customer.statusGroup === "불발") return "낮음";
-  return chanceByPriority[customer.priority] ?? "중간";
-}
 
 function sourceType(source: string) {
   if (source.includes("앱")) return "앱 유입";
@@ -93,7 +78,7 @@ export function useCustomerWorkflow({
   }));
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
   const [stageStatus, setStageStatus] = useState(customer.status);
-  const [chance, setChance] = useState<CustomerChanceOption>(chanceOverride ?? chanceLabel(customer) as CustomerChanceOption);
+  const [chance, setChance] = useState<CustomerChanceOption>(resolveChance(customer, chanceOverride));
   const [manage, setManage] = useState<CustomerManageStatus | "">(() => resolveKimManageStatus(manageStatusOverride, customer.customerId));
 
   const consultBodyRef = useRef<HTMLDivElement>(null);
@@ -107,7 +92,7 @@ export function useCustomerWorkflow({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- chanceOverride/customer 변경 시 계약 가능성을 동기화하는 의도된 effect
-    setChance(chanceOverride ?? chanceLabel(customer) as CustomerChanceOption);
+    setChance(resolveChance(customer, chanceOverride));
   }, [chanceOverride, customer]);
 
   useEffect(() => {
@@ -252,9 +237,15 @@ export function useCustomerWorkflow({
     onToast("진행 상태 수정 완료");
   }
 
-  // 계약 가능성 변경. "확정"은 계약완료 단계에서만 허용(계약완료→확정 동기화 규칙 보존).
+  // 계약 가능성 변경(Option A). 계약완료 단계면 "확정"으로 고정 — 비확정으로 바꿀 수 없다.
+  // 비계약완료 단계면 "확정"으로 직접 바꿀 수 없다(계약완료 시 자동 확정).
   function selectChance(option: CustomerChanceOption) {
-    if (option === "확정" && stageGroup !== "계약완료") {
+    if (stageGroup === "계약완료") {
+      if (option !== "확정") {
+        onToast("계약완료 단계에서는 계약 가능성이 확정으로 고정됩니다.");
+        return;
+      }
+    } else if (option === "확정") {
       onToast("계약완료 단계에서만 확정으로 변경할 수 있습니다.");
       return;
     }

@@ -1,7 +1,7 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ADVISOR_NAMES, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
-import { badgeClass, chanceLabel, finalUpdateStatus, finalUpdateStatusFromManage, firstResponseDisplay, initialFinalUpdateByCustomerId, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
+import { badgeClass, finalUpdateStatus, finalUpdateStatusFromManage, firstResponseDisplay, initialFinalUpdateByCustomerId, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { prefetchCustomerDetail } from "@/lib/customers";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -15,6 +15,12 @@ type CustomerManagementPageProps = {
   onChanceOverridesChange?: (overrides: Record<number, CustomerChanceOption>) => void;
   onCustomersChange?: (customers: Customer[]) => void;
   onOpenCustomer?: (customer: Customer) => void;
+  // 진행상태/계약가능성을 단일 소스(App.updateCustomerWorkflow)로 보내 DB 저장+상세 동기화한다.
+  // App 라우트에선 항상 전달되고, 단독(stories/test)에선 미전달 → 내부 state 폴백.
+  onWorkflowChange?: (
+    customerNo: number,
+    next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus },
+  ) => void;
   roleTab?: RoleTab;
 };
 
@@ -72,6 +78,7 @@ export function CustomerManagementPage({
   onChanceOverridesChange,
   onCustomersChange,
   onOpenCustomer,
+  onWorkflowChange,
   roleTab = "최고관리자",
 }: CustomerManagementPageProps) {
   const [internalCustomers, setInternalCustomers] = useState(initialCustomers);
@@ -127,7 +134,7 @@ export function CustomerManagementPage({
     const keyword = search.trim().toLowerCase();
     return customers.filter((customer) => {
       const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${customer.aiSummary}`.toLowerCase();
-      const chance = customer.statusGroup === "계약완료" ? "확정" : chanceOverrides[customer.no] ?? chanceLabel(customer);
+      const chance = resolveChance(customer, chanceOverrides[customer.no]);
       const updateInfo = finalUpdateOverrides[customer.no] ?? initialFinalUpdateByCustomerId[customer.customerId] ?? null;
       const updateStatus = manageStatusOverrides[customer.no] ?? (updateInfo ? finalUpdateStatus(updateInfo).label : "");
       return modeFilter(mode, customer) &&
@@ -463,19 +470,29 @@ export function CustomerManagementPage({
 
   function changeTwoStepPrimaryStage(customerNo: number, nextGroup: string) {
     const nextStatus = secondaryStageOptionsByGroup[nextGroup]?.[0] ?? customerStatusGroups[nextGroup]?.[0] ?? nextGroup;
-    updateCustomers((current) => current.map((customer) => customer.no === customerNo
-      ? { ...customer, statusGroup: nextGroup, status: nextStatus }
-      : customer));
-    syncChanceWithStageGroup(customerNo, nextGroup);
+    // App 라우트: 단일 소스(updateCustomerWorkflow)가 setCustomers+chance 동기화+DB PATCH를 모두 처리.
+    // 단독(stories/test): 폴백으로 내부 state만 갱신.
+    if (onWorkflowChange) onWorkflowChange(customerNo, { statusGroup: nextGroup, status: nextStatus });
+    else {
+      updateCustomers((current) => current.map((customer) => customer.no === customerNo
+        ? { ...customer, statusGroup: nextGroup, status: nextStatus }
+        : customer));
+      syncChanceWithStageGroup(customerNo, nextGroup);
+    }
     markFinalUpdate(customerNo, "진행 상태");
     setOpenStagePicker({ customerNo, level: "secondary" });
     setOpenExtraFor(null);
   }
 
   function changeTwoStepSecondaryStage(customerNo: number, nextStatus: string) {
-    updateCustomers((current) => current.map((customer) => customer.no === customerNo
-      ? { ...customer, status: nextStatus }
-      : customer));
+    if (onWorkflowChange) {
+      const customer = customers.find((item) => item.no === customerNo);
+      onWorkflowChange(customerNo, { statusGroup: customer?.statusGroup, status: nextStatus });
+    } else {
+      updateCustomers((current) => current.map((customer) => customer.no === customerNo
+        ? { ...customer, status: nextStatus }
+        : customer));
+    }
     markFinalUpdate(customerNo, "진행 상태");
     setOpenStagePicker(null);
     setOpenExtraFor(null);
@@ -487,7 +504,8 @@ export function CustomerManagementPage({
       showChanceNotice(customerNo);
       return;
     }
-    updateChanceOverrides((current) => ({ ...current, [customerNo]: nextChance }));
+    if (onWorkflowChange) onWorkflowChange(customerNo, { chance: nextChance });
+    else updateChanceOverrides((current) => ({ ...current, [customerNo]: nextChance }));
     markFinalUpdate(customerNo, "계약 가능성");
     setOpenChanceFor(null);
     setOpenExtraFor(null);
@@ -563,7 +581,7 @@ export function CustomerManagementPage({
   }
 
   function renderRow(customer: Customer) {
-    const chance = customer.statusGroup === "계약완료" ? "확정" : chanceOverrides[customer.no] ?? chanceLabel(customer);
+    const chance = resolveChance(customer, chanceOverrides[customer.no]);
     const updateInfo = finalUpdateOverrides[customer.no] ?? initialFinalUpdateByCustomerId[customer.customerId] ?? null;
     const updateStatus = manageStatusOverrides[customer.no]
       ? finalUpdateStatusFromManage(manageStatusOverrides[customer.no])
