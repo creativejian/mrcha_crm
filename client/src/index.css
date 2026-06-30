@@ -6678,6 +6678,12 @@ th input:focus-visible {
   margin-top: 6px;
 }
 
+/* 니즈 편집 popover가 카드 높이를 넘칠 때 하단(저장 버튼)이 잘리지 않도록,
+   popover가 열린 동안에만 overflow 잠금을 해제(평소엔 hidden 유지=도트 배경 clip). */
+.kim-needs-dashboard:has(.kim-edit-popover.needs) {
+  overflow: visible;
+}
+
 /* 앱 분기: 카드 목록은 콘텐츠 높이에 맞춰 hug(상단 정렬, 위/아래 여백=좌우 24px와 동일).
    수기 단일 카드는 기존 stretch 캔버스(가운데 정렬) 유지. */
 /* 앱 분기: 카드 목록이 박스 위(좌상단)에서부터 흐르도록 grid 가운데정렬을 끄고 일반 블록 흐름으로.
@@ -7488,6 +7494,7 @@ th input:focus-visible {
   height: 196px;
   max-height: 196px;
   overflow-y: auto;
+  overscroll-behavior: contain; /* 내부 스크롤 끝에서 고객관리 배경으로 전파(체이닝) 차단 — 할일/견적함과 동일 */
   background: #fff;
 }
 

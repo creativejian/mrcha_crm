@@ -209,6 +209,15 @@ export function chanceLabel(customer: Customer): ChanceOption {
   return "중간";
 }
 
+// 목록·상세가 공유하는 계약 가능성 단일 판정(Option A).
+// 계약완료/출고완료면 override를 무시하고 무조건 "확정"으로 통일,
+// 그 외엔 사용자 override가 있으면 그것, 없으면 chanceLabel(진행상태·priority 기반).
+// 목록은 chanceOverrides[customer.no], 상세는 chanceOverride를 resolved override로 넘긴다.
+export function resolveChance(customer: Customer, override?: ChanceOption): ChanceOption {
+  if (customer.statusGroup === "계약완료" || customer.status === "출고완료") return "확정";
+  return override ?? chanceLabel(customer);
+}
+
 export function chanceButtonClass(value: ChanceOption) {
   const toneByChance: Record<ChanceOption, string> = {
     높음: "purple",

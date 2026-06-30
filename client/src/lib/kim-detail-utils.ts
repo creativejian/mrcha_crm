@@ -2,6 +2,8 @@
 // 타입/상수에 의존하지 않는(string·number·Date만 입출력) 함수만 모은다.
 // 컴포넌트 상태와 무관해 단위 테스트가 쉽고, 거대 페이지 컴포넌트에서 분리해 가독성을 높인다.
 
+import { type DragEvent as ReactDragEvent } from "react";
+
 export function nowMs() {
   return Date.now();
 }
@@ -37,6 +39,24 @@ export function formatScheduleDateLabel(value: string) {
   const [, month, day] = value.split("-");
   if (!month || !day) return value;
   return `${Number(month)}/${Number(day)}`;
+}
+
+export const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
+export const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
+
+export function parseScheduleTimeParts(value?: string) {
+  const [rawHour, rawMinute] = (value || "10:00").split(":");
+  const hour = kimScheduleHourOptions.includes(rawHour) ? rawHour : "10";
+  const minute = kimScheduleMinuteOptions.includes(rawMinute) ? rawMinute : "00";
+  return { hour, minute };
+}
+
+export function scheduleTimeFromFormData(formData: FormData) {
+  const hour = String(formData.get("scheduleHour") ?? "10");
+  const minute = String(formData.get("scheduleMinute") ?? "00");
+  const safeHour = kimScheduleHourOptions.includes(hour) ? hour : "10";
+  const safeMinute = kimScheduleMinuteOptions.includes(minute) ? minute : "00";
+  return `${safeHour}:${safeMinute}`;
 }
 
 export function formatKimRecentUpdateTime(updatedAt: number, now: number) {
@@ -129,6 +149,11 @@ export function kimDocumentFileKind(mimeType?: string, fileName = "") {
   return "파일";
 }
 
+// 드래그 데이터에 파일이 포함됐는지(=OS 파일 드롭) 판정. 서류함·견적 원본 드롭 영역이 공유.
+export function isDocumentFileDrag(event: ReactDragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer.types).includes("Files");
+}
+
 // --- 구매 조건 표시/태그 ---
 
 export function kimPurchaseValueClass(value: string) {
@@ -182,4 +207,12 @@ export function parseKimCheckDueDate(value: string, date = new Date()) {
   const [month, day] = value.split("/");
   if (!month || !day) return "";
   return `${date.getFullYear()}-${String(Number(month)).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
+}
+
+// 해야 할 일 마감 선택지. 마지막 "지정"은 임의 날짜 입력 분기.
+export const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
+
+// 저장된 due 값이 표준 선택지에 없으면 "지정"(임의 날짜)으로 본다.
+export function kimCheckDueSelection(value: string) {
+  return kimCheckDueOptions.includes(value) ? value : "지정";
 }

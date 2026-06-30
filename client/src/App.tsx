@@ -226,9 +226,12 @@ export function App() {
     const target = customers.find((customer) => customer.no === customerNo);
     const prevCustomers = customers;
     const prevChanceOverrides = chanceOverrides;
+    // 변경 후 진행상태그룹(이번 패치 우선 → status 역산 → 기존). 계약완료면 chance는 무조건 "확정"(Option A) —
+    // 목록/상세 어디서 비확정으로 바꾸려 해도 무시·차단해서 불일치 상태 자체를 막는다(방어적).
+    const nextStageGroup = next.statusGroup ?? target?.statusGroup ?? statusGroupByStatus[next.status ?? ""] ?? "";
+    const contracted = nextStageGroup === "계약완료";
 
     if (next.statusGroup || next.status) {
-      const nextStageGroup = next.statusGroup ?? target?.statusGroup ?? statusGroupByStatus[next.status ?? ""] ?? "";
       setCustomers((current) => current.map((customer) => {
         if (customer.no !== customerNo) return customer;
         const statusGroup = next.statusGroup ?? customer.statusGroup;
@@ -239,18 +242,18 @@ export function App() {
     }
 
     if (next.chance) {
-      setChanceOverrides((current) => ({ ...current, [customerNo]: next.chance as CustomerChanceOption }));
+      setChanceOverrides((current) => ({ ...current, [customerNo]: contracted ? "확정" : next.chance as CustomerChanceOption }));
     }
 
     if (next.manageStatus) {
       setManageStatusOverrides((current) => ({ ...current, [customerNo]: next.manageStatus as CustomerManageStatus }));
     }
 
-    // DB 저장(statusGroup/status/chance만 — manageStatus는 컬럼 없음). chance는 계약완료 동기화 규칙 반영.
+    // DB 저장(statusGroup/status/chance만 — manageStatus는 컬럼 없음). 계약완료=확정 규칙 반영(비확정 저장 차단).
     const patch: CustomerWritePatch = {};
     if (next.statusGroup) patch.statusGroup = next.statusGroup;
     if (next.status) patch.status = next.status;
-    if (next.statusGroup === "계약완료") patch.chance = "확정";
+    if (contracted) patch.chance = "확정";
     else if (next.statusGroup && prevChanceOverrides[customerNo] === "확정") patch.chance = null;
     else if (next.chance) patch.chance = next.chance;
     if (target?.id && Object.keys(patch).length > 0) {
@@ -304,6 +307,7 @@ export function App() {
               onChanceOverridesChange={setChanceOverrides}
               onCustomersChange={setCustomers}
               onOpenCustomer={openCustomerDetailPanel}
+              onWorkflowChange={updateCustomerWorkflow}
             />
           }
         />
@@ -320,6 +324,7 @@ export function App() {
                 onBack={() => navigate("/customers")}
                 onToast={showToast}
                 onWorkflowChange={updateCustomerWorkflow}
+                onCustomerListChanged={reloadCustomers}
                 variant="page"
               />
             ) : customersLoaded ? (
@@ -395,6 +400,7 @@ export function App() {
               onFullScreen={openCustomerDetailFullScreen}
               onToast={showToast}
               onWorkflowChange={updateCustomerWorkflow}
+              onCustomerListChanged={reloadCustomers}
               variant="drawer"
             />
           </aside>
