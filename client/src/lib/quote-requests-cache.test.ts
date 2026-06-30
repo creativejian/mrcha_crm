@@ -87,3 +87,72 @@ describe("앱 견적요청 인박스 캐시", () => {
     vi.useRealTimers();
   });
 });
+
+describe("고객별 앱 견적요청 캐시", () => {
+  it("같은 고객 두 번째 호출은 캐시 hit(fetch 1회)", async () => {
+    const spy = okFetch();
+    vi.stubGlobal("fetch", spy);
+    const { fetchCustomerQuoteRequestsCached } = await import("./quote-requests");
+    await fetchCustomerQuoteRequestsCached("c1");
+    await fetchCustomerQuoteRequestsCached("c1");
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("다른 고객은 별도 키(fetch 2회)", async () => {
+    const spy = okFetch();
+    vi.stubGlobal("fetch", spy);
+    const { fetchCustomerQuoteRequestsCached } = await import("./quote-requests");
+    await fetchCustomerQuoteRequestsCached("c1");
+    await fetchCustomerQuoteRequestsCached("c2");
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("force=true는 캐시 우회 재fetch(fetch 2회)", async () => {
+    const spy = okFetch();
+    vi.stubGlobal("fetch", spy);
+    const { fetchCustomerQuoteRequestsCached } = await import("./quote-requests");
+    await fetchCustomerQuoteRequestsCached("c1");
+    await fetchCustomerQuoteRequestsCached("c1", true);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("같은 고객 동시 호출은 inflight dedupe(fetch 1회)", async () => {
+    const spy = okFetch();
+    vi.stubGlobal("fetch", spy);
+    const { fetchCustomerQuoteRequestsCached } = await import("./quote-requests");
+    await Promise.all([fetchCustomerQuoteRequestsCached("c1"), fetchCustomerQuoteRequestsCached("c1")]);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("prefetch가 캐시를 채워 이후 fetch 0(총 1회)", async () => {
+    const spy = okFetch();
+    vi.stubGlobal("fetch", spy);
+    const { fetchCustomerQuoteRequestsCached, prefetchCustomerQuoteRequests } = await import("./quote-requests");
+    prefetchCustomerQuoteRequests("c1");
+    await new Promise((r) => setTimeout(r, 0)); // prefetch 워밍 완료 대기
+    await fetchCustomerQuoteRequestsCached("c1");
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("invalidate 후 재fetch(fetch 2회)", async () => {
+    const spy = okFetch();
+    vi.stubGlobal("fetch", spy);
+    const { fetchCustomerQuoteRequestsCached, invalidateCustomerQuoteRequests } = await import("./quote-requests");
+    await fetchCustomerQuoteRequestsCached("c1");
+    invalidateCustomerQuoteRequests("c1");
+    await fetchCustomerQuoteRequestsCached("c1");
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("TTL 만료 후 재fetch(fetch 2회)", async () => {
+    vi.useFakeTimers();
+    const spy = okFetch();
+    vi.stubGlobal("fetch", spy);
+    const { fetchCustomerQuoteRequestsCached } = await import("./quote-requests");
+    await fetchCustomerQuoteRequestsCached("c1");
+    await vi.advanceTimersByTimeAsync(61_000);
+    await fetchCustomerQuoteRequestsCached("c1");
+    expect(spy).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+});
