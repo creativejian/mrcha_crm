@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."customers" DROP CONSTRAINT "customers_need_contract_term_check";
