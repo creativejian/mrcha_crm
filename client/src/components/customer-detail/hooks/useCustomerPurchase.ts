@@ -14,13 +14,14 @@ import {
   kimPurchaseTagSelectionLimit,
   kimReviewNoteOptions,
   parseKimInitialCost,
+  PURCHASE_FIELD_KEY,
   type KimInitialCostKind,
   type KimInitialCostSelection,
   type KimInitialCostUnit,
 } from "../purchase-meta";
 
 type UseCustomerPurchaseArgs = {
-  detail: CustomerDetailData; // purchaseFields 초기값 매핑 소스(needMethod/needTiming)
+  detail: CustomerDetailData; // purchaseFields 초기값 매핑 소스(PURCHASE_FIELD_KEY로 9필드 전부)
   onToast: (message: string) => void;
   // 부모 소유 공유 인프라(상태·니즈도 사용). 훅은 인자로만 받아 쓴다.
   openEditor: OpenEditorState | null;
@@ -43,13 +44,11 @@ export function useCustomerPurchase({
   setPurchasePopoverFrame,
 }: UseCustomerPurchaseArgs) {
   const [purchaseFields, setPurchaseFields] = useState(() =>
-    kimMinjunPurchaseFields.map((field) =>
-      field.label === "구매방식"
-        ? { ...field, value: detail.needMethod ?? field.value }
-        : field.label === "출고 희망 시기"
-          ? { ...field, value: detail.needTiming ?? field.value }
-          : field,
-    ),
+    kimMinjunPurchaseFields.map((field) => {
+      const key = PURCHASE_FIELD_KEY[field.label];
+      const stored = key ? (detail as Record<string, unknown>)[key] : undefined;
+      return typeof stored === "string" && stored ? { ...field, value: stored } : field;
+    }),
   );
   const [showTimingMonths, setShowTimingMonths] = useState(false);
   const [initialCostKind, setInitialCostKind] = useState<KimInitialCostSelection>("보증금");
@@ -107,11 +106,13 @@ export function useCustomerPurchase({
     }
     const orderedTerms = kimContractTermOptions.filter((term) => selectedTerms.has(term));
     const nextValue = orderedTerms.length > 0 ? orderedTerms.join(" · ") : "확인 필요";
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "계약기간" ? { ...field, value: nextValue } : field
     )));
     markRecentUpdate("상세 구매조건");
     onToast("계약기간 수정 완료");
+    savePatch({ needContractTerm: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   function openPurchaseInitialCostEditor(event: ReactMouseEvent<HTMLButtonElement>) {
@@ -152,6 +153,7 @@ export function useCustomerPurchase({
       : initialCostKind === "무보증"
       ? "무보증"
       : `${initialCostKind} ${formattedAmount}${initialCostUnit === "%" ? "%" : "만원"}`;
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "초기비용" ? { ...field, value: nextValue } : field
     )));
@@ -159,6 +161,7 @@ export function useCustomerPurchase({
     setPurchasePopoverFrame(null);
     markRecentUpdate("상세 구매조건");
     onToast("초기비용 수정 완료");
+    savePatch({ needInitialCost: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   function selectPurchaseTiming(option: string) {
@@ -210,11 +213,13 @@ export function useCustomerPurchase({
     }
     const orderedFocuses = kimContractFocusOptions.filter((focus) => selectedFocuses.has(focus));
     const nextValue = orderedFocuses.length > 0 ? orderedFocuses.map((focus) => `#${focus}`).join(" ") : "확인 필요";
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "계약 포커스" ? { ...field, value: nextValue } : field
     )));
     markRecentUpdate("상세 구매조건");
     onToast("계약 포커스 수정 완료");
+    savePatch({ needContractFocus: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   function togglePurchaseCustomerNote(option: string) {
@@ -231,11 +236,13 @@ export function useCustomerPurchase({
     }
     const orderedNotes = kimCustomerNoteOptions.filter((note) => selectedNotes.has(note));
     const nextValue = orderedNotes.length > 0 ? orderedNotes.map((note) => `#${note}`).join(" ") : "확인 필요";
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "고객 특이사항" ? { ...field, value: nextValue } : field
     )));
     markRecentUpdate("상세 구매조건");
     onToast("고객 특이사항 수정 완료");
+    savePatch({ needCustomerNote: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   function togglePurchaseReviewNote(option: string) {
@@ -252,16 +259,19 @@ export function useCustomerPurchase({
     }
     const orderedNotes = kimReviewNoteOptions.filter((note) => selectedNotes.has(note));
     const nextValue = orderedNotes.length > 0 ? orderedNotes.map((note) => `#${note}`).join(" ") : "확인 필요";
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "심사 특이사항" ? { ...field, value: nextValue } : field
     )));
     markRecentUpdate("상세 구매조건");
     onToast("심사 특이사항 수정 완료");
+    savePatch({ needReviewNote: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   function selectPurchaseAnnualMileage(option: string) {
     const currentMileageField = purchaseFields.find((field) => field.label === "연간 주행거리");
     const nextValue = currentMileageField?.value === option ? "확인 필요" : option;
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "연간 주행거리" ? { ...field, value: nextValue } : field
     )));
@@ -269,11 +279,13 @@ export function useCustomerPurchase({
     setPurchasePopoverFrame(null);
     markRecentUpdate("상세 구매조건");
     onToast("연간 주행거리 수정 완료");
+    savePatch({ needAnnualMileage: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   function selectPurchaseDeliveryMethod(option: string) {
     const currentDeliveryField = purchaseFields.find((field) => field.label === "인도 방식");
     const nextValue = currentDeliveryField?.value === option ? "확인 필요" : option;
+    const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "인도 방식" ? { ...field, value: nextValue } : field
     )));
@@ -281,6 +293,7 @@ export function useCustomerPurchase({
     setPurchasePopoverFrame(null);
     markRecentUpdate("상세 구매조건");
     onToast("인도 방식 수정 완료");
+    savePatch({ needDeliveryMethod: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
   return {

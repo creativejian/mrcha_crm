@@ -87,6 +87,13 @@ const detailRes: CustomerDetailResponse = {
   needMethod: "운용리스",
   needTiming: "좋은 조건 즉시",
   needMemo: "비교 정리 필요",
+  needContractTerm: "36개월",
+  needInitialCost: "보증금 30%",
+  needAnnualMileage: "20,000km",
+  needDeliveryMethod: "탁송 요청",
+  needContractFocus: "#월 납입 최소",
+  needCustomerNote: "#카톡 선호",
+  needReviewNote: null,
   tasks: [{ id: "t1", category: "체크", due: "오늘", body: "GLC 재고", done: false }],
   schedules: [{ id: "s1", scheduledDate: "2026-05-26", scheduledTime: "16:00", type: "견적", memo: "재발송", done: false }],
   memos: [{ id: "m1", body: "메모1", createdAt: "2026-05-14T13:18:00+09:00" }],
@@ -166,5 +173,15 @@ describe("toCustomerDetail", () => {
   it("appUserId를 그대로 전달(앱 유입 여부 분기용)", () => {
     expect(toCustomerDetail(detailRes).appUserId).toBe("user-1");
     expect(toCustomerDetail({ ...detailRes, appUserId: null }).appUserId).toBeNull();
+  });
+  it("구매조건 7필드를 그대로 전달", () => {
+    const d = toCustomerDetail(detailRes);
+    expect(d.needContractTerm).toBe("36개월");
+    expect(d.needInitialCost).toBe("보증금 30%");
+    expect(d.needAnnualMileage).toBe("20,000km");
+    expect(d.needDeliveryMethod).toBe("탁송 요청");
+    expect(d.needContractFocus).toBe("#월 납입 최소");
+    expect(d.needCustomerNote).toBe("#카톡 선호");
+    expect(d.needReviewNote).toBeNull();
   });
 });

@@ -81,6 +81,18 @@ export const CUSTOMER_TYPE_OPTIONS = ["개인", "개인사업자", "법인사업
 export const PURCHASE_METHOD_OPTIONS = ["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"] as const;
 export type PurchaseMethod = (typeof PURCHASE_METHOD_OPTIONS)[number];
 
+// 계약기간(need_contract_term) — 다중선택 닫힌 5종. DB CHECK 없음(' · ' 구분 다중 저장, 0010서 CHECK DROP). purchase-meta SSOT 공유.
+export const CONTRACT_TERM_OPTIONS: readonly string[] = ["12개월", "24개월", "36개월", "48개월", "60개월"];
+
+// 연간 주행거리(need_annual_mileage) — 단일선택 닫힌 8종. DB CHECK·purchase-meta 공유 SSOT.
+export const ANNUAL_MILEAGE_OPTIONS: readonly string[] = ["10,000km", "15,000km", "20,000km", "25,000km", "30,000km", "35,000km", "40,000km", "무제한"];
+
+// 인도 방식(need_delivery_method) — 단일선택 닫힌 4종. DB CHECK·purchase-meta 공유 SSOT.
+export const DELIVERY_METHOD_OPTIONS: readonly string[] = ["탁송 요청", "매장 출고", "직접 수령", "협의 필요"];
+
+// 단·다중선택 구매조건 공통 "아무것도 선택 안함" sentinel. 단일선택(연간주행·인도방식) CHECK 집합에만 옵션과 함께 포함(선택 해제 시 저장값).
+export const PURCHASE_UNSET_SENTINEL = "확인 필요";
+
 // 관리 상태(최종 업데이트) 옵션. CustomerManageStatus 유니온과 값이 1:1.
 export const CUSTOMER_MANAGE_STATUSES: readonly CustomerManageStatus[] = ["정상", "확인필요", "재문의", "지연", "장기방치"];
 

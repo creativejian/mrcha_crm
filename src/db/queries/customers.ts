@@ -40,6 +40,13 @@ export type CustomerWritePatch = Partial<
     | "needMethod"
     | "needTiming"
     | "needMemo"
+    | "needContractTerm"
+    | "needInitialCost"
+    | "needAnnualMileage"
+    | "needDeliveryMethod"
+    | "needContractFocus"
+    | "needCustomerNote"
+    | "needReviewNote"
   >
 >;
 

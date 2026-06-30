@@ -101,6 +101,13 @@ export type CustomerDetailResponse = {
   needMethod: string | null;
   needTiming: string | null;
   needMemo: string | null;
+  needContractTerm: string | null;
+  needInitialCost: string | null;
+  needAnnualMileage: string | null;
+  needDeliveryMethod: string | null;
+  needContractFocus: string | null;
+  needCustomerNote: string | null;
+  needReviewNote: string | null;
   tasks: CustomerDetailTask[];
   schedules: CustomerDetailSchedule[];
   memos: CustomerDetailMemo[];
@@ -127,6 +134,13 @@ export type CustomerDetailData = Pick<
   | "needMethod"
   | "needTiming"
   | "needMemo"
+  | "needContractTerm"
+  | "needInitialCost"
+  | "needAnnualMileage"
+  | "needDeliveryMethod"
+  | "needContractFocus"
+  | "needCustomerNote"
+  | "needReviewNote"
   | "tasks"
   | "schedules"
   | "memos"
@@ -153,6 +167,13 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
     needMethod: res.needMethod,
     needTiming: res.needTiming,
     needMemo: res.needMemo,
+    needContractTerm: res.needContractTerm,
+    needInitialCost: res.needInitialCost,
+    needAnnualMileage: res.needAnnualMileage,
+    needDeliveryMethod: res.needDeliveryMethod,
+    needContractFocus: res.needContractFocus,
+    needCustomerNote: res.needCustomerNote,
+    needReviewNote: res.needReviewNote,
     tasks: res.tasks ?? [],
     schedules: res.schedules ?? [],
     memos: res.memos ?? [],
@@ -212,6 +233,13 @@ export type CustomerWritePatch = {
   needMethod?: string | null;
   needTiming?: string | null;
   needMemo?: string | null;
+  needContractTerm?: string | null;
+  needInitialCost?: string | null;
+  needAnnualMileage?: string | null;
+  needDeliveryMethod?: string | null;
+  needContractFocus?: string | null;
+  needCustomerNote?: string | null;
+  needReviewNote?: string | null;
 };
 
 export async function updateCustomer(id: string, patch: CustomerWritePatch): Promise<void> {
