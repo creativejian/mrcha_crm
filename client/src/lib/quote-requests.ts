@@ -110,6 +110,39 @@ export async function fetchCustomerQuoteRequests(customerId: string): Promise<Ap
   return (await getJson<AppQuoteRequestRow[]>(`/api/customers/${customerId}/quote-requests`)).map(toAppQuoteRequest);
 }
 
+// 고객별 앱 견적요청 캐시 + inflight dedupe (detailCache·인박스 캐시와 동형, 고객 uuid 키).
+// 행 hover 프리패치·재진입은 캐시 hit으로 즉시(왕복 0). 승격 후엔 force=true로 우회(배지 fresh).
+const NEEDS_TTL_MS = 60_000;
+const needsCache = new Map<string, { value: AppQuoteRequest[]; at: number }>();
+const needsInflight = new Map<string, Promise<AppQuoteRequest[]>>();
+
+export function fetchCustomerQuoteRequestsCached(customerId: string, force = false): Promise<AppQuoteRequest[]> {
+  const cached = needsCache.get(customerId);
+  if (!force && cached && Date.now() - cached.at < NEEDS_TTL_MS) return Promise.resolve(cached.value);
+  const existing = needsInflight.get(customerId);
+  if (!force && existing) return existing;
+  const p = fetchCustomerQuoteRequests(customerId)
+    .then((value) => {
+      needsCache.set(customerId, { value, at: Date.now() });
+      return value;
+    })
+    .finally(() => {
+      if (needsInflight.get(customerId) === p) needsInflight.delete(customerId);
+    });
+  if (!force) needsInflight.set(customerId, p);
+  return p;
+}
+
+// 고객 행 hover가 호출. 백그라운드 워밍(결과/에러 무시).
+export function prefetchCustomerQuoteRequests(customerId: string): void {
+  void fetchCustomerQuoteRequestsCached(customerId).catch(() => {});
+}
+
+// 캐시 버림(대칭용). 현재 무효화는 reloadAppRequests의 force로 처리되나, 외부 무효화 경로용으로 노출.
+export function invalidateCustomerQuoteRequests(customerId: string): void {
+  needsCache.delete(customerId);
+}
+
 // prefill용 단건. paymentMethod는 한글 라벨(워크벤치 구매방식 옵션과 일치)로 변환해 반환.
 export type QuoteRequestPrefill = {
   id: string;
