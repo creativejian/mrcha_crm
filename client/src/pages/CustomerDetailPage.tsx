@@ -1,11 +1,11 @@
-import { BriefcaseBusiness, Calculator, Check, ChevronDown, ChevronRight, Download, Eye, FilePlus2, FileText, FileUp, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, RotateCcw, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
+import { Calculator, Check, ChevronDown, ChevronRight, FilePlus2, FileText, FileUp, RotateCcw, Smartphone, Trash2, X } from "lucide-react";
 import { type ChangeEvent, type SyntheticEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { PURCHASE_METHOD_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type PurchaseMethod } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { toKimQuoteItem, flattenPrimaryScenario, formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
+import { type KimQuoteItem } from "@/lib/kim-quote";
 import { DEFAULT_QUOTE_GUIDANCE, QUOTE_GUIDANCE_OPTIONS, type QuoteGuidance } from "@/data/quote-guidance";
-import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, createQuote as apiCreateQuote, parseMonthlyPayment, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
+import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { ColorPicker } from "@/components/ColorPicker";
 import { KimAppCardPreview } from "@/components/KimAppCardPreview";
@@ -14,9 +14,8 @@ import { VehiclePicker, type VehicleSelection } from "@/components/VehiclePicker
 import { buildAppCardModel, type AppCardModel } from "@/lib/kim-app-card";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
-import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
-import { nowMs, formatKoreanShortTime, formatKimFileSize, isDocumentFileDrag, kimDocumentFileKind, kimQuoteValidClass } from "@/lib/kim-detail-utils";
-import { type KimPurchasePopoverFrame, type KimQuoteActionFrame, type KimQuoteStatusTooltip, isKimPurchaseFloatingKind, calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
+import { nowMs, formatKoreanShortTime, isDocumentFileDrag } from "@/lib/kim-detail-utils";
+import { type KimPurchasePopoverFrame, isKimPurchaseFloatingKind } from "@/lib/kim-popover-frames";
 import { type KimRecentUpdate, type OpenEditorState } from "@/components/customer-detail/types";
 import { CustomerDetailHeader } from "@/components/customer-detail/CustomerDetailHeader";
 import { CustomerMemos } from "@/components/customer-detail/CustomerMemos";
@@ -34,6 +33,8 @@ import { useCustomerPurchase } from "@/components/customer-detail/hooks/useCusto
 import { kimMinjunPurchaseFields } from "@/components/customer-detail/purchase-meta";
 import { NeedsDashboard } from "@/components/customer-detail/NeedsDashboard";
 import { useCustomerNeeds } from "@/components/customer-detail/hooks/useCustomerNeeds";
+import { QuoteList, QuotePreviewModals } from "@/components/customer-detail/QuoteList";
+import { useQuoteList } from "@/components/customer-detail/hooks/useQuoteList";
 
 type CustomerDetailPageProps = {
   customer: Customer;
@@ -193,82 +194,6 @@ function kimEditorMatches(openEditor: KimOpenEditor | null, next: KimOpenEditor)
   return false;
 }
 
-function kimQuoteAppStatusLabel(status: KimQuoteItem["appStatus"], quote?: KimQuoteItem) {
-  if ((quote?.revision ?? 1) > 1 && status === "viewed") return "수정 열람";
-  if ((quote?.revision ?? 1) > 1 && status === "sent") return "수정 발송";
-  if (status === "viewed") return "고객 열람";
-  if (status === "sent") return "발송 완료";
-  return "발송 전";
-}
-
-function kimQuoteAppSendLabel(status: KimQuoteItem["appStatus"], quote?: KimQuoteItem) {
-  if ((quote?.revision ?? 1) > 1 && status === "viewed") return "수정 열람";
-  if ((quote?.revision ?? 1) > 1 && status === "sent") return "수정 발송";
-  if (status === "viewed") return "고객 열람";
-  if (status === "sent") return "발송 완료";
-  return "발송 전";
-}
-
-function kimQuoteStatusDetailParts(quote: KimQuoteItem) {
-  if ((quote.revision ?? 1) > 1 && (quote.appStatus === "sent" || quote.appStatus === "viewed")) {
-    return {
-      time: `${kimQuoteRevisionLabel(quote) ?? "수정본"} · ${quote.revisedAt ?? quote.sentAt ?? "수정 시각 확인 전"}`,
-      body: quote.appStatus === "viewed" ? "수정 견적 열람 완료" : "재발송",
-    };
-  }
-  if (quote.appStatus === "viewed") {
-    return {
-      time: quote.viewedAt ?? "열람 시각 확인 전",
-      body: "고객이 견적 열람 완료",
-    };
-  }
-  if (quote.appStatus === "sent") {
-    return {
-      time: quote.sentAt ?? "발송 시각 확인 전",
-      body: "앱 견적함으로 발송 완료",
-    };
-  }
-  return null;
-}
-
-function kimQuoteDeleteConfirmTitle(quote: KimQuoteItem) {
-  if (quote.appStatus === "sent" || quote.appStatus === "viewed") {
-    return "발송된 견적 삭제";
-  }
-  return "발송 전 견적 삭제";
-}
-
-function kimQuoteDeleteConfirmMessage(quote: KimQuoteItem) {
-  if (quote.appStatus === "sent" || quote.appStatus === "viewed") {
-    return "고객 앱 견적함에 있는 견적도 함께 삭제됩니다.";
-  }
-  return "아직 고객 앱에 보내지 않은 견적입니다. 이 견적을 삭제합니다.";
-}
-
-function kimQuoteSourceIcon(source: KimQuoteItem["source"]) {
-  if (source === "solution") return <Calculator size={12} strokeWidth={2.35} />;
-  if (source === "original") return <FileText size={12} strokeWidth={2.35} />;
-  return <PencilLine size={12} strokeWidth={2.35} />;
-}
-
-function kimQuoteDecisionLabel(status: KimQuoteItem["decisionStatus"]) {
-  if (status === "contracting") return "계약 진행";
-  if (status === "confirmed") return "고객 확정";
-  if (status === "considering") return "최종 고민중";
-  return "확정 전";
-}
-
-function kimQuoteRevisionLabel(quote: KimQuoteItem) {
-  if (!quote.revision || quote.revision <= 1) return null;
-  return `수정 v${quote.revision}`;
-}
-
-function kimQuoteStockClass(status?: KimQuoteItem["stockStatus"]) {
-  if (status === "재고있음") return " in-stock";
-  if (status === "재고없음") return " no-stock";
-  return " checking";
-}
-
 function normalizeKimQuotePurchaseMethod(value?: string): KimQuotePurchaseMethod {
   if (value && kimQuotePurchaseMethodOptions.includes(value as KimQuotePurchaseMethod)) return value as KimQuotePurchaseMethod;
   return "운용리스";
@@ -313,7 +238,9 @@ function KimMinjunDetailContent({
   const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<KimPurchasePopoverFrame | null>(null);
   const memos = useCustomerMemos({ detail, customer, onToast, markRecentUpdate });
   const checks = useCustomerChecks({ detail, customer, onToast, markRecentUpdate, onCustomerListChanged });
-  const [quotes, setQuotes] = useState<KimQuoteItem[]>(() => detail.quotes.map((q) => toKimQuoteItem(q, Date.now())));
+  // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 부모 보유.
+  // markRecentUpdate는 hoisted 함수(아래 선언)라 호출 시점엔 정의됨 — 기존 memos/checks 훅과 동일 패턴.
+  const quoteList = useQuoteList({ detail, customer, onToast, markRecentUpdate });
   const [isQuoteSolutionWorkbenchOpen, setIsQuoteSolutionWorkbenchOpen] = useState(false);
   const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(kimMinjunPurchaseFields));
   const [solutionWorkbenchEntryMode, setSolutionWorkbenchEntryMode] = useState<KimQuoteEntryMode>("manual");
@@ -339,20 +266,6 @@ function KimMinjunDetailContent({
   const [sourceQuoteRequestId, setSourceQuoteRequestId] = useState<string | null>(null);
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<KimRecognizedQuoteFile | null>(null);
   const [isQuoteWorkbenchOriginalDragActive, setIsQuoteWorkbenchOriginalDragActive] = useState(false);
-  const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
-  const [confirmingQuoteSendId, setConfirmingQuoteSendId] = useState<string | null>(null);
-  const [confirmingQuoteContractId, setConfirmingQuoteContractId] = useState<string | null>(null);
-  const [confirmingQuoteContractEditId, setConfirmingQuoteContractEditId] = useState<string | null>(null);
-  const [confirmingQuoteContractDowngrade, setConfirmingQuoteContractDowngrade] = useState<{ id: string; status: "confirmed" | "considering" } | null>(null);
-  const [openQuoteActionId, setOpenQuoteActionId] = useState<string | null>(null);
-  const [quoteActionFrame, setQuoteActionFrame] = useState<KimQuoteActionFrame | null>(null);
-  const [hoveredQuoteStatus, setHoveredQuoteStatus] = useState<KimQuoteStatusTooltip | null>(null);
-  const [pinnedQuoteStatus, setPinnedQuoteStatus] = useState<KimQuoteStatusTooltip | null>(null);
-  const [quoteDropTargetId, setQuoteDropTargetId] = useState<string | null>(null);
-  const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
-  const [previewSentQuoteId, setPreviewSentQuoteId] = useState<string | null>(null);
-  const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
-  const [previewQuoteUrl, setPreviewQuoteUrl] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PricingResult>(kimMaybachQuotePricingResult);
   const [pricingInputs, setPricingInputs] = useState<PricingInputs>(kimMaybachQuotePricingMock);
   const [cardScenario, setCardScenario] = useState<ScenarioInput | null>(null);
@@ -380,34 +293,13 @@ function KimMinjunDetailContent({
   // needs.reloadAppRequests는 워크벤치(부모 보유) 견적 INSERT 성공 시 부모가 호출(배지 갱신) — 부모가 중계.
   const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor });
   const editorRef = useRef<HTMLDivElement>(null);
-  const quoteBodyRef = useRef<HTMLDivElement>(null);
-  const prevQuoteLenRef = useRef(0); // 견적함 자동 하단스크롤: 첫 로드(0→N) 제외, 새 추가(N→N+1)만
   const quoteWorkbenchOriginalInputRef = useRef<HTMLInputElement>(null);
   const quoteDetailFormRef = useRef<HTMLDivElement>(null);
-  const openQuoteAction = quotes.find((quote) => quote.id === openQuoteActionId) ?? null;
-  const activeQuoteStatusTooltip = pinnedQuoteStatus ?? hoveredQuoteStatus;
-  const activeQuoteStatus = activeQuoteStatusTooltip ? quotes.find((quote) => quote.id === activeQuoteStatusTooltip.id) ?? null : null;
-  const activeQuoteStatusDetail = activeQuoteStatus ? kimQuoteStatusDetailParts(activeQuoteStatus) : null;
-  const previewQuote = quotes.find((quote) => quote.id === previewQuoteId) ?? null;
-  // 미리보기 URL: 업로드 직후 메모리 objectUrl 우선, 영속본은 signed URL을 비동기 발급.
-  const activePreviewQuoteUrl = previewQuote ? previewQuote.objectUrl ?? previewQuoteUrl : null;
-  useEffect(() => {
-    if (!previewQuoteId || quotes.find((q) => q.id === previewQuoteId)?.objectUrl) return () => setPreviewQuoteUrl(null);
-    let cancelled = false;
-    getQuoteOriginalUrl(detail.id, previewQuoteId)
-      .then((r) => { if (!cancelled) setPreviewQuoteUrl(r.url); })
-      .catch(() => onToast("미리보기 URL 발급에 실패했습니다."));
-    return () => { cancelled = true; setPreviewQuoteUrl(null); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- previewQuoteId 변경 시에만 재실행(quotes는 파생 조회라 dep 제외)
-  }, [previewQuoteId, detail.id, onToast]);
-  const previewSentQuote = quotes.find((quote) => quote.id === previewSentQuoteId) ?? null;
-
   // 서류/견적 미리보기·견적 작성/수정 모달·솔루션 워크벤치가 열린 동안
   // 배경(고객 상세 패널·페이지) 스크롤을 잠가 스크롤 전파(chaining)를 막는다.
   const detailOverlayOpen =
     documents.overlayOpen ||
-    previewQuoteId !== null ||
-    previewSentQuoteId !== null ||
+    quoteList.overlayOpen ||
     isQuoteSolutionWorkbenchOpen;
   useEffect(() => {
     if (!detailOverlayOpen) return;
@@ -420,7 +312,7 @@ function KimMinjunDetailContent({
   function openWorkbenchForQuoteRequest(reqId: string): Promise<void> {
     return fetchQuoteRequestDetail(reqId).then((detail) => {
       // 신규 워크벤치 열기와 동일한 리셋(견적함 + 버튼 onClick과 정렬)
-      setConfirmingQuoteDeleteId(null);
+      quoteList.handlers.setConfirmingQuoteDeleteId(null);
       setEditingQuoteId(null);
       persistedQuoteIdRef.current = null;
       setEditPrefill(null);
@@ -465,7 +357,7 @@ function KimMinjunDetailContent({
   const solutionWorkbenchCanQuery =solutionWorkbenchPurchaseMethod === "운용리스" || solutionWorkbenchPurchaseMethod === "장기렌트";
   const quoteDraftReady = isQuoteDraftSaved && !isQuoteDraftDirty;
   // 워크벤치 헤더 차량명: 실시간 선택(workbenchVehicle/trimDetail) 우선, prefill 로드 전엔 수정 견적 저장 텍스트로 폴백(잔상/빈깜빡임 제거).
-  const editingQuote = editingQuoteId ? quotes.find((q) => q.id === editingQuoteId) : undefined;
+  const editingQuote = editingQuoteId ? quoteList.quotes.find((q) => q.id === editingQuoteId) : undefined;
   const workbenchVehicleLabel =
     [workbenchVehicle?.brand?.name, workbenchVehicle?.model?.name, trimDetail?.trimName ?? trimDetail?.name].filter(Boolean).join(" ")
     || [editingQuote?.brand, editingQuote?.model, editingQuote?.trim].filter(Boolean).join(" ")
@@ -813,7 +705,7 @@ function KimMinjunDetailContent({
   // 수정모드 대상 견적의 catalog trimId(VehiclePicker 차량 복원용, PR1). 신규면 undefined.
   function openQuoteActionTrimId(): number | undefined {
     if (!editingQuoteId) return undefined;
-    return quotes.find((q) => q.id === editingQuoteId)?.trimId;
+    return quoteList.quotes.find((q) => q.id === editingQuoteId)?.trimId;
   }
 
   function setManualDepositMode(conditionId: string, mode: KimManualDepositMode) {
@@ -907,9 +799,9 @@ function KimMinjunDetailContent({
   }, []);
 
   useEffect(() => {
-    onEditorOpenChange?.(openEditor !== null || memos.editorOpen || checks.editorOpen || schedules.editorOpen || documents.editorOpen || isQuoteSolutionWorkbenchOpen || openQuoteActionId !== null || previewQuoteId !== null || previewSentQuoteId !== null || editingQuoteId !== null || confirmingQuoteDeleteId !== null || confirmingQuoteSendId !== null || confirmingQuoteContractId !== null || confirmingQuoteContractEditId !== null || confirmingQuoteContractDowngrade !== null);
+    onEditorOpenChange?.(openEditor !== null || memos.editorOpen || checks.editorOpen || schedules.editorOpen || documents.editorOpen || isQuoteSolutionWorkbenchOpen || quoteList.editorOpen || editingQuoteId !== null);
     return () => onEditorOpenChange?.(false);
-  }, [checks.editorOpen, documents.editorOpen, confirmingQuoteDeleteId, confirmingQuoteSendId, confirmingQuoteContractId, confirmingQuoteContractEditId, confirmingQuoteContractDowngrade, editingQuoteId, isQuoteSolutionWorkbenchOpen, memos.editorOpen, onEditorOpenChange, openEditor, openQuoteActionId, previewQuoteId, previewSentQuoteId, schedules.editorOpen]);
+  }, [checks.editorOpen, documents.editorOpen, quoteList.editorOpen, editingQuoteId, isQuoteSolutionWorkbenchOpen, memos.editorOpen, onEditorOpenChange, openEditor, schedules.editorOpen]);
 
   useEffect(() => {
     if (!solutionWorkbenchCanQuery && solutionWorkbenchEntryMode === "solution") {
@@ -946,18 +838,6 @@ function KimMinjunDetailContent({
   }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu]);
 
   useEffect(() => {
-    const container = quoteBodyRef.current;
-    // 첫 로드(0→N)는 상단 유지, 새 견적 추가(N→N+1)만 그 견적이 보이게 하단으로.
-    const grew = quotes.length > prevQuoteLenRef.current && prevQuoteLenRef.current > 0;
-    prevQuoteLenRef.current = quotes.length;
-    if (!grew || !container) return;
-    const frame = window.requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [quotes.length]);
-
-  useEffect(() => {
     if (!openEditor) return;
 
     function closeEditor(event: PointerEvent) {
@@ -980,61 +860,6 @@ function KimMinjunDetailContent({
       document.removeEventListener("keydown", closeEditorByKeyboard);
     };
   }, [openEditor]);
-
-  useEffect(() => {
-    if (!openQuoteActionId) return;
-
-    function closeQuoteAction(event: PointerEvent) {
-      const target = event.target as HTMLElement;
-      if (target.closest(".kim-quote-action-popover") || target.closest(".kim-quote-row-actions")) return;
-      setOpenQuoteActionId(null);
-      setQuoteActionFrame(null);
-      setConfirmingQuoteSendId(null);
-      setConfirmingQuoteDeleteId(null);
-      setConfirmingQuoteContractId(null);
-      setConfirmingQuoteContractEditId(null);
-      setConfirmingQuoteContractDowngrade(null);
-    }
-
-    function closeQuoteActionByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setOpenQuoteActionId(null);
-      setQuoteActionFrame(null);
-      setConfirmingQuoteSendId(null);
-      setConfirmingQuoteDeleteId(null);
-      setConfirmingQuoteContractId(null);
-      setConfirmingQuoteContractEditId(null);
-      setConfirmingQuoteContractDowngrade(null);
-    }
-
-    document.addEventListener("pointerdown", closeQuoteAction, true);
-    document.addEventListener("keydown", closeQuoteActionByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeQuoteAction, true);
-      document.removeEventListener("keydown", closeQuoteActionByKeyboard);
-    };
-  }, [openQuoteActionId]);
-
-  useEffect(() => {
-    if (!pinnedQuoteStatus) return;
-
-    function closePinnedQuoteStatus(event: PointerEvent) {
-      const target = event.target as HTMLElement;
-      if (target.closest(".kim-quote-status-detail") || target.closest(".kim-quote-status-tooltip")) return;
-      setPinnedQuoteStatus(null);
-    }
-
-    function closePinnedQuoteStatusByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setPinnedQuoteStatus(null);
-    }
-
-    document.addEventListener("pointerdown", closePinnedQuoteStatus, true);
-    document.addEventListener("keydown", closePinnedQuoteStatusByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closePinnedQuoteStatus, true);
-      document.removeEventListener("keydown", closePinnedQuoteStatusByKeyboard);
-    };
-  }, [pinnedQuoteStatus]);
 
   function toggleEditor(next: KimOpenEditor) {
     if (!isKimPurchaseFloatingKind(next.kind)) {
@@ -1155,8 +980,8 @@ function KimMinjunDetailContent({
     // 수정 진입(editingQuoteId) 또는 신규 첫 작성완료 후(persistedQuoteIdRef)면 UPDATE.
     const targetId = editingQuoteId ?? persistedQuoteIdRef.current;
     if (targetId) {
-      const prevQuotes = quotes;
-      setQuotes((current) => current.map((q) => (q.id === targetId ? {
+      const prevQuotes = quoteList.quotes;
+      quoteList.setQuotes((current) => current.map((q) => (q.id === targetId ? {
         ...q,
         ...optimisticVehicle,
         ...(send
@@ -1170,12 +995,12 @@ function KimMinjunDetailContent({
           ...scenarioField,
           ...(send ? { status: "고객 확인 전", appStatus: "sent", bumpRevision: true } : {}),
         };
-        void apiUpdateQuote(customer.id, targetId, patch).then(() => onQuotesPersisted?.()).catch(() => { setQuotes(prevQuotes); onToast(send ? "발송에 실패했습니다." : "저장에 실패했습니다."); });
+        void apiUpdateQuote(customer.id, targetId, patch).then(() => onQuotesPersisted?.()).catch(() => { quoteList.setQuotes(prevQuotes); onToast(send ? "발송에 실패했습니다." : "저장에 실패했습니다."); });
       }
     } else {
       const tempId = `kim-quote-workbench-${nowMs()}`;
-      const tempQuoteCode = createKimQuoteCode(quotes);
-      setQuotes((current) => [...current, {
+      const tempQuoteCode = createKimQuoteCode(quoteList.quotes);
+      quoteList.setQuotes((current) => [...current, {
         id: tempId,
         quoteCode: tempQuoteCode,
         title: vehicleName,
@@ -1207,7 +1032,7 @@ function KimMinjunDetailContent({
         };
         void apiCreateQuote(cid, payload)
           .then(({ id, quoteCode }) => {
-            setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q)));
+            quoteList.setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q)));
             persistedQuoteIdRef.current = id; // 이후 작성완료/발송은 같은 견적 UPDATE (editingQuoteId/key는 안 건드림)
             if (send && !id.startsWith("kim-")) {
               void apiUpdateQuote(cid, id, { status: "고객 확인 전", appStatus: "sent", bumpRevision: true }).catch(() => onToast("발송에 실패했습니다."));
@@ -1215,7 +1040,7 @@ function KimMinjunDetailContent({
             if (sourceQuoteRequestId) { void fetchAppQuoteRequestsCached(true); needs.reloadAppRequests(); } // 견적요청→견적 INSERT 시 인박스 캐시 + 니즈 카드 배지 갱신
             onQuotesPersisted?.();
           })
-          .catch(() => { setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("저장에 실패했습니다."); });
+          .catch(() => { quoteList.setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("저장에 실패했습니다."); });
       }
     }
 
@@ -1252,70 +1077,6 @@ function KimMinjunDetailContent({
     onToast("워크벤치 입력값을 초기화했습니다.");
   }
 
-  function attachQuoteFileToQuote(quoteId: string, file: File) {
-    if (!file.type.startsWith("image/") && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      onToast("이미지 또는 PDF 파일만 첨부할 수 있습니다.");
-      return;
-    }
-    const quoteTitle = quotes.find((quote) => quote.id === quoteId)?.title ?? "견적";
-    const prevQuotes = quotes;
-    const objectUrl = URL.createObjectURL(file);
-    const mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
-    setQuotes((current) => current.map((quote) => (
-      quote.id === quoteId ? {
-        ...quote,
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType,
-        objectUrl,
-        file,
-        status: quote.status === "작성중" ? "발송대기" : quote.status,
-        appStatus: quote.appStatus === "draft" ? "queued" : quote.appStatus,
-        originalNeedsReplacement: false,
-      } : quote
-    )));
-    markRecentUpdate("견적함");
-    if (customer.id && !quoteId.startsWith("kim-")) {
-      void uploadQuoteOriginal(customer.id, quoteId, file).catch(() => {
-        URL.revokeObjectURL(objectUrl);
-        setQuotes(prevQuotes);
-        onToast("원본 업로드에 실패했습니다.");
-      });
-    }
-    onToast(`${quoteTitle} 원본 첨부: ${file.name}`);
-  }
-
-  function removeQuoteOriginal(quoteId: string) {
-    const prevQuotes = quotes;
-    const target = quotes.find((quote) => quote.id === quoteId);
-    if (target?.objectUrl) URL.revokeObjectURL(target.objectUrl);
-    setQuotes((current) => current.map((quote) => (
-      quote.id === quoteId ? { ...quote, fileName: undefined, fileSize: undefined, mimeType: undefined, objectUrl: undefined, file: undefined } : quote
-    )));
-    setPreviewQuoteId((current) => (current === quoteId ? null : current));
-    if (customer.id && !quoteId.startsWith("kim-")) {
-      void deleteQuoteOriginal(customer.id, quoteId).catch(() => { setQuotes(prevQuotes); onToast("원본 삭제에 실패했습니다."); });
-    }
-    markRecentUpdate("견적함");
-    onToast("견적 원본을 삭제했습니다.");
-  }
-
-  function attachQuoteFile(event: ChangeEvent<HTMLInputElement>, quoteId: string) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    attachQuoteFileToQuote(quoteId, file);
-    event.target.value = "";
-  }
-
-  function dropQuoteFile(event: ReactDragEvent<HTMLElement>, quoteId: string) {
-    event.preventDefault();
-    event.stopPropagation();
-    setQuoteDropTargetId(null);
-    const file = event.dataTransfer.files[0];
-    if (!file) return;
-    attachQuoteFileToQuote(quoteId, file);
-  }
-
   function recognizeQuoteOriginalForWorkbench(file: File) {
     if (!file.type.startsWith("image/") && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       onToast("견적 원본은 이미지 또는 PDF 파일만 인식할 수 있습니다.");
@@ -1348,64 +1109,89 @@ function KimMinjunDetailContent({
     recognizeQuoteOriginalForWorkbench(file);
   }
 
-  function deleteQuote(id: string) {
-    const targetQuote = quotes.find((quote) => quote.id === id);
-    if (targetQuote?.objectUrl) URL.revokeObjectURL(targetQuote.objectUrl);
-    const prevQuotes = quotes;
-    setQuotes((current) => current.filter((quote) => quote.id !== id));
-    setPreviewQuoteId((current) => (current === id ? null : current));
-    setConfirmingQuoteDeleteId(null);
-    setConfirmingQuoteContractId(null);
-    if (customer.id && !id.startsWith("kim-")) {
-      void apiDeleteQuote(customer.id, id).catch(() => { setQuotes(prevQuotes); onToast("삭제에 실패했습니다."); });
-    }
-    markRecentUpdate("견적함");
-    onToast("견적 항목을 삭제했습니다.");
+  // 견적함 "+" (신규 작성) seam — 워크벤치 클린 시드(9b/9d/9e 상태). 9a QuoteList의 "+" 버튼이 호출.
+  function onOpenNewWorkbench() {
+    quoteList.handlers.setConfirmingQuoteDeleteId(null);
+    setEditingQuoteId(null);
+    persistedQuoteIdRef.current = null;
+    setEditPrefill(null);
+    setSourceQuoteRequestId(null);
+    resetWorkbenchVehicle();
+    setGuidance(DEFAULT_QUOTE_GUIDANCE);
+    setManualQuoteCards([...kimManualQuoteConditionCards]);
+    setManualTermMonths({});
+    setSavedManualQuoteConditionIds([]);
+    setRecognizedQuoteFile(null);
+    setSolutionWorkbenchPurchaseMethod(primaryKimQuotePurchaseMethod(purchase.fields));
+    setSolutionWorkbenchEntryMode("manual");
+    setSolutionWorkbenchModeMenu(null);
+    setIsQuoteSolutionWorkbenchOpen(true);
   }
 
-  function sendQuoteToApp(id: string) {
-    const sentAt = formatKoreanShortTime();
-    const prevQuotes = quotes;
-    setQuotes((current) => current.map((quote) => (
-      quote.id === id ? {
-        ...quote,
-        status: "고객 확인 전",
-        appStatus: "sent",
-        sentAt,
-        meta: `${sentAt} · 앱 발송완료`,
-      } : quote
-    )));
-    if (customer.id && !id.startsWith("kim-")) {
-      void apiUpdateQuote(customer.id, id, { status: "고객 확인 전", appStatus: "sent" }).catch(() => { setQuotes(prevQuotes); onToast("발송 저장에 실패했습니다."); });
+  // 견적 "수정" seam — detail.quotes에서 시나리오/비교카드/맵 복원(9b/9d/9e 상태). 9a 액션 팝오버가 호출.
+  function onEditQuote(quote: KimQuoteItem) {
+    if (quote.decisionStatus === "contracting") {
+      quoteList.handlers.setConfirmingQuoteSendId(null);
+      quoteList.handlers.setConfirmingQuoteDeleteId(null);
+      quoteList.handlers.setConfirmingQuoteContractId(null);
+      quoteList.handlers.setConfirmingQuoteContractEditId((current) => (current === quote.id ? null : quote.id));
+      return;
     }
-    markRecentUpdate("견적함");
-    onToast(`${customer.name} 고객 앱 견적함으로 발송했습니다. 대상: ${customer.customerId}`);
-  }
-
-  function updateQuoteDecisionStatus(id: string, decisionStatus: KimQuoteItem["decisionStatus"]) {
-    const prevQuotes = quotes;
-    setQuotes((current) => current.map((quote) => (
-      quote.id === id ? { ...quote, decisionStatus } : quote
-    )));
-    if (customer.id && !id.startsWith("kim-") && decisionStatus) {
-      void apiUpdateQuote(customer.id, id, { decisionStatus }).catch(() => { setQuotes(prevQuotes); onToast("저장에 실패했습니다."); });
-    }
-    markRecentUpdate("견적함");
-    onToast(decisionStatus === "contracting" ? "계약 진행 견적으로 표시했습니다." : decisionStatus === "confirmed" ? "고객 확정 견적으로 표시했습니다." : decisionStatus === "considering" ? "최종 고민중 견적으로 표시했습니다." : "견적 확정 상태를 해제했습니다.");
-  }
-
-  function setPrimaryScenario(quoteId: string, scenarioId: string) {
-    const prevQuotes = quotes;
-    setQuotes((current) => current.map((quote) => {
-      if (quote.id !== quoteId) return quote;
-      const next = quote.scenarios?.find((s) => s.id === scenarioId) ?? null;
-      return { ...quote, primaryScenarioId: scenarioId, ...flattenPrimaryScenario(next) };
+    const dq = detail.quotes.find((q) => q.id === quote.id);
+    const editScenarios: KimEditScenario[] = (dq?.scenarios ?? []).map((s) => ({
+      scenarioNo: s.scenarioNo ?? 1,
+      lender: s.lender ?? "미선택",
+      monthlyPayment: s.monthlyPayment ?? "",
+      termMonths: s.termMonths ?? 60,
+      depositMode: (s.depositMode as KimManualDepositMode) ?? "none",
+      depositValue: s.depositValue ?? "0",
+      downPaymentMode: (s.downPaymentMode as KimManualDepositMode) ?? "none",
+      downPaymentValue: s.downPaymentValue ?? "0",
+      residualMode: (s.residualMode as KimManualResidualMode) ?? "max",
+      residualValue: s.residualValue ?? "-",
+      mileageMode: (s.mileageMode as KimManualMileageMode) ?? "basic",
+      mileageValue: s.mileageValue ?? "20,000km / 년",
     }));
-    if (customer.id && !quoteId.startsWith("kim-")) {
-      void apiUpdateQuote(customer.id, quoteId, { primaryScenarioId: scenarioId }).catch(() => { setQuotes(prevQuotes); onToast("대표 시나리오 저장에 실패했습니다."); });
-    }
-    markRecentUpdate("견적함");
-    onToast("대표 시나리오를 변경했습니다.");
+    setEditPrefill(dq ? {
+      optionIds: dq.options?.map((o) => o.id) ?? [],
+      exteriorColorId: dq.exteriorColorId,
+      interiorColorId: dq.interiorColorId,
+      pricing: {
+        base: Number(dq.basePrice ?? 0),
+        option: Number(dq.optionTotal ?? 0),
+        discount: Number(dq.finalDiscount ?? 0),
+        acquisitionTax: Number(dq.acquisitionTax ?? 0),
+        bond: Number(dq.bond ?? 0),
+        delivery: Number(dq.delivery ?? 0),
+        incidental: Number(dq.incidental ?? 0),
+      },
+      scenarios: editScenarios,
+      guidance: dq.guidance ?? null,
+    } : null);
+    // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
+    setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...kimManualQuoteConditionCards]);
+    setSavedManualQuoteConditionIds(editScenarios.map((s) => `manual-condition-${s.scenarioNo}`));
+    setManualDepositModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.depositMode])));
+    setManualDownPaymentModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.downPaymentMode])));
+    setManualResidualModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.residualMode])));
+    setManualMileageModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageMode])));
+    setManualMileageValues(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageValue])));
+    setManualTermMonths(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.termMonths])));
+    setEditingQuoteId(quote.id);
+    persistedQuoteIdRef.current = null;
+    setSourceQuoteRequestId(null);
+    resetWorkbenchVehicle();
+    setGuidance(dq?.guidance ?? DEFAULT_QUOTE_GUIDANCE);
+    setSolutionWorkbenchPurchaseMethod(normalizeKimQuotePurchaseMethod(quote.financeType));
+    setSolutionWorkbenchEntryMode(quote.source === "solution" ? "solution" : quote.source === "original" ? "original" : "manual");
+    setSolutionWorkbenchModeMenu(null);
+    setRecognizedQuoteFile(null);
+    setIsQuoteSolutionWorkbenchOpen(true);
+    quoteList.handlers.setOpenQuoteActionId(null);
+    quoteList.handlers.setQuoteActionFrame(null);
+    quoteList.handlers.setConfirmingQuoteSendId(null);
+    quoteList.handlers.setConfirmingQuoteDeleteId(null);
+    quoteList.handlers.setConfirmingQuoteContractId(null);
   }
 
   return (
@@ -1453,490 +1239,13 @@ function KimMinjunDetailContent({
 
         <CustomerSchedules {...schedules} />
 
-        <article className="detail-section kim-mvp-card kim-quote-card compact">
-          <div className="kim-mvp-card-head">
-            <div className="kim-mvp-title-row">
-              <i aria-hidden="true" className="kim-mvp-title-icon"><FileText size={14} strokeWidth={2.2} /></i>
-              <h3>견적함</h3>
-              <span>{quotes.length}개</span>
-              <em>고객에게 나간 조건</em>
-            </div>
-            <div className="kim-quote-head-actions">
-              <button
-                aria-label="견적 작성"
-                className="kim-mvp-add-circle kim-quote-head-action kim-quote-solution-entry"
-                onClick={() => {
-                  setConfirmingQuoteDeleteId(null);
-                  setEditingQuoteId(null);
-                  persistedQuoteIdRef.current = null;
-                  setEditPrefill(null);
-                  setSourceQuoteRequestId(null);
-                  resetWorkbenchVehicle();
-                  setGuidance(DEFAULT_QUOTE_GUIDANCE);
-                  setManualQuoteCards([...kimManualQuoteConditionCards]);
-                  setManualTermMonths({});
-                  setSavedManualQuoteConditionIds([]);
-                  setRecognizedQuoteFile(null);
-                  setSolutionWorkbenchPurchaseMethod(primaryKimQuotePurchaseMethod(purchase.fields));
-                  setSolutionWorkbenchEntryMode("manual");
-                  setSolutionWorkbenchModeMenu(null);
-                  setIsQuoteSolutionWorkbenchOpen(true);
-                }}
-                type="button"
-              ><FilePlus2 size={13} strokeWidth={2.35} /></button>
-            </div>
-          </div>
-          <div className="kim-mvp-card-body" ref={quoteBodyRef}>
-            <div className="kim-quote-list">
-              {quotes.length === 0 ? (
-                <div className="kim-list-empty">작성된 견적이 없습니다.</div>
-              ) : quotes.map((quote) => {
-                return (
-                <div
-                  className={`kim-quote-row app-status-${quote.appStatus}${quoteDropTargetId === quote.id ? " is-file-drop-target" : ""}${openQuoteActionId === quote.id ? " is-action-open" : ""}`}
-                  key={quote.id}
-                  onMouseEnter={() => { if (quote.trimId) prefetchWorkbenchVehicle(quote.trimId); }}
-                  onDragEnter={(event) => {
-                    if (!isDocumentFileDrag(event)) return;
-                    event.preventDefault();
-                    setQuoteDropTargetId(quote.id);
-                  }}
-                  onDragLeave={(event) => {
-                    const nextTarget = event.relatedTarget;
-                    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
-                    if (quoteDropTargetId === quote.id) setQuoteDropTargetId(null);
-                  }}
-                  onDragOver={(event) => {
-                    if (!isDocumentFileDrag(event)) return;
-                    event.preventDefault();
-                  }}
-                  onDrop={(event) => dropQuoteFile(event, quote.id)}
-                >
-                  <span className="kim-quote-status-stack">
-                    {quote.appStatus === "sent" || quote.appStatus === "viewed" ? (
-                      <button
-                        className={`kim-quote-status-detail ${quote.appStatus === "viewed" ? "send-viewed" : "send-sent"}${pinnedQuoteStatus?.id === quote.id ? " is-pinned" : ""}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          const nextFrame = calculateKimQuoteStatusTooltip(event.currentTarget, quote.id);
-                          setPinnedQuoteStatus((current) => (current?.id === quote.id ? null : nextFrame));
-                          setHoveredQuoteStatus(null);
-                        }}
-                        onMouseEnter={(event) => setHoveredQuoteStatus(calculateKimQuoteStatusTooltip(event.currentTarget, quote.id))}
-                        onMouseLeave={() => setHoveredQuoteStatus(null)}
-                        type="button"
-                      >
-                        {kimQuoteSourceIcon(quote.source)}
-                        <i aria-hidden="true" />
-                        <span>{kimQuoteAppStatusLabel(quote.appStatus, quote)}</span>
-                      </button>
-                    ) : (
-                      <b className="send-draft">
-                        {kimQuoteSourceIcon(quote.source)}
-                        <i aria-hidden="true" />
-                        <span>{kimQuoteAppStatusLabel(quote.appStatus, quote)}</span>
-                      </b>
-                    )}
-                  </span>
-                  <div className="kim-quote-row-main">
-                    <div className="kim-quote-meta-primary">
-                      {quote.brand ? <span>{quote.brand}</span> : null}
-                      <strong>{quote.model || quote.vehicleName || quote.title}</strong>
-                      {quote.trim ? <span>{quote.trim}</span> : null}
-                      {quote.quoteRound ? <b>{quote.quoteRound}</b> : null}
-                    </div>
-                    <div className="kim-quote-meta-secondary">
-                      {quote.financeType ? <span>{quote.financeType}</span> : null}
-                      {quote.term ? <span>{quote.term}</span> : null}
-                      {quote.monthlyPayment ? <strong>{quote.monthlyPayment}</strong> : <span>월 납입금 확인 전</span>}
-                      {quote.lender ? <span>{quote.lender}</span> : null}
-                      {quote.stockStatus ? <span className={`stock${kimQuoteStockClass(quote.stockStatus)}`}>{quote.stockStatus}</span> : null}
-                      {quote.validLabel ? <span className={`valid${kimQuoteValidClass(quote.validLabel)}`}>{quote.validLabel}</span> : null}
-                    </div>
-                    {(quote.finalVehiclePrice != null || quote.exteriorColorName || quote.interiorColorName || quote.fileName) ? (
-                      <div className="kim-quote-meta-pricing">
-                        {quote.finalVehiclePrice != null ? <span className="kim-quote-final-price">최종 차량가 {formatMoney(quote.finalVehiclePrice)}</span> : null}
-                        {quote.exteriorColorName ? (
-                          <span className="kim-quote-color-chip">
-                            {quote.exteriorColorHex ? <i aria-hidden="true" style={{ background: quote.exteriorColorHex }} /> : null}
-                            외장 {quote.exteriorColorName}
-                          </span>
-                        ) : null}
-                        {quote.interiorColorName ? (
-                          <span className="kim-quote-color-chip">
-                            {quote.interiorColorHex ? <i aria-hidden="true" style={{ background: quote.interiorColorHex }} /> : null}
-                            내장 {quote.interiorColorName}
-                          </span>
-                        ) : null}
-                        {quote.fileName ? (
-                          <button type="button" className="kim-quote-attach-chip" onClick={() => setPreviewQuoteId(quote.id)} title={`견적 원본 보기 · ${quote.fileName}`}>
-                            <Paperclip size={11} strokeWidth={2.5} />
-                            <span>{quote.fileName}</span>
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {quote.note ? <p className="kim-quote-row-note">{quote.note}</p> : null}
-                    {quote.scenarios && quote.scenarios.length >= 2 ? (
-                      <div className="kim-quote-compare">
-                        <button
-                          type="button"
-                          className={`kim-quote-compare-toggle${expandedQuoteId === quote.id ? " is-open" : ""}`}
-                          aria-expanded={expandedQuoteId === quote.id}
-                          onClick={() => setExpandedQuoteId((current) => (current === quote.id ? null : quote.id))}
-                        >
-                          비교 {quote.scenarios.length}
-                          <ChevronDown size={12} strokeWidth={2.6} />
-                        </button>
-                        {expandedQuoteId === quote.id ? (
-                          <ul className="kim-quote-scenario-cards">
-                            {[...quote.scenarios]
-                              .sort((a, b) => (a.scenarioNo ?? 0) - (b.scenarioNo ?? 0))
-                              .map((scenario) => {
-                                const isPrimary = (quote.primaryScenarioId ?? null) === scenario.id;
-                                const monthly = formatMonthly(scenario.monthlyPayment);
-                                const deposit = formatScenarioMoneyMode(scenario.depositMode, scenario.depositValue);
-                                const downPayment = formatScenarioMoneyMode(scenario.downPaymentMode, scenario.downPaymentValue);
-                                const residual = formatScenarioMoneyMode(scenario.residualMode, scenario.residualValue);
-                                return (
-                                  <li key={scenario.id} className={`kim-quote-scenario-card${isPrimary ? " is-primary" : ""}`}>
-                                    <div className="kim-quote-scenario-head">
-                                      <span className="kim-quote-scenario-no">{scenario.scenarioNo ?? "-"}</span>
-                                      {scenario.lender ? <span className="kim-quote-scenario-lender">{scenario.lender}</span> : null}
-                                      {isPrimary ? (
-                                        <span className="kim-quote-scenario-star"><Star size={11} strokeWidth={2.6} />대표</span>
-                                      ) : (
-                                        <button type="button" className="kim-quote-scenario-pick" onClick={() => setPrimaryScenario(quote.id, scenario.id)}>대표로</button>
-                                      )}
-                                    </div>
-                                    <div className="kim-quote-scenario-figures">
-                                      {monthly ? <strong>{monthly}</strong> : <span>월 납입금 미정</span>}
-                                      {deposit ? <span>보증금 {deposit}</span> : null}
-                                      {downPayment ? <span>선수금 {downPayment}</span> : null}
-                                      {residual ? <span>잔존 {residual}</span> : null}
-                                      {scenario.mileageValue ? <span>약정 {scenario.mileageValue}</span> : null}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                          </ul>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="kim-quote-row-actions">
-                    <div className="kim-quote-row-action-line">
-                      {quote.originalNeedsReplacement ? (
-                        <span className="kim-quote-replace-pill">수정견적으로 교체 필요</span>
-                      ) : null}
-                      {quote.decisionStatus && quote.decisionStatus !== "none" ? (
-                        <span className={`kim-quote-decision-pill decision-${quote.decisionStatus}`}>{kimQuoteDecisionLabel(quote.decisionStatus)}</span>
-                      ) : null}
-                      <button
-                        aria-label={`${quote.title} 견적 작업 열기`}
-                        className={openQuoteActionId === quote.id ? "is-active" : undefined}
-                        onClick={(event) => {
-                          const nextFrame = calculateKimQuoteActionFrame(event.currentTarget);
-                          setConfirmingQuoteDeleteId(null);
-                          setConfirmingQuoteSendId(null);
-                          setConfirmingQuoteContractId(null);
-                          setConfirmingQuoteContractEditId(null);
-                          setOpenQuoteActionId((current) => {
-                            if (current === quote.id) {
-                              setQuoteActionFrame(null);
-                              return null;
-                            }
-                            setQuoteActionFrame(nextFrame);
-                            return quote.id;
-                          });
-                        }}
-                        type="button"
-                      >
-                        <MoreHorizontal size={14} strokeWidth={2.4} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="kim-file-drop-overlay" aria-hidden="true">
-                    <FileUp size={28} strokeWidth={1.9} />
-                    <strong>견적 원본 첨부</strong>
-                    <span>해당 견적의 금융사 견적 원본을 첨부합니다</span>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-          </div>
-        </article>
-
-        {activeQuoteStatusDetail && activeQuoteStatusTooltip ? (
-          <div
-            className="kim-quote-status-tooltip"
-            style={{ left: activeQuoteStatusTooltip.left, top: activeQuoteStatusTooltip.top }}
-          >
-            <strong>{activeQuoteStatusDetail.time}</strong>
-            <span>{activeQuoteStatusDetail.body}</span>
-          </div>
-        ) : null}
-
-        {openQuoteAction && quoteActionFrame ? (
-          <div
-            className="kim-quote-action-popover"
-            role="dialog"
-            aria-label="견적 작업"
-            style={{ left: quoteActionFrame.left, top: quoteActionFrame.top }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="kim-quote-action-popover-head">
-              <span>{openQuoteAction.quoteCode}</span>
-              <b className={openQuoteAction.appStatus === "viewed" ? "is-viewed" : openQuoteAction.appStatus === "sent" ? "is-sent" : "is-draft"}>{kimQuoteAppSendLabel(openQuoteAction.appStatus, openQuoteAction)}</b>
-            </div>
-            <button type="button" onClick={() => {
-              setConfirmingQuoteContractId(null);
-              setConfirmingQuoteDeleteId(null);
-              setConfirmingQuoteContractEditId(null);
-              if (openQuoteAction.appStatus === "sent" || openQuoteAction.appStatus === "viewed") {
-                setPreviewSentQuoteId(openQuoteAction.id);
-                setOpenQuoteActionId(null);
-                setQuoteActionFrame(null);
-                setConfirmingQuoteSendId(null);
-              } else {
-                setConfirmingQuoteSendId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
-              }
-            }}>
-              {openQuoteAction.appStatus === "sent" || openQuoteAction.appStatus === "viewed" ? <Eye size={13} strokeWidth={2.3} /> : <Send size={13} strokeWidth={2.3} />}
-              {openQuoteAction.appStatus === "sent" || openQuoteAction.appStatus === "viewed" ? "발송 견적 보기" : "앱 발송"}
-            </button>
-            {confirmingQuoteSendId === openQuoteAction.id ? (
-              <div className="kim-quote-send-confirm" role="dialog" aria-label="견적 앱 발송 확인">
-                <strong>앱 견적함으로 발송</strong>
-                <p>{customer.name}({customer.customerId}) 고객에게 견적을 보내고 푸시알림을 발송합니다.</p>
-                <div>
-                  <button type="button" onClick={() => setConfirmingQuoteSendId(null)}>취소</button>
-                  <button className="primary" type="button" onClick={() => {
-                    sendQuoteToApp(openQuoteAction.id);
-                    setOpenQuoteActionId(null);
-                    setQuoteActionFrame(null);
-                    setConfirmingQuoteSendId(null);
-                  }}>발송</button>
-                </div>
-              </div>
-            ) : null}
-            <button type="button" onClick={() => {
-              if (openQuoteAction.decisionStatus === "contracting") {
-                setConfirmingQuoteSendId(null);
-                setConfirmingQuoteDeleteId(null);
-                setConfirmingQuoteContractId(null);
-                setConfirmingQuoteContractEditId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
-                return;
-              }
-              const dq = detail.quotes.find((q) => q.id === openQuoteAction.id);
-              const editScenarios: KimEditScenario[] = (dq?.scenarios ?? []).map((s) => ({
-                scenarioNo: s.scenarioNo ?? 1,
-                lender: s.lender ?? "미선택",
-                monthlyPayment: s.monthlyPayment ?? "",
-                termMonths: s.termMonths ?? 60,
-                depositMode: (s.depositMode as KimManualDepositMode) ?? "none",
-                depositValue: s.depositValue ?? "0",
-                downPaymentMode: (s.downPaymentMode as KimManualDepositMode) ?? "none",
-                downPaymentValue: s.downPaymentValue ?? "0",
-                residualMode: (s.residualMode as KimManualResidualMode) ?? "max",
-                residualValue: s.residualValue ?? "-",
-                mileageMode: (s.mileageMode as KimManualMileageMode) ?? "basic",
-                mileageValue: s.mileageValue ?? "20,000km / 년",
-              }));
-              setEditPrefill(dq ? {
-                optionIds: dq.options?.map((o) => o.id) ?? [],
-                exteriorColorId: dq.exteriorColorId,
-                interiorColorId: dq.interiorColorId,
-                pricing: {
-                  base: Number(dq.basePrice ?? 0),
-                  option: Number(dq.optionTotal ?? 0),
-                  discount: Number(dq.finalDiscount ?? 0),
-                  acquisitionTax: Number(dq.acquisitionTax ?? 0),
-                  bond: Number(dq.bond ?? 0),
-                  delivery: Number(dq.delivery ?? 0),
-                  incidental: Number(dq.incidental ?? 0),
-                },
-                scenarios: editScenarios,
-                guidance: dq.guidance ?? null,
-              } : null);
-              // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
-              setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...kimManualQuoteConditionCards]);
-              setSavedManualQuoteConditionIds(editScenarios.map((s) => `manual-condition-${s.scenarioNo}`));
-              setManualDepositModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.depositMode])));
-              setManualDownPaymentModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.downPaymentMode])));
-              setManualResidualModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.residualMode])));
-              setManualMileageModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageMode])));
-              setManualMileageValues(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageValue])));
-              setManualTermMonths(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.termMonths])));
-              setEditingQuoteId(openQuoteAction.id);
-              persistedQuoteIdRef.current = null;
-              setSourceQuoteRequestId(null);
-              resetWorkbenchVehicle();
-              setGuidance(dq?.guidance ?? DEFAULT_QUOTE_GUIDANCE);
-              setSolutionWorkbenchPurchaseMethod(normalizeKimQuotePurchaseMethod(openQuoteAction.financeType));
-              setSolutionWorkbenchEntryMode(openQuoteAction.source === "solution" ? "solution" : openQuoteAction.source === "original" ? "original" : "manual");
-              setSolutionWorkbenchModeMenu(null);
-              setRecognizedQuoteFile(null);
-              setIsQuoteSolutionWorkbenchOpen(true);
-              setOpenQuoteActionId(null);
-              setQuoteActionFrame(null);
-              setConfirmingQuoteSendId(null);
-              setConfirmingQuoteDeleteId(null);
-              setConfirmingQuoteContractId(null);
-            }}>
-              <PencilLine size={13} strokeWidth={2.3} />
-              견적 수정
-            </button>
-            {confirmingQuoteContractEditId === openQuoteAction.id ? (
-              <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 견적 수정 안내">
-                <strong>계약 관리에서 수정</strong>
-                <p>계약 진행 중인 견적은 계약 관리 창에서 수정할 수 있습니다.</p>
-                <div>
-                  <button type="button" onClick={() => setConfirmingQuoteContractEditId(null)}>확인</button>
-                  <button className="primary" type="button" onClick={() => onToast("계약 관리 화면 연결 후 이동됩니다.")}>계약 관리로 이동</button>
-                </div>
-              </div>
-            ) : null}
-            {openQuoteAction.fileName ? (
-              <button type="button" onClick={() => {
-                setPreviewQuoteId(openQuoteAction.id);
-                setOpenQuoteActionId(null);
-                setQuoteActionFrame(null);
-              }}>
-                <Eye size={13} strokeWidth={2.3} />
-                견적 원본 보기
-              </button>
-            ) : (
-              <label>
-                <Paperclip size={13} strokeWidth={2.4} />
-                견적 원본 첨부
-                <input accept="image/*,.pdf" onChange={(event) => {
-                  attachQuoteFile(event, openQuoteAction.id);
-                  setOpenQuoteActionId(null);
-                  setQuoteActionFrame(null);
-                }} type="file" />
-              </label>
-            )}
-            <button className="is-group-start" type="button" onClick={() => {
-              setConfirmingQuoteSendId(null);
-              setConfirmingQuoteDeleteId(null);
-              setConfirmingQuoteContractId(null);
-              setConfirmingQuoteContractEditId(null);
-              if (openQuoteAction.decisionStatus === "contracting") {
-                setConfirmingQuoteContractDowngrade((current) => (current?.id === openQuoteAction.id && current.status === "considering" ? null : { id: openQuoteAction.id, status: "considering" }));
-                return;
-              }
-              setConfirmingQuoteContractDowngrade(null);
-              updateQuoteDecisionStatus(openQuoteAction.id, openQuoteAction.decisionStatus === "considering" ? "none" : "considering");
-            }}>
-              <MessageSquareText size={13} strokeWidth={2.2} />
-              최종 고민중
-              {openQuoteAction.decisionStatus === "considering" ? <Check className="kim-quote-action-state-check" size={13} strokeWidth={2.6} /> : null}
-            </button>
-            {confirmingQuoteContractDowngrade?.id === openQuoteAction.id && confirmingQuoteContractDowngrade.status === "considering" ? (
-              <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 해제 확인">
-                <strong>계약 진행 해제</strong>
-                <p>고객 앱의 진행 중인 계약을 다시 견적함으로 이동하고, CRM 계약 관리 창 연결을 해제합니다. 푸시알림도 발송합니다.</p>
-                <div>
-                  <button type="button" onClick={() => setConfirmingQuoteContractDowngrade(null)}>취소</button>
-                  <button className="primary" type="button" onClick={() => {
-                    updateQuoteDecisionStatus(openQuoteAction.id, "considering");
-                    setConfirmingQuoteContractDowngrade(null);
-                  }}>확정</button>
-                </div>
-              </div>
-            ) : null}
-            <button type="button" onClick={() => {
-              setConfirmingQuoteSendId(null);
-              setConfirmingQuoteDeleteId(null);
-              setConfirmingQuoteContractId(null);
-              setConfirmingQuoteContractEditId(null);
-              if (openQuoteAction.decisionStatus === "contracting") {
-                setConfirmingQuoteContractDowngrade((current) => (current?.id === openQuoteAction.id && current.status === "confirmed" ? null : { id: openQuoteAction.id, status: "confirmed" }));
-                return;
-              }
-              setConfirmingQuoteContractDowngrade(null);
-              updateQuoteDecisionStatus(openQuoteAction.id, openQuoteAction.decisionStatus === "confirmed" ? "none" : "confirmed");
-            }}>
-              <UserRound size={13} strokeWidth={2.25} />
-              고객 확정
-              {openQuoteAction.decisionStatus === "confirmed" ? <Check className="kim-quote-action-state-check" size={13} strokeWidth={2.6} /> : null}
-            </button>
-            {confirmingQuoteContractDowngrade?.id === openQuoteAction.id && confirmingQuoteContractDowngrade.status === "confirmed" ? (
-              <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 해제 확인">
-                <strong>계약 진행 해제</strong>
-                <p>고객 앱의 진행 중인 계약을 다시 견적함으로 이동하고, CRM 계약 관리 창 연결을 해제합니다. 푸시알림도 발송합니다.</p>
-                <div>
-                  <button type="button" onClick={() => setConfirmingQuoteContractDowngrade(null)}>취소</button>
-                  <button className="primary" type="button" onClick={() => {
-                    updateQuoteDecisionStatus(openQuoteAction.id, "confirmed");
-                    setConfirmingQuoteContractDowngrade(null);
-                  }}>확정</button>
-                </div>
-              </div>
-            ) : null}
-            <button type="button" onClick={() => {
-              setConfirmingQuoteSendId(null);
-              setConfirmingQuoteDeleteId(null);
-              setConfirmingQuoteContractEditId(null);
-              setConfirmingQuoteContractDowngrade(null);
-              setConfirmingQuoteContractId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
-            }}>
-              <BriefcaseBusiness size={13} strokeWidth={2.25} />
-              계약 진행
-              {openQuoteAction.decisionStatus === "contracting" ? <Check className="kim-quote-action-state-check" size={13} strokeWidth={2.6} /> : null}
-            </button>
-            {confirmingQuoteContractId === openQuoteAction.id ? (
-              <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="최종 계약 진행 확인">
-                <strong>{openQuoteAction.decisionStatus === "contracting" ? "계약 진행 해제" : "최종 계약 진행"}</strong>
-                <p>{openQuoteAction.decisionStatus === "contracting" ? "고객 앱의 진행 중인 계약을 다시 견적함으로 이동하고, CRM 계약 관리 창 연결을 해제합니다. 푸시알림도 발송합니다." : "고객 앱의 해당 견적을 진행 중인 계약으로 이동하고, CRM에는 별도 계약 관리 창이 생성됩니다. 푸시알림도 발송합니다."}</p>
-                <div>
-                  <button type="button" onClick={() => setConfirmingQuoteContractId(null)}>취소</button>
-                  <button className="primary" type="button" onClick={() => {
-                    updateQuoteDecisionStatus(openQuoteAction.id, openQuoteAction.decisionStatus === "contracting" ? "none" : "contracting");
-                    setConfirmingQuoteContractId(null);
-                  }}>확정</button>
-                </div>
-              </div>
-            ) : null}
-            <button className="delete is-group-start" type="button" onClick={() => {
-              setConfirmingQuoteSendId(null);
-              setConfirmingQuoteContractId(null);
-              setConfirmingQuoteContractEditId(null);
-              setConfirmingQuoteContractDowngrade(null);
-              setConfirmingQuoteDeleteId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
-            }}>
-              <Trash2 size={13} strokeWidth={2.3} />
-              삭제
-            </button>
-            {confirmingQuoteDeleteId === openQuoteAction.id ? (
-              openQuoteAction.decisionStatus === "contracting" ? (
-                <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 견적 삭제 안내">
-                  <strong>계약 진행 견적 삭제 불가</strong>
-                  <p>계약 진행 중인 견적은 삭제할 수 없습니다. 계약 관리 메뉴에서 견적 수정 또는 계약 취소를 진행해주세요.</p>
-                  <div>
-                    <button type="button" onClick={() => setConfirmingQuoteDeleteId(null)}>확인</button>
-                    <button className="primary" type="button" onClick={() => onToast("계약 관리 화면 연결 후 이동됩니다.")}>계약 관리로 이동</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="kim-quote-send-confirm kim-quote-delete-inline-confirm" role="dialog" aria-label="견적 항목 삭제 확인">
-                  <strong>{kimQuoteDeleteConfirmTitle(openQuoteAction)}</strong>
-                  <p>{kimQuoteDeleteConfirmMessage(openQuoteAction)}</p>
-                  <div>
-                    <button type="button" onClick={() => setConfirmingQuoteDeleteId(null)}>취소</button>
-                    <button className="danger" type="button" onClick={() => {
-                      deleteQuote(openQuoteAction.id);
-                      setOpenQuoteActionId(null);
-                      setQuoteActionFrame(null);
-                    }}>삭제</button>
-                  </div>
-                </div>
-              )
-            ) : null}
-          </div>
-        ) : null}
+        <QuoteList
+          quoteList={quoteList}
+          customer={customer}
+          onToast={onToast}
+          onOpenNewWorkbench={onOpenNewWorkbench}
+          onEditQuote={onEditQuote}
+        />
 
         {isQuoteSolutionWorkbenchOpen ? (
           <div className="kim-quote-modal-backdrop kim-quote-workbench-backdrop" onClick={() => setIsQuoteSolutionWorkbenchOpen(false)} role="presentation">
@@ -1989,7 +1298,7 @@ function KimMinjunDetailContent({
                     <ChevronRight size={18} strokeWidth={2.4} />
                     <strong>{editingQuoteId ? "견적 수정" : "새 견적 작성"}</strong>
                   </h2>
-                  <p><span>최근 견적 {quotes.length}개</span><i aria-hidden="true" /><mark>{workbenchVehicleLabel} · {solutionWorkbenchPurchaseMethod} {workbenchFirstTermMonths}개월</mark><span>{editingQuoteId ? "견적 수정 중" : "견적 작성"}</span></p>
+                  <p><span>최근 견적 {quoteList.quotes.length}개</span><i aria-hidden="true" /><mark>{workbenchVehicleLabel} · {solutionWorkbenchPurchaseMethod} {workbenchFirstTermMonths}개월</mark><span>{editingQuoteId ? "견적 수정 중" : "견적 작성"}</span></p>
                 </div>
                 <div className="kim-quote-workbench-head-tools" aria-label="견적 작성 모드">
                   <div className="kim-quote-workbench-mode-select" data-workbench-mode="purchase">
@@ -2379,63 +1688,7 @@ function KimMinjunDetailContent({
         <CustomerDocuments {...documents} />
         </section>
       </section>
-      {previewSentQuote ? (
-        <div className="kim-document-preview-backdrop" role="dialog" aria-label={`${previewSentQuote.title} 발송본`} onClick={() => setPreviewSentQuoteId(null)}>
-          <div className="kim-sent-quote-preview-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="kim-document-preview-head">
-              <div>
-                <strong>{previewSentQuote.title}</strong>
-                <span>{previewSentQuote.quoteCode} · {previewSentQuote.sentAt ?? "발송 시각 확인 전"} · 고객 앱 발송본</span>
-              </div>
-              <button aria-label="발송본 보기 닫기" onClick={() => setPreviewSentQuoteId(null)} type="button"><X size={15} strokeWidth={2.4} /></button>
-            </div>
-            <div className="kim-sent-quote-preview-body">
-              <section>
-                <span>고객 앱 표시</span>
-                <h4>{previewSentQuote.vehicleName || previewSentQuote.title}</h4>
-                <p>{previewSentQuote.financeType || "조건 미정"} · {previewSentQuote.term || "기간 미정"} · {previewSentQuote.quoteCode}</p>
-              </section>
-              <div>
-                <strong>{previewSentQuote.monthlyPayment || "월 납입금 확인 중"}</strong>
-                <small>월 납입금</small>
-              </div>
-              <ul>
-                <li>고객 앱 `내 견적` 추천 견적 탭에 노출되는 구조화 견적입니다.</li>
-                <li>원본 파일과 별도로 차량/금융/기간/월납입 조건을 보관합니다.</li>
-                <li>{previewSentQuote.decisionStatus === "contracting" ? "최종 계약 진행 견적으로 표시됩니다." : previewSentQuote.decisionStatus === "confirmed" ? "고객 최종 확정 견적으로 표시됩니다." : previewSentQuote.decisionStatus === "considering" ? "고객이 최종 고민중인 견적으로 표시됩니다." : "고객 확정 전 추천 견적입니다."}</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {previewQuote ? (
-        <div className="kim-document-preview-backdrop" role="dialog" aria-label={`${previewQuote.title} 원본 미리보기`} onClick={() => setPreviewQuoteId(null)}>
-          <div className="kim-document-preview-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="kim-document-preview-head">
-              <div>
-                <strong>{previewQuote.title}</strong>
-                <span>{previewQuote.quoteCode} · {previewQuote.fileName} · {formatKimFileSize(previewQuote.fileSize)}</span>
-              </div>
-              <div className="kim-document-preview-head-actions">
-                <button aria-label="견적 원본 다운로드" disabled={!activePreviewQuoteUrl} onClick={() => { if (activePreviewQuoteUrl) documents.handlers.download(activePreviewQuoteUrl, previewQuote.fileName ?? "quote"); }} type="button"><Download size={15} strokeWidth={2.3} /></button>
-                <button aria-label="견적 원본 삭제" onClick={() => removeQuoteOriginal(previewQuote.id)} type="button"><Trash2 size={15} strokeWidth={2.3} /></button>
-                <button aria-label="견적 원본 미리보기 닫기" onClick={() => setPreviewQuoteId(null)} type="button"><X size={15} strokeWidth={2.4} /></button>
-              </div>
-            </div>
-            <div className="kim-document-preview-body">
-              {!activePreviewQuoteUrl ? (
-                <p>불러오는 중…</p>
-              ) : previewQuote.mimeType?.startsWith("image/") ? (
-                <img alt={previewQuote.title} src={activePreviewQuoteUrl} />
-              ) : kimDocumentFileKind(previewQuote.mimeType, previewQuote.fileName) === "PDF" ? (
-                <iframe src={activePreviewQuoteUrl} title={previewQuote.title} />
-              ) : (
-                <p>미리보기를 지원하지 않는 파일입니다.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <QuotePreviewModals quoteList={quoteList} onDownloadOriginal={documents.handlers.download} />
     </div>
   );
 }
