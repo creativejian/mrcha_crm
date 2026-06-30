@@ -23,6 +23,10 @@ import {
   SCHEDULE_TYPE_OPTIONS,
   PURCHASE_METHOD_OPTIONS,
   CUSTOMER_TYPE_OPTIONS,
+  CONTRACT_TERM_OPTIONS,
+  ANNUAL_MILEAGE_OPTIONS,
+  DELIVERY_METHOD_OPTIONS,
+  PURCHASE_UNSET_SENTINEL,
   customerStatusGroups,
 } from "../../client/src/data/customers";
 
@@ -78,6 +82,13 @@ export const customers = crm.table("customers", {
   needColors: text("need_colors"),
   needCompare: text("need_compare"),
   needMemo: text("need_memo"),
+  needContractTerm: text("need_contract_term"),
+  needInitialCost: text("need_initial_cost"),
+  needAnnualMileage: text("need_annual_mileage"),
+  needDeliveryMethod: text("need_delivery_method"),
+  needContractFocus: text("need_contract_focus"),
+  needCustomerNote: text("need_customer_note"),
+  needReviewNote: text("need_review_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
@@ -86,6 +97,9 @@ export const customers = crm.table("customers", {
   check("customers_chance_check", inListCheck(t.chance, CHANCE_OPTIONS)),
   check("customers_source_check", inListCheck(t.source, SOURCE_OPTIONS)),
   check("customers_customer_type_check", inListCheck(t.customerType, CUSTOMER_TYPE_OPTIONS)),
+  check("customers_need_contract_term_check", inListCheck(t.needContractTerm, [...CONTRACT_TERM_OPTIONS, PURCHASE_UNSET_SENTINEL])),
+  check("customers_need_annual_mileage_check", inListCheck(t.needAnnualMileage, [...ANNUAL_MILEAGE_OPTIONS, PURCHASE_UNSET_SENTINEL])),
+  check("customers_need_delivery_method_check", inListCheck(t.needDeliveryMethod, [...DELIVERY_METHOD_OPTIONS, PURCHASE_UNSET_SENTINEL])),
 ]);
 
 // ── 고객 자식 테이블 (1:N) ────────────────────────────────────────────────────
