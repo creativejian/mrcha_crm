@@ -99,7 +99,7 @@ Status: 설계 확정 (구현 전)
      (`needInitialCost`)·`selectPurchaseAnnualMileage`(`needAnnualMileage`)·`selectPurchaseDeliveryMethod`
      (`needDeliveryMethod`)·`togglePurchaseCostFocus`(`needContractFocus`)·`togglePurchaseCustomerNote`
      (`needCustomerNote`)·`togglePurchaseReviewNote`(`needReviewNote`).
-   - 인라인 폼 `savePurchaseConditions`(텍스트 일괄 폴백)도 7필드를 patch에 포함(+rollback).
+   - 인라인 일괄 폼 `savePurchaseConditions`/`renderPurchaseEditor`(`{kind:"purchase"}`)는 **코드에 여는 트리거가 없는 비활성 코드**라 영속화 대상에서 제외(건드리면 단일선택 CHECK 컬럼에 자유텍스트가 들어갈 위험만 새로 생김 — YAGNI).
 9. `client/src/components/customer-detail/PurchaseConditions.tsx`:
    - `renderPurchaseTermEditor` 다중(Set)→단일(`currentValue === option`), `selectPurchaseTerm` 호출.
    - handlers 구조분해에서 `togglePurchaseTerm`→`selectPurchaseTerm` 이름 반영.
