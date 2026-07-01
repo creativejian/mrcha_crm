@@ -66,6 +66,7 @@ export const customers = crm.table("customers", {
   priority: text("priority"),
   chance: text("chance"), // 계약완료→확정 동기화는 앱
   advisorId: uuid("advisor_id"), // → public.profiles.id (FK: Phase B)
+  advisorName: text("advisor_name"), // 담당자 표시명(옵션 A: 텍스트). advisor_id 연결은 Phase B.
   team: text("team"),
   assignedAt: timestamp("assigned_at", { withTimezone: true }),
   source: text("source"),

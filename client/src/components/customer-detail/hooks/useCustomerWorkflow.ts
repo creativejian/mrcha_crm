@@ -73,7 +73,7 @@ export function useCustomerWorkflow({
     job: detail.customerType ? formatKimJobValue(detail.customerType as KimCustomerType, detail.customerTypeDetail ?? "") : "미입력",
     location: detail.residence ?? "확인 필요",
     source: detail.source ?? "미입력",
-    advisor: "미배정",
+    advisor: detail.advisorName ? formatKimAdvisorValue((detail.team ?? "인천본사") as KimAdvisorTeam, detail.advisorName) : "미배정",
     assignedAt: detail.assignedAt ? formatActivity(detail.assignedAt) : "미배정",
   }));
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
@@ -214,10 +214,15 @@ export function useCustomerWorkflow({
     const team = String(formData.get("team") ?? "인천본사") as KimAdvisorTeam;
     const advisor = String(formData.get("advisor") ?? "").trim();
     const nextAdvisor = formatKimAdvisorValue(team, advisor);
+    const prevAdvisor = statusValues.advisor;
+    const prevAssignedAt = statusValues.assignedAt;
     setStatusValues((current) => ({ ...current, advisor: nextAdvisor, assignedAt: formatKimAssignmentTime() }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast("담당자 배정 완료");
+    // advisorName은 이름만(빈 값=미배정→null). team은 그대로. 배정시각은 서버가 now()로 기록.
+    savePatch({ advisorName: advisor || null, team }, () =>
+      setStatusValues((current) => ({ ...current, advisor: prevAdvisor, assignedAt: prevAssignedAt })));
   }
 
   function selectStageGroup(nextGroup: string) {
