@@ -50,5 +50,6 @@ export async function classifyDocumentImage(args: ClassifyArgs): Promise<string>
     if (attempt === 0 && (code === "rate_limited" || code === "unavailable")) continue;
     throw new Error(`Gemini 분류 실패: ${code}`);
   }
+  // unreachable: 루프 내부가 항상 return/throw — TS 반환타입 체크 통과용.
   throw new Error("Gemini 분류 실패");
 }

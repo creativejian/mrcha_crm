@@ -41,3 +41,35 @@ Deno.test("generic 에러는 재시도 없이 throw", async () => {
   assert(threw);
   assertEquals(calls, 1);
 });
+
+Deno.test("두 번 연속 transient 실패는 재시도 소진 후 throw (calls===2)", async () => {
+  let calls = 0;
+  const fetchImpl = () => {
+    calls++;
+    return Promise.resolve(new Response("overloaded", { status: 503 }));
+  };
+  let threw = false;
+  try {
+    await classifyDocumentImage({ ...ARGS, fetchImpl });
+  } catch {
+    threw = true;
+  }
+  assert(threw);
+  assertEquals(calls, 2);
+});
+
+Deno.test("credits_depleted는 재시도 없이 throw (calls===1)", async () => {
+  let calls = 0;
+  const fetchImpl = () => {
+    calls++;
+    return Promise.resolve(new Response("prepayment credits are depleted", { status: 429 }));
+  };
+  let threw = false;
+  try {
+    await classifyDocumentImage({ ...ARGS, fetchImpl });
+  } catch {
+    threw = true;
+  }
+  assert(threw);
+  assertEquals(calls, 1);
+});
