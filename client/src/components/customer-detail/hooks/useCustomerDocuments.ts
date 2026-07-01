@@ -3,8 +3,9 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent as ReactD
 import { type Customer } from "@/data/customers";
 import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
 import { type CustomerDetailData } from "@/lib/customers";
+import { classifyDocumentWithAI } from "@/lib/document-classify";
 import type { MergeSource } from "@/lib/document-merge";
-import { classifyKimDocumentFile, isDocumentFileDrag, kimDocumentFileKind, nowMs } from "@/lib/kim-detail-utils";
+import { isDocumentFileDrag, kimDocumentFileKind, nowMs } from "@/lib/kim-detail-utils";
 import { type KimDocumentItem } from "@/components/customer-detail/types";
 
 type UseCustomerDocumentsArgs = {
@@ -98,30 +99,43 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
     }
     setConfirmingDocumentDeleteId(null);
     markRecentUpdate("서류함");
-    for (const file of files) {
-      const tempId = `kim-document-${nowMs()}-${Math.round(file.size)}`;
-      const docType = classifyKimDocumentFile(file.name);
-      const objectUrl = URL.createObjectURL(file);
-      const optimistic: KimDocumentItem = {
-        id: tempId,
-        title: docType,
-        status: "자동인식",
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
-        objectUrl,
-        file,
-      };
-      setDocuments((current) => [...current, optimistic]);
-      try {
-        const saved = await uploadDocument(detail.id, file, docType);
-        setDocuments((current) => current.map((d) => (d.id === tempId ? { ...d, id: saved.id, file: undefined } : d)));
-      } catch {
-        setDocuments((current) => current.filter((d) => d.id !== tempId));
-        URL.revokeObjectURL(objectUrl);
-        onToast(`${file.name} 업로드에 실패했습니다.`);
-      }
-    }
+
+    // 파일별 병렬 처리 — classifyDocumentWithAI·uploadDocument 모두 아래에서 파일별로 catch되므로
+    // 한 파일 실패가 다른 파일을 abort시키지 않는다(그래서 Promise.all로 충분, allSettled 불필요).
+    await Promise.all(
+      files.map(async (file, index) => {
+        // index를 tempId에 포함 — 병렬이라 nowMs()가 동일하고 같은 크기 파일이면 충돌하므로.
+        const tempId = `kim-document-${nowMs()}-${index}-${Math.round(file.size)}`;
+        const objectUrl = URL.createObjectURL(file);
+        const mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
+        const optimistic: KimDocumentItem = {
+          id: tempId,
+          title: "",
+          status: "분류 중…",
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType,
+          objectUrl,
+          file,
+        };
+        setDocuments((current) => [...current, optimistic]);
+
+        // vision 분류(실패·unknown이면 lib이 파일명 regex로 폴백 → 항상 유효한 22종).
+        const docType = await classifyDocumentWithAI(file);
+        setDocuments((current) =>
+          current.map((d) => (d.id === tempId ? { ...d, title: docType, status: "AI분류" } : d)),
+        );
+
+        try {
+          const saved = await uploadDocument(detail.id, file, docType);
+          setDocuments((current) => current.map((d) => (d.id === tempId ? { ...d, id: saved.id, file: undefined } : d)));
+        } catch {
+          setDocuments((current) => current.filter((d) => d.id !== tempId));
+          URL.revokeObjectURL(objectUrl);
+          onToast(`${file.name} 업로드에 실패했습니다.`);
+        }
+      }),
+    );
   }
 
   function addDocumentFilesFromInput(event: ChangeEvent<HTMLInputElement>) {
