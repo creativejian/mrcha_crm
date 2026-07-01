@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."customers" ADD COLUMN "advisor_name" text;

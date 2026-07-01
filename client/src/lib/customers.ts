@@ -10,6 +10,7 @@ export type CustomerRow = {
   phone: string | null;
   customerType: string | null;
   customerTypeDetail: string | null;
+  advisorName: string | null;
   team: string | null;
   source: string | null;
   statusGroup: string | null;
@@ -59,7 +60,7 @@ export function toCustomer(row: CustomerRow): Customer {
     vehicle: row.needModel ?? "",
     vehicleTrim: row.needTrim ?? undefined,
     method: row.needMethod ?? "",
-    advisor: "미배정",
+    advisor: row.advisorName ?? "미배정",
     statusGroup: row.statusGroup ?? "",
     status: row.status ?? "",
     date: formatActivity(row.lastActivityAt),
@@ -93,6 +94,8 @@ export type CustomerDetailResponse = {
   customerType: string | null;
   customerTypeDetail: string | null;
   source: string | null;
+  advisorName: string | null;
+  team: string | null;
   assignedAt: string | null;
   receivedAt: string | null;
   needModel: string | null;
@@ -126,6 +129,8 @@ export type CustomerDetailData = Pick<
   | "customerType"
   | "customerTypeDetail"
   | "source"
+  | "advisorName"
+  | "team"
   | "assignedAt"
   | "receivedAt"
   | "needModel"
@@ -159,6 +164,8 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
     customerType: res.customerType,
     customerTypeDetail: res.customerTypeDetail,
     source: res.source,
+    advisorName: res.advisorName,
+    team: res.team,
     assignedAt: res.assignedAt,
     receivedAt: res.receivedAt,
     needModel: res.needModel,
@@ -227,6 +234,8 @@ export type CustomerWritePatch = {
   statusGroup?: string | null;
   status?: string | null;
   chance?: string | null;
+  advisorName?: string | null;
+  team?: string | null;
   needModel?: string | null;
   needTrim?: string | null;
   needColors?: string | null;

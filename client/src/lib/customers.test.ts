@@ -9,6 +9,7 @@ const row: CustomerRow = {
   phone: "010-9588-0812",
   customerType: "개인",
   customerTypeDetail: "4대보험",
+  advisorName: null,
   team: "인천본사",
   source: "디엘(견적서)",
   statusGroup: "견적",
@@ -47,6 +48,11 @@ describe("toCustomer", () => {
     expect(c.nextAction).toBe("");
     expect(c.phone).toBe("");
   });
+  it("advisorName 있으면 advisor는 이름만(team은 별도 컬럼)", () => {
+    const c = toCustomer({ ...row, advisorName: "김지안" });
+    expect(c.advisor).toBe("김지안");
+    expect(c.team).toBe("인천본사");
+  });
   it("id(uuid)를 그대로 전달", () => {
     expect(toCustomer(row).id).toBe("11111111-1111-1111-1111-111111111111");
   });
@@ -78,6 +84,8 @@ const detailRes: CustomerDetailResponse = {
   customerType: "개인",
   customerTypeDetail: "4대보험",
   source: "디엘(견적서)",
+  advisorName: "김지안",
+  team: "인천본사",
   assignedAt: null,
   receivedAt: "2026-05-14T12:56:00+09:00",
   appUserId: "user-1",
@@ -150,6 +158,8 @@ describe("toCustomerDetail", () => {
     expect(d.needTrim).toBe("S 500 4M Long");
     expect(d.needTiming).toBe("좋은 조건 즉시");
     expect(d.residence).toBe("인천광역시");
+    expect(d.advisorName).toBe("김지안");
+    expect(d.team).toBe("인천본사");
   });
   it("자식 배열(tasks/schedules/memos/documents)을 전달", () => {
     const d = toCustomerDetail(detailRes);

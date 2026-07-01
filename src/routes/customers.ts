@@ -29,6 +29,8 @@ export const customerWriteSchema = z.object({
   statusGroup: z.string().nullable().optional(),
   status: z.string().nullable().optional(),
   chance: z.string().nullable().optional(),
+  advisorName: z.string().nullable().optional(),
+  team: z.string().nullable().optional(),
   needModel: z.string().nullable().optional(),
   needTrim: z.string().nullable().optional(),
   needColors: z.string().nullable().optional(),
@@ -83,7 +85,9 @@ customers.patch(
       const error = validateLookupValue("source", patch.source);
       if (error) return c.json({ error }, 400);
     }
-    return run(c, () => updateCustomer(c.req.valid("param").id, patch, c.var.db), "고객을 찾을 수 없습니다.");
+    // 담당자 배정(advisorName)이 오면 배정시각을 서버에서 자동 기록(클라 시각 신뢰 안 함).
+    const finalPatch = patch.advisorName !== undefined ? { ...patch, assignedAt: new Date() } : patch;
+    return run(c, () => updateCustomer(c.req.valid("param").id, finalPatch, c.var.db), "고객을 찾을 수 없습니다.");
   },
 );
 
