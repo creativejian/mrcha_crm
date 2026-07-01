@@ -8040,6 +8040,24 @@ th input:focus-visible {
   padding: 0;
 }
 
+/* 서류함 카드는 옆 견적함과 같은 행(align-items:stretch)이라 견적함 높이로 늘어나야 하는데,
+   공유 규칙(.kim-doc-card .kim-mvp-card-body)이 body를 height/max-height 236px로 못박아
+   카드가 못 커졌다(→ 셀 아래 여백). 서류함 body만 그 고정을 풀어 카드 높이를 따라가게 하고,
+   flex column + 목록 flex:1로 목록이 그 높이를 채우며 넘치면 목록만 스크롤한다. */
+.kim-doc-card .kim-mvp-card-body {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+}
+.kim-doc-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .kim-quote-row {
   position: relative;
   border-bottom: 1px solid rgba(17, 17, 17, 0.055);
