@@ -20,7 +20,7 @@ const app = new Hono();
 app.use("*", cors({
   origin: ALLOWED_ORIGINS,
   allowMethods: ["POST", "OPTIONS"],
-  allowHeaders: ["Authorization", "Content-Type"],
+  allowHeaders: ["authorization", "x-client-info", "apikey", "content-type"],
 }));
 
 // JWKS는 issuer당 1회 생성(모듈 레벨 캐시).
