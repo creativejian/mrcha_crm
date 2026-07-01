@@ -100,9 +100,12 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
     setConfirmingDocumentDeleteId(null);
     markRecentUpdate("서류함");
 
+    // 파일별 병렬 처리 — classifyDocumentWithAI·uploadDocument 모두 아래에서 파일별로 catch되므로
+    // 한 파일 실패가 다른 파일을 abort시키지 않는다(그래서 Promise.all로 충분, allSettled 불필요).
     await Promise.all(
-      files.map(async (file) => {
-        const tempId = `kim-document-${nowMs()}-${Math.round(file.size)}`;
+      files.map(async (file, index) => {
+        // index를 tempId에 포함 — 병렬이라 nowMs()가 동일하고 같은 크기 파일이면 충돌하므로.
+        const tempId = `kim-document-${nowMs()}-${index}-${Math.round(file.size)}`;
         const objectUrl = URL.createObjectURL(file);
         const mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
         const optimistic: KimDocumentItem = {
