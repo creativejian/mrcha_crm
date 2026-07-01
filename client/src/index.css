@@ -8040,23 +8040,24 @@ th input:focus-visible {
   padding: 0;
 }
 
-/* 서류함 카드는 옆 견적함과 같은 행(align-items:stretch)이라 견적함 높이로 늘어나야 하는데,
-   공유 규칙(.kim-doc-card .kim-mvp-card-body)이 body를 height/max-height 236px로 못박아
-   카드가 못 커졌다(→ 셀 아래 여백). 서류함 body만 그 고정을 풀어 카드 높이를 따라가게 하고,
-   flex column + 목록 flex:1로 목록이 그 높이를 채우며 넘치면 목록만 스크롤한다. */
+/* 서류함 카드는 옆 견적함과 같은 행(align-items:stretch)이라 견적함 높이에 맞춰야 한다.
+   공유 규칙이 body를 height/max-height 236px로 못박아 여백이 생겼고, 그걸 풀면 이번엔 서류가
+   많을 때 목록 콘텐츠가 카드를 무한정 키워 견적함까지 늘어나고 스크롤이 안 됐다.
+   해법: body의 236 고정을 풀고 목록을 position:absolute로 body에서 격리한다. 목록이 out-of-flow라
+   카드 높이에 기여하지 않으므로 카드는 견적함이 정한 행 높이에 stretch로 맞고, 목록은 그 안을 채우며
+   넘치면 목록만 스크롤한다. 적을 때는 align-content:start로 위 정렬(아래는 빈 캐비닛). agent-browser 실측 확정. */
 .kim-doc-card .kim-mvp-card-body {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: auto;
   max-height: none;
   min-height: 0;
 }
 .kim-doc-list {
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  align-content: start; /* 항목이 적을 때 grid가 rows를 늘려 간격이 벌어지는 것 방지 — 위 정렬 + 아래는 빈 캐비닛, 넘치면 스크롤 */
+  align-content: start;
 }
 
 .kim-quote-row {
