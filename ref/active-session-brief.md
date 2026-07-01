@@ -35,7 +35,8 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 - 부모는 cross-cutting 상태와 핸들러만 보유한다: `openEditor`, `setOpenEditor`, `toggleEditor`, `savePatch`, `markRecentUpdate`, `kimEditorMatches` 등.
 - 견적 워크벤치는 9b~9e를 단일 훅으로 통합하는 방향으로 확정했다. 내부 결합이 강해 4분할은 props 폭발 위험이 컸다.
 - 브라우저 검증: 구매조건/니즈, 견적함/워크벤치, 앱카드, PDF원본, 작성완료 INSERT/UPDATE, 발송, 딥링크/prefill까지 검증 완료로 기록되어 있다.
-- 남은 일: 없음(분해·브라우저 검증·main 반영 완료, stale 브랜치 삭제). 선택적 후속 = `kim`→범용 리네임(기능 무변경, 저우선).
+- 남은 일: 없음(분해·검증·main 반영 완료, stale 브랜치 삭제). 선택적 후속 = `kim`→범용 리네임(기능 무변경, 저우선).
+- **`kim` 리네임 적기(2026-07-01 확정)**: 지금 단독 실행 ❌(export 심볼 100+·파일 13·참조 800+ 대규모 churn, 저가치). **적기 = "mock→DB 데이터화/전체표준 일반화" 슬라이스 착수 시.** 이유: 김민준 시드 심볼(`kimMinjun*`·`kimMaybach*`·`kimManual*Cards`·`KimAppCardPreview`)이 그때 실 DB 데이터로 대체돼 이름이 어차피 바뀌므로, 범용 유틸(`formatKim*`·`parseKim*`·`kim*Options`)의 kim 제거를 한 PR로 얹으면 churn 흡수. 데이터화 슬라이스 시작할 때 이 항목 먼저 꺼낼 것. `data/prototype.ts`·`QuotesPage`·`ChatPage`의 "김민준" 목업 문자열은 건드리지 말고 심볼만 정규식으로.
 
 ## 최근 완료 요약
 
