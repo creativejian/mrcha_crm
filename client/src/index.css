@@ -8056,6 +8056,7 @@ th input:focus-visible {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  align-content: start; /* 항목이 적을 때 grid가 rows를 늘려 간격이 벌어지는 것 방지 — 위 정렬 + 아래는 빈 캐비닛, 넘치면 스크롤 */
 }
 
 .kim-quote-row {
