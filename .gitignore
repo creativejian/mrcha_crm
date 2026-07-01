@@ -15,6 +15,8 @@ playwright-report/
 .DS_Store
 *.log
 supabase/.temp/
+# Deno를 repo root에서 실행할 때 생기는 부산물. 정본 lock은 supabase/functions/deno.lock(tracked).
+/deno.lock
 docs/
 
 # 차량 거울 DB import 자산 (대용량 dump + CRM 전용 publishable 키 포함, 공유 금지)
