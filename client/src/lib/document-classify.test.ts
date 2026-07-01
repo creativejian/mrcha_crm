@@ -41,4 +41,9 @@ describe("classifyDocumentWithAI", () => {
     invoke.mockRejectedValue(new Error("network"));
     expect(await classifyDocumentWithAI(pngFile("아무거나.png"))).toBe("기타서류");
   });
+
+  it("AI가 22종 밖 값을 반환하면 regex로 폴백(스키마 drift 방어)", async () => {
+    invoke.mockResolvedValue({ data: { docType: "이상한분류" }, error: null });
+    expect(await classifyDocumentWithAI(pngFile("사업자등록증.png"))).toBe("사업자등록증");
+  });
 });

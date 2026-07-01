@@ -4,12 +4,14 @@ import { classifyKimDocumentFile } from "@/lib/kim-detail-utils";
 import { createImageThumbnail } from "./image-thumbnail";
 import { supabase } from "./supabase";
 
-// File → base64(데이터 부분만, data:URL 접두어 제거).
+// File → base64(데이터 부분만, data:URL 접두어 제거). 32KB 청크 — 바이트별 호출/거대 인자 스택오버플로를 피한다.
 async function fileToBase64(file: File): Promise<string> {
-  const buf = await file.arrayBuffer();
-  const bytes = new Uint8Array(buf);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const CHUNK = 0x8000;
   let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
   return btoa(binary);
 }
 
@@ -29,11 +31,12 @@ export async function classifyDocumentWithAI(file: File): Promise<string> {
     });
     if (error) throw error;
     const docType = (data as { docType?: string } | null)?.docType;
-    if (docType && docType !== "unknown" && (DOC_TYPE_OPTIONS as readonly string[]).includes(docType)) {
+    if (docType && docType !== "unknown" && DOC_TYPE_OPTIONS.includes(docType)) {
       return docType;
     }
-  } catch {
-    // 아래 regex 폴백으로 진행
+  } catch (err) {
+    // AI 분류 실패는 사용자에게 노출하지 않고 파일명 regex로 degrade한다. 관측성 위해 로그만 남긴다.
+    console.warn("[document-classify] AI 분류 실패, 파일명 regex 폴백", err);
   }
   return classifyKimDocumentFile(file.name);
 }
