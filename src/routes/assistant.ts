@@ -18,6 +18,7 @@ const TOP_K = 8;
 const HISTORY_LIMIT = 10; // 멀티턴 컨텍스트로 넣을 최근 메시지 수(앱과 동일)
 const DISPLAY_LIMIT = 30; // 패널 진입 시 로드할 최근 메시지 수
 const askSchema = z.object({ question: z.string() });
+const messagesQuery = z.object({ before: z.iso.datetime().optional(), beforeId: z.uuid().optional() });
 
 // 테스트가 주입 가능한 의존성(mock.module 대신 — 전역 누출 방지).
 export type AssistantDeps = {
@@ -32,8 +33,10 @@ export const assistantDeps: AssistantDeps = {
   embedTexts, searchEmbeddings, generateAnswer, getCustomerMetaByIds, listRecentMessages, insertAssistantMessages,
 };
 
-assistant.get("/messages", async (c) => {
-  const rows = await assistantDeps.listRecentMessages(c.var.user.id, DISPLAY_LIMIT, c.var.db);
+assistant.get("/messages", zValidator("query", messagesQuery), async (c) => {
+  const { before, beforeId } = c.req.valid("query");
+  const cursor = before && beforeId ? { createdAt: new Date(before), id: beforeId } : undefined;
+  const rows = await assistantDeps.listRecentMessages(c.var.user.id, DISPLAY_LIMIT, c.var.db, cursor);
   return c.json(rows);
 });
 

@@ -1,5 +1,5 @@
 import { Maximize2, Send, X } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DoubleBounceDots } from "@/components/ai/DoubleBounceDots";
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { initialCustomers, type Customer } from "@/data/customers";
@@ -142,25 +142,63 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const [aiLoading, setAiLoading] = useState(false);
   const [aiHistory, setAiHistory] = useState<AssistantMessage[]>([]);
   const [aiHistoryLoaded, setAiHistoryLoaded] = useState(false);
+  const [aiHasMore, setAiHasMore] = useState(true);
+  const [aiLoadingOlder, setAiLoadingOlder] = useState(false);
   const workAiBodyRef = useRef<HTMLDivElement>(null);
+  const olderLoadedRef = useRef(false); // 직전 갱신이 "이전 메시지 prepend"였는지 — 상단 노출 스크롤용
+  const loadingOlderRef = useRef(false); // 동기 재진입 가드(state는 커밋 지연되어 레이스)
+  const AI_HISTORY_PAGE = 30; // 백엔드 DISPLAY_LIMIT와 일치
+  const OLDER_INDICATOR_MIN_MS = 400; // 빠른 로드에도 로딩 표시가 최소 이 시간은 보이도록
 
   useEffect(() => {
     if (!workAiOpen || aiHistoryLoaded) return;
     let alive = true;
     void fetchAssistantMessages()
-      .then((rows) => { if (alive) { setAiHistory(rows); setAiHistoryLoaded(true); } })
+      .then((rows) => { if (alive) { setAiHistory(rows); setAiHistoryLoaded(true); setAiHasMore(rows.length === AI_HISTORY_PAGE); } })
       .catch(() => { if (alive) setAiHistoryLoaded(true); });
     return () => { alive = false; };
   }, [workAiOpen, aiHistoryLoaded]);
 
-  // 대화가 갱신되면(진입·히스토리 로드·새 턴·로딩) 스크롤을 항상 최하단(최신)으로.
-  useEffect(() => {
+  // 대화 갱신 시 스크롤: 이전 메시지 로드면 그 배치를 상단에 노출, 그 외(진입·새 메시지)엔 최하단.
+  useLayoutEffect(() => {
     if (!workAiOpen) return;
     const el = workAiBodyRef.current;
     if (!el) return;
-    const id = window.requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
-    return () => window.cancelAnimationFrame(id);
+    if (olderLoadedRef.current) {
+      olderLoadedRef.current = false;
+      // children: [0]오늘 브리핑 [1]빠른 질문 [2..]히스토리. 맨 앞 히스토리(=새로 불러온 가장 오래된 것)를
+      // 상단에 노출한다. 상단 근접(<40px) 밖에 위치하므로 자동 연쇄 로딩도 안 생긴다.
+      const firstHistory = el.children[2] as HTMLElement | undefined;
+      el.scrollTop = firstHistory ? firstHistory.offsetTop : el.scrollHeight;
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [workAiOpen, aiHistory, aiTurns, aiLoading]);
+
+  async function loadOlderMessages() {
+    const el = workAiBodyRef.current;
+    if (!el || loadingOlderRef.current || !aiHasMore || aiHistory.length === 0) return;
+    loadingOlderRef.current = true;
+    setAiLoadingOlder(true);
+    const startedAt = Date.now();
+    try {
+      const oldest = aiHistory[0];
+      const older = await fetchAssistantMessages({ createdAt: oldest.createdAt, id: oldest.id });
+      if (older.length > 0) {
+        olderLoadedRef.current = true; // 로드된 이전 메시지를 상단에 노출
+        setAiHistory((cur) => [...older, ...cur]);
+      }
+      setAiHasMore(older.length === AI_HISTORY_PAGE);
+    } catch {
+      // 실패 시 노출 스크롤 없음
+    } finally {
+      // 로컬 fetch가 매우 빨라도 로딩 표시가 최소 시간은 보이도록(번쩍임 방지).
+      const remaining = OLDER_INDICATOR_MIN_MS - (Date.now() - startedAt);
+      if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+      loadingOlderRef.current = false;
+      setAiLoadingOlder(false);
+    }
+  }
 
   async function submitAiQuestion() {
     const question = aiInput.trim();
@@ -469,7 +507,9 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                   <div className="work-ai-title"><strong>업무 AI</strong><small>CRM 데이터를 기준으로 우선순위를 정리합니다.</small></div>
                   <div className="work-ai-actions"><button className={workAiExpanded ? "active" : ""} onClick={() => setWorkAiExpanded((current) => !current)} type="button" aria-label={workAiExpanded ? "업무 AI 축소" : "업무 AI 확대"} aria-pressed={workAiExpanded}><Maximize2 size={15} /></button><button onClick={closeWorkAi} type="button" aria-label="닫기"><X size={16} /></button></div>
                 </div>
-                <div className="work-ai-body" ref={workAiBodyRef}>
+                <div className="work-ai-body-shell">
+                  {aiLoadingOlder && <div className="work-ai-load-older"><DoubleBounceDots /></div>}
+                  <div className="work-ai-body" ref={workAiBodyRef} onScroll={(event) => { if (event.currentTarget.scrollTop < 40 && aiHasMore && !aiLoadingOlder) void loadOlderMessages(); }}>
                   <div className="work-ai-message assistant">
                     <strong>오늘 브리핑</strong>
                     <p>궁금한 업무를 물어보면 CRM 데이터(메모·상담·니즈)를 근거로 답합니다.</p>
@@ -500,6 +540,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                       </div>
                     </Fragment>
                   ))}
+                  </div>
                 </div>
                 <div className="work-ai-compose">
                   <input

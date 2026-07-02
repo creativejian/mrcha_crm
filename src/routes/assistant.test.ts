@@ -69,3 +69,13 @@ test("GET /messages → 본인 최근 목록", async () => {
   expect(res.status).toBe(200);
   expect((await res.json() as unknown[]).length).toBe(2);
 });
+
+test("GET /messages?before=... → 커서를 listRecentMessages에 전달", async () => {
+  let seenCursor: unknown = "unset";
+  assistantDeps.listRecentMessages = async (_id: string, _limit: number, _db: unknown, before?: unknown) => { seenCursor = before; return []; };
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/messages?before=2026-07-02T00:00:00.000Z&beforeId=11111111-1111-4111-8111-111111111111", { headers: { Authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(200);
+  expect(seenCursor).toMatchObject({ id: "11111111-1111-4111-8111-111111111111" });
+});
