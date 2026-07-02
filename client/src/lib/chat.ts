@@ -1,7 +1,13 @@
 // 앱 채팅(public.chat_sessions/chat_messages) 콘솔용 순수 유틸 + supabase 데이터 접근.
 // 미러 원본: mr-cha-app lib/data/repositories/{chat_session_repository,supabase_chat_repository}.dart,
 // lib/presentation/providers/handoff_provider.dart. payload·문구·전이 순서를 임의로 바꾸지 말 것.
-import { CHAT_SESSION_MODES, type ChatSessionMode } from "@/data/chat";
+import {
+  CHAT_SESSION_MODES,
+  CHAT_SYSTEM_MSG_RETURN,
+  CHAT_SYSTEM_MSG_TAKEOVER,
+  type ChatSessionMode,
+} from "@/data/chat";
+import { supabase } from "./supabase";
 
 export type ChatSessionRow = {
   id: string;
@@ -113,4 +119,139 @@ export function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]): 
   return [...byId.values()].sort((a, b) =>
     a.createdAt === b.createdAt ? (a.id < b.id ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1,
   );
+}
+
+// ── supabase 데이터 접근 (staff JWT + RLS. 앱 admin 섹션 미러) ─────────────────
+
+const SESSION_SELECT = "*, profiles!chat_sessions_user_id_fkey(full_name, email, role)";
+export const CHAT_PAGE_SIZE = 50;
+
+// 앱 getAllSessions 미러: role='customer' 필터는 쿼리가 아니라 클라이언트측(앱과 동일).
+export async function fetchChatSessions(): Promise<ChatSession[]> {
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .select(SESSION_SELECT)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as ChatSessionRow[])
+    .filter((row) => (row.profiles?.role ?? "customer") === "customer")
+    .map(toChatSession);
+}
+
+// user_id 기준(세션 없는 구세대 AI 대화 포함 — 상담원이 맥락을 봐야 함).
+// 최신 CHAT_PAGE_SIZE건을 desc로 받아 뒤집어 반환. cursor는 created_at/id 복합(동일 타임스탬프 안전).
+export async function fetchChatMessages(
+  userId: string,
+  before?: { createdAt: string; id: string },
+): Promise<ChatMessage[]> {
+  let query = supabase
+    .from("chat_messages")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(CHAT_PAGE_SIZE);
+  if (before) {
+    query = query.or(
+      `created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`,
+    );
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  return ((data ?? []) as ChatMessageRow[]).map(toChatMessage).reverse();
+}
+
+// 현재 로그인 staff의 profiles.id(=auth uid). JWT claims라 네트워크 왕복 없음.
+export async function getStaffId(): Promise<string> {
+  const { data } = await supabase.auth.getClaims();
+  const sub = data?.claims?.sub;
+  if (typeof sub !== "string" || sub.length === 0) throw new Error("로그인 정보가 없습니다.");
+  return sub;
+}
+
+export type StaffOption = { id: string; name: string };
+
+// 배정 드롭다운용. profiles RLS "viewable by self or staff"라 staff 계정은 전체 조회 가능(실측).
+export async function fetchStaffOptions(): Promise<StaffOption[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .in("role", ["staff", "manager", "admin"]);
+  if (error) throw error;
+  return ((data ?? []) as { id: string; full_name: string | null }[]).map((row) => ({
+    id: row.id,
+    name: row.full_name ?? "이름 없음",
+  }));
+}
+
+// 앱 insertSystemMessage 미러: staff_id 없음(supabase_chat_repository.dart:255-271).
+async function insertSystemMessage(userId: string, sessionId: string, message: string): Promise<void> {
+  const { error } = await supabase.from("chat_messages").insert({
+    user_id: userId,
+    session_id: sessionId,
+    message,
+    is_user: false,
+    sender_type: "system",
+  });
+  if (error) throw error;
+}
+
+// 배정만(목업 "지안에게 배정") — mode 유지, 고객 화면 무변화. CRM 고유(앱에는 없는 흐름).
+export async function assignSession(sessionId: string, staffId: string): Promise<void> {
+  const { error } = await supabase
+    .from("chat_sessions")
+    .update({ assigned_staff_id: staffId, assigned_at: new Date().toISOString() })
+    .eq("id", sessionId);
+  if (error) throw error;
+}
+
+// 앱 takeOverSession 미러(update 먼저 → system 메시지) + 경합 가드(neq human).
+// false = 이미 다른 상담원이 human 인수(마지막 쓰기 경합에서 짐) → 호출부가 reload+안내.
+export async function takeOverSession(
+  session: { id: string; userId: string },
+  staffId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .update({ mode: "human", assigned_staff_id: staffId, assigned_at: new Date().toISOString() })
+    .eq("id", session.id)
+    .neq("mode", "human")
+    .select();
+  if (error) throw error;
+  if (!data || (data as unknown[]).length === 0) return false;
+  await insertSystemMessage(session.userId, session.id, CHAT_SYSTEM_MSG_TAKEOVER);
+  return true;
+}
+
+// 앱 returnToAi 미러: system 메시지 먼저 → 세션 초기화(assigned 둘 다 null clear).
+export async function returnSessionToAi(session: { id: string; userId: string }): Promise<void> {
+  await insertSystemMessage(session.userId, session.id, CHAT_SYSTEM_MSG_RETURN);
+  const { error } = await supabase
+    .from("chat_sessions")
+    .update({ mode: "ai", assigned_staff_id: null, assigned_at: null })
+    .eq("id", session.id);
+  if (error) throw error;
+}
+
+// 앱 sendStaffMessage payload 미러. insert 결과 row를 받아 낙관 temp 교체에 쓴다.
+export async function sendStaffMessage(input: {
+  userId: string;
+  sessionId: string;
+  staffId: string;
+  message: string;
+}): Promise<ChatMessage> {
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .insert({
+      user_id: input.userId,
+      session_id: input.sessionId,
+      message: input.message,
+      is_user: false,
+      sender_type: "staff",
+      staff_id: input.staffId,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toChatMessage(data as ChatMessageRow);
 }
