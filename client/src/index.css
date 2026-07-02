@@ -16888,3 +16888,8 @@ body.kim-detail-overlay-open .customer-detail-drawer {
   color: var(--brand);
   background: rgba(88, 54, 255, 0.1);
 }
+
+.work-ai-error { color: #c0392b; }
+.work-ai-thinking { color: #7f858c; }
+.work-ai-sources { margin: 6px 0 0; padding-left: 16px; font-size: 11.5px; color: #5f6872; }
+.work-ai-sources li { margin: 2px 0; }
