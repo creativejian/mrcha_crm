@@ -5,10 +5,11 @@ type ChatComposerProps = {
   session: ChatSession;
   staffId: string | null;
   onSend: (message: string) => Promise<boolean>;
+  onTyping: () => void; // keystroke마다 호출(1s throttle은 lib 책임). canSend일 때만 input이 렌더돼 자연 gate(앱 미러)
 };
 
 // 활성 조건 = 앱 미러: mode==='human' && assignedStaffId===내 staffId (admin_chat_detail_screen.dart:100-102).
-export function ChatComposer({ session, staffId, onSend }: ChatComposerProps) {
+export function ChatComposer({ session, staffId, onSend, onTyping }: ChatComposerProps) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const canSend = session.mode === "human" && staffId !== null && session.assignedStaffId === staffId;
@@ -35,7 +36,7 @@ export function ChatComposer({ session, staffId, onSend }: ChatComposerProps) {
     <div className="chat-compose">
       <input
         className="input"
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => { setDraft(event.target.value); onTyping(); }}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) void submit(); }}
         placeholder="고객에게 보낼 메시지를 입력하세요"
         value={draft}

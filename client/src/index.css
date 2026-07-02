@@ -5267,6 +5267,31 @@ th input:focus-visible {
   font-size: 12px;
 }
 
+/* 타이핑 인디케이터: 스크롤 리스트 밖, 입력창 바로 위(앱 배치 미러). .message.customer 계열 축소판 */
+.chat-typing-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin: 6px 16px 0;
+  padding: 6px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.chat-typing-label {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* db-dots 기본 20px는 업무 AI 팝오버 기준이라 타이핑 행에선 축소 */
+.chat-typing-row .db-dots {
+  width: 14px;
+  height: 14px;
+}
+
 .chat-assign-select {
   height: 28px;
   padding: 0 8px;

@@ -9,6 +9,7 @@ import { ChatThread } from "@/components/chat/ChatThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatSessionHeader } from "@/components/chat/ChatSessionHeader";
 import { ChatCustomerPanel } from "@/components/chat/ChatCustomerPanel";
+import { DoubleBounceDots } from "@/components/ai/DoubleBounceDots";
 
 type ChatPageProps = {
   customers: Customer[];
@@ -59,9 +60,17 @@ export function ChatPage({ customers, onOpenCustomer, onToast, onRead }: ChatPag
             <>
               <ChatSessionHeader onChanged={reload} onToast={onToast} session={active} staffId={staffId} staffOptions={staffOptions} />
               <ChatThread hasMore={thread.hasMore} loadingOlder={thread.loadingOlder} messages={thread.messages} onLoadOlder={thread.loadOlder} />
+              {/* 스크롤 리스트 밖, 입력창 바로 위(앱 배치 미러 — 스크롤 앵커와 상호작용 없음) */}
+              {thread.customerTyping && (
+                <div className="chat-typing-row" aria-live="polite">
+                  <span className="chat-typing-label">고객</span>
+                  <DoubleBounceDots />
+                </div>
+              )}
               <ChatComposer
                 key={active.id}
                 onSend={(message) => staffId ? thread.send({ sessionId: active.id, staffId, message }) : Promise.resolve(false)}
+                onTyping={thread.sendTyping}
                 session={active}
                 staffId={staffId}
               />

@@ -3,6 +3,7 @@
 // 채널명: supabase-js v2는 같은 topic 객체를 재사용한다 — 두 구독처가 공존하면 두 번째 .on()이
 // throw하고, 한쪽 removeChannel이 다른 쪽 구독까지 teardown한다(App.tsx 알림과 ChatPage 큐가
 // 동시에 구독하는 구조). 호출마다 고유 suffix를 붙여 채널을 분리한다.
+// (예외: joinTypingChannel은 앱과 같은 broadcast topic에 join해야 하므로 suffix를 붙이지 않는다.)
 import { supabase } from "./supabase";
 import type { ChatMessageRow } from "./chat";
 
@@ -53,6 +54,36 @@ export function subscribeChatSessions(
     .subscribe(statusHandler(onResync));
   return () => {
     void supabase.removeChannel(channel);
+  };
+}
+
+// 타이핑 인디케이터(앱 typing_indicator_service.dart 미러 — broadcast 상호운용).
+// ⚠️ topic은 앱과 동일해야 통신되므로 channelSeq 고유화 금지(공존 구독 없음: 스레드당 1개,
+// StrictMode는 순차 mount/unmount라 안전). event 'typing', payload { sender_type: 'user'|'staff' },
+// config 기본(self:false, ack:false).
+export function joinTypingChannel(
+  userId: string,
+  onCustomerTyping: () => void,
+): { sendTyping: () => void; cleanup: () => void } {
+  const channel = supabase
+    .channel(`typing:${userId}`)
+    .on("broadcast", { event: "typing" }, (message) => {
+      const senderType = (message.payload as Record<string, unknown> | undefined)?.sender_type;
+      if (senderType === "user") onCustomerTyping(); // 상대(고객)만 — 앱 admin과 동일 필터
+    })
+    .subscribe();
+  let lastSentAt = 0;
+  return {
+    // 앱 _sendInterval(1s) leading-edge throttle 미러(첫 입력 즉시, 이후 1s 미만 무시. stop 이벤트 없음)
+    sendTyping: () => {
+      const now = Date.now();
+      if (now - lastSentAt < 1000) return;
+      lastSentAt = now;
+      void channel.send({ type: "broadcast", event: "typing", payload: { sender_type: "staff" } });
+    },
+    cleanup: () => {
+      void supabase.removeChannel(channel);
+    },
   };
 }
 
