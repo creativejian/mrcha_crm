@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   mergeMessages,
+  parseChatTimestamp,
   senderKindOf,
   toChatMessage,
   toChatSession,
@@ -75,6 +76,15 @@ describe("waitingLabel", () => {
   it("24시간 경계에서 일 단위로 바뀐다", () => {
     expect(waitingLabel("2026-07-01T10:31:00+00:00", now)).toBe("23시간 대기");
     expect(waitingLabel("2026-07-01T10:30:00+00:00", now)).toBe("1일 대기");
+  });
+});
+
+describe("parseChatTimestamp", () => {
+  it("wal2json(스페이스·+00)과 REST(T·+00:00)를 같은 시각으로 파싱한다(JSC 안전)", () => {
+    expect(parseChatTimestamp("2026-07-02 10:01:00+00").getTime()).toBe(
+      parseChatTimestamp("2026-07-02T10:01:00+00:00").getTime(),
+    );
+    expect(Number.isNaN(parseChatTimestamp("2026-07-02 10:01:00+00").getTime())).toBe(false);
   });
 });
 

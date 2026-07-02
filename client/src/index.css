@@ -5069,12 +5069,21 @@ th input:focus-visible {
 
 .chat-window {
   min-height: 600px;
+  /* 뷰포트 제약(스레드 내부 스크롤용): globalbar(50+22) + 페이지 헤더(≈52+18) + chat-tabs(38+14) + main 하단 padding(22) ≈ 216px → 220px */
+  height: calc(100vh - 220px);
   display: flex;
   flex-direction: column;
 }
 
+.chat-window .chat-header,
+.chat-window .chat-compose {
+  flex-shrink: 0;
+}
+
 .chat-messages {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   align-content: start;
   gap: 10px;
@@ -5114,7 +5123,7 @@ th input:focus-visible {
 
 .chat-compose {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto;
   gap: 8px;
   padding: 12px;
   border-top: 1px solid var(--line-soft);

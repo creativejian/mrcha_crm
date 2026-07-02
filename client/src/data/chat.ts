@@ -21,9 +21,6 @@ export const CHAT_TAB_LABELS: Record<ChatQueueTab, string> = {
   ai: CHAT_MODE_LABELS.ai,
 };
 
-export const CHAT_SENDER_TYPES = ["user", "ai", "staff", "system"] as const;
-export type ChatSenderType = (typeof CHAT_SENDER_TYPES)[number];
-
 // 앱 admin 미러 system 문구 (handoff_provider.dart:85, :96 원문 그대로 — 변경 금지).
 export const CHAT_SYSTEM_MSG_TAKEOVER = "상담원이 대화에 참여했습니다.";
 export const CHAT_SYSTEM_MSG_RETURN = "상담원이 퇴장했습니다. 차선생이 대화를 이어갑니다.";

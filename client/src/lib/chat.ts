@@ -113,10 +113,15 @@ export function waitingLabel(sinceIso: string, now: Date): string {
 }
 
 // timestamptz 직렬화 편차 흡수: REST(PostgREST)='T'+'+00:00', Realtime(wal2json)=' '+'+00' 케이스 보고됨.
-// 커서(fetchChatMessages before)는 원시 문자열을 유지해야 하므로(마이크로초 정밀도) 여기서만 파싱한다.
-function toEpoch(ts: string): number {
+// JSC(Safari)는 'T' 아닌 구분자·분 없는 오프셋(+00)을 NaN 처리하므로 반드시 이 헬퍼로 파싱한다.
+// 커서(fetchChatMessages before)는 원시 문자열을 유지해야 하므로(마이크로초 정밀도) 표시/정렬에서만 파싱한다.
+export function parseChatTimestamp(ts: string): Date {
   const t = ts.replace(" ", "T");
-  return new Date(/[+-]\d{2}$/.test(t) ? `${t}:00` : t).getTime();
+  return new Date(/[+-]\d{2}$/.test(t) ? `${t}:00` : t);
+}
+
+function toEpoch(ts: string): number {
+  return parseChatTimestamp(ts).getTime();
 }
 
 // Realtime echo/낙관 반영 병합: id dedupe(교체) + 시각→id 오름차순.
