@@ -17,8 +17,8 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 - 최신 진행: `crm-analyst` 서류 자동분류 **완료**(Edge Function 배포 + PR #129 머지). 후속으로 담당자 배정 DB 영속 버그 수정 머지(#130 — `crm.customers.advisor_name` 추가, `saveAdvisorField`→`savePatch` 연결, 목록 `advisor` 하드코딩 제거). 상세는 아래 요약.
 - 고객 상세 거대 컴포넌트 분해: **완료로 종결**. 9영역 추출이 이미 main 반영(`CustomerDetailPage.tsx` 5437→303줄), stale 브랜치 `refactor/crm-detail-decomposition` 삭제됨. 잔여는 `kim`→범용 리네임(순수 이름 정리·기능 무변경·저우선)뿐.
 - 슬라이스B 업무 AI 채팅 **완료·머지**(PR #132, 2026-07-02): pgvector RAG(`crm.embeddings` 3072)로 Topbar 업무 AI 실동작. 상세는 아래 요약.
-- 슬라이스C1 업무 AI **대화 영속+멀티턴+앱 UI 완료·머지**(PR #133, 2026-07-02): `crm.assistant_messages` 영속, 최근10턴 멀티턴, react-markdown 렌더, 더블바운스 로딩. 새로고침 생존. 상세는 아래 요약.
-- 다음 후보: ①**crm.staff/팀 파운데이션**(권한 scope 실제화 — `resolveCustomerScope` manager=팀/staff=본인, 리스트/상세 scope에도 재사용; B1/C1이 남긴 최우선 의존) ②업무 AI **SSE 스트리밍**(타자기+송신/중지 토글) ③`kim`→범용 리네임(데이터화 슬라이스 때). ※별개 팀 작업 **실시간 상담 콘솔**(ChatPage, public.chat_*) spec/plan은 워킹트리 untracked(커밋 금지).
+- 슬라이스C1 업무 AI **대화 영속+멀티턴+앱 UI 완료·머지**(PR #133) + **히스토리 페이지네이션·UI 폴리시 완료·머지**(PR #134, 2026-07-02): `crm.assistant_messages` 영속, 최근10턴 멀티턴, react-markdown, 위로 스크롤 이전대화 로드(커서), AI답변 박스제거·overscroll·확대패널높이 등 브라우저 실측 폴리시. 상세는 아래 요약.
+- 다음 후보: ①**crm.staff/팀 파운데이션**(권한 scope 실제화 — `resolveCustomerScope` manager=팀/staff=본인, 리스트/상세 scope에도 재사용; B1/C1이 남긴 최우선 의존) ②업무 AI **SSE 스트리밍**(타자기+송신/중지 토글) ③`kim`→범용 리네임(데이터화 슬라이스 때). ※별개 팀 작업 **실시간 상담 콘솔**(ChatPage, public.chat_*, 워크트리 `.claude/worktrees/crm-realtime-chat` on `feat/crm-realtime-chat`)은 다른 세션 진행 중 — 내 작업과 파일 접점은 `client/src/index.css`뿐(머지 순서 조율).
 - 완료된 고객/견적/서류/니즈/상세 저장 관련 세부 이력은 main git/PR 기록과 관련 specs/plans를 기준으로 본다.
 
 ## crm-analyst 서류 자동분류 (완료 — 배포 + #129 머지)
@@ -47,7 +47,8 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 - **프론트**: `askAssistant`(messages 반환)+`fetchAssistantMessages`, `MarkdownMessage`(react-markdown@10+remark-gfm, XSS 안전), `DoubleBounceDots`(앱 로딩 포팅·shimmer 아님). Topbar 진입 시 히스토리 로드·마크다운 렌더·항상 최하단 스크롤.
 - **브라우저 스모크 후 UI fix 3건**(#133 내): 마크다운 인라인(레거시 `strong{display:block}` 해제+`list-style:disc`/`li::marker`), 유저버블 폭 점프(낙관적 turn `<div>`→`<Fragment>`로 grid 직접 자식화), 리로드 하단 스크롤.
 - 검증: 백엔드 149·프론트 277·typecheck0·lint0·build·실 Gemini 멀티턴 스모크·브라우저 스모크·최종 리뷰(opus) 통과. `GEMINI_API_KEY` CF Prod 설정 완료.
-- **follow-up**: SSE 스트리밍+타자기+송신/중지 토글, 히스토리 페이지네이션/pruning, 에러 turn 순서·재조회 정리, `aiTurns.answer` dead 필드 정리.
+- **후속 폴리시 완료 (PR #134, 2026-07-02)**: ①히스토리 **커서 페이지네이션**(백엔드 `listRecentMessages` before 복합커서 `(created_at,id)` + `GET /messages?before&beforeId`; 프론트 상단 스크롤 시 이전대화 로드→**상단 노출**(children[2].offsetTop, 40px 밖이라 연쇄로딩 방지), `AI_HISTORY_PAGE=30`) ②**AI답변 박스 제거·full-width**(user 버블만 유지) ③채팅 본문 `overscroll-behavior:contain`(배경 스크롤 전파 차단) ④로딩 인디케이터 **최소 400ms + top-center 오버레이**(레이아웃 무영향) ⑤확대 패널 body `calc(100vh-224px)`(뷰포트 안·하단 여백 ~20px — 넘치면 문서 스크롤↑→배경 쉬프트). 브라우저 실측 반복 후 확정.
+- **남은 follow-up**: SSE 스트리밍+타자기+송신/중지 토글, 히스토리 pruning, 에러 turn 순서, `aiTurns.answer` dead 필드 정리.
 
 ## 고객 상세 분해 요약
 
@@ -85,7 +86,7 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 - Edge Function(Deno) changes: `deno test/lint/check --config supabase/functions/deno.json ...`.
 - Large visual layout changes: use browser/screenshot verification after stabilization, not after every spacing tweak.
 - Backend(Hono) 테스트는 `bun run test:server`(bun:test, `--env-file=.env.local`로 실 master DB), 프론트는 `bun run test:unit`(vitest).
-- Current likely next step: `crm-analyst`·배정·상세분해·**업무 AI B1(#132)+C1(#133)** 모두 완료·머지됨. 다음 후보 = **crm.staff/팀 파운데이션**(권한 scope 실제화 — `resolveCustomerScope` seam 본문 교체, 리스트/상세 scope 공용) > 업무 AI **SSE 스트리밍** > `kim` 리네임(데이터화 때). 신규 brainstorming→spec→plan. (※실시간 상담 콘솔은 별개 팀 작업 — untracked spec/plan 존재.)
+- Current likely next step: `crm-analyst`·배정·상세분해·**업무 AI B1(#132)+C1(#133)+페이지네이션·UI폴리시(#134)** 모두 완료·머지됨. 다음 후보 = **crm.staff/팀 파운데이션**(권한 scope 실제화 — `resolveCustomerScope` seam 본문 교체, 리스트/상세 scope 공용) > 업무 AI **SSE 스트리밍** > `kim` 리네임(데이터화 때). 신규 brainstorming→spec→plan. (※실시간 상담 콘솔은 별개 팀 작업 — `feat/crm-realtime-chat` 워크트리에서 다른 세션 진행 중.)
 
 ## Collaboration
 
