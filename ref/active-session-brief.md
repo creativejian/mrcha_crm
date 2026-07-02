@@ -1,6 +1,6 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-02
+Last updated: 2026-07-02 (밤 — AI 리뷰 후속 #136·#137·#138 + 스모크)
 
 Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후 현재 CRM 작업만 빠르게 복구하기 위한 압축 문서다. 완료된 세부 로그는 git/PR과 `ref/specs|plans`를 기준으로 확인한다.
 
@@ -14,7 +14,9 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 
 ## Current Focus
 
-- 최신 진행: `crm-analyst` 서류 자동분류 **완료**(Edge Function 배포 + PR #129 머지). 후속으로 담당자 배정 DB 영속 버그 수정 머지(#130 — `crm.customers.advisor_name` 추가, `saveAdvisorField`→`savePatch` 연결, 목록 `advisor` 하드코딩 제거). 상세는 아래 요약.
+- **최신 진행(2026-07-02 밤): AI 슬라이스 전체 코드리뷰 + 후속 3 PR 완료·머지 + 통합 브라우저 스모크 통과.** 8앵글 리뷰(정합성3·재사용·단순화·효율·설계깊이·컨벤션, 후보 35→검증 30 생존)로 #129~#135 범위 점검. ①**#136 정합성 6건**: 서류 AI분류 경합 3건(분류 중 수동분류 클로버·삭제 후 유령 업로드·업로드 중 변경 드리프트 — `manualDocTypesRef`/`removedTempIdsRef`), regex 폴백을 'AI분류'로 오표기(→`{docType,source}` 반환+'자동인식' 배지), 담당자 assigned_at 무조건 재스탬프(→실변경 시만, 해제 시 null), 업무 AI IME Enter 가드, ChatComposer 실패 복원이 신규 입력 덮어쓰기. ②**#137 가드·정리·효율**: 서류22종 Edge↔프론트·CRM_ROLES 서버↔Edge **패리티 테스트**(드리프트 tripwire), `.md-body` CSS 공용화(2벌 미러→베이스+`--md-*` 변수, strong 드리프트 해소), `/ask` dead 필드 제거(응답=`{messages}`만·클라 `AssistantAskResult`), embedTexts **100개 배치 청킹**, `/ask` 히스토리∥임베딩 병렬, 병합 다운로드 병렬화, fileToBase64→FileReader, `EMBEDDING_DIM` 상수화, backfill collect() 헬퍼, 서류함 카드 min-height 자립. ③**#138 업무 AI 패널 구조 추출**: `useAssistantThread`(스레드 상태기계, Topbar 소유)+`AiAssistantPanel` — 히스토리 로드 실패 영구 고착(→error 상태+재시도), 늦은 초기 fetch가 새 대화 덮어쓰는 race(→id merge+복합정렬), 에러 turn 역전/동일문구 소실(→afterMessageId 자리고정+tempId), children[2] 스크롤 결합(→data-eid 앵커). Topbar -150줄. **스모크**(agent-browser, admin magiclink 세션): 업무 AI 실 Gemini RAG 왕복·마크다운·리로드 복원, 서류 업로드→'자동인식' 배지 실증→병합 6건→정리, 배정 재저장 assigned_at 불변 실증, 채팅 콘솔 큐/스레드/md-body 실측. 미실증=경합 타이밍·IME 실기(유닛으로 커버).
+- 리뷰 잔여(의도적 보류): scope seam SQL predicate·`advisor_id` 병기 → **crm.staff 파운데이션 슬라이스에서**, ChatThread↔패널 스크롤앵커·커서 페이지네이션 공용 훅 → **SSE 슬라이스 직전**, pending 배지 초기 잔량(#135 follow-up 유지), 대명사 질의 retrieval 약함(B1 기존 한계 — 유사도 임계값 follow-up과 함께).
+- 이전 진행: `crm-analyst` 서류 자동분류 **완료**(Edge Function 배포 + PR #129 머지). 후속으로 담당자 배정 DB 영속 버그 수정 머지(#130 — `crm.customers.advisor_name` 추가, `saveAdvisorField`→`savePatch` 연결, 목록 `advisor` 하드코딩 제거). 상세는 아래 요약.
 - 고객 상세 거대 컴포넌트 분해: **완료로 종결**. 9영역 추출이 이미 main 반영(`CustomerDetailPage.tsx` 5437→303줄), stale 브랜치 `refactor/crm-detail-decomposition` 삭제됨. 잔여는 `kim`→범용 리네임(순수 이름 정리·기능 무변경·저우선)뿐.
 - 슬라이스B 업무 AI 채팅 **완료·머지**(PR #132, 2026-07-02): pgvector RAG(`crm.embeddings` 3072)로 Topbar 업무 AI 실동작. 상세는 아래 요약.
 - 슬라이스C1 업무 AI **대화 영속+멀티턴+앱 UI 완료·머지**(PR #133) + **히스토리 페이지네이션·UI 폴리시 완료·머지**(PR #134, 2026-07-02): `crm.assistant_messages` 영속, 최근10턴 멀티턴, react-markdown, 위로 스크롤 이전대화 로드(커서), AI답변 박스제거·overscroll·확대패널높이 등 브라우저 실측 폴리시. 상세는 아래 요약.
