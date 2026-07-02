@@ -148,6 +148,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const prependRef = useRef<{ height: number; top: number } | null>(null); // prepend 직전 scrollHeight+scrollTop(스크롤 보정)
   const loadingOlderRef = useRef(false); // 동기 재진입 가드(state는 커밋 지연되어 레이스)
   const AI_HISTORY_PAGE = 30; // 백엔드 DISPLAY_LIMIT와 일치
+  const OLDER_INDICATOR_MIN_MS = 400; // 빠른 로드에도 로딩 표시가 최소 이 시간은 보이도록
 
   useEffect(() => {
     if (!workAiOpen || aiHistoryLoaded) return;
@@ -176,6 +177,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
     if (!el || loadingOlderRef.current || !aiHasMore || aiHistory.length === 0) return;
     loadingOlderRef.current = true;
     setAiLoadingOlder(true);
+    const startedAt = Date.now();
     prependRef.current = { height: el.scrollHeight, top: el.scrollTop };
     try {
       const oldest = aiHistory[0];
@@ -186,6 +188,9 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
     } catch {
       prependRef.current = null;
     } finally {
+      // 로컬 fetch가 매우 빨라도 로딩 표시가 최소 시간은 보이도록(번쩍임 방지).
+      const remaining = OLDER_INDICATOR_MIN_MS - (Date.now() - startedAt);
+      if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
       loadingOlderRef.current = false;
       setAiLoadingOlder(false);
     }
@@ -498,7 +503,9 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                   <div className="work-ai-title"><strong>업무 AI</strong><small>CRM 데이터를 기준으로 우선순위를 정리합니다.</small></div>
                   <div className="work-ai-actions"><button className={workAiExpanded ? "active" : ""} onClick={() => setWorkAiExpanded((current) => !current)} type="button" aria-label={workAiExpanded ? "업무 AI 축소" : "업무 AI 확대"} aria-pressed={workAiExpanded}><Maximize2 size={15} /></button><button onClick={closeWorkAi} type="button" aria-label="닫기"><X size={16} /></button></div>
                 </div>
-                <div className="work-ai-body" ref={workAiBodyRef} onScroll={(event) => { if (event.currentTarget.scrollTop < 40 && aiHasMore && !aiLoadingOlder) void loadOlderMessages(); }}>
+                <div className="work-ai-body-shell">
+                  {aiLoadingOlder && <div className="work-ai-load-older"><DoubleBounceDots /></div>}
+                  <div className="work-ai-body" ref={workAiBodyRef} onScroll={(event) => { if (event.currentTarget.scrollTop < 40 && aiHasMore && !aiLoadingOlder) void loadOlderMessages(); }}>
                   <div className="work-ai-message assistant">
                     <strong>오늘 브리핑</strong>
                     <p>궁금한 업무를 물어보면 CRM 데이터(메모·상담·니즈)를 근거로 답합니다.</p>
@@ -511,7 +518,6 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                       ))}
                     </div>
                   </div>
-                  {aiLoadingOlder && <div className="work-ai-load-older"><DoubleBounceDots /></div>}
                   {aiHistory.map((m) => (
                     <div className={`work-ai-message ${m.role}`} key={m.id}>
                       {m.role === "assistant" ? <MarkdownMessage content={m.content} /> : <p>{m.content}</p>}
@@ -530,6 +536,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                       </div>
                     </Fragment>
                   ))}
+                  </div>
                 </div>
                 <div className="work-ai-compose">
                   <input

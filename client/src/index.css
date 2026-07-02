@@ -16915,4 +16915,6 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 
 /* AI(assistant) 답변은 앱처럼 박스 없이 인라인 full-width. user 버블은 유지. */
 .work-ai-message.assistant { max-width: 100%; border: none; background: transparent; border-radius: 0; padding: 6px 0; }
-.work-ai-load-older { display: flex; justify-content: center; padding: 4px 0; }
+/* 오래된 메시지 로딩 표시: 본문 흐름 밖 오버레이(레이아웃/스크롤에 영향 없음) top-center 부동 pill */
+.work-ai-body-shell { position: relative; }
+.work-ai-load-older { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; justify-content: center; padding: 5px 10px; background: rgba(255, 255, 255, 0.92); border: 1px solid var(--line-soft); border-radius: 999px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
