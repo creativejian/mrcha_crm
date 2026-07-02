@@ -15,6 +15,7 @@ export function useChatThread(userId: string | null, onToast: (message: string) 
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const seq = useRef(0); // 스레드 전환 race 가드
+  const tempSeq = useRef(0); // 낙관 temp id 단조 카운터(Date.now()는 연속 전송 시 충돌 가능)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- userId(스레드) 전환 시 이전 스레드 메시지를 즉시 비워 동기화하는 의도된 effect
@@ -25,7 +26,8 @@ export function useChatThread(userId: string | null, onToast: (message: string) 
     fetchChatMessages(userId)
       .then((batch) => {
         if (seq.current !== mySeq) return;
-        setMessages(batch);
+        // replace가 아니라 merge: 구독이 먼저 성립해 들어온 이벤트/resync 결과를 클로버하지 않는다.
+        setMessages((current) => mergeMessages(batch, current));
         setHasMore(batch.length === CHAT_PAGE_SIZE);
       })
       .catch(() => onToast("메시지를 불러오지 못했습니다."));
@@ -35,7 +37,7 @@ export function useChatThread(userId: string | null, onToast: (message: string) 
         if (seq.current !== mySeq) return;
         setMessages((current) => mergeMessages(current, [toChatMessage(row)]));
       },
-      // 드롭 후 재구독: 끊긴 사이 놓친 메시지를 최신 페이지 refetch+병합으로 보정(best-effort, 실패는 무시).
+      // 구독 성립(최초 join·드롭 후 재구독)마다: 스냅샷/끊긴 사이 놓친 메시지를 최신 페이지 refetch+병합으로 보정(best-effort, 실패는 무시).
       () => {
         if (seq.current !== mySeq) return;
         fetchChatMessages(userId)
@@ -51,13 +53,17 @@ export function useChatThread(userId: string | null, onToast: (message: string) 
   const loadOlder = useCallback(() => {
     const oldest = messages[0];
     if (!userId || !oldest || loadingOlder) return;
+    const mySeq = seq.current; // 스레드 전환 시 stale 응답이 다른 고객 스레드에 병합되는 것 방지
     setLoadingOlder(true);
     fetchChatMessages(userId, { createdAt: oldest.createdAt, id: oldest.id })
       .then((batch) => {
+        if (seq.current !== mySeq) return;
         setMessages((current) => mergeMessages(current, batch));
         setHasMore(batch.length === CHAT_PAGE_SIZE);
       })
-      .catch(() => onToast("이전 메시지를 불러오지 못했습니다."))
+      .catch(() => {
+        if (seq.current === mySeq) onToast("이전 메시지를 불러오지 못했습니다.");
+      })
       .finally(() => setLoadingOlder(false));
   }, [userId, messages, loadingOlder, onToast]);
 
@@ -66,8 +72,9 @@ export function useChatThread(userId: string | null, onToast: (message: string) 
   const send = useCallback(
     async (input: { sessionId: string; staffId: string; message: string }): Promise<boolean> => {
       if (!userId) return false;
+      const mySeq = seq.current; // 전송 중 스레드 전환 시 결과를 다른 스레드에 쓰지 않는다
       const temp: ChatMessage = {
-        id: `temp-${Date.now()}`,
+        id: `temp-${++tempSeq.current}`,
         userId,
         message: input.message,
         senderKind: "staff",
@@ -81,11 +88,15 @@ export function useChatThread(userId: string | null, onToast: (message: string) 
       setMessages((current) => [...current, temp]);
       try {
         const saved = await sendStaffMessage({ userId, ...input });
-        setMessages((current) => mergeMessages(current.filter((m) => m.id !== temp.id), [saved]));
+        if (seq.current === mySeq) {
+          setMessages((current) => mergeMessages(current.filter((m) => m.id !== temp.id), [saved]));
+        }
         return true;
       } catch {
-        setMessages((current) => current.filter((m) => m.id !== temp.id));
-        onToast("메시지 전송에 실패했습니다.");
+        if (seq.current === mySeq) {
+          setMessages((current) => current.filter((m) => m.id !== temp.id));
+          onToast("메시지 전송에 실패했습니다.");
+        }
         return false;
       }
     },

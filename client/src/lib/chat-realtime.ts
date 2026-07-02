@@ -15,17 +15,13 @@ function readMode(row: Record<string, unknown> | null | undefined): string | nul
   return typeof mode === "string" ? mode : null;
 }
 
-// 드롭(에러/타임아웃/종료) 후 재구독(SUBSCRIBED) 시 onResync 1회 호출 — 끊긴 사이 놓친 이벤트를
-// 호출부 refetch로 보정(spec §6). supabase-js가 자동 rejoin하므로 여기선 상태 전이만 관찰한다.
+// 구독 성립(SUBSCRIBED) 시마다 onResync 호출 — ①최초 join: 초기 REST 스냅샷과 join 완료 사이
+// 도착분 보정 ②드롭 후 자동 rejoin: 끊긴 사이 놓친 이벤트 보정(spec §6). 호출부는 refetch+병합.
+// supabase-js가 자동 rejoin하므로 여기선 상태 전이만 관찰한다. 참고: CLOSED는 phoenix가 rejoin하지
+// 않는 종료 상태(사실상 자체 removeChannel cleanup에서만 발생)라 재생성은 다루지 않는다.
 function statusHandler(onResync?: () => void): (status: string) => void {
-  let dropped = false;
   return (status) => {
-    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-      dropped = true;
-    } else if (status === "SUBSCRIBED" && dropped) {
-      dropped = false;
-      onResync?.();
-    }
+    if (status === "SUBSCRIBED") onResync?.();
   };
 }
 

@@ -73,15 +73,14 @@ it("공존 구독마다 채널 topic이 고유하다(supabase-js topic 재사용
   expect(new Set(channelTopics).size).toBe(4);
 });
 
-it("드롭 후 재구독(SUBSCRIBED)되면 onResync를 1회 호출한다", () => {
+it("SUBSCRIBED마다 onResync를 호출한다(최초 join 포함 — 초기 스냅샷 갭 보정)", () => {
   const onResync = vi.fn();
   subscribeChatSessions(vi.fn(), onResync);
   const cb = statusCbs[0];
   cb?.("SUBSCRIBED");
-  expect(onResync).not.toHaveBeenCalled();
+  expect(onResync).toHaveBeenCalledTimes(1);
   cb?.("CHANNEL_ERROR");
-  cb?.("SUBSCRIBED");
   expect(onResync).toHaveBeenCalledTimes(1);
   cb?.("SUBSCRIBED");
-  expect(onResync).toHaveBeenCalledTimes(1);
+  expect(onResync).toHaveBeenCalledTimes(2);
 });
