@@ -18,8 +18,18 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 - 고객 상세 거대 컴포넌트 분해: **완료로 종결**. 9영역 추출이 이미 main 반영(`CustomerDetailPage.tsx` 5437→303줄), stale 브랜치 `refactor/crm-detail-decomposition` 삭제됨. 잔여는 `kim`→범용 리네임(순수 이름 정리·기능 무변경·저우선)뿐.
 - 슬라이스B 업무 AI 채팅 **완료·머지**(PR #132, 2026-07-02): pgvector RAG(`crm.embeddings` 3072)로 Topbar 업무 AI 실동작. 상세는 아래 요약.
 - 슬라이스C1 업무 AI **대화 영속+멀티턴+앱 UI 완료·머지**(PR #133) + **히스토리 페이지네이션·UI 폴리시 완료·머지**(PR #134, 2026-07-02): `crm.assistant_messages` 영속, 최근10턴 멀티턴, react-markdown, 위로 스크롤 이전대화 로드(커서), AI답변 박스제거·overscroll·확대패널높이 등 브라우저 실측 폴리시. 상세는 아래 요약.
-- 다음 후보: ①**crm.staff/팀 파운데이션**(권한 scope 실제화 — `resolveCustomerScope` manager=팀/staff=본인, 리스트/상세 scope에도 재사용; B1/C1이 남긴 최우선 의존) ②업무 AI **SSE 스트리밍**(타자기+송신/중지 토글) ③`kim`→범용 리네임(데이터화 슬라이스 때). ※별개 팀 작업 **실시간 상담 콘솔**(ChatPage, public.chat_*, 워크트리 `.claude/worktrees/crm-realtime-chat` on `feat/crm-realtime-chat`)은 다른 세션 진행 중 — 내 작업과 파일 접점은 `client/src/index.css`뿐(머지 순서 조율).
+- **실시간 상담 콘솔 v1 완료·PR**(2026-07-02): 앱 고객 채팅(public.chat_sessions/chat_messages)을 CRM ChatPage 실동작 콘솔로. 상세는 아래 요약.
+- 다음 후보: ①**crm.staff/팀 파운데이션**(권한 scope 실제화 — `resolveCustomerScope` manager=팀/staff=본인, 리스트/상세 scope에도 재사용; B1/C1이 남긴 최우선 의존) ②업무 AI **SSE 스트리밍**(타자기+송신/중지 토글) ③`kim`→범용 리네임(데이터화 슬라이스 때).
 - 완료된 고객/견적/서류/니즈/상세 저장 관련 세부 이력은 main git/PR 기록과 관련 specs/plans를 기준으로 본다.
+
+## 실시간 상담 콘솔 v1 (완료 — feat/crm-realtime-chat)
+
+- **spec** `ref/specs/2026-07-02-crm-realtime-chat-design.md` · **plan** `ref/plans/2026-07-02-crm-realtime-chat.md`(11 Task, TDD, subagent-driven — plan 맨 끝 "구현 편차 노트"가 코드 블록보다 우선).
+- **아키텍처**: 프론트 supabase-js 직결(staff JWT+RLS+Realtime) — 앱 admin 섹션(Flutter) 웹 포팅. **백엔드·DDL 변경 0**(staff RLS 정책·Realtime publication 기존재 실측). payload·system 문구·전이 순서 = 앱 코드 byte-level 미러(테스트로 고정).
+- **범위**: 큐(mode 3탭+전체)·히스토리(user_id 기준+커서 더보기)·Realtime 수신·배정/채팅 시작(neq 경합 가드)/AI 반환·상담원 전송(낙관+롤백)·첨부 표시·고객 상세 이동(appUserId 매칭)·Topbar/사이드바 알림·**타이핑 인디케이터**(broadcast `typing:<uid>` 앱 상호운용)·AI 메시지 마크다운·아바타·카카오식 말풍선(라벨 밖 위+고객명).
+- **핵심 함정(재발 방지)**: ①supabase-js 같은 topic 재사용 → 공존 구독 충돌(채널 suffix 고유화; typing만 예외=매니저+250ms 유예 teardown) ②**Dart↔JS broadcast 봉투 차이**(Dart는 payload에 type/event 합쳐 평면 전송 — 수신은 양형태 수용, 송신은 평면 sender_type 동봉) ③PostgREST `.or()` 타임스탬프 quoting ④wal2json 직렬화(스페이스·+00) — toEpoch/parseChatTimestamp로 흡수(JSC/Safari NaN 방지).
+- **검증**: typecheck0·lint0·unit 314·build + 이사님(앱 고객)↔유슨생(CRM) 실기 크로스 스모크(메시지 왕복·타이핑 양방향·마크다운·아바타·스크롤 앵커) 통과.
+- **follow-up**(PR 본문): 자동선택 상태 draft pin·human+타상담원 회수 액션·대기시간 라벨 interval 갱신·pending 실잔량 배지·AI 상담 요약·상담원 첨부 업로드·종료 상태(앱 협의)·팀 scope.
 
 ## crm-analyst 서류 자동분류 (완료 — 배포 + #129 머지)
 
