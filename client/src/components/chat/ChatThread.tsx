@@ -20,12 +20,13 @@ type ChatThreadProps = {
   messages: ChatMessage[];
   customerLabel: string; // 고객명(profiles.full_name) 있으면 이름, 없으면 "고객"
   customerAvatarUrl: string | null;
+  customerTyping: boolean;
   hasMore: boolean;
   loadingOlder: boolean;
   onLoadOlder: () => void;
 };
 
-export function ChatThread({ messages, customerLabel, customerAvatarUrl, hasMore, loadingOlder, onLoadOlder }: ChatThreadProps) {
+export function ChatThread({ messages, customerLabel, customerAvatarUrl, customerTyping, hasMore, loadingOlder, onLoadOlder }: ChatThreadProps) {
   const senderLabel: Record<Exclude<ChatMessage["senderKind"], "system">, string> = {
     customer: customerLabel,
     ai: "AI",
@@ -34,20 +35,25 @@ export function ChatThread({ messages, customerLabel, customerAvatarUrl, hasMore
   const listRef = useRef<HTMLDivElement>(null);
   const lastIdRef = useRef<string | null>(null);
   const prevHeightRef = useRef(0);
+  const prevTypingRef = useRef(false);
 
-  // 새 메시지(마지막 id 변경) → 최하단 이동. 위쪽 prepend(더 보기) → 기존 읽던 위치 유지(높이 증가분 보정).
+  // 새 메시지(마지막 id 변경)·타이핑 인디케이터 등장 → 최하단 이동(마지막 메시지를 가리지 않게).
+  // 위쪽 prepend(더 보기)·인디케이터 소멸 → 기존 읽던 위치 유지(높이 변화분 보정).
   useEffect(() => {
     const el = listRef.current;
-    if (!el || messages.length === 0) return;
-    const lastId = messages[messages.length - 1].id;
-    if (lastIdRef.current !== lastId) {
+    if (!el) return;
+    const typingAppeared = customerTyping && !prevTypingRef.current;
+    prevTypingRef.current = customerTyping;
+    if (messages.length === 0 && !customerTyping) return;
+    const lastId = messages.length > 0 ? messages[messages.length - 1].id : null;
+    if (lastIdRef.current !== lastId || typingAppeared) {
       el.scrollTop = el.scrollHeight;
     } else {
       el.scrollTop += el.scrollHeight - prevHeightRef.current;
     }
     lastIdRef.current = lastId;
     prevHeightRef.current = el.scrollHeight;
-  }, [messages]);
+  }, [messages, customerTyping]);
 
   return (
     <div className="chat-messages" ref={listRef}>
@@ -95,6 +101,20 @@ export function ChatThread({ messages, customerLabel, customerAvatarUrl, hasMore
           </div>
         );
       })}
+      {/* 타이핑 인디케이터: 스크롤 리스트 안 마지막 항목(마지막 메시지를 가리지 않고 아래에 등장) */}
+      {customerTyping && (
+        <div className="chat-typing-row" aria-live="polite">
+          <CustomerAvatar url={customerAvatarUrl} />
+          <div className="chat-typing-body">
+            <span className="chat-typing-label">{customerLabel}</span>
+            <div aria-label={`${customerLabel} 입력 중`} className="chat-typing-bubble">
+              <span className="dot" />
+              <span className="dot" />
+              <span className="dot" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

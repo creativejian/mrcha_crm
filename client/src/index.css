@@ -5318,15 +5318,15 @@ th input:focus-visible {
   font-size: 12px;
 }
 
-/* 타이핑 인디케이터: 스크롤 리스트 밖, 입력창 바로 위(앱 배치 미러).
-   카카오식 — 이름 라벨 위 + 점 3개 시차 바운스 말풍선(.message.customer 톤). */
+/* 타이핑 인디케이터: 스크롤 리스트 안 마지막 항목(마지막 메시지를 가리지 않고 아래에 등장).
+   카카오식 — 아바타 + 이름 라벨 위 + 점 3개 시차 바운스 말풍선(.message.customer 톤). */
 .chat-typing-row {
   display: flex;
-  flex-shrink: 0;
   align-items: flex-start;
   gap: 8px;
   width: fit-content;
-  margin: 6px 16px 8px;
+  max-width: 78%;
+  justify-self: start;
 }
 
 .chat-typing-body {
