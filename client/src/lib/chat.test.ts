@@ -50,6 +50,16 @@ describe("toChatSession", () => {
     expect(toChatSession({ ...row, profiles: { full_name: null, email: "kim@x.com", role: "customer" } }).customerName).toBe("kim@x.com");
     expect(toChatSession({ ...row, profiles: null }).customerName).toBe("고객");
   });
+  it("avatar_url을 관통시키고 없으면 null", () => {
+    const row: ChatSessionRow = {
+      id: "s1", user_id: "u1", mode: "ai",
+      assigned_staff_id: null, assigned_at: null,
+      created_at: "2026-07-02T09:00:00+00:00", updated_at: "2026-07-02T10:00:00+00:00",
+      profiles: { full_name: "김민준", email: null, role: "customer", avatar_url: "https://cdn.example/a.png" },
+    };
+    expect(toChatSession(row).customerAvatarUrl).toBe("https://cdn.example/a.png");
+    expect(toChatSession({ ...row, profiles: { full_name: "김민준", email: null, role: "customer" } }).customerAvatarUrl).toBeNull();
+  });
   it("알 수 없는 mode는 ai로 폴백한다", () => {
     const row: ChatSessionRow = {
       id: "s1", user_id: "u1", mode: "weird",

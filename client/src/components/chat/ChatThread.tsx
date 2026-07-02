@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { parseChatTimestamp, type ChatMessage } from "@/lib/chat";
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
+import { CustomerAvatar } from "@/components/chat/CustomerAvatar";
 
 const BUBBLE_CLASS: Record<ChatMessage["senderKind"], string> = {
   customer: "customer",
@@ -18,12 +19,13 @@ function timeLabel(iso: string): string {
 type ChatThreadProps = {
   messages: ChatMessage[];
   customerLabel: string; // 고객명(profiles.full_name) 있으면 이름, 없으면 "고객"
+  customerAvatarUrl: string | null;
   hasMore: boolean;
   loadingOlder: boolean;
   onLoadOlder: () => void;
 };
 
-export function ChatThread({ messages, customerLabel, hasMore, loadingOlder, onLoadOlder }: ChatThreadProps) {
+export function ChatThread({ messages, customerLabel, customerAvatarUrl, hasMore, loadingOlder, onLoadOlder }: ChatThreadProps) {
   const senderLabel: Record<Exclude<ChatMessage["senderKind"], "system">, string> = {
     customer: customerLabel,
     ai: "AI",
@@ -54,14 +56,17 @@ export function ChatThread({ messages, customerLabel, hasMore, loadingOlder, onL
           {loadingOlder ? "불러오는 중…" : "이전 메시지 더 보기"}
         </button>
       )}
-      {messages.map((message) =>
-        message.senderKind === "system" ? (
-          <div className="message system" key={message.id}>
-            <span className="message-text">{message.message}</span>
-          </div>
-        ) : (
-          /* 앱 미러: 보낸이 라벨은 버블 밖 위, 버블 안엔 본문만 */
-          <div className={`message-group ${BUBBLE_CLASS[message.senderKind]}`} key={message.id}>
+      {messages.map((message) => {
+        if (message.senderKind === "system") {
+          return (
+            <div className="message system" key={message.id}>
+              <span className="message-text">{message.message}</span>
+            </div>
+          );
+        }
+        /* 앱 미러: 보낸이 라벨은 버블 밖 위, 버블 안엔 본문만. 고객 메시지는 아바타 동반 */
+        const group = (
+          <div className={`message-group ${BUBBLE_CLASS[message.senderKind]}`}>
             <small className="message-sender">{senderLabel[message.senderKind]} · {timeLabel(message.createdAt)}</small>
             <div className={`message ${BUBBLE_CLASS[message.senderKind]}`}>
               {message.attachmentUrl && (
@@ -79,8 +84,17 @@ export function ChatThread({ messages, customerLabel, hasMore, loadingOlder, onL
                 : <span className="message-text">{message.message}</span>}
             </div>
           </div>
-        ),
-      )}
+        );
+        if (message.senderKind !== "customer") {
+          return <div className={`message-row ${BUBBLE_CLASS[message.senderKind]}`} key={message.id}>{group}</div>;
+        }
+        return (
+          <div className="message-row customer" key={message.id}>
+            <CustomerAvatar url={customerAvatarUrl} />
+            {group}
+          </div>
+        );
+      })}
     </div>
   );
 }

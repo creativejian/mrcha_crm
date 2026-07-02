@@ -9,6 +9,7 @@ import { ChatThread } from "@/components/chat/ChatThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatSessionHeader } from "@/components/chat/ChatSessionHeader";
 import { ChatCustomerPanel } from "@/components/chat/ChatCustomerPanel";
+import { CustomerAvatar } from "@/components/chat/CustomerAvatar";
 
 type ChatPageProps = {
   customers: Customer[];
@@ -60,15 +61,18 @@ export function ChatPage({ customers, onOpenCustomer, onToast, onRead }: ChatPag
           {active && (
             <>
               <ChatSessionHeader onChanged={reload} onToast={onToast} session={active} staffId={staffId} staffOptions={staffOptions} />
-              <ChatThread customerLabel={customerLabel} hasMore={thread.hasMore} loadingOlder={thread.loadingOlder} messages={thread.messages} onLoadOlder={thread.loadOlder} />
+              <ChatThread customerAvatarUrl={active.customerAvatarUrl} customerLabel={customerLabel} hasMore={thread.hasMore} loadingOlder={thread.loadingOlder} messages={thread.messages} onLoadOlder={thread.loadOlder} />
               {/* 스크롤 리스트 밖, 입력창 바로 위(앱 배치 미러 — 스크롤 앵커와 상호작용 없음) */}
               {thread.customerTyping && (
                 <div className="chat-typing-row" aria-live="polite">
-                  <span className="chat-typing-label">{customerLabel}</span>
-                  <div aria-label={`${customerLabel} 입력 중`} className="chat-typing-bubble">
-                    <span className="dot" />
-                    <span className="dot" />
-                    <span className="dot" />
+                  <CustomerAvatar url={active.customerAvatarUrl} />
+                  <div className="chat-typing-body">
+                    <span className="chat-typing-label">{customerLabel}</span>
+                    <div aria-label={`${customerLabel} 입력 중`} className="chat-typing-bubble">
+                      <span className="dot" />
+                      <span className="dot" />
+                      <span className="dot" />
+                    </div>
                   </div>
                 </div>
               )}

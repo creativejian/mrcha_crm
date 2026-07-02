@@ -17,7 +17,7 @@ export type ChatSessionRow = {
   assigned_at: string | null;
   created_at: string;
   updated_at: string;
-  profiles?: { full_name: string | null; email: string | null; role: string | null } | null;
+  profiles?: { full_name: string | null; email: string | null; role: string | null; avatar_url?: string | null } | null;
 };
 
 export type ChatMessageRow = {
@@ -44,6 +44,7 @@ export type ChatSession = {
   updatedAt: string;
   customerName: string;
   customerEmail: string | null;
+  customerAvatarUrl: string | null;
 };
 
 export type ChatSenderKind = "customer" | "ai" | "staff" | "system";
@@ -84,6 +85,7 @@ export function toChatSession(row: ChatSessionRow): ChatSession {
     updatedAt: row.updated_at,
     customerName: row.profiles?.full_name ?? row.profiles?.email ?? "고객",
     customerEmail: row.profiles?.email ?? null,
+    customerAvatarUrl: row.profiles?.avatar_url ?? null,
   };
 }
 
@@ -137,7 +139,7 @@ export function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]): 
 
 // ── supabase 데이터 접근 (staff JWT + RLS. 앱 admin 섹션 미러) ─────────────────
 
-const SESSION_SELECT = "*, profiles!chat_sessions_user_id_fkey(full_name, email, role)";
+const SESSION_SELECT = "*, profiles!chat_sessions_user_id_fkey(full_name, email, role, avatar_url)";
 export const CHAT_PAGE_SIZE = 50;
 
 // 앱 getAllSessions 미러: role='customer' 필터는 쿼리가 아니라 클라이언트측(앱과 동일).

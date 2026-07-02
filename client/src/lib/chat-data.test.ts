@@ -90,7 +90,7 @@ describe("fetchChatSessions", () => {
     const staffRow = { ...sessionRow, id: "s2", profiles: { full_name: "관리자", email: null, role: "admin" } };
     const q = enqueue("chat_sessions", { data: [sessionRow, staffRow], error: null });
     const sessions = await fetchChatSessions();
-    expect(q.argOf("select")).toBe("*, profiles!chat_sessions_user_id_fkey(full_name, email, role)");
+    expect(q.argOf("select")).toBe("*, profiles!chat_sessions_user_id_fkey(full_name, email, role, avatar_url)");
     expect(q.calls.find((c) => c.method === "order")?.args).toEqual(["updated_at", { ascending: false }]);
     expect(sessions.map((s) => s.id)).toEqual(["s1"]);
   });

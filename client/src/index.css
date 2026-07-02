@@ -5091,19 +5091,57 @@ th input:focus-visible {
   background: #fafafa;
 }
 
-/* 보낸이 라벨(버블 밖 위) + 버블 묶음. 정렬 축은 그룹이 담당(고객=좌, AI/상담원=우 — 앱 미러). */
-.message-group {
+/* 메시지 행 = (고객이면 아바타) + 그룹(라벨 위 + 버블). 정렬 축은 행이 담당(고객=좌, AI/상담원=우 — 앱 미러). */
+.message-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 8px;
   width: fit-content;
   max-width: 78%;
   justify-self: start;
 }
 
+.message-row.ai,
+.message-row.advisor {
+  justify-self: end;
+}
+
+.message-avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #eef0f3;
+  color: #8a919a;
+}
+
+.message-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.message-avatar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.message-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .message-group.ai,
 .message-group.advisor {
-  justify-self: end;
   align-items: flex-end;
 }
 
@@ -5284,11 +5322,17 @@ th input:focus-visible {
    카카오식 — 이름 라벨 위 + 점 3개 시차 바운스 말풍선(.message.customer 톤). */
 .chat-typing-row {
   display: flex;
-  flex-direction: column;
   flex-shrink: 0;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 8px;
   width: fit-content;
   margin: 6px 16px 8px;
+}
+
+.chat-typing-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .chat-typing-label {
