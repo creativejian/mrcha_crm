@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import { assistantMessages } from "../schema";
@@ -12,18 +12,32 @@ export type NewAssistantMessage = {
   createdAt: Date;
 };
 
+export type MessageCursor = { createdAt: Date; id: string };
+
 // user+assistant를 한 INSERT로 원자 저장. createdAt은 호출부가 명시(순서 보존).
 export async function insertAssistantMessages(rows: NewAssistantMessage[], executor: Executor = getDefaultDb()): Promise<AssistantMessageRow[]> {
   if (rows.length === 0) return [];
   return executor.insert(assistantMessages).values(rows).returning();
 }
 
-// 최근 limit개를 created_at 내림차순으로 받아 오름차순(표시 순서)으로 반환.
-export async function listRecentMessages(staffUserId: string, limit: number, executor: Executor = getDefaultDb()): Promise<AssistantMessageRow[]> {
+// 최근 limit개를 created_at desc(동점 시 id desc)로 받아 오름차순(표시 순서)으로 반환.
+// before 커서가 있으면 그보다 "오래된"(created_at<커서 or 동일 created_at & id<커서) 것만.
+export async function listRecentMessages(
+  staffUserId: string,
+  limit: number,
+  executor: Executor = getDefaultDb(),
+  before?: MessageCursor,
+): Promise<AssistantMessageRow[]> {
+  const olderThan = before
+    ? or(
+        lt(assistantMessages.createdAt, before.createdAt),
+        and(eq(assistantMessages.createdAt, before.createdAt), lt(assistantMessages.id, before.id)),
+      )
+    : undefined;
   const rows = await executor
     .select().from(assistantMessages)
-    .where(eq(assistantMessages.staffUserId, staffUserId))
-    .orderBy(desc(assistantMessages.createdAt))
+    .where(before ? and(eq(assistantMessages.staffUserId, staffUserId), olderThan) : eq(assistantMessages.staffUserId, staffUserId))
+    .orderBy(desc(assistantMessages.createdAt), desc(assistantMessages.id))
     .limit(limit);
   return rows.reverse();
 }
