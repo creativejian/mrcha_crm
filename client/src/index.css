@@ -5069,12 +5069,21 @@ th input:focus-visible {
 
 .chat-window {
   min-height: 600px;
+  /* 뷰포트 제약(스레드 내부 스크롤용): globalbar(50+22) + 페이지 헤더(≈52+18) + chat-tabs(38+14) + main 하단 padding(22) ≈ 216px → 220px */
+  height: calc(100vh - 220px);
   display: flex;
   flex-direction: column;
 }
 
+.chat-window .chat-header,
+.chat-window .chat-compose {
+  flex-shrink: 0;
+}
+
 .chat-messages {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   align-content: start;
   gap: 10px;
@@ -5082,22 +5091,77 @@ th input:focus-visible {
   background: #fafafa;
 }
 
+/* 메시지 행 = (고객이면 아바타) + 그룹(라벨 위 + 버블). 정렬 축은 행이 담당(고객=좌, AI/상담원=우 — 앱 미러). */
+.message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: fit-content;
+  max-width: 78%;
+  justify-self: start;
+}
+
+.message-row.ai,
+.message-row.advisor {
+  justify-self: end;
+}
+
+.message-avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #eef0f3;
+  color: #8a919a;
+}
+
+.message-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.message-avatar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.message-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.message-group.ai,
+.message-group.advisor {
+  align-items: flex-end;
+}
+
+.message-sender {
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* 말풍선은 내용 폭 기준(그룹 안에서 수축) */
 .message {
-  max-width: 74%;
+  width: fit-content;
+  max-width: 100%;
   border-radius: 12px;
   padding: 12px;
   font-size: 13px;
   line-height: 1.5;
 }
 
-.message small {
-  display: block;
-  margin-top: 6px;
-  color: var(--muted);
-}
-
 .message.ai {
-  max-width: 100%;
   background: #eef2f7;
 }
 
@@ -5107,17 +5171,225 @@ th input:focus-visible {
 }
 
 .message.advisor {
-  justify-self: end;
   background: #111;
   color: #fff;
 }
 
 .chat-compose {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto;
   gap: 8px;
   padding: 12px;
   border-top: 1px solid var(--line-soft);
+}
+
+/* 실시간 상담: 실데이터 전환에서 추가된 상태들 */
+.chat-queue-empty,
+.chat-panel-empty,
+.chat-window-empty {
+  padding: 18px 6px;
+  color: #7f858c;
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.chat-window-empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
+/* system은 그룹 없이 grid 직속 — 가운데 정렬 */
+.message.system {
+  justify-self: center;
+  max-width: 82%;
+  padding: 4px 12px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #7f858c;
+  font-size: 11.5px;
+  text-align: center;
+}
+
+/* 평문 발신자(고객/상담원/system) 줄바꿈 보존 */
+.message .message-text {
+  white-space: pre-wrap;
+}
+
+/* AI 말풍선 마크다운(.work-ai-message.assistant .md-body 미러 — .message 13px 기준 한 단계 축소) */
+.message.ai .md-body {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.message.ai .md-body h1 {
+  margin: 10px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.message.ai .md-body h2 {
+  margin: 10px 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.message.ai .md-body h3 {
+  margin: 8px 0 4px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.message.ai .md-body ul {
+  margin: 4px 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.message.ai .md-body ol {
+  margin: 4px 0;
+  padding-left: 20px;
+  list-style: decimal;
+}
+
+.message.ai .md-body li {
+  margin: 2px 0;
+}
+
+.message.ai .md-body li::marker {
+  color: var(--brand);
+}
+
+.message.ai .md-body li > p {
+  margin: 0;
+}
+
+.message.ai .md-body p {
+  margin: 4px 0;
+}
+
+/* .message strong 레거시 룰 없음(확인) — display 간섭은 없고 톤(600)만 맞춘다. */
+.message.ai .md-body strong {
+  font-weight: 600;
+}
+
+/* 말풍선 padding과 첫/마지막 블록 마진 이중 여백 방지 */
+.message.ai .md-body > :first-child {
+  margin-top: 0;
+}
+
+.message.ai .md-body > :last-child {
+  margin-bottom: 0;
+}
+
+.message-attachment {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.message-attachment img {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  border-radius: 8px;
+}
+
+.chat-load-more {
+  justify-self: center;
+  padding: 4px 12px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  color: #5f6872;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.chat-load-more:hover {
+  border-color: rgba(var(--brand-rgb), 0.34);
+}
+
+.chat-disabled-banner {
+  padding: 6px 4px;
+  color: #7f858c;
+  font-size: 12px;
+}
+
+/* 타이핑 인디케이터: 스크롤 리스트 안 마지막 항목(마지막 메시지를 가리지 않고 아래에 등장).
+   카카오식 — 아바타 + 이름 라벨 위 + 점 3개 시차 바운스 말풍선(.message.customer 톤). */
+.chat-typing-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: fit-content;
+  max-width: 78%;
+  justify-self: start;
+}
+
+.chat-typing-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-typing-label {
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.chat-typing-bubble {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 13px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.chat-typing-bubble .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand);
+  opacity: 0.55;
+  animation: chat-typing-bounce 1.2s ease-in-out infinite;
+}
+
+.chat-typing-bubble .dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-typing-bubble .dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes chat-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.chat-assign-select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  color: #4f5a64;
+  font-size: 12px;
 }
 
 .split {

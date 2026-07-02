@@ -7,6 +7,7 @@ const row: CustomerRow = {
   customerCode: "CU-2605-0020",
   name: "김민준",
   phone: "010-9588-0812",
+  appUserId: null,
   customerType: "개인",
   customerTypeDetail: "4대보험",
   advisorName: null,
@@ -59,6 +60,10 @@ describe("toCustomer", () => {
   it("chance를 전달(없으면 undefined)", () => {
     expect(toCustomer({ ...row, chance: "높음" }).chance).toBe("높음");
     expect(toCustomer(row).chance).toBeUndefined();
+  });
+  it("appUserId를 관통시킨다 (앱 유입 고객 매칭용)", () => {
+    expect(toCustomer({ ...row, appUserId: "app-u1" }).appUserId).toBe("app-u1");
+    expect(toCustomer({ ...row, appUserId: null }).appUserId).toBeNull();
   });
 });
 
