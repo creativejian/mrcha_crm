@@ -1,7 +1,8 @@
 import { jwtVerify, type JWTVerifyGetKey } from "jose";
 
 // CRM 접근 허용 역할(customer 제외) — src/auth/verify.ts CRM_ROLES와 동일 SSOT(복제).
-const CRM_ROLES = new Set(["staff", "manager", "admin", "dealer"]);
+// export는 서버 원본과의 패리티 테스트(src/auth/roles-parity.test.ts)용.
+export const CRM_ROLES = new Set(["staff", "manager", "admin", "dealer"]);
 
 export type StaffGate =
   | { ok: true; userId: string; role: string }

@@ -4,15 +4,16 @@ import { classifyKimDocumentFile } from "@/lib/kim-detail-utils";
 import { createImageThumbnail } from "./image-thumbnail";
 import { supabase } from "./supabase";
 
-// File → base64(데이터 부분만, data:URL 접두어 제거). 32KB 청크 — 바이트별 호출/거대 인자 스택오버플로를 피한다.
+// File → base64(데이터 부분만, data:URL 접두어 제거).
+// FileReader 네이티브 인코딩 사용 — JS 문자 루프+btoa는 수MB PDF에서 메인스레드를 수백ms 멈춘다.
 async function fileToBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const CHUNK = 0x8000;
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => (typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("파일 읽기 결과가 문자열이 아님")));
+    reader.onerror = () => reject(reader.error ?? new Error("파일 읽기 실패"));
+    reader.readAsDataURL(file);
+  });
+  return dataUrl.slice(dataUrl.indexOf(",") + 1);
 }
 
 // source: "ai"=vision 판독 결과, "fallback"=파일명 regex 폴백 — UI 배지가 이 둘을 구분한다(장애 은폐 방지).

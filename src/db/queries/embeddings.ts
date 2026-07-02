@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 
+import { EMBEDDING_DIM } from "../../lib/gemini-embed";
 import { getDefaultDb, type Executor } from "../client";
 import { embeddings } from "../schema";
 
@@ -42,15 +43,24 @@ export async function searchEmbeddings(
 ): Promise<SearchHit[]> {
   if (Array.isArray(scope) && scope.length === 0) return [];
   const vecLiteral = `[${queryVec.join(",")}]`;
+  const halfvec = sql.raw(`halfvec(${EMBEDDING_DIM})`); // HNSW 인덱스 식과 동일 차원 — EMBEDDING_DIM 단일 소스
   const scopeFilter =
     scope === "all" ? sql`` : sql`where customer_id = any(${sql`array[${sql.join(scope.map((id) => sql`${id}::uuid`), sql`, `)}]`})`;
   const rows = await executor.execute(sql`
     select id, source_type as "sourceType", source_id as "sourceId", customer_id as "customerId", content,
-           1 - (embedding::halfvec(3072) <=> ${vecLiteral}::halfvec(3072)) as similarity
+           1 - (embedding::${halfvec} <=> ${vecLiteral}::${halfvec}) as similarity
     from crm.embeddings
     ${scopeFilter}
-    order by embedding::halfvec(3072) <=> ${vecLiteral}::halfvec(3072)
+    order by embedding::${halfvec} <=> ${vecLiteral}::${halfvec}
     limit ${k}
   `);
-  return rows as unknown as SearchHit[];
+  // raw SQL 결과는 단언하지 않고 행 단위로 좁힌다 — alias가 바뀌면 NaN/"undefined"로 즉시 드러난다.
+  return [...(rows as Iterable<Record<string, unknown>>)].map((r): SearchHit => ({
+    id: String(r.id),
+    sourceType: String(r.sourceType),
+    sourceId: String(r.sourceId),
+    customerId: String(r.customerId),
+    content: String(r.content),
+    similarity: Number(r.similarity),
+  }));
 }

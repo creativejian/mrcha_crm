@@ -48,11 +48,14 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
 
   const staffUserId = c.var.user.id;
   try {
-    const history = (await assistantDeps.listRecentMessages(staffUserId, HISTORY_LIMIT, c.var.db))
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+    // 히스토리 로드는 임베딩→검색 체인과 독립 — 병렬로 시작해 원격 DB 왕복 1회분 지연을 없앤다.
     const scope = resolveCustomerScope(c.var.user);
-    const [queryVec] = await assistantDeps.embedTexts([question], apiKey, "RETRIEVAL_QUERY");
-    const hits = await assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db);
+    const [history, hits] = await Promise.all([
+      assistantDeps.listRecentMessages(staffUserId, HISTORY_LIMIT, c.var.db)
+        .then((rows) => rows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))),
+      assistantDeps.embedTexts([question], apiKey, "RETRIEVAL_QUERY")
+        .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db)),
+    ]);
     const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
     const promptChunks = hits.map((h) => ({
       customerName: metaById.get(h.customerId)?.name ?? "고객",
@@ -70,9 +73,10 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     const now = new Date();
     const saved = await assistantDeps.insertAssistantMessages([
       { staffUserId, role: "user", content: question, sources: null, createdAt: now },
-      { staffUserId, role: "assistant", content: answer, sources: hits.length === 0 ? [] : sources, createdAt: new Date(now.getTime() + 1) },
+      { staffUserId, role: "assistant", content: answer, sources, createdAt: new Date(now.getTime() + 1) },
     ], c.var.db);
-    return c.json({ answer, sources, messages: saved });
+    // 답변·출처는 saved[1]에 영속 — 클라이언트는 messages만 소비한다(이중 표현 금지).
+    return c.json({ messages: saved });
   } catch (e) {
     console.error("[assistant] ask 실패:", e);
     return c.json({ error: "일시적으로 답변에 실패했습니다." }, 500);

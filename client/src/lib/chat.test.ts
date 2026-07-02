@@ -83,6 +83,12 @@ describe("waitingLabel", () => {
     expect(waitingLabel("2026-07-02T09:31:00+00:00", now)).toBe("59분 대기");
     expect(waitingLabel("2026-07-02T09:30:00+00:00", now)).toBe("1시간 대기");
   });
+  it("suffix '전'을 주면 비대기 라벨로 표시한다(문자열 치환 파생 금지)", () => {
+    expect(waitingLabel("2026-07-02T10:29:30+00:00", now, "전")).toBe("방금 전");
+    expect(waitingLabel("2026-07-02T10:18:00+00:00", now, "전")).toBe("12분 전");
+    expect(waitingLabel("2026-07-02T07:30:00+00:00", now, "전")).toBe("3시간 전");
+    expect(waitingLabel("2026-06-30T10:30:00+00:00", now, "전")).toBe("2일 전");
+  });
   it("24시간 경계에서 일 단위로 바뀐다", () => {
     expect(waitingLabel("2026-07-01T10:31:00+00:00", now)).toBe("23시간 대기");
     expect(waitingLabel("2026-07-01T10:30:00+00:00", now)).toBe("1일 대기");

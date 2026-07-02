@@ -6,7 +6,8 @@ export type GateResult =
   | { ok: false; status: 401 | 403; error: string };
 
 // CRM 접근 허용 역할(customer 제외). dealer는 user_role enum에 추가 예정(선행 의존).
-const CRM_ROLES = new Set(["staff", "manager", "admin", "dealer"]);
+// export는 Edge 복제본(supabase/functions/crm-analyst/auth.ts)과의 패리티 테스트용.
+export const CRM_ROLES = new Set(["staff", "manager", "admin", "dealer"]);
 
 // 순수 검증+게이트. keyResolver를 주입받아 테스트는 로컬 JWKS, prod는 원격 JWKS를 쓴다.
 // role은 Custom Access Token Hook이 넣는 top-level user_role claim에서 읽는다.

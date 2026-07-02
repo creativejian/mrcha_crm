@@ -4,7 +4,7 @@ import { DoubleBounceDots } from "@/components/ai/DoubleBounceDots";
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { initialCustomers, type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
-import { askAssistant, fetchAssistantMessages, type AssistantAnswer, type AssistantMessage } from "@/lib/assistant";
+import { askAssistant, fetchAssistantMessages, type AssistantMessage } from "@/lib/assistant";
 import { signOut } from "@/lib/auth";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
@@ -139,7 +139,8 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState<NotificationTab>("전체");
   const [aiInput, setAiInput] = useState("");
-  const [aiTurns, setAiTurns] = useState<{ question: string; answer: AssistantAnswer | null; error?: string }[]>([]);
+  // 낙관적 turn: 로딩(error 없음) 또는 실패(error). 성공한 답변은 aiHistory(영속본)로만 렌더된다.
+  const [aiTurns, setAiTurns] = useState<{ question: string; error?: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiHistory, setAiHistory] = useState<AssistantMessage[]>([]);
   const [aiHistoryLoaded, setAiHistoryLoaded] = useState(false);
@@ -205,7 +206,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
     const question = aiInput.trim();
     if (!question || aiLoading) return;
     setAiInput("");
-    setAiTurns((cur) => [...cur, { question, answer: null }]);
+    setAiTurns((cur) => [...cur, { question }]);
     setAiLoading(true);
     try {
       const res = await askAssistant(question);

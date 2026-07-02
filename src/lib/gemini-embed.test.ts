@@ -29,3 +29,23 @@ test("embedTexts: 실패 응답은 throw", async () => {
   const fakeFetch = (async () => new Response("boom", { status: 500 })) as unknown as typeof fetch;
   await expect(embedTexts(["a"], "KEY", "RETRIEVAL_QUERY", fakeFetch)).rejects.toThrow();
 });
+
+test("embedTexts: 100개 초과는 배치로 쪼개 호출하고 순서를 보존해 합친다", async () => {
+  const batchSizes: number[] = [];
+  const fakeFetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as { requests: { content: { parts: { text: string }[] } }[] };
+    batchSizes.push(body.requests.length);
+    // 각 텍스트 "t<i>"를 벡터 [i]로 — 순서 보존 검증용.
+    const embeddings = body.requests.map((r) => ({ values: [Number(r.content.parts[0].text.slice(1))] }));
+    return new Response(JSON.stringify({ embeddings }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  const texts = Array.from({ length: 250 }, (_, i) => `t${i}`);
+  const out = await embedTexts(texts, "KEY", "RETRIEVAL_DOCUMENT", fakeFetch);
+
+  expect(batchSizes).toEqual([100, 100, 50]); // Gemini batchEmbedContents 요청당 100개 제한
+  expect(out).toHaveLength(250);
+  expect(out[0]).toEqual([0]);
+  expect(out[149]).toEqual([149]);
+  expect(out[249]).toEqual([249]);
+});

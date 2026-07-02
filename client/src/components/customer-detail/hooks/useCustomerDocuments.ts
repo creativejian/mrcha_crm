@@ -314,24 +314,28 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
     }
     setIsMergingDocuments(true);
     try {
-      const sources: MergeSource[] = [];
-      for (const documentItem of documents) {
-        const kind = kimDocumentFileKind(documentItem.mimeType, documentItem.fileName);
-        if (kind !== "이미지" && kind !== "PDF") continue;
-        let blob: Blob | null = null;
-        if (documentItem.file) {
-          blob = documentItem.file;
-        } else if (!documentItem.id.startsWith("kim-")) {
-          try {
-            const { downloadUrl } = await getDocumentUrlApi(detail.id, documentItem.id);
-            const res = await fetch(downloadUrl);
-            if (res.ok) blob = await res.blob();
-          } catch {
-            blob = null;
+      // 문서별 signed URL 발급+다운로드는 서로 독립 — 병렬로 받는다(10건 직렬 5~10초 → ~1초).
+      // Promise.all은 입력 순서를 보존하므로 병합 순서 = 서류함 표시 순서 그대로다.
+      const fetched = await Promise.all(
+        documents.map(async (documentItem): Promise<MergeSource | null> => {
+          const kind = kimDocumentFileKind(documentItem.mimeType, documentItem.fileName);
+          if (kind !== "이미지" && kind !== "PDF") return null;
+          let blob: Blob | null = null;
+          if (documentItem.file) {
+            blob = documentItem.file;
+          } else if (!documentItem.id.startsWith("kim-")) {
+            try {
+              const { downloadUrl } = await getDocumentUrlApi(detail.id, documentItem.id);
+              const res = await fetch(downloadUrl);
+              if (res.ok) blob = await res.blob();
+            } catch {
+              blob = null;
+            }
           }
-        }
-        if (blob) sources.push({ kind: kind === "PDF" ? "pdf" : "image", blob });
-      }
+          return blob ? { kind: kind === "PDF" ? "pdf" : "image", blob } : null;
+        }),
+      );
+      const sources = fetched.filter((source): source is MergeSource => source !== null);
       if (sources.length === 0) {
         onToast("병합할 수 있는 이미지·PDF 서류가 없습니다.");
         return;
