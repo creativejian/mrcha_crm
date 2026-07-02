@@ -58,20 +58,43 @@ export function subscribeChatSessions(
 }
 
 // 타이핑 인디케이터(앱 typing_indicator_service.dart 미러 — broadcast 상호운용).
-// ⚠️ topic은 앱과 동일해야 통신되므로 channelSeq 고유화 금지(공존 구독 없음: 스레드당 1개,
-// StrictMode는 순차 mount/unmount라 안전). event 'typing', payload { sender_type: 'user'|'staff' },
-// config 기본(self:false, ack:false).
+// ⚠️ topic은 앱과 동일해야 통신되므로 channelSeq 고유화 금지. 대신 같은 topic의 즉시 재join이
+// 해체 중인 옛 채널 객체를 재사용해 조용히 죽는 문제(StrictMode mount→cleanup→mount에서
+// removeChannel이 비동기라 발생)를 막기 위해, 모듈 레벨 매니저가 채널을 보유하고
+// 마지막 리스너 해제 후 잠깐(250ms) 유예했다가 해체한다 — 유예 안에 재join하면 산 채널 재사용.
+// event 'typing', payload { sender_type: 'user'|'staff' }, config 기본(self:false, ack:false).
+type TypingEntry = {
+  channel: ReturnType<typeof supabase.channel>;
+  listeners: Set<() => void>;
+  teardownTimer: ReturnType<typeof setTimeout> | null;
+};
+const typingChannels = new Map<string, TypingEntry>();
+
 export function joinTypingChannel(
   userId: string,
   onCustomerTyping: () => void,
 ): { sendTyping: () => void; cleanup: () => void } {
-  const channel = supabase
-    .channel(`typing:${userId}`)
-    .on("broadcast", { event: "typing" }, (message) => {
-      const senderType = (message.payload as Record<string, unknown> | undefined)?.sender_type;
-      if (senderType === "user") onCustomerTyping(); // 상대(고객)만 — 앱 admin과 동일 필터
-    })
-    .subscribe();
+  const topic = `typing:${userId}`;
+  let entry = typingChannels.get(topic);
+  if (entry?.teardownTimer != null) {
+    clearTimeout(entry.teardownTimer);
+    entry.teardownTimer = null;
+  }
+  if (!entry) {
+    const listeners = new Set<() => void>();
+    const channel = supabase
+      .channel(topic)
+      .on("broadcast", { event: "typing" }, (message) => {
+        const senderType = (message.payload as Record<string, unknown> | undefined)?.sender_type;
+        if (senderType !== "user") return; // 상대(고객)만 — 앱 admin과 동일 필터
+        for (const listener of listeners) listener();
+      })
+      .subscribe();
+    entry = { channel, listeners, teardownTimer: null };
+    typingChannels.set(topic, entry);
+  }
+  const held = entry;
+  held.listeners.add(onCustomerTyping);
   let lastSentAt = 0;
   return {
     // 앱 _sendInterval(1s) leading-edge throttle 미러(첫 입력 즉시, 이후 1s 미만 무시. stop 이벤트 없음)
@@ -79,10 +102,15 @@ export function joinTypingChannel(
       const now = Date.now();
       if (now - lastSentAt < 1000) return;
       lastSentAt = now;
-      void channel.send({ type: "broadcast", event: "typing", payload: { sender_type: "staff" } });
+      void held.channel.send({ type: "broadcast", event: "typing", payload: { sender_type: "staff" } });
     },
     cleanup: () => {
-      void supabase.removeChannel(channel);
+      held.listeners.delete(onCustomerTyping);
+      if (held.listeners.size > 0) return;
+      held.teardownTimer = setTimeout(() => {
+        typingChannels.delete(topic);
+        void supabase.removeChannel(held.channel);
+      }, 250);
     },
   };
 }
