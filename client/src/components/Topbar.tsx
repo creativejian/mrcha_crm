@@ -101,6 +101,7 @@ type TopbarProps = {
   onOpenCustomer: (customer: Customer) => void;
   onToggleSidebar: () => void;
   newAppRequestCount: number;
+  pendingChatCount: number;
 };
 
 const quickAiPrompts = [
@@ -126,7 +127,7 @@ function normalizeSearchValue(value: string): string {
   return value.toLowerCase().replace(/[\s-]/g, "");
 }
 
-export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onNavigate, onOpenCustomer, onToggleSidebar, newAppRequestCount }: TopbarProps) {
+export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onNavigate, onOpenCustomer, onToggleSidebar, newAppRequestCount, pendingChatCount }: TopbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -518,7 +519,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
         <button className={`icon-btn chat-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon /><span className="chat-queue-count num">4</span></button>
         <button className={`icon-btn quote-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("quotes")} type="button" aria-label="견적 요청 큐"><QuoteQueueIcon /><span className="quote-queue-count num">5</span></button>
         <div className="notifications-wrap" ref={notificationsRef}>
-          <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon />{newAppRequestCount > 0 && <span className="notification-count num">{newAppRequestCount}</span>}</button>
+          <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon />{(newAppRequestCount + pendingChatCount) > 0 && <span className="notification-count num">{newAppRequestCount + pendingChatCount}</span>}</button>
           {notificationsOpen && (
             <>
               <div
@@ -548,6 +549,14 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                       <span className="notification-badge">견적</span>
                       <strong>새 앱 견적요청 {newAppRequestCount}건</strong>
                       <small>앱에서 들어온 새 견적요청을 확인하세요.</small>
+                      <em>최근</em>
+                    </button>
+                  )}
+                  {(notificationTab === "전체" || notificationTab === "상담") && pendingChatCount > 0 && (
+                    <button className="notification-item app-request-new" onClick={() => { onNavigate("chat"); setNotificationsOpen(false); }} type="button">
+                      <span className="notification-badge">상담</span>
+                      <strong>상담원 연결 요청 {pendingChatCount}건</strong>
+                      <small>앱 고객이 상담원 연결을 기다리고 있습니다.</small>
                       <em>최근</em>
                     </button>
                   )}

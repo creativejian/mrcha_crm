@@ -18,11 +18,11 @@ export function useChatThread(userId: string | null, onToast: (message: string) 
   const tempSeq = useRef(0); // 낙관 temp id 단조 카운터(Date.now()는 연속 전송 시 충돌 가능)
 
   useEffect(() => {
+    const mySeq = ++seq.current; // null 전환 포함 모든 전환에서 이전 스레드의 in-flight 응답을 무효화
     // eslint-disable-next-line react-hooks/set-state-in-effect -- userId(스레드) 전환 시 이전 스레드 메시지를 즉시 비워 동기화하는 의도된 effect
     setMessages([]);
     setHasMore(false);
     if (!userId) return;
-    const mySeq = ++seq.current;
     fetchChatMessages(userId)
       .then((batch) => {
         if (seq.current !== mySeq) return;

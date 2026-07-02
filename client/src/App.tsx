@@ -7,6 +7,7 @@ import { type Customer, type CustomerChanceOption, type CustomerManageStatus, ty
 import { fetchCustomers, updateCustomer, type CustomerWritePatch } from "@/lib/customers";
 import { fetchAppQuoteRequests } from "@/lib/quote-requests";
 import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
+import { subscribeChatSessions } from "@/lib/chat-realtime";
 import { customerCodeFromLocation } from "@/lib/customer-route";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
@@ -168,6 +169,8 @@ export function App() {
   const [appRequestSignal, setAppRequestSignal] = useState(0);
   const locationRef = useRef(location.pathname);
   const markAppRequestsRead = useCallback(() => setNewAppRequestCount(0), []);
+  const [pendingChatCount, setPendingChatCount] = useState(0);
+  const markChatRequestsRead = useCallback(() => setPendingChatCount(0), []);
 
   // 콜백이 항상 현재 경로를 읽도록 ref 동기화. useLayoutEffect라 paint 전(commit 단계)에 갱신돼
   // 내비 직후 race를 제거하면서 react-hooks/refs(렌더 중 ref 갱신 금지)도 위반하지 않는다.
@@ -188,6 +191,17 @@ export function App() {
           showToast(rows[0] ? `새 앱 견적요청: ${rows[0].vehicleLabel}` : "새 앱 견적요청이 도착했습니다"),
         )
         .catch(() => showToast("새 앱 견적요청이 도착했습니다"));
+    });
+  }, [auth.authed, showToast]);
+
+  useEffect(() => {
+    if (!auth.authed) return;
+    return subscribeChatSessions((change) => {
+      // pending 진입 전이만 알림(그 외 전이는 ChatPage 큐가 자체 구독으로 처리).
+      if (change.newMode !== "pending" || change.oldMode === "pending") return;
+      if (locationRef.current.startsWith("/chat")) return; // 보고 있으면 생략(견적요청 알림과 동일 규칙)
+      setPendingChatCount((count) => count + 1);
+      showToast("새 상담원 연결 요청이 도착했습니다");
     });
   }, [auth.authed, showToast]);
 
@@ -293,7 +307,7 @@ export function App() {
         <Route path="/" element={<AdvisorDashboardPage />} />
         <Route path="/dashboard-preview" element={<DashboardPreviewPage />} />
         <Route path="/admin-dashboard" element={isAdmin ? <AdminDashboardPage /> : <Navigate to="/" replace />} />
-        <Route path="/chat" element={<ChatPage onNavigate={handleViewChange} onToast={showToast} />} />
+        <Route path="/chat" element={<ChatPage customers={customers} onOpenCustomer={openCustomerDetailPanel} onToast={showToast} onRead={markChatRequestsRead} />} />
         <Route
           path="/customers"
           element={
@@ -363,6 +377,7 @@ export function App() {
           onOpenCustomer={openCustomerDetailPanel}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
           newAppRequestCount={newAppRequestCount}
+          pendingChatCount={pendingChatCount}
         />
         {/* customer-detail 전체화면은 CustomerDetailPage 자체 헤더가 있어 공통 헤더를 숨겨 중복을 막는다. */}
         {activeView !== "dashboard-preview" && activeView !== "customer-detail" && (

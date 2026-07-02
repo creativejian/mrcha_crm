@@ -5120,6 +5120,80 @@ th input:focus-visible {
   border-top: 1px solid var(--line-soft);
 }
 
+/* 실시간 상담: 실데이터 전환에서 추가된 상태들 */
+.chat-queue-empty,
+.chat-panel-empty,
+.chat-window-empty {
+  padding: 18px 6px;
+  color: #7f858c;
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.chat-window-empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
+/* .chat-messages는 grid라 .message.advisor(justify-self: end)와 같은 축으로 가운데 정렬한다. */
+.message.system {
+  justify-self: center;
+  max-width: 82%;
+  padding: 4px 12px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #7f858c;
+  font-size: 11.5px;
+  text-align: center;
+}
+
+.message-attachment {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.message-attachment img {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  border-radius: 8px;
+}
+
+.chat-load-more {
+  align-self: center;
+  padding: 4px 12px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  color: #5f6872;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.chat-load-more:hover {
+  border-color: rgba(var(--brand-rgb), 0.34);
+}
+
+.chat-disabled-banner {
+  padding: 6px 4px;
+  color: #7f858c;
+  font-size: 12px;
+}
+
+.chat-assign-select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  color: #4f5a64;
+  font-size: 12px;
+}
+
 .split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
