@@ -48,7 +48,6 @@ export function ChatSessionHeader({ session, staffId, staffOptions, onChanged, o
                   await assignSession(session.id, nextStaffId);
                   onToast("상담원을 배정했습니다.");
                 });
-                event.target.value = "";
               }}
               value=""
             >

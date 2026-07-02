@@ -516,7 +516,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
           )}
         </div>
         <button className={`icon-btn calculator-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} type="button" aria-label="계산기"><CalculatorIcon /></button>
-        <button className={`icon-btn chat-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon /><span className="chat-queue-count num">4</span></button>
+        <button className={`icon-btn chat-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon />{pendingChatCount > 0 && <span className="chat-queue-count num">{pendingChatCount}</span>}</button>
         <button className={`icon-btn quote-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("quotes")} type="button" aria-label="견적 요청 큐"><QuoteQueueIcon /><span className="quote-queue-count num">5</span></button>
         <div className="notifications-wrap" ref={notificationsRef}>
           <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon />{(newAppRequestCount + pendingChatCount) > 0 && <span className="notification-count num">{newAppRequestCount + pendingChatCount}</span>}</button>

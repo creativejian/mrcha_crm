@@ -5164,7 +5164,7 @@ th input:focus-visible {
 }
 
 .chat-load-more {
-  align-self: center;
+  justify-self: center;
   padding: 4px 12px;
   border: 1px solid #dededb;
   border-radius: 6px;

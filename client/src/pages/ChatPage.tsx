@@ -31,7 +31,9 @@ export function ChatPage({ customers, onOpenCustomer, onToast, onRead }: ChatPag
   }, []);
 
   const visible = tab === "all" ? sessions : sessions.filter((session) => session.mode === tab);
-  const active = visible.find((session) => session.id === selectedId) ?? visible[0] ?? null;
+  // 선택 세션은 탭 필터와 독립적으로 유지 — 인수(pending→human) 직후에도 보던 스레드를 지키고,
+  // 미선택 상태에서만 현재 탭의 첫 세션으로 자동 선택한다.
+  const active = (selectedId ? sessions.find((s) => s.id === selectedId) : undefined) ?? visible[0] ?? null;
   const thread = useChatThread(active?.userId ?? null, onToast);
   const matchedCustomer = useMemo(
     () => (active ? customers.find((customer) => customer.appUserId === active.userId) ?? null : null),
@@ -58,6 +60,7 @@ export function ChatPage({ customers, onOpenCustomer, onToast, onRead }: ChatPag
               <ChatSessionHeader onChanged={reload} onToast={onToast} session={active} staffId={staffId} staffOptions={staffOptions} />
               <ChatThread hasMore={thread.hasMore} loadingOlder={thread.loadingOlder} messages={thread.messages} onLoadOlder={thread.loadOlder} />
               <ChatComposer
+                key={active.id}
                 onSend={(message) => staffId ? thread.send({ sessionId: active.id, staffId, message }) : Promise.resolve(false)}
                 session={active}
                 staffId={staffId}
