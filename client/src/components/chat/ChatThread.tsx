@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { parseChatTimestamp, type ChatMessage } from "@/lib/chat";
+import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 
 const BUBBLE_CLASS: Record<ChatMessage["senderKind"], string> = {
   customer: "customer",
@@ -64,7 +65,10 @@ export function ChatThread({ messages, hasMore, loadingOlder, onLoadOlder }: Cha
               />
             </a>
           )}
-          {message.message}
+          {/* 앱 미러: AI 답변만 마크다운 렌더(raw HTML 미허용 = XSS 안전), 나머지는 평문 */}
+          {message.senderKind === "ai"
+            ? <MarkdownMessage content={message.message} />
+            : <span className="message-text">{message.message}</span>}
           {message.senderKind !== "system" && <small>{SENDER_LABEL[message.senderKind]} · {timeLabel(message.createdAt)}</small>}
         </div>
       ))}
