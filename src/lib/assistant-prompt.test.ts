@@ -19,7 +19,8 @@ test("buildUserPrompt: 질문 + 근거 블록 포함", () => {
   expect(p).toContain("[1]");
 });
 
-test("SYSTEM_PROMPT: 근거 기반·모르면 모른다 지침 포함", () => {
+test("SYSTEM_PROMPT: 근거 기반·모르면 모른다·평문 지침 포함", () => {
   expect(SYSTEM_PROMPT).toContain("근거");
   expect(SYSTEM_PROMPT).toContain("찾지 못");
+  expect(SYSTEM_PROMPT).toContain("마크다운");
 });
