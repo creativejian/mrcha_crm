@@ -10,4 +10,5 @@ CREATE TABLE "crm"."embeddings" (
 	CONSTRAINT "embeddings_source_uq" UNIQUE("source_type","source_id"),
 	CONSTRAINT "embeddings_source_type_check" CHECK ("crm"."embeddings"."source_type" IS NULL OR "crm"."embeddings"."source_type" IN ('memo', 'task', 'need_memo', 'need_customer_note', 'need_review_note', 'consultation'))
 );
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "embeddings_hnsw_idx" ON "crm"."embeddings" USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops);

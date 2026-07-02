@@ -42,6 +42,7 @@ const ENTRY_MODES = ["manual", "solution", "original"];
 const APP_STATUSES = ["draft", "queued", "sent", "viewed"];
 const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"];
 const ACQ_TAX_MODES = ["normal", "hybrid", "electric", "manual"];
+const EMBEDDING_SOURCE_TYPES = ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation"];
 
 // nullable 컬럼 IN CHECK(기존 null 보존). 값=코드 상수 SSOT에서 sql.join. 종속(그룹-상태)은 앱 검증.
 // 값은 sql.raw로 리터럴 inline(마이그에 박제). param(`sql`${v}``)이면 $1 placeholder로 새 나가 깨짐.
@@ -270,13 +271,14 @@ export const embeddings = crm.table("embeddings", {
   id: uuid("id").defaultRandom().primaryKey(),
   sourceType: text("source_type").notNull(), // memo|task|need_memo|need_customer_note|need_review_note|consultation
   sourceId: uuid("source_id").notNull(),      // 원본 행 id (need_*는 customer_id)
-  customerId: uuid("customer_id").notNull(),  // scope 필터·고객 메타 조인
+  customerId: uuid("customer_id")             // scope 필터·고객 메타 조인
+    .notNull()
+    .references(() => customers.id, { onDelete: "cascade" }),
   content: text("content").notNull(),         // 임베딩한 원문 스냅샷(경량 컨텍스트 포함)
   contentHash: text("content_hash").notNull(),// 변경 없으면 재임베딩 skip
   embedding: vector3072("embedding").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   unique("embeddings_source_uq").on(t.sourceType, t.sourceId),
-  check("embeddings_source_type_check", inListCheck(t.sourceType,
-    ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation"])),
+  check("embeddings_source_type_check", inListCheck(t.sourceType, EMBEDDING_SOURCE_TYPES)),
 ]);

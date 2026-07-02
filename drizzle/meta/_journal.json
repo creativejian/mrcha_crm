@@ -92,6 +92,13 @@
       "when": 1782954480576,
       "tag": "0012_serious_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782955066639,
+      "tag": "0013_misty_jocasta",
+      "breakpoints": true
     }
   ]
 }
