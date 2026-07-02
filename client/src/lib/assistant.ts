@@ -9,7 +9,8 @@ export async function askAssistant(question: string): Promise<AssistantAnswer> {
   return sendJson<AssistantAnswer>("/api/assistant/ask", "POST", { question });
 }
 
-// 본인 최근 대화 히스토리(패널 진입 시).
-export async function fetchAssistantMessages(): Promise<AssistantMessage[]> {
-  return getJson<AssistantMessage[]>("/api/assistant/messages");
+// 본인 최근 대화 히스토리(패널 진입 시). cursor 지정 시 그 이전(older) 30건을 오름차순으로 반환.
+export async function fetchAssistantMessages(before?: { createdAt: string; id: string }): Promise<AssistantMessage[]> {
+  const q = before ? `?before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : "";
+  return getJson<AssistantMessage[]>(`/api/assistant/messages${q}`);
 }

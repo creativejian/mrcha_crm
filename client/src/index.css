@@ -16911,3 +16911,7 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .work-ai-message.assistant .md-body p { margin: 4px 0; color: #2b2f36; }
 /* 마크다운 인라인 볼드가 레거시 .work-ai-message strong{display:block}에 걸려 줄바꿈되던 것 해제 */
 .work-ai-message.assistant .md-body strong { display: inline; margin: 0; font-size: inherit; font-weight: 600; }
+
+/* AI(assistant) 답변은 앱처럼 박스 없이 인라인 full-width. user 버블은 유지. */
+.work-ai-message.assistant { max-width: 100%; border: none; background: transparent; border-radius: 0; padding: 6px 0; }
+.work-ai-load-older { display: flex; justify-content: center; padding: 4px 0; }

@@ -25,4 +25,8 @@ describe("assistant client", () => {
     expect(getJson).toHaveBeenCalledWith("/api/assistant/messages");
     expect(rows[0].content).toBe("q");
   });
+  it("fetchAssistantMessages(cursor): before/beforeId 쿼리 포함", async () => {
+    await fetchAssistantMessages({ createdAt: "2026-07-02T00:00:00.000Z", id: "abc" });
+    expect(getJson).toHaveBeenCalledWith(expect.stringContaining("before=2026-07-02T00%3A00%3A00.000Z"));
+  });
 });
