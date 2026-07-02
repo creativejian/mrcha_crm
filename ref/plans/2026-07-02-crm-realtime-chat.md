@@ -1507,6 +1507,7 @@ Expected: 모두 green, lint 0 problems.
 2. 세션 선택 → 히스토리 로드(과거 AI 대화 포함), "이전 메시지 더 보기" 동작(메시지 많은 유저).
 3. 첨부 이미지 있는 메시지 렌더 확인(quote_attachments public URL).
 4. AI 모드 세션에서 composer 비활성 배너 "AI 상담 모드입니다." 확인.
+5. 메시지 50건 초과 유저에서 "이전 메시지 더 보기" 실동작(커서 or 필터 실 PostgREST 통과) 확인.
 
 - [ ] **Step 3: 앱 크로스 스모크** (Flutter 시뮬레이터 `/Users/tobedoit/Documents/Flutter/mr-cha-app` + CRM 동시)
 
@@ -1516,6 +1517,7 @@ Expected: 모두 green, lint 0 problems.
 4. "AI에게 반환" → 앱에 "상담원이 퇴장했습니다…" 수신, 이후 고객 질문에 AI 재응답.
 5. 배정 select로 타 상담원 배정 → 큐 항목 담당 표시 갱신(고객 화면 무변화).
 6. 두 브라우저 창으로 동시 "채팅 시작" → 한쪽만 성공, 다른 쪽 "이미 다른 상담원이 인수했습니다." 토스트.
+7. Realtime로 수신된 신규 메시지가 기존 히스토리와 올바른 시간순 위치에 정렬되는지 확인(직렬화 포맷 차이).
 
 - [ ] **Step 4: 결과 기록**
 

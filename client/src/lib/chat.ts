@@ -112,13 +112,22 @@ export function waitingLabel(sinceIso: string, now: Date): string {
   return `${Math.floor(hours / 24)}일 대기`;
 }
 
-// Realtime echo/낙관 반영 병합: id dedupe(교체) + created_at→id 오름차순.
+// timestamptz 직렬화 편차 흡수: REST(PostgREST)='T'+'+00:00', Realtime(wal2json)=' '+'+00' 케이스 보고됨.
+// 커서(fetchChatMessages before)는 원시 문자열을 유지해야 하므로(마이크로초 정밀도) 여기서만 파싱한다.
+function toEpoch(ts: string): number {
+  const t = ts.replace(" ", "T");
+  return new Date(/[+-]\d{2}$/.test(t) ? `${t}:00` : t).getTime();
+}
+
+// Realtime echo/낙관 반영 병합: id dedupe(교체) + 시각→id 오름차순.
 export function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
   const byId = new Map(current.map((m) => [m.id, m]));
   for (const m of incoming) byId.set(m.id, m);
-  return [...byId.values()].sort((a, b) =>
-    a.createdAt === b.createdAt ? (a.id < b.id ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1,
-  );
+  return [...byId.values()].sort((a, b) => {
+    const diff = toEpoch(a.createdAt) - toEpoch(b.createdAt);
+    if (diff !== 0) return diff;
+    return a.id < b.id ? -1 : 1;
+  });
 }
 
 // ── supabase 데이터 접근 (staff JWT + RLS. 앱 admin 섹션 미러) ─────────────────
@@ -152,8 +161,9 @@ export async function fetchChatMessages(
     .order("id", { ascending: false })
     .limit(CHAT_PAGE_SIZE);
   if (before) {
+    // PostgREST or() 값에 콜론 포함 timestamp는 큰따옴표 quoting 필요.
     query = query.or(
-      `created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`,
+      `created_at.lt."${before.createdAt}",and(created_at.eq."${before.createdAt}",id.lt.${before.id})`,
     );
   }
   const { data, error } = await query;
@@ -161,7 +171,7 @@ export async function fetchChatMessages(
   return ((data ?? []) as ChatMessageRow[]).map(toChatMessage).reverse();
 }
 
-// 현재 로그인 staff의 profiles.id(=auth uid). JWT claims라 네트워크 왕복 없음.
+// 현재 로그인 staff의 profiles.id(=auth uid). JWT claims 기반(로컬 세션 토큰에서 읽음).
 export async function getStaffId(): Promise<string> {
   const { data } = await supabase.auth.getClaims();
   const sub = data?.claims?.sub;
@@ -175,7 +185,7 @@ export type StaffOption = { id: string; name: string };
 export async function fetchStaffOptions(): Promise<StaffOption[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, role")
+    .select("id, full_name")
     .in("role", ["staff", "manager", "admin"]);
   if (error) throw error;
   return ((data ?? []) as { id: string; full_name: string | null }[]).map((row) => ({
@@ -184,7 +194,8 @@ export async function fetchStaffOptions(): Promise<StaffOption[]> {
   }));
 }
 
-// 앱 insertSystemMessage 미러: staff_id 없음(supabase_chat_repository.dart:255-271).
+// 앱 insertSystemMessage 미러: staff_id 없음 + 실패는 삼킨다(상태 전이를 무르지 않음 —
+// supabase_chat_repository.dart:255-271 try/catch와 동일. 실패 시 안내줄만 누락되고 Realtime 세션 상태가 진실).
 async function insertSystemMessage(userId: string, sessionId: string, message: string): Promise<void> {
   const { error } = await supabase.from("chat_messages").insert({
     user_id: userId,
@@ -193,7 +204,7 @@ async function insertSystemMessage(userId: string, sessionId: string, message: s
     is_user: false,
     sender_type: "system",
   });
-  if (error) throw error;
+  if (error) console.error("system 메시지 기록 실패:", error);
 }
 
 // 배정만(목업 "지안에게 배정") — mode 유지, 고객 화면 무변화. CRM 고유(앱에는 없는 흐름).

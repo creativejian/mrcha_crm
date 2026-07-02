@@ -94,4 +94,9 @@ describe("mergeMessages", () => {
     const merged = mergeMessages([m("y", "2026-07-02T10:00:00+00:00")], [m("x", "2026-07-02T10:00:00+00:00")]);
     expect(merged.map((v) => v.id)).toEqual(["x", "y"]);
   });
+  it("REST(T·+00:00)와 Realtime(스페이스·+00) 포맷이 섞여도 시간순 정렬한다", () => {
+    const rest = m("a", "2026-07-02T10:00:00+00:00");
+    const realtime = m("b", "2026-07-02 10:01:00+00");
+    expect(mergeMessages([rest], [realtime]).map((v) => v.id)).toEqual(["a", "b"]);
+  });
 });

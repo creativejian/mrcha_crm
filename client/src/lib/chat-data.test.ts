@@ -110,7 +110,7 @@ describe("fetchChatMessages", () => {
     const q = enqueue("chat_messages", { data: [], error: null });
     await fetchChatMessages("u1", { createdAt: "2026-07-02T09:00:00+00:00", id: "m0" });
     expect(q.argOf("or")).toBe(
-      "created_at.lt.2026-07-02T09:00:00+00:00,and(created_at.eq.2026-07-02T09:00:00+00:00,id.lt.m0)",
+      'created_at.lt."2026-07-02T09:00:00+00:00",and(created_at.eq."2026-07-02T09:00:00+00:00",id.lt.m0)',
     );
   });
 });
@@ -149,6 +149,12 @@ describe("takeOverSession", () => {
     const ok = await takeOverSession({ id: "s1", userId: "u1" }, "staff-1");
     expect(ok).toBe(false);
     expect(queue).toHaveLength(0); // chat_messages from() 호출 안 함
+  });
+  it("system 메시지 실패는 인수를 무르지 않는다(앱 미러)", async () => {
+    enqueue("chat_sessions", { data: [sessionRow], error: null });
+    enqueue("chat_messages", { data: null, error: { message: "network" } });
+    const ok = await takeOverSession({ id: "s1", userId: "u1" }, "staff-1");
+    expect(ok).toBe(true);
   });
 });
 
