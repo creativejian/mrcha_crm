@@ -1,8 +1,10 @@
 import { Maximize2, Send, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DoubleBounceDots } from "@/components/ai/DoubleBounceDots";
+import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { initialCustomers, type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
-import { askAssistant, type AssistantAnswer } from "@/lib/assistant";
+import { askAssistant, fetchAssistantMessages, type AssistantAnswer, type AssistantMessage } from "@/lib/assistant";
 import { signOut } from "@/lib/auth";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
@@ -138,6 +140,17 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const [aiInput, setAiInput] = useState("");
   const [aiTurns, setAiTurns] = useState<{ question: string; answer: AssistantAnswer | null; error?: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiHistory, setAiHistory] = useState<AssistantMessage[]>([]);
+  const [aiHistoryLoaded, setAiHistoryLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!workAiOpen || aiHistoryLoaded) return;
+    let alive = true;
+    void fetchAssistantMessages()
+      .then((rows) => { if (alive) { setAiHistory(rows); setAiHistoryLoaded(true); } })
+      .catch(() => { if (alive) setAiHistoryLoaded(true); });
+    return () => { alive = false; };
+  }, [workAiOpen, aiHistoryLoaded]);
 
   async function submitAiQuestion() {
     const question = aiInput.trim();
@@ -147,7 +160,8 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
     setAiLoading(true);
     try {
       const res = await askAssistant(question);
-      setAiTurns((cur) => cur.map((t, i) => (i === cur.length - 1 ? { ...t, answer: res } : t)));
+      setAiHistory((cur) => [...cur, ...res.messages]);
+      setAiTurns((cur) => cur.filter((t) => t.question !== question)); // 낙관적 turn 제거(영속본으로 대체)
     } catch (e) {
       const message = e instanceof Error ? e.message : "일시적으로 답변에 실패했습니다.";
       setAiTurns((cur) => cur.map((t, i) => (i === cur.length - 1 ? { ...t, error: message } : t)));
@@ -458,21 +472,21 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                       ))}
                     </div>
                   </div>
+                  {aiHistory.map((m) => (
+                    <div className={`work-ai-message ${m.role}`} key={m.id}>
+                      {m.role === "assistant" ? <MarkdownMessage content={m.content} /> : <p>{m.content}</p>}
+                      {m.role === "assistant" && m.sources && m.sources.length > 0 && (
+                        <ul className="work-ai-sources">
+                          {m.sources.map((s, j) => <li key={j}>{s.customerName} · {s.snippet}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
                   {aiTurns.map((turn, i) => (
-                    <div key={i}>
+                    <div key={`t${i}`}>
                       <div className="work-ai-message user"><p>{turn.question}</p></div>
                       <div className="work-ai-message assistant">
-                        {turn.error ? <p className="work-ai-error">{turn.error}</p>
-                          : turn.answer ? (
-                            <>
-                              <p>{turn.answer.answer}</p>
-                              {turn.answer.sources.length > 0 && (
-                                <ul className="work-ai-sources">
-                                  {turn.answer.sources.map((s, j) => <li key={j}>{s.customerName} · {s.snippet}</li>)}
-                                </ul>
-                              )}
-                            </>
-                          ) : <p className="work-ai-thinking">생각 중…</p>}
+                        {turn.error ? <p className="work-ai-error">{turn.error}</p> : <DoubleBounceDots />}
                       </div>
                     </div>
                   ))}
