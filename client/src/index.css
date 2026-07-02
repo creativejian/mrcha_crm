@@ -5091,26 +5091,40 @@ th input:focus-visible {
   background: #fafafa;
 }
 
-/* 말풍선은 내용 폭 기준 + 최대 폭 제한(짧은 메시지가 grid 컬럼 풀폭으로 늘어지지 않게) */
-.message {
+/* 보낸이 라벨(버블 밖 위) + 버블 묶음. 정렬 축은 그룹이 담당(고객=좌, AI/상담원=우 — 앱 미러). */
+.message-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   width: fit-content;
   max-width: 78%;
   justify-self: start;
+}
+
+.message-group.ai,
+.message-group.advisor {
+  justify-self: end;
+  align-items: flex-end;
+}
+
+.message-sender {
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* 말풍선은 내용 폭 기준(그룹 안에서 수축) */
+.message {
+  width: fit-content;
+  max-width: 100%;
   border-radius: 12px;
   padding: 12px;
   font-size: 13px;
   line-height: 1.5;
 }
 
-.message small {
-  display: block;
-  margin-top: 6px;
-  color: var(--muted);
-}
-
 .message.ai {
   background: #eef2f7;
-  justify-self: end; /* 앱 미러: AI 응답은 우측(고객=좌, 응답=우) */
 }
 
 .message.customer {
@@ -5119,7 +5133,6 @@ th input:focus-visible {
 }
 
 .message.advisor {
-  justify-self: end;
   background: #111;
   color: #fff;
 }
@@ -5150,7 +5163,7 @@ th input:focus-visible {
   min-height: 240px;
 }
 
-/* .chat-messages는 grid라 .message.advisor(justify-self: end)와 같은 축으로 가운데 정렬한다. */
+/* system은 그룹 없이 grid 직속 — 가운데 정렬 */
 .message.system {
   justify-self: center;
   max-width: 82%;
@@ -5267,29 +5280,62 @@ th input:focus-visible {
   font-size: 12px;
 }
 
-/* 타이핑 인디케이터: 스크롤 리스트 밖, 입력창 바로 위(앱 배치 미러). .message.customer 계열 축소판 */
+/* 타이핑 인디케이터: 스크롤 리스트 밖, 입력창 바로 위(앱 배치 미러).
+   카카오식 — 이름 라벨 위 + 점 3개 시차 바운스 말풍선(.message.customer 톤). */
 .chat-typing-row {
   display: flex;
+  flex-direction: column;
   flex-shrink: 0;
-  align-items: center;
-  gap: 8px;
+  gap: 4px;
   width: fit-content;
-  margin: 6px 16px 0;
-  padding: 6px 12px;
+  margin: 6px 16px 8px;
+}
+
+.chat-typing-label {
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.chat-typing-bubble {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 13px 14px;
   border: 1px solid var(--line-soft);
   border-radius: 12px;
   background: #fff;
 }
 
-.chat-typing-label {
-  color: var(--muted);
-  font-size: 11.5px;
+.chat-typing-bubble .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand);
+  opacity: 0.55;
+  animation: chat-typing-bounce 1.2s ease-in-out infinite;
 }
 
-/* db-dots 기본 20px는 업무 AI 팝오버 기준이라 타이핑 행에선 축소 */
-.chat-typing-row .db-dots {
-  width: 14px;
-  height: 14px;
+.chat-typing-bubble .dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-typing-bubble .dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes chat-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
 }
 
 .chat-assign-select {

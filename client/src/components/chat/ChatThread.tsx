@@ -8,12 +8,6 @@ const BUBBLE_CLASS: Record<ChatMessage["senderKind"], string> = {
   staff: "advisor",
   system: "system",
 };
-const SENDER_LABEL: Record<ChatMessage["senderKind"], string> = {
-  customer: "고객",
-  ai: "AI",
-  staff: "상담원",
-  system: "",
-};
 
 function timeLabel(iso: string): string {
   const d = parseChatTimestamp(iso); // REST/Realtime 직렬화 편차 + JSC(Safari) NaN 안전 파싱
@@ -23,12 +17,18 @@ function timeLabel(iso: string): string {
 
 type ChatThreadProps = {
   messages: ChatMessage[];
+  customerLabel: string; // 고객명(profiles.full_name) 있으면 이름, 없으면 "고객"
   hasMore: boolean;
   loadingOlder: boolean;
   onLoadOlder: () => void;
 };
 
-export function ChatThread({ messages, hasMore, loadingOlder, onLoadOlder }: ChatThreadProps) {
+export function ChatThread({ messages, customerLabel, hasMore, loadingOlder, onLoadOlder }: ChatThreadProps) {
+  const senderLabel: Record<Exclude<ChatMessage["senderKind"], "system">, string> = {
+    customer: customerLabel,
+    ai: "AI",
+    staff: "상담원",
+  };
   const listRef = useRef<HTMLDivElement>(null);
   const lastIdRef = useRef<string | null>(null);
   const prevHeightRef = useRef(0);
@@ -54,24 +54,33 @@ export function ChatThread({ messages, hasMore, loadingOlder, onLoadOlder }: Cha
           {loadingOlder ? "불러오는 중…" : "이전 메시지 더 보기"}
         </button>
       )}
-      {messages.map((message) => (
-        <div className={`message ${BUBBLE_CLASS[message.senderKind]}`} key={message.id}>
-          {message.attachmentUrl && (
-            <a className="message-attachment" href={message.attachmentUrl} rel="noreferrer" target="_blank">
-              <img
-                alt="첨부 이미지"
-                src={message.attachmentUrl}
-                style={message.attachmentWidth && message.attachmentHeight ? { aspectRatio: `${message.attachmentWidth} / ${message.attachmentHeight}` } : undefined}
-              />
-            </a>
-          )}
-          {/* 앱 미러: AI 답변만 마크다운 렌더(raw HTML 미허용 = XSS 안전), 나머지는 평문 */}
-          {message.senderKind === "ai"
-            ? <MarkdownMessage content={message.message} />
-            : <span className="message-text">{message.message}</span>}
-          {message.senderKind !== "system" && <small>{SENDER_LABEL[message.senderKind]} · {timeLabel(message.createdAt)}</small>}
-        </div>
-      ))}
+      {messages.map((message) =>
+        message.senderKind === "system" ? (
+          <div className="message system" key={message.id}>
+            <span className="message-text">{message.message}</span>
+          </div>
+        ) : (
+          /* 앱 미러: 보낸이 라벨은 버블 밖 위, 버블 안엔 본문만 */
+          <div className={`message-group ${BUBBLE_CLASS[message.senderKind]}`} key={message.id}>
+            <small className="message-sender">{senderLabel[message.senderKind]} · {timeLabel(message.createdAt)}</small>
+            <div className={`message ${BUBBLE_CLASS[message.senderKind]}`}>
+              {message.attachmentUrl && (
+                <a className="message-attachment" href={message.attachmentUrl} rel="noreferrer" target="_blank">
+                  <img
+                    alt="첨부 이미지"
+                    src={message.attachmentUrl}
+                    style={message.attachmentWidth && message.attachmentHeight ? { aspectRatio: `${message.attachmentWidth} / ${message.attachmentHeight}` } : undefined}
+                  />
+                </a>
+              )}
+              {/* AI 답변만 마크다운 렌더(raw HTML 미허용 = XSS 안전), 나머지는 평문 */}
+              {message.senderKind === "ai"
+                ? <MarkdownMessage content={message.message} />
+                : <span className="message-text">{message.message}</span>}
+            </div>
+          </div>
+        ),
+      )}
     </div>
   );
 }
