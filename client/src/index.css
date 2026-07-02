@@ -5110,6 +5110,7 @@ th input:focus-visible {
 
 .message.ai {
   background: #eef2f7;
+  justify-self: end; /* 앱 미러: AI 응답은 우측(고객=좌, 응답=우) */
 }
 
 .message.customer {
