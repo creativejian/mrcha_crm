@@ -11,6 +11,8 @@ import {
   bigint,
   date,
   check,
+  customType,
+  unique,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -253,3 +255,28 @@ export const quoteScenarios = crm.table("quote_scenarios", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [check("quote_scenarios_purchase_method_check", inListCheck(t.purchaseMethod, PURCHASE_METHOD_OPTIONS))]);
+
+// ── RAG 임베딩 (업무 AI 채팅) ─────────────────────────────────────────────────
+// pgvector 3072차원. gemini-embedding-001 네이티브. 앱 관례(public.*.embedding vector(3072))와 동일.
+// toDriver: number[] → '[a,b,c]' 문자열(pgvector 입력 포맷). fromDriver: 그 역.
+const vector3072 = customType<{ data: number[]; driverData: string }>({
+  dataType() { return "vector(3072)"; },
+  toDriver(value) { return `[${value.join(",")}]`; },
+  fromDriver(value) { return JSON.parse(value) as number[]; },
+});
+
+// RAG 코퍼스 임베딩 스토어. 청크 1행 = 메모/할일/니즈메모/상담이력 하나.
+export const embeddings = crm.table("embeddings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sourceType: text("source_type").notNull(), // memo|task|need_memo|need_customer_note|need_review_note|consultation
+  sourceId: uuid("source_id").notNull(),      // 원본 행 id (need_*는 customer_id)
+  customerId: uuid("customer_id").notNull(),  // scope 필터·고객 메타 조인
+  content: text("content").notNull(),         // 임베딩한 원문 스냅샷(경량 컨텍스트 포함)
+  contentHash: text("content_hash").notNull(),// 변경 없으면 재임베딩 skip
+  embedding: vector3072("embedding").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  unique("embeddings_source_uq").on(t.sourceType, t.sourceId),
+  check("embeddings_source_type_check", inListCheck(t.sourceType,
+    ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation"])),
+]);

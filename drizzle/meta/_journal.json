@@ -85,6 +85,13 @@
       "when": 1782903478787,
       "tag": "0011_absurd_wendell_rand",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782954480576,
+      "tag": "0012_serious_swordsman",
+      "breakpoints": true
     }
   ]
 }
