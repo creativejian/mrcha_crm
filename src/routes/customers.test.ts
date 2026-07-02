@@ -126,6 +126,38 @@ test("PATCH /api/customers/:id 같은 값 비파괴 → 200", async () => {
   expect(res.status).toBe(200);
 });
 
+test("담당자 배정: 변경 시에만 assigned_at 스탬프, 동일 재저장 유지, 해제(null)면 null", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const db = getDefaultDb();
+  const [orig] = await db
+    .select({ id: customers.id, advisorName: customers.advisorName, team: customers.team, assignedAt: customers.assignedAt })
+    .from(customers)
+    .limit(1);
+  try {
+    // 새 담당자 배정 → assigned_at 스탬프.
+    expect((await app.request(`/api/customers/${orig.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ advisorName: "테스트담당A", team: "인천본사" }) })).status).toBe(200);
+    const [assigned] = await db.select({ advisorName: customers.advisorName, assignedAt: customers.assignedAt }).from(customers).where(eq(customers.id, orig.id));
+    expect(assigned.advisorName).toBe("테스트담당A");
+    expect(assigned.assignedAt).not.toBeNull();
+
+    // 동일 담당자 재저장(팀만 변경) → assigned_at 유지(SLA '배정 후 N분' 리셋 금지).
+    expect((await app.request(`/api/customers/${orig.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ advisorName: "테스트담당A", team: "서울지사" }) })).status).toBe(200);
+    const [resaved] = await db.select({ assignedAt: customers.assignedAt }).from(customers).where(eq(customers.id, orig.id));
+    expect(resaved.assignedAt?.getTime()).toBe(assigned.assignedAt?.getTime());
+
+    // 배정 해제(null) → advisor_name·assigned_at 모두 null(미배정 고객에 배정시각 잔존 금지).
+    expect((await app.request(`/api/customers/${orig.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ advisorName: null }) })).status).toBe(200);
+    const [cleared] = await db.select({ advisorName: customers.advisorName, assignedAt: customers.assignedAt }).from(customers).where(eq(customers.id, orig.id));
+    expect(cleared.advisorName).toBeNull();
+    expect(cleared.assignedAt).toBeNull();
+  } finally {
+    // 공유 master DB — 원래 배정 상태로 복원.
+    await db.update(customers).set({ advisorName: orig.advisorName, team: orig.team, assignedAt: orig.assignedAt }).where(eq(customers.id, orig.id));
+  }
+});
+
 test("자식 CRUD: 메모 POST→PATCH→DELETE 라운드트립", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });

@@ -41,6 +41,11 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
 
   const documentDeleteRef = useRef<HTMLDivElement>(null);
   const documentBodyRef = useRef<HTMLDivElement>(null);
+  // '분류 중…' 임시 행의 사용자 액션은 비동기 분류→업로드 파이프라인과 경합한다.
+  // - manualDocTypesRef: temp 행에서 사용자가 고른 분류. AI 결과가 덮어쓰지 않고, 업로드/사후 PATCH가 이 값을 쓴다.
+  // - removedTempIdsRef: 파이프라인 완료 전 삭제된 temp 행. 업로드를 취소하거나(분류 중) 보상 삭제한다(업로드 중).
+  const manualDocTypesRef = useRef(new Map<string, string>());
+  const removedTempIdsRef = useRef(new Set<string>());
 
   const receivedDocumentCount = documents.length;
   const previewDocument = documents.find((documentItem) => documentItem.id === previewDocumentId) ?? null;
@@ -121,15 +126,41 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
         setDocuments((current) => [...current, optimistic]);
 
         // vision 분류(실패·unknown이면 lib이 파일명 regex로 폴백 → 항상 유효한 22종).
-        const docType = await classifyDocumentWithAI(file);
-        setDocuments((current) =>
-          current.map((d) => (d.id === tempId ? { ...d, title: docType, status: "AI분류" } : d)),
-        );
+        const classified = await classifyDocumentWithAI(file);
+        if (removedTempIdsRef.current.has(tempId)) {
+          // 분류 대기 중 삭제됨 — 업로드 자체를 취소(유령 문서 방지).
+          removedTempIdsRef.current.delete(tempId);
+          manualDocTypesRef.current.delete(tempId);
+          return;
+        }
+        const manualDocType = manualDocTypesRef.current.get(tempId);
+        const docType = manualDocType ?? classified.docType;
+        if (manualDocType === undefined) {
+          // 폴백(regex) 분류를 'AI분류'로 표기하면 AI 경로 장애가 은폐된다 — 기존 '자동인식' 배지로 구분.
+          setDocuments((current) =>
+            current.map((d) => (d.id === tempId ? { ...d, title: classified.docType, status: classified.source === "ai" ? "AI분류" : "자동인식" } : d)),
+          );
+        }
 
         try {
           const saved = await uploadDocument(detail.id, file, docType);
+          if (removedTempIdsRef.current.has(tempId)) {
+            // 업로드 진행 중 삭제됨 — 이미 저장된 서버 행을 보상 삭제.
+            removedTempIdsRef.current.delete(tempId);
+            manualDocTypesRef.current.delete(tempId);
+            void deleteDocumentApi(detail.id, saved.id).catch(() => onToast("삭제 저장에 실패했습니다."));
+            return;
+          }
+          // 업로드 진행 중 수동 분류가 바뀌었으면(temp id라 PATCH가 생략됨) 서버 값을 맞춘다.
+          const lateManualDocType = manualDocTypesRef.current.get(tempId);
+          if (lateManualDocType !== undefined && lateManualDocType !== docType) {
+            void updateDocumentTypeApi(detail.id, saved.id, lateManualDocType).catch(() => onToast("분류 저장에 실패했습니다."));
+          }
+          manualDocTypesRef.current.delete(tempId);
           setDocuments((current) => current.map((d) => (d.id === tempId ? { ...d, id: saved.id, file: undefined } : d)));
         } catch {
+          manualDocTypesRef.current.delete(tempId);
+          removedTempIdsRef.current.delete(tempId);
           setDocuments((current) => current.filter((d) => d.id !== tempId));
           URL.revokeObjectURL(objectUrl);
           onToast(`${file.name} 업로드에 실패했습니다.`);
@@ -152,7 +183,11 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
   function updateDocumentType(id: string, title: string) {
     setDocuments((current) => current.map((documentItem) => (documentItem.id === id ? { ...documentItem, title, status: "수동분류" } : documentItem)));
     markRecentUpdate("서류함");
-    if (!id.startsWith("kim-")) void updateDocumentTypeApi(detail.id, id, title).catch(() => onToast("분류 저장에 실패했습니다."));
+    if (id.startsWith("kim-")) {
+      manualDocTypesRef.current.set(id, title); // 파이프라인이 이 값을 우선 사용(AI 결과가 덮어쓰지 않음)
+    } else {
+      void updateDocumentTypeApi(detail.id, id, title).catch(() => onToast("분류 저장에 실패했습니다."));
+    }
   }
 
   function clearDocumentRowDrag() {
@@ -241,7 +276,11 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
     setConfirmingDocumentDeleteId(null);
     markRecentUpdate("서류함");
     onToast("서류 항목을 삭제했습니다.");
-    if (!id.startsWith("kim-")) void deleteDocumentApi(detail.id, id).catch(() => onToast("삭제 저장에 실패했습니다."));
+    if (id.startsWith("kim-")) {
+      removedTempIdsRef.current.add(id); // 진행 중 파이프라인이 업로드를 취소/보상 삭제하도록 표시
+    } else {
+      void deleteDocumentApi(detail.id, id).catch(() => onToast("삭제 저장에 실패했습니다."));
+    }
   }
 
   // 다운로드는 signed URL(또는 업로드 직후 objectUrl)을 blob으로 받아 같은 출처에서 내려받는다.

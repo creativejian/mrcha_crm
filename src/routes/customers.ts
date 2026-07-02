@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { getCustomer, getCustomerAppUserId, listCustomers, updateCustomer } from "../db/queries/customers";
+import { getCustomer, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
 import { listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import {
   addMemo, updateMemo, deleteMemo,
@@ -85,8 +85,19 @@ customers.patch(
       const error = validateLookupValue("source", patch.source);
       if (error) return c.json({ error }, 400);
     }
-    // 담당자 배정(advisorName)이 오면 배정시각을 서버에서 자동 기록(클라 시각 신뢰 안 함).
-    const finalPatch = patch.advisorName !== undefined ? { ...patch, assignedAt: new Date() } : patch;
+    // 담당자 배정(advisorName): 배정시각은 서버가 기록(클라 시각 신뢰 안 함).
+    // 담당자가 실제로 바뀔 때만 스탬프 — 동일 담당자 재저장(팀만 변경 등)에 assigned_at을 리셋하면
+    // 목록 '배정 후 N분' SLA가 왜곡된다. 해제(null)면 배정시각도 함께 비운다(미배정+배정시각 모순 방지).
+    let finalPatch: CustomerWritePatch = patch;
+    if (patch.advisorName !== undefined) {
+      if (patch.advisorName === null) {
+        finalPatch = { ...patch, assignedAt: null };
+      } else {
+        const current = await getCustomerAdvisorName(c.req.valid("param").id, c.var.db);
+        if (!current) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+        if (current.advisorName !== patch.advisorName) finalPatch = { ...patch, assignedAt: new Date() };
+      }
+    }
     return run(c, () => updateCustomer(c.req.valid("param").id, finalPatch, c.var.db), "고객을 찾을 수 없습니다.");
   },
 );

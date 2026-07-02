@@ -216,7 +216,8 @@ export function useCustomerWorkflow({
     const nextAdvisor = formatKimAdvisorValue(team, advisor);
     const prevAdvisor = statusValues.advisor;
     const prevAssignedAt = statusValues.assignedAt;
-    setStatusValues((current) => ({ ...current, advisor: nextAdvisor, assignedAt: formatKimAssignmentTime() }));
+    // 배정시각 표시는 담당자가 실제로 바뀔 때만 갱신 — 서버도 동일 담당자 재저장엔 assigned_at을 유지한다.
+    setStatusValues((current) => ({ ...current, advisor: nextAdvisor, assignedAt: current.advisor === nextAdvisor ? current.assignedAt : formatKimAssignmentTime() }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast("담당자 배정 완료");
