@@ -17111,6 +17111,11 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 }
 
 .work-ai-error { color: #c0392b; }
+/* 히스토리 최초 로드 실패 안내 + 재시도(로드 실패가 세션 내 빈 히스토리로 고착되지 않게) */
+.work-ai-history-error { display: flex; align-items: center; gap: 8px; margin: 2px 0; font-size: 12.5px; color: #7f858c; }
+.work-ai-history-error p { margin: 0; }
+.work-ai-history-error button { padding: 2px 8px; border: 1px solid var(--line); border-radius: 5px; background: #fff; font-size: 12px; font-weight: 600; color: var(--brand); cursor: pointer; }
+.work-ai-history-error button:hover { background: #f4f1ff; border-color: var(--brand); }
 .work-ai-sources { margin: 6px 0 0; padding-left: 16px; font-size: 11.5px; color: #5f6872; }
 .work-ai-sources li { margin: 2px 0; }
 

@@ -1,10 +1,8 @@
-import { Maximize2, Send, X } from "lucide-react";
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { DoubleBounceDots } from "@/components/ai/DoubleBounceDots";
-import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AiAssistantPanel } from "@/components/ai/AiAssistantPanel";
+import { useAssistantThread } from "@/components/ai/useAssistantThread";
 import { initialCustomers, type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
-import { askAssistant, fetchAssistantMessages, type AssistantMessage } from "@/lib/assistant";
 import { signOut } from "@/lib/auth";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
@@ -104,14 +102,6 @@ type TopbarProps = {
   pendingChatCount: number;
 };
 
-const quickAiPrompts = [
-  "오늘 내가 먼저 처리할 일 정리해줘",
-  "계약 가능성 높은 고객 순위 뽑아줘",
-  "응답 지연 고객 알려줘",
-  "오늘 견적 보낼 고객 정리해줘",
-  "출고/정산 리스크 찾아줘",
-];
-
 const notificationTabs = ["전체", "긴급", "상담", "견적", "계약/출고", "정산"] as const;
 type NotificationTab = typeof notificationTabs[number];
 
@@ -138,88 +128,13 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const [workAiExpanded, setWorkAiExpanded] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState<NotificationTab>("전체");
-  const [aiInput, setAiInput] = useState("");
-  // 낙관적 turn: 로딩(error 없음) 또는 실패(error). 성공한 답변은 aiHistory(영속본)로만 렌더된다.
-  const [aiTurns, setAiTurns] = useState<{ question: string; error?: string }[]>([]);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiHistory, setAiHistory] = useState<AssistantMessage[]>([]);
-  const [aiHistoryLoaded, setAiHistoryLoaded] = useState(false);
-  const [aiHasMore, setAiHasMore] = useState(true);
-  const [aiLoadingOlder, setAiLoadingOlder] = useState(false);
-  const workAiBodyRef = useRef<HTMLDivElement>(null);
-  const olderLoadedRef = useRef(false); // 직전 갱신이 "이전 메시지 prepend"였는지 — 상단 노출 스크롤용
-  const loadingOlderRef = useRef(false); // 동기 재진입 가드(state는 커밋 지연되어 레이스)
-  const AI_HISTORY_PAGE = 30; // 백엔드 DISPLAY_LIMIT와 일치
-  const OLDER_INDICATOR_MIN_MS = 400; // 빠른 로드에도 로딩 표시가 최소 이 시간은 보이도록
-
+  // 업무 AI 대화 스레드 — 상태는 여기(Topbar) 소유라 팝오버를 닫아도 유지된다. 렌더는 AiAssistantPanel.
+  const aiThread = useAssistantThread();
+  const { ensureHistory: ensureAiHistory } = aiThread;
+  // 팝오버가 열릴 때 히스토리 보장: 최초 1회 로드 + 이전 로드가 실패했으면 재시도(빈 히스토리 영구 고착 방지).
   useEffect(() => {
-    if (!workAiOpen || aiHistoryLoaded) return;
-    let alive = true;
-    void fetchAssistantMessages()
-      .then((rows) => { if (alive) { setAiHistory(rows); setAiHistoryLoaded(true); setAiHasMore(rows.length === AI_HISTORY_PAGE); } })
-      .catch(() => { if (alive) setAiHistoryLoaded(true); });
-    return () => { alive = false; };
-  }, [workAiOpen, aiHistoryLoaded]);
-
-  // 대화 갱신 시 스크롤: 이전 메시지 로드면 그 배치를 상단에 노출, 그 외(진입·새 메시지)엔 최하단.
-  useLayoutEffect(() => {
-    if (!workAiOpen) return;
-    const el = workAiBodyRef.current;
-    if (!el) return;
-    if (olderLoadedRef.current) {
-      olderLoadedRef.current = false;
-      // children: [0]오늘 브리핑 [1]빠른 질문 [2..]히스토리. 맨 앞 히스토리(=새로 불러온 가장 오래된 것)를
-      // 상단에 노출한다. 상단 근접(<40px) 밖에 위치하므로 자동 연쇄 로딩도 안 생긴다.
-      const firstHistory = el.children[2] as HTMLElement | undefined;
-      el.scrollTop = firstHistory ? firstHistory.offsetTop : el.scrollHeight;
-    } else {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [workAiOpen, aiHistory, aiTurns, aiLoading]);
-
-  async function loadOlderMessages() {
-    const el = workAiBodyRef.current;
-    if (!el || loadingOlderRef.current || !aiHasMore || aiHistory.length === 0) return;
-    loadingOlderRef.current = true;
-    setAiLoadingOlder(true);
-    const startedAt = Date.now();
-    try {
-      const oldest = aiHistory[0];
-      const older = await fetchAssistantMessages({ createdAt: oldest.createdAt, id: oldest.id });
-      if (older.length > 0) {
-        olderLoadedRef.current = true; // 로드된 이전 메시지를 상단에 노출
-        setAiHistory((cur) => [...older, ...cur]);
-      }
-      setAiHasMore(older.length === AI_HISTORY_PAGE);
-    } catch {
-      // 실패 시 노출 스크롤 없음
-    } finally {
-      // 로컬 fetch가 매우 빨라도 로딩 표시가 최소 시간은 보이도록(번쩍임 방지).
-      const remaining = OLDER_INDICATOR_MIN_MS - (Date.now() - startedAt);
-      if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
-      loadingOlderRef.current = false;
-      setAiLoadingOlder(false);
-    }
-  }
-
-  async function submitAiQuestion() {
-    const question = aiInput.trim();
-    if (!question || aiLoading) return;
-    setAiInput("");
-    setAiTurns((cur) => [...cur, { question }]);
-    setAiLoading(true);
-    try {
-      const res = await askAssistant(question);
-      setAiHistory((cur) => [...cur, ...res.messages]);
-      setAiTurns((cur) => cur.filter((t) => t.question !== question)); // 낙관적 turn 제거(영속본으로 대체)
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "일시적으로 답변에 실패했습니다.";
-      setAiTurns((cur) => cur.map((t, i) => (i === cur.length - 1 ? { ...t, error: message } : t)));
-    } finally {
-      setAiLoading(false);
-    }
-  }
-  const [selectedPrompt, setSelectedPrompt] = useState(quickAiPrompts[0]);
+    if (workAiOpen) void ensureAiHistory();
+  }, [workAiOpen, ensureAiHistory]);
   const [liveConsulting, setLiveConsulting] = useState(true);
   // 실패한 아바타 URL을 저장한다. URL이 바뀌면(재로그인/사용자 전환) 자동으로 다시 시도한다
   // — 단순 boolean이면 한 번 onError 후 멀쩡한 새 아바타도 계속 기본 아이콘으로 표시된다.
@@ -504,56 +419,13 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                   closeWorkAi();
                 }}
               />
-              <section className={`work-ai-panel ${workAiExpanded ? "expanded" : ""} ${workAiClosing ? "closing" : ""}`} role="dialog" aria-label="업무 AI">
-                <div className="work-ai-head">
-                  <div className="work-ai-title"><strong>업무 AI</strong><small>CRM 데이터를 기준으로 우선순위를 정리합니다.</small></div>
-                  <div className="work-ai-actions"><button className={workAiExpanded ? "active" : ""} onClick={() => setWorkAiExpanded((current) => !current)} type="button" aria-label={workAiExpanded ? "업무 AI 축소" : "업무 AI 확대"} aria-pressed={workAiExpanded}><Maximize2 size={15} /></button><button onClick={closeWorkAi} type="button" aria-label="닫기"><X size={16} /></button></div>
-                </div>
-                <div className="work-ai-body-shell">
-                  {aiLoadingOlder && <div className="work-ai-load-older"><DoubleBounceDots /></div>}
-                  <div className="work-ai-body" ref={workAiBodyRef} onScroll={(event) => { if (event.currentTarget.scrollTop < 40 && aiHasMore && !aiLoadingOlder) void loadOlderMessages(); }}>
-                  <div className="work-ai-message assistant">
-                    <strong>오늘 브리핑</strong>
-                    <p>궁금한 업무를 물어보면 CRM 데이터(메모·상담·니즈)를 근거로 답합니다.</p>
-                  </div>
-                  <div className="work-ai-quick">
-                    <span>빠른 질문</span>
-                    <div>
-                      {quickAiPrompts.map((prompt) => (
-                        <button className={selectedPrompt === prompt ? "active" : ""} key={prompt} onClick={() => { setSelectedPrompt(prompt); setAiInput(prompt); }} type="button">{prompt}</button>
-                      ))}
-                    </div>
-                  </div>
-                  {aiHistory.map((m) => (
-                    <div className={`work-ai-message ${m.role}`} key={m.id}>
-                      {m.role === "assistant" ? <MarkdownMessage content={m.content} /> : <p>{m.content}</p>}
-                      {m.role === "assistant" && m.sources && m.sources.length > 0 && (
-                        <ul className="work-ai-sources">
-                          {m.sources.map((s, j) => <li key={j}>{s.customerName} · {s.snippet}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                  {aiTurns.map((turn, i) => (
-                    <Fragment key={`t${i}`}>
-                      <div className="work-ai-message user"><p>{turn.question}</p></div>
-                      <div className="work-ai-message assistant">
-                        {turn.error ? <p className="work-ai-error">{turn.error}</p> : <DoubleBounceDots />}
-                      </div>
-                    </Fragment>
-                  ))}
-                  </div>
-                </div>
-                <div className="work-ai-compose">
-                  <input
-                    value={aiInput}
-                    onChange={(event) => setAiInput(event.target.value)}
-                    onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); void submitAiQuestion(); } }}
-                    placeholder="업무 AI에게 물어보기"
-                  />
-                  <button type="button" aria-label="보내기" disabled={aiLoading} onClick={() => void submitAiQuestion()}><Send size={16} /></button>
-                </div>
-              </section>
+              <AiAssistantPanel
+                closing={workAiClosing}
+                expanded={workAiExpanded}
+                onClose={closeWorkAi}
+                onToggleExpand={() => setWorkAiExpanded((current) => !current)}
+                thread={aiThread}
+              />
             </>
           )}
         </div>
