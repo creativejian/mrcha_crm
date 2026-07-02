@@ -15234,6 +15234,7 @@ body.kim-detail-overlay-open .customer-detail-drawer {
   min-height: 560px;
   max-height: 560px;
   overflow: auto;
+  overscroll-behavior: contain; /* 스크롤 끝에서 뒤 배경으로 스크롤 전파(chaining) 차단 */
   display: grid;
   gap: 12px;
   padding: 14px;
