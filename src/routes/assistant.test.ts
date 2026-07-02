@@ -48,3 +48,17 @@ test("POST /api/assistant/ask → 200 {answer, sources}", async () => {
   expect(json.answer).toBe("테스트 답변");
   expect(json.sources.length).toBe(1);
 });
+
+test("POST /api/assistant/ask Gemini 실패 → 500 한국어 메시지", async () => {
+  assistantDeps.embedTexts = async () => { throw new Error("boom"); };
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ question: "누가 급해?" }),
+  });
+  expect(res.status).toBe(500);
+  const json = (await res.json()) as { error: string };
+  expect(json.error).toBe("일시적으로 답변에 실패했습니다.");
+});

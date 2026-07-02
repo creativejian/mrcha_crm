@@ -32,24 +32,29 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
   const apiKey = (c.env as { GEMINI_API_KEY?: string } | undefined)?.GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
   if (!apiKey) return c.json({ error: "서버 설정 오류입니다. 관리자에게 문의하세요." }, 500);
 
-  const scope = resolveCustomerScope(c.var.user);
-  const [queryVec] = await assistantDeps.embedTexts([question], apiKey, "RETRIEVAL_QUERY");
-  const hits = await assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db);
-  if (hits.length === 0) return c.json({ answer: "관련 CRM 데이터를 찾지 못했습니다.", sources: [] });
+  try {
+    const scope = resolveCustomerScope(c.var.user);
+    const [queryVec] = await assistantDeps.embedTexts([question], apiKey, "RETRIEVAL_QUERY");
+    const hits = await assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db);
+    if (hits.length === 0) return c.json({ answer: "관련 CRM 데이터를 찾지 못했습니다.", sources: [] });
 
-  const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
-  const promptChunks = hits.map((h) => ({
-    customerName: metaById.get(h.customerId)?.name ?? "고객",
-    customerStatus: metaById.get(h.customerId)?.status ?? "",
-    content: h.content,
-  }));
-  const answer = await assistantDeps.generateAnswer(SYSTEM_PROMPT, buildUserPrompt(question, buildContextBlock(promptChunks)), apiKey);
+    const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
+    const promptChunks = hits.map((h) => ({
+      customerName: metaById.get(h.customerId)?.name ?? "고객",
+      customerStatus: metaById.get(h.customerId)?.status ?? "",
+      content: h.content,
+    }));
+    const answer = await assistantDeps.generateAnswer(SYSTEM_PROMPT, buildUserPrompt(question, buildContextBlock(promptChunks)), apiKey);
 
-  const sources = hits.map((h) => ({
-    customerId: h.customerId,
-    customerName: metaById.get(h.customerId)?.name ?? "고객",
-    sourceType: h.sourceType,
-    snippet: h.content.slice(0, 120),
-  }));
-  return c.json({ answer, sources });
+    const sources = hits.map((h) => ({
+      customerId: h.customerId,
+      customerName: metaById.get(h.customerId)?.name ?? "고객",
+      sourceType: h.sourceType,
+      snippet: h.content.slice(0, 120),
+    }));
+    return c.json({ answer, sources });
+  } catch (e) {
+    console.error("[assistant] ask 실패:", e);
+    return c.json({ error: "일시적으로 답변에 실패했습니다." }, 500);
+  }
 });
