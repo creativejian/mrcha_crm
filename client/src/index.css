@@ -16903,8 +16903,11 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .work-ai-message.assistant .md-body h1 { font-size: 17px; font-weight: 700; margin: 10px 0 4px; }
 .work-ai-message.assistant .md-body h2 { font-size: 16px; font-weight: 700; margin: 10px 0 4px; }
 .work-ai-message.assistant .md-body h3 { font-size: 14.5px; font-weight: 700; margin: 8px 0 4px; }
-.work-ai-message.assistant .md-body ul { padding-left: 18px; list-style: none; }
-.work-ai-message.assistant .md-body ul li::before { content: "• "; color: var(--brand); }
-.work-ai-message.assistant .md-body ol { padding-left: 20px; }
-.work-ai-message.assistant .md-body p { margin: 4px 0; }
-.work-ai-message.assistant .md-body strong { font-weight: 600; }
+.work-ai-message.assistant .md-body ul { padding-left: 20px; list-style: disc; margin: 4px 0; }
+.work-ai-message.assistant .md-body ol { padding-left: 20px; list-style: decimal; margin: 4px 0; }
+.work-ai-message.assistant .md-body li { margin: 2px 0; }
+.work-ai-message.assistant .md-body li::marker { color: var(--brand); }
+.work-ai-message.assistant .md-body li > p { margin: 0; }
+.work-ai-message.assistant .md-body p { margin: 4px 0; color: #2b2f36; }
+/* 마크다운 인라인 볼드가 레거시 .work-ai-message strong{display:block}에 걸려 줄바꿈되던 것 해제 */
+.work-ai-message.assistant .md-body strong { display: inline; margin: 0; font-size: inherit; font-weight: 600; }
