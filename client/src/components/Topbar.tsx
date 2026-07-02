@@ -2,6 +2,7 @@ import { Maximize2, Send, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { initialCustomers, type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
+import { askAssistant, type AssistantAnswer } from "@/lib/assistant";
 import { signOut } from "@/lib/auth";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
@@ -135,6 +136,25 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState<NotificationTab>("전체");
   const [aiInput, setAiInput] = useState("");
+  const [aiTurns, setAiTurns] = useState<{ question: string; answer: AssistantAnswer | null; error?: string }[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  async function submitAiQuestion() {
+    const question = aiInput.trim();
+    if (!question || aiLoading) return;
+    setAiInput("");
+    setAiTurns((cur) => [...cur, { question, answer: null }]);
+    setAiLoading(true);
+    try {
+      const res = await askAssistant(question);
+      setAiTurns((cur) => cur.map((t, i) => (i === cur.length - 1 ? { ...t, answer: res } : t)));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "일시적으로 답변에 실패했습니다.";
+      setAiTurns((cur) => cur.map((t, i) => (i === cur.length - 1 ? { ...t, error: message } : t)));
+    } finally {
+      setAiLoading(false);
+    }
+  }
   const [selectedPrompt, setSelectedPrompt] = useState(quickAiPrompts[0]);
   const [liveConsulting, setLiveConsulting] = useState(true);
   // 실패한 아바타 URL을 저장한다. URL이 바뀌면(재로그인/사용자 전환) 자동으로 다시 시도한다
@@ -428,7 +448,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                 <div className="work-ai-body">
                   <div className="work-ai-message assistant">
                     <strong>오늘 브리핑</strong>
-                    <p>응답 대기 3건, 견적 요청 5건, 출고 예정 2건이 있습니다. 먼저 15분 이상 응답이 지연된 고객과 계약 가능성이 높은 견적 요청 고객을 확인하는 흐름이 좋습니다.</p>
+                    <p>궁금한 업무를 물어보면 CRM 데이터(메모·상담·니즈)를 근거로 답합니다.</p>
                   </div>
                   <div className="work-ai-quick">
                     <span>빠른 질문</span>
@@ -438,15 +458,33 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                       ))}
                     </div>
                   </div>
-                  <div className="work-ai-message user"><p>{selectedPrompt}</p></div>
-                  <div className="work-ai-message assistant">
-                    <strong>예상 답변</strong>
-                    <p>현재 기준으로는 김민준, 박서연, 이도윤 순서가 우선입니다. 김민준 고객은 X3/GLC 비교 견적 이후 계약 가능성이 높고, 박서연 고객은 보증금 조건별 견적 정리가 필요합니다.</p>
-                  </div>
+                  {aiTurns.map((turn, i) => (
+                    <div key={i}>
+                      <div className="work-ai-message user"><p>{turn.question}</p></div>
+                      <div className="work-ai-message assistant">
+                        {turn.error ? <p className="work-ai-error">{turn.error}</p>
+                          : turn.answer ? (
+                            <>
+                              <p>{turn.answer.answer}</p>
+                              {turn.answer.sources.length > 0 && (
+                                <ul className="work-ai-sources">
+                                  {turn.answer.sources.map((s, j) => <li key={j}>{s.customerName} · {s.snippet}</li>)}
+                                </ul>
+                              )}
+                            </>
+                          ) : <p className="work-ai-thinking">생각 중…</p>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 <div className="work-ai-compose">
-                  <input value={aiInput} onChange={(event) => setAiInput(event.target.value)} placeholder="업무 AI에게 물어보기" />
-                  <button type="button" aria-label="보내기"><Send size={16} /></button>
+                  <input
+                    value={aiInput}
+                    onChange={(event) => setAiInput(event.target.value)}
+                    onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void submitAiQuestion(); } }}
+                    placeholder="업무 AI에게 물어보기"
+                  />
+                  <button type="button" aria-label="보내기" disabled={aiLoading} onClick={() => void submitAiQuestion()}><Send size={16} /></button>
                 </div>
               </section>
             </>
