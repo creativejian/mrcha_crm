@@ -68,6 +68,14 @@ describe("waitingLabel", () => {
     expect(waitingLabel("2026-07-02T07:30:00+00:00", now)).toBe("3시간 대기");
     expect(waitingLabel("2026-06-30T10:30:00+00:00", now)).toBe("2일 대기");
   });
+  it("60분 경계에서 시간 단위로 바뀐다", () => {
+    expect(waitingLabel("2026-07-02T09:31:00+00:00", now)).toBe("59분 대기");
+    expect(waitingLabel("2026-07-02T09:30:00+00:00", now)).toBe("1시간 대기");
+  });
+  it("24시간 경계에서 일 단위로 바뀐다", () => {
+    expect(waitingLabel("2026-07-01T10:31:00+00:00", now)).toBe("23시간 대기");
+    expect(waitingLabel("2026-07-01T10:30:00+00:00", now)).toBe("1일 대기");
+  });
 });
 
 describe("mergeMessages", () => {
@@ -81,5 +89,9 @@ describe("mergeMessages", () => {
     const cur = [m("a", "2026-07-02T10:00:00+00:00")];
     const updated = toChatMessage({ ...baseMsgRow, id: "a", message: "edited", created_at: "2026-07-02T10:00:00+00:00" });
     expect(mergeMessages(cur, [updated])[0].message).toBe("edited");
+  });
+  it("동일 created_at은 id로 tie-break한다", () => {
+    const merged = mergeMessages([m("y", "2026-07-02T10:00:00+00:00")], [m("x", "2026-07-02T10:00:00+00:00")]);
+    expect(merged.map((v) => v.id)).toEqual(["x", "y"]);
   });
 });
