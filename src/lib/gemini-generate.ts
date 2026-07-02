@@ -2,17 +2,24 @@ import { classifyGeminiError } from "./gemini-error";
 
 export const GEN_MODEL = "gemini-3.1-flash-lite"; // 앱/crm-analyst 동일.
 
-// 근거+질문으로 한국어 답변 생성. 실패(재시도 후에도)는 throw.
+export type ChatTurn = { role: "user" | "assistant"; content: string };
+
+// 근거+질문(+지난 turn history)으로 한국어 답변 생성. 실패(재시도 후에도)는 throw.
 export async function generateAnswer(
   systemPrompt: string,
   userPrompt: string,
   apiKey: string,
+  history: ChatTurn[] = [],
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEN_MODEL}:generateContent?key=${apiKey}`;
+  const contents = [
+    ...history.map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.content }] })),
+    { role: "user", parts: [{ text: userPrompt }] },
+  ];
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+    contents,
     generationConfig: { temperature: 0.2 },
   });
 
