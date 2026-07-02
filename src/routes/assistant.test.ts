@@ -2,6 +2,7 @@ import { test, expect, afterEach } from "bun:test";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
+import { EMBEDDING_DIM } from "../lib/gemini-embed";
 import { assistantDeps } from "./assistant";
 
 process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || "test-key";
@@ -28,7 +29,7 @@ test("POST /ask → 200: 멀티턴 history 전달 + user/assistant 2건 저장",
   assistantDeps.listRecentMessages = async () => [
     { id: "m1", staffUserId: "s", role: "user", content: "이전질문", sources: null, createdAt: new Date(0) },
   ] as never;
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: 3072 }, () => 0.01));
+  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
   assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
   assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
   assistantDeps.generateAnswer = async (_s: string, _u: string, _k: string, history: { role: string }[] = []) => { seen.historyLen = history.length; return "답변"; };
@@ -38,11 +39,12 @@ test("POST /ask → 200: 멀티턴 history 전달 + user/assistant 2건 저장",
   const app = createApp({ keyResolver, issuer });
   const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "이번질문" }) });
   expect(res.status).toBe(200);
-  const json = (await res.json()) as { answer: string; sources: unknown[]; messages: unknown[] };
-  expect(json.answer).toBe("답변");
+  const json = (await res.json()) as { messages: { role: string; content: string }[] };
   expect(seen.historyLen).toBe(1);
   expect(seen.saved).toBe(2);
   expect(json.messages.length).toBe(2);
+  expect(json.messages[1].role).toBe("assistant");
+  expect(json.messages[1].content).toBe("답변"); // 답변은 top-level이 아니라 저장된 messages[1]로만 내려간다
 });
 
 test("POST /ask Gemini 실패 → 500 한국어, 저장 0건", async () => {

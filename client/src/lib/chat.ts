@@ -105,13 +105,14 @@ export function toChatMessage(row: ChatMessageRow): ChatMessage {
 }
 
 // pending 대기시간 파생 표시(전용 컬럼 없음 — updated_at 경과. spec §3).
-export function waitingLabel(sinceIso: string, now: Date): string {
+// suffix "전"은 비대기(경과 시각) 라벨용 — 표시 문자열을 밖에서 replace로 수술하지 말 것.
+export function waitingLabel(sinceIso: string, now: Date, suffix: "대기" | "전" = "대기"): string {
   const min = Math.max(0, Math.floor((now.getTime() - new Date(sinceIso).getTime()) / 60000));
   if (min < 1) return "방금 전";
-  if (min < 60) return `${min}분 대기`;
+  if (min < 60) return `${min}분 ${suffix}`;
   const hours = Math.floor(min / 60);
-  if (hours < 24) return `${hours}시간 대기`;
-  return `${Math.floor(hours / 24)}일 대기`;
+  if (hours < 24) return `${hours}시간 ${suffix}`;
+  return `${Math.floor(hours / 24)}일 ${suffix}`;
 }
 
 // timestamptz 직렬화 편차 흡수: REST(PostgREST)='T'+'+00:00', Realtime(wal2json)=' '+'+00' 케이스 보고됨.

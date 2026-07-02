@@ -21,29 +21,26 @@ function nonEmpty(col: AnyPgColumn) {
 async function gather(): Promise<CorpusRow[]> {
   const rows: CorpusRow[] = [];
 
-  const memos = await db
+  // 자식 테이블 3종은 push 형태가 동일 — 쿼리는 콜사이트에서 조립해 넘긴다(견적 코퍼스 확장 시 collect 1줄 추가).
+  // if (row.text)는 select 프로젝션이 nullable이라 남긴 타입 좁히기다(WHERE nonEmpty가 이미 걸러줌).
+  async function collect(sourceType: CorpusRow["sourceType"], query: PromiseLike<{ id: string; customerId: string; name: string; text: string | null }[]>) {
+    for (const row of await query) {
+      if (row.text) rows.push({ sourceType, sourceId: row.id, customerId: row.customerId, customerName: row.name, text: row.text });
+    }
+  }
+
+  await collect("memo", db
     .select({ id: customerMemos.id, customerId: customerMemos.customerId, name: customers.name, text: customerMemos.body })
     .from(customerMemos).innerJoin(customers, eq(customers.id, customerMemos.customerId))
-    .where(nonEmpty(customerMemos.body));
-  for (const m of memos) {
-    if (m.text) rows.push({ sourceType: "memo", sourceId: m.id, customerId: m.customerId, customerName: m.name, text: m.text });
-  }
-
-  const tasks = await db
+    .where(nonEmpty(customerMemos.body)));
+  await collect("task", db
     .select({ id: customerTasks.id, customerId: customerTasks.customerId, name: customers.name, text: customerTasks.body })
     .from(customerTasks).innerJoin(customers, eq(customers.id, customerTasks.customerId))
-    .where(nonEmpty(customerTasks.body));
-  for (const t of tasks) {
-    if (t.text) rows.push({ sourceType: "task", sourceId: t.id, customerId: t.customerId, customerName: t.name, text: t.text });
-  }
-
-  const consults = await db
+    .where(nonEmpty(customerTasks.body)));
+  await collect("consultation", db
     .select({ id: consultations.id, customerId: consultations.customerId, name: customers.name, text: consultations.summary })
     .from(consultations).innerJoin(customers, eq(customers.id, consultations.customerId))
-    .where(nonEmpty(consultations.summary));
-  for (const s of consults) {
-    if (s.text) rows.push({ sourceType: "consultation", sourceId: s.id, customerId: s.customerId, customerName: s.name, text: s.text });
-  }
+    .where(nonEmpty(consultations.summary)));
 
   // 니즈 3필드(customers 인라인): source_id = customer_id, source_type로 구분.
   const needs = await db

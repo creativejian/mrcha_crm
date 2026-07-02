@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChangeEvent } from "react";
 
 import type { Customer } from "@/data/customers";
-import { deleteDocumentApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
+import { deleteDocumentApi, getDocumentUrlApi, updateDocumentTypeApi, uploadDocument } from "@/lib/customer-documents";
+import { mergeDocumentsToPdf } from "@/lib/document-merge";
 import type { CustomerDetailData } from "@/lib/customers";
 import { classifyDocumentWithAI, type DocumentClassification } from "@/lib/document-classify";
 
@@ -17,11 +18,15 @@ vi.mock("@/lib/customer-documents", () => ({
   getDocumentUrlApi: vi.fn(async () => ({ url: "u", downloadUrl: "d" })),
   reorderDocumentsApi: vi.fn(async () => ({})),
 }));
+vi.mock("@/lib/document-merge", () => ({
+  mergeDocumentsToPdf: vi.fn(async (sources: { kind: string }[]) => ({ bytes: new Uint8Array([1]), merged: sources.length, skipped: 0 })),
+}));
 
 const classify = vi.mocked(classifyDocumentWithAI);
 const upload = vi.mocked(uploadDocument);
 const patchType = vi.mocked(updateDocumentTypeApi);
 const deleteApi = vi.mocked(deleteDocumentApi);
+const getUrl = vi.mocked(getDocumentUrlApi);
 
 const detail = { id: "cust-1", documents: [] } as unknown as CustomerDetailData;
 const customer = { name: "김민준" } as Customer;
@@ -127,6 +132,37 @@ describe("useCustomerDocuments — AI 분류 파이프라인 경합", () => {
     await waitFor(() => expect(result.current.documents[0]?.id).toBe("srv-3"));
     expect(result.current.documents[0].status).toBe("AI분류");
     expect(upload).toHaveBeenCalledWith("cust-1", file, "사업자등록증");
+  });
+
+  it("병합 다운로드: 문서별 URL 발급·다운로드를 병렬로 수행하고 표시 순서를 보존한다", async () => {
+    const detailWithDocs = {
+      id: "cust-1",
+      documents: [
+        { id: "d1", docType: "면허증", fileName: "a.png", fileSize: 10, fileMime: "image/png" },
+        { id: "d2", docType: "기타서류", fileName: "b.pdf", fileSize: 10, fileMime: "application/pdf" },
+      ],
+    } as unknown as CustomerDetailData;
+    type UrlResult = Awaited<ReturnType<typeof getDocumentUrlApi>>;
+    const urlDeferred = { d1: deferred<UrlResult>(), d2: deferred<UrlResult>() };
+    getUrl.mockImplementation((_cid: string, docId: string) => urlDeferred[docId as "d1" | "d2"].promise);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, blob: async () => new Blob(["x"]) })));
+    const { result } = renderHook(() => useCustomerDocuments({ detail: detailWithDocs, customer, onToast: vi.fn(), markRecentUpdate: vi.fn() }));
+
+    let merging!: Promise<void>;
+    act(() => {
+      merging = result.current.handlers.mergePdf();
+    });
+    // 병렬이면 어느 URL도 resolve되기 전에 두 문서의 발급 요청이 이미 나가 있어야 한다(직렬이면 d1 대기 중 1회뿐).
+    await waitFor(() => expect(getUrl).toHaveBeenCalledTimes(2));
+
+    // 역순 resolve로도 병합 순서는 표시 순서(d1 이미지 → d2 PDF)를 유지한다.
+    urlDeferred.d2.resolve({ url: "u2", downloadUrl: "dl2", fileMime: "application/pdf" });
+    urlDeferred.d1.resolve({ url: "u1", downloadUrl: "dl1", fileMime: "image/png" });
+    await act(async () => merging);
+
+    const sources = vi.mocked(mergeDocumentsToPdf).mock.calls[0][0];
+    expect(sources.map((s) => s.kind)).toEqual(["image", "pdf"]);
+    vi.unstubAllGlobals();
   });
 
   it("업로드 중 수동 분류를 바꾸면 저장 완료 후 서버 분류를 PATCH로 맞춘다", async () => {

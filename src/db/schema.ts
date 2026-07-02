@@ -30,6 +30,7 @@ import {
   PURCHASE_UNSET_SENTINEL,
   customerStatusGroups,
 } from "../../client/src/data/customers";
+import { EMBEDDING_DIM } from "../lib/gemini-embed";
 
 // CRM 운영 스키마. drizzle은 catalog + crm만 관리(public=앱 소유, 불가침).
 // 외부 FK(catalog.*, public.*)는 Phase B(catalog adopt) 후 별도 추가. 여기선 crm 내부 FK만.
@@ -259,10 +260,10 @@ export const quoteScenarios = crm.table("quote_scenarios", {
 }, (t) => [check("quote_scenarios_purchase_method_check", inListCheck(t.purchaseMethod, PURCHASE_METHOD_OPTIONS))]);
 
 // ── RAG 임베딩 (업무 AI 채팅) ─────────────────────────────────────────────────
-// pgvector 3072차원. gemini-embedding-001 네이티브. 앱 관례(public.*.embedding vector(3072))와 동일.
+// pgvector EMBEDDING_DIM(3072)차원. gemini-embedding-001 네이티브. 앱 관례(public.*.embedding vector(3072))와 동일.
 // toDriver: number[] → '[a,b,c]' 문자열(pgvector 입력 포맷). fromDriver: 그 역.
 const vector3072 = customType<{ data: number[]; driverData: string }>({
-  dataType() { return "vector(3072)"; },
+  dataType() { return `vector(${EMBEDDING_DIM})`; },
   toDriver(value) { return `[${value.join(",")}]`; },
   fromDriver(value) { return JSON.parse(value) as number[]; },
 });

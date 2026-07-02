@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./http", () => ({
-  sendJson: vi.fn(async () => ({ answer: "답", sources: [], messages: [
+  sendJson: vi.fn(async () => ({ messages: [
     { id: "m1", role: "user", content: "q", sources: null, createdAt: "2026-07-02T00:00:00Z" },
     { id: "m2", role: "assistant", content: "답", sources: [], createdAt: "2026-07-02T00:00:01Z" },
   ] })),

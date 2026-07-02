@@ -22,9 +22,11 @@ describe("classifyDocumentWithAI", () => {
     invoke.mockReset();
   });
 
-  it("AI가 22종을 반환하면 그 값을 source=ai로 쓴다", async () => {
+  it("AI가 22종을 반환하면 그 값을 source=ai로 쓴다 (+base64 페이로드 핀)", async () => {
     invoke.mockResolvedValue({ data: { docType: "사업자등록증" }, error: null });
     expect(await classifyDocumentWithAI(pngFile("scan.png"))).toEqual({ docType: "사업자등록증", source: "ai" });
+    // bytes [1,2,3] → base64 "AQID" — 인코딩 구현 교체 시 회귀 방지 핀.
+    expect(invoke).toHaveBeenCalledWith("crm-analyst", { body: { mimeType: "image/png", dataBase64: "AQID", fileName: "scan.png" } });
   });
 
   it("AI가 unknown이면 파일명 regex로 폴백(source=fallback)", async () => {

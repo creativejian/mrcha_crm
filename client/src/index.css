@@ -5219,70 +5219,13 @@ th input:focus-visible {
   white-space: pre-wrap;
 }
 
-/* AI 말풍선 마크다운(.work-ai-message.assistant .md-body 미러 — .message 13px 기준 한 단계 축소) */
+/* AI 말풍선 마크다운 — 구조 룰은 공용 .md-body(업무 AI 섹션 근처 정의)가 담당, 여기선 크기만 한 단계 축소. */
 .message.ai .md-body {
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.message.ai .md-body h1 {
-  margin: 10px 0 4px;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.message.ai .md-body h2 {
-  margin: 10px 0 4px;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.message.ai .md-body h3 {
-  margin: 8px 0 4px;
-  font-size: 13.5px;
-  font-weight: 700;
-}
-
-.message.ai .md-body ul {
-  margin: 4px 0;
-  padding-left: 20px;
-  list-style: disc;
-}
-
-.message.ai .md-body ol {
-  margin: 4px 0;
-  padding-left: 20px;
-  list-style: decimal;
-}
-
-.message.ai .md-body li {
-  margin: 2px 0;
-}
-
-.message.ai .md-body li::marker {
-  color: var(--brand);
-}
-
-.message.ai .md-body li > p {
-  margin: 0;
-}
-
-.message.ai .md-body p {
-  margin: 4px 0;
-}
-
-/* .message strong 레거시 룰 없음(확인) — display 간섭은 없고 톤(600)만 맞춘다. */
-.message.ai .md-body strong {
-  font-weight: 600;
-}
-
-/* 말풍선 padding과 첫/마지막 블록 마진 이중 여백 방지 */
-.message.ai .md-body > :first-child {
-  margin-top: 0;
-}
-
-.message.ai .md-body > :last-child {
-  margin-bottom: 0;
+  --md-fs: 13px;
+  --md-lh: 1.55;
+  --md-fs-h1: 15px;
+  --md-fs-h2: 14px;
+  --md-fs-h3: 13.5px;
 }
 
 .message-attachment {
@@ -8322,7 +8265,10 @@ th input:focus-visible {
   position: relative;
   height: auto;
   max-height: none;
-  min-height: 0;
+  /* 목록이 absolute(out-of-flow)라 카드 고유 높이가 0 — 행의 다른 카드(견적함 고정 높이)에만 기대면
+     그 카드가 숨겨지거나 가변화될 때 서류함이 0높이로 붕괴한다. 공용 카드 기준선 236px로 자립시키고,
+     행 stretch는 이 값을 키우는 방향으로만 작동한다. */
+  min-height: 236px;
 }
 .kim-doc-list {
   position: absolute;
@@ -17165,7 +17111,6 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 }
 
 .work-ai-error { color: #c0392b; }
-.work-ai-thinking { color: #7f858c; }
 .work-ai-sources { margin: 6px 0 0; padding-left: 16px; font-size: 11.5px; color: #5f6872; }
 .work-ai-sources li { margin: 2px 0; }
 
@@ -17174,17 +17119,28 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .db-dot:nth-child(2) { animation-delay: -800ms; }
 @keyframes db-bounce { 0% { transform: scale(0.03); opacity: 0.15; } 50% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(0.03); opacity: 0.15; } }
 
-.work-ai-message.assistant .md-body { font-size: 14px; line-height: 1.58; color: #2b2f36; }
-.work-ai-message.assistant .md-body h1 { font-size: 17px; font-weight: 700; margin: 10px 0 4px; }
-.work-ai-message.assistant .md-body h2 { font-size: 16px; font-weight: 700; margin: 10px 0 4px; }
-.work-ai-message.assistant .md-body h3 { font-size: 14.5px; font-weight: 700; margin: 8px 0 4px; }
-.work-ai-message.assistant .md-body ul { padding-left: 20px; list-style: disc; margin: 4px 0; }
-.work-ai-message.assistant .md-body ol { padding-left: 20px; list-style: decimal; margin: 4px 0; }
-.work-ai-message.assistant .md-body li { margin: 2px 0; }
-.work-ai-message.assistant .md-body li::marker { color: var(--brand); }
-.work-ai-message.assistant .md-body li > p { margin: 0; }
-.work-ai-message.assistant .md-body p { margin: 4px 0; color: #2b2f36; }
-/* 마크다운 인라인 볼드가 레거시 .work-ai-message strong{display:block}에 걸려 줄바꿈되던 것 해제 */
+/* 마크다운 본문 공용(MarkdownMessage .md-body) — 업무 AI·채팅 콘솔이 공유한다.
+   크기만 컨텍스트별 --md-* 변수로 조절(기본값 = 업무 AI 스케일, 채팅은 .message.ai .md-body에서 한 단계 축소).
+   구조/스타일 수정은 반드시 여기 한 곳에서 — 컨텍스트별 복제 금지(#133 strong 회귀가 한쪽만 픽스되는 사고 방지). */
+.md-body { font-size: var(--md-fs, 14px); line-height: var(--md-lh, 1.58); }
+.md-body h1 { font-size: var(--md-fs-h1, 17px); font-weight: 700; margin: 10px 0 4px; }
+.md-body h2 { font-size: var(--md-fs-h2, 16px); font-weight: 700; margin: 10px 0 4px; }
+.md-body h3 { font-size: var(--md-fs-h3, 14.5px); font-weight: 700; margin: 8px 0 4px; }
+.md-body ul { padding-left: 20px; list-style: disc; margin: 4px 0; }
+.md-body ol { padding-left: 20px; list-style: decimal; margin: 4px 0; }
+.md-body li { margin: 2px 0; }
+.md-body li::marker { color: var(--brand); }
+.md-body li > p { margin: 0; }
+.md-body p { margin: 4px 0; }
+.md-body strong { display: inline; margin: 0; font-size: inherit; font-weight: 600; }
+/* 컨테이너 padding과 첫/마지막 블록 마진 이중 여백 방지 */
+.md-body > :first-child { margin-top: 0; }
+.md-body > :last-child { margin-bottom: 0; }
+
+/* 업무 AI 컨텍스트: 본문 색 + 레거시 .work-ai-message p/strong(display:block·13px 고정) 무력화.
+   높은 특이도(0,3,1)로 파일 내 순서와 무관하게 이긴다. */
+.work-ai-message.assistant .md-body { color: #2b2f36; }
+.work-ai-message.assistant .md-body p { margin: 4px 0; font-size: inherit; line-height: inherit; color: inherit; }
 .work-ai-message.assistant .md-body strong { display: inline; margin: 0; font-size: inherit; font-weight: 600; }
 
 /* AI(assistant) 답변은 앱처럼 박스 없이 인라인 full-width. user 버블은 유지. */

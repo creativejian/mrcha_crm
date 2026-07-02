@@ -22,7 +22,7 @@ export function ChatQueue({ sessions, activeId, unassignedCount, onSelect }: Cha
             <div className="chat-meta">
               {session.mode === "pending"
                 ? <span className="badge yellow">{waitingLabel(session.updatedAt, new Date())}</span>
-                : <span className="badge">{waitingLabel(session.updatedAt, new Date()).replace(" 대기", " 전")}</span>}
+                : <span className="badge">{waitingLabel(session.updatedAt, new Date(), "전")}</span>}
             </div>
           </button>
         ))}
