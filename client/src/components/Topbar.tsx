@@ -145,7 +145,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const [aiHasMore, setAiHasMore] = useState(true);
   const [aiLoadingOlder, setAiLoadingOlder] = useState(false);
   const workAiBodyRef = useRef<HTMLDivElement>(null);
-  const prependRef = useRef<{ height: number; top: number } | null>(null); // prepend 직전 scrollHeight+scrollTop(스크롤 보정)
+  const olderLoadedRef = useRef(false); // 직전 갱신이 "이전 메시지 prepend"였는지 — 상단 노출 스크롤용
   const loadingOlderRef = useRef(false); // 동기 재진입 가드(state는 커밋 지연되어 레이스)
   const AI_HISTORY_PAGE = 30; // 백엔드 DISPLAY_LIMIT와 일치
   const OLDER_INDICATOR_MIN_MS = 400; // 빠른 로드에도 로딩 표시가 최소 이 시간은 보이도록
@@ -159,14 +159,17 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
     return () => { alive = false; };
   }, [workAiOpen, aiHistoryLoaded]);
 
-  // 대화 갱신 시 스크롤: 오래된 메시지 prepend면 위치 보정(안 튀게), 그 외엔 최하단.
+  // 대화 갱신 시 스크롤: 이전 메시지 로드면 그 배치를 상단에 노출, 그 외(진입·새 메시지)엔 최하단.
   useLayoutEffect(() => {
     if (!workAiOpen) return;
     const el = workAiBodyRef.current;
     if (!el) return;
-    if (prependRef.current !== null) {
-      el.scrollTop = el.scrollHeight - prependRef.current.height + prependRef.current.top; // 늘어난 높이 + 원래 위치 유지
-      prependRef.current = null;
+    if (olderLoadedRef.current) {
+      olderLoadedRef.current = false;
+      // children: [0]오늘 브리핑 [1]빠른 질문 [2..]히스토리. 맨 앞 히스토리(=새로 불러온 가장 오래된 것)를
+      // 상단에 노출한다. 상단 근접(<40px) 밖에 위치하므로 자동 연쇄 로딩도 안 생긴다.
+      const firstHistory = el.children[2] as HTMLElement | undefined;
+      el.scrollTop = firstHistory ? firstHistory.offsetTop : el.scrollHeight;
     } else {
       el.scrollTop = el.scrollHeight;
     }
@@ -178,15 +181,16 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
     loadingOlderRef.current = true;
     setAiLoadingOlder(true);
     const startedAt = Date.now();
-    prependRef.current = { height: el.scrollHeight, top: el.scrollTop };
     try {
       const oldest = aiHistory[0];
       const older = await fetchAssistantMessages({ createdAt: oldest.createdAt, id: oldest.id });
-      if (older.length > 0) setAiHistory((cur) => [...older, ...cur]);
-      else prependRef.current = null; // 보정 불필요
+      if (older.length > 0) {
+        olderLoadedRef.current = true; // 로드된 이전 메시지를 상단에 노출
+        setAiHistory((cur) => [...older, ...cur]);
+      }
       setAiHasMore(older.length === AI_HISTORY_PAGE);
     } catch {
-      prependRef.current = null;
+      // 실패 시 노출 스크롤 없음
     } finally {
       // 로컬 fetch가 매우 빨라도 로딩 표시가 최소 시간은 보이도록(번쩍임 방지).
       const remaining = OLDER_INDICATOR_MIN_MS - (Date.now() - startedAt);
