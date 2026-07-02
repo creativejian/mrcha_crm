@@ -1550,3 +1550,8 @@ PR 본문에: spec/plan 링크, public 스키마 접근 방식(RLS 정문, DDL 0
 - **Spec coverage**: §2 범위(큐/히스토리/Realtime/배정/인수/반환/전송/첨부/고객이동/알림) → Task 2-9. §3 데이터 계약 → Task 3-4. §4 전환 표 → Task 4. §5 구조 → Task 2/3/5/7/8. §6 Realtime → Task 5/7. §7 알림·고객연동 → Task 6/8/9. §8 에러 → Task 7(롤백·복원)/8(배너). §9 검증 → Task 10. 갭 없음.
 - **주의 승계**: Task 8 Step 8의 typecheck는 App.tsx props 불일치로 Task 9와 세트 실행 필요(본문 명시).
 - **타입 일관성**: `ChatSession`/`ChatMessage`/`StaffOption`/`ChatSessionChange`는 Task 3-5 정의를 Task 7-9가 그대로 import. `send`는 boolean 반환(Composer 원문 복원용) 일치.
+
+## 구현 편차 노트 (2026-07-02, 리뷰 반영 — plan 코드 블록보다 이 노트가 우선)
+
+- **Task 4 반영분**: fetchChatMessages 커서 값 큰따옴표 quoting(PostgREST or 예약문자) · insertSystemMessage non-fatal(앱 미러) · mergeMessages toEpoch 정렬(REST/Realtime 직렬화 편차).
+- **Task 5 반영분**: chat-realtime.ts 채널명에 호출별 고유 suffix(supabase-js v2 topic 재사용 → App.tsx 알림·ChatPage 큐 공존 시 충돌·상호 teardown 방지) + subscribe 상태 콜백 기반 `onResync`(드롭 후 재구독 시 1회 refetch 보정, spec §6). **Task 7 hooks는 subscribe* 호출 시 onResync 인자에 reload/refetch를 연결해야 한다** — Task 7 코드 블록의 구독 호출부는 이 시그니처 기준으로 조정.

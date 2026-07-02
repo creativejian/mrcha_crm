@@ -1,19 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Handler = (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => void;
+type StatusCb = ((status: string) => void) | undefined;
 const handlers: { event: string; filter: Record<string, unknown>; cb: Handler }[] = [];
+const channelTopics: string[] = [];
+const statusCbs: StatusCb[] = [];
 const channel = {
   on: vi.fn((_type: string, filter: Record<string, unknown>, cb: Handler) => {
     handlers.push({ event: String(filter.event), filter, cb });
     return channel;
   }),
-  subscribe: vi.fn(() => channel),
+  subscribe: vi.fn((cb?: (status: string) => void) => {
+    statusCbs.push(cb);
+    return channel;
+  }),
 };
 const removeChannel = vi.fn();
 
 vi.mock("./supabase", () => ({
   supabase: {
-    channel: vi.fn(() => channel),
+    channel: vi.fn((topic: string) => {
+      channelTopics.push(topic);
+      return channel;
+    }),
     removeChannel: (c: unknown) => removeChannel(c),
   },
 }));
@@ -22,6 +31,8 @@ import { subscribeChatMessages, subscribeChatSessions } from "./chat-realtime";
 
 beforeEach(() => {
   handlers.length = 0;
+  channelTopics.length = 0;
+  statusCbs.length = 0;
   vi.clearAllMocks();
 });
 
@@ -52,4 +63,25 @@ describe("subscribeChatMessages", () => {
     handlers[0].cb({ new: row, old: {} });
     expect(onRow).toHaveBeenCalledWith(row);
   });
+});
+
+it("공존 구독마다 채널 topic이 고유하다(supabase-js topic 재사용 충돌 방지)", () => {
+  subscribeChatSessions(vi.fn());
+  subscribeChatSessions(vi.fn());
+  subscribeChatMessages("u1", vi.fn());
+  subscribeChatMessages("u1", vi.fn());
+  expect(new Set(channelTopics).size).toBe(4);
+});
+
+it("드롭 후 재구독(SUBSCRIBED)되면 onResync를 1회 호출한다", () => {
+  const onResync = vi.fn();
+  subscribeChatSessions(vi.fn(), onResync);
+  const cb = statusCbs[0];
+  cb?.("SUBSCRIBED");
+  expect(onResync).not.toHaveBeenCalled();
+  cb?.("CHANNEL_ERROR");
+  cb?.("SUBSCRIBED");
+  expect(onResync).toHaveBeenCalledTimes(1);
+  cb?.("SUBSCRIBED");
+  expect(onResync).toHaveBeenCalledTimes(1);
 });
