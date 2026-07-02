@@ -22,28 +22,28 @@ describe("classifyDocumentWithAI", () => {
     invoke.mockReset();
   });
 
-  it("AI가 22종을 반환하면 그 값을 쓴다", async () => {
+  it("AI가 22종을 반환하면 그 값을 source=ai로 쓴다", async () => {
     invoke.mockResolvedValue({ data: { docType: "사업자등록증" }, error: null });
-    expect(await classifyDocumentWithAI(pngFile("scan.png"))).toBe("사업자등록증");
+    expect(await classifyDocumentWithAI(pngFile("scan.png"))).toEqual({ docType: "사업자등록증", source: "ai" });
   });
 
-  it("AI가 unknown이면 파일명 regex로 폴백", async () => {
+  it("AI가 unknown이면 파일명 regex로 폴백(source=fallback)", async () => {
     invoke.mockResolvedValue({ data: { docType: "unknown" }, error: null });
-    expect(await classifyDocumentWithAI(pngFile("운전면허증.png"))).toBe("면허증");
+    expect(await classifyDocumentWithAI(pngFile("운전면허증.png"))).toEqual({ docType: "면허증", source: "fallback" });
   });
 
-  it("invoke 에러면 파일명 regex로 폴백", async () => {
+  it("invoke 에러면 파일명 regex로 폴백(source=fallback)", async () => {
     invoke.mockResolvedValue({ data: null, error: new Error("boom") });
-    expect(await classifyDocumentWithAI(pngFile("사업자등록증.png"))).toBe("사업자등록증");
+    expect(await classifyDocumentWithAI(pngFile("사업자등록증.png"))).toEqual({ docType: "사업자등록증", source: "fallback" });
   });
 
-  it("invoke가 throw해도 폴백(예외 삼킴)", async () => {
+  it("invoke가 throw해도 폴백(예외 삼킴, source=fallback)", async () => {
     invoke.mockRejectedValue(new Error("network"));
-    expect(await classifyDocumentWithAI(pngFile("아무거나.png"))).toBe("기타서류");
+    expect(await classifyDocumentWithAI(pngFile("아무거나.png"))).toEqual({ docType: "기타서류", source: "fallback" });
   });
 
-  it("AI가 22종 밖 값을 반환하면 regex로 폴백(스키마 drift 방어)", async () => {
+  it("AI가 22종 밖 값을 반환하면 regex로 폴백(스키마 drift 방어, source=fallback)", async () => {
     invoke.mockResolvedValue({ data: { docType: "이상한분류" }, error: null });
-    expect(await classifyDocumentWithAI(pngFile("사업자등록증.png"))).toBe("사업자등록증");
+    expect(await classifyDocumentWithAI(pngFile("사업자등록증.png"))).toEqual({ docType: "사업자등록증", source: "fallback" });
   });
 });

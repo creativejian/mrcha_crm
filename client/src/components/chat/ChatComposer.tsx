@@ -28,7 +28,7 @@ export function ChatComposer({ session, staffId, onSend, onTyping }: ChatCompose
     setSending(true);
     setDraft("");
     const ok = await onSend(message);
-    if (!ok) setDraft(message); // 실패 시 원문 복원(spec §8)
+    if (!ok) setDraft((current) => current || message); // 실패 시 원문 복원(spec §8) — 전송 중 새로 쓴 내용은 덮어쓰지 않음
     setSending(false);
   }
 

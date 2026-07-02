@@ -547,7 +547,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                   <input
                     value={aiInput}
                     onChange={(event) => setAiInput(event.target.value)}
-                    onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void submitAiQuestion(); } }}
+                    onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); void submitAiQuestion(); } }}
                     placeholder="업무 AI에게 물어보기"
                   />
                   <button type="button" aria-label="보내기" disabled={aiLoading} onClick={() => void submitAiQuestion()}><Send size={16} /></button>
