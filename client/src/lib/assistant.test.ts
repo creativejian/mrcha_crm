@@ -1,15 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("./http", () => ({ sendJson: vi.fn(async () => ({ answer: "답", sources: [{ customerId: "c1", customerName: "김민준", sourceType: "memo", snippet: "…" }] })) }));
+vi.mock("./http", () => ({
+  sendJson: vi.fn(async () => ({ answer: "답", sources: [], messages: [
+    { id: "m1", role: "user", content: "q", sources: null, createdAt: "2026-07-02T00:00:00Z" },
+    { id: "m2", role: "assistant", content: "답", sources: [], createdAt: "2026-07-02T00:00:01Z" },
+  ] })),
+  getJson: vi.fn(async () => ([
+    { id: "m1", role: "user", content: "q", sources: null, createdAt: "2026-07-02T00:00:00Z" },
+  ])),
+}));
 
-import { sendJson } from "./http";
-import { askAssistant } from "./assistant";
+import { getJson, sendJson } from "./http";
+import { askAssistant, fetchAssistantMessages } from "./assistant";
 
-describe("askAssistant", () => {
-  it("POST /api/assistant/ask로 질문 전송, 응답 반환", async () => {
-    const res = await askAssistant("계약 가능성 높은 고객은?");
-    expect(sendJson).toHaveBeenCalledWith("/api/assistant/ask", "POST", { question: "계약 가능성 높은 고객은?" });
-    expect(res.answer).toBe("답");
-    expect(res.sources[0].customerName).toBe("김민준");
+describe("assistant client", () => {
+  it("askAssistant: POST /ask + messages 반환", async () => {
+    const res = await askAssistant("q");
+    expect(sendJson).toHaveBeenCalledWith("/api/assistant/ask", "POST", { question: "q" });
+    expect(res.messages).toHaveLength(2);
+    expect(res.messages[1].role).toBe("assistant");
+  });
+  it("fetchAssistantMessages: GET /messages", async () => {
+    const rows = await fetchAssistantMessages();
+    expect(getJson).toHaveBeenCalledWith("/api/assistant/messages");
+    expect(rows[0].content).toBe("q");
   });
 });

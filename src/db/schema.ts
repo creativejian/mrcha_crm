@@ -43,6 +43,7 @@ const APP_STATUSES = ["draft", "queued", "sent", "viewed"];
 const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"];
 const ACQ_TAX_MODES = ["normal", "hybrid", "electric", "manual"];
 const EMBEDDING_SOURCE_TYPES = ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation"];
+const ASSISTANT_ROLES = ["user", "assistant"];
 
 // nullable 컬럼 IN CHECK(기존 null 보존). 값=코드 상수 SSOT에서 sql.join. 종속(그룹-상태)은 앱 검증.
 // 값은 sql.raw로 리터럴 inline(마이그에 박제). param(`sql`${v}``)이면 $1 placeholder로 새 나가 깨짐.
@@ -282,3 +283,13 @@ export const embeddings = crm.table("embeddings", {
   unique("embeddings_source_uq").on(t.sourceType, t.sourceId),
   check("embeddings_source_type_check", inListCheck(t.sourceType, EMBEDDING_SOURCE_TYPES)),
 ]);
+
+// 업무 AI 채팅 메시지(직원/관리자별 평면 스트림). 세션/핸드오프 없음(내부 도구). staff_user_id=JWT sub, loose id(FK 보류).
+export const assistantMessages = crm.table("assistant_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  staffUserId: uuid("staff_user_id").notNull(),
+  role: text("role").notNull(), // user | assistant
+  content: text("content").notNull(),
+  sources: jsonb("sources"), // assistant RAG 근거 [{customerId,customerName,sourceType,snippet}], user는 null
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [check("assistant_messages_role_check", inListCheck(t.role, ASSISTANT_ROLES))]);

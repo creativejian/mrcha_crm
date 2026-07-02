@@ -4,61 +4,68 @@ import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { assistantDeps } from "./assistant";
 
-// gemini 호출은 mock, guard 통과용 더미 키(값은 안 쓰임 — 주입된 fake만 호출됨).
 process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || "test-key";
 
 const realDeps = { ...assistantDeps };
-afterEach(() => { Object.assign(assistantDeps, realDeps); }); // 각 테스트 후 원상복구
+afterEach(() => { Object.assign(assistantDeps, realDeps); });
 
-test("POST /api/assistant/ask 무토큰 → 401", async () => {
+test("POST /ask 무토큰 → 401", async () => {
   const { keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: "누가 급해?" }) });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: "q" }) });
   expect(res.status).toBe(401);
 });
 
-test("POST /api/assistant/ask 빈 질문 → 400", async () => {
+test("POST /ask 빈 질문 → 400", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ question: "  " }),
-  });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "  " }) });
   expect(res.status).toBe(400);
 });
 
-test("POST /api/assistant/ask → 200 {answer, sources}", async () => {
+test("POST /ask → 200: 멀티턴 history 전달 + user/assistant 2건 저장", async () => {
+  const seen: { historyLen: number; saved: number } = { historyLen: -1, saved: -1 };
+  assistantDeps.listRecentMessages = async () => [
+    { id: "m1", staffUserId: "s", role: "user", content: "이전질문", sources: null, createdAt: new Date(0) },
+  ] as never;
   assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: 3072 }, () => 0.01));
-  assistantDeps.searchEmbeddings = async () => [
-    { id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "고객 김민준 상담메모: GLC", similarity: 0.9 },
-  ];
-  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "견적·발송완료" }]]);
-  assistantDeps.generateAnswer = async () => "테스트 답변";
+  assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
+  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
+  assistantDeps.generateAnswer = async (_s: string, _u: string, _k: string, history: { role: string }[] = []) => { seen.historyLen = history.length; return "답변"; };
+  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => { seen.saved = rows.length; return rows as never; };
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ question: "계약 가능성 높은 고객은?" }),
-  });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "이번질문" }) });
   expect(res.status).toBe(200);
-  const json = (await res.json()) as { answer: string; sources: unknown[] };
-  expect(json.answer).toBe("테스트 답변");
-  expect(json.sources.length).toBe(1);
+  const json = (await res.json()) as { answer: string; sources: unknown[]; messages: unknown[] };
+  expect(json.answer).toBe("답변");
+  expect(seen.historyLen).toBe(1);
+  expect(seen.saved).toBe(2);
+  expect(json.messages.length).toBe(2);
 });
 
-test("POST /api/assistant/ask Gemini 실패 → 500 한국어 메시지", async () => {
+test("POST /ask Gemini 실패 → 500 한국어, 저장 0건", async () => {
+  let saved = 0;
+  assistantDeps.listRecentMessages = async () => [];
   assistantDeps.embedTexts = async () => { throw new Error("boom"); };
+  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => { saved += (rows as unknown[]).length; return rows as never; };
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ question: "누가 급해?" }),
-  });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q" }) });
   expect(res.status).toBe(500);
-  const json = (await res.json()) as { error: string };
-  expect(json.error).toBe("일시적으로 답변에 실패했습니다.");
+  expect((await res.json() as { error: string }).error).toBe("일시적으로 답변에 실패했습니다.");
+  expect(saved).toBe(0);
+});
+
+test("GET /messages → 본인 최근 목록", async () => {
+  assistantDeps.listRecentMessages = async () => [
+    { id: "m1", staffUserId: "s", role: "user", content: "q", sources: null, createdAt: new Date(0) },
+    { id: "m2", staffUserId: "s", role: "assistant", content: "a", sources: [], createdAt: new Date(1) },
+  ] as never;
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/messages", { headers: { Authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(200);
+  expect((await res.json() as unknown[]).length).toBe(2);
 });
