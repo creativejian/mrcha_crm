@@ -85,7 +85,12 @@ export function joinTypingChannel(
     const channel = supabase
       .channel(topic)
       .on("broadcast", { event: "typing" }, (message) => {
-        const senderType = (message.payload as Record<string, unknown> | undefined)?.sender_type;
+        // 봉투 호환(실측): JS SDK는 {payload:{…}} 중첩으로 보내지만, Dart SDK(realtime_client
+        // 2.8.0 send()는 payload 맵에 type/event를 합쳐 평평하게 전송) → 앱발 메시지는
+        // sender_type이 최상위에 온다. 두 형태 모두 수용.
+        const raw = message as Record<string, unknown>;
+        const nested = raw.payload as Record<string, unknown> | undefined;
+        const senderType = nested?.sender_type ?? raw.sender_type;
         if (senderType !== "user") return; // 상대(고객)만 — 앱 admin과 동일 필터
         for (const listener of listeners) listener();
       })
@@ -102,7 +107,14 @@ export function joinTypingChannel(
       const now = Date.now();
       if (now - lastSentAt < 1000) return;
       lastSentAt = now;
-      void held.channel.send({ type: "broadcast", event: "typing", payload: { sender_type: "staff" } });
+      // 앱 수신부(Dart onBroadcast)는 wire 맵을 그대로 받아 sender_type을 최상위에서 읽는다
+      // → 평평한 키를 함께 실어 전송(중첩 payload는 JS 수신부 호환용으로 유지).
+      void held.channel.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { sender_type: "staff" },
+        sender_type: "staff",
+      });
     },
     cleanup: () => {
       held.listeners.delete(onCustomerTyping);

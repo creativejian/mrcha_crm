@@ -102,14 +102,17 @@ describe("joinTypingChannel", () => {
     expect(channelTopics).toEqual(["typing:t1"]);
     cleanup();
   });
-  it("sender_type 'user'(고객)만 콜백하고 'staff'는 무시한다", () => {
+  it("sender_type 'user'(고객)만 콜백하고 'staff'는 무시한다 — JS(중첩)·Dart(평면) 봉투 모두", () => {
     const onTyping = vi.fn();
     const { cleanup } = joinTypingChannel("t2", onTyping);
     expect(handlers[0].event).toBe("typing");
-    handlers[0].cb({ payload: { sender_type: "user" } });
+    handlers[0].cb({ payload: { sender_type: "user" } }); // JS SDK 봉투(중첩)
     expect(onTyping).toHaveBeenCalledTimes(1);
+    handlers[0].cb({ sender_type: "user", type: "broadcast", event: "typing" }); // Dart SDK 봉투(평면, 실측)
+    expect(onTyping).toHaveBeenCalledTimes(2);
     handlers[0].cb({ payload: { sender_type: "staff" } });
-    expect(onTyping).toHaveBeenCalledTimes(1);
+    handlers[0].cb({ sender_type: "staff", type: "broadcast", event: "typing" });
+    expect(onTyping).toHaveBeenCalledTimes(2);
     cleanup();
   });
   it("sendTyping은 1s leading-edge throttle로 staff payload를 보낸다", () => {
@@ -123,6 +126,7 @@ describe("joinTypingChannel", () => {
       type: "broadcast",
       event: "typing",
       payload: { sender_type: "staff" },
+      sender_type: "staff", // Dart 수신부는 최상위에서 읽음(평면 봉투 호환)
     });
     vi.setSystemTime(2000);
     sendTyping(); // 1s 경과 — 재전송
