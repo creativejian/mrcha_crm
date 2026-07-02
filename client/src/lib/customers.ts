@@ -8,6 +8,7 @@ export type CustomerRow = {
   customerCode: string;
   name: string;
   phone: string | null;
+  appUserId: string | null;
   customerType: string | null;
   customerTypeDetail: string | null;
   advisorName: string | null;
@@ -48,6 +49,7 @@ export function formatActivity(ts: string | null): string {
 export function toCustomer(row: CustomerRow): Customer {
   return {
     id: row.id,
+    appUserId: row.appUserId,
     no: Number(row.customerCode.replace(/\D/g, "")),
     customerId: row.customerCode,
     receivedAt: formatActivity(row.receivedAt),
