@@ -5091,8 +5091,11 @@ th input:focus-visible {
   background: #fafafa;
 }
 
+/* 말풍선은 내용 폭 기준 + 최대 폭 제한(짧은 메시지가 grid 컬럼 풀폭으로 늘어지지 않게) */
 .message {
-  max-width: 74%;
+  width: fit-content;
+  max-width: 78%;
+  justify-self: start;
   border-radius: 12px;
   padding: 12px;
   font-size: 13px;
@@ -5106,7 +5109,6 @@ th input:focus-visible {
 }
 
 .message.ai {
-  max-width: 100%;
   background: #eef2f7;
 }
 
