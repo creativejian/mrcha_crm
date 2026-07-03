@@ -95,3 +95,74 @@ test("generateAnswerStream: rate_limited는 1회 재시도 후 성공", async ()
   expect(out).toEqual(["재시도성공"]);
   expect(calls).toBe(2);
 });
+
+test("generateAnswerStream: 멀티바이트(한글) UTF-8 바이트 중간에서 청크가 갈라져도 온전한 문자열 yield", async () => {
+  const line = `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "한글텍스트" }] } }] })}\n\n`;
+  const bytes = new TextEncoder().encode(line);
+  // 첫 UTF-8 continuation 바이트(상위비트 10) 앞에서 잘라 멀티바이트 문자 중간 분할을 만든다.
+  const cut = bytes.findIndex((b) => (b & 0xc0) === 0x80);
+  expect(cut).toBeGreaterThan(0);
+  const fakeFetch = (async () =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(bytes.slice(0, cut));
+          controller.enqueue(bytes.slice(cut));
+          controller.close();
+        },
+      }),
+      { status: 200 },
+    )) as unknown as typeof fetch;
+
+  const out: string[] = [];
+  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) out.push(c);
+  expect(out).toEqual(["한글텍스트"]);
+});
+
+test("generateAnswerStream: [DONE] 라인은 스킵", async () => {
+  const chunk = `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "본문" }] } }] })}\n\n`;
+  const fakeFetch = (async () =>
+    new Response(sseBody([chunk, "data: [DONE]\n\n"]), { status: 200 })) as unknown as typeof fetch;
+
+  const out: string[] = [];
+  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) out.push(c);
+  expect(out).toEqual(["본문"]);
+});
+
+test("generateAnswerStream: 개행 없이 끝나는 마지막 data 라인도 flush 파싱", async () => {
+  const first = `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "앞" }] } }] })}\n\n`;
+  const tailNoNewline = `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "꼬리" }] } }] })}`;
+  const fakeFetch = (async () =>
+    new Response(sseBody([first, tailNoNewline]), { status: 200 })) as unknown as typeof fetch;
+
+  const out: string[] = [];
+  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) out.push(c);
+  expect(out).toEqual(["앞", "꼬리"]);
+});
+
+test("generateAnswerStream: 소비자 조기 break 시 업스트림 스트림을 cancel", async () => {
+  let cancelled = false;
+  const enc = new TextEncoder();
+  const chunk = (t: string) => `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] } }] })}\n\n`;
+  const fakeFetch = (async () =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(enc.encode(chunk("첫청크")));
+          // close하지 않음 — cancel이 안 오면 다음 read가 영원히 대기하는 열린 스트림.
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { status: 200 },
+    )) as unknown as typeof fetch;
+
+  const out: string[] = [];
+  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) {
+    out.push(c);
+    break; // 중지 경로 시뮬레이션 — generator return → finally에서 upstream cancel.
+  }
+  expect(out).toEqual(["첫청크"]);
+  expect(cancelled).toBe(true);
+});
