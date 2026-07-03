@@ -131,6 +131,17 @@ button:disabled {
   background: #fff;
 }
 
+/* 메뉴가 100vh를 넘으면(서브메뉴 기본 열림 시 ~913px) 사이드바 안에서 스크롤 —
+   없으면 하단 메뉴(경영 리포트·재무 관리)가 흰 박스 밖으로 넘치거나 접근 불가.
+   접힘 모드는 hover flyout(absolute)이 잘리므로 제외(아이콘만이라 100vh 안에 듦). */
+.sidebar:not(.collapsed) {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(17, 17, 17, 0.16) transparent;
+}
+
 .brand {
   margin: var(--sidebar-visual-gap) 8px;
   display: flex;
