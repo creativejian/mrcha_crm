@@ -68,7 +68,7 @@ async function* generateAnswerStream(systemPrompt, userPrompt, apiKey, history, 
   3. `streamSSE`로 Gemini 청크를 `text` 이벤트 릴레이하며 `fullText` 누적.
   4. **완료**: placeholder를 `fullText + sources`로 update → `done`에 영속본 2건 송출.
   5. **중단 감지**: `c.req.raw.signal`의 abort(클라 AbortController) 또는 SSE write 실패 → 부분 `fullText + " (중단됨)"` update(0자면 placeholder 삭제). 저장은 CF Workers에서 `executionCtx.waitUntil`로 보장(로컬 bun은 executionCtx 없음 — try/catch 후 직접 await).
-  6. **스트림 중간 에러**: 결정 5 정책. `error` 이벤트 송출 시 code는 기존 `classifyGeminiError` 계열.
+  6. **스트림 중간 에러**: 결정 5 정책. `error` 이벤트의 code는 고정 `"generation_failed"` — 스트림 중간 실패는 raw 에러(JSON SyntaxError 등)라 `classifyGeminiError`로 분류 불가하고, 클라는 message만 소비한다.
 - `AssistantDeps`에 `generateAnswerStream`·`updateAssistantMessage`·`deleteAssistantMessage` 추가(테스트 주입).
 
 ### 3. 프론트 — SSE 파서 + 드레인 (`client/src/lib/`)
