@@ -1,4 +1,5 @@
 import { classifyGeminiError } from "./gemini-error";
+import { geminiHeaders, type GeminiTarget } from "./gemini-target";
 
 export const EMBEDDING_MODEL = "gemini-embedding-001"; // 앱 관례(3072 네이티브). output_dimensionality 미지정.
 export const EMBEDDING_DIM = 3072; // gemini-embedding-001 네이티브 차원 — schema vector(N)·halfvec 캐스트·테스트 픽스처가 공유
@@ -9,25 +10,25 @@ export type EmbedTaskType = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
 // 실패(재시도 후에도)는 throw. 빈 입력은 호출 없이 [].
 export async function embedTexts(
   texts: string[],
-  apiKey: string,
+  target: GeminiTarget,
   taskType: EmbedTaskType,
   fetchImpl: typeof fetch = fetch,
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
   const vectors: number[][] = [];
   for (let start = 0; start < texts.length; start += MAX_EMBED_BATCH) {
-    vectors.push(...(await embedBatch(texts.slice(start, start + MAX_EMBED_BATCH), apiKey, taskType, fetchImpl)));
+    vectors.push(...(await embedBatch(texts.slice(start, start + MAX_EMBED_BATCH), target, taskType, fetchImpl)));
   }
   return vectors;
 }
 
 async function embedBatch(
   texts: string[],
-  apiKey: string,
+  target: GeminiTarget,
   taskType: EmbedTaskType,
   fetchImpl: typeof fetch,
 ): Promise<number[][]> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents?key=${apiKey}`;
+  const url = `${target.baseUrl}/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents`;
   const body = JSON.stringify({
     requests: texts.map((text) => ({
       model: `models/${EMBEDDING_MODEL}`,
@@ -37,7 +38,7 @@ async function embedBatch(
   });
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetchImpl(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    const res = await fetchImpl(url, { method: "POST", headers: geminiHeaders(target), body });
     if (res.ok) {
       const data = (await res.json()) as { embeddings?: { values?: number[] }[] };
       const vecs = data.embeddings?.map((e) => e.values);
