@@ -171,6 +171,17 @@ export function useAssistantThread() {
       if (!drainTimerRef.current) drainTimerRef.current = setInterval(pump, DRAIN_TICK_MS);
     };
 
+    // done 이후(생성·저장 완료, 타자기 드레인만 남음) stop = 드레인 즉시 스킵해 전체 노출·턴 마감.
+    // 서버 생성이 드레인보다 훨씬 빨라 체감 "스트리밍 중" stop의 대부분이 이 구간이다 — fetch는 이미
+    // 닫혀 있어 abort가 no-op였던 것이 prod "정지 안 됨"의 원인. done 전 stop은 catch의 abort 분기 담당.
+    abort.signal.addEventListener("abort", () => {
+      if (!doneResult) return;
+      displayLength = fullText.length;
+      setPendings((cur) => cur.map((p) => (p.tempId === tempId ? { ...p, streamText: fullText } : p)));
+      stopTimer();
+      settleDrain?.();
+    });
+
     try {
       const res = await askAssistantStream(
         question,
