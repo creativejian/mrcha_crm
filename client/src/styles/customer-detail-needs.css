@@ -1,0 +1,1270 @@
+.kim-needs-dashboard {
+  align-self: stretch;
+  display: grid;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+/* 니즈 편집 popover가 카드 높이를 넘칠 때 하단(저장 버튼)이 잘리지 않도록,
+   popover가 열린 동안에만 overflow 잠금을 해제(평소엔 hidden 유지=도트 배경 clip). */
+.kim-needs-dashboard:has(.kim-edit-popover.needs) {
+  overflow: visible;
+}
+
+/* 앱 카드 목록: 점무늬 캔버스 대신 "깔끔한 단일 스크롤 박스"로 재설계.
+   - 섹션이 좌측 컬럼 높이로 stretch되지 않게 hug(start) → 박스=콘텐츠.
+   - field를 flex 컬럼 + 상한 높이(~5장)로 두고 그 안을 스크롤(스크롤=박스 전체, 작은 inset 박스 느낌 제거).
+   - 점무늬 제거(흰 박스), 카드 흰색은 아래 floating-card 규칙에서.
+   수기 단일 카드는 base 캔버스(점무늬·가운데정렬) 그대로 유지. */
+.kim-needs-dashboard.is-app {
+  align-self: start;
+}
+.kim-needs-dashboard.is-app .kim-needs-field {
+  min-height: 0;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background-color: #fff;
+  background-image: none;
+}
+
+.kim-needs-field {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background-color: #fff;
+  background-image: radial-gradient(circle, rgba(15, 23, 42, 0.1) 1px, transparent 1px);
+  background-position: 0 0;
+  background-size: 22px 22px;
+}
+
+.kim-needs-floating-card {
+  width: 100%;
+  max-height: calc(100% - 48px);
+  border: 1px solid #dededb;
+  border-radius: 7px;
+  display: block;
+  overflow: hidden;
+  background: #f7f7f6;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07), 0 1px 1px rgba(15, 23, 42, 0.04);
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+}
+
+.kim-needs-floating-card:hover {
+  border-color: rgba(var(--brand-rgb), 0.24);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08), 0 0 0 3px rgba(var(--brand-rgb), 0.055);
+  transform: translateY(-1px);
+}
+
+.kim-needs-card-main {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  padding: 10px;
+}
+
+.kim-needs-car-icon {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(var(--brand-rgb), 0.24);
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: #f4f1ff;
+  color: var(--brand);
+}
+
+.kim-needs-card-copy {
+  min-width: 0;
+}
+
+.kim-needs-card-copy h3 {
+  margin: 0;
+  color: #172026;
+  font-size: 15px;
+  font-weight: 820;
+  line-height: 1.22;
+}
+
+.kim-needs-card-copy p {
+  margin: 5px 0 0;
+  color: #5f6872;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.28;
+}
+
+.kim-needs-card-copy span {
+  display: block;
+  margin-top: 6px;
+  color: #8f969c;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.28;
+}
+
+.kim-needs-method-badge {
+  min-height: 28px;
+  border: 1px solid rgba(var(--brand-rgb), 0.26);
+  border-radius: 7px;
+  background: #f7f4ff;
+  color: var(--brand);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 26px;
+  white-space: nowrap;
+}
+
+.kim-needs-card-memo {
+  border-top: 1px solid #dededb;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  background: transparent;
+}
+
+.kim-needs-card-memo span {
+  color: #8f969c;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.kim-needs-card-memo p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  margin: 0;
+  color: #30363d;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.kim-needs-app {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 카드 목록 = 박스 전체를 채우는 스크롤 영역(가장자리까지). flex:1로 박스를 채우고 넘치면 스크롤.
+   grid-auto-rows:max-content → 카드 원래 높이 유지(찌부러짐 방지). overscroll-contain → 부모 전파 차단.
+   안쪽 padding 12로 카드가 박스 가장자리에 닿지 않게(스크롤바는 박스 가장자리). */
+.kim-needs-request-scroll {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+}
+
+.kim-needs-request-card {
+  max-height: none;
+}
+
+.kim-needs-request-status {
+  margin: 0;
+  padding: 18px 10px;
+  text-align: center;
+  color: #8f969c;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.kim-needs-request-actions {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 6px;
+}
+
+.kim-needs-request-badge {
+  border: 1px solid rgba(var(--brand-rgb), 0.26);
+  border-radius: 6px;
+  background: #f4f1ff;
+  color: var(--brand);
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.kim-needs-request-create {
+  min-height: 28px;
+  border: 1px solid rgba(var(--brand-rgb), 0.26);
+  border-radius: 7px;
+  background: var(--brand);
+  color: #fff;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 26px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-needs-request-create:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
+}
+
+.kim-needs-customer-meta {
+  margin: 0 12px 12px;
+  border: 1px solid #dededb;
+  border-radius: 7px;
+  background: #fafafa;
+  display: grid;
+  gap: 2px;
+}
+
+.kim-needs-customer-meta .kim-needs-card-memo:first-child {
+  border-top: 0;
+}
+
+.kim-work-dashboard,
+.kim-reference-dashboard {
+  grid-column: 1 / -1;
+}
+
+.kim-mvp-ops-grid,
+.kim-condition-quote-grid,
+.kim-condition-consult-grid,
+.kim-workspace-band,
+.kim-purchase-conditions,
+.kim-mvp-feature-row,
+.kim-mvp-section,
+.kim-mvp-grid {
+  grid-column: 1 / -1;
+}
+
+.kim-workspace-band {
+  display: grid;
+  gap: 30px;
+}
+
+.kim-condition-quote-grid,
+.kim-condition-consult-grid,
+.kim-mvp-ops-grid,
+.kim-mvp-feature-row {
+  display: grid;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.kim-condition-consult-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.kim-condition-quote-grid,
+.kim-mvp-feature-row {
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+}
+
+.kim-mvp-ops-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  row-gap: 30px;
+}
+
+.kim-mvp-feature-row .kim-mvp-section {
+  grid-column: auto;
+}
+
+.kim-mvp-ops-grid .kim-mvp-section,
+.kim-mvp-ops-grid .kim-mvp-card {
+  grid-column: auto;
+}
+
+.kim-condition-quote-grid .kim-purchase-conditions,
+.kim-condition-consult-grid .kim-purchase-conditions,
+.kim-condition-consult-grid .kim-consult-log,
+.kim-condition-consult-grid .kim-customer-memo-section,
+.kim-condition-quote-grid .kim-quote-card {
+  grid-column: auto;
+}
+
+.kim-customer-dashboard .kim-consult-log,
+.kim-customer-dashboard .kim-customer-memo-section {
+  border: 0;
+  border-radius: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  background: transparent;
+}
+
+.kim-customer-dashboard .kim-mvp-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.kim-mvp-section-head {
+  min-height: 58px;
+  border-bottom: 1px solid #eeeeec;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 12px 14px;
+}
+
+.kim-consult-log .kim-mvp-section-head {
+  min-height: 34px;
+  border-bottom: 0;
+  padding: 0;
+}
+
+.kim-customer-memo-section .kim-mvp-section-head,
+.kim-mvp-card-head {
+  justify-content: space-between;
+}
+
+.kim-mvp-section-head h3,
+.kim-mvp-card-head h3 {
+  margin: 0;
+  color: #172026;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.kim-mvp-section-head p {
+  margin: 4px 0 0;
+  color: #8b9299;
+  font-size: 11.5px;
+  font-weight: 520;
+  line-height: 1.35;
+}
+
+.kim-mvp-section-head button,
+.kim-mvp-card-head button,
+.kim-mvp-card-body > button {
+  height: 30px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  color: #4f5862;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 28px;
+  white-space: nowrap;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-mvp-section-head .kim-mvp-add-circle,
+.kim-mvp-card-head .kim-mvp-add-circle,
+.kim-mvp-section-head .kim-customer-memo-add-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border: 1px solid rgba(var(--brand-rgb), 0.2);
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--brand-rgb), 0.08);
+  color: var(--brand);
+  padding: 0;
+  font-size: 18px;
+  font-weight: 360;
+  line-height: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.kim-mvp-section-head .kim-mvp-add-circle:hover,
+.kim-mvp-card-head .kim-mvp-add-circle:hover,
+.kim-mvp-section-head .kim-customer-memo-add-button:hover {
+  border-color: rgba(var(--brand-rgb), 0.34);
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(var(--brand-rgb), 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.kim-mvp-title-row > span,
+.kim-mvp-title-row > .kim-customer-memo-count {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  margin-left: -2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #8b9299;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.kim-mvp-title-row > em {
+  overflow: hidden;
+  color: #a0a6ad;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 560;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kim-mvp-section-head .kim-customer-memo-add-button > span {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  display: block;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.kim-mvp-section-head button:not(.kim-customer-memo-add-button):not(.kim-mvp-add-circle):hover,
+.kim-mvp-card-head button:not(.kim-mvp-add-circle):hover,
+.kim-mvp-card-body > button:hover {
+  border-color: rgba(var(--brand-rgb), 0.34);
+  background: #fff;
+  color: #30363d;
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.06);
+}
+
+.kim-customer-dashboard .kim-purchase-conditions {
+  border: 0;
+  border-radius: 0;
+  display: grid;
+  gap: 6px;
+  background: transparent;
+  position: relative;
+}
+
+.kim-customer-dashboard .kim-purchase-conditions:has(.kim-edit-popover) {
+  z-index: 20;
+}
+
+.kim-purchase-condition-body {
+  border: 1px solid #e4e4e2;
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr);
+  min-height: 196px;
+  overflow: visible;
+  background: #fff;
+}
+
+.kim-purchase-condition-anchor {
+  position: relative;
+  min-width: 0;
+  border-right: 1px solid rgba(17, 17, 17, 0.055);
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+}
+
+.kim-purchase-condition-anchor:nth-child(3n) {
+  border-right: 0;
+}
+
+.kim-purchase-condition-anchor:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.kim-purchase-condition-anchor.judgment {
+  background: #fcfcfb;
+}
+
+.kim-purchase-condition-item {
+  width: 100%;
+  height: 100%;
+  min-height: 58px;
+  border: 0;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 5px 14px;
+  text-align: left;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+
+.kim-purchase-condition-anchor.judgment .kim-purchase-condition-item {
+  padding-block: 8px;
+}
+
+.kim-purchase-condition-item:hover {
+  background: #fafafa;
+}
+
+.kim-purchase-condition-anchor.editable {
+  z-index: 1;
+}
+
+.kim-purchase-condition-anchor.editable:hover,
+.kim-purchase-condition-anchor.editable:focus-within {
+  z-index: 3;
+  box-shadow: inset 0 0 0 1px rgba(var(--brand-rgb), 0.42), 0 0 0 2px rgba(var(--brand-rgb), 0.055);
+}
+
+.kim-purchase-condition-anchor.editable.active {
+  z-index: 90;
+  box-shadow: inset 0 0 0 1px rgba(var(--brand-rgb), 0.42), 0 0 0 2px rgba(var(--brand-rgb), 0.055);
+}
+
+.kim-purchase-condition-anchor.editable.active .kim-edit-popover {
+  z-index: 200;
+}
+
+.kim-purchase-condition-anchor.editable:hover .kim-purchase-condition-item,
+.kim-purchase-condition-anchor.editable:focus-within .kim-purchase-condition-item,
+.kim-purchase-condition-anchor.editable.active .kim-purchase-condition-item {
+  background: #fff;
+}
+
+.kim-purchase-condition-item span {
+  color: #8f969c;
+  font-size: 10.5px;
+  font-weight: 780;
+  line-height: 1;
+}
+
+.kim-purchase-condition-item strong {
+  color: #30363d;
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+}
+
+.kim-purchase-condition-item strong.is-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 5px;
+  align-items: baseline;
+  color: #30363d;
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.35;
+  overflow-wrap: normal;
+}
+
+.kim-purchase-condition-item strong.is-tag-list span {
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+}
+
+.kim-purchase-condition-item strong.is-empty {
+  color: #9aa1a8;
+  font-weight: 650;
+}
+
+.kim-purchase-condition-item strong.needs-confirmation {
+  color: #c24132;
+}
+
+.kim-consult-body {
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  display: grid;
+  gap: 0;
+  height: 236px;
+  max-height: 236px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.kim-timeline-popover .kim-timeline-popover-body {
+  border: 0;
+  border-radius: 0;
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
+}
+
+.kim-timeline-popover .kim-timeline-popover-body.is-scrollable {
+  max-height: min(580px, calc(100vh - 260px));
+  overflow-y: auto;
+}
+
+.kim-consult-composer {
+  border-bottom: 1px solid #eeeeec;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px 14px;
+  background: #fbfbfa;
+}
+
+.kim-consult-composer label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.kim-consult-composer label > span {
+  color: #8f969c;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.kim-consult-composer select,
+.kim-consult-composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  outline: 0;
+}
+
+.kim-consult-composer select {
+  height: 34px;
+  padding: 0 9px;
+}
+
+.kim-consult-composer textarea {
+  min-height: 72px;
+  resize: vertical;
+  padding: 8px 9px;
+  line-height: 1.48;
+}
+
+.kim-consult-composer select:focus,
+.kim-consult-composer textarea:focus {
+  border-color: rgba(var(--brand-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.08);
+}
+
+.kim-consult-composer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 1px;
+}
+
+.kim-consult-composer-actions button {
+  height: 30px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 28px;
+}
+
+.kim-consult-composer-actions button.primary {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+.kim-consult-timeline {
+  display: grid;
+  padding: 0;
+}
+
+.kim-consult-event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-height: 58px;
+  padding: 5px 14px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.kim-consult-event.is-muted-history {
+  background: #fafafa;
+}
+
+.kim-consult-event.is-latest-memo {
+  background: #fff;
+}
+
+.kim-consult-event.is-latest-memo::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--brand);
+}
+
+.kim-consult-event:last-child {
+  border-bottom: 0;
+}
+
+.kim-consult-event > span {
+  align-self: start;
+  transform: translateY(5px);
+  height: 22px;
+  border: 1px solid #e5e5e3;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f7f6;
+  color: #737a82;
+  font-size: 10.5px;
+  font-weight: 780;
+}
+
+.kim-consult-event.memo > span {
+  border-color: rgba(var(--brand-rgb), 0.22);
+  background: rgba(var(--brand-rgb), 0.055);
+  color: var(--brand);
+}
+
+.kim-consult-event.call > span {
+  border-color: rgba(15, 118, 110, 0.2);
+  background: rgba(15, 118, 110, 0.055);
+  color: #0f766e;
+}
+
+.kim-consult-event.chat > span {
+  border-color: rgba(37, 99, 235, 0.2);
+  background: rgba(37, 99, 235, 0.055);
+  color: #2563eb;
+}
+
+.kim-consult-event.status > span {
+  border-color: rgba(180, 83, 9, 0.22);
+  background: rgba(180, 83, 9, 0.06);
+  color: #9a5a05;
+}
+
+.kim-consult-event-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.kim-consult-event-head > div {
+  min-width: 0;
+}
+
+.kim-consult-event strong {
+  color: #2f363d;
+  font-size: 12.5px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.kim-consult-event em {
+  margin-left: 8px;
+  color: #8f969c;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 520;
+  white-space: nowrap;
+}
+
+.kim-consult-event-head button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  background: #fbfbfa;
+  color: #8f969c;
+  padding: 0;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-consult-event-head button:hover {
+  border-color: rgba(180, 35, 24, 0.28);
+  background: #fff;
+  color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.06);
+}
+
+.kim-consult-event p {
+  margin: 4px 0 0;
+  color: #58636e;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.kim-customer-memo-body {
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  display: grid;
+  align-content: start;
+  height: 196px;
+  max-height: 196px;
+  overflow-y: auto;
+  overscroll-behavior: contain; /* 내부 스크롤 끝에서 고객관리 배경으로 전파(체이닝) 차단 — 할일/견적함과 동일 */
+  background: #fff;
+}
+
+.kim-customer-memo-composer {
+  position: relative;
+  border-top: 1px solid rgba(var(--brand-rgb), 0.16);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px 14px;
+  background: #f8f7ff;
+}
+
+.kim-customer-memo-composer::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(var(--brand-rgb), 0.72);
+}
+
+.kim-customer-memo-composer label {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.kim-customer-memo-composer label > span {
+  color: #8f969c;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.kim-customer-memo-composer input,
+.kim-customer-memo-composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  outline: 0;
+}
+
+.kim-customer-memo-composer input {
+  height: 34px;
+  padding: 0 9px;
+}
+
+.kim-customer-memo-composer textarea {
+  min-height: 72px;
+  resize: vertical;
+  padding: 8px 9px;
+  line-height: 1.48;
+}
+
+.kim-customer-memo-composer input:focus,
+.kim-customer-memo-composer textarea:focus {
+  border-color: rgba(var(--brand-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.08);
+}
+
+.kim-customer-memo-composer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 1px;
+}
+
+.kim-customer-memo-composer-actions button {
+  height: 30px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 28px;
+}
+
+.kim-customer-memo-composer-actions button.primary {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+.kim-customer-memo-list {
+  display: grid;
+  padding: 0;
+}
+
+.kim-customer-memo-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) 24px;
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  background: #fff;
+  padding: 5px 14px;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-customer-memo-row:last-child {
+  border-bottom: 0;
+}
+
+.kim-customer-memo-row:hover {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(var(--brand-rgb), 0.18);
+}
+
+.kim-customer-memo-row p {
+  margin: 0;
+  color: #4f5862;
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 1.5;
+}
+
+.kim-customer-memo-row > span {
+  min-height: 22px;
+  border: 1px solid #d7e0eb;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef4fa;
+  color: #607087;
+  padding: 0 7px;
+  font-size: 10.5px;
+  font-weight: 760;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.kim-customer-memo-row button {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  background: #fbfbfa;
+  color: #8f969c;
+  padding: 0;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-customer-memo-row button:hover {
+  border-color: rgba(180, 35, 24, 0.28);
+  background: #fff;
+  color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.06);
+}
+
+.kim-customer-memo-delete-popover {
+  position: absolute;
+  top: calc(50% + 18px);
+  right: 14px;
+  z-index: 8;
+  width: 172px;
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  background: #fff;
+  padding: 9px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1), 0 0 0 1px rgba(15, 23, 42, 0.02);
+}
+
+.kim-customer-memo-delete-popover.is-above {
+  top: auto;
+  bottom: calc(50% + 18px);
+}
+
+.kim-customer-memo-delete-popover p {
+  margin: 0;
+  color: #30363d;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.kim-customer-memo-delete-popover > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.kim-customer-memo-delete-popover button {
+  width: auto;
+  height: 26px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 24px;
+  box-shadow: none;
+}
+
+.kim-customer-memo-delete-popover button:hover {
+  border-color: #c9c9c6;
+  background: #f7f7f6;
+  color: #30363d;
+  box-shadow: none;
+}
+
+.kim-customer-memo-delete-popover button.danger {
+  border-color: rgba(180, 35, 24, 0.26);
+  background: #fff;
+  color: #b42318;
+}
+
+.kim-customer-memo-delete-popover button.danger:hover {
+  border-color: rgba(180, 35, 24, 0.36);
+  background: rgba(180, 35, 24, 0.1);
+  color: #b42318;
+}
+
+.kim-customer-memo-edit-row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  background: #fff;
+  padding: 8px 14px;
+  box-sizing: border-box;
+  box-shadow: inset 0 0 0 1px rgba(var(--brand-rgb), 0.18);
+}
+
+.kim-customer-memo-edit-row textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 560;
+  outline: 0;
+}
+
+.kim-customer-memo-edit-row textarea {
+  min-height: 52px;
+  resize: vertical;
+  padding: 7px 8px;
+  line-height: 1.45;
+}
+
+.kim-customer-memo-edit-row textarea:focus {
+  border-color: rgba(var(--brand-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.08);
+}
+
+.kim-customer-memo-edit-row > span {
+  min-height: 22px;
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f7f6;
+  color: #7c858d;
+  padding: 0 7px;
+  font-size: 10.5px;
+  font-weight: 760;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.kim-customer-memo-edit-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kim-customer-memo-edit-actions button {
+  height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 26px;
+}
+
+.kim-customer-memo-edit-actions button.primary {
+  border-color: rgba(var(--brand-rgb), 0.24);
+  background: rgba(var(--brand-rgb), 0.08);
+  color: var(--brand);
+}
+
+.kim-mvp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.kim-quote-card {
+  grid-column: span 2;
+}
+
+.kim-mvp-ops-grid .kim-quote-card {
+  grid-column: 1;
+}
+
+.kim-mvp-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  min-height: 0;
+  padding: 0;
+}
+
+.kim-mvp-card-head {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kim-mvp-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kim-mvp-title-row em {
+  color: #8f969c;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 560;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.kim-mvp-card-head > span {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #e4e4e2;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  background: #fbfbfa;
+  color: #68717b;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.kim-mvp-card > p {
+  margin: 0;
+  color: #58636e;
+  font-size: 12.5px;
+  font-weight: 520;
+  line-height: 1.55;
+}
+
+.kim-mvp-card-body {
+  border: 1px solid #e4e4e2;
+  border-radius: 4px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 236px;
+  overflow: hidden;
+  overscroll-behavior: contain; /* 내부 스크롤 끝에서 전체 화면으로 전파(체이닝) 차단 */
+  background: #fff;
+  padding: 13px 14px;
+}
+
+.kim-schedule-card .kim-mvp-card-body,
+.kim-quote-card .kim-mvp-card-body,
+.kim-doc-card .kim-mvp-card-body,
+.kim-check-card .kim-mvp-card-body {
+  gap: 0;
+  min-height: 236px;
+  height: 236px;
+  max-height: 236px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.kim-check-card .kim-mvp-card-body,
+.kim-schedule-card .kim-mvp-card-body {
+  min-height: 196px;
+  height: 196px;
+  max-height: 196px;
+}
+
+.kim-quote-card .kim-mvp-card-body {
+  min-height: 282px;
+  height: 282px;
+  max-height: 282px;
+}
+
+.kim-doc-card .kim-mvp-card-body {
+  overflow: visible;
+}
+
+.kim-mvp-card-body > button {
+  justify-self: start;
+  margin-top: 2px;
+}

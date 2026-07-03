@@ -1,0 +1,201 @@
+/* VehiclePicker (차량 선택 드롭다운) */
+.kim-vehicle-picker {
+  display: flex;
+  flex-direction: column;
+}
+.kim-vehicle-picker-anchor {
+  position: relative;
+}
+.kim-vehicle-picker-anchor:last-child .kim-jeff-picker-row::after {
+  display: none;
+}
+.kim-jeff-picker-row:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.kim-vehicle-picker-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e4e4e2;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 4px;
+}
+.kim-vehicle-picker-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kim-vehicle-picker-option:hover {
+  background: #f4f1ff;
+}
+.kim-vehicle-picker-msg {
+  display: block;
+  padding: 10px;
+  font-size: 12px;
+  color: #7f858c;
+}
+.kim-option-picker {
+  position: relative;
+}
+.kim-option-picker-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e4e4e2;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+}
+.kim-option-picker-group + .kim-option-picker-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f0f0ee;
+}
+.kim-option-picker-label {
+  display: block;
+  padding: 2px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9298a0;
+}
+.kim-option-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kim-option-picker-option:hover {
+  background: #f4f1ff;
+}
+.kim-option-picker-option.is-selected {
+  background: #ece8ff;
+  font-weight: 600;
+}
+.kim-option-picker-option em {
+  font-style: normal;
+  font-size: 12px;
+  color: #5f6872;
+}
+.kim-option-picker-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kim-option-picker-option:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.kim-option-picker-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.kim-option-picker-dot--0 { background: #e5484d; }
+.kim-option-picker-dot--1 { background: #3b82f6; }
+.kim-option-picker-dot--2 { background: #22a06b; }
+.kim-option-picker-dot--3 { background: #f5a524; }
+.kim-option-picker-dot--4 { background: #8b5cf6; }
+.kim-option-picker-dot--5 { background: #06b6d4; }
+.kim-option-picker-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  color: #9298a0;
+}
+.kim-option-picker-relation {
+  display: block;
+  padding: 0 10px 6px 22px;
+  font-size: 11px;
+  color: #9298a0;
+  line-height: 1.4;
+}
+.kim-color-picker {
+  position: relative;
+}
+.kim-color-picker-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.kim-color-picker-swatch {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  flex: none;
+}
+.kim-color-picker-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e4e4e2;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+}
+.kim-color-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kim-color-picker-option:hover {
+  background: #f4f1ff;
+}
+.kim-color-picker-option.is-selected {
+  background: #ece8ff;
+  font-weight: 600;
+}
+.kim-color-picker-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kim-option-picker-msg {
+  display: block;
+  padding: 10px;
+  font-size: 12px;
+  color: #7f858c;
+}

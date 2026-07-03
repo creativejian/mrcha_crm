@@ -1,0 +1,588 @@
+/* ── 차량 관리(mc-master) ───────────────────────────────────────────── */
+.va-subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* 모델/트림 뷰 전환 시 헤더 높이 고정(점프 방지). */
+.va-card > .panel-head {
+  min-height: 64px;
+  align-items: center;
+}
+.va-head-thumb {
+  width: 52px;
+  height: 30px;
+  object-fit: contain;
+  margin-left: 4px;
+}
+.va-body {
+  padding: 0;
+}
+.va-layout {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  min-height: 420px;
+}
+.va-brand-sidebar {
+  border-right: 1px solid var(--line);
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.va-brand-group-label {
+  font-size: 11px;
+  font-weight: 780;
+  color: var(--muted);
+  padding: 0 8px 4px;
+}
+.va-brand-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.va-brand-item:hover {
+  background: #f3f3f2;
+}
+.va-brand-item.is-active {
+  background: #f1edff;
+  color: var(--brand);
+  font-weight: 600;
+}
+.va-brand-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+.va-model-table {
+  /* 전체 100% 채우되(table-layout: fixed 상속), 데이터 컬럼은 고정폭이고 모델명/가격이 남는 폭을 나눠 갖는다.
+     모델표는 6컬럼뿐이라 고객표(1160) min-width는 과하므로 모델표 기준으로 낮춘다. */
+  width: 100%;
+  min-width: 780px;
+}
+.va-col-center {
+  text-align: center;
+}
+.va-model-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.va-model-thumb {
+  width: 48px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.va-row-actions {
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+}
+.va-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.va-edit-drawer {
+  width: min(380px, calc(100vw - 80px));
+  min-width: 0;
+}
+.va-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.va-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.va-field .input,
+.va-field .select {
+  width: 100%;
+}
+.va-form-section {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 700;
+  color: #687782;
+}
+.va-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.tiny-btn.va-danger:hover {
+  background: #fee4e2;
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.3);
+}
+.badge.gray {
+  background: #ececed;
+  color: #5f6872;
+}
+.badge.purple {
+  background: #ece8ff;
+  color: var(--brand);
+}
+.va-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--brand);
+  cursor: pointer;
+}
+.va-link:hover {
+  text-decoration: underline;
+}
+.va-head-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.va-mono {
+  font-variant-numeric: tabular-nums;
+  color: #5f6872;
+}
+/* 모델/트림 테이블 영역만 세로 스크롤, 브랜드 사이드바는 고정. 210px≈상단바+카드헤더+여백(근사). */
+.va-layout > .table-scroll,
+.va-layout > .va-empty {
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+}
+.va-brand-sidebar {
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+}
+.va-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.va-select-on {
+  border-color: rgba(var(--brand-rgb), 0.4);
+  color: var(--brand);
+  background: #f1edff;
+}
+.va-danger-btn {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.3);
+}
+.va-danger-btn:hover {
+  background: #fee4e2;
+}
+.va-col-sel {
+  width: 60px;
+  white-space: nowrap;
+}
+/* 차량 관리 선택 체크박스는 고객 리스트(15px)보다 약간 크게. */
+.va-col-sel input {
+  width: 17px;
+  height: 17px;
+}
+.va-sel-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* td는 vertical-align: middle이지만 inline-flex는 baseline으로 떠서 위로 치우친다. 묶음을 셀 중앙에. */
+  vertical-align: middle;
+}
+.va-sel-cell input {
+  margin: 0;
+}
+.va-grip {
+  color: #b8bcc2;
+  cursor: grab;
+  flex: 0 0 auto;
+}
+.va-model-table tr[draggable="true"],
+.va-trim-table tr[draggable="true"] {
+  cursor: grab;
+}
+.va-row-selected {
+  background: #f1edff;
+}
+.va-dragging {
+  opacity: 0.45;
+}
+.va-muted {
+  color: var(--muted);
+}
+.va-trim-name {
+  font-weight: 500;
+}
+.va-color-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 5px;
+}
+.va-color-chip {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid rgba(17, 17, 17, 0.18);
+  flex: 0 0 auto;
+}
+/* hover 시 색상명 말풍선(차선생 메인 컬러, 꼬리 포함). */
+.va-color-chip:hover::after {
+  content: attr(data-name);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(17, 17, 17, 0.18);
+}
+.va-color-chip:hover::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 1px);
+  transform: translateX(-50%);
+  z-index: 60;
+  border: 5px solid transparent;
+  border-top-color: var(--brand);
+  pointer-events: none;
+}
+.va-color-div {
+  color: var(--line);
+  margin: 0 2px;
+}
+.va-color-more {
+  font-size: 11px;
+  color: var(--muted);
+}
+/* 이사님 지정 숫자 폰트(가격범위·트림수·연식·고유번호·가격·입력값). */
+.va-num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+/* read-only 필드(정규화명 등)는 연하게. */
+.va-readonly {
+  color: var(--muted);
+  background: var(--surface-2);
+}
+/* 국산차 트림 뷰 탭(목록 보기 / 순서 관리) — 고객관리 필터 버튼 계열. */
+.va-trim-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 14px;
+}
+/* 트림 테이블 헤더 위 구분선 — 탭(목록보기/순서관리)이 있는 국산차에서만(탭과 헤더 분리). */
+.va-trim-tabs + .va-trim-table thead th {
+  border-top: 1px solid #e1e4e8;
+}
+.va-trim-tab {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #5f6872;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.va-trim-tab:hover {
+  background: var(--surface-2);
+}
+.va-trim-tab.active {
+  border-color: rgba(var(--brand-rgb), 0.4);
+  color: var(--brand);
+  background: #f1edff;
+}
+/* 서브라인 그룹 헤더행. */
+.va-group-row > td {
+  padding: 0;
+  background: var(--surface-2);
+}
+.va-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.va-group-toggle:hover {
+  background: rgba(var(--brand-rgb), 0.05);
+}
+.va-group-chevron {
+  color: #9aa0a6;
+  flex: 0 0 auto;
+}
+.va-group-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #2b2f36;
+}
+.va-group-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+/* 그룹 내 트림 행은 등급명을 살짝 들여쓴다. */
+.va-grade-cell {
+  padding-left: 24px;
+}
+.va-color-none {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+/* 모델/트림 테이블은 고객 테이블의 select-기준 first-child 가운데정렬을 따르지 않는다(모델명/트림명 좌정렬). */
+.va-model-table th:first-child,
+.va-trim-table th:first-child {
+  text-align: left;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.va-model-table th:nth-child(2),
+.va-model-table td:nth-child(2),
+.va-trim-table th:nth-child(2),
+.va-trim-table td:nth-child(2) {
+  padding-left: 10px;
+}
+/* 모델명·데이터 컬럼은 고정폭, 가격만 남는 폭 흡수(한 줄 보장). */
+.va-model-table .va-mt-name {
+  width: 250px;
+}
+.va-model-table .va-mt-price {
+  white-space: nowrap;
+}
+.va-model-table .va-mt-cat {
+  width: 116px;
+}
+.va-model-table .va-mt-status {
+  width: 84px;
+}
+.va-model-table .va-mt-count {
+  width: 64px;
+}
+.va-model-table .va-mt-edit {
+  width: 56px;
+}
+/* 트림 테이블 컬럼 폭(table-layout: fixed). 트림명 넓게, 연식/상태 좁게. */
+.va-th-trim {
+  width: 240px;
+}
+.va-th-code {
+  width: 128px;
+}
+.va-th-year {
+  width: 56px;
+}
+.va-th-price {
+  width: 140px;
+}
+.va-th-status {
+  width: 78px;
+}
+.va-th-option {
+  width: 60px;
+}
+.va-th-edit {
+  width: 56px;
+}
+/* 가격변경일/할인변경일·자사/제휴/타사할인은 한 줄 표시(트림표는 가로 스크롤이라 폭을 넉넉히 줘 줄바꿈을 막는다). */
+.va-trim-table .va-c-date {
+  width: 100px;
+  white-space: nowrap;
+}
+.va-trim-table .va-c-disc {
+  width: 152px;
+  white-space: nowrap;
+}
+/* 옵션 배지 버튼: 리스트 아이콘 + 우상단 배지(있음 파랑/무옵션확정 회색/미정 빨강). */
+.va-option-btn {
+  position: relative;
+  overflow: visible;
+}
+.va-option-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+.va-option-has {
+  background: #2563eb;
+}
+.va-option-confirmed-none {
+  background: #6b7280;
+}
+.va-option-undecided {
+  background: #dc2626;
+}
+/* 옵션 패널 리스트/행/인라인 편집. */
+.va-opt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.va-opt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.va-opt-skeleton {
+  pointer-events: none;
+}
+.va-opt-skeleton .va-skel-bar {
+  display: block;
+  height: 14px;
+  width: 60%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #efefee 25%, #f6f6f5 37%, #efefee 63%);
+  background-size: 400% 100%;
+  animation: va-skel-pulse 1.2s ease-in-out infinite;
+}
+@keyframes va-skel-pulse {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+.va-opt-dot-slot {
+  flex: 0 0 10px;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.va-opt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.va-opt-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.va-opt-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+.va-opt-rel {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.va-opt-price {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5f6872;
+}
+.va-opt-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 6px;
+}
+.va-opt-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+.va-opt-edit .input {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+/* 가격은 짧은 숫자 → 좁은 고정폭(이름칸만 늘어나게). */
+.va-opt-edit .input.va-num {
+  flex: 0 0 100px;
+}
+.va-opt-unit {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+.va-opt-noopt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+/* 옵션 패널은 관계 설명·긴 옵션명 때문에 트림 편집보다 넓게. */
+.va-opt-drawer {
+  width: min(640px, calc(100vw - 120px));
+}
+.va-opt-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+/* 모델 이동 등 중앙 정렬 다이얼로그(드로어 오버레이 재사용, 중앙 배치). */
+.va-dialog-overlay {
+  justify-content: center;
+  align-items: center;
+}
+.va-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(420px, calc(100vw - 48px));
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(17, 17, 17, 0.22);
+  pointer-events: auto;
+  overflow: hidden;
+}

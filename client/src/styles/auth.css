@@ -1,0 +1,94 @@
+/* 인증 로그인 화면 */
+.login-page {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+}
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+/* 앱 로그인 화면과 동일 — 80px 라운드 스퀘어(반경 ≈ height*0.22). */
+.login-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 18px;
+  display: block;
+}
+
+.kim-detail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.kim-detail-skeleton {
+  height: 360px;
+  margin-top: 16px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f2f2f0 25%, #ececea 37%, #f2f2f0 63%);
+  background-size: 400% 100%;
+  animation: kim-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes kim-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+.kim-phone-input {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.kim-phone-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: #f1f1ef;
+  color: #8a9097;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kim-phone-input input {
+  flex: 1;
+  min-width: 0;
+}
+
+.kim-vehicle-skeleton {
+  display: inline-block;
+  width: 84px;
+  height: 13px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #ececec 25%, #f4f4f4 37%, #ececec 63%);
+  background-size: 400% 100%;
+  animation: kim-skeleton-shimmer 1.2s ease-in-out infinite;
+  vertical-align: middle;
+}
+
+.kim-jeff-skeleton-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kim-jeff-skeleton-row {
+  height: 38px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #ececec 25%, #f4f4f4 37%, #ececec 63%);
+  background-size: 400% 100%;
+  animation: kim-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes kim-skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}

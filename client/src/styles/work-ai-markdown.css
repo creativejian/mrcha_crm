@@ -1,0 +1,44 @@
+/* 히스토리 최초 로드 실패 안내 + 재시도(로드 실패가 세션 내 빈 히스토리로 고착되지 않게) */
+.work-ai-history-error { display: flex; align-items: center; gap: 8px; margin: 2px 0; font-size: 12.5px; color: #7f858c; }
+.work-ai-history-error p { margin: 0; }
+.work-ai-history-error button { padding: 2px 8px; border: 1px solid var(--line); border-radius: 5px; background: #fff; font-size: 12px; font-weight: 600; color: var(--brand); cursor: pointer; }
+.work-ai-history-error button:hover { background: #f4f1ff; border-color: var(--brand); }
+/* 히스토리 최초 로드 중(프리페치 전 팝오버를 연 드문 경우) — 빈 화면 대신 로딩 도트 */
+.work-ai-history-loading { display: flex; justify-content: center; padding: 6px 0; }
+.work-ai-sources { margin: 6px 0 0; padding-left: 16px; font-size: 11.5px; color: #5f6872; }
+.work-ai-sources li { margin: 2px 0; }
+
+.db-dots { position: relative; display: inline-block; width: 20px; height: 20px; }
+.db-dot { position: absolute; inset: 0; border-radius: 50%; background: var(--brand); opacity: 0.6; animation: db-bounce 1600ms cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+.db-dot:nth-child(2) { animation-delay: -800ms; }
+@keyframes db-bounce { 0% { transform: scale(0.03); opacity: 0.15; } 50% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(0.03); opacity: 0.15; } }
+
+/* 마크다운 본문 공용(MarkdownMessage .md-body) — 업무 AI·채팅 콘솔이 공유한다.
+   크기만 컨텍스트별 --md-* 변수로 조절(기본값 = 업무 AI 스케일, 채팅은 .message.ai .md-body에서 한 단계 축소).
+   구조/스타일 수정은 반드시 여기 한 곳에서 — 컨텍스트별 복제 금지(#133 strong 회귀가 한쪽만 픽스되는 사고 방지). */
+.md-body { font-size: var(--md-fs, 14px); line-height: var(--md-lh, 1.58); }
+.md-body h1 { font-size: var(--md-fs-h1, 17px); font-weight: 700; margin: 10px 0 4px; }
+.md-body h2 { font-size: var(--md-fs-h2, 16px); font-weight: 700; margin: 10px 0 4px; }
+.md-body h3 { font-size: var(--md-fs-h3, 14.5px); font-weight: 700; margin: 8px 0 4px; }
+.md-body ul { padding-left: 20px; list-style: disc; margin: 4px 0; }
+.md-body ol { padding-left: 20px; list-style: decimal; margin: 4px 0; }
+.md-body li { margin: 2px 0; }
+.md-body li::marker { color: var(--brand); }
+.md-body li > p { margin: 0; }
+.md-body p { margin: 4px 0; }
+.md-body strong { display: inline; margin: 0; font-size: inherit; font-weight: 600; }
+/* 컨테이너 padding과 첫/마지막 블록 마진 이중 여백 방지 */
+.md-body > :first-child { margin-top: 0; }
+.md-body > :last-child { margin-bottom: 0; }
+
+/* 업무 AI 컨텍스트: 본문 색 + 레거시 .work-ai-message p/strong(display:block·13px 고정) 무력화.
+   높은 특이도(0,3,1)로 파일 내 순서와 무관하게 이긴다. */
+.work-ai-message.assistant .md-body { color: #2b2f36; }
+.work-ai-message.assistant .md-body p { margin: 4px 0; font-size: inherit; line-height: inherit; color: inherit; }
+.work-ai-message.assistant .md-body strong { display: inline; margin: 0; font-size: inherit; font-weight: 600; }
+
+/* AI(assistant) 답변은 앱처럼 박스 없이 인라인 full-width. user 버블은 유지. */
+.work-ai-message.assistant { max-width: 100%; border: none; background: transparent; border-radius: 0; padding: 6px 0; }
+/* 오래된 메시지 로딩 표시: 본문 흐름 밖 오버레이(레이아웃/스크롤에 영향 없음) top-center 부동 pill */
+.work-ai-body-shell { position: relative; }
+.work-ai-load-older { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; justify-content: center; padding: 5px 10px; background: rgba(255, 255, 255, 0.92); border: 1px solid var(--line-soft); border-radius: 999px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }

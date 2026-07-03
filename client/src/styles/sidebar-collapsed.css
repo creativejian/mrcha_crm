@@ -1,0 +1,180 @@
+.shell.sidebar-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.sidebar,
+.shell {
+  transition: grid-template-columns 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sidebar.collapsed {
+  padding-inline: 6px;
+}
+
+.sidebar.collapsed .brand {
+  justify-content: center;
+  width: 100%;
+  margin-inline: 0;
+  gap: 0;
+  padding-inline: 0;
+}
+
+.sidebar.collapsed .brand > div:not(.brand-mark),
+.sidebar.collapsed .nav button > span:not(.nav-count) {
+  max-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-4px);
+}
+
+.sidebar.collapsed .sidebar-bottom {
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  pointer-events: none;
+}
+
+.sidebar.collapsed .subnav {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-admin-section {
+  padding-top: 12px;
+}
+
+.sidebar.collapsed .admin-nav-separator {
+  margin-inline: 8px;
+}
+
+.sidebar.collapsed .nav button {
+  justify-content: center;
+  width: 38px;
+  min-height: 38px;
+  margin-inline: auto;
+  gap: 0;
+  padding: 0;
+}
+
+.sidebar.collapsed .sidebar-flyout button {
+  width: 100%;
+  min-height: 34px;
+  justify-content: flex-start;
+  margin-inline: 0;
+  padding: 0 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .nav,
+.sidebar.collapsed .nav-group {
+  gap: 6px;
+}
+
+.sidebar.collapsed .nav-chevron {
+  display: none;
+}
+
+.sidebar.collapsed .nav .nav-item.nav-parent-open:not(.active) {
+  background: transparent;
+  color: #5f6366;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.sidebar.collapsed .nav .nav-item.nav-parent-open:not(.active):hover {
+  background: #f3f3f2;
+  color: #222;
+}
+
+.sidebar.collapsed .nav-group:has(.sidebar-flyout)::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: calc(100% - 2px);
+  z-index: 79;
+  width: 16px;
+  height: 260px;
+}
+
+.sidebar.collapsed .nav .nav-item:not(.has-flyout)::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 12px);
+  z-index: 85;
+  min-width: max-content;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #111;
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.18);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-4px, -50%);
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s ease;
+}
+
+.sidebar.collapsed .nav .nav-item:not(.has-flyout):hover::after,
+.sidebar.collapsed .nav .nav-item:not(.has-flyout):focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(0, -50%);
+}
+
+.sidebar.collapsed .nav-group:hover .sidebar-flyout,
+.sidebar.collapsed .nav-group:focus-within .sidebar-flyout {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.sidebar.collapsed .nav button .nav-count {
+  display: inline-grid;
+}
+
+@keyframes sidebar-content-in {
+  from {
+    opacity: 0;
+    transform: translateX(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.sidebar:not(.collapsed) .brand > div:not(.brand-mark),
+.sidebar:not(.collapsed) .sidebar-bottom,
+.sidebar:not(.collapsed) .subnav,
+.sidebar:not(.collapsed) .nav button > span:not(.nav-count) {
+  animation: sidebar-content-in 0.1s ease-out 0.03s both;
+}
+
+.settings-wrap {
+  position: relative;
+}
+
+.work-ai-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -230px;
+  z-index: 70;
+  width: 460px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.15);
+  transform-origin: top right;
+  animation: work-ai-panel-in 0.13s ease-out;
+  transition: width 0.16s ease;
+  will-change: opacity, transform;
+}
