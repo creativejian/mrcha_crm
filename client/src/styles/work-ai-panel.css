@@ -1,0 +1,401 @@
+.work-ai-panel.expanded {
+  width: min(598px, calc(100vw - 48px));
+}
+
+.work-ai-panel.closing {
+  pointer-events: none;
+  animation: work-ai-panel-out 0.11s ease-in forwards;
+}
+
+.work-ai-panel::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 244px;
+  width: 10px;
+  height: 10px;
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  background: #fff;
+  transform: rotate(45deg);
+}
+
+@keyframes work-ai-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes work-ai-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+}
+
+.work-ai-head {
+  min-height: 66px;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 12px;
+}
+
+.work-ai-title {
+  min-width: 0;
+}
+
+.work-ai-title strong,
+.work-ai-title small {
+  display: block;
+}
+
+.work-ai-title strong {
+  font-size: 15px;
+}
+
+.work-ai-title small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.work-ai-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.work-ai-actions button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  display: inline-grid;
+  place-items: center;
+  background: transparent;
+  color: #6b7280;
+}
+
+.work-ai-actions button:hover {
+  background: #f3f3f2;
+  color: #111;
+}
+
+.work-ai-actions button.active {
+  background: #eeeeed;
+  color: #111;
+}
+
+.work-ai-body {
+  min-height: 560px;
+  max-height: 560px;
+  overflow: auto;
+  overscroll-behavior: contain; /* 스크롤 끝에서 뒤 배경으로 스크롤 전파(chaining) 차단 */
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #fafafa;
+  transition: min-height 0.16s ease, max-height 0.16s ease;
+}
+
+.work-ai-panel.expanded .work-ai-body {
+  /* 상단 오프셋+헤더+compose를 감안하되 하단 여백은 ~20px만 남도록. 넘치면(문서 스크롤 증가)
+     배경 스크롤 시 쉬프트가 나므로 넘치지 않는 선에서 최대한 아래로. */
+  min-height: min(952px, calc(100vh - 224px));
+  max-height: min(952px, calc(100vh - 224px));
+}
+
+.work-ai-message {
+  max-width: 92%;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.work-ai-message.user {
+  justify-self: end;
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+.work-ai-message strong,
+.work-ai-message p {
+  margin: 0;
+}
+
+.work-ai-message strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.work-ai-message p {
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.work-ai-message.assistant p {
+  color: #4b5563;
+}
+
+.work-ai-quick {
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.work-ai-quick > span {
+  display: block;
+  margin-bottom: 9px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.work-ai-quick > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.work-ai-quick button {
+  min-height: 26px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: #f7f7f6;
+  color: #3f474f;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.work-ai-quick button.active,
+.work-ai-quick button:hover {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+.work-ai-compose {
+  min-height: 58px;
+  border-top: 1px solid var(--line-soft);
+  border-radius: 0 0 12px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 8px;
+  background: #fff;
+  padding: 10px;
+}
+
+.work-ai-compose input {
+  min-width: 0;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8f8f7;
+  padding: 0 12px;
+  color: #222;
+}
+
+.work-ai-compose button {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #111;
+  color: #fff;
+}
+
+.notifications-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -29px;
+  z-index: 70;
+  width: 390px;
+  max-width: calc(100vw - 32px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.15);
+}
+
+.topbar-popover-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: transparent;
+  cursor: default;
+}
+
+.notifications-panel::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 49px;
+  width: 10px;
+  height: 10px;
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  background: #fff;
+  transform: rotate(45deg);
+}
+
+.notifications-head {
+  min-height: 62px;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+}
+
+.notifications-head strong,
+.notifications-head small {
+  display: block;
+}
+
+.notifications-head strong {
+  font-size: 15px;
+}
+
+.notifications-head small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notifications-head button {
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6b7280;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.notifications-head button:hover {
+  background: #f3f3f2;
+  color: #111;
+}
+
+.notification-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 8px;
+}
+
+.notification-tabs button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #777;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.notification-tabs button.active {
+  background: #111;
+  color: #fff;
+}
+
+.notification-list {
+  max-height: 390px;
+  border-radius: 0 0 12px 12px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+}
+
+/* 떠 있는 레이어(팝오버·드롭다운 메뉴·모달·드로어)의 스크롤 영역은 끝에서
+   배경 문서로 스크롤이 전파되면 안 된다(배경 쉬프트). 새 팝오버류 스크롤
+   컨테이너를 만들면 여기에 추가할 것. 페이지 안 일반 스크롤 영역은 전파가
+   정상 동작이라 제외. (.chat-messages·.work-ai-body는 개별 규칙에 이미 적용) */
+.notification-list,
+.global-search-results,
+.draft-filter-popover,
+.kim-timeline-popover .kim-timeline-popover-body.is-scrollable,
+.kim-vehicle-picker-menu,
+.kim-option-picker-menu,
+.kim-color-picker-menu,
+.kim-quote-modal,
+.kim-app-card-preview-dialog .kim-app-card-preview,
+.kim-document-preview-body,
+.customer-detail-drawer {
+  overscroll-behavior: contain;
+}
+
+.notification-item {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  display: grid;
+  gap: 4px;
+  background: #fff;
+  padding: 10px;
+  color: #1f2933;
+  text-align: left;
+}
+
+.notification-item:hover {
+  border-color: var(--line-soft);
+  background: #f1f1ef;
+}
+
+.notification-item.urgent {
+  background: #fff8f7;
+}
+
+.notification-badge {
+  width: fit-content;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #344054;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.notification-badge.urgent {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.notification-item strong {
+  font-size: 13px;
+}
+
+.notification-item small,
+.notification-item em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.45;
+}

@@ -1,0 +1,1421 @@
+.kim-workspace-band .kim-purchase-conditions,
+.kim-workspace-band .kim-consult-log,
+.kim-workspace-band .kim-customer-memo-section,
+.kim-workspace-band .kim-mvp-card {
+  border: 1px solid #e4e4e2;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+  gap: 0;
+}
+
+.kim-workspace-band .kim-mvp-card-head,
+.kim-workspace-band .kim-mvp-section-head {
+  min-height: 40px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  background: #fff;
+  padding: 8px 14px;
+  box-sizing: border-box;
+}
+
+.kim-workspace-band .kim-mvp-title-row {
+  width: auto;
+}
+
+.kim-workspace-band .kim-mvp-title-row h3 {
+  margin-right: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.kim-mvp-title-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #68717b;
+  font-style: normal;
+}
+
+.kim-workspace-band .kim-purchase-condition-body,
+.kim-workspace-band .kim-consult-body,
+.kim-workspace-band .kim-customer-memo-body,
+.kim-workspace-band .kim-mvp-card-body {
+  border: 0;
+  border-radius: 0;
+  background: #fbfbfa;
+}
+
+.kim-workspace-band .kim-purchase-condition-item,
+.kim-workspace-band .kim-consult-event,
+.kim-workspace-band .kim-customer-memo-row,
+.kim-workspace-band .kim-customer-memo-edit-row,
+.kim-workspace-band .kim-quote-row,
+.kim-workspace-band .kim-doc-row,
+.kim-workspace-band .kim-check-row,
+.kim-workspace-band .kim-schedule-row {
+  background: #fbfbfa;
+}
+
+.kim-workspace-band .kim-purchase-condition-item:hover,
+.kim-workspace-band .kim-quote-row:hover,
+.kim-workspace-band .kim-doc-row:hover,
+.kim-workspace-band .kim-check-row:hover,
+.kim-workspace-band .kim-customer-memo-row:hover {
+  background: #fff;
+}
+
+.kim-workspace-band .kim-consult-event.is-muted-history,
+.kim-workspace-band .kim-consult-event.is-latest-memo {
+  background: #fbfbfa;
+}
+
+.kim-workspace-band .kim-check-row.is-completed,
+.kim-workspace-band .kim-check-row.is-completed:hover,
+.kim-workspace-band .kim-check-row.is-completed:focus-within,
+.kim-workspace-band .kim-schedule-row.is-completed,
+.kim-workspace-band .kim-schedule-row.is-completed:hover,
+.kim-workspace-band .kim-schedule-row.is-completed:focus-within {
+  background: #ededeb;
+}
+
+.kim-workspace-band .kim-consult-event.is-latest-memo {
+  background: #fff;
+}
+
+.kim-quote-list,
+.kim-doc-list,
+.kim-check-list {
+  display: grid;
+  gap: 0;
+  padding: 0;
+}
+
+/* 서류함 카드는 옆 견적함과 같은 행(align-items:stretch)이라 견적함 높이에 맞춰야 한다.
+   공유 규칙이 body를 height/max-height 236px로 못박아 여백이 생겼고, 그걸 풀면 이번엔 서류가
+   많을 때 목록 콘텐츠가 카드를 무한정 키워 견적함까지 늘어나고 스크롤이 안 됐다.
+   해법: body의 236 고정을 풀고 목록을 position:absolute로 body에서 격리한다. 목록이 out-of-flow라
+   카드 높이에 기여하지 않으므로 카드는 견적함이 정한 행 높이에 stretch로 맞고, 목록은 그 안을 채우며
+   넘치면 목록만 스크롤한다. 적을 때는 align-content:start로 위 정렬(아래는 빈 캐비닛). agent-browser 실측 확정. */
+.kim-doc-card .kim-mvp-card-body {
+  position: relative;
+  height: auto;
+  max-height: none;
+  /* 목록이 absolute(out-of-flow)라 카드 고유 높이가 0 — 행의 다른 카드(견적함 고정 높이)에만 기대면
+     그 카드가 숨겨지거나 가변화될 때 서류함이 0높이로 붕괴한다. 공용 카드 기준선 236px로 자립시키고,
+     행 stretch는 이 값을 키우는 방향으로만 작동한다. */
+  min-height: 236px;
+}
+.kim-doc-list {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-content: start;
+}
+
+.kim-quote-row {
+  position: relative;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  gap: 12px;
+  min-height: 58px;
+  align-items: center;
+  padding: 5px 14px;
+  box-sizing: border-box;
+  transition: background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-quote-row:hover,
+.kim-quote-row:focus-within {
+  background: #fafafa;
+  box-shadow: inset 0 0 0 1px rgba(var(--brand-rgb), 0.18);
+}
+
+.kim-quote-row.is-action-open {
+  background: rgba(var(--brand-rgb), 0.035);
+  box-shadow: inset 0 0 0 1.5px rgba(var(--brand-rgb), 0.24);
+}
+
+.kim-quote-row.is-file-drop-target {
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(var(--brand-rgb), 0.18), 0 8px 20px rgba(var(--brand-rgb), 0.08);
+}
+
+.kim-quote-card.compact .kim-quote-row {
+  grid-template-columns: 92px minmax(0, 1fr) max-content;
+  gap: 12px;
+  min-height: 94px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.kim-quote-row:last-child {
+  border-bottom: 0;
+}
+
+.kim-quote-status-stack {
+  align-self: center;
+  display: grid;
+  gap: 5px;
+}
+
+.kim-quote-row > div:not(.kim-quote-row-actions):not(.kim-file-drop-overlay) {
+  align-self: center;
+  min-width: 0;
+}
+
+.kim-quote-status-stack b,
+.kim-quote-status-stack button {
+  position: relative;
+  min-height: 22px;
+  border: 1px solid rgba(104, 113, 123, 0.14);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #f7f7f6;
+  color: #7c858d;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.kim-quote-status-stack svg {
+  flex: 0 0 auto;
+}
+
+.kim-quote-status-stack i {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: currentColor;
+  opacity: 0.42;
+}
+
+.kim-quote-status-stack span {
+  min-width: 0;
+}
+
+.kim-quote-status-stack button {
+  cursor: pointer;
+}
+
+.kim-quote-status-stack b.send-sent,
+.kim-quote-status-stack button.send-sent {
+  border-color: rgba(21, 94, 239, 0.16);
+  background: #eaf2ff;
+  color: #155eef;
+}
+
+.kim-quote-status-stack button.send-viewed {
+  border-color: rgba(8, 145, 178, 0.18);
+  background: rgba(236, 254, 255, 0.92);
+  color: #0e7490;
+}
+
+.kim-quote-status-stack b.send-draft {
+  border-color: rgba(104, 113, 123, 0.14);
+  background: #f7f7f6;
+  color: #7c858d;
+}
+
+.kim-quote-status-tooltip {
+  position: fixed;
+  z-index: 345;
+  min-width: max-content;
+  max-width: 300px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  background: var(--brand);
+  box-shadow: 0 7px 18px rgba(var(--brand-rgb), 0.28);
+  color: #fff;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  pointer-events: none;
+  transform: translateY(-100%);
+  white-space: nowrap;
+}
+
+.kim-quote-status-tooltip strong {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.kim-quote-status-tooltip span {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.kim-quote-status-tooltip::before {
+  position: absolute;
+  left: 18px;
+  top: calc(100% - 1px);
+  width: 0;
+  height: 0;
+  border-top: 6px solid var(--brand);
+  border-right: 6px solid transparent;
+  border-left: 6px solid transparent;
+  content: "";
+}
+
+.kim-doc-kind-badge {
+  align-self: center;
+  width: 32px;
+  height: 22px;
+  border: 1px solid rgba(var(--brand-rgb), 0.18);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f1ff;
+  color: var(--brand);
+}
+
+.kim-doc-kind-badge.kind-image {
+  border-color: rgba(14, 116, 144, 0.16);
+  background: rgba(236, 254, 255, 0.86);
+  color: #0e7490;
+}
+
+.kim-doc-kind-badge.kind-file {
+  border-color: rgba(104, 113, 123, 0.16);
+  background: #f7f7f6;
+  color: #68717b;
+}
+
+.kim-quote-row strong,
+.kim-doc-row strong,
+.kim-check-row strong {
+  overflow: hidden;
+  color: #30363d;
+  font-size: 12.5px;
+  font-weight: 720;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kim-quote-row p,
+.kim-doc-row p {
+  margin: 4px 0 0;
+  color: #8f969c;
+  font-size: 11.5px;
+  font-weight: 540;
+  line-height: 1.35;
+}
+
+.kim-quote-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.kim-quote-row-meta small {
+  min-height: 18px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  background: #f0f1f3;
+  color: #4f5862;
+  padding: 0 6px;
+  font-size: 10.5px;
+  font-weight: 720;
+  line-height: 18px;
+}
+
+.kim-quote-row-meta small.strong {
+  background: #e9f1ff;
+  color: #155eef;
+}
+
+.kim-quote-row-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.kim-quote-meta-primary,
+.kim-quote-meta-secondary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* #4c-2 워크벤치 저장 견적의 최종 차량가 + 외장/내장 색상 칩 */
+.kim-quote-meta-pricing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #5f6872;
+}
+.kim-quote-final-price {
+  font-weight: 600;
+  color: #2b2f36;
+}
+.kim-quote-color-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.kim-quote-color-chip i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+}
+
+/* #4d 견적 원본 첨부 칩(클릭 시 미리보기) */
+.kim-quote-attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid rgba(88, 54, 255, 0.22);
+  border-radius: 6px;
+  background: #f4f1ff;
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 640;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.kim-quote-attach-chip:hover {
+  background: #ece8ff;
+  border-color: rgba(88, 54, 255, 0.4);
+}
+.kim-quote-attach-chip svg {
+  flex: 0 0 auto;
+}
+.kim-quote-attach-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* #4c-3b 시나리오 비교 펼침(아코디언) */
+.kim-quote-compare {
+  margin-top: 6px;
+}
+.kim-quote-compare-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+  background: #f7f8fa;
+  color: #4f5862;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.kim-quote-compare-toggle:hover {
+  border-color: rgba(88, 54, 255, 0.34);
+  color: var(--brand);
+}
+.kim-quote-compare-toggle svg {
+  transition: transform 0.18s ease;
+}
+.kim-quote-compare-toggle.is-open svg {
+  transform: rotate(180deg);
+}
+.kim-quote-scenario-cards {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kim-quote-scenario-card {
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: #fbfbfa;
+}
+.kim-quote-scenario-card.is-primary {
+  border-color: rgba(88, 54, 255, 0.34);
+  background: #f6f4ff;
+}
+.kim-quote-scenario-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.kim-quote-scenario-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #eceef1;
+  color: #5f6872;
+  font-size: 10px;
+  font-weight: 800;
+}
+.kim-quote-scenario-lender {
+  color: #30363d;
+  font-size: 11.5px;
+  font-weight: 760;
+}
+.kim-quote-scenario-star {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  color: var(--brand);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.kim-quote-scenario-pick {
+  margin-left: auto;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid rgba(88, 54, 255, 0.22);
+  border-radius: 5px;
+  background: #f4f1ff;
+  color: var(--brand);
+  font-size: 10.5px;
+  font-weight: 760;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.kim-quote-scenario-pick:hover {
+  background: #ece8ff;
+  border-color: rgba(88, 54, 255, 0.4);
+}
+.kim-quote-scenario-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 10px;
+  margin-top: 5px;
+  font-size: 11px;
+  color: #5f6872;
+}
+.kim-quote-scenario-figures strong {
+  color: #155eef;
+  font-weight: 820;
+}
+
+.kim-quote-meta-primary b,
+.kim-quote-meta-secondary span,
+.kim-quote-meta-secondary strong {
+  min-height: 18px;
+  border-radius: 5px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  background: #f0f1f3;
+  color: #4f5862;
+  padding: 0 6px;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 740;
+  line-height: 18px;
+}
+
+.kim-quote-meta-primary > span {
+  flex: 0 0 auto;
+  color: #68717b;
+  font-size: 11.5px;
+  font-weight: 680;
+  line-height: 18px;
+}
+
+.kim-quote-meta-primary > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #30363d;
+  font-size: 12.5px;
+  font-weight: 780;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kim-quote-meta-primary b {
+  background: #f0f1f3;
+}
+
+.kim-quote-meta-secondary strong {
+  background: #e9f1ff;
+  color: #155eef;
+  font-weight: 820;
+}
+
+.kim-quote-meta-secondary span.stock.in-stock {
+  background: rgba(3, 152, 85, 0.08);
+  color: #039855;
+}
+
+.kim-quote-meta-secondary span.stock.no-stock,
+.kim-quote-meta-secondary span.valid.expired {
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
+}
+
+.kim-quote-meta-secondary span.stock.checking {
+  background: rgba(255, 250, 235, 0.92);
+  color: #a86106;
+}
+
+.kim-quote-meta-secondary span.valid.active {
+  background: rgba(3, 152, 85, 0.08);
+  color: #039855;
+}
+
+.kim-quote-meta-secondary span.valid.urgent {
+  background: rgba(255, 250, 235, 0.92);
+  color: #a86106;
+}
+
+.kim-quote-row-note {
+  overflow: hidden;
+  margin: 0 !important;
+  color: #7c858d !important;
+  font-size: 10.8px !important;
+  font-weight: 620 !important;
+  line-height: 1.25 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kim-quote-row-actions,
+.kim-doc-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 6px;
+}
+
+.kim-quote-row-actions {
+  width: max-content;
+  min-width: 82px;
+  display: grid;
+  justify-items: end;
+  justify-content: flex-end;
+  align-self: center;
+  gap: 5px;
+  text-align: right;
+}
+
+.kim-quote-row-action-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.kim-quote-decision-pill {
+  height: 21px;
+  border: 1px solid rgba(104, 113, 123, 0.14);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f7f6;
+  color: #7c858d;
+  padding: 0 7px;
+  font-size: 10px;
+  font-weight: 820;
+  line-height: 19px;
+  white-space: nowrap;
+}
+
+.kim-quote-decision-pill.decision-confirmed {
+  border-color: rgba(3, 152, 85, 0.18);
+  background: rgba(3, 152, 85, 0.08);
+  color: #039855;
+}
+
+.kim-quote-decision-pill.decision-contracting {
+  border-color: rgba(53, 72, 188, 0.24);
+  background: rgba(53, 72, 188, 0.09);
+  color: #3548bc;
+}
+
+.kim-quote-decision-pill.decision-considering {
+  border-color: rgba(168, 97, 6, 0.2);
+  background: rgba(255, 250, 235, 0.88);
+  color: #a86106;
+}
+
+.kim-quote-replace-pill {
+  height: 21px;
+  border: 1px solid rgba(168, 97, 6, 0.2);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 250, 235, 0.92);
+  color: #a86106;
+  padding: 0 7px;
+  font-size: 10px;
+  font-weight: 820;
+  line-height: 19px;
+  white-space: nowrap;
+}
+
+.kim-quote-action-popover {
+  position: fixed;
+  z-index: 340;
+  width: 214px;
+  border: 1px solid rgba(222, 222, 219, 0.92);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  background: linear-gradient(180deg, #fff 0%, #fbfbfa 100%);
+  padding: 5px 8px 8px;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14), 0 1px 0 rgba(255, 255, 255, 0.82) inset;
+  transform: translateY(-100%);
+}
+
+.kim-quote-action-popover-head {
+  border-bottom: 1px solid rgba(17, 17, 17, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 2px 2px;
+  padding: 0 2px 5px;
+}
+
+.kim-quote-action-popover-head span {
+  height: 20px;
+  border: 1px solid rgba(104, 113, 123, 0.16);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: #fbfbfa;
+  color: #68717b;
+  padding: 2px 7px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 10px;
+  font-weight: 820;
+  letter-spacing: 0;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.kim-quote-action-popover-head b {
+  border: 1px solid rgba(var(--brand-rgb), 0.14);
+  border-radius: 999px;
+  background: rgba(var(--brand-rgb), 0.06);
+  color: var(--brand);
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 820;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.kim-quote-action-popover-head b.is-sent {
+  border-color: rgba(21, 94, 239, 0.16);
+  background: #eaf2ff;
+  color: #155eef;
+}
+
+.kim-quote-action-popover-head b.is-viewed {
+  border-color: rgba(8, 145, 178, 0.18);
+  background: rgba(236, 254, 255, 0.92);
+  color: #0e7490;
+}
+
+.kim-quote-action-popover-head b.is-draft {
+  border-color: rgba(104, 113, 123, 0.16);
+  background: #f7f7f6;
+  color: #7c858d;
+}
+
+.kim-quote-action-popover button,
+.kim-quote-action-popover label {
+  width: 100%;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  background: transparent;
+  color: #4f5862;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 770;
+  line-height: 34px;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-quote-action-popover button.is-group-start,
+.kim-quote-action-popover label.is-group-start {
+  position: relative;
+  margin-top: 11px;
+}
+
+.kim-quote-action-popover button.is-group-start::before,
+.kim-quote-action-popover label.is-group-start::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(17, 17, 17, 0.065);
+  pointer-events: none;
+}
+
+.kim-quote-action-popover svg {
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.kim-quote-action-popover .kim-quote-action-state-check {
+  margin-left: auto;
+  color: var(--brand);
+}
+
+.kim-quote-send-confirm {
+  border: 1px solid rgba(var(--brand-rgb), 0.14);
+  border-radius: 7px;
+  display: grid;
+  gap: 7px;
+  margin: 1px 0 4px;
+  background: rgba(var(--brand-rgb), 0.045);
+  padding: 10px;
+}
+
+.kim-quote-send-confirm strong {
+  color: #30363d;
+  font-size: 11.5px;
+  font-weight: 820;
+  line-height: 1.25;
+}
+
+.kim-quote-send-confirm p {
+  margin: 0;
+  color: #4f5862;
+  font-size: 10.5px;
+  font-weight: 620;
+  line-height: 1.42;
+}
+
+.kim-quote-send-confirm > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.kim-quote-send-confirm button {
+  width: auto;
+  height: 24px;
+  border: 1px solid #dededb;
+  border-radius: 5px;
+  background: #fff;
+  color: #68717b;
+  padding: 0 8px;
+  font-size: 10.5px;
+  font-weight: 760;
+  line-height: 22px;
+}
+
+.kim-quote-send-confirm button.primary {
+  border-color: rgba(var(--brand-rgb), 0.24);
+  background: #fff;
+  color: var(--brand);
+}
+
+.kim-quote-send-confirm button.primary:hover {
+  border-color: rgba(var(--brand-rgb), 0.34);
+  background: rgba(var(--brand-rgb), 0.06);
+  color: var(--brand);
+}
+
+.kim-quote-contract-inline-confirm {
+  border-color: rgba(53, 72, 188, 0.18);
+  background: rgba(53, 72, 188, 0.05);
+}
+
+.kim-quote-contract-inline-confirm button.primary {
+  border-color: rgba(53, 72, 188, 0.24);
+  color: #3548bc;
+}
+
+.kim-quote-contract-inline-confirm button.primary:hover {
+  border-color: rgba(53, 72, 188, 0.34);
+  background: rgba(53, 72, 188, 0.07);
+  color: #3548bc;
+}
+
+.kim-quote-delete-inline-confirm {
+  border-color: rgba(180, 35, 24, 0.18);
+  background: rgba(180, 35, 24, 0.045);
+  margin-top: 1px;
+}
+
+.kim-quote-delete-inline-confirm p {
+  color: #4f5862;
+}
+
+.kim-quote-delete-inline-confirm button.danger {
+  border-color: rgba(180, 35, 24, 0.22);
+  background: #fff;
+  color: #b42318;
+}
+
+.kim-quote-delete-inline-confirm button.danger:hover {
+  border-color: rgba(180, 35, 24, 0.3);
+  background: #fff5f4;
+  color: #b42318;
+}
+
+.kim-quote-action-popover button:hover,
+.kim-quote-action-popover label:hover {
+  background: rgba(var(--brand-rgb), 0.075);
+  color: var(--brand);
+  box-shadow: 0 0 0 1px rgba(var(--brand-rgb), 0.08) inset;
+}
+
+.kim-quote-action-popover button.delete {
+  color: #8f969c;
+}
+
+.kim-quote-action-popover button.delete:hover {
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
+  box-shadow: 0 0 0 1px rgba(180, 35, 24, 0.1) inset;
+}
+
+.kim-quote-action-popover input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.kim-quote-row label,
+.kim-doc-row label {
+  width: 24px;
+  min-width: 0;
+  height: 24px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: #fff;
+  color: #68717b;
+  padding: 0;
+  font-size: 10.5px;
+  font-weight: 760;
+  line-height: 22px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.kim-quote-row label,
+.kim-quote-row-actions button.kim-quote-send-button,
+.kim-quote-row-actions button.kim-quote-sent-preview-button,
+.kim-quote-row-actions button.has-file {
+  width: 24px;
+}
+
+.kim-quote-row-actions button.delete {
+  justify-self: end;
+}
+
+.kim-doc-row label {
+  width: 46px;
+  min-width: 0;
+  justify-content: center;
+  padding: 0;
+}
+
+.kim-quote-row label {
+  background: #fbfbfa;
+  color: #8f969c;
+}
+
+.kim-quote-row-actions button,
+.kim-doc-row-actions button {
+  width: 24px;
+  flex: 0 0 24px;
+  height: 24px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  background: #fbfbfa;
+  color: #8f969c;
+  padding: 0;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-quote-row-actions button:disabled {
+  border-color: #e4e4e2;
+  background: #f7f7f6;
+  color: #a1a7ad;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.kim-quote-row-actions button.is-active {
+  border-color: rgba(var(--brand-rgb), 0.32);
+  background: #fff;
+  color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.06);
+}
+
+.kim-quote-row-actions button.has-file {
+  width: 24px;
+  min-width: 0;
+  border-color: #dededb;
+  display: inline-grid;
+  place-items: center;
+  background: #fbfbfa;
+  color: #8f969c;
+  padding: 0;
+  box-shadow: none;
+}
+
+.kim-quote-row-actions button.kim-quote-send-button {
+  width: 24px;
+  min-width: 0;
+  display: inline-grid;
+  place-items: center;
+  color: var(--brand);
+  padding: 0;
+}
+
+.kim-quote-row-actions button.kim-quote-sent-preview-button {
+  width: 24px;
+  height: 24px;
+  min-width: 0;
+  border-color: #dededb;
+  display: inline-grid;
+  place-items: center;
+  background: #fbfbfa;
+  color: #8f969c;
+  padding: 0;
+}
+
+.kim-sent-quote-preview-panel {
+  width: min(540px, calc(100vw - 64px));
+  border: 1px solid #dededb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+}
+
+.kim-sent-quote-preview-body {
+  display: grid;
+  gap: 12px;
+  background: #fbfbfa;
+  padding: 16px;
+}
+
+.kim-sent-quote-preview-body section {
+  border: 1px solid #e4e4e2;
+  border-radius: 7px;
+  display: grid;
+  gap: 6px;
+  background: #fff;
+  padding: 14px;
+}
+
+.kim-sent-quote-preview-body section span {
+  color: #7c858d;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.kim-sent-quote-preview-body h4 {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 840;
+}
+
+.kim-sent-quote-preview-body p {
+  margin: 0;
+  color: #4f5862;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.kim-sent-quote-preview-body > div {
+  border-radius: 7px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  background: #eaf2ff;
+  padding: 14px;
+}
+
+.kim-sent-quote-preview-body > div strong {
+  color: #111827;
+  font-size: 24px;
+  font-weight: 860;
+}
+
+.kim-sent-quote-preview-body > div small {
+  color: #68717b;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.kim-sent-quote-preview-body ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  color: #4f5862;
+  padding-left: 18px;
+  font-size: 12px;
+  font-weight: 590;
+  line-height: 1.45;
+}
+
+.kim-doc-row-actions {
+  width: 84px;
+  align-self: center;
+}
+
+.kim-quote-row label:hover,
+.kim-doc-row label:hover {
+  border-color: rgba(var(--brand-rgb), 0.34);
+  color: var(--brand);
+  box-shadow: 0 0 0 2px rgba(var(--brand-rgb), 0.06);
+}
+
+.kim-quote-row-actions button:hover,
+.kim-doc-row-actions button:hover {
+  border-color: rgba(var(--brand-rgb), 0.34);
+  background: #fff;
+  color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.06);
+}
+
+.kim-quote-row-actions button:disabled:hover {
+  border-color: #e4e4e2;
+  background: #f7f7f6;
+  color: #a1a7ad;
+  box-shadow: none;
+}
+
+.kim-quote-row-actions button.delete:hover,
+.kim-doc-row-actions button.delete:hover {
+  border-color: rgba(180, 35, 24, 0.28);
+  background: #fff;
+  color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.06);
+}
+
+.kim-quote-row input,
+.kim-doc-row input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.kim-doc-row {
+  position: relative;
+  border: 0;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.055);
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 84px;
+  gap: 10px;
+  min-height: 58px;
+  align-items: start;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 5px 14px;
+  box-sizing: border-box;
+  transition: background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-doc-row:last-child {
+  border-bottom: 0;
+}
+
+.kim-doc-row:hover,
+.kim-doc-row:focus-within {
+  background: #fafafa;
+  box-shadow: inset 0 0 0 1px rgba(var(--brand-rgb), 0.18);
+}
+
+.kim-doc-row.is-dragging {
+  opacity: 0.54;
+}
+
+.kim-doc-row.is-drop-target {
+  box-shadow: inset 0 2px 0 rgba(var(--brand-rgb), 0.72);
+}
+
+.kim-doc-drag-handle {
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  color: #a1a7ad;
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 0.14s ease, border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-doc-row:hover .kim-doc-drag-handle,
+.kim-doc-row:focus-within .kim-doc-drag-handle,
+.kim-doc-row.is-dragging .kim-doc-drag-handle {
+  opacity: 1;
+}
+
+.kim-doc-drag-handle:hover,
+.kim-doc-drag-handle:focus {
+  border-color: rgba(var(--brand-rgb), 0.2);
+  background: transparent;
+  color: var(--brand);
+  outline: 0;
+}
+
+.kim-doc-drag-handle:active {
+  cursor: grabbing;
+}
+
+.kim-doc-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kim-doc-upload-trigger {
+  cursor: pointer;
+}
+
+.kim-doc-upload-trigger input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.kim-doc-card,
+.kim-quote-card {
+  position: relative;
+  isolation: isolate;
+}
+
+.kim-doc-card.is-drop-active {
+  box-shadow: 0 0 0 1px rgba(var(--brand-rgb), 0.18), 0 8px 24px rgba(var(--brand-rgb), 0.08);
+}
+
+.kim-file-drop-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 5px;
+  z-index: 12;
+  border: 2px dashed rgba(var(--brand-rgb), 0.58);
+  border-radius: 6px;
+  box-sizing: border-box;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--brand);
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.kim-doc-card.is-drop-active .kim-file-drop-overlay,
+.kim-quote-drop-head.is-drop-active .kim-file-drop-overlay,
+.kim-quote-row.is-file-drop-target .kim-file-drop-overlay {
+  opacity: 1;
+}
+
+.kim-file-drop-overlay strong {
+  color: #30363d;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.kim-file-drop-overlay span {
+  color: #68717b;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.kim-quote-row .kim-file-drop-overlay {
+  inset: 5px;
+  border-radius: 6px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.93);
+}
+
+.kim-quote-row .kim-file-drop-overlay strong {
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.kim-quote-row .kim-file-drop-overlay span {
+  display: block;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.kim-quote-row .kim-file-drop-overlay svg {
+  width: 20px;
+  height: 20px;
+}
+
+.kim-quote-head-drop-overlay {
+  inset: 5px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.93);
+}
+
+.kim-quote-head-drop-overlay strong {
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.kim-quote-head-drop-overlay span {
+  display: none;
+}
+
+.kim-doc-empty {
+  display: grid;
+  gap: 4px;
+  padding: 16px 14px;
+}
+
+.kim-doc-empty strong {
+  color: #30363d;
+  font-size: 12.5px;
+  font-weight: 760;
+}
+
+.kim-doc-empty p {
+  margin: 0;
+  color: #7c858d;
+  font-size: 11.5px;
+  font-weight: 540;
+  line-height: 1.45;
+}
+
+.kim-list-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--muted, #8a8f98);
+  text-align: center;
+}
+
+.kim-doc-type-native-select {
+  width: auto;
+  min-width: 0;
+  max-width: 240px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  appearance: none;
+  /* 항상 작은 화살표를 두어 "클릭해 분류를 바꿀 수 있다"는 신호를 준다(자동분류 오인식 보정). */
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa3ad' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 3px center;
+  background-size: 11px;
+  color: #30363d;
+  padding: 0 19px 0 4px;
+  margin-left: -4px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 720;
+  line-height: 1.35;
+  outline: 0;
+  cursor: pointer;
+}
+
+.kim-doc-type-native-select:hover,
+.kim-doc-type-native-select:focus-visible {
+  color: var(--brand);
+  background-color: #f1edff;
+}
+
+.kim-doc-type-native-select option {
+  font-size: 12.5px;
+  font-weight: 620;
+}
+
+.kim-quote-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kim-quote-head-action {
+  flex: 0 0 auto;
+}
+
+.kim-quote-solution-entry {
+  background: #fff;
+  color: #53606c;
+  border-color: #d7d9df;
+}
+
+.kim-quote-solution-entry:hover {
+  color: var(--brand);
+  border-color: #c8bdff;
+  background: #f8f6ff;
+}

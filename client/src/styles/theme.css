@@ -1,0 +1,109 @@
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted-shadcn);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent-shadcn);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: #ffffff;
+  --foreground: #172026;
+  --card: #ffffff;
+  --card-foreground: #172026;
+  --popover: #ffffff;
+  --popover-foreground: #172026;
+  --primary: #111111;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f3f2;
+  --secondary-foreground: #172026;
+  --muted-shadcn: #f3f3f2;
+  --muted-foreground: #687782;
+  --accent-shadcn: #eeeeed;
+  --accent-foreground: #111111;
+  --destructive: #b42318;
+  --border: #e5e5e3;
+  --input: #e5e5e3;
+  --ring: #a3a3a0;
+  --bg: #f7f7f6;
+  --surface: #ffffff;
+  --surface-2: #f3f3f2;
+  --line: #e5e5e3;
+  --line-soft: #eeeeec;
+  --chrome-divider: #eeeeec;
+  --sidebar-divider: #e8e8e6;
+  --popover-divider: var(--line);
+  --popover-divider-vertical: #cececa;
+  --text: #172026;
+  --muted: #687782;
+  --accent: #111111;
+  --success: #15803d;
+  --warning: #b7791f;
+  --danger: #b42318;
+  /* 차선생 메인 컬러 (brand). 투명도 변형은 brand-rgb 채널 사용. */
+  --brand: #5836ff;
+  --brand-rgb: 88, 54, 255;
+  --globalbar-size: 50px;
+  --sidebar-visual-gap: 22px;
+  --sidebar-row-height: 38px;
+  --sidebar-icon-size: 17px;
+  --sidebar-row-inset: calc((var(--sidebar-row-height) - var(--sidebar-icon-size)) / 2);
+  --sidebar-content-gap: calc(var(--sidebar-visual-gap) - (var(--sidebar-row-inset) * 2));
+  --sidebar-separator-gap: calc(var(--sidebar-visual-gap) - var(--sidebar-row-inset));
+  --font-num: "JetBrains Mono", "SF Mono", "SFMono-Regular", "Roboto Mono", "Menlo", "Monaco", "Consolas", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 400;
+  letter-spacing: 0;
+}

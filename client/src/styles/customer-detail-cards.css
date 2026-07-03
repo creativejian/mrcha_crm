@@ -1,0 +1,1170 @@
+.kim-manual-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  background: #fff;
+}
+
+.kim-manual-compare-card {
+  min-width: 0;
+  overflow: hidden;
+  border-right: 2px solid #e5e7eb;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+
+.kim-manual-compare-card:last-child {
+  border-right: 0;
+}
+
+.kim-manual-compare-card > header {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--jeff-navy);
+  padding: 0 20px;
+}
+
+.kim-manual-compare-card > header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kim-manual-compare-card > header strong span {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  font-family: var(--font-num);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.kim-manual-compare-card > header div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kim-manual-compare-card > header button {
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.kim-manual-compare-card > header button.copy {
+  background: #2f7df6;
+}
+
+.kim-manual-compare-card > header button.edit {
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.kim-manual-compare-body {
+  container-type: inline-size;
+  --kim-manual-value-width: calc((100cqw - 96px) * 0.4);
+  padding: 0 20px;
+}
+
+.kim-manual-compare-body label,
+.kim-manual-compare-row {
+  min-width: 0;
+  min-height: 38px;
+  border-bottom: 1px solid #e5e7eb;
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.kim-manual-result-grid {
+  position: relative;
+  min-width: 0;
+  border-bottom: 0;
+  display: grid;
+  grid-template-columns:
+    minmax(64px, max-content) var(--kim-manual-value-width)
+    minmax(64px, max-content) var(--kim-manual-value-width);
+  justify-content: space-between;
+  align-items: center;
+  column-gap: 12px;
+  margin: 0 -20px;
+  padding: 0 20px;
+  background: #f3f6f9;
+}
+
+.kim-manual-result-grid::before,
+.kim-manual-result-grid::after {
+  content: "";
+  position: absolute;
+  right: 20px;
+  left: 20px;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.kim-manual-result-grid::before {
+  top: 38px;
+}
+
+.kim-manual-result-grid::after {
+  bottom: 0;
+}
+
+.kim-manual-result-grid label {
+  display: contents;
+}
+
+.kim-manual-result-grid label > span {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.kim-manual-compare-body label.emphasis,
+.kim-manual-compare-row.emphasis {
+  position: relative;
+  margin: 0 -20px;
+  padding: 0 20px;
+  border-bottom: 0;
+  background: rgba(39, 52, 70, 0.06);
+}
+
+.kim-manual-compare-body label.emphasis::after,
+.kim-manual-compare-row.emphasis::after {
+  content: "";
+  position: absolute;
+  right: 20px;
+  bottom: 0;
+  left: 20px;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.kim-manual-compare-body label.emphasis > span,
+.kim-manual-compare-row.emphasis > span {
+  color: #273446;
+  font-weight: 700;
+}
+
+.kim-manual-compare-body label:last-child {
+  border-bottom: 0;
+}
+
+.kim-manual-compare-body label > span,
+.kim-manual-compare-row > span {
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+.kim-manual-compare-body label.before-emphasis {
+  border-bottom: 0;
+}
+
+.kim-manual-compare-body input,
+.kim-manual-compare-body select {
+  min-width: 0;
+  width: 100%;
+  height: 26px;
+  border: 1px solid #d8dde4;
+  border-radius: 4px;
+  background: #fff;
+  color: #111827;
+  padding: 0 8px;
+  font: inherit;
+  font-family: var(--font-num);
+  font-size: 12px;
+  line-height: 24px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-align: right;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.kim-manual-compare-body select {
+  appearance: auto;
+  font-family: inherit;
+  font-weight: 500;
+  text-align: left;
+}
+
+.kim-manual-compare-body label.select-value select,
+.kim-manual-compare-body .kim-manual-value-select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #111827 50%),
+    linear-gradient(135deg, #111827 50%, transparent 50%);
+  background-position:
+    calc(100% - 13px) 10px,
+    calc(100% - 8px) 10px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 25px;
+  font-family: inherit;
+  font-weight: 500;
+  text-align: right;
+  text-align-last: right;
+}
+
+.kim-manual-compare-body .kim-manual-value-select:disabled {
+  opacity: 1;
+  border-color: #d8dee8;
+  background-color: #fff;
+  color: #111827;
+  cursor: not-allowed;
+}
+
+.kim-manual-compare-body .kim-manual-value-select.is-fixed:disabled {
+  border-color: #d8dee8;
+  background-color: #f8fafc;
+  color: #687385;
+}
+
+.kim-manual-compare-body input:read-only {
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+.kim-manual-compare-card.is-saved .kim-manual-compare-body {
+  background: #f7f9fc;
+}
+
+.kim-manual-compare-card.is-saved .kim-manual-compare-body label,
+.kim-manual-compare-card.is-saved .kim-manual-compare-row {
+  border-bottom-color: #e6ebf0;
+}
+
+.kim-manual-compare-card.is-saved .kim-manual-compare-body label > span,
+.kim-manual-compare-card.is-saved .kim-manual-compare-row > span {
+  color: #6b7280;
+}
+
+.kim-manual-compare-card.is-saved .kim-manual-compare-body input:disabled,
+.kim-manual-compare-card.is-saved .kim-manual-compare-body select:disabled {
+  opacity: 1;
+  border-color: #e0e6ee;
+  background-color: #f9fbfd;
+  color: #6b7280;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.kim-manual-compare-card.is-saved .kim-manual-compare-body button:disabled {
+  opacity: 1;
+  border-color: #d8dde4;
+  background: #f2f5f8;
+  color: #9aa3af;
+  cursor: not-allowed;
+}
+
+.kim-manual-compare-card.is-saved .kim-manual-compare-body button.active:disabled {
+  background: #5f6b7a;
+  color: #fff;
+}
+
+.kim-manual-compare-body label.emphasis input,
+.kim-manual-compare-row.emphasis input {
+  color: #111827;
+  font-weight: 700;
+}
+
+.kim-manual-compare-body label.amount .kim-jeff-money-input,
+.kim-manual-compare-row.amount .kim-jeff-money-input {
+  width: var(--kim-manual-value-width);
+  margin-left: auto;
+}
+
+.kim-manual-monthly-control {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 26px minmax(0, var(--kim-manual-value-width));
+  align-items: center;
+  justify-content: end;
+  gap: 7px;
+}
+
+.kim-manual-monthly-control .kim-jeff-money-input {
+  width: 100%;
+}
+
+.kim-manual-solution-query {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #cdd5e1;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #273446;
+  padding: 0;
+  font: inherit;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.kim-manual-solution-query:hover:not(:disabled) {
+  border-color: rgba(var(--brand-rgb), 0.34);
+  background: #fff;
+  color: var(--brand);
+  box-shadow: 0 0 0 2px rgba(var(--brand-rgb), 0.08), inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.kim-manual-solution-query:disabled {
+  opacity: 1;
+  background: #f3f6f9;
+  color: #9aa3af;
+  cursor: not-allowed;
+}
+
+.kim-manual-compare-body label.amount.emphasis .kim-jeff-money-input,
+.kim-manual-compare-row.amount.emphasis .kim-jeff-money-input {
+  width: var(--kim-manual-value-width);
+}
+
+.kim-manual-compare-row.amount.emphasis .kim-manual-monthly-control .kim-jeff-money-input {
+  width: 100%;
+}
+
+.kim-manual-result-grid .kim-jeff-money-input {
+  width: var(--kim-manual-value-width);
+  margin-left: auto;
+}
+
+.kim-manual-result-grid .kim-jeff-money-input input {
+  height: 25px;
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.42);
+  padding-right: 25px;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.kim-manual-result-grid .kim-jeff-money-input em {
+  right: 8px;
+  width: 14px;
+  font-size: 12px;
+}
+
+.kim-manual-result-grid .kim-jeff-money-input input:read-only {
+  background: rgba(255, 255, 255, 0.42);
+  color: #6b7280;
+}
+
+.kim-manual-compare-body label.select-value select {
+  width: var(--kim-manual-value-width);
+  margin-left: auto;
+}
+
+.kim-manual-combo {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  gap: 0;
+}
+
+.kim-manual-combo > .kim-jeff-segment {
+  grid-column: 1 / 3;
+  width: 100%;
+}
+
+.kim-manual-combo > .kim-jeff-money-input,
+.kim-manual-combo > .kim-manual-value-select {
+  grid-column: 4 / 6;
+  width: 100%;
+}
+
+.kim-manual-compare-body .kim-jeff-money-input {
+  width: 100%;
+}
+
+.kim-manual-result-grid label .kim-jeff-money-input {
+  width: var(--kim-manual-value-width);
+  justify-self: end;
+  margin-left: auto;
+}
+
+.kim-manual-compare-body .kim-jeff-money-input input {
+  width: 100%;
+  padding-right: 25px;
+  font-family: var(--font-num);
+  font-weight: 500;
+  text-align: right;
+}
+
+.kim-manual-compare-body .kim-jeff-money-input input:read-only {
+  background: #f9fafb;
+  color: #6b7280;
+  cursor: default;
+}
+
+.kim-manual-compare-body .kim-jeff-money-input.is-fixed input,
+.kim-manual-compare-body .kim-jeff-money-input.is-fixed input:read-only {
+  border-color: #d8dee8;
+  background-color: #f8fafc;
+  color: #687385;
+}
+
+.kim-manual-compare-body .kim-jeff-money-input em {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 14px;
+  color: #9aa3af;
+  font-size: 12px;
+  line-height: 16px;
+  font-style: normal;
+  font-weight: 500;
+  text-align: right;
+  pointer-events: none;
+  transform: translateY(calc(-50% + 0.5px));
+}
+
+.kim-manual-compare-body label.emphasis .kim-jeff-money-input input,
+.kim-manual-compare-row.emphasis .kim-jeff-money-input input {
+  color: #111827;
+  font-weight: 700;
+}
+
+.kim-manual-compare-body label.emphasis .kim-jeff-money-input input.is-replace-preview,
+.kim-manual-compare-row.emphasis .kim-jeff-money-input input.is-replace-preview {
+  color: #9aa3af;
+  caret-color: #111827;
+}
+
+.kim-manual-condition-save {
+  width: 100%;
+  height: 34px;
+  border: 0;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px 0 16px;
+  background: #2f7df6;
+  color: #fff;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(47, 125, 246, 0.16);
+}
+
+.kim-manual-condition-save:hover:not(:disabled) {
+  background: #256fe5;
+}
+
+.kim-manual-condition-save:disabled {
+  opacity: 1;
+  background: #dce3ec;
+  color: #6b7280;
+  box-shadow: none;
+  cursor: default;
+}
+
+.kim-manual-compare-card.is-saved .kim-manual-condition-save:disabled {
+  background: #dce3ec;
+  color: #6b7280;
+}
+
+.kim-manual-compare-body .kim-jeff-segment {
+  max-width: 100%;
+}
+
+.kim-manual-compare-body label > .kim-jeff-segment:not(.wide) {
+  width: 40%;
+}
+
+.kim-manual-compare-body .kim-jeff-segment:not(.wide) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.kim-manual-compare-body .kim-jeff-segment button {
+  height: 23px;
+  min-width: 0;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.kim-manual-compare-body .kim-jeff-segment.wide {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.kim-manual-compare-body .kim-jeff-segment.wide button {
+  padding: 0 5px;
+}
+
+.kim-app-form-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.kim-app-legacy-form-split {
+  border-top: 2px solid #e5e7eb;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.kim-app-form-split .kim-app-form-section {
+  min-width: 0;
+}
+
+.kim-app-form-split .kim-app-form-section + .kim-app-form-section {
+  border-top: 0;
+  border-left: 2px solid #e5e7eb;
+}
+
+.kim-app-form-section + .kim-app-form-section {
+  border-top: 1px solid #e5e7eb;
+}
+
+.kim-app-form-section-body {
+  padding: 0;
+}
+
+.kim-app-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.kim-app-guidance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+  padding: 0 20px;
+}
+
+.kim-app-guidance-grid label {
+  min-width: 0;
+  min-height: 38px;
+  border-top: 1px solid #e5e7eb;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.kim-app-guidance-grid label.wide {
+  grid-column: 1 / -1;
+}
+
+/* textarea row(추천이유)도 single-line row와 동일한 위아래 여백(4.5px): textarea 44 + 9 = 53 */
+.kim-app-guidance-grid label:has(textarea) {
+  min-height: 53px;
+}
+
+.kim-app-guidance-grid label:nth-child(-n + 2) {
+  border-top: 0;
+}
+
+.kim-app-condition-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+  padding: 0 20px;
+}
+
+.kim-app-condition-grid label {
+  min-width: 0;
+  min-height: 38px;
+  border-top: 1px solid #e5e7eb;
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.kim-app-condition-grid label:nth-child(-n + 2) {
+  border-top: 0;
+}
+
+.kim-app-condition-grid span {
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.kim-app-condition-grid label:has(> input:read-only) {
+  grid-template-columns: minmax(132px, 1fr) 172px;
+  gap: 12px;
+}
+
+.kim-app-condition-grid label:has(> input:read-only) span {
+  white-space: nowrap;
+}
+
+.kim-app-condition-grid input,
+.kim-app-condition-grid select,
+.kim-app-condition-grid strong.fixed {
+  min-width: 0;
+  height: 25px;
+  border: 1px solid #d8dde4;
+  border-radius: 4px;
+  background: #fff;
+  color: #111827;
+  padding: 0 8px;
+  font: inherit;
+  font-family: var(--font-num);
+  font-size: 12px;
+  line-height: 23px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.kim-app-condition-grid select {
+  appearance: auto;
+  font-family: inherit;
+  text-align: left;
+}
+
+.kim-app-condition-grid input:read-only,
+.kim-app-condition-grid input:disabled {
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+.kim-app-condition-grid input:focus,
+.kim-app-condition-grid select:focus {
+  border-color: rgba(var(--brand-rgb), 0.42);
+  outline: 0;
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.03),
+    0 0 0 1px rgba(var(--brand-rgb), 0.12);
+}
+
+.kim-app-condition-grid strong.fixed {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.kim-app-condition-grid .kim-jeff-segment {
+  max-width: 100%;
+}
+
+.kim-app-condition-grid .kim-jeff-segment button {
+  padding: 0 9px;
+}
+
+.kim-app-condition-grid .kim-jeff-segment.wide {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.kim-app-condition-grid .kim-jeff-segment.wide button {
+  min-width: 0;
+  padding: 0 6px;
+}
+
+.kim-app-combo-control {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(76px, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.kim-app-delivery-section {
+  background: #fbfcfe;
+}
+
+.kim-app-form-grid label,
+.kim-app-guidance-grid label,
+.kim-app-copy-list label {
+  display: grid;
+  gap: 5px;
+}
+
+.kim-app-form-grid span,
+.kim-app-guidance-grid span,
+.kim-app-copy-list span {
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.kim-app-form-grid input,
+.kim-app-guidance-grid input,
+.kim-app-guidance-grid select,
+.kim-app-guidance-grid textarea,
+.kim-app-copy-list input,
+.kim-app-copy-list textarea {
+  min-width: 0;
+  border: 1px solid #d8dde4;
+  border-radius: 5px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  text-align: left;
+  outline: 0;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.kim-app-form-grid input,
+.kim-app-guidance-grid input,
+.kim-app-guidance-grid select,
+.kim-app-copy-list input {
+  height: 29px;
+  padding: 0 9px;
+}
+
+.kim-app-guidance-grid select {
+  appearance: auto;
+}
+
+.kim-app-guidance-grid textarea {
+  height: 44px;
+  resize: none;
+  padding: 5px 9px;
+  overflow: hidden;
+}
+
+.kim-app-copy-list {
+  display: grid;
+  gap: 10px;
+}
+
+.kim-app-copy-list textarea {
+  resize: vertical;
+  padding: 8px 9px;
+}
+
+.kim-app-form-grid input:focus,
+.kim-app-guidance-grid input:focus,
+.kim-app-guidance-grid select:focus,
+.kim-app-guidance-grid textarea:focus,
+.kim-app-copy-list input:focus,
+.kim-app-copy-list textarea:focus {
+  border-color: rgba(var(--brand-rgb), 0.42);
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.03),
+    0 0 0 1px rgba(var(--brand-rgb), 0.1);
+}
+
+.kim-app-guidance-grid label {
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.kim-app-card-preview {
+  padding: 12px;
+}
+
+.kim-app-card-preview.in-modal {
+  display: block;
+  border: 0;
+  border-radius: 0;
+  padding: 14px;
+  box-shadow: none;
+}
+
+.kim-app-card-preview-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.34);
+  padding: 28px;
+}
+
+.kim-app-card-preview-dialog {
+  width: min(560px, calc(100vw - 72px));
+  max-height: calc(100vh - 72px);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8f9fa;
+  box-shadow:
+    0 28px 72px rgba(15, 23, 42, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.kim-app-card-preview-dialog > header {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #273446;
+  padding: 0 16px;
+}
+
+.kim-app-card-preview-dialog > header div {
+  display: grid;
+  gap: 1px;
+}
+
+.kim-app-card-preview-dialog > header span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+}
+
+.kim-app-card-preview-dialog > header strong {
+  color: #fff;
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 700;
+}
+
+.kim-app-card-preview-dialog > header button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  padding: 0;
+}
+
+.kim-app-card-preview-dialog .kim-app-card-preview {
+  max-height: calc(100vh - 118px);
+  overflow: auto;
+}
+
+.kim-app-card {
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+}
+
+.kim-app-card-status {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #0ba447;
+  padding: 0 18px;
+}
+
+.kim-app-card-status strong,
+.kim-app-card-status span {
+  color: #fff;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 800;
+}
+
+.kim-app-card-status span {
+  font-size: 13px;
+}
+
+.kim-app-card-body {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.kim-app-card-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.kim-app-card-hero span,
+.kim-app-pay-box span,
+.kim-app-mini-grid span {
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.kim-app-card-hero strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 800;
+}
+
+.kim-app-card-hero p {
+  margin: 8px 0 0;
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.kim-app-card-hero div:last-child {
+  display: flex;
+  gap: 6px;
+}
+
+.kim-app-card-hero b {
+  border-radius: 5px;
+  background: #e5e7eb;
+  color: #111827;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.kim-app-pay-box {
+  position: relative;
+  border-radius: 6px;
+  background: #eef6ff;
+  padding: 14px 16px;
+}
+
+.kim-app-pay-box strong {
+  display: block;
+  margin-top: 5px;
+  color: #0f172a;
+  font-family: var(--font-num);
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.kim-app-pay-box em {
+  position: absolute;
+  right: 16px;
+  top: 28px;
+  border-radius: 5px;
+  background: #dbeafe;
+  color: #155eef;
+  padding: 5px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.kim-app-pay-box p {
+  margin: 8px 0 0;
+  color: #4b5563;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+}
+
+.kim-app-discount-box {
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #effdf4;
+  color: #05a342;
+  padding: 12px 16px;
+}
+
+.kim-app-discount-box span,
+.kim-app-discount-box strong {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 800;
+}
+
+.kim-app-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.kim-app-mini-grid div {
+  border-radius: 6px;
+  background: #f3f4f6;
+  padding: 12px;
+}
+
+.kim-app-mini-grid strong {
+  display: block;
+  margin-top: 5px;
+  color: #111827;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 800;
+}
+
+.kim-app-detail-block {
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.kim-app-detail-block header {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  background: #2f80ed;
+  color: #fff;
+  padding: 0 14px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 800;
+}
+
+.kim-app-detail-block dl {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 0;
+  margin: 0;
+  padding: 12px 14px;
+}
+
+.kim-app-detail-block dt,
+.kim-app-detail-block dd {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  margin: 0;
+  padding: 8px 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.kim-app-detail-block dt {
+  color: #4b5563;
+  font-weight: 600;
+}
+
+.kim-app-detail-block dd {
+  color: #111827;
+  font-weight: 800;
+  text-align: right;
+}
+
+.kim-app-detail-block dt:nth-last-child(-n + 2),
+.kim-app-detail-block dd:nth-last-child(-n + 1) {
+  border-bottom: 0;
+}
+
+.kim-app-detail-block dd.green {
+  color: #05943f;
+}
+
+.kim-app-detail-block dd.blue {
+  color: #155eef;
+}
+
+.kim-quote-solution-panel {
+  border: 1px solid rgba(17, 17, 17, 0.075);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.kim-quote-solution-panel.wide {
+  grid-column: 1 / -1;
+}
+
+.kim-quote-builder-section-head {
+  min-height: 42px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff;
+  padding: 0 14px;
+}
+
+.kim-quote-builder-section-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #30363d;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.kim-quote-builder-section-head em {
+  color: #8f969c;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 720;
+}
+
+.kim-quote-builder-section-head button {
+  height: 26px;
+  border: 1px solid rgba(var(--brand-rgb), 0.2);
+  border-radius: 6px;
+  background: #f4f1ff;
+  color: var(--brand);
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.kim-quote-vehicle-picks {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 14px 10px;
+}
+
+.kim-quote-vehicle-picks label {
+  display: grid;
+  gap: 5px;
+}
+
+.kim-quote-vehicle-picks span {
+  color: #68717b;
+  font-size: 10.5px;
+  font-weight: 780;
+}
+
+.kim-quote-vehicle-picks input,
+.kim-quote-vehicle-picks select {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #e4e4e2;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 720;
+  outline: 0;
+}

@@ -1,0 +1,541 @@
+.kim-quote-vehicle-picks input:focus,
+.kim-quote-vehicle-picks select:focus {
+  border-color: rgba(var(--brand-rgb), 0.5);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.07);
+}
+
+.kim-quote-db-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+
+.kim-quote-db-preview button {
+  min-height: 48px;
+  border: 1px solid rgba(17, 17, 17, 0.07);
+  border-radius: 7px;
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  background: #f7f7f6;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.kim-quote-db-preview b {
+  color: #30363d;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.kim-quote-db-preview span {
+  color: #8f969c;
+  font-size: 10.5px;
+  font-weight: 680;
+}
+
+.kim-quote-method-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 16px 0;
+}
+
+.kim-quote-method-tabs button {
+  height: 34px;
+  border: 1px solid #dededb;
+  border-radius: 7px;
+  background: #fff;
+  color: #4f5862;
+  padding: 0 13px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 32px;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-quote-method-tabs button[aria-pressed="true"] {
+  border-color: rgba(var(--brand-rgb), 0.36);
+  background: #f4f1ff;
+  color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.07);
+}
+
+.kim-quote-method-tabs button:hover {
+  border-color: rgba(var(--brand-rgb), 0.28);
+  color: var(--brand);
+}
+
+.kim-quote-builder-method .kim-quote-method-tabs {
+  padding: 12px;
+}
+
+.kim-quote-entry-switch {
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.kim-quote-entry-switch button {
+  height: 36px;
+  border: 1px solid #dededb;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: #fff;
+  color: #4f5862;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.kim-quote-entry-switch button[aria-pressed="true"] {
+  border-color: rgba(var(--brand-rgb), 0.34);
+  background: #f4f1ff;
+  color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.06);
+}
+
+.kim-quote-entry-switch button:disabled {
+  background: #f7f7f6;
+  color: #b5bbc1;
+  cursor: not-allowed;
+}
+
+.kim-quote-original-dropzone {
+  position: relative;
+  min-height: 82px;
+  border: 1.5px dashed rgba(104, 113, 123, 0.22);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: #fff;
+  padding: 14px;
+  box-sizing: border-box;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kim-quote-original-dropzone.is-drop-active {
+  border-color: rgba(var(--brand-rgb), 0.56);
+  background: #fbfaff;
+  box-shadow: inset 0 0 0 2px rgba(var(--brand-rgb), 0.08);
+}
+
+.kim-quote-original-dropzone.has-file {
+  border-style: solid;
+  border-color: rgba(21, 94, 239, 0.24);
+  background: #f4f8ff;
+}
+
+.kim-quote-original-dropzone > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 8px;
+  align-items: center;
+}
+
+.kim-quote-original-dropzone svg {
+  grid-row: span 2;
+  color: var(--brand);
+}
+
+.kim-quote-original-dropzone strong {
+  color: #30363d;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.kim-quote-original-dropzone p {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #68717b;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kim-quote-original-dropzone label {
+  position: relative;
+  flex: 0 0 auto;
+  height: 30px;
+  border: 1px solid rgba(var(--brand-rgb), 0.22);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  background: #f4f1ff;
+  color: var(--brand);
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.kim-quote-original-dropzone input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.kim-quote-solution-workbench {
+  opacity: 0.74;
+}
+
+.kim-quote-solution-workbench.is-active {
+  opacity: 1;
+}
+
+.kim-quote-solution-results {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+
+.kim-quote-solution-results button {
+  min-height: 118px;
+  border: 1px solid rgba(17, 17, 17, 0.075);
+  border-radius: 8px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  background: #fff;
+  padding: 12px;
+  text-align: left;
+}
+
+.kim-quote-solution-results button.is-selected {
+  border-color: rgba(21, 94, 239, 0.28);
+  background: #f4f8ff;
+  box-shadow: inset 0 0 0 1px rgba(21, 94, 239, 0.08), 0 5px 14px rgba(21, 94, 239, 0.08);
+}
+
+.kim-quote-solution-results span {
+  width: fit-content;
+  border-radius: 999px;
+  background: rgba(21, 94, 239, 0.1);
+  color: #155eef;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.kim-quote-solution-results strong {
+  color: #30363d;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.kim-quote-solution-results b {
+  color: #111827;
+  font-size: 20px;
+  font-weight: 880;
+  letter-spacing: 0;
+}
+
+.kim-quote-solution-results em {
+  color: #68717b;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 680;
+  line-height: 1.35;
+}
+
+.kim-quote-manual-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 14px;
+  padding: 14px 16px 16px;
+}
+
+.kim-quote-manual-grid label {
+  grid-template-columns: 82px minmax(0, 1fr);
+  border-bottom: 0;
+  padding: 6px 0;
+}
+
+.kim-quote-manual-grid label.wide {
+  grid-column: span 3;
+  grid-template-columns: 82px minmax(0, 1fr);
+}
+
+.kim-quote-solution-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+  padding: 14px 16px 16px;
+}
+
+.kim-quote-solution-form-grid label {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.kim-quote-solution-form-grid label span {
+  color: #8f969c;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.kim-quote-solution-form-grid input,
+.kim-quote-solution-form-grid select {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #25282c;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 680;
+  outline: none;
+  padding: 0 10px;
+}
+
+.kim-quote-solution-form-grid input:focus,
+.kim-quote-solution-form-grid select:focus {
+  border-color: #7c5cff;
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.1);
+}
+
+.kim-quote-solution-placeholder {
+  min-height: 168px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 28px;
+  color: #69727c;
+  text-align: center;
+}
+
+.kim-quote-solution-placeholder svg {
+  color: var(--brand);
+}
+
+.kim-quote-solution-placeholder strong {
+  color: #25282c;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.kim-quote-solution-placeholder p {
+  max-width: 520px;
+  margin: 0;
+  color: #8f969c;
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.55;
+}
+
+.kim-document-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 310;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.18);
+  padding: 32px;
+  overscroll-behavior: contain;
+}
+
+/* 고객 상세 패널(drawer)이 열린 동안 배경(고객 목록 페이지) 스크롤을 잠근다. */
+body.customer-drawer-open {
+  overflow: hidden;
+}
+
+/* 서류/견적 미리보기·견적 작성/수정·솔루션 워크벤치 오버레이가 열린 동안
+   배경(전체 페이지 + 고객 상세 패널) 스크롤을 잠가, 오버레이 안 스크롤이 뒤로 전파(chaining)되지 않게 한다. */
+body.kim-detail-overlay-open,
+body.kim-detail-overlay-open .customer-detail-drawer {
+  overflow: hidden;
+}
+
+/* drawer 모드: 미리보기를 고객 상세 패널(우측) 영역에만 띄워 좌측 고객 목록을 덮지 않고
+   작업 맥락 안 가운데에 오게 한다. 패널 폭(.customer-detail-drawer)과 동일하게 우측 정렬. */
+.customer-detail-console-page.drawer .kim-document-preview-backdrop {
+  inset: 0 0 0 auto;
+  width: min(1260px, calc(100vw - 240px));
+}
+
+.kim-document-preview-panel {
+  /* 고정 크기 — 로딩 박스와 이미지 표시 시 모달 크기가 같아 레이아웃 점프가 없다. */
+  width: min(660px, calc(100vw - 64px));
+  height: min(900px, calc(100vh - 64px));
+  border: 1px solid #dededb;
+  border-radius: 8px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+}
+
+/* head > div { display:grid } 가 actions에도 먹어 버튼이 세로로 쌓이던 것을 specificity로 덮어 가로 배치. */
+.kim-document-preview-head .kim-document-preview-head-actions {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.kim-document-preview-head {
+  min-height: 48px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  box-sizing: border-box;
+}
+
+.kim-document-preview-head > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.kim-document-preview-head strong {
+  color: #30363d;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.kim-document-preview-head span {
+  overflow: hidden;
+  color: #7c858d;
+  font-size: 11.5px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kim-document-preview-head button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  background: #fff;
+  color: #68717b;
+  padding: 0;
+}
+
+/* 다운로드 버튼은 항상 보이되 URL 발급 전엔 비활성(닫기처럼 즉시 표시, 깜빡임/뒤늦은 등장 방지). */
+.kim-document-preview-head button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.kim-document-preview-body {
+  overflow: auto;
+  background: #f7f7f6;
+}
+
+/* 이미지는 PDF(iframe)처럼 폭에 꽉 차게(여백 없이) — 비율 유지(height:auto), 세로로 길면 스크롤.
+   object-fit:contain + place-items:center는 비율 차이만큼 상하/좌우 회색 여백이 생겨 폐기. */
+.kim-document-preview-body img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 로딩/대체 안내는 영역 중앙에 표시(이미지는 위 규칙대로 꽉 차게). */
+.kim-document-preview-body .kim-document-preview-loading,
+.kim-document-preview-body .kim-document-preview-fallback {
+  min-height: 100%;
+}
+
+.kim-document-preview-loading,
+.kim-document-preview-fallback {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  min-height: 280px;
+  padding: 24px;
+  color: #68717b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.kim-document-preview-body iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.kim-document-preview-body p {
+  margin: 0;
+  color: #68717b;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.kim-doc-preview-download-link {
+  margin-top: 10px;
+  appearance: none;
+  border: 1px solid rgba(var(--brand-rgb), 0.22);
+  border-radius: 6px;
+  background: #f4f1ff;
+  padding: 7px 14px;
+  color: var(--brand);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.kim-doc-preview-download-link:hover {
+  background: #ece8ff;
+  border-color: rgba(var(--brand-rgb), 0.34);
+}
+
+.kim-quote-composer,
+.kim-document-composer {
+  border-top-color: rgba(var(--brand-rgb), 0.12);
+}
+
+.kim-quote-composer-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 7px;
+}
+
+.kim-document-composer .kim-quote-composer-fields {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.kim-quote-composer-fields input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  color: #30363d;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  outline: 0;
+}
+
+.kim-quote-composer-fields input:focus {
+  border-color: rgba(var(--brand-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.08);
+}
