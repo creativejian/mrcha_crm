@@ -60,19 +60,22 @@ function parseSseLine(rawLine: string): string | null {
 
 // 스트리밍 생성 — Gemini alt=sse의 `data: {json}` 라인에서 텍스트 파트만 순서대로 yield.
 // HTTP 레벨 실패(스트림 시작 전)만 rate_limited/unavailable 1회 재시도. 스트림 중간 실패는 그대로 throw(호출부가 부분 저장 처리).
+// signal: 클라 중단 시 업스트림을 즉시 끊는다 — CF에서 클라 disconnect 후 pending read는 영영 해소되지
+// 않아, signal 없이는 finalize가 waitUntil 유예(30s)를 넘겨 취소된다(2026-07-03 prod 유령 placeholder 실측).
 export async function* generateAnswerStream(
   systemPrompt: string,
   userPrompt: string,
   target: GeminiTarget,
   history: ChatTurn[] = [],
   fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): AsyncGenerator<string> {
   const url = `${target.baseUrl}/v1beta/models/${GEN_MODEL}:streamGenerateContent?alt=sse`;
   const body = buildGenerateBody(systemPrompt, userPrompt, history);
 
   let res: Response | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    res = await fetchImpl(url, { method: "POST", headers: geminiHeaders(target), body });
+    res = await fetchImpl(url, { method: "POST", headers: geminiHeaders(target), body, signal });
     if (res.ok) break;
     const bodyText = await res.text();
     const code = classifyGeminiError(res.status, bodyText);
