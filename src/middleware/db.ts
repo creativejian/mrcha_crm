@@ -29,12 +29,15 @@ export const dbMiddleware: MiddlewareHandler<{ Variables: DbVariables }> = async
   try {
     await next();
   } finally {
-    // 응답 전송 후 연결 종료(요청 수명에 묶지 않음). executionCtx가 없으면(이론상 비-Workers) 즉시 종료.
+    // 응답 전송 후 연결 종료(요청 수명에 묶지 않음). executionCtx가 없으면 fire-and-forget.
+    // 여기서 end를 await하면 안 된다 — end는 dbHold(스트림 수명)에 체인돼 있어, 인라인 대기 시
+    // Response 반환이 스트림 종료까지 막히는 데드락이 된다(2026-07-03 prod 524 사고: Pages 엔트리가
+    // ExecutionContext를 안 넘겨 이 폴백이 발동, 업무 AI 스트리밍 전면 불능).
     const end = endAfterHold(c.get("dbHold"), () => client.end());
     try {
       c.executionCtx.waitUntil(end);
     } catch {
-      await end;
+      void end.catch(() => {});
     }
   }
 };
