@@ -185,27 +185,31 @@ git commit -m "feat(crm): Gemini streamGenerateContent SSE 릴레이 generateAns
 **Files:**
 - Modify: `src/db/queries/assistant-messages.ts`
 
-기존 쿼리 파일은 자체 단위 테스트가 없는 관례(라우트 테스트에서 fake 주입으로 검증). Task 3·4가 검증을 담당한다.
+(리뷰 반영으로 확정된 형태 — owned-resource 관례에 따라 **id+staffUserId 이중 키**, 실 DB 테스트 포함.)
 
 - [ ] **Step 1: 구현** — `src/db/queries/assistant-messages.ts` 끝에 추가:
 
 ```ts
-// 스트리밍 종료 시 placeholder 마감(내용·출처 확정). 대상 없으면 null.
+// 스트리밍 종료 시 placeholder 마감(내용·출처 확정). id+staffUserId 이중 키(타 staff 메시지 오염 방지 — owned-resource 관례). 대상 없으면 null.
 export async function updateAssistantMessage(
   id: string,
+  staffUserId: string,
   content: string,
   sources: unknown,
   executor: Executor = getDefaultDb(),
 ): Promise<AssistantMessageRow | null> {
-  const rows = await executor.update(assistantMessages).set({ content, sources }).where(eq(assistantMessages.id, id)).returning();
-  return rows[0] ?? null;
+  const [row] = await executor.update(assistantMessages).set({ content, sources })
+    .where(and(eq(assistantMessages.id, id), eq(assistantMessages.staffUserId, staffUserId))).returning();
+  return row ?? null;
 }
 
-// 0자 중단/실패 시 빈 placeholder 제거(유령 빈 메시지 방지). user 질문 행은 남긴다.
-export async function deleteAssistantMessage(id: string, executor: Executor = getDefaultDb()): Promise<void> {
-  await executor.delete(assistantMessages).where(eq(assistantMessages.id, id));
+// 0자 중단/실패 시 빈 placeholder 제거(유령 빈 메시지 방지). user 질문 행은 남긴다. 이중 키 동일.
+export async function deleteAssistantMessage(id: string, staffUserId: string, executor: Executor = getDefaultDb()): Promise<void> {
+  await executor.delete(assistantMessages).where(and(eq(assistantMessages.id, id), eq(assistantMessages.staffUserId, staffUserId)));
 }
 ```
+
+`src/db/queries/assistant-messages.test.ts`(실 master DB)에 삽입→갱신(타 staff는 null·미변경)→삭제 케이스 추가(기존 셋업/정리 패턴 준수).
 
 - [ ] **Step 2: 타입 확인**
 
@@ -370,11 +374,11 @@ function streamRagFakes(seen: { inserted: unknown[][]; updated?: { id: string; c
     seen.inserted.push(rows as unknown[]);
     return rows.map((r, i) => ({ ...r, id: `row-${i}` })) as never;
   };
-  assistantDeps.updateAssistantMessage = async (id: string, content: string, sources: unknown) => {
+  assistantDeps.updateAssistantMessage = async (id: string, _staffUserId: string, content: string, sources: unknown) => {
     seen.updated = { id, content };
     return { id, staffUserId: "s", role: "assistant", content, sources, createdAt: new Date(1) } as never;
   };
-  assistantDeps.deleteAssistantMessage = async (id: string) => { seen.deletedId = id; };
+  assistantDeps.deleteAssistantMessage = async (id: string, _staffUserId: string) => { seen.deletedId = id; };
 }
 
 test("POST /ask stream:true → 선저장 + text 이벤트 릴레이 + done에 영속본 2건", async () => {
@@ -562,8 +566,8 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
     const finalize = (async () => {
       const outcome = await finalizeStreamedAnswer({
         fullText, aborted, failed, sources: args.sources,
-        update: (content, sources) => assistantDeps.updateAssistantMessage(placeholder.id, content, sources, c.var.db),
-        remove: () => assistantDeps.deleteAssistantMessage(placeholder.id, c.var.db),
+        update: (content, sources) => assistantDeps.updateAssistantMessage(placeholder.id, args.staffUserId, content, sources, c.var.db),
+        remove: () => assistantDeps.deleteAssistantMessage(placeholder.id, args.staffUserId, c.var.db),
       });
       if (aborted) return; // 클라는 이미 끊김 — 이벤트 송출 생략
       if (outcome.kind === "done") {
