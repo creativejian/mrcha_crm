@@ -1,6 +1,6 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-03 밤 (#145~#147 prod SSE 데드락 3연속 해소, #144 Gemini Edge 프록시 머지 — 리전 차단 해소, #142 업무 AI SSE 스트리밍 머지)
+Last updated: 2026-07-03 밤 (AI 슬라이스 리팩토링 A+C 완료 — #151·#152 머지 + crm-analyst 재배포 + prod 스모크 통과)
 
 Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후 현재 CRM 작업만 빠르게 복구하기 위한 압축 문서다. 완료된 세부 로그는 git/PR과 `ref/specs|plans`를 기준으로 확인한다.
 
@@ -27,7 +27,7 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 - 슬라이스C1 업무 AI **대화 영속+멀티턴+앱 UI 완료·머지**(PR #133) + **히스토리 페이지네이션·UI 폴리시 완료·머지**(PR #134, 2026-07-02): `crm.assistant_messages` 영속, 최근10턴 멀티턴, react-markdown, 위로 스크롤 이전대화 로드(커서), AI답변 박스제거·overscroll·확대패널높이 등 브라우저 실측 폴리시. 상세는 아래 요약.
 - **실시간 상담 콘솔 v1 완료·머지**(PR #135, 2026-07-02 — 워크트리/브랜치 정리 완료): 앱 고객 채팅(public.chat_sessions/chat_messages)을 CRM ChatPage 실동작 콘솔로. 상세는 아래 요약.
 - **UX 후속 완료·머지**(PR #139, 2026-07-03): ①실시간 상담 `.chat-messages` overscroll-behavior:contain(리스트 끝 휠이 배경 문서 스크롤로 전파되던 쉬프트 차단, CDP 조준 wheel 실측) ②업무 AI 히스토리 **프리페치**(Topbar 마운트 시·딜러 제외 — "느림" 원인은 백엔드(11ms) 아니라 팝오버 연 뒤에야 fetch+loading 무표시) + loading 중 DoubleBounceDots.
-- **AI 슬라이스 리팩토링 백로그(2026-07-03 분석, 코드 무변경)**: #142~#150 범위 2앵글 분석 완료 — 즉시 후보(파리티 가드 3종·holdStreamLifetime·Gemini 재시도 루프 통합·crm-analyst ?key= 통일 등)와 트리거 기반(supersede 시 드레인 컨트롤러, 2번째 Gemini 호출자 시 target 헬퍼) 정리. **상세·PR 구성안 = `ref/ai-refactor-backlog-2026-07-03.md`** — 리팩토링 세션은 이 문서로 시작.
+- **✅ AI 슬라이스 리팩토링 A+C 완료(2026-07-03 밤, PR #151·#152 머지 + crm-analyst 재배포 + prod 스모크 통과)**: 백로그 즉시 항목 전부 실행. **#151(A+B 1~5)** = ①DISPLAY_LIMIT↔AI_HISTORY_PAGE 파리티 테스트(클라 상수를 의존성 없는 `client/src/lib/assistant-history.ts`로 분리 — useAssistantThread 직접 import는 supabase env 부작용 체인이라 불가) ②classifyGeminiError bun↔Deno 파리티 픽스처 8종 ③NO_HITS_ANSWER SSOT를 assistant-prompt.ts로 이동·보간(프롬프트 인용구 마침표 1자 추가가 유일한 행위 변경) ④**holdStreamLifetime(c)** — dbHold+waitUntil 원자 등록 헬퍼(middleware/db.ts, #143 불변조건을 구조 규칙으로) + tryWaitUntil이 executionCtx try/catch 2벌 흡수, 파라미터는 구조적 타입(hono Context가 Variables invariant) ⑤sleepUnlessAborted → `src/lib/sleep.ts` 순수 이동+유닛 3케이스. **#152(C 7~10)** = ⑦**geminiPost**(`src/lib/gemini-post.ts`) — generate/stream/embed 3벌 재시도 골격 통합(로그 포맷 `[assistant] Gemini {label} …` 보존) ⑧generateAnswer(Stream) trailing 인자→opts 객체({history,fetchImpl,signal}, `undefined,` 필러 제거) ⑨crm-analyst `?key=`→x-goog-api-key 헤더+Deno 테스트(**재배포 완료**) ⑩insertTurn 헬퍼(now/now+1ms 커서 규약 SSOT). 검증: 4종+build+deno 3종 전부 green(server 209·unit 361·deno 14). **prod 스모크(API 직접)**: 완주 첫바이트 2.79s·done 영속, 조기 절단 시 부분 390자+" (중단됨)" 저장(하트비트 사망 판정 경로 실증)·유령 placeholder 0. 스모크 대화 6행 master에서 삭제. **잔여 = 백로그 6(sse-liveness M — 두 번째 스트리밍 라우트 전 필수) + B 트리거 3건**(supersede 시 드레인 컨트롤러, 2번째 백엔드 Gemini 호출자 시 resolveGeminiTargetFromRequest, 4번째 메서드 시 프록시 allowlist). 상세 = `ref/ai-refactor-backlog-2026-07-03.md`(완료 표시됨).
 - 다음 후보: ①**역할 기반 scope 실제화(보류 — 나중에)**: **팀 개념 없음 확정(유슨생 확인, 2026-07-03) — "팀장"은 팀 관리가 아니라 권한 레벨만 상이.** 따라서 crm.staff/팀 테이블·팀 모델링 불필요, scope는 "admin/팀장=전체, 상담사=본인 담당(advisor 매칭)" 역할 분기로 축소(advisor_id uuid 병기 + `resolveCustomerScope` seam 본문 교체 + 보류된 seam predicate). staff 계정 0이라 실사용 압력 없음 → 데이터화 이후로 ②**데이터화/일반화 슬라이스**(김민준 시범→전체표준, mock→DB, kim 리네임 흡수 — **선행: 이사님 점진 일반화 컨펌**).
 - 완료된 고객/견적/서류/니즈/상세 저장 관련 세부 이력은 main git/PR 기록과 관련 specs/plans를 기준으로 본다.
 
