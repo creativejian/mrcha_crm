@@ -67,16 +67,24 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
     mountedRef.current = true;
   }, [entries, asking, historyStatus, prependAnchorRef, newTurnAnchorRef]);
 
-  // 확대/축소 시 body 높이가 바뀌므로 마지막 턴 min-height 재계산(스크롤은 유지).
-  // 질문 요소는 pending(tempId-q)→영속(UUID) 교체로 data-eid가 바뀌므로 id가 아니라 "마지막 user 버블"로 조회한다.
+  // body 크기 변화 시 마지막 턴 min-height 재계산(스크롤은 유지). expanded 의존 effect는 CSS 전환이
+  // 끝나기 전의 높이를 측정해 옛값이 잔존했다(스모크 실측) — ResizeObserver가 전환 완료 후 최종 크기를
+  // 자연 포착하고 창 리사이즈까지 커버한다. 질문 요소는 pending(tempId-q)→영속(UUID) 교체로 data-eid가
+  // 바뀌므로 id가 아니라 "마지막 user 버블"로 조회한다.
   useLayoutEffect(() => {
     const el = bodyRef.current;
-    if (!el || turnMinHeight === null) return;
-    const users = el.querySelectorAll<HTMLElement>(".work-ai-message.user");
-    const question = users[users.length - 1];
-    if (question) setTurnMinHeight(computeTurnMinHeight(el.clientHeight, question.offsetHeight));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- expanded 전환 시에만 재계산(turnMinHeight 자체 변화에 반응하면 루프)
-  }, [expanded]);
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      setTurnMinHeight((cur) => {
+        if (cur === null) return cur; // 활성 턴이 없으면 예약 없음 유지
+        const users = el.querySelectorAll<HTMLElement>(".work-ai-message.user");
+        const question = users[users.length - 1];
+        return question ? computeTurnMinHeight(el.clientHeight, question.offsetHeight) : cur;
+      });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   async function submitQuestion() {
     const question = input.trim();
