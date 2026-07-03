@@ -1,5 +1,5 @@
-import { classifyGeminiError } from "./gemini-error";
-import { geminiHeaders, type GeminiTarget } from "./gemini-target";
+import { geminiPost } from "./gemini-post";
+import type { GeminiTarget } from "./gemini-target";
 
 export const EMBEDDING_MODEL = "gemini-embedding-001"; // 앱 관례(3072 네이티브). output_dimensionality 미지정.
 export const EMBEDDING_DIM = 3072; // gemini-embedding-001 네이티브 차원 — schema vector(N)·halfvec 캐스트·테스트 픽스처가 공유
@@ -37,20 +37,9 @@ async function embedBatch(
     })),
   });
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetchImpl(url, { method: "POST", headers: geminiHeaders(target), body });
-    if (res.ok) {
-      const data = (await res.json()) as { embeddings?: { values?: number[] }[] };
-      const vecs = data.embeddings?.map((e) => e.values);
-      if (!vecs || vecs.some((v) => !Array.isArray(v))) throw new Error("Gemini 임베딩 응답 파싱 실패");
-      return vecs as number[][];
-    }
-    const bodyText = await res.text();
-    const code = classifyGeminiError(res.status, bodyText);
-    // 본문 일부를 남겨 generic 4xx의 실제 원인(키 만료·쿼터 등)을 tail에서 판별할 수 있게 한다.
-    console.error(`[assistant] Gemini embed ${code} status=${res.status} body=${bodyText.slice(0, 200)}`);
-    if (attempt === 0 && (code === "rate_limited" || code === "unavailable")) continue;
-    throw new Error(`Gemini 임베딩 실패: ${code}`);
-  }
-  throw new Error("Gemini 임베딩 실패");
+  const res = await geminiPost(url, body, target, { label: "embed", errorPrefix: "Gemini 임베딩 실패", fetchImpl });
+  const data = (await res.json()) as { embeddings?: { values?: number[] }[] };
+  const vecs = data.embeddings?.map((e) => e.values);
+  if (!vecs || vecs.some((v) => !Array.isArray(v))) throw new Error("Gemini 임베딩 응답 파싱 실패");
+  return vecs as number[][];
 }

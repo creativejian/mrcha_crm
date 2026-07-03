@@ -1,9 +1,13 @@
-import { classifyGeminiError } from "./gemini-error";
-import { geminiHeaders, type GeminiTarget } from "./gemini-target";
+import { geminiPost } from "./gemini-post";
+import type { GeminiTarget } from "./gemini-target";
 
 export const GEN_MODEL = "gemini-3.1-flash-lite"; // 앱/crm-analyst 동일.
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
+export type GenerateOpts = { history?: ChatTurn[]; fetchImpl?: typeof fetch };
+// signal: 클라 중단 시 업스트림을 즉시 끊는다 — CF에서 클라 disconnect 후 pending read는 영영 해소되지
+// 않아, signal 없이는 finalize가 waitUntil 유예(30s)를 넘겨 취소된다(2026-07-03 prod 유령 placeholder 실측).
+export type GenerateStreamOpts = GenerateOpts & { signal?: AbortSignal };
 
 // generateContent/streamGenerateContent 공통 요청 바디 — history role 매핑(assistant→model) 포함.
 function buildGenerateBody(systemPrompt: string, userPrompt: string, history: ChatTurn[]): string {
@@ -23,28 +27,15 @@ export async function generateAnswer(
   systemPrompt: string,
   userPrompt: string,
   target: GeminiTarget,
-  history: ChatTurn[] = [],
-  fetchImpl: typeof fetch = fetch,
+  opts: GenerateOpts = {},
 ): Promise<string> {
   const url = `${target.baseUrl}/v1beta/models/${GEN_MODEL}:generateContent`;
-  const body = buildGenerateBody(systemPrompt, userPrompt, history);
-
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetchImpl(url, { method: "POST", headers: geminiHeaders(target), body });
-    if (res.ok) {
-      const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (typeof text !== "string") throw new Error("Gemini 생성 응답 파싱 실패");
-      return text;
-    }
-    const bodyText = await res.text();
-    const code = classifyGeminiError(res.status, bodyText);
-    // 본문 일부 포함(embed와 대칭) — 프록시 경유 시 릴레이/게이트웨이발 401·403·404를 리전 차단과 판별.
-    console.error(`[assistant] Gemini generate ${code} status=${res.status} body=${bodyText.slice(0, 200)}`);
-    if (attempt === 0 && (code === "rate_limited" || code === "unavailable")) continue;
-    throw new Error(`Gemini 생성 실패: ${code}`);
-  }
-  throw new Error("Gemini 생성 실패");
+  const body = buildGenerateBody(systemPrompt, userPrompt, opts.history ?? []);
+  const res = await geminiPost(url, body, target, { label: "generate", errorPrefix: "Gemini 생성 실패", fetchImpl: opts.fetchImpl });
+  const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof text !== "string") throw new Error("Gemini 생성 응답 파싱 실패");
+  return text;
 }
 
 // SSE `data: {json}` 한 줄에서 텍스트 파트 추출. data 라인이 아니거나 빈 payload/[DONE]이면 null.
@@ -60,31 +51,16 @@ function parseSseLine(rawLine: string): string | null {
 
 // 스트리밍 생성 — Gemini alt=sse의 `data: {json}` 라인에서 텍스트 파트만 순서대로 yield.
 // HTTP 레벨 실패(스트림 시작 전)만 rate_limited/unavailable 1회 재시도. 스트림 중간 실패는 그대로 throw(호출부가 부분 저장 처리).
-// signal: 클라 중단 시 업스트림을 즉시 끊는다 — CF에서 클라 disconnect 후 pending read는 영영 해소되지
-// 않아, signal 없이는 finalize가 waitUntil 유예(30s)를 넘겨 취소된다(2026-07-03 prod 유령 placeholder 실측).
 export async function* generateAnswerStream(
   systemPrompt: string,
   userPrompt: string,
   target: GeminiTarget,
-  history: ChatTurn[] = [],
-  fetchImpl: typeof fetch = fetch,
-  signal?: AbortSignal,
+  opts: GenerateStreamOpts = {},
 ): AsyncGenerator<string> {
   const url = `${target.baseUrl}/v1beta/models/${GEN_MODEL}:streamGenerateContent?alt=sse`;
-  const body = buildGenerateBody(systemPrompt, userPrompt, history);
-
-  let res: Response | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    res = await fetchImpl(url, { method: "POST", headers: geminiHeaders(target), body, signal });
-    if (res.ok) break;
-    const bodyText = await res.text();
-    const code = classifyGeminiError(res.status, bodyText);
-    // 본문 일부 포함(embed와 대칭) — 프록시 경유 시 릴레이/게이트웨이발 401·403·404를 리전 차단과 판별.
-    console.error(`[assistant] Gemini stream ${code} status=${res.status} body=${bodyText.slice(0, 200)}`);
-    if (attempt === 0 && (code === "rate_limited" || code === "unavailable")) { res = null; continue; }
-    throw new Error(`Gemini 생성 실패: ${code}`);
-  }
-  if (!res?.ok || !res.body) throw new Error("Gemini 생성 실패");
+  const body = buildGenerateBody(systemPrompt, userPrompt, opts.history ?? []);
+  const res = await geminiPost(url, body, target, { label: "stream", errorPrefix: "Gemini 생성 실패", fetchImpl: opts.fetchImpl, signal: opts.signal });
+  if (!res.body) throw new Error("Gemini 생성 실패");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

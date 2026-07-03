@@ -27,14 +27,15 @@ type ClassifyArgs = {
 // vision 분류. 22종 or "unknown" 문자열 반환. 실패(재시도 후에도)는 throw → 프론트가 regex 폴백.
 export async function classifyDocumentImage(args: ClassifyArgs): Promise<string> {
   const { apiKey, mimeType, dataBase64, prompt, responseSchema, fetchImpl = fetch } = args;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
+  // 키는 항상 x-goog-api-key 헤더로 — ?key= 쿼리는 프록시/게이트웨이 로그에 남는다(#144 키 정책, CRM 본체와 동일).
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
   const body = JSON.stringify({
     contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: dataBase64 } }] }],
     generationConfig: { responseMimeType: "application/json", responseSchema, temperature: 0 },
   });
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetchImpl(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    const res = await fetchImpl(url, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body });
     if (res.ok) {
       const data = await res.json();
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
