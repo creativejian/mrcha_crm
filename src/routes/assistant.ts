@@ -115,13 +115,9 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
 
     const answer = hits.length === 0
       ? NO_HITS_ANSWER
-      : await assistantDeps.generateAnswer(SYSTEM_PROMPT, buildUserPrompt(question, buildContextBlock(promptChunks)), target, history);
+      : await assistantDeps.generateAnswer(SYSTEM_PROMPT, buildUserPrompt(question, buildContextBlock(promptChunks)), target, { history });
 
-    const now = new Date();
-    const saved = await assistantDeps.insertAssistantMessages([
-      { staffUserId, role: "user", content: question, sources: null, createdAt: now },
-      { staffUserId, role: "assistant", content: answer, sources, createdAt: new Date(now.getTime() + 1) },
-    ], c.var.db);
+    const saved = await insertTurn(staffUserId, question, { content: answer, sources }, c.var.db);
     // 답변·출처는 saved[1]에 영속 — 클라이언트는 messages만 소비한다(이중 표현 금지).
     return c.json({ messages: saved });
   } catch (e) {
@@ -129,6 +125,21 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     return c.json({ error: "일시적으로 답변에 실패했습니다." }, 500);
   }
 });
+
+// user+assistant 2행 원자 저장 — createdAt now/now+1ms 규약은 (created_at,id) 복합 커서 정렬과 맞물린
+// 계약이라 두 저장 경로(논스트림=완성 답변, 스트림=빈 placeholder 선저장)가 반드시 공유한다.
+function insertTurn(
+  staffUserId: string,
+  question: string,
+  assistant: { content: string; sources: unknown },
+  db: DbVariables["db"],
+): Promise<AssistantMessageRow[]> {
+  const now = new Date();
+  return assistantDeps.insertAssistantMessages([
+    { staffUserId, role: "user", content: question, sources: null, createdAt: now },
+    { staffUserId, role: "assistant", content: assistant.content, sources: assistant.sources, createdAt: new Date(now.getTime() + 1) },
+  ], db);
+}
 
 type AskContext = Context<{ Variables: AuthVariables & DbVariables }>;
 type StreamAskArgs = {
@@ -148,11 +159,9 @@ const HEARTBEAT_WRITE_TIMEOUT_MS = 3_000; // SSE 쓰기는 정상 소비 시 즉
 // abort 경로(STOP suffix·done 미송출)는 hono streamSSE 내부 abort 배선에 의존해 fake 라우트 유닛으로 검증이
 // 어려움 — finalizeStreamedAnswer 유닛 + 브라우저 스모크(중지→리로드 시 "(중단됨)" 보존·빈 말풍선 없음)가 전담.
 async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> {
-  const now = new Date();
-  const [userRow, placeholder] = (await assistantDeps.insertAssistantMessages([
-    { staffUserId: args.staffUserId, role: "user", content: args.question, sources: null, createdAt: now },
-    { staffUserId: args.staffUserId, role: "assistant", content: "", sources: null, createdAt: new Date(now.getTime() + 1) },
-  ], c.var.db)) as [AssistantMessageRow, AssistantMessageRow];
+  const [userRow, placeholder] = (await insertTurn(
+    args.staffUserId, args.question, { content: "", sources: null }, c.var.db,
+  )) as [AssistantMessageRow, AssistantMessageRow];
 
   // 스트림 수명 hold(dbHold+waitUntil 원자 등록) — 역할·사고 이력은 holdStreamLifetime 주석 참조.
   const releaseHold = holdStreamLifetime(c);
@@ -208,8 +217,8 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
           await raceDead(sse.writeSSE({ event: "text", data: JSON.stringify({ chunk: fullText }) }));
         } else {
           const gen = assistantDeps.generateAnswerStream(
-            SYSTEM_PROMPT, buildUserPrompt(args.question, buildContextBlock(args.promptChunks)), args.target, args.history,
-            undefined, upstreamAbort.signal, // fetchImpl은 기본(fetch) 유지
+            SYSTEM_PROMPT, buildUserPrompt(args.question, buildContextBlock(args.promptChunks)), args.target,
+            { history: args.history, signal: upstreamAbort.signal },
           );
           for (;;) {
             const step = await raceDead(gen.next());

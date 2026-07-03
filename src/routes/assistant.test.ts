@@ -32,7 +32,7 @@ test("POST /ask → 200: 멀티턴 history 전달 + user/assistant 2건 저장",
   assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
   assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
   assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
-  assistantDeps.generateAnswer = async (_s: string, _u: string, _t: unknown, history: { role: string }[] = []) => { seen.historyLen = history.length; return "답변"; };
+  assistantDeps.generateAnswer = async (_s: string, _u: string, _t: unknown, opts?: { history?: { role: string }[] }) => { seen.historyLen = opts?.history?.length ?? 0; return "답변"; };
   assistantDeps.insertAssistantMessages = async (rows: unknown[]) => { seen.saved = rows.length; return rows as never; };
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
@@ -196,9 +196,9 @@ test("POST /ask stream:true → generateAnswerStream에 AbortSignal이 전달된
   streamRagFakes(seen);
   let sig: unknown = "unset";
   assistantDeps.generateAnswerStream = async function* (
-    _s: string, _u: string, _t: unknown, _h: unknown, _f: unknown, signal?: AbortSignal,
+    _s: string, _u: string, _t: unknown, opts?: { signal?: AbortSignal },
   ) {
-    sig = signal;
+    sig = opts?.signal;
     yield "x";
   };
 

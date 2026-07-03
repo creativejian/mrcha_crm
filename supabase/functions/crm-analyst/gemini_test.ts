@@ -22,6 +22,17 @@ Deno.test("정상 응답에서 docType 추출", async () => {
   assertEquals(r, "사업자등록증");
 });
 
+Deno.test("API 키는 x-goog-api-key 헤더로만 전달(?key= 쿼리 금지 — 게이트웨이 로그 노출)", async () => {
+  let captured: { url: string; headers: Record<string, string> } | null = null;
+  const fetchImpl = (url: string | URL | Request, init?: RequestInit) => {
+    captured = { url: String(url), headers: { ...(init?.headers as Record<string, string>) } };
+    return Promise.resolve(geminiOk("면허증"));
+  };
+  await classifyDocumentImage({ ...ARGS, fetchImpl });
+  assert(!captured!.url.includes("key="));
+  assertEquals(captured!.headers["x-goog-api-key"], "k");
+});
+
 Deno.test("unavailable 1회 재시도 후 성공", async () => {
   let calls = 0;
   const fetchImpl = () => {
