@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { askAssistantStream, fetchAssistantMessages, type AssistantAskResult, type AssistantMessage } from "@/lib/assistant";
+import { askAssistantStream, fetchAssistantMessages, updateAssistantMessageContent, type AssistantAskResult, type AssistantMessage } from "@/lib/assistant";
 import { DRAIN_TICK_MS, STOP_SUFFIX, nextDisplayLength } from "@/lib/assistant-drain";
 
 export const AI_HISTORY_PAGE = 30; // 백엔드 DISPLAY_LIMIT와 일치
@@ -171,13 +171,11 @@ export function useAssistantThread() {
       if (!drainTimerRef.current) drainTimerRef.current = setInterval(pump, DRAIN_TICK_MS);
     };
 
-    // done 이후(생성·저장 완료, 타자기 드레인만 남음) stop = 드레인 즉시 스킵해 전체 노출·턴 마감.
-    // 서버 생성이 드레인보다 훨씬 빨라 체감 "스트리밍 중" stop의 대부분이 이 구간이다 — fetch는 이미
-    // 닫혀 있어 abort가 no-op였던 것이 prod "정지 안 됨"의 원인. done 전 stop은 catch의 abort 분기 담당.
+    // done 이후(생성·저장 완료, 타자기 드레인만 남음) stop = 드레인 즉시 동결. 서버 생성이 드레인보다
+    // 훨씬 빨라 체감 "스트리밍 중" stop의 대부분이 이 구간이다 — fetch는 이미 닫혀 있어 abort가 no-op였던
+    // 것이 prod "정지 안 됨"의 원인. 동결 후 처리(트림 저장)는 drained 이후 분기가 담당. done 전 stop은 catch.
     abort.signal.addEventListener("abort", () => {
       if (!doneResult) return;
-      displayLength = fullText.length;
-      setPendings((cur) => cur.map((p) => (p.tempId === tempId ? { ...p, streamText: fullText } : p)));
       stopTimer();
       settleDrain?.();
     });
@@ -197,6 +195,16 @@ export function useAssistantThread() {
       ensureTimer();
       pump(); // 즉시 done(짧은 답변·hits 0)도 마감되게
       await drained;
+      const displayed = fullText.slice(0, displayLength);
+      const assistantRow = res.messages.find((m) => m.role === "assistant");
+      if (abort.signal.aborted && assistantRow && displayed.length > 0 && displayed.length < fullText.length) {
+        // 드레인 중 stop: 화면 노출분+"(중단됨)"으로 즉시 동결하고, 이미 전체가 저장된 서버 행을
+        // 노출분으로 트림해 화면과 리로드를 일치시킨다(앱 미러: stop = 본 것까지만).
+        const stoppedContent = `${displayed}${STOP_SUFFIX}`;
+        setPendings((cur) => cur.map((p) => (p.tempId === tempId ? { ...p, stopped: true, streamText: stoppedContent } : p)));
+        void trimStoppedMessage(tempId, res, assistantRow, stoppedContent);
+        return false;
+      }
       setMessages((cur) => mergeAssistantMessages(cur, res.messages));
       setPendings((cur) => cur.filter((p) => p.tempId !== tempId)); // tempId 기준 — 동일 문구 실패 이력은 보존
       return true;
@@ -209,7 +217,7 @@ export function useAssistantThread() {
         setPendings((cur) =>
           cur.map((p) => (p.tempId === tempId ? { ...p, stopped: true, streamText: displayed ? `${displayed}${STOP_SUFFIX}` : undefined } : p)),
         );
-        void syncStoppedTurn(tempId);
+        void syncStoppedTurn(tempId, displayed ? `${displayed}${STOP_SUFFIX}` : undefined);
         return false;
       }
       const message = e instanceof Error ? e.message : "일시적으로 답변에 실패했습니다.";
@@ -222,10 +230,22 @@ export function useAssistantThread() {
     }
   }
 
+  // done 이후 stop의 트림 저장 — 실패해도 UI는 이미 동결(서버 원본은 다음 리로드에서 보일 수 있음, 드묾).
+  async function trimStoppedMessage(tempId: string, res: AssistantAskResult, row: AssistantMessage, content: string): Promise<void> {
+    try {
+      const patched = await updateAssistantMessageContent(row.id, content);
+      setMessages((cur) => mergeAssistantMessages(cur, res.messages.map((m) => (m.id === patched.id ? patched : m))));
+    } catch {
+      setMessages((cur) => mergeAssistantMessages(cur, res.messages));
+    }
+    setPendings((cur) => cur.filter((p) => p.tempId !== tempId));
+  }
+
   // stop 후 서버 저장본과의 백그라운드 동기화 — UI는 기다리지 않는다(즉시 정지 UX).
   // 서버 마감(하트비트 감지→부분 저장/삭제)은 수 초 걸릴 수 있어 마지막 행이 빈 placeholder면
-  // 간격을 늘려가며 재조회, 완료 시 서버 행으로 교체하고 낙관 pending을 제거한다.
-  async function syncStoppedTurn(tempId: string): Promise<void> {
+  // 간격을 늘려가며 재조회하고, 저장본이 화면 노출분과 다르면(서버가 더 받았거나 로컬 dev가 전체 저장)
+  // 노출분으로 트림해 화면과 리로드를 일치시킨 뒤 낙관 pending을 제거한다.
+  async function syncStoppedTurn(tempId: string, stoppedContent?: string): Promise<void> {
     for (let attempt = 0; attempt < STOP_SYNC_RETRIES; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, STOP_SYNC_DELAY_MS * (attempt + 1)));
       try {
@@ -233,7 +253,16 @@ export function useAssistantThread() {
         const last = rows.at(-1);
         const settled = !(last && last.role === "assistant" && last.content === "");
         if (settled || attempt === STOP_SYNC_RETRIES - 1) {
-          setMessages((cur) => mergeAssistantMessages(cur, rows));
+          let final = rows;
+          if (stoppedContent && last && last.role === "assistant" && last.content !== "" && last.content !== stoppedContent) {
+            try {
+              const patched = await updateAssistantMessageContent(last.id, stoppedContent);
+              final = rows.map((m) => (m.id === patched.id ? patched : m));
+            } catch {
+              // 트림 실패 — 서버 원본 그대로 반영.
+            }
+          }
+          setMessages((cur) => mergeAssistantMessages(cur, final));
           break;
         }
       } catch {

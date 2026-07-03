@@ -138,6 +138,50 @@ test("POST /ask stream:true → 선저장 + text 이벤트 릴레이 + done에 �
   expect(messages[1].content).toBe("안녕하세요");
 });
 
+test("PATCH /messages/:id — 본인 assistant 행 content를 트림 저장(stop=본 것까지만)", async () => {
+  let captured: [string, string, string] | null = null;
+  assistantDeps.updateAssistantMessageContent = async (id: string, staffUserId: string, content: string) => {
+    captured = [id, staffUserId, content];
+    return { id, staffUserId, role: "assistant", content, sources: null, createdAt: new Date(1) } as never;
+  };
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const id = "11111111-1111-4111-8111-111111111111";
+  const res = await app.request(`/api/assistant/messages/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ content: "부분 (중단됨)" }),
+  });
+  expect(res.status).toBe(200);
+  expect((await res.json() as { content: string }).content).toBe("부분 (중단됨)");
+  expect(captured![0]).toBe(id);
+  expect(typeof captured![1]).toBe("string");
+  expect(captured![2]).toBe("부분 (중단됨)");
+});
+
+test("PATCH /messages/:id — 대상 없음(타 staff/부재)은 404", async () => {
+  assistantDeps.updateAssistantMessageContent = async () => null;
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/messages/11111111-1111-4111-8111-111111111111", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ content: "x" }),
+  });
+  expect(res.status).toBe(404);
+});
+
+test("PATCH /messages/:id — 빈 content는 400", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/messages/11111111-1111-4111-8111-111111111111", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ content: "  " }),
+  });
+  expect(res.status).toBe(400);
+});
+
 // 2026-07-03 prod 실측: 클라 disconnect 후 pending Gemini read는 CF에서 해소되지 않아 finalize가
 // waitUntil 유예(30s)를 넘겨 취소된다(유령 placeholder). abort 시 업스트림 fetch를 즉시 끊기 위한 배선.
 test("POST /ask stream:true → generateAnswerStream에 AbortSignal이 전달된다", async () => {

@@ -1,4 +1,4 @@
-import { getJson } from "./http";
+import { getJson, sendJson } from "./http";
 import { apiFetch } from "./api";
 import { createSseParser } from "./assistant-sse";
 
@@ -10,6 +10,11 @@ export type AssistantAskResult = { messages: AssistantMessage[] };
 export async function fetchAssistantMessages(before?: { createdAt: string; id: string }): Promise<AssistantMessage[]> {
   const q = before ? `?before=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}` : "";
   return getJson<AssistantMessage[]>(`/api/assistant/messages${q}`);
+}
+
+// 중단 트림 — stop 시 화면에 노출된 만큼으로 본인 답변을 잘라 저장(stop = 본 것까지만, 앱 미러).
+export async function updateAssistantMessageContent(id: string, content: string): Promise<AssistantMessage> {
+  return sendJson<AssistantMessage>(`/api/assistant/messages/${id}`, "PATCH", { content });
 }
 
 export type AssistantStreamHandlers = { onChunk: (chunk: string) => void };
