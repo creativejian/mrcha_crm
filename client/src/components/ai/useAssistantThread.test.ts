@@ -1,18 +1,24 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { askAssistant, fetchAssistantMessages, type AssistantMessage } from "@/lib/assistant";
+import { askAssistantStream, fetchAssistantMessages, type AssistantMessage } from "@/lib/assistant";
 
 import { AI_HISTORY_PAGE, useAssistantThread } from "./useAssistantThread";
 
-vi.mock("@/lib/assistant", () => ({ askAssistant: vi.fn(), fetchAssistantMessages: vi.fn() }));
+vi.mock("@/lib/assistant", () => ({ askAssistant: vi.fn(), askAssistantStream: vi.fn(), fetchAssistantMessages: vi.fn() }));
 
-const ask = vi.mocked(askAssistant);
+const askStream = vi.mocked(askAssistantStream);
 const fetchMessages = vi.mocked(fetchAssistantMessages);
 
 // createdAt은 (createdAt,id) 복합 정렬 기준 — i를 초 단위로 깔아 순서를 만든다.
 function msg(i: number, role: "user" | "assistant" = "user"): AssistantMessage {
-  return { id: `m${String(i).padStart(4, "0")}`, role, content: `내용${i}`, sources: null, createdAt: new Date(1750000000000 + i * 1000).toISOString() };
+  return {
+    id: `m${String(i).padStart(4, "0")}`,
+    role,
+    content: `내용${i}`,
+    sources: null,
+    createdAt: new Date(1750000000000 + i * 1000).toISOString(),
+  };
 }
 
 function deferred<T>() {
@@ -59,7 +65,10 @@ describe("useAssistantThread", () => {
   it("늦게 도착한 초기 히스토리가 그 사이 성공한 새 대화를 지우지 않는다(merge, not replace)", async () => {
     const initial = deferred<AssistantMessage[]>();
     fetchMessages.mockReturnValue(initial.promise);
-    ask.mockResolvedValue({ messages: [msg(10, "user"), msg(11, "assistant")] });
+    askStream.mockImplementation(async (_q, handlers) => {
+      handlers.onChunk("답변");
+      return { messages: [msg(10, "user"), msg(11, "assistant")] };
+    });
     const { result } = renderHook(() => useAssistantThread());
 
     act(() => {
@@ -80,20 +89,26 @@ describe("useAssistantThread", () => {
     const { result } = renderHook(() => useAssistantThread());
     await act(async () => result.current.ensureHistory());
 
-    ask.mockRejectedValueOnce(new Error("일시 오류"));
+    askStream.mockRejectedValueOnce(new Error("일시 오류"));
     await act(async () => {
       await result.current.submit("같은 질문");
     });
     expect(messageIds(result.current.entries)).toEqual(["pending:같은 질문:err"]);
 
-    ask.mockResolvedValueOnce({ messages: [msg(20, "user"), msg(21, "assistant")] });
+    askStream.mockImplementationOnce(async (_q, handlers) => {
+      handlers.onChunk("답변");
+      return { messages: [msg(20, "user"), msg(21, "assistant")] };
+    });
     await act(async () => {
       await result.current.submit("다른 질문");
     });
     // 시간순: 먼저 실패한 turn이 위, 나중 성공 대화가 아래(역전 금지).
     expect(messageIds(result.current.entries)).toEqual(["pending:같은 질문:err", "m0020", "m0021"]);
 
-    ask.mockResolvedValueOnce({ messages: [msg(30, "user"), msg(31, "assistant")] });
+    askStream.mockImplementationOnce(async (_q, handlers) => {
+      handlers.onChunk("답변");
+      return { messages: [msg(30, "user"), msg(31, "assistant")] };
+    });
     await act(async () => {
       await result.current.submit("같은 질문"); // 동일 문구 재질문 성공
     });
@@ -115,5 +130,115 @@ describe("useAssistantThread", () => {
     expect(messageIds(result.current.entries)[0]).toBe("m0000");
     expect(result.current.prependAnchorRef.current).toBe("m0000"); // 새 배치 최상단 노출용
     expect(result.current.hasMore).toBe(true);
+  });
+
+  it("submit(스트리밍): onChunk가 드레인을 거쳐 streamText로 표시되고, done 후 영속본으로 교체된다", async () => {
+    fetchMessages.mockResolvedValue([]);
+    const user = msg(1, "user");
+    const assistant = msg(2, "assistant");
+    askStream.mockImplementation(async (_q, handlers) => {
+      handlers.onChunk("답변본문입니다");
+      return { messages: [user, assistant] };
+    });
+
+    const { result } = renderHook(() => useAssistantThread());
+    await act(async () => {
+      await result.current.submit("질문");
+    });
+
+    expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]);
+    expect(result.current.asking).toBe(false);
+  });
+
+  it("submit 중 streamText가 점진 노출된다(드레인 틱)", async () => {
+    fetchMessages.mockResolvedValue([]);
+    let release!: () => void;
+    askStream.mockImplementation((_q, handlers) => {
+      handlers.onChunk("가나다라마바사아자차카타파하");
+      return new Promise((res) => {
+        release = () => res({ messages: [msg(1, "user"), msg(2, "assistant")] });
+      });
+    });
+
+    const { result } = renderHook(() => useAssistantThread());
+    let submitP!: Promise<boolean>;
+    act(() => {
+      submitP = result.current.submit("질문");
+    });
+
+    await waitFor(() => {
+      const pending = result.current.entries.find((e) => e.kind === "pending");
+      expect(pending && pending.kind === "pending" ? (pending.streamText?.length ?? 0) : 0).toBeGreaterThan(0);
+    });
+    const early = result.current.entries.find((e) => e.kind === "pending");
+    expect(early!.kind === "pending" && early!.streamText!.length).toBeLessThan(14); // 도입부 2자/틱 — 전체가 한 번에 나오지 않음
+
+    act(() => release());
+    await act(async () => {
+      await submitP;
+    });
+    expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]);
+  });
+
+  it("stop: abort 후 재조회로 서버 저장본과 동기화하고 pending을 제거한다", async () => {
+    askStream.mockImplementation((_q, handlers, signal) => {
+      handlers.onChunk("부분답변");
+      return new Promise((_res, rej) => {
+        signal.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
+      });
+    });
+    const stopped = [msg(1, "user"), { ...msg(2, "assistant"), content: "부분답변 (중단됨)" }];
+    fetchMessages.mockResolvedValueOnce(stopped); // stop 후 재조회 응답
+
+    const { result } = renderHook(() => useAssistantThread());
+    let submitP!: Promise<boolean>;
+    act(() => {
+      submitP = result.current.submit("질문");
+    });
+    await waitFor(() => expect(result.current.asking).toBe(true));
+
+    act(() => result.current.stop());
+    await act(async () => {
+      await submitP;
+    });
+
+    expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]);
+    const last = result.current.entries.at(-1)!;
+    expect(last.kind === "message" && last.message.content).toBe("부분답변 (중단됨)");
+    expect(result.current.asking).toBe(false);
+  }, 10000);
+
+  it("stop: 재조회가 실패해도 pending은 제거된다(이중 표시 방지)", async () => {
+    askStream.mockImplementation((_q, handlers, signal) => {
+      handlers.onChunk("부분");
+      return new Promise((_res, rej) => {
+        signal.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
+      });
+    });
+    fetchMessages.mockRejectedValueOnce(new Error("network"));
+
+    const { result } = renderHook(() => useAssistantThread());
+    let submitP!: Promise<boolean>;
+    act(() => {
+      submitP = result.current.submit("질문");
+    });
+    await waitFor(() => expect(result.current.asking).toBe(true));
+    act(() => result.current.stop());
+    await act(async () => {
+      await submitP;
+    });
+
+    expect(result.current.entries.filter((e) => e.kind === "pending")).toHaveLength(0);
+  }, 10000);
+
+  it("스트리밍 실패(error 이벤트): pending이 에러 turn으로 남는다", async () => {
+    fetchMessages.mockResolvedValue([]);
+    askStream.mockRejectedValue(new Error("일시적으로 답변에 실패했습니다."));
+    const { result } = renderHook(() => useAssistantThread());
+    await act(async () => {
+      await result.current.submit("질문");
+    });
+    const pending = result.current.entries.find((e) => e.kind === "pending");
+    expect(pending!.kind === "pending" && pending!.error).toBe("일시적으로 답변에 실패했습니다.");
   });
 });
