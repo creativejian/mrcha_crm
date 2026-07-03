@@ -5084,6 +5084,7 @@ th input:focus-visible {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain; /* 리스트 끝에서 배경(문서) 스크롤 전파 차단 — 업무 AI .work-ai-body와 동일 */
   display: grid;
   align-content: start;
   gap: 10px;
@@ -17116,6 +17117,8 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .work-ai-history-error p { margin: 0; }
 .work-ai-history-error button { padding: 2px 8px; border: 1px solid var(--line); border-radius: 5px; background: #fff; font-size: 12px; font-weight: 600; color: var(--brand); cursor: pointer; }
 .work-ai-history-error button:hover { background: #f4f1ff; border-color: var(--brand); }
+/* 히스토리 최초 로드 중(프리페치 전 팝오버를 연 드문 경우) — 빈 화면 대신 로딩 도트 */
+.work-ai-history-loading { display: flex; justify-content: center; padding: 6px 0; }
 .work-ai-sources { margin: 6px 0 0; padding-left: 16px; font-size: 11.5px; color: #5f6872; }
 .work-ai-sources li { margin: 2px 0; }
 
