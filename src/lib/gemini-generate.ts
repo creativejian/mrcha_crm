@@ -1,4 +1,5 @@
 import { classifyGeminiError } from "./gemini-error";
+import { geminiHeaders, type GeminiTarget } from "./gemini-target";
 
 export const GEN_MODEL = "gemini-3.1-flash-lite"; // 앱/crm-analyst 동일.
 
@@ -21,15 +22,15 @@ function buildGenerateBody(systemPrompt: string, userPrompt: string, history: Ch
 export async function generateAnswer(
   systemPrompt: string,
   userPrompt: string,
-  apiKey: string,
+  target: GeminiTarget,
   history: ChatTurn[] = [],
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEN_MODEL}:generateContent?key=${apiKey}`;
+  const url = `${target.baseUrl}/v1beta/models/${GEN_MODEL}:generateContent`;
   const body = buildGenerateBody(systemPrompt, userPrompt, history);
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetchImpl(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    const res = await fetchImpl(url, { method: "POST", headers: geminiHeaders(target), body });
     if (res.ok) {
       const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -38,7 +39,8 @@ export async function generateAnswer(
     }
     const bodyText = await res.text();
     const code = classifyGeminiError(res.status, bodyText);
-    console.error(`[assistant] Gemini generate ${code} status=${res.status}`);
+    // 본문 일부 포함(embed와 대칭) — 프록시 경유 시 릴레이/게이트웨이발 401·403·404를 리전 차단과 판별.
+    console.error(`[assistant] Gemini generate ${code} status=${res.status} body=${bodyText.slice(0, 200)}`);
     if (attempt === 0 && (code === "rate_limited" || code === "unavailable")) continue;
     throw new Error(`Gemini 생성 실패: ${code}`);
   }
@@ -61,20 +63,21 @@ function parseSseLine(rawLine: string): string | null {
 export async function* generateAnswerStream(
   systemPrompt: string,
   userPrompt: string,
-  apiKey: string,
+  target: GeminiTarget,
   history: ChatTurn[] = [],
   fetchImpl: typeof fetch = fetch,
 ): AsyncGenerator<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEN_MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`;
+  const url = `${target.baseUrl}/v1beta/models/${GEN_MODEL}:streamGenerateContent?alt=sse`;
   const body = buildGenerateBody(systemPrompt, userPrompt, history);
 
   let res: Response | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    res = await fetchImpl(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    res = await fetchImpl(url, { method: "POST", headers: geminiHeaders(target), body });
     if (res.ok) break;
     const bodyText = await res.text();
     const code = classifyGeminiError(res.status, bodyText);
-    console.error(`[assistant] Gemini stream ${code} status=${res.status}`);
+    // 본문 일부 포함(embed와 대칭) — 프록시 경유 시 릴레이/게이트웨이발 401·403·404를 리전 차단과 판별.
+    console.error(`[assistant] Gemini stream ${code} status=${res.status} body=${bodyText.slice(0, 200)}`);
     if (attempt === 0 && (code === "rate_limited" || code === "unavailable")) { res = null; continue; }
     throw new Error(`Gemini 생성 실패: ${code}`);
   }

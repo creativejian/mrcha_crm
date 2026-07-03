@@ -8,10 +8,12 @@ import { customers, customerMemos, customerTasks, consultations } from "../db/sc
 import { upsertEmbedding } from "../db/queries/embeddings";
 import { buildChunkContent, contentHash, type CorpusRow } from "../lib/assistant-corpus";
 import { embedTexts } from "../lib/gemini-embed";
+import { resolveGeminiTarget } from "../lib/gemini-target";
 
 const db = getDefaultDb();
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) throw new Error("GEMINI_API_KEY is not set (.env.local)");
+const geminiTarget = resolveGeminiTarget({ apiKey }); // 로컬 실행 — 항상 직결(한국 IP)
 
 // null이 아니고, trim 후에도 빈 문자열이 아닌 행만 포함.
 function nonEmpty(col: AnyPgColumn) {
@@ -58,7 +60,7 @@ async function main() {
   const rows = await gather();
   console.log(`코퍼스 ${rows.length}청크 수집`);
   const contents = rows.map(buildChunkContent);
-  const vectors = await embedTexts(contents, apiKey!, "RETRIEVAL_DOCUMENT");
+  const vectors = await embedTexts(contents, geminiTarget, "RETRIEVAL_DOCUMENT");
   // 임베딩 개수가 청크 수와 다르면 인덱스 매핑이 어긋나므로 중단(부분 응답 방어).
   if (vectors.length !== rows.length) throw new Error(`임베딩 개수(${vectors.length}) != 코퍼스 청크 수(${rows.length}) — 매핑 불일치`);
   let ok = 0;

@@ -32,7 +32,7 @@ test("POST /ask → 200: 멀티턴 history 전달 + user/assistant 2건 저장",
   assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
   assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
   assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
-  assistantDeps.generateAnswer = async (_s: string, _u: string, _k: string, history: { role: string }[] = []) => { seen.historyLen = history.length; return "답변"; };
+  assistantDeps.generateAnswer = async (_s: string, _u: string, _t: unknown, history: { role: string }[] = []) => { seen.historyLen = history.length; return "답변"; };
   assistantDeps.insertAssistantMessages = async (rows: unknown[]) => { seen.saved = rows.length; return rows as never; };
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
