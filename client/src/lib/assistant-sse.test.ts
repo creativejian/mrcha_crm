@@ -26,6 +26,13 @@ describe("createSseParser", () => {
     expect(feed("data: x\r\n\r\n")).toEqual([{ event: "message", data: "x" }]);
   });
 
+  it("코멘트 라인(: hb — 서버 하트비트)은 이벤트 없이 무시한다", () => {
+    const feed = createSseParser();
+    expect(feed(": hb\n\n")).toEqual([]);
+    // 하트비트가 이벤트 사이에 끼어도 파싱에 영향 없음
+    expect(feed('event: text\ndata: {"chunk":"a"}\n\n: hb\n\nevent: done\ndata: {"messages":[]}\n\n').map((e) => e.event)).toEqual(["text", "done"]);
+  });
+
   it("data 여러 줄은 \\n으로 합친다(SSE 규격)", () => {
     const feed = createSseParser();
     expect(feed("event: text\ndata: 줄1\ndata: 줄2\n\n")).toEqual([{ event: "text", data: "줄1\n줄2" }]);
