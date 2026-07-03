@@ -1,9 +1,10 @@
-import { Maximize2, Send, X } from "lucide-react";
+import { Maximize2, Send, Square, X } from "lucide-react";
 import { Fragment, useLayoutEffect, useRef, useState } from "react";
 
 import { DoubleBounceDots } from "@/components/ai/DoubleBounceDots";
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { type useAssistantThread } from "@/components/ai/useAssistantThread";
+import { NEW_TURN_TOP_GAP, computeTurnMinHeight } from "@/lib/assistant-layout";
 
 const quickAiPrompts = [
   "오늘 내가 먼저 처리할 일 정리해줘",
@@ -26,23 +27,57 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
   const [input, setInput] = useState("");
   const [selectedPrompt, setSelectedPrompt] = useState(quickAiPrompts[0]);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const { entries, historyStatus, hasMore, loadingOlder, asking, prependAnchorRef } = thread;
+  const { entries, historyStatus, hasMore, loadingOlder, asking, prependAnchorRef, newTurnAnchorRef } = thread;
+  // 마지막 턴 assistant 요소에 줄 min-height(px). 새 턴 전송 시 계산 — 영속 교체 후에도 렌더에 유지돼 스크롤 점프가 없다.
+  const [turnMinHeight, setTurnMinHeight] = useState<number | null>(null);
+  const lastTurnUserIdRef = useRef<string | null>(null); // 확대/축소 재계산 시 질문 높이를 다시 잴 앵커
 
-  // 대화 갱신 시 스크롤: 이전 메시지 prepend면 그 배치의 최상단 메시지(data-eid 앵커)를 상단에 노출, 그 외엔 최하단.
-  // data-eid 앵커 방식이라 본문 위 브리핑/빠른질문 블록이 바뀌어도 어긋나지 않는다(children[n] 위치 결합 제거).
-  // 앵커는 상단 근접(<40px) 밖에 위치하므로 자동 연쇄 로딩도 안 생긴다.
+  // 대화 갱신 시 스크롤 분기:
+  //  - 이전 대화 prepend → 그 배치 최상단 앵커(기존 동작)
+  //  - 새 턴 전송 → 질문을 상단 20px에 앵커 + 마지막 턴 min-height 예약(아래 공간 확보, 앱 미러)
+  //  - 그 외(스트리밍 틱·done 교체 등) → 스크롤 안 함(질문 고정이 핵심 — 답변은 예약 공간을 채우며 자란다)
+  //  - 마운트 직후·히스토리 로드 완료 전이 → 최하단(기존 동작)
+  const mountedRef = useRef(false);
+  const prevStatusRef = useRef(historyStatus);
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el) return;
-    const anchorId = prependAnchorRef.current;
-    if (anchorId) {
+    const prependId = prependAnchorRef.current;
+    const newTurnId = newTurnAnchorRef.current;
+    const loadedNow = prevStatusRef.current === "loading" && historyStatus === "loaded";
+    prevStatusRef.current = historyStatus;
+
+    if (prependId) {
       prependAnchorRef.current = null;
-      const anchor = el.querySelector<HTMLElement>(`[data-eid="${anchorId}"]`);
+      const anchor = el.querySelector<HTMLElement>(`[data-eid="${prependId}"]`);
       el.scrollTop = anchor ? anchor.offsetTop : el.scrollHeight;
-    } else {
+    } else if (newTurnId) {
+      newTurnAnchorRef.current = null;
+      const question = el.querySelector<HTMLElement>(`[data-eid="${newTurnId}-q"]`);
+      if (question) {
+        lastTurnUserIdRef.current = `${newTurnId}-q`;
+        const minHeight = computeTurnMinHeight(el.clientHeight, question.offsetHeight);
+        // 스크롤 목표가 max-scroll에 클램프되지 않도록 DOM에 먼저 반영(같은 프레임), state는 이후 렌더 유지용.
+        const answer = el.querySelector<HTMLElement>(`[data-eid="${newTurnId}-a"]`);
+        if (answer) answer.style.minHeight = `${minHeight}px`;
+        setTurnMinHeight(minHeight);
+        el.scrollTo({ top: question.offsetTop - NEW_TURN_TOP_GAP, behavior: "smooth" });
+      }
+    } else if (!mountedRef.current || loadedNow) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [entries, asking, prependAnchorRef]);
+    mountedRef.current = true;
+  }, [entries, asking, historyStatus, prependAnchorRef, newTurnAnchorRef]);
+
+  // 확대/축소 시 body 높이가 바뀌므로 마지막 턴 min-height 재계산(스크롤은 유지).
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    const anchorId = lastTurnUserIdRef.current;
+    if (!el || !anchorId || turnMinHeight === null) return;
+    const question = el.querySelector<HTMLElement>(`[data-eid="${anchorId}"]`);
+    if (question) setTurnMinHeight(computeTurnMinHeight(el.clientHeight, question.offsetHeight));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- expanded 전환 시에만 재계산(turnMinHeight 자체 변화에 반응하면 루프)
+  }, [expanded]);
 
   async function submitQuestion() {
     const question = input.trim();
@@ -81,25 +116,37 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
               <button onClick={() => void thread.ensureHistory()} type="button">다시 시도</button>
             </div>
           )}
-          {entries.map((entry) =>
-            entry.kind === "message" ? (
-              <div className={`work-ai-message ${entry.message.role}`} data-eid={entry.message.id} key={entry.message.id}>
-                {entry.message.role === "assistant" ? <MarkdownMessage content={entry.message.content} /> : <p>{entry.message.content}</p>}
-                {entry.message.role === "assistant" && entry.message.sources && entry.message.sources.length > 0 && (
-                  <ul className="work-ai-sources">
-                    {entry.message.sources.map((source, index) => <li key={index}>{source.customerName} · {source.snippet}</li>)}
-                  </ul>
-                )}
-              </div>
-            ) : (
+          {entries.map((entry, index) => {
+            const isLast = index === entries.length - 1;
+            const lastTurnStyle = isLast && turnMinHeight !== null ? { minHeight: `${turnMinHeight}px` } : undefined;
+            if (entry.kind === "message") {
+              return (
+                <div
+                  className={`work-ai-message ${entry.message.role}`}
+                  data-eid={entry.message.id}
+                  key={entry.message.id}
+                  style={entry.message.role === "assistant" ? lastTurnStyle : undefined}
+                >
+                  {entry.message.role === "assistant" ? <MarkdownMessage content={entry.message.content} /> : <p>{entry.message.content}</p>}
+                  {entry.message.role === "assistant" && entry.message.sources && entry.message.sources.length > 0 && (
+                    <ul className="work-ai-sources">
+                      {entry.message.sources.map((source, sourceIndex) => <li key={sourceIndex}>{source.customerName} · {source.snippet}</li>)}
+                    </ul>
+                  )}
+                </div>
+              );
+            }
+            return (
               <Fragment key={entry.tempId}>
-                <div className="work-ai-message user"><p>{entry.question}</p></div>
-                <div className="work-ai-message assistant">
-                  {entry.error ? <p className="work-ai-error">{entry.error}</p> : <DoubleBounceDots />}
+                <div className="work-ai-message user" data-eid={`${entry.tempId}-q`}><p>{entry.question}</p></div>
+                <div className="work-ai-message assistant" data-eid={`${entry.tempId}-a`} style={lastTurnStyle}>
+                  {entry.error ? <p className="work-ai-error">{entry.error}</p>
+                    : entry.streamText ? <MarkdownMessage content={entry.streamText} />
+                    : <DoubleBounceDots />}
                 </div>
               </Fragment>
-            ),
-          )}
+            );
+          })}
         </div>
       </div>
       <div className="work-ai-compose">
@@ -109,7 +156,13 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
           onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); void submitQuestion(); } }}
           placeholder="업무 AI에게 물어보기"
         />
-        <button type="button" aria-label="보내기" disabled={asking} onClick={() => void submitQuestion()}><Send size={16} /></button>
+        <button
+          type="button"
+          aria-label={asking ? "생성 중지" : "보내기"}
+          onClick={() => (asking ? thread.stop() : void submitQuestion())}
+        >
+          {asking ? <Square size={14} /> : <Send size={16} />}
+        </button>
       </div>
     </section>
   );
