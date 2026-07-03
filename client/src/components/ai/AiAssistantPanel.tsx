@@ -72,6 +72,9 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
               ))}
             </div>
           </div>
+          {historyStatus === "loading" && (
+            <div className="work-ai-history-loading" aria-label="이전 대화 불러오는 중"><DoubleBounceDots /></div>
+          )}
           {historyStatus === "error" && (
             <div className="work-ai-history-error">
               <p>이전 대화를 불러오지 못했습니다.</p>

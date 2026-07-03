@@ -131,10 +131,11 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   // 업무 AI 대화 스레드 — 상태는 여기(Topbar) 소유라 팝오버를 닫아도 유지된다. 렌더는 AiAssistantPanel.
   const aiThread = useAssistantThread();
   const { ensureHistory: ensureAiHistory } = aiThread;
-  // 팝오버가 열릴 때 히스토리 보장: 최초 1회 로드 + 이전 로드가 실패했으면 재시도(빈 히스토리 영구 고착 방지).
+  // 히스토리 로드: 마운트 시(딜러 제외) 백그라운드 프리페치로 팝오버 첫 오픈을 즉시 표시하고,
+  // 열릴 때도 재보장 — 프리페치가 실패(error)했으면 재시도(빈 히스토리 영구 고착 방지).
   useEffect(() => {
-    if (workAiOpen) void ensureAiHistory();
-  }, [workAiOpen, ensureAiHistory]);
+    if (roleTab !== "딜러" || workAiOpen) void ensureAiHistory();
+  }, [roleTab, workAiOpen, ensureAiHistory]);
   const [liveConsulting, setLiveConsulting] = useState(true);
   // 실패한 아바타 URL을 저장한다. URL이 바뀌면(재로그인/사용자 전환) 자동으로 다시 시도한다
   // — 단순 boolean이면 한 번 onError 후 멀쩡한 새 아바타도 계속 기본 아이콘으로 표시된다.
