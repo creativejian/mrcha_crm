@@ -15695,6 +15695,24 @@ body.kim-detail-overlay-open .customer-detail-drawer {
   padding: 8px;
 }
 
+/* 떠 있는 레이어(팝오버·드롭다운 메뉴·모달·드로어)의 스크롤 영역은 끝에서
+   배경 문서로 스크롤이 전파되면 안 된다(배경 쉬프트). 새 팝오버류 스크롤
+   컨테이너를 만들면 여기에 추가할 것. 페이지 안 일반 스크롤 영역은 전파가
+   정상 동작이라 제외. (.chat-messages·.work-ai-body는 개별 규칙에 이미 적용) */
+.notification-list,
+.global-search-results,
+.draft-filter-popover,
+.kim-timeline-popover .kim-timeline-popover-body.is-scrollable,
+.kim-vehicle-picker-menu,
+.kim-option-picker-menu,
+.kim-color-picker-menu,
+.kim-quote-modal,
+.kim-app-card-preview-dialog .kim-app-card-preview,
+.kim-document-preview-body,
+.customer-detail-drawer {
+  overscroll-behavior: contain;
+}
+
 .notification-item {
   width: 100%;
   border: 1px solid transparent;
