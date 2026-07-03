@@ -95,4 +95,42 @@ describe("askAssistantStream", () => {
     vi.mocked(apiFetch).mockResolvedValue(sseResponse('event: text\ndata: {"chunk":"부분"}\n\n'));
     await expect(askAssistantStream("q", { onChunk: () => {} }, new AbortController().signal)).rejects.toThrow("응답이 완료되지 않았습니다.");
   });
+
+  it("error 이벤트 throw 시 reader.cancel로 커넥션을 정리한다", async () => {
+    let cancelled = false;
+    const enc = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(enc.encode('event: error\ndata: {"code":"generation_failed","message":"실패"}\n\n'));
+        // close하지 않음 — cancel 호출로만 정리되는 열린 커넥션 상황
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    vi.mocked(apiFetch).mockResolvedValue(new Response(body, { status: 200 }));
+    await expect(askAssistantStream("q", { onChunk: () => {} }, new AbortController().signal)).rejects.toThrow("실패");
+    expect(cancelled).toBe(true);
+  });
+
+  it("done 수신 즉시 resolve한다 — 물리적 close를 기다리지 않고 finally cancel이 커넥션을 정리", async () => {
+    let cancelled = false;
+    const enc = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(enc.encode(
+          'event: done\ndata: {"messages":[{"id":"u1","role":"user","content":"q","sources":null,"createdAt":"2026-07-03T00:00:00.000Z"},{"id":"a1","role":"assistant","content":"답","sources":[],"createdAt":"2026-07-03T00:00:00.001Z"}]}\n\n',
+        ));
+        // close하지 않음 — done 즉시 반환이 아니면 다음 read()에서 영원히 대기(중지 경합 창)
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    vi.mocked(apiFetch).mockResolvedValue(new Response(body, { status: 200 }));
+    const res = await askAssistantStream("q", { onChunk: () => {} }, new AbortController().signal);
+    expect(res.messages).toHaveLength(2);
+    expect(res.messages[1].content).toBe("답");
+    expect(cancelled).toBe(true);
+  });
 });
