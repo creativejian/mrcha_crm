@@ -1,6 +1,6 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-02 (밤 — AI 리뷰 후속 #136·#137·#138 + 스모크)
+Last updated: 2026-07-03 (#139 채팅 overscroll+업무 AI 프리페치 머지, #135 실시간 상담 완결 반영)
 
 Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후 현재 CRM 작업만 빠르게 복구하기 위한 압축 문서다. 완료된 세부 로그는 git/PR과 `ref/specs|plans`를 기준으로 확인한다.
 
@@ -20,11 +20,12 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 - 고객 상세 거대 컴포넌트 분해: **완료로 종결**. 9영역 추출이 이미 main 반영(`CustomerDetailPage.tsx` 5437→303줄), stale 브랜치 `refactor/crm-detail-decomposition` 삭제됨. 잔여는 `kim`→범용 리네임(순수 이름 정리·기능 무변경·저우선)뿐.
 - 슬라이스B 업무 AI 채팅 **완료·머지**(PR #132, 2026-07-02): pgvector RAG(`crm.embeddings` 3072)로 Topbar 업무 AI 실동작. 상세는 아래 요약.
 - 슬라이스C1 업무 AI **대화 영속+멀티턴+앱 UI 완료·머지**(PR #133) + **히스토리 페이지네이션·UI 폴리시 완료·머지**(PR #134, 2026-07-02): `crm.assistant_messages` 영속, 최근10턴 멀티턴, react-markdown, 위로 스크롤 이전대화 로드(커서), AI답변 박스제거·overscroll·확대패널높이 등 브라우저 실측 폴리시. 상세는 아래 요약.
-- **실시간 상담 콘솔 v1 완료·PR**(2026-07-02): 앱 고객 채팅(public.chat_sessions/chat_messages)을 CRM ChatPage 실동작 콘솔로. 상세는 아래 요약.
+- **실시간 상담 콘솔 v1 완료·머지**(PR #135, 2026-07-02 — 워크트리/브랜치 정리 완료): 앱 고객 채팅(public.chat_sessions/chat_messages)을 CRM ChatPage 실동작 콘솔로. 상세는 아래 요약.
+- **UX 후속 완료·머지**(PR #139, 2026-07-03): ①실시간 상담 `.chat-messages` overscroll-behavior:contain(리스트 끝 휠이 배경 문서 스크롤로 전파되던 쉬프트 차단, CDP 조준 wheel 실측) ②업무 AI 히스토리 **프리페치**(Topbar 마운트 시·딜러 제외 — "느림" 원인은 백엔드(11ms) 아니라 팝오버 연 뒤에야 fetch+loading 무표시) + loading 중 DoubleBounceDots.
 - 다음 후보: ①**crm.staff/팀 파운데이션**(권한 scope 실제화 — `resolveCustomerScope` manager=팀/staff=본인, 리스트/상세 scope에도 재사용; B1/C1이 남긴 최우선 의존) ②업무 AI **SSE 스트리밍**(타자기+송신/중지 토글) ③`kim`→범용 리네임(데이터화 슬라이스 때).
 - 완료된 고객/견적/서류/니즈/상세 저장 관련 세부 이력은 main git/PR 기록과 관련 specs/plans를 기준으로 본다.
 
-## 실시간 상담 콘솔 v1 (완료 — feat/crm-realtime-chat)
+## 실시간 상담 콘솔 v1 (완료·머지 — PR #135)
 
 - **spec** `ref/specs/2026-07-02-crm-realtime-chat-design.md` · **plan** `ref/plans/2026-07-02-crm-realtime-chat.md`(11 Task, TDD, subagent-driven — plan 맨 끝 "구현 편차 노트"가 코드 블록보다 우선).
 - **아키텍처**: 프론트 supabase-js 직결(staff JWT+RLS+Realtime) — 앱 admin 섹션(Flutter) 웹 포팅. **백엔드·DDL 변경 0**(staff RLS 정책·Realtime publication 기존재 실측). payload·system 문구·전이 순서 = 앱 코드 byte-level 미러(테스트로 고정).
@@ -98,7 +99,7 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 - Edge Function(Deno) changes: `deno test/lint/check --config supabase/functions/deno.json ...`.
 - Large visual layout changes: use browser/screenshot verification after stabilization, not after every spacing tweak.
 - Backend(Hono) 테스트는 `bun run test:server`(bun:test, `--env-file=.env.local`로 실 master DB), 프론트는 `bun run test:unit`(vitest).
-- Current likely next step: `crm-analyst`·배정·상세분해·**업무 AI B1(#132)+C1(#133)+페이지네이션·UI폴리시(#134)** 모두 완료·머지됨. 다음 후보 = **crm.staff/팀 파운데이션**(권한 scope 실제화 — `resolveCustomerScope` seam 본문 교체, 리스트/상세 scope 공용) > 업무 AI **SSE 스트리밍** > `kim` 리네임(데이터화 때). 신규 brainstorming→spec→plan. (※실시간 상담 콘솔은 별개 팀 작업 — `feat/crm-realtime-chat` 워크트리에서 다른 세션 진행 중.)
+- Current likely next step: `crm-analyst`·배정·상세분해·**업무 AI B1(#132)+C1(#133)+페이지네이션·UI폴리시(#134)+리뷰 후속(#136·#137·#138)+프리페치/overscroll(#139)**·**실시간 상담 콘솔(#135)** 모두 완료·머지됨. 다음 후보 = **crm.staff/팀 파운데이션**(권한 scope 실제화 — `resolveCustomerScope` seam 본문 교체, 리스트/상세 scope 공용) > 업무 AI **SSE 스트리밍** > `kim` 리네임(데이터화 때). 신규 brainstorming→spec→plan.
 
 ## Collaboration
 
