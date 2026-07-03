@@ -149,6 +149,7 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
                 <div className="work-ai-message assistant" data-eid={`${entry.tempId}-a`} style={lastTurnStyle}>
                   {entry.error ? <p className="work-ai-error">{entry.error}</p>
                     : entry.streamText ? <MarkdownMessage content={entry.streamText} />
+                    : entry.stopped ? null // 청크 전 중지 — 인디케이터 즉시 제거(서버는 placeholder 삭제, 질문만 유지)
                     : <DoubleBounceDots />}
                 </div>
               </Fragment>
