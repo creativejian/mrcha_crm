@@ -1,18 +1,23 @@
 import { test, expect } from "bun:test";
 
 import { generateAnswer, generateAnswerStream, GEN_MODEL } from "./gemini-generate";
+import { resolveGeminiTarget } from "./gemini-target";
+
+const TARGET = resolveGeminiTarget({ apiKey: "KEY" });
 
 test("generateAnswer: system+user 프롬프트 전송, 텍스트 파싱", async () => {
-  let captured: { url: string; body: { systemInstruction?: unknown; contents: { role: string; parts: { text: string }[] }[] } } | null = null;
+  let captured: { url: string; headers: Record<string, string>; body: { systemInstruction?: unknown; contents: { role: string; parts: { text: string }[] }[] } } | null = null;
   const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    captured = { url: String(url), body: JSON.parse(String(init?.body)) };
+    captured = { url: String(url), headers: { ...(init?.headers as Record<string, string>) }, body: JSON.parse(String(init?.body)) };
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "답변입니다" }] } }] }), { status: 200 });
   }) as unknown as typeof fetch;
 
-  const out = await generateAnswer("SYS", "USER", "KEY", [], fakeFetch);
+  const out = await generateAnswer("SYS", "USER", TARGET, [], fakeFetch);
 
   expect(out).toBe("답변입니다");
-  expect(captured!.url).toContain(`${GEN_MODEL}:generateContent`);
+  expect(captured!.url).toBe(`https://generativelanguage.googleapis.com/v1beta/models/${GEN_MODEL}:generateContent`);
+  expect(captured!.headers["x-goog-api-key"]).toBe("KEY");
+  expect(captured!.url).not.toContain("key=");
   expect(captured!.body.contents.at(-1)!.parts[0].text).toBe("USER");
   expect(captured!.body.contents.at(-1)!.role).toBe("user");
 });
@@ -24,7 +29,7 @@ test("generateAnswer: history를 contents 앞부분에 role 매핑(assistant→m
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "ok" }] } }] }), { status: 200 });
   }) as unknown as typeof fetch;
 
-  await generateAnswer("SYS", "이번질문", "KEY", [
+  await generateAnswer("SYS", "이번질문", TARGET, [
     { role: "user", content: "이전질문" },
     { role: "assistant", content: "이전답변" },
   ], fakeFetch);
@@ -37,7 +42,7 @@ test("generateAnswer: history를 contents 앞부분에 role 매핑(assistant→m
 
 test("generateAnswer: 실패 응답은 throw", async () => {
   const fakeFetch = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
-  await expect(generateAnswer("s", "u", "KEY", [], fakeFetch)).rejects.toThrow();
+  await expect(generateAnswer("s", "u", TARGET, [], fakeFetch)).rejects.toThrow();
 });
 
 function sseBody(lines: string[]): ReadableStream<Uint8Array> {
@@ -59,10 +64,10 @@ test("generateAnswerStream: alt=sse 라인에서 텍스트 청크를 순서대�
   }) as unknown as typeof fetch;
 
   const out: string[] = [];
-  for await (const c of generateAnswerStream("SYS", "USER", "KEY", [], fakeFetch)) out.push(c);
+  for await (const c of generateAnswerStream("SYS", "USER", TARGET, [], fakeFetch)) out.push(c);
 
   expect(out).toEqual(["안녕", "하세요"]);
-  expect(url).toContain(`${GEN_MODEL}:streamGenerateContent?alt=sse`);
+  expect(url).toBe(`https://generativelanguage.googleapis.com/v1beta/models/${GEN_MODEL}:streamGenerateContent?alt=sse`);
 });
 
 test("generateAnswerStream: 청크 경계가 라인 중간에서 갈라져도 파싱", async () => {
@@ -71,13 +76,13 @@ test("generateAnswerStream: 청크 경계가 라인 중간에서 갈라져도 �
     new Response(sseBody([line.slice(0, 20), line.slice(20)]), { status: 200 })) as unknown as typeof fetch;
 
   const out: string[] = [];
-  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) out.push(c);
+  for await (const c of generateAnswerStream("s", "u", TARGET, [], fakeFetch)) out.push(c);
   expect(out).toEqual(["분할청크"]);
 });
 
 test("generateAnswerStream: HTTP 실패는 throw(스트림 시작 전)", async () => {
   const fakeFetch = (async () => new Response("nope", { status: 400 })) as unknown as typeof fetch;
-  const gen = generateAnswerStream("s", "u", "K", [], fakeFetch);
+  const gen = generateAnswerStream("s", "u", TARGET, [], fakeFetch);
   await expect(gen.next()).rejects.toThrow("Gemini 생성 실패");
 });
 
@@ -91,7 +96,7 @@ test("generateAnswerStream: rate_limited는 1회 재시도 후 성공", async ()
   }) as unknown as typeof fetch;
 
   const out: string[] = [];
-  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) out.push(c);
+  for await (const c of generateAnswerStream("s", "u", TARGET, [], fakeFetch)) out.push(c);
   expect(out).toEqual(["재시도성공"]);
   expect(calls).toBe(2);
 });
@@ -115,7 +120,7 @@ test("generateAnswerStream: 멀티바이트(한글) UTF-8 바이트 중간에서
     )) as unknown as typeof fetch;
 
   const out: string[] = [];
-  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) out.push(c);
+  for await (const c of generateAnswerStream("s", "u", TARGET, [], fakeFetch)) out.push(c);
   expect(out).toEqual(["한글텍스트"]);
 });
 
@@ -125,7 +130,7 @@ test("generateAnswerStream: [DONE] 라인은 스킵", async () => {
     new Response(sseBody([chunk, "data: [DONE]\n\n"]), { status: 200 })) as unknown as typeof fetch;
 
   const out: string[] = [];
-  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) out.push(c);
+  for await (const c of generateAnswerStream("s", "u", TARGET, [], fakeFetch)) out.push(c);
   expect(out).toEqual(["본문"]);
 });
 
@@ -136,7 +141,7 @@ test("generateAnswerStream: 개행 없이 끝나는 마지막 data 라인도 flu
     new Response(sseBody([first, tailNoNewline]), { status: 200 })) as unknown as typeof fetch;
 
   const out: string[] = [];
-  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) out.push(c);
+  for await (const c of generateAnswerStream("s", "u", TARGET, [], fakeFetch)) out.push(c);
   expect(out).toEqual(["앞", "꼬리"]);
 });
 
@@ -159,7 +164,7 @@ test("generateAnswerStream: 소비자 조기 break 시 업스트림 스트림을
     )) as unknown as typeof fetch;
 
   const out: string[] = [];
-  for await (const c of generateAnswerStream("s", "u", "K", [], fakeFetch)) {
+  for await (const c of generateAnswerStream("s", "u", TARGET, [], fakeFetch)) {
     out.push(c);
     break; // 중지 경로 시뮬레이션 — generator return → finally에서 upstream cancel.
   }
