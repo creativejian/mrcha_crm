@@ -162,7 +162,15 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
       let fullText = "";
       let aborted = false;
       let failed = false;
-      sse.onAbort(() => { aborted = true; });
+      // 클라 disconnect 시 pending Gemini read는 CF에서 영영 해소되지 않는다(2026-07-03 prod 실측 —
+      // finalize까지 waitUntil 유예 30s를 넘겨 취소돼 유령 placeholder). abort 즉시 업스트림 fetch를
+      // 끊어 finalize가 유예 안에 완주하게 한다(생성 토큰 낭비도 차단). sse.onAbort와 raw signal을
+      // 모두 배선 — 런타임별 abort 전달 경로 차이 방어.
+      const upstreamAbort = new AbortController();
+      const onClientAbort = () => { aborted = true; upstreamAbort.abort(); };
+      sse.onAbort(onClientAbort);
+      if (c.req.raw.signal.aborted) onClientAbort();
+      else c.req.raw.signal.addEventListener("abort", onClientAbort);
 
       try {
         if (args.hits.length === 0) {
@@ -171,6 +179,7 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
         } else {
           const gen = assistantDeps.generateAnswerStream(
             SYSTEM_PROMPT, buildUserPrompt(args.question, buildContextBlock(args.promptChunks)), args.target, args.history,
+            undefined, upstreamAbort.signal, // fetchImpl은 기본(fetch) 유지
           );
           for await (const chunk of gen) {
             if (aborted) break;

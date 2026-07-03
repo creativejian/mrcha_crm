@@ -145,6 +145,22 @@ test("generateAnswerStream: 개행 없이 끝나는 마지막 data 라인도 flu
   expect(out).toEqual(["앞", "꼬리"]);
 });
 
+test("generateAnswerStream: 전달한 signal이 업스트림 fetch에 배선된다", async () => {
+  let captured: AbortSignal | null | undefined;
+  const chunk = `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "ok" }] } }] })}\n\n`;
+  const fakeFetch = (async (_u: string | URL | Request, init?: RequestInit) => {
+    captured = init?.signal;
+    return new Response(sseBody([chunk]), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  const ac = new AbortController();
+  const out: string[] = [];
+  for await (const c of generateAnswerStream("s", "u", TARGET, [], fakeFetch, ac.signal)) out.push(c);
+
+  expect(out).toEqual(["ok"]);
+  expect(captured).toBe(ac.signal);
+});
+
 test("generateAnswerStream: 소비자 조기 break 시 업스트림 스트림을 cancel", async () => {
   let cancelled = false;
   const enc = new TextEncoder();
