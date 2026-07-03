@@ -10,6 +10,18 @@
 
 **Spec:** `ref/specs/2026-07-03-crm-work-ai-sse-streaming-design.md` (승인됨 — 코드와 충돌 시 spec의 결정 섹션이 우선)
 
+## 진행 상태 (2026-07-03 오전 중단 시점 — subagent-driven 실행 중)
+
+- ✅ **Task 1~4 완료 + 2단계 리뷰(spec/quality) 승인**: 백엔드 전체. 리뷰 반영분 포함 —
+  - Task 1(`e3d5bb5`): reader.cancel(중지 시 업스트림 취소)·잔여 라인 flush·buildGenerateBody 헬퍼·회귀 테스트 4건 추가
+  - Task 2(`1c6d141`): **update/delete에 staffUserId 이중 키**(owned-resource 관례) + 실 DB 테스트 — 아래 코드 블록은 이 시그니처로 이미 현행화됨
+  - Task 3(`3dee460`): aborted 우선 문서화·0자 정상완료 테스트
+  - Task 4(`0e8ef4c`): **waitUntil guard 선등록**(중지 직후 CF 회수 창에서 마감 저장 보장) + `return await streamAsk`(선저장 실패→기존 catch 500, 회귀 테스트) + abort 경로는 스모크 전담 주석
+- ✅ **Task 5~7 구현 완료·커밋됨**(`330a159`/`6d58a6c`/`cadad79`), **리뷰(spec/quality) 미실시** — 재개 시 여기부터: 5~7 배치 리뷰 → Task 8.
+  - Task 6 편차(정당·검증됨): 서로게이트 테스트 `nextDisplayLength(odd, 1)` 기대값은 4가 아니라 **3**(경계 3은 페어 사이라 이미 안전 — 아래 스니펫 정정됨)
+- ⏳ Task 8(askAssistantStream)·9(useAssistantThread)·10(패널)·11(검증+PR)·12(브라우저 스모크) 미착수.
+- 전 커밋 시점 검증 green: test:server 176·test:unit 344·typecheck 0·lint 0.
+
 **브랜치:** 이미 `feat/crm-work-ai-sse-streaming` 체크아웃됨(spec 커밋 `6da0e4f` 존재). push는 Task 11에서. 커밋 메시지 끝에 `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`. skip-ci 마커 토큰 금지(글자로도 쓰지 말 것).
 
 **선행 상태(C1~#139 머지됨):** `src/routes/assistant.ts` = `POST /ask`(RAG+멀티턴+성공 시 원자 저장, `assistantDeps` 주입) + `GET /messages`(커서). `src/lib/gemini-generate.ts` = `generateAnswer(systemPrompt, userPrompt, apiKey, history, fetchImpl)`. 프론트 = `useAssistantThread`(entries=messages+pendings, `prependAnchorRef`) + `AiAssistantPanel`(항상 최하단 스크롤) + `askAssistant`/`fetchAssistantMessages`.
@@ -742,9 +754,9 @@ describe("nextDisplayLength (앱 chat_streaming_controller 수치 미러)", () =
     const emoji = "🚗".repeat(50); // 각 2 code unit — 홀수 경계가 생기면 페어를 함께 노출
     const next = nextDisplayLength(emoji, 0); // 도입부 step 2 → 2 (페어 1개)
     expect(next).toBe(2);
-    const odd = "a" + "🚗".repeat(50); // 1 + 2n — step 2면 경계 3이 high surrogate 뒤가 아님을 검증
-    const n2 = nextDisplayLength(odd, 1); // 1+2=3인데 3은 페어 중간 → 4로 확장
-    expect(n2).toBe(4);
+    const odd = "a" + "🚗".repeat(50); // 1 + 2n — 경계 3은 low(2)·high(3) 사이 = 페어 경계라 이미 안전
+    const n2 = nextDisplayLength(odd, 1); // 확장하면 오히려 lone surrogate 노출 — 3 유지가 정답
+    expect(n2).toBe(3);
   });
 });
 ```
