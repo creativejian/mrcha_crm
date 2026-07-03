@@ -133,6 +133,8 @@ function getWaitUntil(c: AskContext): ((p: Promise<unknown>) => void) | null {
 }
 
 // SSE 스트리밍 경로: user+빈 placeholder 선저장 → text 릴레이 → 종료 마감(finalize) → done/error.
+// abort 경로(STOP suffix·done 미송출)는 hono streamSSE 내부 abort 배선에 의존해 fake 라우트 유닛으로 검증이
+// 어려움 — finalizeStreamedAnswer 유닛 + 브라우저 스모크(중지→리로드 시 "(중단됨)" 보존·빈 말풍선 없음)가 전담.
 async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> {
   const now = new Date();
   const [userRow, placeholder] = (await assistantDeps.insertAssistantMessages([
@@ -141,51 +143,59 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
   ], c.var.db)) as [AssistantMessageRow, AssistantMessageRow];
 
   return streamSSE(c, async (sse) => {
-    let fullText = "";
-    let aborted = false;
-    let failed = false;
-    sse.onAbort(() => { aborted = true; });
-
-    try {
-      if (args.hits.length === 0) {
-        fullText = NO_HITS_ANSWER;
-        await sse.writeSSE({ event: "text", data: JSON.stringify({ chunk: fullText }) });
-      } else {
-        const gen = assistantDeps.generateAnswerStream(
-          SYSTEM_PROMPT, buildUserPrompt(args.question, buildContextBlock(args.promptChunks)), args.apiKey, args.history,
-        );
-        for await (const chunk of gen) {
-          if (aborted) break;
-          fullText += chunk;
-          await sse.writeSSE({ event: "text", data: JSON.stringify({ chunk }) });
-        }
-      }
-    } catch (e) {
-      // 스트림 중간 실패는 raw 에러(JSON SyntaxError 포함)를 generic하게 수용 — 부분 저장은 finalize가 담당.
-      console.error("[assistant] stream 생성 실패:", e);
-      failed = true;
-    }
-
-    const finalize = (async () => {
-      const outcome = await finalizeStreamedAnswer({
-        fullText, aborted, failed, sources: args.sources,
-        update: (content, sources) => assistantDeps.updateAssistantMessage(placeholder.id, args.staffUserId, content, sources, c.var.db),
-        remove: () => assistantDeps.deleteAssistantMessage(placeholder.id, args.staffUserId, c.var.db),
-      });
-      // 텍스트가 있는데 마감이 error면 행 소실(동시성/스코프 불일치) — 이례 상황이라 별도 로깅.
-      if (outcome.kind === "error" && fullText.length > 0) {
-        console.error("[assistant] placeholder 마감 실패(행 소실):", placeholder.id);
-      }
-      if (aborted) return; // 클라는 이미 끊김 — 이벤트 송출 생략
-      if (outcome.kind === "done") {
-        await sse.writeSSE({ event: "done", data: JSON.stringify({ messages: [userRow, outcome.assistant] }) });
-      } else {
-        await sse.writeSSE({ event: "error", data: JSON.stringify({ code: "generation_failed", message: "일시적으로 답변에 실패했습니다." }) });
-      }
-    })();
-
+    // abort는 릴레이 루프를 즉시 못 끊고 다음 청크의 reader.read()까지 block될 수 있는데, 그 창에서 CF가
+    // 아이솔레이트를 회수하면 마감 저장이 유실된다(빈 placeholder 잔존 → 히스토리에 유령 빈 말풍선).
+    // 릴레이 시작 전에 전체 흐름(릴레이+finalize)을 덮는 guard 프로미스를 waitUntil에 등록해 실행 완료를 보장한다.
     const waitUntil = getWaitUntil(c);
-    if (waitUntil) waitUntil(finalize); // abort로 핸들러가 조기 종료돼도 저장 완료 보장
-    await finalize.catch((e) => console.error("[assistant] stream 마감 실패:", e));
+    let settleGuard: (() => void) | undefined;
+    if (waitUntil) waitUntil(new Promise<void>((resolve) => { settleGuard = resolve; }));
+    try {
+      let fullText = "";
+      let aborted = false;
+      let failed = false;
+      sse.onAbort(() => { aborted = true; });
+
+      try {
+        if (args.hits.length === 0) {
+          fullText = NO_HITS_ANSWER;
+          await sse.writeSSE({ event: "text", data: JSON.stringify({ chunk: fullText }) });
+        } else {
+          const gen = assistantDeps.generateAnswerStream(
+            SYSTEM_PROMPT, buildUserPrompt(args.question, buildContextBlock(args.promptChunks)), args.apiKey, args.history,
+          );
+          for await (const chunk of gen) {
+            if (aborted) break;
+            fullText += chunk;
+            await sse.writeSSE({ event: "text", data: JSON.stringify({ chunk }) });
+          }
+        }
+      } catch (e) {
+        // 스트림 중간 실패는 raw 에러(JSON SyntaxError 포함)를 generic하게 수용 — 부분 저장은 finalize가 담당.
+        console.error("[assistant] stream 생성 실패:", e);
+        failed = true;
+      }
+
+      const finalize = (async () => {
+        const outcome = await finalizeStreamedAnswer({
+          fullText, aborted, failed, sources: args.sources,
+          update: (content, sources) => assistantDeps.updateAssistantMessage(placeholder.id, args.staffUserId, content, sources, c.var.db),
+          remove: () => assistantDeps.deleteAssistantMessage(placeholder.id, args.staffUserId, c.var.db),
+        });
+        // 텍스트가 있는데 마감이 error면 행 소실(동시성/스코프 불일치) — 이례 상황이라 별도 로깅.
+        if (outcome.kind === "error" && fullText.length > 0) {
+          console.error("[assistant] placeholder 마감 실패(행 소실):", placeholder.id);
+        }
+        if (aborted) return; // 클라는 이미 끊김 — 이벤트 송출 생략
+        if (outcome.kind === "done") {
+          await sse.writeSSE({ event: "done", data: JSON.stringify({ messages: [userRow, outcome.assistant] }) });
+        } else {
+          await sse.writeSSE({ event: "error", data: JSON.stringify({ code: "generation_failed", message: "일시적으로 답변에 실패했습니다." }) });
+        }
+      })();
+
+      await finalize.catch((e) => console.error("[assistant] stream 마감 실패:", e));
+    } finally {
+      settleGuard?.();
+    }
   });
 }
