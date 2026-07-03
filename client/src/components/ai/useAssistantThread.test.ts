@@ -193,7 +193,7 @@ describe("useAssistantThread", () => {
     expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]);
   });
 
-  it("stop: abort 후 재조회로 서버 저장본과 동기화하고 pending을 제거한다", async () => {
+  it("stop: 즉시 낙관 마감(버튼 해제·부분+중단됨 표시) 후 백그라운드 재조회로 서버 저장본과 동기화한다", async () => {
     askStream.mockImplementation((_q, handlers, signal) => {
       handlers.onChunk("부분답변");
       return new Promise((_res, rej) => {
@@ -201,7 +201,7 @@ describe("useAssistantThread", () => {
       });
     });
     const stopped = [msg(1, "user"), { ...msg(2, "assistant"), content: "부분답변 (중단됨)" }];
-    fetchMessages.mockResolvedValueOnce(stopped); // stop 후 재조회 응답
+    fetchMessages.mockResolvedValueOnce(stopped); // 백그라운드 재조회 응답
 
     const { result } = renderHook(() => useAssistantThread());
     let submitP!: Promise<boolean>;
@@ -209,16 +209,55 @@ describe("useAssistantThread", () => {
       submitP = result.current.submit("질문");
     });
     await waitFor(() => expect(result.current.asking).toBe(true));
+    // 드레인이 부분 텍스트를 노출한 뒤 중지(표시분 낙관 마감 검증)
+    await waitFor(() => {
+      const p = result.current.entries.find((e) => e.kind === "pending");
+      expect(p && p.kind === "pending" ? (p.streamText?.length ?? 0) : 0).toBeGreaterThan(0);
+    });
 
     act(() => result.current.stop());
     await act(async () => {
       await submitP;
     });
 
-    expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]);
+    // 즉시: 버튼 해제 + 부분+"(중단됨)" 낙관 표시 — 재조회(백그라운드)를 기다리지 않는다.
+    expect(result.current.asking).toBe(false);
+    expect(fetchMessages).toHaveBeenCalledTimes(0);
+    const pending = result.current.entries.find((e) => e.kind === "pending");
+    expect(pending && pending.kind === "pending" && pending.streamText?.endsWith(" (중단됨)")).toBe(true);
+
+    // 백그라운드 동기화 완료 후 서버 저장본으로 교체·pending 제거
+    await waitFor(() => expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]), { timeout: 4000 });
     const last = result.current.entries.at(-1)!;
     expect(last.kind === "message" && last.message.content).toBe("부분답변 (중단됨)");
+  }, 10000);
+
+  it("stop: 첫 청크 전(인디케이터 단계)에도 즉시 마감 — dots 제거(stopped)·버튼 해제", async () => {
+    askStream.mockImplementation(
+      (_q, _handlers, signal) =>
+        new Promise((_res, rej) => {
+          signal.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
+        }),
+    );
+    fetchMessages.mockResolvedValueOnce([msg(1, "user")]); // 서버는 0자 placeholder 삭제 — user 행만 남음
+
+    const { result } = renderHook(() => useAssistantThread());
+    let submitP!: Promise<boolean>;
+    act(() => {
+      submitP = result.current.submit("질문");
+    });
+    await waitFor(() => expect(result.current.asking).toBe(true));
+    act(() => result.current.stop());
+    await act(async () => {
+      await submitP;
+    });
+
     expect(result.current.asking).toBe(false);
+    const pending = result.current.entries.find((e) => e.kind === "pending");
+    expect(pending && pending.kind === "pending" && pending.stopped).toBe(true);
+    expect(pending && pending.kind === "pending" ? pending.streamText : "set").toBeUndefined();
+
+    await waitFor(() => expect(result.current.entries.map((e) => e.kind)).toEqual(["message"]), { timeout: 4000 });
   }, 10000);
 
   it("stop: 재조회의 마지막 행이 아직 빈 placeholder면 재시도해 마감본을 받는다(prod 마감 지연 흡수)", async () => {
@@ -243,9 +282,12 @@ describe("useAssistantThread", () => {
       await submitP;
     });
 
-    expect(fetchMessages).toHaveBeenCalledTimes(2);
-    const last = result.current.entries.at(-1)!;
-    expect(last.kind === "message" && last.message.content).toBe("부분답변 (중단됨)");
+    expect(fetchMessages).toHaveBeenCalledTimes(0); // 동기화는 백그라운드 — submit 반환을 막지 않는다
+    await waitFor(() => expect(fetchMessages).toHaveBeenCalledTimes(2), { timeout: 5000 });
+    await waitFor(() => {
+      const last = result.current.entries.at(-1)!;
+      expect(last.kind === "message" && last.message.content).toBe("부분답변 (중단됨)");
+    });
   }, 10000);
 
   it("entries: 빈 content의 assistant 행(마감 전 placeholder/유령)은 표시하지 않는다", async () => {
@@ -279,7 +321,8 @@ describe("useAssistantThread", () => {
       await submitP;
     });
 
-    expect(result.current.entries.filter((e) => e.kind === "pending")).toHaveLength(0);
+    // 백그라운드 동기화의 재조회가 실패해도 pending은 제거된다(저장본은 다음 로드/리로드에서).
+    await waitFor(() => expect(result.current.entries.filter((e) => e.kind === "pending")).toHaveLength(0), { timeout: 4000 });
   }, 10000);
 
   it("스트리밍 실패(error 이벤트): pending이 에러 turn으로 남는다", async () => {

@@ -5,17 +5,18 @@ import { DRAIN_TICK_MS, STOP_SUFFIX, nextDisplayLength } from "@/lib/assistant-d
 
 export const AI_HISTORY_PAGE = 30; // 백엔드 DISPLAY_LIMIT와 일치
 const OLDER_INDICATOR_MIN_MS = 400; // 빠른 로드에도 로딩 표시가 최소 이 시간은 보이도록(번쩍임 방지)
-const STOP_SYNC_DELAY_MS = 500; // 중지 후 서버 마감(abort 감지→DB write)과의 레이스를 흡수하는 재조회 지연
-const STOP_SYNC_RETRIES = 3; // prod에선 abort 감지가 다음 Gemini 청크까지 지연될 수 있어 빈 placeholder면 재시도
+const STOP_SYNC_DELAY_MS = 500; // 중지 후 백그라운드 재조회 1차 지연 — 이후 선형 증가(0.5·1·1.5…)
+const STOP_SYNC_RETRIES = 6; // 서버 마감은 하트비트 감지(≤5s)+저장까지 수 초 — 누적 ~10.5s 커버(백그라운드라 UX 비용 없음)
 
 export type AssistantThreadEntry =
   | { kind: "message"; message: AssistantMessage }
-  | { kind: "pending"; tempId: string; question: string; error?: string; streamText?: string };
+  | { kind: "pending"; tempId: string; question: string; error?: string; streamText?: string; stopped?: boolean };
 
 export type HistoryStatus = "idle" | "loading" | "loaded" | "error";
 
 // 낙관적 turn. afterMessageId = 생성 시점의 마지막 메시지(시간순 자리 고정용 — 이후 새 대화가 와도 역전 없음).
-type PendingTurn = { tempId: string; question: string; afterMessageId: string | null; error?: string; streamText?: string };
+// stopped: 사용자가 중지한 turn — 인디케이터를 즉시 내리고(dots 제거) 서버 동기화를 백그라운드로 기다린다.
+type PendingTurn = { tempId: string; question: string; afterMessageId: string | null; error?: string; streamText?: string; stopped?: boolean };
 
 // (createdAt, id) 복합 정렬 — 서버 커서 정렬과 동일 기준. ISO UTC 직렬화라 문자열 비교로 충분.
 function compareMessages(a: AssistantMessage, b: AssistantMessage): number {
@@ -73,13 +74,13 @@ export function useAssistantThread() {
     }
     const out: AssistantThreadEntry[] = [];
     for (const p of byAnchor.get(null) ?? [])
-      out.push({ kind: "pending", tempId: p.tempId, question: p.question, error: p.error, streamText: p.streamText });
+      out.push({ kind: "pending", tempId: p.tempId, question: p.question, error: p.error, streamText: p.streamText, stopped: p.stopped });
     for (const m of messages) {
       // 마감 전 placeholder/유령 빈 assistant 행은 표시하지 않는다(서버가 곧 채우거나 다음 로드에서 해소).
       // 앵커로 쓰인 경우를 위해 pending flush는 유지한다.
       if (!(m.role === "assistant" && m.content === "")) out.push({ kind: "message", message: m });
       for (const p of byAnchor.get(m.id) ?? [])
-        out.push({ kind: "pending", tempId: p.tempId, question: p.question, error: p.error, streamText: p.streamText });
+        out.push({ kind: "pending", tempId: p.tempId, question: p.question, error: p.error, streamText: p.streamText, stopped: p.stopped });
     }
     return out;
   }, [messages, pendings]);
@@ -191,29 +192,13 @@ export function useAssistantThread() {
     } catch (e) {
       stopTimer();
       if (abort.signal.aborted) {
-        // 중지: 표시 중이던 부분 + "(중단됨)" 임시 표시 → 서버 저장본 재조회로 동기화(서버가 진실원본).
+        // 낙관 마감(앱 미러 즉시 정지): 표시분+"(중단됨)"을 확정하고(청크 전이면 인디케이터 제거) 바로 반환 —
+        // 버튼·입력이 즉시 풀린다. 서버 저장본(부분+suffix 또는 placeholder 삭제)과의 동기화는 백그라운드.
         const displayed = fullText.slice(0, displayLength);
-        if (displayed) {
-          setPendings((cur) => cur.map((p) => (p.tempId === tempId ? { ...p, streamText: `${displayed}${STOP_SUFFIX}` } : p)));
-        }
-        // 서버 마감(abort 감지→부분 저장)은 다음 Gemini 청크 도착까지 지연될 수 있다 — 마지막 행이 아직
-        // 빈 placeholder면 간격을 늘려가며 재조회(그래도 비면 그대로 merge — entries가 빈 행을 숨긴다).
-        for (let attempt = 0; attempt < STOP_SYNC_RETRIES; attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, STOP_SYNC_DELAY_MS * (attempt + 1)));
-          try {
-            const rows = await fetchAssistantMessages();
-            const last = rows.at(-1);
-            const settled = !(last && last.role === "assistant" && last.content === "");
-            if (settled || attempt === STOP_SYNC_RETRIES - 1) {
-              setMessages((cur) => mergeAssistantMessages(cur, rows));
-              break;
-            }
-          } catch {
-            // 재조회 실패해도 pending은 제거(이중 표시 방지) — 저장본은 다음 히스토리 로드/리로드에서 표시.
-            break;
-          }
-        }
-        setPendings((cur) => cur.filter((p) => p.tempId !== tempId));
+        setPendings((cur) =>
+          cur.map((p) => (p.tempId === tempId ? { ...p, stopped: true, streamText: displayed ? `${displayed}${STOP_SUFFIX}` : undefined } : p)),
+        );
+        void syncStoppedTurn(tempId);
         return false;
       }
       const message = e instanceof Error ? e.message : "일시적으로 답변에 실패했습니다.";
@@ -224,6 +209,28 @@ export function useAssistantThread() {
       abortRef.current = null;
       setAsking(false);
     }
+  }
+
+  // stop 후 서버 저장본과의 백그라운드 동기화 — UI는 기다리지 않는다(즉시 정지 UX).
+  // 서버 마감(하트비트 감지→부분 저장/삭제)은 수 초 걸릴 수 있어 마지막 행이 빈 placeholder면
+  // 간격을 늘려가며 재조회, 완료 시 서버 행으로 교체하고 낙관 pending을 제거한다.
+  async function syncStoppedTurn(tempId: string): Promise<void> {
+    for (let attempt = 0; attempt < STOP_SYNC_RETRIES; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, STOP_SYNC_DELAY_MS * (attempt + 1)));
+      try {
+        const rows = await fetchAssistantMessages();
+        const last = rows.at(-1);
+        const settled = !(last && last.role === "assistant" && last.content === "");
+        if (settled || attempt === STOP_SYNC_RETRIES - 1) {
+          setMessages((cur) => mergeAssistantMessages(cur, rows));
+          break;
+        }
+      } catch {
+        // 재조회 실패해도 pending은 제거(이중 표시 방지) — 저장본은 다음 히스토리 로드/리로드에서 표시.
+        break;
+      }
+    }
+    setPendings((cur) => cur.filter((p) => p.tempId !== tempId));
   }
 
   // 생성 중지 — fetch abort. 이후 정리는 submit의 abort 분기가 담당.
