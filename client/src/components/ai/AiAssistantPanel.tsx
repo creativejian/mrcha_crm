@@ -30,7 +30,6 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
   const { entries, historyStatus, hasMore, loadingOlder, asking, prependAnchorRef, newTurnAnchorRef } = thread;
   // 마지막 턴 assistant 요소에 줄 min-height(px). 새 턴 전송 시 계산 — 영속 교체 후에도 렌더에 유지돼 스크롤 점프가 없다.
   const [turnMinHeight, setTurnMinHeight] = useState<number | null>(null);
-  const lastTurnUserIdRef = useRef<string | null>(null); // 확대/축소 재계산 시 질문 높이를 다시 잴 앵커
 
   // 대화 갱신 시 스크롤 분기:
   //  - 이전 대화 prepend → 그 배치 최상단 앵커(기존 동작)
@@ -55,7 +54,6 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
       newTurnAnchorRef.current = null;
       const question = el.querySelector<HTMLElement>(`[data-eid="${newTurnId}-q"]`);
       if (question) {
-        lastTurnUserIdRef.current = `${newTurnId}-q`;
         const minHeight = computeTurnMinHeight(el.clientHeight, question.offsetHeight);
         // 스크롤 목표가 max-scroll에 클램프되지 않도록 DOM에 먼저 반영(같은 프레임), state는 이후 렌더 유지용.
         const answer = el.querySelector<HTMLElement>(`[data-eid="${newTurnId}-a"]`);
@@ -70,11 +68,12 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
   }, [entries, asking, historyStatus, prependAnchorRef, newTurnAnchorRef]);
 
   // 확대/축소 시 body 높이가 바뀌므로 마지막 턴 min-height 재계산(스크롤은 유지).
+  // 질문 요소는 pending(tempId-q)→영속(UUID) 교체로 data-eid가 바뀌므로 id가 아니라 "마지막 user 버블"로 조회한다.
   useLayoutEffect(() => {
     const el = bodyRef.current;
-    const anchorId = lastTurnUserIdRef.current;
-    if (!el || !anchorId || turnMinHeight === null) return;
-    const question = el.querySelector<HTMLElement>(`[data-eid="${anchorId}"]`);
+    if (!el || turnMinHeight === null) return;
+    const users = el.querySelectorAll<HTMLElement>(".work-ai-message.user");
+    const question = users[users.length - 1];
     if (question) setTurnMinHeight(computeTurnMinHeight(el.clientHeight, question.offsetHeight));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- expanded 전환 시에만 재계산(turnMinHeight 자체 변화에 반응하면 루프)
   }, [expanded]);
