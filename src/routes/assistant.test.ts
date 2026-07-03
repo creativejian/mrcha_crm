@@ -3,7 +3,7 @@ import { test, expect, afterEach } from "bun:test";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { EMBEDDING_DIM } from "../lib/gemini-embed";
-import { assistantDeps } from "./assistant";
+import { assistantDeps, DISPLAY_LIMIT } from "./assistant";
 
 process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || "test-key";
 
@@ -58,6 +58,13 @@ test("POST /ask Gemini 실패 → 500 한국어, 저장 0건", async () => {
   expect(res.status).toBe(500);
   expect((await res.json() as { error: string }).error).toBe("일시적으로 답변에 실패했습니다.");
   expect(saved).toBe(0);
+});
+
+// 클라는 rows.length === AI_HISTORY_PAGE로 hasMore를 판정 — 서버 LIMIT만 바뀌면 이전 대화 페이지네이션이
+// 에러 없이 조용히 죽는다(조기 종료 또는 항상 hasMore). STOP_SUFFIX 파리티(assistant-stream.test.ts)와 동일 패턴.
+test("DISPLAY_LIMIT 서버↔클라(AI_HISTORY_PAGE) 파리티", async () => {
+  const { AI_HISTORY_PAGE } = await import("../../client/src/lib/assistant-history");
+  expect(DISPLAY_LIMIT).toBe(AI_HISTORY_PAGE);
 });
 
 test("GET /messages → 본인 최근 목록", async () => {

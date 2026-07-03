@@ -18,17 +18,17 @@ import { embedTexts } from "../lib/gemini-embed";
 import { generateAnswer, generateAnswerStream } from "../lib/gemini-generate";
 import { resolveCustomerScope } from "../lib/assistant-scope";
 import { resolveGeminiTarget, type GeminiTarget } from "../lib/gemini-target";
-import { buildContextBlock, buildUserPrompt, SYSTEM_PROMPT } from "../lib/assistant-prompt";
+import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
+import { sleepUnlessAborted } from "../lib/sleep";
 import type { AuthVariables } from "../middleware/auth";
-import type { DbVariables } from "../middleware/db";
+import { holdStreamLifetime, type DbVariables } from "../middleware/db";
 
 export const assistant = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
 const TOP_K = 8;
 const HISTORY_LIMIT = 10; // 멀티턴 컨텍스트로 넣을 최근 메시지 수(앱과 동일)
-const DISPLAY_LIMIT = 30; // 패널 진입 시 로드할 최근 메시지 수
-const NO_HITS_ANSWER = "관련 CRM 데이터를 찾지 못했습니다.";
+export const DISPLAY_LIMIT = 30; // 패널 진입 시 로드할 최근 메시지 수 — 클라 AI_HISTORY_PAGE와 파리티(테스트 가드)
 const askSchema = z.object({ question: z.string(), stream: z.boolean().optional() });
 const messagesQuery = z.object({ before: z.iso.datetime().optional(), beforeId: z.uuid().optional() });
 const messageIdParam = z.object({ id: z.uuid() });
@@ -141,28 +141,8 @@ type StreamAskArgs = {
   sources: unknown;
 };
 
-// CF Workers면 waitUntil로 abort 후에도 마감 저장을 보장, 로컬 bun은 executionCtx가 없어 null(직접 await로 충분).
-function getWaitUntil(c: AskContext): ((p: Promise<unknown>) => void) | null {
-  try {
-    const ctx = c.executionCtx;
-    return (p) => ctx.waitUntil(p);
-  } catch {
-    return null;
-  }
-}
-
 const HEARTBEAT_MS = 5_000; // 죽은 클라 감지 주기 — CF에서 쓰기 성공/실패가 유일하게 신뢰 가능한 채널
 const HEARTBEAT_WRITE_TIMEOUT_MS = 3_000; // SSE 쓰기는 정상 소비 시 즉시 완료 — 이 이상 지연이면 사망 간주
-
-// signal이 abort될 때까지 최대 ms 대기 — abort 시 즉시 해소(정상 종료 후 하트비트 잔류 지연 방지).
-function sleepUnlessAborted(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal.aborted) { resolve(); return; }
-    const done = () => { clearTimeout(t); signal.removeEventListener("abort", done); resolve(); };
-    const t = setTimeout(done, ms);
-    signal.addEventListener("abort", done);
-  });
-}
 
 // SSE 스트리밍 경로: user+빈 placeholder 선저장 → text 릴레이 → 종료 마감(finalize) → done/error.
 // abort 경로(STOP suffix·done 미송출)는 hono streamSSE 내부 abort 배선에 의존해 fake 라우트 유닛으로 검증이
@@ -174,16 +154,8 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
     { staffUserId: args.staffUserId, role: "assistant", content: "", sources: null, createdAt: new Date(now.getTime() + 1) },
   ], c.var.db)) as [AssistantMessageRow, AssistantMessageRow];
 
-  // 스트림 수명 guard — 두 역할:
-  // ① dbHold: dbMiddleware의 next()는 스트림 "완료"가 아니라 Response "반환" 시점에 끝난다. 이 guard가 없으면
-  //    client.end()가 릴레이 중에 실행돼 finalize의 마감 쿼리가 죽은 연결로 전부 실패한다(prod 실사고 — 정상
-  //    완료 done까지 미송출). 미들웨어가 이 promise 해소 후에 연결을 닫는다.
-  // ② waitUntil: abort 직후 CF가 아이솔레이트를 회수해도 릴레이+finalize 실행 완료를 보장(유령 빈 placeholder 방지).
-  let settleGuard!: () => void;
-  const streamDone = new Promise<void>((resolve) => { settleGuard = resolve; });
-  c.set("dbHold", streamDone);
-  const waitUntil = getWaitUntil(c);
-  if (waitUntil) waitUntil(streamDone);
+  // 스트림 수명 hold(dbHold+waitUntil 원자 등록) — 역할·사고 이력은 holdStreamLifetime 주석 참조.
+  const releaseHold = holdStreamLifetime(c);
 
   return streamSSE(c, async (sse) => {
     const hbStop = new AbortController();
@@ -279,7 +251,7 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
       await finalize.catch((e) => console.error("[assistant] stream 마감 실패:", e));
     } finally {
       hbStop.abort();
-      settleGuard();
+      releaseHold();
     }
   });
 }

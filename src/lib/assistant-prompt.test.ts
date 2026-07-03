@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 
-import { buildContextBlock, buildUserPrompt, SYSTEM_PROMPT, type PromptChunk } from "./assistant-prompt";
+import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT, type PromptChunk } from "./assistant-prompt";
 
 const chunks: PromptChunk[] = [
   { customerName: "김민준", content: "고객 김민준 상담메모: GLC 재고 문의", customerStatus: "견적·발송완료" },
@@ -23,4 +23,9 @@ test("SYSTEM_PROMPT: 근거 기반·모르면 모른다 지침 포함", () => {
   expect(SYSTEM_PROMPT).toContain("근거");
   expect(SYSTEM_PROMPT).toContain("찾지 못");
   expect(SYSTEM_PROMPT).not.toContain("마크다운 기호"); // 평문 강제 제거됨(마크다운 렌더 도입)
+});
+
+// SSOT 가드 — 보간을 리터럴로 되돌리면 라우트 직접 반환(hits 0건)과 모델 지시 문구가 다시 갈라진다.
+test("SYSTEM_PROMPT: NO_HITS_ANSWER 문구를 그대로 포함(보간 SSOT)", () => {
+  expect(SYSTEM_PROMPT).toContain(`'${NO_HITS_ANSWER}'`);
 });
