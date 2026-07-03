@@ -136,6 +136,19 @@ function getWaitUntil(c: AskContext): ((p: Promise<unknown>) => void) | null {
   }
 }
 
+const HEARTBEAT_MS = 5_000; // 죽은 클라 감지 주기 — CF에서 쓰기 성공/실패가 유일하게 신뢰 가능한 채널
+const HEARTBEAT_WRITE_TIMEOUT_MS = 3_000; // SSE 쓰기는 정상 소비 시 즉시 완료 — 이 이상 지연이면 사망 간주
+
+// signal이 abort될 때까지 최대 ms 대기 — abort 시 즉시 해소(정상 종료 후 하트비트 잔류 지연 방지).
+function sleepUnlessAborted(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) { resolve(); return; }
+    const done = () => { clearTimeout(t); signal.removeEventListener("abort", done); resolve(); };
+    const t = setTimeout(done, ms);
+    signal.addEventListener("abort", done);
+  });
+}
+
 // SSE 스트리밍 경로: user+빈 placeholder 선저장 → text 릴레이 → 종료 마감(finalize) → done/error.
 // abort 경로(STOP suffix·done 미송출)는 hono streamSSE 내부 abort 배선에 의존해 fake 라우트 유닛으로 검증이
 // 어려움 — finalizeStreamedAnswer 유닛 + 브라우저 스모크(중지→리로드 시 "(중단됨)" 보존·빈 말풍선 없음)가 전담.
@@ -158,40 +171,76 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
   if (waitUntil) waitUntil(streamDone);
 
   return streamSSE(c, async (sse) => {
+    const hbStop = new AbortController();
     try {
       let fullText = "";
       let aborted = false;
       let failed = false;
-      // 클라 disconnect 시 pending Gemini read는 CF에서 영영 해소되지 않는다(2026-07-03 prod 실측 —
-      // finalize까지 waitUntil 유예 30s를 넘겨 취소돼 유령 placeholder). abort 즉시 업스트림 fetch를
-      // 끊어 finalize가 유예 안에 완주하게 한다(생성 토큰 낭비도 차단). sse.onAbort와 raw signal을
-      // 모두 배선 — 런타임별 abort 전달 경로 차이 방어.
+      // CF Pages에서 클라 disconnect는 어느 채널로도 신뢰 있게 전달되지 않는다(2026-07-03 prod 실측:
+      // sse.onAbort·raw signal 미발화 + pending read/write가 reject 없이 얼어붙음 → finalize가
+      // waitUntil 유예(~30s)를 넘겨 취소돼 유령 placeholder). 대응 3중:
+      // ① onClientAbort: 신호가 오는 런타임에선 즉시 업스트림 중단(sse.onAbort + raw signal 이중 배선)
+      // ② 하트비트: SSE 코멘트(": hb") 주기 송출 — 쓰기 실패/타임아웃 = 사망 판정(신호 없는 런타임의 최후 채널)
+      // ③ raceDead: gen 읽기·클라 쓰기를 사망 promise와 race — 어떤 await에 얼어붙어도 릴레이 탈출 보장
       const upstreamAbort = new AbortController();
-      const onClientAbort = () => { aborted = true; upstreamAbort.abort(); };
-      sse.onAbort(onClientAbort);
-      if (c.req.raw.signal.aborted) onClientAbort();
-      else c.req.raw.signal.addEventListener("abort", onClientAbort);
+      let markDead!: () => void;
+      const clientDead = new Promise<"dead">((resolve) => { markDead = () => resolve("dead"); });
+      const onClientAbort = (source: string) => {
+        if (aborted) return;
+        aborted = true;
+        console.log(`[assistant] stream 클라 중단 감지(${source}):`, placeholder.id);
+        upstreamAbort.abort();
+        markDead();
+      };
+      sse.onAbort(() => onClientAbort("sse.onAbort"));
+      if (c.req.raw.signal.aborted) onClientAbort("signal(pre)");
+      else c.req.raw.signal.addEventListener("abort", () => onClientAbort("signal"));
+      const raceDead = <T,>(p: Promise<T>): Promise<T | "dead"> => Promise.race([p, clientDead]);
+
+      void (async () => {
+        for (;;) {
+          await sleepUnlessAborted(HEARTBEAT_MS, hbStop.signal);
+          if (hbStop.signal.aborted || aborted) return;
+          try {
+            const ok = await Promise.race([
+              sse.write(": hb\n\n").then(() => true),
+              sleepUnlessAborted(HEARTBEAT_WRITE_TIMEOUT_MS, hbStop.signal).then(() => false),
+            ]);
+            if (!ok && !hbStop.signal.aborted) { onClientAbort("heartbeat-timeout"); return; }
+            if (!ok) return;
+          } catch {
+            onClientAbort("heartbeat-write-fail");
+            return;
+          }
+        }
+      })();
 
       try {
         if (args.hits.length === 0) {
           fullText = NO_HITS_ANSWER;
-          await sse.writeSSE({ event: "text", data: JSON.stringify({ chunk: fullText }) });
+          await raceDead(sse.writeSSE({ event: "text", data: JSON.stringify({ chunk: fullText }) }));
         } else {
           const gen = assistantDeps.generateAnswerStream(
             SYSTEM_PROMPT, buildUserPrompt(args.question, buildContextBlock(args.promptChunks)), args.target, args.history,
             undefined, upstreamAbort.signal, // fetchImpl은 기본(fetch) 유지
           );
-          for await (const chunk of gen) {
-            if (aborted) break;
-            fullText += chunk;
-            await sse.writeSSE({ event: "text", data: JSON.stringify({ chunk }) });
+          for (;;) {
+            const step = await raceDead(gen.next());
+            if (step === "dead" || aborted) break;
+            if (step.done) break;
+            fullText += step.value;
+            const wrote = await raceDead(sse.writeSSE({ event: "text", data: JSON.stringify({ chunk: step.value }) }));
+            if (wrote === "dead") break;
           }
+          // 사망/중단 탈출 시 잔여 generator 정리 — 얼어붙은 read를 기다리지 않도록 await하지 않는다.
+          if (aborted) void gen.return(undefined).catch(() => {});
         }
       } catch (e) {
         // 스트림 중간 실패는 raw 에러(JSON SyntaxError 포함)를 generic하게 수용 — 부분 저장은 finalize가 담당.
         console.error("[assistant] stream 생성 실패:", e);
         failed = true;
       }
+      console.log(`[assistant] stream 릴레이 종료 len=${fullText.length} aborted=${aborted} failed=${failed}`);
 
       const finalize = (async () => {
         const outcome = await finalizeStreamedAnswer({
@@ -203,16 +252,18 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
         if (outcome.kind === "error" && fullText.length > 0) {
           console.error("[assistant] placeholder 마감 실패(행 소실):", placeholder.id);
         }
+        console.log(`[assistant] stream 마감 완료 kind=${outcome.kind} aborted=${aborted}`);
         if (aborted) return; // 클라는 이미 끊김 — 이벤트 송출 생략
         if (outcome.kind === "done") {
-          await sse.writeSSE({ event: "done", data: JSON.stringify({ messages: [userRow, outcome.assistant] }) });
+          await raceDead(sse.writeSSE({ event: "done", data: JSON.stringify({ messages: [userRow, outcome.assistant] }) }));
         } else {
-          await sse.writeSSE({ event: "error", data: JSON.stringify({ code: "generation_failed", message: "일시적으로 답변에 실패했습니다." }) });
+          await raceDead(sse.writeSSE({ event: "error", data: JSON.stringify({ code: "generation_failed", message: "일시적으로 답변에 실패했습니다." }) }));
         }
       })();
 
       await finalize.catch((e) => console.error("[assistant] stream 마감 실패:", e));
     } finally {
+      hbStop.abort();
       settleGuard();
     }
   });
