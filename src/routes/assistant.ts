@@ -11,6 +11,7 @@ import {
   insertAssistantMessages,
   listRecentMessages,
   updateAssistantMessage,
+  updateAssistantMessageContent,
   type AssistantMessageRow,
 } from "../db/queries/assistant-messages";
 import { embedTexts } from "../lib/gemini-embed";
@@ -30,6 +31,8 @@ const DISPLAY_LIMIT = 30; // 패널 진입 시 로드할 최근 메시지 수
 const NO_HITS_ANSWER = "관련 CRM 데이터를 찾지 못했습니다.";
 const askSchema = z.object({ question: z.string(), stream: z.boolean().optional() });
 const messagesQuery = z.object({ before: z.iso.datetime().optional(), beforeId: z.uuid().optional() });
+const messageIdParam = z.object({ id: z.uuid() });
+const trimSchema = z.object({ content: z.string().trim().min(1).max(20000) });
 
 // 테스트가 주입 가능한 의존성(mock.module 대신 — 전역 누출 방지).
 export type AssistantDeps = {
@@ -41,6 +44,7 @@ export type AssistantDeps = {
   listRecentMessages: typeof listRecentMessages;
   insertAssistantMessages: typeof insertAssistantMessages;
   updateAssistantMessage: typeof updateAssistantMessage;
+  updateAssistantMessageContent: typeof updateAssistantMessageContent;
   deleteAssistantMessage: typeof deleteAssistantMessage;
 };
 export const assistantDeps: AssistantDeps = {
@@ -52,6 +56,7 @@ export const assistantDeps: AssistantDeps = {
   listRecentMessages,
   insertAssistantMessages,
   updateAssistantMessage,
+  updateAssistantMessageContent,
   deleteAssistantMessage,
 };
 
@@ -60,6 +65,16 @@ assistant.get("/messages", zValidator("query", messagesQuery), async (c) => {
   const cursor = before && beforeId ? { createdAt: new Date(before), id: beforeId } : undefined;
   const rows = await assistantDeps.listRecentMessages(c.var.user.id, DISPLAY_LIMIT, c.var.db, cursor);
   return c.json(rows);
+});
+
+// 중단 트림 — stop 시 클라가 화면에 노출된 만큼으로 본인 답변을 잘라 저장(stop = 본 것까지만, 앱 미러).
+// 쿼리가 id+staffUserId+role='assistant' 삼중 키라 타 staff/user 행은 404.
+assistant.patch("/messages/:id", zValidator("param", messageIdParam), zValidator("json", trimSchema), async (c) => {
+  const row = await assistantDeps.updateAssistantMessageContent(
+    c.req.valid("param").id, c.var.user.id, c.req.valid("json").content, c.var.db,
+  );
+  if (!row) return c.json({ error: "대상 메시지가 없습니다." }, 404);
+  return c.json(row);
 });
 
 assistant.post("/ask", zValidator("json", askSchema), async (c) => {

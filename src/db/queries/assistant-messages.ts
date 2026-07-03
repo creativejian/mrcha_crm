@@ -59,6 +59,26 @@ export async function updateAssistantMessage(
   return row ?? null;
 }
 
+// 중단 트림: 본인 assistant 행의 content만 교체(sources 유지) — stop 시 화면 노출분으로 잘라
+// 저장해 화면과 리로드를 일치시킨다(앱 미러: stop = 본 것까지만). 대상 없으면 null.
+export async function updateAssistantMessageContent(
+  id: string,
+  staffUserId: string,
+  content: string,
+  executor: Executor = getDefaultDb(),
+): Promise<AssistantMessageRow | null> {
+  const [row] = await executor
+    .update(assistantMessages)
+    .set({ content })
+    .where(and(
+      eq(assistantMessages.id, id),
+      eq(assistantMessages.staffUserId, staffUserId),
+      eq(assistantMessages.role, "assistant"),
+    ))
+    .returning();
+  return row ?? null;
+}
+
 // 0자 중단/실패 시 빈 placeholder 제거(유령 빈 메시지 방지). user 질문 행은 남긴다.
 // id+staffUserId 이중 키로 본인 메시지만 삭제(타 staff 메시지 오염 방지).
 export async function deleteAssistantMessage(id: string, staffUserId: string, executor: Executor = getDefaultDb()): Promise<void> {

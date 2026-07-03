@@ -1,14 +1,15 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { askAssistantStream, fetchAssistantMessages, type AssistantMessage } from "@/lib/assistant";
+import { askAssistantStream, fetchAssistantMessages, updateAssistantMessageContent, type AssistantMessage } from "@/lib/assistant";
 
 import { AI_HISTORY_PAGE, useAssistantThread } from "./useAssistantThread";
 
-vi.mock("@/lib/assistant", () => ({ askAssistantStream: vi.fn(), fetchAssistantMessages: vi.fn() }));
+vi.mock("@/lib/assistant", () => ({ askAssistantStream: vi.fn(), fetchAssistantMessages: vi.fn(), updateAssistantMessageContent: vi.fn() }));
 
 const askStream = vi.mocked(askAssistantStream);
 const fetchMessages = vi.mocked(fetchAssistantMessages);
+const patchContent = vi.mocked(updateAssistantMessageContent);
 
 // createdAt은 (createdAt,id) 복합 정렬 기준 — i를 초 단위로 깔아 순서를 만든다.
 function msg(i: number, role: "user" | "assistant" = "user"): AssistantMessage {
@@ -202,6 +203,7 @@ describe("useAssistantThread", () => {
     });
     const stopped = [msg(1, "user"), { ...msg(2, "assistant"), content: "부분답변 (중단됨)" }];
     fetchMessages.mockResolvedValueOnce(stopped); // 백그라운드 재조회 응답
+    patchContent.mockImplementation(async (id, content) => ({ ...msg(2, "assistant"), id, content }));
 
     const { result } = renderHook(() => useAssistantThread());
     let submitP!: Promise<boolean>;
@@ -225,11 +227,12 @@ describe("useAssistantThread", () => {
     expect(fetchMessages).toHaveBeenCalledTimes(0);
     const pending = result.current.entries.find((e) => e.kind === "pending");
     expect(pending && pending.kind === "pending" && pending.streamText?.endsWith(" (중단됨)")).toBe(true);
+    const pendingText = pending && pending.kind === "pending" ? pending.streamText! : "";
 
-    // 백그라운드 동기화 완료 후 서버 저장본으로 교체·pending 제거
+    // 백그라운드 동기화: 서버 저장본이 노출분과 다르면 노출분으로 트림해 교체·pending 제거
     await waitFor(() => expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]), { timeout: 4000 });
     const last = result.current.entries.at(-1)!;
-    expect(last.kind === "message" && last.message.content).toBe("부분답변 (중단됨)");
+    expect(last.kind === "message" && last.message.content).toBe(pendingText);
   }, 10000);
 
   it("stop: 첫 청크 전(인디케이터 단계)에도 즉시 마감 — dots 제거(stopped)·버튼 해제", async () => {
@@ -258,15 +261,17 @@ describe("useAssistantThread", () => {
     expect(pending && pending.kind === "pending" ? pending.streamText : "set").toBeUndefined();
 
     await waitFor(() => expect(result.current.entries.map((e) => e.kind)).toEqual(["message"]), { timeout: 4000 });
+    expect(patchContent).not.toHaveBeenCalled(); // 노출분이 없으니 트림 없음
   }, 10000);
 
-  it("stop: done 수신 후 드레인(타자기) 중 중지 → 즉시 전체 노출·턴 마감(제어 지연 0)", async () => {
+  it("stop: done 수신 후 드레인(타자기) 중 중지 → 노출분+중단됨으로 즉시 동결 + 서버 트림 저장", async () => {
     const full = "긴답변".repeat(120); // 360자 — 드레인이 수 초 걸리는 길이
     const persisted = [msg(1, "user"), { ...msg(2, "assistant"), content: full }];
     askStream.mockImplementation((_q, handlers) => {
       handlers.onChunk(full);
       return Promise.resolve({ messages: persisted }); // done 즉시 — 생성·저장 완료, 드레인만 남음
     });
+    patchContent.mockImplementation(async (id, content) => ({ ...msg(2, "assistant"), id, content }));
 
     const { result } = renderHook(() => useAssistantThread());
     let submitP!: Promise<boolean>;
@@ -282,16 +287,20 @@ describe("useAssistantThread", () => {
     });
 
     act(() => result.current.stop());
-    // 즉시성 검증: 드레인 완주(잔여 300자+ ≈ 1초+)를 기다리지 않고 수십 ms 안에 마감돼야 한다.
+    // 즉시성 검증: 드레인 완주(잔여 300자+ ≈ 1초+)를 기다리지 않고 수십 ms 안에 동결·마감돼야 한다.
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 80));
     });
     expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]);
     const last = result.current.entries.at(-1)!;
-    expect(last.kind === "message" && last.message.content).toBe(full);
+    const content = last.kind === "message" ? last.message.content : "";
+    expect(content.endsWith(" (중단됨)")).toBe(true); // 전체 플러시가 아니라 노출분+중단됨
+    expect(content.length).toBeLessThan(full.length);
+    expect(patchContent).toHaveBeenCalledTimes(1);
+    expect(patchContent).toHaveBeenCalledWith(persisted[1].id, content);
 
     await act(async () => {
-      await expect(submitP).resolves.toBe(true); // 정상 마감으로 종료(중단 아님)
+      await expect(submitP).resolves.toBe(false); // 중단으로 종료
     });
     expect(result.current.asking).toBe(false);
     expect(fetchMessages).toHaveBeenCalledTimes(0);
@@ -307,6 +316,7 @@ describe("useAssistantThread", () => {
     const placeholder = { ...msg(2, "assistant"), content: "" };
     fetchMessages.mockResolvedValueOnce([msg(1, "user"), placeholder]); // 1차: 서버 마감 전
     fetchMessages.mockResolvedValueOnce([msg(1, "user"), { ...msg(2, "assistant"), content: "부분답변 (중단됨)" }]); // 2차: 마감 완료
+    patchContent.mockImplementation(async (id, content) => ({ ...msg(2, "assistant"), id, content }));
 
     const { result } = renderHook(() => useAssistantThread());
     let submitP!: Promise<boolean>;
@@ -318,12 +328,15 @@ describe("useAssistantThread", () => {
     await act(async () => {
       await submitP;
     });
+    const pending = result.current.entries.find((e) => e.kind === "pending");
+    const pendingText = pending && pending.kind === "pending" ? pending.streamText : undefined;
 
     expect(fetchMessages).toHaveBeenCalledTimes(0); // 동기화는 백그라운드 — submit 반환을 막지 않는다
     await waitFor(() => expect(fetchMessages).toHaveBeenCalledTimes(2), { timeout: 5000 });
     await waitFor(() => {
       const last = result.current.entries.at(-1)!;
-      expect(last.kind === "message" && last.message.content).toBe("부분답변 (중단됨)");
+      // 노출분이 있으면 노출분으로 트림, 없으면(청크 전 중지) 서버 저장본 그대로
+      expect(last.kind === "message" && last.message.content).toBe(pendingText ?? "부분답변 (중단됨)");
     });
   }, 10000);
 
