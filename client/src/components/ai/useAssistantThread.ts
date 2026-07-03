@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { askAssistantStream, fetchAssistantMessages, type AssistantAskResult, type AssistantMessage } from "@/lib/assistant";
-import { DRAIN_TICK_MS, nextDisplayLength } from "@/lib/assistant-drain";
+import { DRAIN_TICK_MS, STOP_SUFFIX, nextDisplayLength } from "@/lib/assistant-drain";
 
 export const AI_HISTORY_PAGE = 30; // 백엔드 DISPLAY_LIMIT와 일치
 const OLDER_INDICATOR_MIN_MS = 400; // 빠른 로드에도 로딩 표시가 최소 이 시간은 보이도록(번쩍임 방지)
-const STOP_SYNC_DELAY_MS = 500; // 중지 후 서버 waitUntil 저장과의 레이스를 흡수하는 재조회 지연
+const STOP_SYNC_DELAY_MS = 500; // 중지 후 서버 마감(abort 감지→DB write)과의 레이스를 흡수하는 재조회 지연
+const STOP_SYNC_RETRIES = 3; // prod에선 abort 감지가 다음 Gemini 청크까지 지연될 수 있어 빈 placeholder면 재시도
 
 export type AssistantThreadEntry =
   | { kind: "message"; message: AssistantMessage }
@@ -74,7 +75,9 @@ export function useAssistantThread() {
     for (const p of byAnchor.get(null) ?? [])
       out.push({ kind: "pending", tempId: p.tempId, question: p.question, error: p.error, streamText: p.streamText });
     for (const m of messages) {
-      out.push({ kind: "message", message: m });
+      // 마감 전 placeholder/유령 빈 assistant 행은 표시하지 않는다(서버가 곧 채우거나 다음 로드에서 해소).
+      // 앵커로 쓰인 경우를 위해 pending flush는 유지한다.
+      if (!(m.role === "assistant" && m.content === "")) out.push({ kind: "message", message: m });
       for (const p of byAnchor.get(m.id) ?? [])
         out.push({ kind: "pending", tempId: p.tempId, question: p.question, error: p.error, streamText: p.streamText });
     }
@@ -191,14 +194,24 @@ export function useAssistantThread() {
         // 중지: 표시 중이던 부분 + "(중단됨)" 임시 표시 → 서버 저장본 재조회로 동기화(서버가 진실원본).
         const displayed = fullText.slice(0, displayLength);
         if (displayed) {
-          setPendings((cur) => cur.map((p) => (p.tempId === tempId ? { ...p, streamText: `${displayed} (중단됨)` } : p)));
+          setPendings((cur) => cur.map((p) => (p.tempId === tempId ? { ...p, streamText: `${displayed}${STOP_SUFFIX}` } : p)));
         }
-        await new Promise((resolve) => setTimeout(resolve, STOP_SYNC_DELAY_MS));
-        try {
-          const rows = await fetchAssistantMessages();
-          setMessages((cur) => mergeAssistantMessages(cur, rows));
-        } catch {
-          // 재조회 실패해도 pending은 제거(이중 표시 방지) — 저장본은 다음 히스토리 로드/리로드에서 표시.
+        // 서버 마감(abort 감지→부분 저장)은 다음 Gemini 청크 도착까지 지연될 수 있다 — 마지막 행이 아직
+        // 빈 placeholder면 간격을 늘려가며 재조회(그래도 비면 그대로 merge — entries가 빈 행을 숨긴다).
+        for (let attempt = 0; attempt < STOP_SYNC_RETRIES; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, STOP_SYNC_DELAY_MS * (attempt + 1)));
+          try {
+            const rows = await fetchAssistantMessages();
+            const last = rows.at(-1);
+            const settled = !(last && last.role === "assistant" && last.content === "");
+            if (settled || attempt === STOP_SYNC_RETRIES - 1) {
+              setMessages((cur) => mergeAssistantMessages(cur, rows));
+              break;
+            }
+          } catch {
+            // 재조회 실패해도 pending은 제거(이중 표시 방지) — 저장본은 다음 히스토리 로드/리로드에서 표시.
+            break;
+          }
         }
         setPendings((cur) => cur.filter((p) => p.tempId !== tempId));
         return false;

@@ -142,13 +142,18 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
     { staffUserId: args.staffUserId, role: "assistant", content: "", sources: null, createdAt: new Date(now.getTime() + 1) },
   ], c.var.db)) as [AssistantMessageRow, AssistantMessageRow];
 
+  // 스트림 수명 guard — 두 역할:
+  // ① dbHold: dbMiddleware의 next()는 스트림 "완료"가 아니라 Response "반환" 시점에 끝난다. 이 guard가 없으면
+  //    client.end()가 릴레이 중에 실행돼 finalize의 마감 쿼리가 죽은 연결로 전부 실패한다(prod 실사고 — 정상
+  //    완료 done까지 미송출). 미들웨어가 이 promise 해소 후에 연결을 닫는다.
+  // ② waitUntil: abort 직후 CF가 아이솔레이트를 회수해도 릴레이+finalize 실행 완료를 보장(유령 빈 placeholder 방지).
+  let settleGuard!: () => void;
+  const streamDone = new Promise<void>((resolve) => { settleGuard = resolve; });
+  c.set("dbHold", streamDone);
+  const waitUntil = getWaitUntil(c);
+  if (waitUntil) waitUntil(streamDone);
+
   return streamSSE(c, async (sse) => {
-    // abort는 릴레이 루프를 즉시 못 끊고 다음 청크의 reader.read()까지 block될 수 있는데, 그 창에서 CF가
-    // 아이솔레이트를 회수하면 마감 저장이 유실된다(빈 placeholder 잔존 → 히스토리에 유령 빈 말풍선).
-    // 릴레이 시작 전에 전체 흐름(릴레이+finalize)을 덮는 guard 프로미스를 waitUntil에 등록해 실행 완료를 보장한다.
-    const waitUntil = getWaitUntil(c);
-    let settleGuard: (() => void) | undefined;
-    if (waitUntil) waitUntil(new Promise<void>((resolve) => { settleGuard = resolve; }));
     try {
       let fullText = "";
       let aborted = false;
@@ -195,7 +200,7 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
 
       await finalize.catch((e) => console.error("[assistant] stream 마감 실패:", e));
     } finally {
-      settleGuard?.();
+      settleGuard();
     }
   });
 }
