@@ -43,19 +43,24 @@ export async function askAssistantStream(
   // { stream: true } 필수 — 멀티바이트 UTF-8이 네트워크 청크 경계에서 갈라져도 디코더가 잔여 바이트를 이월한다.
   const decoder = new TextDecoder();
   let result: AssistantAskResult | null = null;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    for (const ev of feed(decoder.decode(value, { stream: true }))) {
-      if (ev.event === "text") {
-        handlers.onChunk((JSON.parse(ev.data) as { chunk: string }).chunk);
-      } else if (ev.event === "done") {
-        result = JSON.parse(ev.data) as AssistantAskResult;
-      } else if (ev.event === "error") {
-        const { message } = JSON.parse(ev.data) as { message?: string };
-        throw new Error(message ?? "일시적으로 답변에 실패했습니다.");
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      for (const ev of feed(decoder.decode(value, { stream: true }))) {
+        if (ev.event === "text") {
+          handlers.onChunk((JSON.parse(ev.data) as { chunk: string }).chunk);
+        } else if (ev.event === "done") {
+          result = JSON.parse(ev.data) as AssistantAskResult;
+        } else if (ev.event === "error") {
+          const { message } = JSON.parse(ev.data) as { message?: string };
+          throw new Error(message ?? "일시적으로 답변에 실패했습니다.");
+        }
       }
     }
+  } finally {
+    // error 이벤트 throw·조기 종료 시 HTTP 커넥션을 즉시 정리(정상 완료 후에는 no-op).
+    await reader.cancel().catch(() => {});
   }
   if (!result) throw new Error("응답이 완료되지 않았습니다.");
   return result;
