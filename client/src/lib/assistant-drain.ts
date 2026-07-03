@@ -1,3 +1,7 @@
+// 중지 시 부분 답변에 붙는 suffix — 서버 src/lib/assistant-stream.ts의 STOP_SUFFIX와 동일 값 유지
+// (서버 테스트의 파리티 케이스가 드리프트를 잡는다). 클라는 중지 직후 임시 표시에만 사용.
+export const STOP_SUFFIX = " (중단됨)";
+
 // 앱 chat_streaming_controller.dart의 디스플레이 드레인 페이싱 미러 — 실사용 검증된 타자기 수치.
 export const DRAIN_TICK_MS = 38;
 const INTRO_STEP = 2; // 표시 <72자: 천천히 시작

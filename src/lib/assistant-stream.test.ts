@@ -66,3 +66,10 @@ test("update가 null(행 소실) 반환 시 error", async () => {
   });
   expect(out.kind).toBe("error");
 });
+
+// 클라 임시 표시(assistant-drain.ts)와 서버 저장 suffix의 드리프트 tripwire — 값이 갈라지면 중지 직후
+// 화면 문구와 리로드 후 저장본 문구가 달라진다.
+test("STOP_SUFFIX 서버↔클라 파리티", async () => {
+  const { STOP_SUFFIX: CLIENT_STOP_SUFFIX } = await import("../../client/src/lib/assistant-drain");
+  expect(STOP_SUFFIX).toBe(CLIENT_STOP_SUFFIX);
+});

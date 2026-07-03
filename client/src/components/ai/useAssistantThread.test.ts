@@ -5,7 +5,7 @@ import { askAssistantStream, fetchAssistantMessages, type AssistantMessage } fro
 
 import { AI_HISTORY_PAGE, useAssistantThread } from "./useAssistantThread";
 
-vi.mock("@/lib/assistant", () => ({ askAssistant: vi.fn(), askAssistantStream: vi.fn(), fetchAssistantMessages: vi.fn() }));
+vi.mock("@/lib/assistant", () => ({ askAssistantStream: vi.fn(), fetchAssistantMessages: vi.fn() }));
 
 const askStream = vi.mocked(askAssistantStream);
 const fetchMessages = vi.mocked(fetchAssistantMessages);
@@ -220,6 +220,44 @@ describe("useAssistantThread", () => {
     expect(last.kind === "message" && last.message.content).toBe("부분답변 (중단됨)");
     expect(result.current.asking).toBe(false);
   }, 10000);
+
+  it("stop: 재조회의 마지막 행이 아직 빈 placeholder면 재시도해 마감본을 받는다(prod 마감 지연 흡수)", async () => {
+    askStream.mockImplementation((_q, handlers, signal) => {
+      handlers.onChunk("부분답변");
+      return new Promise((_res, rej) => {
+        signal.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
+      });
+    });
+    const placeholder = { ...msg(2, "assistant"), content: "" };
+    fetchMessages.mockResolvedValueOnce([msg(1, "user"), placeholder]); // 1차: 서버 마감 전
+    fetchMessages.mockResolvedValueOnce([msg(1, "user"), { ...msg(2, "assistant"), content: "부분답변 (중단됨)" }]); // 2차: 마감 완료
+
+    const { result } = renderHook(() => useAssistantThread());
+    let submitP!: Promise<boolean>;
+    act(() => {
+      submitP = result.current.submit("질문");
+    });
+    await waitFor(() => expect(result.current.asking).toBe(true));
+    act(() => result.current.stop());
+    await act(async () => {
+      await submitP;
+    });
+
+    expect(fetchMessages).toHaveBeenCalledTimes(2);
+    const last = result.current.entries.at(-1)!;
+    expect(last.kind === "message" && last.message.content).toBe("부분답변 (중단됨)");
+  }, 10000);
+
+  it("entries: 빈 content의 assistant 행(마감 전 placeholder/유령)은 표시하지 않는다", async () => {
+    fetchMessages.mockResolvedValue([msg(1, "user"), { ...msg(2, "assistant"), content: "" }, msg(3, "assistant")]);
+    const { result } = renderHook(() => useAssistantThread());
+    await act(async () => result.current.ensureHistory());
+
+    expect(result.current.entries.map((e) => (e.kind === "message" ? e.message.id : "pending"))).toEqual([
+      msg(1).id,
+      msg(3).id,
+    ]);
+  });
 
   it("stop: 재조회가 실패해도 pending은 제거된다(이중 표시 방지)", async () => {
     askStream.mockImplementation((_q, handlers, signal) => {
