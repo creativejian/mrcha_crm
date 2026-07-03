@@ -46,7 +46,8 @@ async function embedBatch(
     }
     const bodyText = await res.text();
     const code = classifyGeminiError(res.status, bodyText);
-    console.error(`[assistant] Gemini embed ${code} status=${res.status}`);
+    // 본문 일부를 남겨 generic 4xx의 실제 원인(키 만료·쿼터 등)을 tail에서 판별할 수 있게 한다.
+    console.error(`[assistant] Gemini embed ${code} status=${res.status} body=${bodyText.slice(0, 200)}`);
     if (attempt === 0 && (code === "rate_limited" || code === "unavailable")) continue;
     throw new Error(`Gemini 임베딩 실패: ${code}`);
   }
