@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { askAssistantStream, fetchAssistantMessages, updateAssistantMessageContent, type AssistantAskResult, type AssistantMessage } from "@/lib/assistant";
 import { DRAIN_TICK_MS, STOP_SUFFIX, nextDisplayLength } from "@/lib/assistant-drain";
+import { AI_HISTORY_PAGE } from "@/lib/assistant-history";
 
-export const AI_HISTORY_PAGE = 30; // 백엔드 DISPLAY_LIMIT와 일치
 const OLDER_INDICATOR_MIN_MS = 400; // 빠른 로드에도 로딩 표시가 최소 이 시간은 보이도록(번쩍임 방지)
 const STOP_SYNC_DELAY_MS = 500; // 중지 후 백그라운드 재조회 1차 지연 — 이후 선형 증가(0.5·1·1.5…)
 const STOP_SYNC_RETRIES = 6; // 서버 마감은 하트비트 감지(≤5s)+저장까지 수 초 — 누적 ~10.5s 커버(백그라운드라 UX 비용 없음)

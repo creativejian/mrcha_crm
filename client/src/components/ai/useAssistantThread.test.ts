@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { askAssistantStream, fetchAssistantMessages, updateAssistantMessageContent, type AssistantMessage } from "@/lib/assistant";
 
-import { AI_HISTORY_PAGE, useAssistantThread } from "./useAssistantThread";
+import { AI_HISTORY_PAGE } from "@/lib/assistant-history";
+
+import { useAssistantThread } from "./useAssistantThread";
 
 vi.mock("@/lib/assistant", () => ({ askAssistantStream: vi.fn(), fetchAssistantMessages: vi.fn(), updateAssistantMessageContent: vi.fn() }));
 
