@@ -1,5 +1,7 @@
 import { createRemoteJWKSet } from "jose";
 
+// 배포 시점에 스냅샷으로 번들됨 — crm-analyst/auth.ts(CRM_ROLES 등) 수정 시 crm-analyst만이 아니라
+// crm-gemini-proxy도 함께 재배포해야 반영된다(소스 패리티 테스트는 배포 번들 드리프트를 못 잡는다).
 import { verifyStaff } from "../crm-analyst/auth.ts";
 import { relayRequest } from "./relay.ts";
 

@@ -39,7 +39,8 @@ export async function generateAnswer(
     }
     const bodyText = await res.text();
     const code = classifyGeminiError(res.status, bodyText);
-    console.error(`[assistant] Gemini generate ${code} status=${res.status}`);
+    // 본문 일부 포함(embed와 대칭) — 프록시 경유 시 릴레이/게이트웨이발 401·403·404를 리전 차단과 판별.
+    console.error(`[assistant] Gemini generate ${code} status=${res.status} body=${bodyText.slice(0, 200)}`);
     if (attempt === 0 && (code === "rate_limited" || code === "unavailable")) continue;
     throw new Error(`Gemini 생성 실패: ${code}`);
   }
@@ -75,7 +76,8 @@ export async function* generateAnswerStream(
     if (res.ok) break;
     const bodyText = await res.text();
     const code = classifyGeminiError(res.status, bodyText);
-    console.error(`[assistant] Gemini stream ${code} status=${res.status}`);
+    // 본문 일부 포함(embed와 대칭) — 프록시 경유 시 릴레이/게이트웨이발 401·403·404를 리전 차단과 판별.
+    console.error(`[assistant] Gemini stream ${code} status=${res.status} body=${bodyText.slice(0, 200)}`);
     if (attempt === 0 && (code === "rate_limited" || code === "unavailable")) { res = null; continue; }
     throw new Error(`Gemini 생성 실패: ${code}`);
   }
