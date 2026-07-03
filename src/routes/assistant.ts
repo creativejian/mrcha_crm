@@ -16,6 +16,7 @@ import {
 import { embedTexts } from "../lib/gemini-embed";
 import { generateAnswer, generateAnswerStream } from "../lib/gemini-generate";
 import { resolveCustomerScope } from "../lib/assistant-scope";
+import { resolveGeminiTarget, type GeminiTarget } from "../lib/gemini-target";
 import { buildContextBlock, buildUserPrompt, SYSTEM_PROMPT } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
 import type { AuthVariables } from "../middleware/auth";
@@ -69,12 +70,15 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
 
   const staffUserId = c.var.user.id;
   try {
+    // GEMINI_PROXY_URL 설정 시(prod) Supabase Edge 릴레이 경유 — HKG 콜로 리전 차단 우회.
+    const proxyUrl = (c.env as { GEMINI_PROXY_URL?: string } | undefined)?.GEMINI_PROXY_URL ?? process.env.GEMINI_PROXY_URL;
+    const target = resolveGeminiTarget({ apiKey, proxyUrl, authHeader: c.req.header("Authorization") });
     // 히스토리 로드는 임베딩→검색 체인과 독립 — 병렬로 시작해 원격 DB 왕복 1회분 지연을 없앤다.
     const scope = resolveCustomerScope(c.var.user);
     const [history, hits] = await Promise.all([
       assistantDeps.listRecentMessages(staffUserId, HISTORY_LIMIT, c.var.db)
         .then((rows) => rows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))),
-      assistantDeps.embedTexts([question], apiKey, "RETRIEVAL_QUERY")
+      assistantDeps.embedTexts([question], target, "RETRIEVAL_QUERY")
         .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db)),
     ]);
     const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
@@ -91,12 +95,12 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     if (c.req.valid("json").stream === true) {
       // await 필수: 선저장(insertAssistantMessages) 실패를 이 try/catch가 잡으려면 rejection이
       // 이 스코프 안에서 throw로 전환돼야 한다(그냥 return하면 catch를 건너뛰고 app.onError로 샌다).
-      return await streamAsk(c, { question, staffUserId, apiKey, history, hits, promptChunks, sources });
+      return await streamAsk(c, { question, staffUserId, target, history, hits, promptChunks, sources });
     }
 
     const answer = hits.length === 0
       ? NO_HITS_ANSWER
-      : await assistantDeps.generateAnswer(SYSTEM_PROMPT, buildUserPrompt(question, buildContextBlock(promptChunks)), apiKey, history);
+      : await assistantDeps.generateAnswer(SYSTEM_PROMPT, buildUserPrompt(question, buildContextBlock(promptChunks)), target, history);
 
     const now = new Date();
     const saved = await assistantDeps.insertAssistantMessages([
@@ -115,7 +119,7 @@ type AskContext = Context<{ Variables: AuthVariables & DbVariables }>;
 type StreamAskArgs = {
   question: string;
   staffUserId: string;
-  apiKey: string;
+  target: GeminiTarget;
   history: { role: "user" | "assistant"; content: string }[];
   hits: Awaited<ReturnType<typeof searchEmbeddings>>;
   promptChunks: { customerName: string; customerStatus: string; content: string }[];
@@ -166,7 +170,7 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
           await sse.writeSSE({ event: "text", data: JSON.stringify({ chunk: fullText }) });
         } else {
           const gen = assistantDeps.generateAnswerStream(
-            SYSTEM_PROMPT, buildUserPrompt(args.question, buildContextBlock(args.promptChunks)), args.apiKey, args.history,
+            SYSTEM_PROMPT, buildUserPrompt(args.question, buildContextBlock(args.promptChunks)), args.target, args.history,
           );
           for await (const chunk of gen) {
             if (aborted) break;
