@@ -41,3 +41,26 @@ export async function listRecentMessages(
     .limit(limit);
   return rows.reverse();
 }
+
+// 스트리밍 종료 시 placeholder 마감(내용·출처 확정). 대상 없으면 null.
+// id+staffUserId 이중 키로 본인 메시지만 갱신(타 staff 메시지 오염 방지).
+export async function updateAssistantMessage(
+  id: string,
+  staffUserId: string,
+  content: string,
+  sources: unknown,
+  executor: Executor = getDefaultDb(),
+): Promise<AssistantMessageRow | null> {
+  const [row] = await executor
+    .update(assistantMessages)
+    .set({ content, sources })
+    .where(and(eq(assistantMessages.id, id), eq(assistantMessages.staffUserId, staffUserId)))
+    .returning();
+  return row ?? null;
+}
+
+// 0자 중단/실패 시 빈 placeholder 제거(유령 빈 메시지 방지). user 질문 행은 남긴다.
+// id+staffUserId 이중 키로 본인 메시지만 삭제(타 staff 메시지 오염 방지).
+export async function deleteAssistantMessage(id: string, staffUserId: string, executor: Executor = getDefaultDb()): Promise<void> {
+  await executor.delete(assistantMessages).where(and(eq(assistantMessages.id, id), eq(assistantMessages.staffUserId, staffUserId)));
+}

@@ -81,3 +81,122 @@ test("GET /messages?before=... → 커서를 listRecentMessages에 전달", asyn
   expect(res.status).toBe(200);
   expect(seenCursor).toMatchObject({ id: "11111111-1111-4111-8111-111111111111" });
 });
+
+// SSE 응답 텍스트 → 이벤트 배열(테스트 전용 간이 파서).
+function parseSse(text: string): { event: string; data: string }[] {
+  const events: { event: string; data: string }[] = [];
+  let event = "message";
+  let dataLines: string[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    if (line === "") {
+      if (dataLines.length > 0) events.push({ event, data: dataLines.join("\n") });
+      event = "message";
+      dataLines = [];
+    } else if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+  }
+  return events;
+}
+
+function streamRagFakes(seen: { inserted: unknown[][]; updated?: { id: string; content: string }; deletedId?: string }) {
+  assistantDeps.listRecentMessages = async () => [];
+  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
+  assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
+  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
+  assistantDeps.insertAssistantMessages = async (rows) => {
+    seen.inserted.push(rows as unknown[]);
+    return rows.map((r, i) => ({ ...r, id: `row-${i}` })) as never;
+  };
+  assistantDeps.updateAssistantMessage = async (id: string, _staffUserId: string, content: string, sources: unknown) => {
+    seen.updated = { id, content };
+    return { id, staffUserId: "s", role: "assistant", content, sources, createdAt: new Date(1) } as never;
+  };
+  assistantDeps.deleteAssistantMessage = async (id: string, _staffUserId: string) => { seen.deletedId = id; };
+}
+
+test("POST /ask stream:true → 선저장 + text 이벤트 릴레이 + done에 영속본 2건", async () => {
+  const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
+  streamRagFakes(seen);
+  assistantDeps.generateAnswerStream = async function* () { yield "안녕"; yield "하세요"; };
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toContain("text/event-stream");
+
+  const events = parseSse(await res.text());
+  const texts = events.filter((e) => e.event === "text").map((e) => (JSON.parse(e.data) as { chunk: string }).chunk);
+  expect(texts).toEqual(["안녕", "하세요"]);
+  expect(seen.inserted[0]).toHaveLength(2); // user + 빈 placeholder 선저장
+  expect(seen.updated!.id).toBe("row-1");
+  expect(seen.updated!.content).toBe("안녕하세요");
+  const done = events.find((e) => e.event === "done");
+  const messages = (JSON.parse(done!.data) as { messages: { role: string; content: string }[] }).messages;
+  expect(messages).toHaveLength(2);
+  expect(messages[1].content).toBe("안녕하세요");
+});
+
+test("POST /ask stream:true 스트림 중간 실패(부분 있음) → 부분+ERROR_SUFFIX 저장 + done", async () => {
+  const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
+  streamRagFakes(seen);
+  assistantDeps.generateAnswerStream = async function* () { yield "부분"; throw new Error("boom"); };
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const events = parseSse(await res.text());
+  expect(seen.updated!.content).toBe("부분 (연결 오류로 중단됨)");
+  expect(events.some((e) => e.event === "done")).toBe(true);
+  expect(events.some((e) => e.event === "error")).toBe(false);
+});
+
+test("POST /ask stream:true 0자 실패 → placeholder 삭제 + error 이벤트", async () => {
+  const seen: { inserted: unknown[][]; deletedId?: string } = { inserted: [] };
+  streamRagFakes(seen);
+  // eslint-disable-next-line require-yield -- 0자(즉시 실패) 시나리오 재현을 위해 의도적으로 yield 없이 throw
+  assistantDeps.generateAnswerStream = async function* () { throw new Error("boom"); };
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const events = parseSse(await res.text());
+  expect(seen.deletedId).toBe("row-1");
+  const error = events.find((e) => e.event === "error");
+  expect((JSON.parse(error!.data) as { message: string }).message).toBe("일시적으로 답변에 실패했습니다.");
+});
+
+test("POST /ask stream:true hits 0건 → 고정 문구 text 1회 + done(저장 동일)", async () => {
+  const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
+  streamRagFakes(seen);
+  assistantDeps.searchEmbeddings = async () => [];
+  // eslint-disable-next-line require-yield -- hits 0건이면 호출 자체가 없어야 함을 검증하는 가드(호출되면 즉시 throw)
+  assistantDeps.generateAnswerStream = async function* () { throw new Error("호출되면 안 됨"); };
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const events = parseSse(await res.text());
+  const texts = events.filter((e) => e.event === "text");
+  expect(texts).toHaveLength(1);
+  expect((JSON.parse(texts[0].data) as { chunk: string }).chunk).toBe("관련 CRM 데이터를 찾지 못했습니다.");
+  expect(seen.updated!.content).toBe("관련 CRM 데이터를 찾지 못했습니다.");
+});
+
+test("POST /ask stream:true 선저장(insert) 실패 → SSE 아닌 기존 catch가 JSON 500 반환", async () => {
+  // streamAsk 안의 선저장은 streamSSE 진입 전(RAG 계산과 같은 try 블록 안)이라, 실패 시
+  // SSE 프로토콜이 아니라 기존 논스트리밍 catch와 동일한 JSON 500 에러 응답이어야 한다.
+  assistantDeps.listRecentMessages = async () => [];
+  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
+  assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
+  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
+  assistantDeps.insertAssistantMessages = async () => { throw new Error("insert boom"); };
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  expect(res.status).toBe(500);
+  expect(res.headers.get("content-type")).not.toContain("text/event-stream");
+  expect((await res.json() as { error: string }).error).toBe("일시적으로 답변에 실패했습니다.");
+});
