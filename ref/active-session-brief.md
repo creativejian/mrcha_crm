@@ -1,6 +1,6 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-03 (#139 채팅 overscroll+업무 AI 프리페치 머지, #135 실시간 상담 완결 반영)
+Last updated: 2026-07-03 (#141 index.css 도메인 분할 머지, #139 프리페치/overscroll 머지)
 
 Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후 현재 CRM 작업만 빠르게 복구하기 위한 압축 문서다. 완료된 세부 로그는 git/PR과 `ref/specs|plans`를 기준으로 확인한다.
 
@@ -14,6 +14,7 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 
 ## Current Focus
 
+- **CSS 구조 변경(2026-07-03, #141 머지): `client/src/index.css` 17,187줄 단일 파일을 `client/src/styles/` 도메인별 24파일로 순서 보존 기계 분할.** index.css는 tailwind 임포트+`@import` 목록만. **`@import` 순서 = 캐스케이드 순서, 재배치 금지**(뒤 파일이 앞 파일을 의도적으로 덮는 오버라이드 다수 — index.css 상단 경고 주석 참조). 새 CSS 룰은 해당 도메인 파일에 추가(고객 상세는 shell/needs/workspace/workbench/cards/preview/tasks/work 8분할). 분할 전후 빌드 산출 CSS byte-identical 검증 완료(시각 회귀 0). git blame은 분할 시점 이전은 구 index.css로 추적.
 - **최신 진행(2026-07-02 밤): AI 슬라이스 전체 코드리뷰 + 후속 3 PR 완료·머지 + 통합 브라우저 스모크 통과.** 8앵글 리뷰(정합성3·재사용·단순화·효율·설계깊이·컨벤션, 후보 35→검증 30 생존)로 #129~#135 범위 점검. ①**#136 정합성 6건**: 서류 AI분류 경합 3건(분류 중 수동분류 클로버·삭제 후 유령 업로드·업로드 중 변경 드리프트 — `manualDocTypesRef`/`removedTempIdsRef`), regex 폴백을 'AI분류'로 오표기(→`{docType,source}` 반환+'자동인식' 배지), 담당자 assigned_at 무조건 재스탬프(→실변경 시만, 해제 시 null), 업무 AI IME Enter 가드, ChatComposer 실패 복원이 신규 입력 덮어쓰기. ②**#137 가드·정리·효율**: 서류22종 Edge↔프론트·CRM_ROLES 서버↔Edge **패리티 테스트**(드리프트 tripwire), `.md-body` CSS 공용화(2벌 미러→베이스+`--md-*` 변수, strong 드리프트 해소), `/ask` dead 필드 제거(응답=`{messages}`만·클라 `AssistantAskResult`), embedTexts **100개 배치 청킹**, `/ask` 히스토리∥임베딩 병렬, 병합 다운로드 병렬화, fileToBase64→FileReader, `EMBEDDING_DIM` 상수화, backfill collect() 헬퍼, 서류함 카드 min-height 자립. ③**#138 업무 AI 패널 구조 추출**: `useAssistantThread`(스레드 상태기계, Topbar 소유)+`AiAssistantPanel` — 히스토리 로드 실패 영구 고착(→error 상태+재시도), 늦은 초기 fetch가 새 대화 덮어쓰는 race(→id merge+복합정렬), 에러 turn 역전/동일문구 소실(→afterMessageId 자리고정+tempId), children[2] 스크롤 결합(→data-eid 앵커). Topbar -150줄. **스모크**(agent-browser, admin magiclink 세션): 업무 AI 실 Gemini RAG 왕복·마크다운·리로드 복원, 서류 업로드→'자동인식' 배지 실증→병합 6건→정리, 배정 재저장 assigned_at 불변 실증, 채팅 콘솔 큐/스레드/md-body 실측. 미실증=경합 타이밍·IME 실기(유닛으로 커버).
 - 리뷰 잔여(의도적 보류): scope seam SQL predicate·`advisor_id` 병기 → **crm.staff 파운데이션 슬라이스에서**, ChatThread↔패널 스크롤앵커·커서 페이지네이션 공용 훅 → **SSE 슬라이스 직전**, pending 배지 초기 잔량(#135 follow-up 유지), 대명사 질의 retrieval 약함(B1 기존 한계 — 유사도 임계값 follow-up과 함께).
 - 이전 진행: `crm-analyst` 서류 자동분류 **완료**(Edge Function 배포 + PR #129 머지). 후속으로 담당자 배정 DB 영속 버그 수정 머지(#130 — `crm.customers.advisor_name` 추가, `saveAdvisorField`→`savePatch` 연결, 목록 `advisor` 하드코딩 제거). 상세는 아래 요약.
@@ -84,6 +85,7 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 
 ## Files / References
 
+- CSS: `client/src/index.css`(@import 목록만) + `client/src/styles/*.css`(도메인별 24파일, **임포트 순서=캐스케이드 — 재배치 금지**)
 - Main UI: `client/src/pages/CustomerDetailPage.tsx`
 - Customer detail components/hooks: `client/src/components/customer-detail/`
 - CRM AI: `supabase/functions/crm-analyst/`(Task 1~7 완료, 배포 대기) + 프론트 `client/src/lib/document-classify.ts`
