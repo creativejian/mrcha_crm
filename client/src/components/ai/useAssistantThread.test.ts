@@ -150,11 +150,24 @@ describe("useAssistantThread", () => {
     expect(result.current.asking).toBe(false);
   });
 
+  it("submit(0청크 즉시 done): onChunk 없이 완료돼도 영속본으로 교체된다", async () => {
+    fetchMessages.mockResolvedValue([]);
+    askStream.mockImplementation(async () => ({ messages: [msg(1, "user"), msg(2, "assistant")] }));
+
+    const { result } = renderHook(() => useAssistantThread());
+    await act(async () => {
+      await result.current.submit("질문");
+    });
+
+    expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]);
+    expect(result.current.asking).toBe(false);
+  });
+
   it("submit 중 streamText가 점진 노출된다(드레인 틱)", async () => {
     fetchMessages.mockResolvedValue([]);
     let release!: () => void;
     askStream.mockImplementation((_q, handlers) => {
-      handlers.onChunk("가나다라마바사아자차카타파하");
+      handlers.onChunk("가".repeat(200));
       return new Promise((res) => {
         release = () => res({ messages: [msg(1, "user"), msg(2, "assistant")] });
       });
@@ -171,7 +184,7 @@ describe("useAssistantThread", () => {
       expect(pending && pending.kind === "pending" ? (pending.streamText?.length ?? 0) : 0).toBeGreaterThan(0);
     });
     const early = result.current.entries.find((e) => e.kind === "pending");
-    expect(early!.kind === "pending" && early!.streamText!.length).toBeLessThan(14); // 도입부 2자/틱 — 전체가 한 번에 나오지 않음
+    expect(early!.kind === "pending" && early!.streamText!.length).toBeLessThan(200); // 도입부 2자/틱 — 전체가 한 번에 나오지 않음
 
     act(() => release());
     await act(async () => {

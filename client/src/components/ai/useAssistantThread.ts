@@ -49,8 +49,18 @@ export function useAssistantThread() {
   // 직전 갱신이 "이전 메시지 prepend"였으면 새 배치의 최상단 메시지 id — 패널이 소비 후 null로 되돌린다.
   const prependAnchorRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const drainTimerRef = useRef<ReturnType<typeof setInterval> | null>(null); // asking 가드로 동시 1턴만 사용
   // 직전 갱신이 "새 턴 전송"이면 그 tempId — 패널이 앵커 스크롤 후 null로 되돌린다(prependAnchorRef와 동일 패턴).
   const newTurnAnchorRef = useRef<string | null>(null);
+
+  // 언마운트 시 in-flight 스트림 abort + 드레인 타이머 정리(Topbar 상주라 드물지만 hang된 스트림의 유일한 회복 경로 보강).
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+      if (drainTimerRef.current) clearInterval(drainTimerRef.current);
+    },
+    [],
+  );
 
   // pending은 afterMessageId 뒤에 끼워 시간순을 유지한다(성공 대화가 나중에 와도 실패 turn이 아래로 밀리지 않음).
   const entries = useMemo<AssistantThreadEntry[]>(() => {
@@ -126,20 +136,19 @@ export function useAssistantThread() {
     const abort = new AbortController();
     abortRef.current = abort;
 
-    // 드레인 상태(이 턴 로컬 — state가 아니라 지역 변수, 38ms 틱이 setPendings로만 반영)
+    // 드레인 상태(이 턴 로컬 — state가 아니라 지역 변수, 38ms 틱이 setPendings로만 반영. 타이머 핸들만 언마운트 정리용 ref)
     let fullText = "";
     let displayLength = 0;
     let doneResult: AssistantAskResult | null = null;
-    let timer: ReturnType<typeof setInterval> | null = null;
     let settleDrain: (() => void) | null = null;
     const drained = new Promise<void>((resolve) => {
       settleDrain = resolve;
     });
 
     const stopTimer = () => {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
+      if (drainTimerRef.current) {
+        clearInterval(drainTimerRef.current);
+        drainTimerRef.current = null;
       }
     };
     const pump = () => {
@@ -155,7 +164,7 @@ export function useAssistantThread() {
       }
     };
     const ensureTimer = () => {
-      if (!timer) timer = setInterval(pump, DRAIN_TICK_MS);
+      if (!drainTimerRef.current) drainTimerRef.current = setInterval(pump, DRAIN_TICK_MS);
     };
 
     try {
