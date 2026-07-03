@@ -35,9 +35,24 @@ test("스트림 중간 실패(부분 있음): ' (연결 오류로 중단됨)' su
   expect(h.calls.updated!.content).toBe(`부분${ERROR_SUFFIX}`);
 });
 
+test("aborted+failed 동시: aborted 우선 — ' (중단됨)' suffix 저장", async () => {
+  const h = harness();
+  const out = await finalizeStreamedAnswer({ fullText: "부분", aborted: true, failed: true, sources: null, update: h.update, remove: h.remove });
+  expect(out.kind).toBe("done");
+  expect(h.calls.updated!.content).toBe(`부분${STOP_SUFFIX}`);
+});
+
 test("0자(중단/실패/빈 완료 공통): placeholder 삭제 + error", async () => {
   const h = harness();
   const out = await finalizeStreamedAnswer({ fullText: "", aborted: true, failed: false, sources: null, update: h.update, remove: h.remove });
+  expect(out.kind).toBe("error");
+  expect(h.calls.removed).toBe(true);
+  expect(h.calls.updated).toBeUndefined();
+});
+
+test("0자 정상완료(aborted/failed 모두 false): remove 호출 + error", async () => {
+  const h = harness();
+  const out = await finalizeStreamedAnswer({ fullText: "", aborted: false, failed: false, sources: null, update: h.update, remove: h.remove });
   expect(out.kind).toBe("error");
   expect(h.calls.removed).toBe(true);
   expect(h.calls.updated).toBeUndefined();

@@ -8,6 +8,7 @@ export type StreamOutcome = { kind: "done"; assistant: AssistantMessageRow } | {
 // 스트리밍 종료 상태에 따라 선저장된 placeholder를 마감한다.
 // - 0자: 삭제 + error (빈 assistant 메시지를 히스토리에 남기지 않음 — 정상 done인데 0자여도 동일)
 // - aborted: STOP_SUFFIX / failed: ERROR_SUFFIX / 정상: 원문 그대로. sources는 부분 저장에도 동일 근거라 항상 저장.
+// - aborted와 failed가 동시에 true면 aborted 우선(사용자가 직접 끊은 것이 근본 원인 — STOP_SUFFIX).
 export async function finalizeStreamedAnswer(opts: {
   fullText: string;
   aborted: boolean;
