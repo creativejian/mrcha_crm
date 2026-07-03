@@ -260,6 +260,43 @@ describe("useAssistantThread", () => {
     await waitFor(() => expect(result.current.entries.map((e) => e.kind)).toEqual(["message"]), { timeout: 4000 });
   }, 10000);
 
+  it("stop: done 수신 후 드레인(타자기) 중 중지 → 즉시 전체 노출·턴 마감(제어 지연 0)", async () => {
+    const full = "긴답변".repeat(120); // 360자 — 드레인이 수 초 걸리는 길이
+    const persisted = [msg(1, "user"), { ...msg(2, "assistant"), content: full }];
+    askStream.mockImplementation((_q, handlers) => {
+      handlers.onChunk(full);
+      return Promise.resolve({ messages: persisted }); // done 즉시 — 생성·저장 완료, 드레인만 남음
+    });
+
+    const { result } = renderHook(() => useAssistantThread());
+    let submitP!: Promise<boolean>;
+    act(() => {
+      submitP = result.current.submit("질문");
+    });
+    // 드레인이 일부만 노출한 시점(전체보다 짧음)에서 중지
+    await waitFor(() => {
+      const p = result.current.entries.find((e) => e.kind === "pending");
+      const len = p && p.kind === "pending" ? (p.streamText?.length ?? 0) : 0;
+      expect(len).toBeGreaterThan(0);
+      expect(len).toBeLessThan(full.length);
+    });
+
+    act(() => result.current.stop());
+    // 즉시성 검증: 드레인 완주(잔여 300자+ ≈ 1초+)를 기다리지 않고 수십 ms 안에 마감돼야 한다.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(result.current.entries.map((e) => e.kind)).toEqual(["message", "message"]);
+    const last = result.current.entries.at(-1)!;
+    expect(last.kind === "message" && last.message.content).toBe(full);
+
+    await act(async () => {
+      await expect(submitP).resolves.toBe(true); // 정상 마감으로 종료(중단 아님)
+    });
+    expect(result.current.asking).toBe(false);
+    expect(fetchMessages).toHaveBeenCalledTimes(0);
+  }, 10000);
+
   it("stop: 재조회의 마지막 행이 아직 빈 placeholder면 재시도해 마감본을 받는다(prod 마감 지연 흡수)", async () => {
     askStream.mockImplementation((_q, handlers, signal) => {
       handlers.onChunk("부분답변");
