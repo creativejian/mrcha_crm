@@ -123,6 +123,14 @@ const quoteScenarioBody = z.object({
   residualValue: z.string().nullable().optional(),
   mileageMode: z.string().nullable().optional(),
   mileageValue: z.string().nullable().optional(),
+  // 앱카드 4섹션(2026-07-04): 계산엔진 연결 전 수기 입력 결과 필드 + 자동차세/보조금
+  carTaxIncluded: z.boolean().nullable().optional(),
+  subsidyApplicable: z.boolean().nullable().optional(),
+  subsidyAmount: z.string().nullable().optional(),
+  totalReturnCost: z.string().nullable().optional(),
+  totalTakeoverCost: z.string().nullable().optional(),
+  dueAtDelivery: z.string().nullable().optional(),
+  interestRate: z.string().nullable().optional(),
 });
 const quoteGuidanceSchema = z.object({
   deliveryComment: z.string(),

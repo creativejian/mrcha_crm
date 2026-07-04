@@ -755,6 +755,45 @@ test("견적 다중 시나리오(#4c-3a): scenario 단수 하위호환 — 1건 
   }
 });
 
+test("견적 시나리오 확장 필드(앱카드): 금리·총비용·자동차세·보조금 왕복", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  let quoteId: string | null = null;
+  try {
+    const created = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h,
+      body: JSON.stringify({
+        entryMode: "manual", status: "작성중",
+        scenarios: [{
+          scenarioNo: 1, isSaved: true, purchaseMethod: "운용리스", lender: "우리금융캐피탈",
+          monthlyPayment: "1473200", termMonths: 60,
+          carTaxIncluded: false, subsidyApplicable: true, subsidyAmount: "1000000",
+          totalReturnCost: "167652170", totalTakeoverCost: "182000000", dueAtDelivery: "3000000",
+          interestRate: "5.32",
+        }],
+      }),
+    });
+    expect(created.status).toBe(201);
+    quoteId = ((await created.json()) as { id: string }).id;
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+      quotes: Array<{ id: string; scenarios: Array<Record<string, unknown>> }>;
+    };
+    const sc = detail.quotes.find((x) => x.id === quoteId)!.scenarios[0];
+    expect(sc.carTaxIncluded).toBe(false);
+    expect(sc.subsidyApplicable).toBe(true);
+    expect(sc.subsidyAmount).toBe("1000000");
+    expect(sc.totalReturnCost).toBe("167652170");
+    expect(sc.totalTakeoverCost).toBe("182000000");
+    expect(sc.dueAtDelivery).toBe("3000000");
+    expect(sc.interestRate).toBe("5.32");
+  } finally {
+    if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
 test("진행상태 검증: 종속 안 맞는 status → 400", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });

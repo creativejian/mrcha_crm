@@ -68,6 +68,14 @@ export type ScenarioInput = QuoteScenarioPatch & {
   residualValue?: string | null;
   mileageMode?: string | null;
   mileageValue?: string | null;
+  // 앱카드 4섹션(2026-07-04): 계산엔진 연결 전 수기 입력 결과 필드 + 자동차세/보조금
+  carTaxIncluded?: boolean | null;
+  subsidyApplicable?: boolean | null;
+  subsidyAmount?: string | null;
+  totalReturnCost?: string | null;
+  totalTakeoverCost?: string | null;
+  dueAtDelivery?: string | null;
+  interestRate?: string | null;
 };
 
 // 헤더 컬럼만 골라 set 객체로(컬럼 아닌 키 bumpRevision/scenario는 제외).
@@ -256,6 +264,13 @@ async function insertScenarios(
       residualValue: sc.residualValue ?? null,
       mileageMode: sc.mileageMode ?? null,
       mileageValue: sc.mileageValue ?? null,
+      carTaxIncluded: sc.carTaxIncluded ?? null,
+      subsidyApplicable: sc.subsidyApplicable ?? null,
+      subsidyAmount: sc.subsidyAmount ?? null,
+      totalReturnCost: sc.totalReturnCost ?? null,
+      totalTakeoverCost: sc.totalTakeoverCost ?? null,
+      dueAtDelivery: sc.dueAtDelivery ?? null,
+      interestRate: sc.interestRate ?? null,
     }).returning({ id: quoteScenarios.id });
     inserted.push({ id: s.id, scenarioNo });
   }
