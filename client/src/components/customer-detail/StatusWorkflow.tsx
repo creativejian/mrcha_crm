@@ -2,8 +2,8 @@ import { Check, History, MessageSquareText } from "lucide-react";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { CHANCE_OPTIONS, customerStatusGroups, type Customer } from "@/data/customers";
-import { kimConsultKindClass } from "@/lib/kim-detail-utils";
-import { hasKimAppSourceQueue } from "@/lib/kim-status-fields";
+import { kimConsultKindClass } from "@/lib/detail-utils";
+import { hasKimAppSourceQueue } from "@/lib/status-fields";
 
 import { AdvisorStatusEditor, JobStatusEditor, LocationStatusEditor, PhoneStatusInput, SourceStatusEditor } from "./StatusFieldEditors";
 import { fieldLabel, isKimUnassignedStatus, kimChanceOptionClass, kimChanceValueClass, kimMinjunStatusFieldMeta, kimMinjunWorkflowMeta } from "./status-meta";

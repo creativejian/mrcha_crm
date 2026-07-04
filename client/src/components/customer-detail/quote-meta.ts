@@ -1,7 +1,7 @@
 // 견적함 영역(9a)의 순수 표시 헬퍼 — 본체에서 이동(동작/로직 무변경).
 // JSX를 반환하는 kimQuoteSourceIcon은 QuoteList.tsx에 둔다(이 파일은 문자열/클래스만).
 
-import { type KimQuoteItem } from "@/lib/kim-quote";
+import { type KimQuoteItem } from "@/lib/quote-items";
 
 // kimQuoteAppStatusLabel(행 상태 배지)·kimQuoteAppSendLabel(액션 팝오버 발송 라벨)은
 // 현재 구현이 동일하지만 의미(상태 표시 / 발송 표시)가 달라 분기 여지를 위해 분리 유지한다.

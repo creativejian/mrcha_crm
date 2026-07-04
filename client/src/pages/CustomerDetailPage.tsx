@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { nowMs } from "@/lib/kim-detail-utils";
-import { type KimPurchasePopoverFrame, isKimPurchaseFloatingKind } from "@/lib/kim-popover-frames";
+import { nowMs } from "@/lib/detail-utils";
+import { type KimPurchasePopoverFrame, isKimPurchaseFloatingKind } from "@/lib/popover-frames";
 import { type KimRecentUpdate, type OpenEditorState } from "@/components/customer-detail/types";
 import { CustomerDetailHeader } from "@/components/customer-detail/CustomerDetailHeader";
 import { CustomerMemos } from "@/components/customer-detail/CustomerMemos";

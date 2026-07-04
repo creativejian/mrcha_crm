@@ -1,10 +1,10 @@
 import { BriefcaseBusiness, Calculator, Check, ChevronDown, Download, Eye, FilePlus2, FileText, FileUp, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Send, Star, Trash2, UserRound, X } from "lucide-react";
 
 import { type Customer } from "@/data/customers";
-import { formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
+import { formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/quote-items";
 import { formatMoney } from "@/lib/quote-pricing";
-import { formatKimFileSize, isDocumentFileDrag, kimDocumentFileKind, kimQuoteValidClass } from "@/lib/kim-detail-utils";
-import { calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
+import { formatKimFileSize, isDocumentFileDrag, kimDocumentFileKind, kimQuoteValidClass } from "@/lib/detail-utils";
+import { calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/popover-frames";
 import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
 
 import {

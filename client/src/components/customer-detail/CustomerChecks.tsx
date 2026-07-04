@@ -1,8 +1,8 @@
 import { Check, Trash2 } from "lucide-react";
 
 import { TASK_CATEGORY_OPTIONS } from "@/data/customers";
-import { kimCheckDueOptions, parseKimCheckDueDate } from "@/lib/kim-detail-utils";
-import { type KimCheckItem } from "@/lib/kim-schedule";
+import { kimCheckDueOptions, parseKimCheckDueDate } from "@/lib/detail-utils";
+import { type KimCheckItem } from "@/lib/schedule-items";
 
 import type { useCustomerChecks } from "./hooks/useCustomerChecks";
 

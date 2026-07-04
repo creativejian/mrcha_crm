@@ -1,6 +1,6 @@
 import { ChevronRight } from "lucide-react";
 
-import { formatKimRecentUpdateTime } from "@/lib/kim-detail-utils";
+import { formatKimRecentUpdateTime } from "@/lib/detail-utils";
 
 import type { KimRecentUpdate } from "./types";
 

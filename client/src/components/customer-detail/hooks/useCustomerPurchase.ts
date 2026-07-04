@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction, type SyntheticEvent } from "react";
 
-import { formatKimNumberWithCommas } from "@/lib/kim-detail-utils";
-import { calculateKimPurchasePopoverFrame, type KimPurchaseFloatingKind, type KimPurchasePopoverFrame } from "@/lib/kim-popover-frames";
+import { formatKimNumberWithCommas } from "@/lib/detail-utils";
+import { calculateKimPurchasePopoverFrame, type KimPurchaseFloatingKind, type KimPurchasePopoverFrame } from "@/lib/popover-frames";
 import { type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 
 import { type OpenEditorState } from "../types";

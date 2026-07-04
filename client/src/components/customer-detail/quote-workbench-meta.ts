@@ -2,7 +2,7 @@
 // 훅(useQuoteWorkbench)과 컴포넌트(QuoteWorkbench)가 공유한다.
 
 import { PURCHASE_METHOD_OPTIONS, type PurchaseMethod } from "@/data/customers";
-import { type KimQuoteItem } from "@/lib/kim-quote";
+import { type KimQuoteItem } from "@/lib/quote-items";
 import { type QuoteGuidance } from "@/data/quote-guidance";
 import { computePricing, type PricingInputs } from "@/lib/quote-pricing";
 

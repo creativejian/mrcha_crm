@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { type Customer } from "@/data/customers";
 import { addTask, updateTask, deleteTask } from "@/lib/customer-children";
 import { type CustomerDetailData } from "@/lib/customers";
-import { formatShortDateLabel, kimCheckDueOptions, kimCheckDueSelection } from "@/lib/kim-detail-utils";
-import { sortKimCheckItemsByWorkRule, type KimCheckItem } from "@/lib/kim-schedule";
+import { formatShortDateLabel, kimCheckDueOptions, kimCheckDueSelection } from "@/lib/detail-utils";
+import { sortKimCheckItemsByWorkRule, type KimCheckItem } from "@/lib/schedule-items";
 
 type UseCustomerChecksArgs = {
   detail: CustomerDetailData; // 초기 checkItems / completedCheckItems 매핑 소스

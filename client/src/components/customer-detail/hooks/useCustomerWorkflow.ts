@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type Se
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { formatActivity, formatPhone, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { finalUpdateStatus, resolveChance } from "@/lib/customer-table";
-import { formatKimAssignmentTime } from "@/lib/kim-detail-utils";
-import { type KimAdvisorTeam, type KimCustomerType, formatKimAdvisorValue, formatKimJobValue, formatKimLocationValue, isKimAutomaticSource } from "@/lib/kim-status-fields";
+import { formatKimAssignmentTime } from "@/lib/detail-utils";
+import { type KimAdvisorTeam, type KimCustomerType, formatKimAdvisorValue, formatKimJobValue, formatKimLocationValue, isKimAutomaticSource } from "@/lib/status-fields";
 import { deriveFinalUpdateInfo } from "@/lib/manage-status";
 
 import { fieldLabel } from "../status-meta";

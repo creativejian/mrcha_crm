@@ -3,7 +3,7 @@
 //   - 메모: 작성일(시:분) 오름차순
 //   - 해야 할 일: 완료 항목 먼저, 그다음 미완료를 급함→오늘→내일→이번 주→지정 순
 //   - 예정 일정: 날짜+시간 오름차순
-import { kimCheckDueDateRank, kimCheckDueRank, kimTimeLabelMinutes } from "./kim-detail-utils";
+import { kimCheckDueDateRank, kimCheckDueRank, kimTimeLabelMinutes } from "./detail-utils";
 
 export type KimScheduleItem = {
   id: string;

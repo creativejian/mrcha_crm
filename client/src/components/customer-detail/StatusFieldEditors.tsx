@@ -1,6 +1,6 @@
 import { useState, type SyntheticEvent } from "react";
 
-import { formatLocalPhone, localPhoneFrom } from "@/lib/kim-detail-utils";
+import { formatLocalPhone, localPhoneFrom } from "@/lib/detail-utils";
 import {
   type KimAdvisorTeam,
   type KimCustomerType,
@@ -13,7 +13,7 @@ import {
   parseKimJobValue,
   parseKimLocationValue,
   parseKimSourceValue,
-} from "@/lib/kim-status-fields";
+} from "@/lib/status-fields";
 
 // 직군 상세분류 옵션(개인일 때). 본체에서 이동 — 값 무변경.
 const kimPersonalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];

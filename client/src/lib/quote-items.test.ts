@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { flattenPrimaryScenario, formatScenarioMoneyMode, toKimQuoteItem, type CustomerDetailQuote } from "./kim-quote";
+import { flattenPrimaryScenario, formatScenarioMoneyMode, toKimQuoteItem, type CustomerDetailQuote } from "./quote-items";
 
 const NOW = new Date("2026-05-28T12:00:00+09:00").getTime();
 

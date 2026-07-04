@@ -2,10 +2,10 @@ import { Calculator, Check, ChevronDown, ChevronRight, FilePlus2, FileText, File
 
 import { type Customer } from "@/data/customers";
 import { formatMoney } from "@/lib/quote-pricing";
-import { isDocumentFileDrag } from "@/lib/kim-detail-utils";
+import { isDocumentFileDrag } from "@/lib/detail-utils";
 import { QUOTE_GUIDANCE_OPTIONS } from "@/data/quote-guidance";
 import { ColorPicker } from "@/components/ColorPicker";
-import { KimAppCardPreview } from "@/components/KimAppCardPreview";
+import { KimAppCardPreview } from "@/components/AppCardPreview";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker } from "@/components/VehiclePicker";
 

@@ -1,5 +1,5 @@
 import { DOC_TYPE_OPTIONS } from "@/data/customers";
-import { classifyKimDocumentFile } from "@/lib/kim-detail-utils";
+import { classifyKimDocumentFile } from "@/lib/detail-utils";
 
 import { createImageThumbnail } from "./image-thumbnail";
 import { supabase } from "./supabase";

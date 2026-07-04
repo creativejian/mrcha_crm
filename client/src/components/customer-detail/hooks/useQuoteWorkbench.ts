@@ -3,15 +3,15 @@ import { useLocation, useNavigate } from "react-router";
 
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
-import { flattenPrimaryScenario, type CustomerDetailScenario, type KimQuoteItem } from "@/lib/kim-quote";
+import { flattenPrimaryScenario, type CustomerDetailScenario, type KimQuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, type QuoteGuidance } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { type VehicleSelection } from "@/components/VehiclePicker";
-import { buildAppCardModel, type AppCardModel } from "@/lib/kim-app-card";
+import { buildAppCardModel, type AppCardModel } from "@/lib/app-card";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
-import { nowMs, formatKoreanShortTime } from "@/lib/kim-detail-utils";
+import { nowMs, formatKoreanShortTime } from "@/lib/detail-utils";
 
 import { kimMinjunPurchaseFields } from "../purchase-meta";
 import {

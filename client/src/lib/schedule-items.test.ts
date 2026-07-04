@@ -9,7 +9,7 @@ import {
   type KimCheckItem,
   type KimCustomerMemoItem,
   type KimScheduleItem,
-} from "./kim-schedule";
+} from "./schedule-items";
 
 describe("scheduleRecordKey", () => {
   it("일정의 id를 키로 반환한다", () => {

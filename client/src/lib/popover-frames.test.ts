@@ -5,7 +5,7 @@ import {
   calculateKimQuoteStatusTooltip,
   isKimPurchaseFloatingKind,
   kimPurchasePopoverSize,
-} from "./kim-popover-frames";
+} from "./popover-frames";
 
 // getBoundingClientRect만 쓰므로 rect를 주입한 가짜 element로 충분하다.
 // 뷰포트는 jsdom 기본값(window.innerWidth 1024 / innerHeight 768)을 가정한다.

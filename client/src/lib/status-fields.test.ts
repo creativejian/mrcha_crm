@@ -10,7 +10,7 @@ import {
   parseKimJobValue,
   parseKimLocationValue,
   parseKimSourceValue,
-} from "./kim-status-fields";
+} from "./status-fields";
 
 describe("직군 (job)", () => {
   it("parseKimJobValue는 '유형 · 상세'를 가르고, 미상 유형은 개인+4대보험으로 폴백", () => {

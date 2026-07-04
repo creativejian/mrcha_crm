@@ -1,6 +1,6 @@
 import type { Customer } from "@/data/customers";
 import { getJson, sendVoid } from "./http";
-import type { CustomerDetailQuote } from "./kim-quote";
+import type { CustomerDetailQuote } from "./quote-items";
 
 // 백엔드 listCustomers 응답 1행(camelCase, null 가능). 상세는 추가 자식 필드 포함.
 export type CustomerRow = {

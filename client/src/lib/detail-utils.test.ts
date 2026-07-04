@@ -17,7 +17,7 @@ import {
   localPhoneFrom,
   parseKimCheckDueDate,
   phoneChunks,
-} from "./kim-detail-utils";
+} from "./detail-utils";
 
 describe("classifyKimDocumentFile", () => {
   it("파일명 키워드로 서류 종류를 분류한다", () => {

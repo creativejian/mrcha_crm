@@ -1,8 +1,8 @@
 import { CalendarClock, Check, Trash2 } from "lucide-react";
 
 import { SCHEDULE_TYPE_OPTIONS } from "@/data/customers";
-import { formatDateInputValue, formatScheduleDateLabel, kimScheduleHourOptions, kimScheduleMinuteOptions, parseScheduleTimeParts } from "@/lib/kim-detail-utils";
-import { scheduleRecordKey, type KimScheduleItem } from "@/lib/kim-schedule";
+import { formatDateInputValue, formatScheduleDateLabel, kimScheduleHourOptions, kimScheduleMinuteOptions, parseScheduleTimeParts } from "@/lib/detail-utils";
+import { scheduleRecordKey, type KimScheduleItem } from "@/lib/schedule-items";
 
 import type { useCustomerSchedules } from "./hooks/useCustomerSchedules";
 

@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent as ReactD
 
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
-import { toKimQuoteItem, flattenPrimaryScenario, type KimQuoteItem } from "@/lib/kim-quote";
+import { toKimQuoteItem, flattenPrimaryScenario, type KimQuoteItem } from "@/lib/quote-items";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl } from "@/lib/customer-quotes";
-import { formatKoreanShortTime } from "@/lib/kim-detail-utils";
-import { type KimQuoteActionFrame, type KimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
+import { formatKoreanShortTime } from "@/lib/detail-utils";
+import { type KimQuoteActionFrame, type KimQuoteStatusTooltip } from "@/lib/popover-frames";
 
 import { kimQuoteStatusDetailParts } from "../quote-meta";
 

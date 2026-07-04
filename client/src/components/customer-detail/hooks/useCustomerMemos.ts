@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { type Customer } from "@/data/customers";
 import { addMemo, updateMemo, deleteMemo } from "@/lib/customer-children";
 import { formatActivity, type CustomerDetailData } from "@/lib/customers";
-import { formatKoreanShortTime } from "@/lib/kim-detail-utils";
-import { sortKimCustomerMemosByCreatedAt, type KimCustomerMemoItem } from "@/lib/kim-schedule";
+import { formatKoreanShortTime } from "@/lib/detail-utils";
+import { sortKimCustomerMemosByCreatedAt, type KimCustomerMemoItem } from "@/lib/schedule-items";
 
 type UseCustomerMemosArgs = {
   detail: CustomerDetailData; // 초기 customerMemos 매핑 소스

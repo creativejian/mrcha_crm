@@ -1,6 +1,6 @@
 import type { QuoteGuidance } from "@/data/quote-guidance";
 import type { ScenarioInput } from "./customer-quotes";
-import { formatScenarioMoneyMode, formatTerm } from "./kim-quote";
+import { formatScenarioMoneyMode, formatTerm } from "./quote-items";
 import { formatMoney } from "./quote-pricing";
 
 // 미리보기 카드 조립 입력. 워크벤치 state에서 추출한 스냅샷(순수 변환을 위해 원시값만 받는다).

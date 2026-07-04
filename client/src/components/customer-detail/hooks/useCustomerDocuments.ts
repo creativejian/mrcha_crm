@@ -5,7 +5,7 @@ import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocume
 import { type CustomerDetailData } from "@/lib/customers";
 import { classifyDocumentWithAI } from "@/lib/document-classify";
 import type { MergeSource } from "@/lib/document-merge";
-import { isDocumentFileDrag, kimDocumentFileKind, nowMs } from "@/lib/kim-detail-utils";
+import { isDocumentFileDrag, kimDocumentFileKind, nowMs } from "@/lib/detail-utils";
 import { type KimDocumentItem } from "@/components/customer-detail/types";
 
 type UseCustomerDocumentsArgs = {

@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { type Customer } from "@/data/customers";
 import { addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { type CustomerDetailData } from "@/lib/customers";
-import { nowMs, scheduleTimeFromFormData } from "@/lib/kim-detail-utils";
-import { sortKimSchedulesByDateTime, scheduleRecordKey, type KimScheduleItem } from "@/lib/kim-schedule";
+import { nowMs, scheduleTimeFromFormData } from "@/lib/detail-utils";
+import { sortKimSchedulesByDateTime, scheduleRecordKey, type KimScheduleItem } from "@/lib/schedule-items";
 
 type UseCustomerSchedulesArgs = {
   detail: CustomerDetailData; // 초기 schedules / completedScheduleKeys 매핑 소스

@@ -1,7 +1,7 @@
 import { Download, Eye, File, FileText, FileUp, FolderOpen, GripVertical, Image, Paperclip, Trash2, X } from "lucide-react";
 
 import { DOC_TYPE_OPTIONS } from "@/data/customers";
-import { formatKimFileSize, kimDocumentFileKind } from "@/lib/kim-detail-utils";
+import { formatKimFileSize, kimDocumentFileKind } from "@/lib/detail-utils";
 
 import type { useCustomerDocuments } from "./hooks/useCustomerDocuments";
 

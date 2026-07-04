@@ -1,8 +1,8 @@
 import { ListChecks } from "lucide-react";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
-import { formatKimNumberWithCommas, isKimPurchaseTagField, kimPurchaseTags, kimPurchaseValueClass } from "@/lib/kim-detail-utils";
-import { isKimPurchaseFloatingKind, type KimPurchasePopoverFrame } from "@/lib/kim-popover-frames";
+import { formatKimNumberWithCommas, isKimPurchaseTagField, kimPurchaseTags, kimPurchaseValueClass } from "@/lib/detail-utils";
+import { isKimPurchaseFloatingKind, type KimPurchasePopoverFrame } from "@/lib/popover-frames";
 
 import {
   kimAnnualMileageOptions,
