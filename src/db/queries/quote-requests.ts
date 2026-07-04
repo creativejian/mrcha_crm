@@ -16,6 +16,7 @@ export type AppQuoteRequestRow = {
   rentalDeposit: number | null;
   trimPrice: number | null;
   status: string | null;
+  depositRatio: number | null;
   brandName: string | null;
   modelName: string | null;
   trimName: string | null;
@@ -24,6 +25,7 @@ export type AppQuoteRequestRow = {
   matchedCustomerName: string | null;
   matchedCustomerCode: string | null;
   promotedQuoteCount: number;
+  promotedQuoteIds: string[];
   matchType: "app_user" | "phone" | "none";
 };
 
@@ -37,6 +39,7 @@ type QuoteRequestBaseRow = {
   paymentMethod: string | null;
   period: number | null;
   depositType: string | null;
+  depositRatio: number | null;
   rentalDeposit: number | null;
   trimPrice: number | null;
   status: string | null;
@@ -96,9 +99,10 @@ async function buildAppQuoteRequestRows(
         ),
       ),
     executor
-      .select({ sourceId: quotes.sourceQuoteRequestId })
+      .select({ id: quotes.id, sourceId: quotes.sourceQuoteRequestId, createdAt: quotes.createdAt })
       .from(quotes)
-      .where(inArray(quotes.sourceQuoteRequestId, reqIds)),
+      .where(inArray(quotes.sourceQuoteRequestId, reqIds))
+      .orderBy(desc(quotes.createdAt)),
   ]);
 
   const trimMap = new Map(trimRows.map((t) => [t.id, t]));
@@ -106,9 +110,13 @@ async function buildAppQuoteRequestRows(
   const optCount = new Map<string, number>();
   for (const o of optRows) optCount.set(o.quoteRequestId, (optCount.get(o.quoteRequestId) ?? 0) + 1);
 
-  const promoCount = new Map<string, number>();
+  // promoRows는 createdAt desc로 이미 정렬돼 있어(위 orderBy), req별로 순서대로 push하면 최신 우선 배열이 된다.
+  const promoIdsByReq = new Map<string, string[]>();
   for (const p of promoRows) {
-    if (p.sourceId) promoCount.set(p.sourceId, (promoCount.get(p.sourceId) ?? 0) + 1);
+    if (!p.sourceId) continue;
+    const ids = promoIdsByReq.get(p.sourceId) ?? [];
+    ids.push(p.id);
+    promoIdsByReq.set(p.sourceId, ids);
   }
 
   // 매칭: app_user_id 직접연결 > phone 일치 (둘 다 표시용 read)
@@ -127,6 +135,7 @@ async function buildAppQuoteRequestRows(
     const byPhone = r.requesterPhone ? custByPhone.get(r.requesterPhone) : undefined;
     const matched = byApp ?? byPhone ?? null;
     const matchType: AppQuoteRequestRow["matchType"] = byApp ? "app_user" : byPhone ? "phone" : "none";
+    const promotedQuoteIds = promoIdsByReq.get(r.id) ?? [];
     return {
       id: r.id,
       createdAt: r.createdAt,
@@ -135,6 +144,7 @@ async function buildAppQuoteRequestRows(
       paymentMethod: r.paymentMethod,
       period: r.period,
       depositType: r.depositType,
+      depositRatio: r.depositRatio,
       rentalDeposit: r.rentalDeposit,
       trimPrice: r.trimPrice,
       status: r.status,
@@ -145,7 +155,8 @@ async function buildAppQuoteRequestRows(
       matchedCustomerId: matched?.id ?? null,
       matchedCustomerName: matched?.name ?? null,
       matchedCustomerCode: matched?.code ?? null,
-      promotedQuoteCount: promoCount.get(r.id) ?? 0,
+      promotedQuoteCount: promotedQuoteIds.length,
+      promotedQuoteIds,
       matchType,
     };
   });
@@ -160,6 +171,7 @@ const quoteRequestBaseSelect = {
   paymentMethod: quoteRequests.paymentMethod,
   period: quoteRequests.period,
   depositType: quoteRequests.depositType,
+  depositRatio: quoteRequests.depositRatio,
   rentalDeposit: quoteRequests.rentalDeposit,
   trimPrice: quoteRequests.trimPrice,
   status: quoteRequests.status,
@@ -195,6 +207,10 @@ export type QuoteRequestDetail = {
   id: string;
   trimId: number | null;
   paymentMethod: string | null;
+  period: number | null;
+  depositType: string | null;
+  depositRatio: number | null;
+  rentalDeposit: number | null;
   optionIds: number[];
 };
 
@@ -204,7 +220,15 @@ export async function getQuoteRequestDetail(
   executor: Executor = getDefaultDb(),
 ): Promise<QuoteRequestDetail | null> {
   const [req] = await executor
-    .select({ id: quoteRequests.id, trimId: quoteRequests.trimId, paymentMethod: quoteRequests.paymentMethod })
+    .select({
+      id: quoteRequests.id,
+      trimId: quoteRequests.trimId,
+      paymentMethod: quoteRequests.paymentMethod,
+      period: quoteRequests.period,
+      depositType: quoteRequests.depositType,
+      depositRatio: quoteRequests.depositRatio,
+      rentalDeposit: quoteRequests.rentalDeposit,
+    })
     .from(quoteRequests)
     .where(eq(quoteRequests.id, requestId));
   if (!req) return null;
@@ -213,7 +237,16 @@ export async function getQuoteRequestDetail(
     .from(quoteRequestOptions)
     .where(eq(quoteRequestOptions.quoteRequestId, requestId));
   const optionIds = opts.map((o) => o.optId).filter((v): v is number => v != null);
-  return { id: req.id, trimId: req.trimId, paymentMethod: req.paymentMethod, optionIds };
+  return {
+    id: req.id,
+    trimId: req.trimId,
+    paymentMethod: req.paymentMethod,
+    period: req.period,
+    depositType: req.depositType,
+    depositRatio: req.depositRatio,
+    rentalDeposit: req.rentalDeposit,
+    optionIds,
+  };
 }
 
 // 다음 고객 코드 CU-YYMM-#### (현재월 기준, 기존 최대 시퀀스 +1). customer_code UNIQUE라 서버가 canonical 생성.

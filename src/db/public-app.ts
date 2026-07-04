@@ -6,7 +6,7 @@
 
 // 주의: drizzle은 pgSchema("public")을 금지한다(throw) — public은 postgres 기본 스키마라
 // pgTable()이 곧 public 테이블을 의미한다(검색경로로 public.* 해석). catalog는 비기본 스키마라 pgSchema.
-import { bigint, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, integer, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const quoteRequests = pgTable("quote_requests", {
   id: uuid().primaryKey(),
@@ -18,6 +18,7 @@ export const quoteRequests = pgTable("quote_requests", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   period: integer(),
   depositType: text("deposit_type"),
+  depositRatio: numeric("deposit_ratio", { mode: "number" }),
   trimPrice: bigint("trim_price", { mode: "number" }),
 });
 
