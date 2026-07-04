@@ -18,6 +18,7 @@ export type ManualCard = {
   depositMode: ManualDepositMode; depositValue: string;
   downPaymentMode: ManualDepositMode; downPaymentValue: string;
   residualMode: ManualResidualMode; residualValue: string;
+  subsidyAmount: string;
 };
 export const discountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
 export const manualMileageOptions = [
@@ -47,6 +48,13 @@ export type EditScenario = {
   residualValue: string;
   mileageMode: ManualMileageMode;
   mileageValue: string;
+  carTaxIncluded: boolean;
+  subsidyApplicable: boolean;
+  subsidyAmount: string;
+  totalReturnCost: string;
+  totalTakeoverCost: string;
+  dueAtDelivery: string;
+  interestRate: string;
 };
 export type EditPrefill = {
   optionIds: number[];
@@ -88,6 +96,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     downPaymentValue: "0",
     residualMode: "max" as ManualResidualMode,
     residualValue: "-",
+    subsidyAmount: "0",
   },
   {
     id: "manual-condition-2",
@@ -106,6 +115,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     downPaymentValue: "0",
     residualMode: "max" as ManualResidualMode,
     residualValue: "-",
+    subsidyAmount: "0",
   },
   {
     id: "manual-condition-3",
@@ -124,6 +134,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     downPaymentValue: "0",
     residualMode: "max" as ManualResidualMode,
     residualValue: "-",
+    subsidyAmount: "0",
   },
 ] as const;
 
