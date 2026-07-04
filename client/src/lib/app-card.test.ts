@@ -152,6 +152,10 @@ describe("buildAppCardModel — 섹션 3 추천 견적 조건", () => {
     expect(m.rateChipLabel).toBeNull();
     expect(m.rateLabel).toBe("—");
   });
+  it("할부면 선수금 행 라벨이 선납금(도메인 규칙 — 앱 초기비용 유형이 구매방식 종속)", () => {
+    expect(buildAppCardModel(base).downPaymentRowLabel).toBe("선수금");
+    expect(buildAppCardModel({ ...base, purchaseMethod: "할부" }).downPaymentRowLabel).toBe("선납금");
+  });
 });
 
 describe("buildAppCardModel — 섹션 4·발송 상태", () => {

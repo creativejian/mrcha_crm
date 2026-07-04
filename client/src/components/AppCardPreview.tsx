@@ -111,7 +111,7 @@ export function AppCardPreview({ model, inModal = false }: { model: AppCardModel
                 <dt>리스기간</dt><dd>{model.termLabel}</dd>
                 <dt>약정주행거리</dt><dd>{model.mileageLabel}</dd>
                 <dt>보증금</dt><dd>{model.depositLabel}</dd>
-                <dt>선수금</dt><dd>{model.downPaymentLabel}</dd>
+                <dt>{model.downPaymentRowLabel}</dt><dd>{model.downPaymentLabel}</dd>
                 <dt>잔존가치</dt><dd>{model.residualCondLabel}</dd>
                 <dt>자동차세</dt><dd>{model.carTaxLabel}</dd>
                 <dt>전기차 보조금</dt><dd>{model.subsidyLabel}</dd>
