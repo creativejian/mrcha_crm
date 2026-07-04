@@ -5,7 +5,6 @@ import {
   formatKimJobValue,
   formatKimLocationValue,
   hasKimAppSourceQueue,
-  hasKimQuoteAttachments,
   isKimAutomaticSource,
   parseKimAdvisorValue,
   parseKimJobValue,
@@ -52,11 +51,9 @@ describe("상담경로 (source)", () => {
     expect(isKimAutomaticSource("디엘홈페이지")).toBe(true);
     expect(isKimAutomaticSource("대표전화")).toBe(false);
   });
-  it("hasKimAppSourceQueue / hasKimQuoteAttachments", () => {
+  it("hasKimAppSourceQueue는 앱 관련 소스 판단", () => {
     expect(hasKimAppSourceQueue("앱 AI상담")).toBe(true);
     expect(hasKimAppSourceQueue("대표전화")).toBe(false);
-    expect(hasKimQuoteAttachments("디엘(견적서)")).toBe(true);
-    expect(hasKimQuoteAttachments("디엘(상담)")).toBe(false);
   });
 });
 

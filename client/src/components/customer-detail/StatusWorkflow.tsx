@@ -3,10 +3,10 @@ import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { CHANCE_OPTIONS, customerStatusGroups, type Customer } from "@/data/customers";
 import { kimConsultKindClass } from "@/lib/kim-detail-utils";
-import { hasKimAppSourceQueue, hasKimQuoteAttachments } from "@/lib/kim-status-fields";
+import { hasKimAppSourceQueue } from "@/lib/kim-status-fields";
 
 import { AdvisorStatusEditor, JobStatusEditor, LocationStatusEditor, PhoneStatusInput, SourceStatusEditor } from "./StatusFieldEditors";
-import { fieldLabel, isKimUnassignedStatus, kimChanceOptionClass, kimChanceValueClass, kimMinjunStatusFieldMeta, kimMinjunWorkflowMeta, kimMockQuoteAttachments } from "./status-meta";
+import { fieldLabel, isKimUnassignedStatus, kimChanceOptionClass, kimChanceValueClass, kimMinjunStatusFieldMeta, kimMinjunWorkflowMeta } from "./status-meta";
 import { type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "./types";
 import type { useCustomerWorkflow } from "./hooks/useCustomerWorkflow";
 
@@ -191,24 +191,6 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
                     >
                       <MessageSquareText size={13} strokeWidth={2.4} />
                     </button>
-                    ) : null}
-                    {hasKimQuoteAttachments(statusValues[field.key]) ? (
-                      <span className="kim-quote-attachment-actions" aria-label="첨부 견적서">
-                        {kimMockQuoteAttachments.map((attachment, index) => (
-                          <button
-                            aria-label={`${attachment.label} 보기`}
-                            className="kim-quote-attachment-button"
-                            key={attachment.label}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onToast(`${attachment.fileName} 팝업 자리입니다.`);
-                            }}
-                            type="button"
-                          >
-                            <span>{index + 1}</span>
-                          </button>
-                        ))}
-                      </span>
                     ) : null}
                   </strong>
                   </span>
