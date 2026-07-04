@@ -205,7 +205,9 @@ test("GET /api/quote-requests → 승격 견적 2건 생성 시 promotedQuoteIds
     const res = await app.request("/api/quote-requests", { headers: { Authorization: `Bearer ${token}` } });
     const body = (await res.json()) as Array<{ id: string; promotedQuoteIds: string[]; promotedQuoteCount: number }>;
     const target = body.find((r) => r.id === req.id);
-    expect(target?.promotedQuoteIds).toEqual([second.id, first.id]);
+    // 공유 master라 뽑힌 요청에 기존 승격 견적이 있어도 안전(최신 2건 선두+총 길이만 단언 — desc 정렬 보장과 동치).
+    expect(target?.promotedQuoteIds.slice(0, 2)).toEqual([second.id, first.id]);
+    expect(target?.promotedQuoteIds.length).toBe(beforeCount + 2);
     expect(target?.promotedQuoteCount).toBe(beforeCount + 2);
   } finally {
     await db.delete(quotes).where(inArray(quotes.id, [first.id, second.id]));

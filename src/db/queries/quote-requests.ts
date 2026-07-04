@@ -13,10 +13,10 @@ export type AppQuoteRequestRow = {
   paymentMethod: string | null;
   period: number | null;
   depositType: string | null;
+  depositRatio: number | null;
   rentalDeposit: number | null;
   trimPrice: number | null;
   status: string | null;
-  depositRatio: number | null;
   brandName: string | null;
   modelName: string | null;
   trimName: string | null;

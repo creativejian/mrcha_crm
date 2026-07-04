@@ -18,6 +18,7 @@ export const quoteRequests = pgTable("quote_requests", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   period: integer(),
   depositType: text("deposit_type"),
+  // deposit_ratio는 0~100 정수 퍼센트라 number 캐스팅 정밀도 손실 없음(레포 numeric 기본=string 관례의 의도적 이탈 — 시드 계산이 숫자 소비)
   depositRatio: numeric("deposit_ratio", { mode: "number" }),
   trimPrice: bigint("trim_price", { mode: "number" }),
 });
