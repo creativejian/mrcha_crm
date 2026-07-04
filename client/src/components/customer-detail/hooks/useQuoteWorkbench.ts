@@ -765,6 +765,13 @@ export function useQuoteWorkbench({
         mileageMode: sc.mileageMode ?? null,
         mileageValue: sc.mileageValue ?? null,
         isSaved: sc.isSaved ?? false,
+        carTaxIncluded: sc.carTaxIncluded ?? null,
+        subsidyApplicable: sc.subsidyApplicable ?? null,
+        subsidyAmount: sc.subsidyAmount ?? null,
+        totalReturnCost: sc.totalReturnCost ?? null,
+        totalTakeoverCost: sc.totalTakeoverCost ?? null,
+        dueAtDelivery: sc.dueAtDelivery ?? null,
+        interestRate: sc.interestRate ?? null,
       }));
       // 대표 = scenario_no 최소(서버 insertScenarios 로직과 동일). 추출은 round1 우선이라 보통 [0].
       const primary = displayScenarios.reduce((m, s) => ((s.scenarioNo ?? 0) < (m.scenarioNo ?? 0) ? s : m), displayScenarios[0]);

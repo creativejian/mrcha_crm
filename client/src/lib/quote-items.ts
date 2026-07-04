@@ -67,6 +67,14 @@ export type CustomerDetailScenario = {
   mileageMode: string | null;
   mileageValue: string | null;
   isSaved: boolean;
+  // 앱카드 4섹션(2026-07-04): 서버가 select() 전체 반환이라 항상 실림(옵셔널 아님)
+  carTaxIncluded: boolean | null;
+  subsidyApplicable: boolean | null;
+  subsidyAmount: string | null;
+  totalReturnCost: string | null;
+  totalTakeoverCost: string | null;
+  dueAtDelivery: string | null;
+  interestRate: string | null;
 };
 
 export type CustomerDetailQuote = {
