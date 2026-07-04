@@ -18,10 +18,12 @@ type NeedsDashboardProps = {
   editorRef: RefObject<HTMLDivElement | null>;
   // 워크벤치 소유(Task 9 미추출, 부모 보유) — 앱 카드 "견적 작성"이 호출만 한다.
   openWorkbenchForQuoteRequest: (reqId: string) => Promise<void>;
+  // 승격 견적 "견적 보기"(부모가 quoteList에서 찾아 openEditQuote, 미발견 시 openWorkbenchForQuoteRequest로 폴백 — 고정 설계 결정 5).
+  onViewQuote: (reqId: string, quoteId: string) => void;
   needsHook: ReturnType<typeof useCustomerNeeds>;
 };
 
-export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, openWorkbenchForQuoteRequest, needsHook }: NeedsDashboardProps) {
+export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, openWorkbenchForQuoteRequest, onViewQuote, needsHook }: NeedsDashboardProps) {
   const { needs, appRequests, handlers } = needsHook;
   const { saveNeeds } = handlers;
 
@@ -87,13 +89,33 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                         {req.promotedQuoteCount > 0 ? (
                           <span className="kim-needs-request-badge">견적 {req.promotedQuoteCount}건</span>
                         ) : null}
-                        <button
-                          className="kim-needs-request-create"
-                          onClick={() => { void openWorkbenchForQuoteRequest(req.id).catch(() => onToast("견적요청 정보를 불러오지 못했습니다.")); }}
-                          type="button"
-                        >
-                          견적 작성
-                        </button>
+                        {req.promotedQuoteIds.length > 0 ? (
+                          // 승격 견적 있음: 기본 액션은 중복 작성 방지를 위해 "견적 보기"(최신 승격 견적), "추가 작성"은 보조 액션으로 낮춤.
+                          <>
+                            <button
+                              className="kim-needs-request-create"
+                              onClick={() => onViewQuote(req.id, req.promotedQuoteIds[0])}
+                              type="button"
+                            >
+                              견적 보기
+                            </button>
+                            <button
+                              className="kim-needs-request-create-secondary"
+                              onClick={() => { void openWorkbenchForQuoteRequest(req.id).catch(() => onToast("견적요청 정보를 불러오지 못했습니다.")); }}
+                              type="button"
+                            >
+                              추가 작성
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="kim-needs-request-create"
+                            onClick={() => { void openWorkbenchForQuoteRequest(req.id).catch(() => onToast("견적요청 정보를 불러오지 못했습니다.")); }}
+                            type="button"
+                          >
+                            견적 작성
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -149,6 +149,7 @@ export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, on
                     <strong>{quote.model || quote.vehicleName || quote.title}</strong>
                     {quote.trim ? <span>{quote.trim}</span> : null}
                     {quote.quoteRound ? <b>{quote.quoteRound}</b> : null}
+                    {quote.sourceQuoteRequestId ? <span className="quote-source-app-badge">앱 요청</span> : null}
                   </div>
                   <div className="kim-quote-meta-secondary">
                     {quote.financeType ? <span>{quote.financeType}</span> : null}
@@ -217,7 +218,8 @@ export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, on
                                   <div className="kim-quote-scenario-figures">
                                     {monthly ? <strong>{monthly}</strong> : <span>월 납입금 미정</span>}
                                     {deposit ? <span>보증금 {deposit}</span> : null}
-                                    {downPayment ? <span>선수금 {downPayment}</span> : null}
+                                    {/* 도메인 규칙(Task 3와 동일): 구매방식이 할부면 초기비용 어휘는 "선납금" */}
+                                    {downPayment ? <span>{quote.financeType === "할부" ? "선납금" : "선수금"} {downPayment}</span> : null}
                                     {residual ? <span>잔존 {residual}</span> : null}
                                     {scenario.mileageValue ? <span>약정 {scenario.mileageValue}</span> : null}
                                   </div>

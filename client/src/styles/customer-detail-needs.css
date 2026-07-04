@@ -225,6 +225,29 @@
   box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
 }
 
+/* "견적 보기"(주 액션, kim-needs-request-create) 대비 시각 위계를 낮춘 보조 액션 — 승격 견적 있는 요청의 "추가 작성". */
+.kim-needs-request-create-secondary {
+  min-height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 7px;
+  background: #fbfbfa;
+  color: #5f6872;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 26px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+
+.kim-needs-request-create-secondary:hover {
+  border-color: rgba(var(--brand-rgb), 0.34);
+  color: var(--brand);
+  background: #f7f6ff;
+}
+
 .kim-needs-customer-meta {
   margin: 0 12px 12px;
   border: 1px solid #dededb;

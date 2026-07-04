@@ -128,6 +128,13 @@ function CustomerDetailContent({
   // openWorkbenchForQuoteRequest는 니즈 카드 "견적 작성"·?quoteRequest 딥링크가 호출 → 훅이 반환하면 부모가 NeedsDashboard에 중계.
   const workbench = useQuoteWorkbench({ detail, customer, onToast, markRecentUpdate, onQuotesPersisted, quoteList, purchaseFields: purchase.fields, reloadAppRequests: needs.reloadAppRequests });
 
+  // 니즈 카드 "견적 보기": 견적함에서 승격 견적을 찾아 수정 워크벤치로. 캐시 불일치(미발견)면 기존 승격 플로우로 폴백(고정 설계 결정 5).
+  function viewPromotedQuote(reqId: string, quoteId: string) {
+    const quote = quoteList.quotes.find((q) => q.id === quoteId);
+    if (quote) workbench.openEditQuote(quote);
+    else void workbench.openWorkbenchForQuoteRequest(reqId).catch(() => onToast("견적요청 정보를 불러오지 못했습니다."));
+  }
+
   // 서류/견적 미리보기·솔루션 워크벤치가 열린 동안 배경(고객 상세 패널·페이지) 스크롤을 잠가 스크롤 전파(chaining)를 막는다.
   const detailOverlayOpen =
     documents.overlayOpen ||
@@ -198,6 +205,7 @@ function CustomerDetailContent({
         toggleEditor={toggleEditor}
         editorRef={editorRef}
         openWorkbenchForQuoteRequest={workbench.openWorkbenchForQuoteRequest}
+        onViewQuote={viewPromotedQuote}
         needsHook={needs}
       />
 
