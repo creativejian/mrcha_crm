@@ -1195,6 +1195,8 @@
 }
 .guidance-list-add {
   justify-self: start;
+  /* 다음 블록(서비스 목록 라벨/추천이유)과 붙어 보이지 않게 하단 여백 확보 */
+  margin-bottom: 10px;
   border: 1px dashed rgba(var(--brand-rgb), 0.35);
   border-radius: 6px;
   padding: 5px 10px;
