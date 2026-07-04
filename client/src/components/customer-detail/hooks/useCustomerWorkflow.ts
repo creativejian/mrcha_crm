@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type Se
 
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { formatActivity, formatPhone, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { initialFinalUpdateByCustomerId, finalUpdateStatus, resolveChance } from "@/lib/customer-table";
+import { finalUpdateStatus, resolveChance } from "@/lib/customer-table";
 import { formatKimAssignmentTime } from "@/lib/kim-detail-utils";
 import { type KimAdvisorTeam, type KimCustomerType, formatKimAdvisorValue, formatKimJobValue, formatKimLocationValue, isKimAutomaticSource } from "@/lib/kim-status-fields";
+import { deriveFinalUpdateInfo } from "@/lib/manage-status";
 
 import { fieldLabel } from "../status-meta";
 import { type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "../types";
@@ -32,11 +33,11 @@ function timelineRows(customer: Customer) {
   ];
 }
 
-// 상세 관리 상태 = 목록과 동일 규칙. override(워크플로우 변경) 있으면 그것, 없으면 목록과 같은 mock map 계산,
-// 둘 다 없으면 ""(신규·상담접수 등 아직 관리 상태 없음 → 목록처럼 공백). 무조건 "정상" 폴백 금지.
-function resolveKimManageStatus(override: CustomerManageStatus | undefined, customerCode: string): CustomerManageStatus | "" {
+// 상세 관리 상태 = 목록과 동일 규칙. override(워크플로우 변경) 있으면 그것, 없으면 서버 파생
+// lastActivityAt 기반 계산, 파생 불가(신규·상담접수/활동 없음)면 ""(목록처럼 공백). 무조건 "정상" 폴백 금지.
+function resolveManageStatus(override: CustomerManageStatus | undefined, customer: Customer): CustomerManageStatus | "" {
   if (override) return override;
-  const info = initialFinalUpdateByCustomerId[customerCode];
+  const info = deriveFinalUpdateInfo(customer);
   return info ? (finalUpdateStatus(info).label as CustomerManageStatus) : "";
 }
 
@@ -79,7 +80,7 @@ export function useCustomerWorkflow({
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
   const [stageStatus, setStageStatus] = useState(customer.status);
   const [chance, setChance] = useState<CustomerChanceOption>(resolveChance(customer, chanceOverride));
-  const [manage, setManage] = useState<CustomerManageStatus | "">(() => resolveKimManageStatus(manageStatusOverride, customer.customerId));
+  const [manage, setManage] = useState<CustomerManageStatus | "">(() => resolveManageStatus(manageStatusOverride, customer));
 
   const consultBodyRef = useRef<HTMLDivElement>(null);
   const timelineItems = timelineRows(customer);
@@ -97,8 +98,8 @@ export function useCustomerWorkflow({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- manageStatusOverride 변경 시 관리 상태를 동기화하는 의도된 effect
-    setManage(resolveKimManageStatus(manageStatusOverride, customer.customerId));
-  }, [manageStatusOverride, customer.customerId]);
+    setManage(resolveManageStatus(manageStatusOverride, customer));
+  }, [manageStatusOverride, customer]);
 
   useEffect(() => {
     const container = consultBodyRef.current;

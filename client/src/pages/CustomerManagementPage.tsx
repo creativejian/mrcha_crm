@@ -1,8 +1,9 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ADVISOR_NAMES, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
-import { badgeClass, finalUpdateStatus, finalUpdateStatusFromManage, firstResponseDisplay, initialFinalUpdateByCustomerId, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
+import { badgeClass, finalUpdateStatus, finalUpdateStatusFromManage, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { prefetchCustomerDetail } from "@/lib/customers";
+import { deriveFinalUpdateInfo } from "@/lib/manage-status";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -136,7 +137,7 @@ export function CustomerManagementPage({
     return customers.filter((customer) => {
       const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${customer.aiSummary}`.toLowerCase();
       const chance = resolveChance(customer, chanceOverrides[customer.no]);
-      const updateInfo = finalUpdateOverrides[customer.no] ?? initialFinalUpdateByCustomerId[customer.customerId] ?? null;
+      const updateInfo = finalUpdateOverrides[customer.no] ?? deriveFinalUpdateInfo(customer);
       const updateStatus = manageStatusOverrides[customer.no] ?? (updateInfo ? finalUpdateStatus(updateInfo).label : "");
       return modeFilter(mode, customer) &&
         (!keyword || searchable.includes(keyword)) &&
@@ -583,7 +584,7 @@ export function CustomerManagementPage({
 
   function renderRow(customer: Customer) {
     const chance = resolveChance(customer, chanceOverrides[customer.no]);
-    const updateInfo = finalUpdateOverrides[customer.no] ?? initialFinalUpdateByCustomerId[customer.customerId] ?? null;
+    const updateInfo = finalUpdateOverrides[customer.no] ?? deriveFinalUpdateInfo(customer);
     const updateStatus = manageStatusOverrides[customer.no]
       ? finalUpdateStatusFromManage(manageStatusOverrides[customer.no])
       : updateInfo ? finalUpdateStatus(updateInfo) : null;
