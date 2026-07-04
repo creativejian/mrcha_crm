@@ -72,6 +72,7 @@ function moneyOrDash(won: number | null): string {
 
 // 보증금/선수금/선납금 라벨 병기(앱카드 문법): 비율+금액 → "보증금 (20%) 1,180만원", 금액만 → "보증금 1,180만원",
 // 비율만 → "보증금 (20%)", 둘 다 0 → 유형명만, 유형 null → "—".
+// 주의: seedScenarioCardFromRequest(quote-request-seed.ts)는 비율 우선·금액 무시 — 여기는 병기(둘 다 표시). 복붙 금지.
 export function depositLabelOf(row: Pick<AppQuoteRequestRow, "depositType" | "depositRatio" | "rentalDeposit">): string {
   const depositName = row.depositType ? (DEPOSIT_TYPE_LABEL[row.depositType] ?? row.depositType) : null;
   if (!depositName) return "—";

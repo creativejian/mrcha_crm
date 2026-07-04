@@ -22,6 +22,10 @@ describe("seedScenarioCardFromRequest", () => {
     expect(seedScenarioCardFromRequest({ ...base, purchaseMethod: "일시불" })).toEqual({ termMonths: 60, depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null });
     expect(seedScenarioCardFromRequest({ ...base, depositType: "deposit" }).depositMode).toBeNull(); // 비율·금액 둘 다 0
   });
+  it("일시불 방어 가드: depositType이 어긋나게 실려 와도 초기비용 시드 없음", () => {
+    const s = seedScenarioCardFromRequest({ ...base, purchaseMethod: "일시불", depositType: "deposit", depositRatio: 20, rentalDeposit: 1000000 });
+    expect(s).toEqual({ termMonths: 60, depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null });
+  });
   it("기간이 버튼 옵션 밖이면 null(60 유지)", () => {
     expect(seedScenarioCardFromRequest({ ...base, period: 72 }).termMonths).toBeNull();
     expect(seedScenarioCardFromRequest({ ...base, period: 36 }).termMonths).toBe(36);
