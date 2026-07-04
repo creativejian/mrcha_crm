@@ -9,7 +9,7 @@ export type QuoteGuidanceInput = {
   stockNotice: string;
   expectedDelivery: string;
   customerRegion: string;
-  keyPoint: string;
+  keyPoints: string[];
   recommendReason: string;
   services: string[];
 };

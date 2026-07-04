@@ -137,7 +137,7 @@ const quoteGuidanceSchema = z.object({
   stockNotice: z.string(),
   expectedDelivery: z.string(),
   customerRegion: z.string(),
-  keyPoint: z.string(),
+  keyPoints: z.array(z.string()),
   recommendReason: z.string(),
   services: z.array(z.string()),
 });

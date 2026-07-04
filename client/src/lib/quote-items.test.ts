@@ -132,7 +132,7 @@ describe("toQuoteItem", () => {
   });
 
   it("guidance(추가 안내)를 매핑하고 null이면 undefined", () => {
-    const g = { deliveryComment: "a", stockNotice: "b", expectedDelivery: "c", customerRegion: "d", keyPoint: "e", recommendReason: "f", services: ["s1", "s2"] };
+    const g = { deliveryComment: "a", stockNotice: "b", expectedDelivery: "c", customerRegion: "d", keyPoints: ["e"], recommendReason: "f", services: ["s1", "s2"] };
     expect(toQuoteItem(makeQuote({ guidance: g }), NOW).guidance).toEqual(g);
     expect(toQuoteItem(makeQuote({ guidance: null }), NOW).guidance).toBeUndefined();
   });

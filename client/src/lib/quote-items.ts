@@ -1,5 +1,5 @@
 import { formatActivity } from "./customers";
-import type { QuoteGuidance } from "@/data/quote-guidance";
+import { normalizeQuoteGuidance, type QuoteGuidance } from "@/data/quote-guidance";
 
 // 견적함 UI 항목 타입(기존 CustomerDetailPage 내부 정의에서 이동).
 export type QuoteItem = {
@@ -222,6 +222,6 @@ export function toQuoteItem(q: CustomerDetailQuote, nowMs: number): QuoteItem {
     mimeType: q.fileMime ?? undefined,
     primaryScenarioId: q.primaryScenarioId ?? undefined,
     scenarios: q.scenarios,
-    guidance: q.guidance ?? undefined,
+    guidance: normalizeQuoteGuidance(q.guidance) ?? undefined,
   };
 }

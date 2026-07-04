@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
 import { flattenPrimaryScenario, type CustomerDetailScenario, type QuoteItem } from "@/lib/quote-items";
-import { DEFAULT_QUOTE_GUIDANCE, type QuoteGuidance } from "@/data/quote-guidance";
+import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, type QuoteGuidance } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { type VehicleSelection } from "@/components/VehiclePicker";
@@ -963,7 +963,7 @@ export function useQuoteWorkbench({
         incidental: Number(dq.incidental ?? 0),
       },
       scenarios: editScenarios,
-      guidance: dq.guidance ?? null,
+      guidance: normalizeQuoteGuidance(dq.guidance) ?? null,
     } : null);
     // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
     setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...emptyQuoteConditionCards]);
@@ -978,7 +978,7 @@ export function useQuoteWorkbench({
     persistedQuoteIdRef.current = null;
     setSourceQuoteRequestId(null);
     resetWorkbenchVehicle();
-    setGuidance(dq?.guidance ?? DEFAULT_QUOTE_GUIDANCE);
+    setGuidance(normalizeQuoteGuidance(dq?.guidance) ?? DEFAULT_QUOTE_GUIDANCE);
     setSolutionWorkbenchPurchaseMethod(normalizeQuotePurchaseMethod(quote.financeType));
     setSolutionWorkbenchEntryMode(quote.source === "solution" ? "solution" : quote.source === "original" ? "original" : "manual");
     setSolutionWorkbenchModeMenu(null);

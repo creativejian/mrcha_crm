@@ -506,7 +506,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                       <label><span>서비스 4</span><input value={guidance.services[3] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[3] = v; return { ...g, services: s }; }); }} /></label>
                       <label className="wide">
                         <span>핵심포인트</span>
-                        <select value={guidance.keyPoint} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, keyPoint: v })); }}>
+                        {/* Task 7에서 동적 입력(+)로 교체 예정 — 임시로 keyPoints[0]만 바인딩 */}
+                        <select value={guidance.keyPoints[0] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, keyPoints: [v, ...g.keyPoints.slice(1)] })); }}>
                           {QUOTE_GUIDANCE_OPTIONS.keyPoint.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>

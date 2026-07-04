@@ -3,7 +3,7 @@ export type QuoteGuidance = {
   stockNotice: string;
   expectedDelivery: string;
   customerRegion: string;
-  keyPoint: string;
+  keyPoints: string[];
   recommendReason: string;
   services: string[];
 };
@@ -32,7 +32,7 @@ export const DEFAULT_QUOTE_GUIDANCE: QuoteGuidance = {
   stockNotice: QUOTE_GUIDANCE_OPTIONS.stockNotice[0],
   expectedDelivery: QUOTE_GUIDANCE_OPTIONS.expectedDelivery[0],
   customerRegion: QUOTE_GUIDANCE_OPTIONS.customerRegion[0],
-  keyPoint: QUOTE_GUIDANCE_OPTIONS.keyPoint[0],
+  keyPoints: [QUOTE_GUIDANCE_OPTIONS.keyPoint[0]],
   recommendReason: "",
   services: [
     "썬팅: 후퍼옵틱 KBR 전면 + 측후면 제공",
@@ -41,3 +41,31 @@ export const DEFAULT_QUOTE_GUIDANCE: QuoteGuidance = {
     "담당 카매니저 출고 일정 개별 안내",
   ],
 };
+
+// DB jsonb 하위호환 read normalizer: 구행(keyPoint 단일 문자열) → keyPoints 배열. null/undefined는 null.
+export function normalizeQuoteGuidance(
+  raw: (Partial<QuoteGuidance> & { keyPoint?: string }) | null | undefined,
+): QuoteGuidance | null {
+  if (raw == null) return null;
+  const keyPoints = Array.isArray(raw.keyPoints)
+    ? raw.keyPoints
+    : (raw.keyPoint ?? "").trim() ? [(raw.keyPoint ?? "").trim()] : [];
+  return {
+    deliveryComment: raw.deliveryComment ?? "",
+    stockNotice: raw.stockNotice ?? "",
+    expectedDelivery: raw.expectedDelivery ?? "",
+    customerRegion: raw.customerRegion ?? "",
+    keyPoints,
+    recommendReason: raw.recommendReason ?? "",
+    services: Array.isArray(raw.services) ? raw.services : [],
+  };
+}
+
+// 저장 직전 정리: 동적 입력칸(+)의 빈 줄 제거 + trim (빈 문자열 영속 방지).
+export function sanitizeQuoteGuidance(g: QuoteGuidance): QuoteGuidance {
+  return {
+    ...g,
+    keyPoints: g.keyPoints.map((k) => k.trim()).filter(Boolean),
+    services: g.services.map((s) => s.trim()).filter(Boolean),
+  };
+}
