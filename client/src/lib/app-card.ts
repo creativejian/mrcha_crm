@@ -41,14 +41,14 @@ export type AppCardModel = {
   statusLabel: string;
   ddayLabel: string;
   brand: string;
-  modelLabel: string;
-  trimLabel: string;
+  vehicleTitle: string;
   purchaseMethod: string;
   termLabel: string;
   sublineLabel: string;
   monthlyLabel: string;
   rateChipLabel: string | null;
   residualLabel: string;
+  residualCondLabel: string;
   totalCostLabel: string;
   discountRowLabel: string;
   discountLabel: string;
@@ -108,6 +108,16 @@ function moneyLabelOf(raw: string | null | undefined, fallback: string): string 
   return n == null ? fallback : `${formatMoney(n)}원`;
 }
 
+// 모델+트림 표시명. 카탈로그 트림명이 모델명을 접두로 포함하는 경우(BMW 등) 중복 없이 트림명만 쓴다.
+function vehicleTitleOf(modelName: string | null, trimName: string | null): string {
+  const model = modelName?.trim() ?? "";
+  const trim = trimName?.trim() ?? "";
+  if (!model && !trim) return "차량 미선택";
+  if (!model) return trim;
+  if (!trim) return model;
+  return trim.startsWith(model) ? trim : `${model} ${trim}`;
+}
+
 // mode+value 병기 포맷. percent 금액 환산 기준 = finalVehiclePrice(0이면 %만).
 // percentFirst: 보증금/선수금 "(20%) 28,560,000원" ↔ 잔존가치 "82,824,000원 (58%)" 어순.
 function moneyModeLabel(
@@ -164,8 +174,7 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     statusLabel: input.appStatus === "viewed" ? "확인한 견적" : "미확인 견적",
     ddayLabel: ddayLabelOf(input.validUntilIso, input.nowMs),
     brand: input.brandName ?? "차량 미선택",
-    modelLabel: input.modelName ?? "차량 미선택",
-    trimLabel: input.trimName ?? "",
+    vehicleTitle: vehicleTitleOf(input.modelName, input.trimName),
     purchaseMethod: input.purchaseMethod,
     termLabel: formatTerm(s?.termMonths ?? null),
     sublineLabel: [
@@ -176,6 +185,7 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     monthlyLabel: moneyLabelOf(s?.monthlyPayment, CALC_PENDING),
     rateChipLabel: rate != null ? `금리 ${rate}%` : null,
     residualLabel: s ? moneyModeLabel(s.residualMode, s.residualValue, fvp, { noneLabel: CALC_PENDING, percentFirst: false }) : CALC_PENDING,
+    residualCondLabel: s ? moneyModeLabel(s.residualMode, s.residualValue, fvp, { noneLabel: CALC_PENDING, percentFirst: true }) : CALC_PENDING,
     totalCostLabel: totalCost != null ? `${formatMoney(totalCost)}원` : CALC_PENDING,
     discountRowLabel: input.discountLabels.length ? `최대 할인 적용 (${input.discountLabels.join("·")})` : "최대 할인 적용",
     discountLabel: formatMoney(input.discount),

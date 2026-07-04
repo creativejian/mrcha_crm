@@ -70,17 +70,21 @@ describe("buildAppCardModel — 섹션 1 헤더·핵심 요약", () => {
     expect(m.statusLabel).toBe("미확인 견적");
     expect(m.ddayLabel).toBe("D-6");
     expect(m.brand).toBe("BMW");
-    expect(m.modelLabel).toBe("X7");
-    expect(m.trimLabel).toBe("xDrive 40i M Spt 7인승");
+    expect(m.vehicleTitle).toBe("X7 xDrive 40i M Spt 7인승");
     expect(m.purchaseMethod).toBe("운용리스");
     expect(m.termLabel).toBe("60개월");
     expect(m.sublineLabel).toBe("2026년식 ㅣ 154,480,000원 ㅣ 추가옵션 없음");
+  });
+  it("차명 dedupe: 트림명이 모델명으로 시작하면 트림명만 쓴다(카탈로그 트림명이 모델 접두 포함하는 케이스)", () => {
+    const m = buildAppCardModel({ ...base, modelName: "X7", trimName: "X7 xDrive 40i M Spt LCI (7인승)" });
+    expect(m.vehicleTitle).toBe("X7 xDrive 40i M Spt LCI (7인승)");
   });
   it("월납입금·금리칩·잔존(%병기)·총비용(반납 우선)·할인 행", () => {
     const m = buildAppCardModel(base);
     expect(m.monthlyLabel).toBe("1,473,200원");
     expect(m.rateChipLabel).toBe("금리 5.32%");
-    expect(m.residualLabel).toBe("82,824,000원 (58%)"); // 142,800,000 × 58%
+    expect(m.residualLabel).toBe("82,824,000원 (58%)"); // 142,800,000 × 58% — 섹션1 금액 선행
+    expect(m.residualCondLabel).toBe("(58%) 82,824,000원"); // 섹션3 % 선행(디자인 어순)
     expect(m.totalCostLabel).toBe("167,652,170원"); // 반납 우선
     expect(m.discountRowLabel).toBe("최대 할인 적용 (타사할인)");
     expect(m.discountLabel).toBe("11,000,000");
