@@ -336,7 +336,7 @@ export function useQuoteWorkbench({
         totalReturn: sc.totalReturnCost ? formatMoney(Number(sc.totalReturnCost)) : "0",
         totalTakeover: sc.totalTakeoverCost ? formatMoney(Number(sc.totalTakeoverCost)) : "0",
         dueAtDelivery: sc.dueAtDelivery ? formatMoney(Number(sc.dueAtDelivery)) : "0",
-        interestRate: sc.interestRate ?? "0",
+        interestRate: sc.interestRate || "0",
       };
     });
   }
