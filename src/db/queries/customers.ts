@@ -16,9 +16,10 @@ import {
 export type CustomerListRow = typeof customers.$inferSelect & { latestTask: string | null };
 
 // 상담메모(목업 nextAction): customer_tasks 최신 미완료 1건 body를 상관 서브쿼리로.
+// customer_id 비교는 crm.customers.id로 완전정규화 — 섀도잉 사유는 아래 staffActivityAt 주석 참조(동일 버그 클래스).
 const latestTaskBody = sql<string | null>`(
   select t.body from crm.customer_tasks t
-  where t.customer_id = ${customers.id} and t.done = false
+  where t.customer_id = crm.customers.id and t.done = false
   order by t.created_at desc limit 1
 )`;
 

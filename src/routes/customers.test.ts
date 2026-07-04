@@ -1046,3 +1046,20 @@ test("lastActivityAt 파생: 자식(메모) 추가 시각이 customers.updated_a
   // 정리(공유 master 비파괴)
   await app.request(`/api/customers/${cid}/memos/${memo.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
 });
+
+test("latestTask: 미완료 할일 최신 1건 body가 목록에 실린다 (상관 서브쿼리 정규화 회귀 가드)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+
+  const created = await app.request(`/api/customers/${cid}/tasks`, { method: "POST", headers: h, body: JSON.stringify({ category: "체크", due: "오늘", body: "latestTask 회귀 가드" }) });
+  expect(created.status).toBe(201);
+  const taskId = ((await created.json()) as { id: string }).id;
+
+  const list2 = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; latestTask: string | null }>;
+  expect(list2.find((c) => c.id === cid)?.latestTask).toBe("latestTask 회귀 가드");
+
+  await app.request(`/api/customers/${cid}/tasks/${taskId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+});
