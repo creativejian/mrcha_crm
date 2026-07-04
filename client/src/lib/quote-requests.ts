@@ -11,6 +11,7 @@ export type AppQuoteRequestRow = {
   paymentMethod: string | null;
   period: number | null;
   depositType: string | null;
+  depositRatio: number | null;
   rentalDeposit: number | null;
   trimPrice: number | null;
   status: string | null;
@@ -22,6 +23,7 @@ export type AppQuoteRequestRow = {
   matchedCustomerName: string | null;
   matchedCustomerCode: string | null;
   promotedQuoteCount: number;
+  promotedQuoteIds: string[];
   matchType: "app_user" | "phone" | "none";
 };
 
@@ -60,6 +62,7 @@ export type AppQuoteRequest = {
   matchedCustomerName: string | null;
   matchedCustomerCode: string | null;
   promotedQuoteCount: number;
+  promotedQuoteIds: string[];
   matchType: AppQuoteRequestRow["matchType"];
 };
 
@@ -67,12 +70,23 @@ function moneyOrDash(won: number | null): string {
   return won != null && won > 0 ? formatPriceRangeKorean(won, null) : "—";
 }
 
+// 보증금/선수금/선납금 라벨 병기(앱카드 문법): 비율+금액 → "보증금 (20%) 1,180만원", 금액만 → "보증금 1,180만원",
+// 비율만 → "보증금 (20%)", 둘 다 0 → 유형명만, 유형 null → "—".
+// 주의: seedScenarioCardFromRequest(quote-request-seed.ts)는 비율 우선·금액 무시 — 여기는 병기(둘 다 표시). 복붙 금지.
+export function depositLabelOf(row: Pick<AppQuoteRequestRow, "depositType" | "depositRatio" | "rentalDeposit">): string {
+  const depositName = row.depositType ? (DEPOSIT_TYPE_LABEL[row.depositType] ?? row.depositType) : null;
+  if (!depositName) return "—";
+  const ratio = row.depositRatio ?? 0;
+  const amount = row.rentalDeposit ?? 0;
+  const ratioLabel = ratio > 0 ? ` (${ratio}%)` : "";
+  const amountLabel = amount > 0 ? ` ${formatPriceRangeKorean(amount, null)}` : "";
+  return `${depositName}${ratioLabel}${amountLabel}`;
+}
+
 export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
   const vehicleLabel =
     [row.brandName, row.modelName].filter(Boolean).join(" ") +
     (row.trimName ? ` · ${row.trimName}` : "");
-  const depositName = row.depositType ? (DEPOSIT_TYPE_LABEL[row.depositType] ?? row.depositType) : null;
-  const depositMoney = row.rentalDeposit != null && row.rentalDeposit > 0 ? ` ${formatPriceRangeKorean(row.rentalDeposit, null)}` : "";
   const matchLabel =
     row.matchType === "app_user"
       ? `연결됨 ${row.matchedCustomerName ?? ""}`.trim()
@@ -88,7 +102,7 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
     vehicleLabel: vehicleLabel || "차량 미지정",
     paymentLabel: row.paymentMethod ? (PAYMENT_METHOD_LABEL[row.paymentMethod] ?? row.paymentMethod) : "—",
     periodLabel: row.period != null ? `${row.period}개월` : "—",
-    depositLabel: depositName ? `${depositName}${depositMoney}` : "—",
+    depositLabel: depositLabelOf(row),
     trimPriceLabel: moneyOrDash(row.trimPrice),
     optionLabel: row.optionCount > 0 ? `${row.optionCount}개` : "없음",
     statusLabel: row.status ? (STATUS_LABEL[row.status] ?? row.status) : "—",
@@ -97,6 +111,7 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
     matchedCustomerName: row.matchedCustomerName,
     matchedCustomerCode: row.matchedCustomerCode,
     promotedQuoteCount: row.promotedQuoteCount,
+    promotedQuoteIds: row.promotedQuoteIds,
     matchType: row.matchType,
   };
 }
@@ -149,17 +164,32 @@ export type QuoteRequestPrefill = {
   trimId: number | null;
   optionIds: number[];
   purchaseMethod: string | null;
+  period: number | null;
+  depositType: string | null;
+  depositRatio: number | null;
+  rentalDeposit: number | null;
 };
 
 export async function fetchQuoteRequestDetail(id: string): Promise<QuoteRequestPrefill> {
-  const d = await getJson<{ id: string; trimId: number | null; paymentMethod: string | null; optionIds: number[] }>(
-    `/api/quote-requests/${id}`,
-  );
+  const d = await getJson<{
+    id: string;
+    trimId: number | null;
+    paymentMethod: string | null;
+    optionIds: number[];
+    period: number | null;
+    depositType: string | null;
+    depositRatio: number | null;
+    rentalDeposit: number | null;
+  }>(`/api/quote-requests/${id}`);
   return {
     id: d.id,
     trimId: d.trimId,
     optionIds: d.optionIds,
     purchaseMethod: d.paymentMethod ? (PAYMENT_METHOD_LABEL[d.paymentMethod] ?? d.paymentMethod) : null,
+    period: d.period,
+    depositType: d.depositType,
+    depositRatio: d.depositRatio,
+    rentalDeposit: d.rentalDeposit,
   };
 }
 

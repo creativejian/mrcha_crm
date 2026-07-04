@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, gt, inArray } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
@@ -7,7 +7,7 @@ import { getDefaultDb } from "../db/client";
 import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests, listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import { createQuote } from "../db/queries/customer-quotes";
 import { quoteRequests as quoteRequestsTable, quoteRequestOptions as quoteRequestOptionsTable } from "../db/public-app";
-import { customers } from "../db/schema";
+import { customers, quotes } from "../db/schema";
 
 test("GET /api/quote-requests → 200, 배열", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
@@ -153,6 +153,65 @@ test("listQuoteRequestsByUser: 해당 user 요청만 반환(id 집합 일치)", 
 test("listQuoteRequestsByUser: 없는 user → 빈 배열", async () => {
   const result = await listQuoteRequestsByUser("00000000-0000-0000-0000-000000000000");
   expect(result).toEqual([]);
+});
+
+test("GET /api/quote-requests/:id → deposit_ratio>0 실데이터로 period/depositType/depositRatio/rentalDeposit 왕복", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const db = getDefaultDb();
+  const [row] = await db
+    .select({
+      id: quoteRequestsTable.id,
+      period: quoteRequestsTable.period,
+      depositType: quoteRequestsTable.depositType,
+      depositRatio: quoteRequestsTable.depositRatio,
+      rentalDeposit: quoteRequestsTable.rentalDeposit,
+    })
+    .from(quoteRequestsTable)
+    .where(gt(quoteRequestsTable.depositRatio, 0))
+    .limit(1);
+  // 스펙 실측(2026-07-04, deposit_ratio>0 61건) 기준 실데이터에 존재해야 함 — 없으면 테스트 전제 붕괴.
+  expect(row).toBeDefined();
+  const res = await app.request(`/api/quote-requests/${row.id}`, { headers: { Authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as {
+    period: number | null;
+    depositType: string | null;
+    depositRatio: number | null;
+    rentalDeposit: number | null;
+  };
+  expect(body.period).toBe(row.period);
+  expect(body.depositType).toBe(row.depositType);
+  expect(body.depositRatio).toBe(row.depositRatio);
+  expect(body.rentalDeposit).toBe(row.rentalDeposit);
+});
+
+test("GET /api/quote-requests → 승격 견적 2건 생성 시 promotedQuoteIds 최신순(desc) + promotedQuoteCount +2 (실 insert, finally 삭제)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const db = getDefaultDb();
+  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+  const [req] = await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
+
+  const beforeRes = await app.request("/api/quote-requests", { headers: { Authorization: `Bearer ${token}` } });
+  const beforeBody = (await beforeRes.json()) as Array<{ id: string; promotedQuoteCount: number }>;
+  const beforeCount = beforeBody.find((r) => r.id === req.id)?.promotedQuoteCount ?? 0;
+
+  const first = await createQuote(cust.id, { sourceQuoteRequestId: req.id, status: "작성중" });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const second = await createQuote(cust.id, { sourceQuoteRequestId: req.id, status: "작성중" });
+
+  try {
+    const res = await app.request("/api/quote-requests", { headers: { Authorization: `Bearer ${token}` } });
+    const body = (await res.json()) as Array<{ id: string; promotedQuoteIds: string[]; promotedQuoteCount: number }>;
+    const target = body.find((r) => r.id === req.id);
+    // 공유 master라 뽑힌 요청에 기존 승격 견적이 있어도 안전(최신 2건 선두+총 길이만 단언 — desc 정렬 보장과 동치).
+    expect(target?.promotedQuoteIds.slice(0, 2)).toEqual([second.id, first.id]);
+    expect(target?.promotedQuoteIds.length).toBe(beforeCount + 2);
+    expect(target?.promotedQuoteCount).toBe(beforeCount + 2);
+  } finally {
+    await db.delete(quotes).where(inArray(quotes.id, [first.id, second.id]));
+  }
 });
 
 test("listQuoteRequests(전체) 길이 ≥ listQuoteRequestsByUser(부분) — 추출 회귀 가드", async () => {

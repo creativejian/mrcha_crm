@@ -566,6 +566,22 @@
   background: #f0f1f3;
 }
 
+/* 승격 견적 출처 배지(source_quote_request_id 존재 시). kim-needs-request-badge와 같은 조용한 보라 톤. */
+.quote-source-app-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  height: 18px;
+  border: 1px solid rgba(var(--brand-rgb), 0.26);
+  border-radius: 5px;
+  background: #f4f1ff;
+  color: var(--brand);
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .kim-quote-meta-secondary strong {
   background: #e9f1ff;
   color: #155eef;

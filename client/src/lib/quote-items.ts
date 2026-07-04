@@ -9,6 +9,8 @@ export type QuoteItem = {
   meta: string;
   status: string;
   source: "manual" | "solution" | "original";
+  // 승격 출처 앱 견적요청 id(있으면 견적함 "앱 요청" 배지 노출).
+  sourceQuoteRequestId?: string;
   appStatus: "draft" | "queued" | "sent" | "viewed";
   brand?: string;
   model?: string;
@@ -95,6 +97,8 @@ export type CustomerDetailQuote = {
   viewedAt: string | null;
   revision: number;
   primaryScenarioId: string | null;
+  // 승격 출처 앱 견적요청 id(nullable) — getCustomer가 select() 전체라 이미 응답에 실림, 선언만.
+  sourceQuoteRequestId: string | null;
   // #4c-2 가격/색상 스냅샷(numeric은 string, 없으면 null). getCustomer가 select() 전체라 응답에 포함.
   basePrice: string | null;
   optionTotal: string | null;
@@ -203,6 +207,7 @@ export function toQuoteItem(q: CustomerDetailQuote, nowMs: number): QuoteItem {
     meta: "",
     status: q.status ?? "",
     source: asEnum(QUOTE_SOURCES, q.entryMode, "manual"),
+    sourceQuoteRequestId: q.sourceQuoteRequestId ?? undefined,
     appStatus: asEnum(APP_STATUSES, q.appStatus, "draft"),
     brand: q.brandName ?? undefined,
     model: q.modelName ?? undefined,

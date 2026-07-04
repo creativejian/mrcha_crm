@@ -139,6 +139,7 @@ const detailRes: CustomerDetailResponse = {
       viewedAt: null,
       revision: 0,
       primaryScenarioId: "s1",
+      sourceQuoteRequestId: null,
       basePrice: null,
       optionTotal: null,
       finalDiscount: null,

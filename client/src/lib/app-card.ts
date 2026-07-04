@@ -77,6 +77,8 @@ export type AppCardModel = {
   hasScenario: boolean;
   lenderLabel: string;
   downPaymentLabel: string;
+  // 할부의 초기비용 어휘는 "선납금"(도메인 규칙 — 저장 컬럼은 down_payment_* 동일, 화면 어휘만 구매방식 종속). SSOT.
+  downPaymentRowLabel: string;
   carTaxLabel: string;
   subsidyLabel: string;
   rateLabel: string;
@@ -212,6 +214,7 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     hasScenario: s != null,
     lenderLabel: s?.lender ?? "금융사 미정",
     downPaymentLabel: s ? moneyModeLabel(s.downPaymentMode, s.downPaymentValue, fvp, { noneLabel: "없음", percentFirst: true }) : "없음",
+    downPaymentRowLabel: input.purchaseMethod === "할부" ? "선납금" : "선수금",
     carTaxLabel: s?.carTaxIncluded === true ? "포함" : "불포함",
     subsidyLabel: s?.subsidyApplicable === true ? moneyLabelOf(s.subsidyAmount, NO_SOURCE) : "해당 없음",
     rateLabel: rate != null ? `${rate}%` : NO_SOURCE,

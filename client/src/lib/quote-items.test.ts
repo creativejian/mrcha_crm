@@ -23,6 +23,7 @@ function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote
     viewedAt: null,
     revision: 0,
     primaryScenarioId: "s1",
+    sourceQuoteRequestId: null,
     basePrice: null,
     optionTotal: null,
     finalDiscount: null,
@@ -182,6 +183,17 @@ describe("toQuoteItem primaryScenarioId 노출", () => {
   it("primaryScenarioId null이면 undefined", () => {
     const k = toQuoteItem(makeQuote({ primaryScenarioId: null }), NOW);
     expect(k.primaryScenarioId).toBeUndefined();
+  });
+});
+
+describe("toQuoteItem sourceQuoteRequestId 노출 (승격 출처 배지)", () => {
+  it("sourceQuoteRequestId가 있으면 매핑", () => {
+    const k = toQuoteItem(makeQuote({ sourceQuoteRequestId: "req-1" }), NOW);
+    expect(k.sourceQuoteRequestId).toBe("req-1");
+  });
+  it("sourceQuoteRequestId null이면 undefined(수기 견적)", () => {
+    const k = toQuoteItem(makeQuote({ sourceQuoteRequestId: null }), NOW);
+    expect(k.sourceQuoteRequestId).toBeUndefined();
   });
 });
 

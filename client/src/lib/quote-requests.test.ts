@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchCustomerQuoteRequests, fetchQuoteRequestDetail, toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
+import { depositLabelOf, fetchCustomerQuoteRequests, fetchQuoteRequestDetail, toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
 
 // apiFetch(./api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
 vi.mock("./supabase", () => ({
@@ -20,6 +20,7 @@ const base: AppQuoteRequestRow = {
   paymentMethod: "lease",
   period: 60,
   depositType: "advance",
+  depositRatio: 0,
   rentalDeposit: 5598000,
   trimPrice: 186600000,
   status: "open",
@@ -31,6 +32,7 @@ const base: AppQuoteRequestRow = {
   matchedCustomerName: null,
   matchedCustomerCode: null,
   promotedQuoteCount: 0,
+  promotedQuoteIds: [],
   matchType: "none",
 };
 
@@ -92,16 +94,57 @@ describe("toAppQuoteRequest promotedQuoteCount", () => {
   });
 });
 
+describe("toAppQuoteRequest promotedQuoteIds", () => {
+  it("최신순 역참조 id 배열을 그대로 노출", () => {
+    expect(toAppQuoteRequest({ ...base, promotedQuoteIds: ["q-new", "q-old"] }).promotedQuoteIds).toEqual(["q-new", "q-old"]);
+    expect(toAppQuoteRequest({ ...base, promotedQuoteIds: [] }).promotedQuoteIds).toEqual([]);
+  });
+});
+
+describe("depositLabelOf", () => {
+  it("비율+금액: 보증금 (20%) 1,180만원", () => {
+    expect(depositLabelOf({ depositType: "deposit", depositRatio: 20, rentalDeposit: 11800000 })).toBe("보증금 (20%) 1,180만원");
+  });
+  it("금액만: 보증금 1,180만원", () => {
+    expect(depositLabelOf({ depositType: "deposit", depositRatio: 0, rentalDeposit: 11800000 })).toBe("보증금 1,180만원");
+  });
+  it("비율만: 보증금 (20%)", () => {
+    expect(depositLabelOf({ depositType: "deposit", depositRatio: 20, rentalDeposit: 0 })).toBe("보증금 (20%)");
+  });
+  it("유형 null: —", () => {
+    expect(depositLabelOf({ depositType: null, depositRatio: 0, rentalDeposit: 0 })).toBe("—");
+  });
+});
+
 describe("fetchQuoteRequestDetail", () => {
   it("GET /api/quote-requests/:id 호출 + paymentMethod 한글 매핑", async () => {
     // apiFetch는 fetch(url, { headers }) 형태로 호출하므로 첫 인자(URL)만 검증한다.
-    const spy = vi.fn(async () => new Response(JSON.stringify({ id: "r1", trimId: 100, paymentMethod: "lease", optionIds: [1, 2] }), { status: 200 }));
+    const spy = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: "r1",
+            trimId: 100,
+            paymentMethod: "lease",
+            optionIds: [1, 2],
+            period: 36,
+            depositType: "deposit",
+            depositRatio: 20,
+            rentalDeposit: 11800000,
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal("fetch", spy);
     const d = await fetchQuoteRequestDetail("r1");
     expect((spy.mock.calls[0] as unknown[])[0]).toBe("/api/quote-requests/r1");
     expect(d.trimId).toBe(100);
     expect(d.optionIds).toEqual([1, 2]);
     expect(d.purchaseMethod).toBe("운용리스"); // lease → 한글
+    expect(d.period).toBe(36);
+    expect(d.depositType).toBe("deposit");
+    expect(d.depositRatio).toBe(20);
+    expect(d.rentalDeposit).toBe(11800000);
   });
 });
 

@@ -7,6 +7,7 @@ import { flattenPrimaryScenario, type CustomerDetailScenario, type QuoteItem } f
 import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
+import { seedScenarioCardFromRequest } from "@/lib/quote-request-seed";
 import { type VehicleSelection } from "@/components/VehiclePicker";
 import { buildAppCardModel, type AppCardModel } from "@/lib/app-card";
 import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
@@ -126,8 +127,22 @@ export function useQuoteWorkbench({
       setEditPrefill(null);
       resetWorkbenchVehicle();
       setGuidance(seedGuidance());
-      setManualQuoteCards([...emptyQuoteConditionCards]);
-      setManualTermMonths({});
+      // 앱 견적요청 조건(기간·보증금/선수금 유형·비율/금액) → 카드1 시드(도메인 규칙: quote-request-seed.ts).
+      const seed = seedScenarioCardFromRequest(detail);
+      setManualQuoteCards([
+        {
+          ...emptyQuoteConditionCards[0],
+          depositMode: seed.depositMode ?? "none",
+          depositValue: seed.depositValue ?? "0",
+          downPaymentMode: seed.downPaymentMode ?? "none",
+          downPaymentValue: seed.downPaymentValue ?? "0",
+        },
+        emptyQuoteConditionCards[1],
+        emptyQuoteConditionCards[2],
+      ]);
+      setManualTermMonths(seed.termMonths != null ? { "manual-condition-1": seed.termMonths } : {});
+      setManualDepositModes(seed.depositMode ? { "manual-condition-1": seed.depositMode } : {});
+      setManualDownPaymentModes(seed.downPaymentMode ? { "manual-condition-1": seed.downPaymentMode } : {});
       setManualCarTaxIncluded({});
       setManualSubsidyApplicable({});
       setSavedManualQuoteConditionIds([]);
@@ -142,6 +157,7 @@ export function useQuoteWorkbench({
       if (detail.purchaseMethod && quotePurchaseMethodOptions.includes(detail.purchaseMethod as QuotePurchaseMethod)) {
         setSolutionWorkbenchPurchaseMethod(detail.purchaseMethod as QuotePurchaseMethod);
       }
+      resetWorkbenchPricing();
       setIsQuoteSolutionWorkbenchOpen(true);
     });
   }
@@ -475,6 +491,13 @@ export function useQuoteWorkbench({
     setSelectedWorkbenchOptionIds([]);
     setExteriorColor(null);
     setInteriorColor(null);
+  }
+
+  // 워크벤치 열기/수정 진입/초기화 시 이전 세션 가격 잔상 제거(트림 로드 전 최종가 표시 오염 방지).
+  // 수정 진입에도 안전: editPrefill 가격은 applyTrimToPricing(비동기 트림 로드 후)이 DOM+state를 다시 쓴다.
+  function resetWorkbenchPricing() {
+    setPricingInputs(emptyQuotePricing);
+    setPricing(computePricing(emptyQuotePricing));
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -927,6 +950,7 @@ export function useQuoteWorkbench({
     setManualCarTaxIncluded({});
     setManualSubsidyApplicable({});
     setIsQuoteAppCardPreviewOpen(false);
+    resetWorkbenchPricing();
     onToast("워크벤치 입력값을 초기화했습니다.");
   }
 
@@ -980,6 +1004,7 @@ export function useQuoteWorkbench({
     setSolutionWorkbenchPurchaseMethod(primaryQuotePurchaseMethod(purchaseFields));
     setSolutionWorkbenchEntryMode("manual");
     setSolutionWorkbenchModeMenu(null);
+    resetWorkbenchPricing();
     setIsQuoteSolutionWorkbenchOpen(true);
   }
 
@@ -1046,6 +1071,7 @@ export function useQuoteWorkbench({
     persistedQuoteIdRef.current = null;
     setSourceQuoteRequestId(null);
     resetWorkbenchVehicle();
+    resetWorkbenchPricing();
     setGuidance(normalizeQuoteGuidance(dq?.guidance) ?? DEFAULT_QUOTE_GUIDANCE);
     setSolutionWorkbenchPurchaseMethod(normalizeQuotePurchaseMethod(quote.financeType));
     setSolutionWorkbenchEntryMode(quote.source === "solution" ? "solution" : quote.source === "original" ? "original" : "manual");
