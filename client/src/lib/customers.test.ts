@@ -119,6 +119,7 @@ const detailRes: CustomerDetailResponse = {
   schedules: [{ id: "s1", scheduledDate: "2026-05-26", scheduledTime: "16:00", type: "견적", memo: "재발송", done: false }],
   memos: [{ id: "m1", body: "메모1", createdAt: "2026-05-14T13:18:00+09:00" }],
   documents: [{ id: "d1", docType: "자동인식", fileName: "f.pdf", fileSize: 100, fileMime: "application/pdf", sortOrder: 1, createdAt: "2026-05-14T13:18:00+09:00" }],
+  consultations: [],
   quotes: [
     {
       id: "q1",
