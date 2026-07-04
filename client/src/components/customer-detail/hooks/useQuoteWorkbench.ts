@@ -166,14 +166,26 @@ export function useQuoteWorkbench({
     [workbenchVehicle?.brand?.name, workbenchVehicle?.model?.name, trimDetail?.trimName ?? trimDetail?.name].filter(Boolean).join(" ")
     || [editingQuote?.brand, editingQuote?.model, editingQuote?.trim].filter(Boolean).join(" ")
     || "차량 미선택";
+  // 앱카드 푸터/디데이용 영속 견적(수정 진입 editingQuoteId 또는 신규 첫 작성완료 persistedQuoteIdRef).
+  // ref 읽기지만 quoteCode 도착(detail 재페치/quotes swap) 자체가 재렌더를 유발해 최신값이 잡힌다.
+  const persistedQuoteId = editingQuoteId ?? persistedQuoteIdRef.current;
+  const persistedQuote = persistedQuoteId ? detail.quotes.find((q) => q.id === persistedQuoteId) : undefined;
   const appCardModel: AppCardModel = buildAppCardModel({
     brandName: workbenchVehicle?.brand?.name ?? null,
     modelName: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
     trimName: trimDetail?.trimName ?? trimDetail?.name ?? null,
     modelYear: trimDetail?.modelYear ?? null,
     basePrice: pricingInputs.basePrice,
+    optionTotal: pricingInputs.optionPrice,
+    optionNames: trimDetail ? trimDetail.options.filter((o) => selectedWorkbenchOptionIds.includes(o.id)).map((o) => o.name) : [],
     discount: pricingInputs.discount,
+    discountLabels: discountLines.map((line) => line.label),
     finalVehiclePrice: pricing.finalVehiclePrice,
+    acquisitionTax: pricingInputs.acquisitionTax,
+    acquisitionTaxMode,
+    bond: pricingInputs.bond,
+    delivery: pricingInputs.delivery,
+    incidental: pricingInputs.incidental,
     registrationCost: pricing.registrationCost,
     acquisitionCost: pricing.acquisitionCost,
     exteriorColorName: exteriorColor?.name ?? null,
@@ -181,6 +193,11 @@ export function useQuoteWorkbench({
     guidance,
     purchaseMethod: solutionWorkbenchPurchaseMethod,
     scenario: cardScenario,
+    quoteCode: persistedQuote?.quoteCode ?? null,
+    appStatus: persistedQuote?.appStatus ?? null,
+    sentAtIso: persistedQuote?.sentAt ?? null,
+    validUntilIso: persistedQuote?.validUntil ?? null,
+    nowMs: nowMs(),
   });
   const workbenchFirstTermMonths = manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60;
 
