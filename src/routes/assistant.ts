@@ -20,7 +20,7 @@ import { resolveCustomerScope } from "../lib/assistant-scope";
 import { resolveGeminiTarget, type GeminiTarget } from "../lib/gemini-target";
 import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
-import { sleepUnlessAborted } from "../lib/sleep";
+import { createSseLiveness } from "../lib/sse-liveness";
 import type { AuthVariables } from "../middleware/auth";
 import { holdStreamLifetime, type DbVariables } from "../middleware/db";
 
@@ -167,49 +167,31 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
   const releaseHold = holdStreamLifetime(c);
 
   return streamSSE(c, async (sse) => {
-    const hbStop = new AbortController();
+    // CF Pages에서 클라 disconnect는 어느 채널로도 신뢰 있게 전달되지 않는다 — 하트비트·raceDead
+    // 타이밍 기계장치는 sse-liveness.ts로 추출(prod 실측 배경은 그 모듈 주석 참조). 여기는
+    // 채널 배선(sse.onAbort + raw signal 이중)과 도메인(업스트림 Gemini 중단·finalize)만 소유한다.
+    let aborted = false;
+    const upstreamAbort = new AbortController();
+    const onClientAbort = (source: string) => {
+      if (aborted) return;
+      aborted = true;
+      console.log(`[assistant] stream 클라 중단 감지(${source}):`, placeholder.id);
+      upstreamAbort.abort();
+      live.markDead();
+    };
+    const live = createSseLiveness({
+      writeRaw: (chunk) => sse.write(chunk),
+      heartbeatMs: HEARTBEAT_MS,
+      writeTimeoutMs: HEARTBEAT_WRITE_TIMEOUT_MS,
+      onDead: onClientAbort,
+    });
+    const { raceDead } = live;
     try {
       let fullText = "";
-      let aborted = false;
       let failed = false;
-      // CF Pages에서 클라 disconnect는 어느 채널로도 신뢰 있게 전달되지 않는다(2026-07-03 prod 실측:
-      // sse.onAbort·raw signal 미발화 + pending read/write가 reject 없이 얼어붙음 → finalize가
-      // waitUntil 유예(~30s)를 넘겨 취소돼 유령 placeholder). 대응 3중:
-      // ① onClientAbort: 신호가 오는 런타임에선 즉시 업스트림 중단(sse.onAbort + raw signal 이중 배선)
-      // ② 하트비트: SSE 코멘트(": hb") 주기 송출 — 쓰기 실패/타임아웃 = 사망 판정(신호 없는 런타임의 최후 채널)
-      // ③ raceDead: gen 읽기·클라 쓰기를 사망 promise와 race — 어떤 await에 얼어붙어도 릴레이 탈출 보장
-      const upstreamAbort = new AbortController();
-      let markDead!: () => void;
-      const clientDead = new Promise<"dead">((resolve) => { markDead = () => resolve("dead"); });
-      const onClientAbort = (source: string) => {
-        if (aborted) return;
-        aborted = true;
-        console.log(`[assistant] stream 클라 중단 감지(${source}):`, placeholder.id);
-        upstreamAbort.abort();
-        markDead();
-      };
       sse.onAbort(() => onClientAbort("sse.onAbort"));
       if (c.req.raw.signal.aborted) onClientAbort("signal(pre)");
       else c.req.raw.signal.addEventListener("abort", () => onClientAbort("signal"));
-      const raceDead = <T,>(p: Promise<T>): Promise<T | "dead"> => Promise.race([p, clientDead]);
-
-      void (async () => {
-        for (;;) {
-          await sleepUnlessAborted(HEARTBEAT_MS, hbStop.signal);
-          if (hbStop.signal.aborted || aborted) return;
-          try {
-            const ok = await Promise.race([
-              sse.write(": hb\n\n").then(() => true),
-              sleepUnlessAborted(HEARTBEAT_WRITE_TIMEOUT_MS, hbStop.signal).then(() => false),
-            ]);
-            if (!ok && !hbStop.signal.aborted) { onClientAbort("heartbeat-timeout"); return; }
-            if (!ok) return;
-          } catch {
-            onClientAbort("heartbeat-write-fail");
-            return;
-          }
-        }
-      })();
 
       try {
         if (args.hits.length === 0) {
@@ -259,7 +241,7 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
 
       await finalize.catch((e) => console.error("[assistant] stream 마감 실패:", e));
     } finally {
-      hbStop.abort();
+      live.stop();
       releaseHold();
     }
   });
