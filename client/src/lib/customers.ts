@@ -25,6 +25,7 @@ export type CustomerRow = {
   receivedAt: string | null;
   assignedAt: string | null;
   lastActivityAt: string | null;
+  recontacted: boolean;
   latestTask: string | null;
 };
 
@@ -72,6 +73,8 @@ export function toCustomer(row: CustomerRow): Customer {
     chance: row.chance ?? undefined,
     nextAction: row.latestTask ?? "",
     aiSummary: row.aiSummary ?? "",
+    lastActivityAt: row.lastActivityAt,
+    recontacted: row.recontacted,
   };
 }
 
@@ -80,11 +83,12 @@ export async function fetchCustomers(): Promise<Customer[]> {
 }
 
 // ── 고객 상세(GET /api/customers/:id = getCustomer) ─────────────────────────────
-// 백엔드는 drizzle camelCase 그대로 반환(자식 배열 포함). consultations는 이번 범위 외라 생략.
+// 백엔드는 drizzle camelCase 그대로 반환(자식 배열 포함).
 type CustomerDetailTask = { id: string; category: string | null; due: string | null; body: string | null; done: boolean };
 type CustomerDetailSchedule = { id: string; scheduledDate: string | null; scheduledTime: string | null; type: string | null; memo: string | null; done: boolean };
 type CustomerDetailMemo = { id: string; body: string | null; createdAt: string | null };
 type CustomerDetailDocument = { id: string; docType: string | null; fileName: string | null; fileSize: number | null; fileMime: string | null; sortOrder: number | null; createdAt: string | null };
+export type CustomerDetailConsultation = { id: string; channel: string | null; summary: string | null; status: string | null; occurredAt: string | null; advisorId: string | null; createdAt: string | null };
 
 export type CustomerDetailResponse = {
   id: string;
@@ -117,6 +121,7 @@ export type CustomerDetailResponse = {
   schedules: CustomerDetailSchedule[];
   memos: CustomerDetailMemo[];
   documents: CustomerDetailDocument[];
+  consultations: CustomerDetailConsultation[];
   quotes: CustomerDetailQuote[];
 };
 
@@ -152,6 +157,7 @@ export type CustomerDetailData = Pick<
   | "schedules"
   | "memos"
   | "documents"
+  | "consultations"
   | "quotes"
 >;
 
@@ -187,6 +193,7 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
     schedules: res.schedules ?? [],
     memos: res.memos ?? [],
     documents: res.documents ?? [],
+    consultations: res.consultations ?? [],
     quotes: res.quotes ?? [],
   };
 }

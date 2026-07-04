@@ -50,8 +50,3 @@ export function kimChanceValueClass(option: CustomerChanceOption) {
 export function isKimUnassignedStatus(key: KimStatusFieldKey, value: string) {
   return (key === "advisor" || key === "assignedAt") && value === "미배정";
 }
-
-export const kimMockQuoteAttachments = [
-  { label: "첨부 견적서 1", fileName: "첨부파일1" },
-  { label: "첨부 견적서 2", fileName: "첨부파일2" },
-];

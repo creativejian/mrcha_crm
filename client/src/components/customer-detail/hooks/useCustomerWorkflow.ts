@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type Se
 
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { formatActivity, formatPhone, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { initialFinalUpdateByCustomerId, finalUpdateStatus, resolveChance } from "@/lib/customer-table";
+import { finalUpdateStatus, resolveChance } from "@/lib/customer-table";
 import { formatKimAssignmentTime } from "@/lib/kim-detail-utils";
 import { type KimAdvisorTeam, type KimCustomerType, formatKimAdvisorValue, formatKimJobValue, formatKimLocationValue, isKimAutomaticSource } from "@/lib/kim-status-fields";
+import { deriveFinalUpdateInfo } from "@/lib/manage-status";
 
 import { fieldLabel } from "../status-meta";
 import { type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "../types";
@@ -23,20 +24,34 @@ function sourceType(source: string) {
   return "직접/소개";
 }
 
-function timelineRows(customer: Customer) {
+export type TimelineRow = { kind: string; title: string; meta: string; body: string };
+
+// 합성 행(접수/배정=실 DB 사실, 상태/메모=현재값 재표현) 사이에 실 상담 이력(consultations)을 병합.
+// consultations는 occurred_at(없으면 created_at) 오름차순으로 배정 다음·상태 앞 — 접수/배정은 항상
+// 이력의 시작이고 상태/메모는 "현재"의 재표현이라 문자열 시각 파싱 없이도 순서가 성립한다.
+export function buildTimelineRows(customer: Customer, consultations: CustomerDetailData["consultations"]): TimelineRow[] {
+  const consultationRows = [...consultations]
+    .sort((a, b) => new Date(a.occurredAt ?? a.createdAt ?? 0).getTime() - new Date(b.occurredAt ?? b.createdAt ?? 0).getTime())
+    .map((row) => ({
+      kind: "상담",
+      title: row.channel ? `${row.channel} 상담` : "상담 기록",
+      meta: formatActivity(row.occurredAt ?? row.createdAt),
+      body: row.summary ?? "",
+    }));
   return [
     { kind: "접수", title: `${sourceType(customer.source)} 접수`, meta: customer.receivedAt, body: `${customer.source} 경로로 고객 문의가 들어왔습니다.` },
     { kind: "배정", title: `${customer.advisor} 상담사 배정`, meta: customer.assignedAt, body: `${customer.team} 기준으로 담당자를 배정했습니다.` },
+    ...consultationRows,
     { kind: "상태", title: `${customer.statusGroup} > ${customer.status}`, meta: customer.date, body: "전체 보기의 진행 상태 컬럼과 동일한 업무 단계입니다." },
     { kind: "메모", title: "상담 메모 업데이트", meta: "최근", body: customer.nextAction },
   ];
 }
 
-// 상세 관리 상태 = 목록과 동일 규칙. override(워크플로우 변경) 있으면 그것, 없으면 목록과 같은 mock map 계산,
-// 둘 다 없으면 ""(신규·상담접수 등 아직 관리 상태 없음 → 목록처럼 공백). 무조건 "정상" 폴백 금지.
-function resolveKimManageStatus(override: CustomerManageStatus | undefined, customerCode: string): CustomerManageStatus | "" {
+// 상세 관리 상태 = 목록과 동일 규칙. override(워크플로우 변경) 있으면 그것, 없으면 서버 파생
+// lastActivityAt 기반 계산, 파생 불가(신규·상담접수/활동 없음)면 ""(목록처럼 공백). 무조건 "정상" 폴백 금지.
+function resolveManageStatus(override: CustomerManageStatus | undefined, customer: Customer): CustomerManageStatus | "" {
   if (override) return override;
-  const info = initialFinalUpdateByCustomerId[customerCode];
+  const info = deriveFinalUpdateInfo(customer);
   return info ? (finalUpdateStatus(info).label as CustomerManageStatus) : "";
 }
 
@@ -79,10 +94,10 @@ export function useCustomerWorkflow({
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
   const [stageStatus, setStageStatus] = useState(customer.status);
   const [chance, setChance] = useState<CustomerChanceOption>(resolveChance(customer, chanceOverride));
-  const [manage, setManage] = useState<CustomerManageStatus | "">(() => resolveKimManageStatus(manageStatusOverride, customer.customerId));
+  const [manage, setManage] = useState<CustomerManageStatus | "">(() => resolveManageStatus(manageStatusOverride, customer));
 
   const consultBodyRef = useRef<HTMLDivElement>(null);
-  const timelineItems = timelineRows(customer);
+  const timelineItems = buildTimelineRows(customer, detail.consultations);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- customer prop이 바뀔 때 진행 상태를 외부 값과 동기화하는 의도된 effect
@@ -97,8 +112,8 @@ export function useCustomerWorkflow({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- manageStatusOverride 변경 시 관리 상태를 동기화하는 의도된 effect
-    setManage(resolveKimManageStatus(manageStatusOverride, customer.customerId));
-  }, [manageStatusOverride, customer.customerId]);
+    setManage(resolveManageStatus(manageStatusOverride, customer));
+  }, [manageStatusOverride, customer]);
 
   useEffect(() => {
     const container = consultBodyRef.current;

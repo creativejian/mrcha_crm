@@ -11,6 +11,8 @@ export type FinalUpdateInfo = {
   action: string;
   field: string;
   label: string;
+  // 원본 시각 ISO — label 재파싱의 연도 하드코딩 우회. 파생 데이터만 채움, mock 맵은 없음.
+  atIso?: string;
   days: number;
   customerRecontacted?: boolean;
 };
@@ -26,21 +28,6 @@ export const secondaryStageOptionsByGroup = customerStatusGroups;
 export const statusGroupByStatus = Object.fromEntries(
   Object.entries(customerStatusGroups).flatMap(([group, values]) => values.map((value) => [value, group])),
 );
-
-export const initialFinalUpdateByCustomerId: Record<string, FinalUpdateInfo> = {
-  "CU-2605-0020": { action: "상담 메모 업데이트", field: "상담 메모", label: "5월 19일 13:42", days: 0 },
-  "CU-2605-0019": { action: "진행 상태 준비중으로 변경", field: "진행 상태", label: "5월 19일 11:18", days: 0 },
-  "CU-2605-0018": { action: "계약 가능성 높음으로 변경", field: "계약 가능성", label: "5월 18일 19:10", days: 1 },
-  "CU-2605-0017": { action: "진행 상태 출고완료로 변경", field: "진행 상태", label: "5월 14일 16:30", days: 5 },
-  "CU-2605-0016": { action: "상담 메모 업데이트", field: "상담 메모", label: "5월 11일 10:02", days: 8 },
-  "CU-2605-0015": { action: "고객이 카카오로 먼저 재문의", field: "유입 경로", label: "5월 19일 10:00", days: 0, customerRecontacted: true },
-  "CU-2605-0014": { action: "상담 메모 업데이트", field: "상담 메모", label: "5월 13일 15:20", days: 6 },
-  "CU-2605-0013": { action: "진행 상태 추후재컨택으로 변경", field: "진행 상태", label: "5월 1일 13:45", days: 18 },
-  "CU-2605-0011": { action: "계약 가능성 중간으로 변경", field: "계약 가능성", label: "5월 7일 18:00", days: 12 },
-  "CU-2605-0010": { action: "차종 · 구매방식 재고확인중으로 변경", field: "차종 · 구매방식", label: "5월 4일 13:30", days: 15 },
-  "CU-2605-0009": { action: "진행 상태 딜러사계약중으로 변경", field: "진행 상태", label: "5월 16일 16:40", days: 3 },
-  "CU-2605-0008": { action: "상담 메모 업데이트", field: "상담 메모", label: "4월 18일 11:10", days: 31 },
-};
 
 const vehicleDisplayByVehicle: Record<string, { title: string; trim: string; trimShort?: string }> = {
   "Maybach S-Class": { title: "Maybach S-Class", trim: "S 500 4M Long" },
@@ -185,7 +172,7 @@ export function firstResponseDisplay(assignedAt: string, updateInfo: FinalUpdate
   if (!updateInfo) return "대기 중";
 
   const assignedTime = operationDateValue(assignedAt);
-  const firstActionTime = operationDateValue(updateInfo.label);
+  const firstActionTime = updateInfo.atIso ? new Date(updateInfo.atIso).getTime() : operationDateValue(updateInfo.label);
   if (!assignedTime || !firstActionTime || firstActionTime < assignedTime) return "기록 확인";
 
   const minutes = Math.round((firstActionTime - assignedTime) / 60_000);

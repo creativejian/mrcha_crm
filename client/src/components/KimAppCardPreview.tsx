@@ -2,15 +2,10 @@ import type { AppCardModel } from "@/lib/kim-app-card";
 
 // 고객 앱 견적카드 미리보기. 워크벤치 우측 상시 + 확대 모달에서 동일 컴포넌트를 재사용한다.
 // model 1개만 받고 DOM/state를 직접 읽지 않는다(조립은 부모 워크벤치 책임).
-// 주의: D-6 / "미확인 견적"은 발송 상태값(미리보기 맥락)이라 현행 mock 유지.
 export function KimAppCardPreview({ model, inModal = false }: { model: AppCardModel; inModal?: boolean }) {
   return (
     <aside className={`kim-app-card-preview${inModal ? " in-modal" : ""}`} aria-label="앱 견적카드 미리보기">
       <div className="kim-app-card">
-        <div className="kim-app-card-status">
-          <strong>🔔 미확인 견적</strong>
-          <span>● D-6</span>
-        </div>
         <div className="kim-app-card-body">
           <div className="kim-app-card-hero">
             <div>

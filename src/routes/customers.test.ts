@@ -1023,3 +1023,48 @@ test("GET /api/customers/:id/quote-requests 앱 유입 고객 → 200 배열(요
     expect(["app_user", "phone", "none"]).toContain(r.matchType);
   }
 });
+
+test("lastActivityAt 파생: 자식(메모) 추가 시각이 customers.updated_at보다 새로우면 그 시각", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+
+  const created = await app.request(`/api/customers/${cid}/memos`, { method: "POST", headers: h, body: JSON.stringify({ body: "파생 검증 메모" }) });
+  expect(created.status).toBe(201);
+  const memo = (await created.json()) as { id: string; createdAt: string };
+
+  try {
+    // 상세: 파생값 = 방금 만든 메모 created_at (이 고객의 최신 활동)
+    const got = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as { lastActivityAt: string | null };
+    expect(new Date(got.lastActivityAt ?? 0).getTime()).toBe(new Date(memo.createdAt).getTime());
+
+    // 목록도 동일 파생
+    const list2 = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; lastActivityAt: string | null }>;
+    expect(new Date(list2.find((c) => c.id === cid)?.lastActivityAt ?? 0).getTime()).toBe(new Date(memo.createdAt).getTime());
+  } finally {
+    // 정리(공유 master 비파괴) — assert 실패해도 고아 행이 남지 않게 finally에서.
+    await app.request(`/api/customers/${cid}/memos/${memo.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+  }
+});
+
+test("latestTask: 미완료 할일 최신 1건 body가 목록에 실린다 (상관 서브쿼리 정규화 회귀 가드)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+
+  const created = await app.request(`/api/customers/${cid}/tasks`, { method: "POST", headers: h, body: JSON.stringify({ category: "체크", due: "오늘", body: "latestTask 회귀 가드" }) });
+  expect(created.status).toBe(201);
+  const taskId = ((await created.json()) as { id: string }).id;
+
+  try {
+    const list2 = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; latestTask: string | null }>;
+    expect(list2.find((c) => c.id === cid)?.latestTask).toBe("latestTask 회귀 가드");
+  } finally {
+    // 정리(공유 master 비파괴) — assert 실패해도 고아 행이 남지 않게 finally에서.
+    await app.request(`/api/customers/${cid}/tasks/${taskId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+  }
+});

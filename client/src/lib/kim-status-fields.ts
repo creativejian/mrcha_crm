@@ -85,10 +85,6 @@ export function hasKimAppSourceQueue(value: string) {
   return value.includes("앱");
 }
 
-export function hasKimQuoteAttachments(value: string) {
-  return value === "디엘(견적서)";
-}
-
 // --- 담당자 ---
 
 export function parseKimAdvisorValue(value: string): { team: KimAdvisorTeam; advisor: string } {

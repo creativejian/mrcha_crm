@@ -23,6 +23,7 @@ const row: CustomerRow = {
   receivedAt: "2026-05-14T12:56:00+09:00",
   assignedAt: "2026-05-14T13:04:00+09:00",
   lastActivityAt: "2026-05-14T14:20:00+09:00",
+  recontacted: false,
   latestTask: "GLC 재고 확인",
   chance: null,
 };
@@ -64,6 +65,13 @@ describe("toCustomer", () => {
   it("appUserId를 관통시킨다 (앱 유입 고객 매칭용)", () => {
     expect(toCustomer({ ...row, appUserId: "app-u1" }).appUserId).toBe("app-u1");
     expect(toCustomer({ ...row, appUserId: null }).appUserId).toBeNull();
+  });
+  it("lastActivityAt(raw ISO)·recontacted를 관통시킨다 (관리 상태 파생 입력)", () => {
+    const c = toCustomer(row);
+    expect(c.lastActivityAt).toBe(row.lastActivityAt);
+    expect(c.recontacted).toBe(false);
+    expect(toCustomer({ ...row, recontacted: true }).recontacted).toBe(true);
+    expect(toCustomer({ ...row, lastActivityAt: null }).lastActivityAt).toBeNull();
   });
 });
 
@@ -111,6 +119,7 @@ const detailRes: CustomerDetailResponse = {
   schedules: [{ id: "s1", scheduledDate: "2026-05-26", scheduledTime: "16:00", type: "견적", memo: "재발송", done: false }],
   memos: [{ id: "m1", body: "메모1", createdAt: "2026-05-14T13:18:00+09:00" }],
   documents: [{ id: "d1", docType: "자동인식", fileName: "f.pdf", fileSize: 100, fileMime: "application/pdf", sortOrder: 1, createdAt: "2026-05-14T13:18:00+09:00" }],
+  consultations: [],
   quotes: [
     {
       id: "q1",
