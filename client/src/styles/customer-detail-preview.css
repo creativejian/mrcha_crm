@@ -656,6 +656,8 @@ body.kim-detail-overlay-open .customer-detail-drawer {
   font-weight: 850;
   cursor: default;
 }
+/* 항상 disabled인 장식 CTA — 전역 button:disabled 물빠짐(opacity 0.48·not-allowed) 무효화 */
+.app-card-consult:disabled { opacity: 1; cursor: default; }
 .app-card-hero-foot { text-align: center; font-size: 10.5px; opacity: 0.8; }
 
 .app-card-block {

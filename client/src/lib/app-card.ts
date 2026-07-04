@@ -1,6 +1,7 @@
 import type { QuoteGuidance } from "@/data/quote-guidance";
+import { formatActivity } from "./customers";
 import type { ScenarioInput } from "./customer-quotes";
-import { formatTerm } from "./quote-items";
+import { formatTerm, validLabelFromUntil } from "./quote-items";
 import { formatMoney } from "./quote-pricing";
 
 // 미리보기 카드 조립 입력. 워크벤치 state에서 추출한 스냅샷(순수 변환을 위해 원시값만 받는다).
@@ -92,7 +93,6 @@ export type AppCardModel = {
 // 계산엔진 미연결 필드는 가짜 숫자 대신 정직한 안내 텍스트로 표시한다.
 const CALC_PENDING = "계산 후 안내";
 const NO_SOURCE = "—";
-const MS_DAY = 86_400_000;
 const TAX_MODE_LABELS: Record<AppCardModelInput["acquisitionTaxMode"], string> = {
   normal: "일반", hybrid: "하이브리드 감면", electric: "전기차 감면", manual: "직접 입력",
 };
@@ -129,25 +129,17 @@ function moneyModeLabel(
   return n == null ? opts.noneLabel : `${formatMoney(n)}원`;
 }
 
-// 발송 전(valid_until 없음)엔 갭ⓐ 정책 안내, 발송 후엔 카운트다운.
+// 발송 전(valid_until 없음/무효)엔 갭ⓐ 정책 안내, 발송 후엔 견적함 목록과 동일 계산(validLabelFromUntil SSOT).
 function ddayLabelOf(validUntilIso: string | null, now: number): string {
-  if (!validUntilIso) return "D-7 · 발송 시 시작";
-  const until = new Date(validUntilIso).getTime();
-  if (Number.isNaN(until)) return "D-7 · 발송 시 시작";
-  const days = Math.ceil((until - now) / MS_DAY);
-  return days > 0 ? `D-${days}` : "만료됨";
+  return validLabelFromUntil(validUntilIso, now) ?? "D-7 · 발송 시 시작";
 }
 
-// 푸터 발송시각 "26/04/16 18:07". 발송 전엔 프리뷰 표기.
+// 푸터 발송시각 — 견적함 표시와 동일 포맷(formatActivity SSOT, "YY/MM/DD HH:mm"). 발송 전엔 프리뷰 표기.
 function stampLabelOf(iso: string | null): string {
-  if (!iso) return "발송 전 미리보기";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "발송 전 미리보기";
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${String(d.getFullYear()).slice(2)}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return formatActivity(iso) || "발송 전 미리보기";
 }
 
-// "20,000km / 년" → "연 20,000km" (디자인 표기). 형태가 다르면 원문 유지.
+// "20,000km / 년" → "연 20,000km"(디자인 표기). "/" 앞부분에 "연 " 접두, 빈 head면 원문 유지.
 function mileageLabelOf(raw: string | null | undefined): string {
   if (!raw) return "연 20,000km";
   const head = raw.split("/")[0]?.trim();

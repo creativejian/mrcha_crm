@@ -64,7 +64,7 @@ export function AppCardPreview({ model, inModal = false }: { model: AppCardModel
           </dl>
         </section>
         <section className="app-card-block">
-          <button className="app-card-block-head is-blue is-toggle" onClick={() => setCostOpen((open) => !open)} type="button">
+          <button aria-expanded={costOpen} className="app-card-block-head is-blue is-toggle" onClick={() => setCostOpen((open) => !open)} type="button">
             📌 취득원가 구성을 확인하는 것이 중요해요
             {costOpen ? <ChevronUp size={14} strokeWidth={2.2} /> : <ChevronDown size={14} strokeWidth={2.2} />}
           </button>
@@ -86,7 +86,7 @@ export function AppCardPreview({ model, inModal = false }: { model: AppCardModel
 
         {/* 섹션 3 — 추천 견적 조건(대표 시나리오 전체) */}
         <section className="app-card-block">
-          <button className="app-card-block-head is-blue is-toggle" onClick={() => setConditionOpen((open) => !open)} type="button">
+          <button aria-expanded={conditionOpen} className="app-card-block-head is-blue is-toggle" onClick={() => setConditionOpen((open) => !open)} type="button">
             📄 가장 추천드리는 견적 조건입니다!
             {conditionOpen ? <ChevronUp size={14} strokeWidth={2.2} /> : <ChevronDown size={14} strokeWidth={2.2} />}
           </button>

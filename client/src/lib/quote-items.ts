@@ -184,7 +184,7 @@ export function formatScenarioMoneyMode(mode: string | null, value: string | nul
 }
 
 // valid_until → 화면 D-day. 미래면 "D-N", 지났으면 "만료됨", 없으면 표시 안 함.
-function validLabelFromUntil(validUntil: string | null, nowMs: number): string | undefined {
+export function validLabelFromUntil(validUntil: string | null, nowMs: number): string | undefined {
   if (!validUntil) return undefined;
   const until = new Date(validUntil).getTime();
   if (Number.isNaN(until)) return undefined;
