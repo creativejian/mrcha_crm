@@ -5,6 +5,7 @@ import { formatMoney } from "./quote-pricing";
 // 비율>0이면 % 모드(금액 무시 — CRM 최종가 기준 재계산 정합), 비율 0·금액>0이면 금액 모드. cash/무타입/0값은 시드 없음.
 // 구현은 depositType만으로 행을 정한다(초기비용 유형이 구매방식과 1:1 대응 — 일시불만 코드 가드).
 // 주의: depositLabelOf(quote-requests.ts)는 병기(비율+금액 동시 표시) — 여기는 비율 우선·금액 무시. 복붙 금지.
+// 주의: 시드 값은 표시/입력 보조일 뿐 — 카드1이 채워짐(금융사 선택 or 월납입>0) 판정돼야 저장된다(extractWorkbenchScenarios isFilled 게이트).
 export type ScenarioCardSeed = {
   termMonths: number | null; // null = 소비 측이 기본 60 유지(버튼 옵션 밖 기간 포함)
   depositMode: "percent" | "amount" | null;

@@ -157,9 +157,7 @@ export function useQuoteWorkbench({
       if (detail.purchaseMethod && quotePurchaseMethodOptions.includes(detail.purchaseMethod as QuotePurchaseMethod)) {
         setSolutionWorkbenchPurchaseMethod(detail.purchaseMethod as QuotePurchaseMethod);
       }
-      // 이전 세션 가격 잔상 제거(트림 로드 전 최종가 표시 오염 방지)
-      setPricingInputs(emptyQuotePricing);
-      setPricing(computePricing(emptyQuotePricing));
+      resetWorkbenchPricing();
       setIsQuoteSolutionWorkbenchOpen(true);
     });
   }
@@ -493,6 +491,13 @@ export function useQuoteWorkbench({
     setSelectedWorkbenchOptionIds([]);
     setExteriorColor(null);
     setInteriorColor(null);
+  }
+
+  // 워크벤치 열기/수정 진입/초기화 시 이전 세션 가격 잔상 제거(트림 로드 전 최종가 표시 오염 방지).
+  // 수정 진입에도 안전: editPrefill 가격은 applyTrimToPricing(비동기 트림 로드 후)이 DOM+state를 다시 쓴다.
+  function resetWorkbenchPricing() {
+    setPricingInputs(emptyQuotePricing);
+    setPricing(computePricing(emptyQuotePricing));
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -945,9 +950,7 @@ export function useQuoteWorkbench({
     setManualCarTaxIncluded({});
     setManualSubsidyApplicable({});
     setIsQuoteAppCardPreviewOpen(false);
-    // 이전 세션 가격 잔상 제거(트림 로드 전 최종가 표시 오염 방지)
-    setPricingInputs(emptyQuotePricing);
-    setPricing(computePricing(emptyQuotePricing));
+    resetWorkbenchPricing();
     onToast("워크벤치 입력값을 초기화했습니다.");
   }
 
@@ -1001,9 +1004,7 @@ export function useQuoteWorkbench({
     setSolutionWorkbenchPurchaseMethod(primaryQuotePurchaseMethod(purchaseFields));
     setSolutionWorkbenchEntryMode("manual");
     setSolutionWorkbenchModeMenu(null);
-    // 이전 세션 가격 잔상 제거(트림 로드 전 최종가 표시 오염 방지)
-    setPricingInputs(emptyQuotePricing);
-    setPricing(computePricing(emptyQuotePricing));
+    resetWorkbenchPricing();
     setIsQuoteSolutionWorkbenchOpen(true);
   }
 
@@ -1070,6 +1071,7 @@ export function useQuoteWorkbench({
     persistedQuoteIdRef.current = null;
     setSourceQuoteRequestId(null);
     resetWorkbenchVehicle();
+    resetWorkbenchPricing();
     setGuidance(normalizeQuoteGuidance(dq?.guidance) ?? DEFAULT_QUOTE_GUIDANCE);
     setSolutionWorkbenchPurchaseMethod(normalizeQuotePurchaseMethod(quote.financeType));
     setSolutionWorkbenchEntryMode(quote.source === "solution" ? "solution" : quote.source === "original" ? "original" : "manual");
