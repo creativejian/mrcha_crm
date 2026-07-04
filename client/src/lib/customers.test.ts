@@ -66,6 +66,13 @@ describe("toCustomer", () => {
     expect(toCustomer({ ...row, appUserId: "app-u1" }).appUserId).toBe("app-u1");
     expect(toCustomer({ ...row, appUserId: null }).appUserId).toBeNull();
   });
+  it("lastActivityAt(raw ISO)·recontacted를 관통시킨다 (관리 상태 파생 입력)", () => {
+    const c = toCustomer(row);
+    expect(c.lastActivityAt).toBe(row.lastActivityAt);
+    expect(c.recontacted).toBe(false);
+    expect(toCustomer({ ...row, recontacted: true }).recontacted).toBe(true);
+    expect(toCustomer({ ...row, lastActivityAt: null }).lastActivityAt).toBeNull();
+  });
 });
 
 describe("formatActivity", () => {

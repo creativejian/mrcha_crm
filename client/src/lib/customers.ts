@@ -25,7 +25,7 @@ export type CustomerRow = {
   receivedAt: string | null;
   assignedAt: string | null;
   lastActivityAt: string | null;
-  recontacted: boolean | null;
+  recontacted: boolean;
   latestTask: string | null;
 };
 
@@ -74,7 +74,7 @@ export function toCustomer(row: CustomerRow): Customer {
     nextAction: row.latestTask ?? "",
     aiSummary: row.aiSummary ?? "",
     lastActivityAt: row.lastActivityAt,
-    recontacted: row.recontacted ?? false,
+    recontacted: row.recontacted,
   };
 }
 
