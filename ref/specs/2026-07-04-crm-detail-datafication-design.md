@@ -88,7 +88,7 @@
 ## 범위 밖 / Follow-up
 
 - `customers.last_activity_at` 컬럼 drop(마이그레이션) — 파생 안정화 후.
-- 상담 기록(consultations) 쓰기 CRUD — 별도 기능 슬라이스.
+- ~~상담 기록(consultations) 쓰기 CRUD~~ — **폐기(2026-07-04, 이사님 컨펌·유슨생 전달): 타임라인은 수동 입력 없는 자동 갱신 구조 확정.** 현행 합성 타임라인(접수/배정/상태/메모 실데이터 파생)이 그 구현. consultations 테이블·병합 배선은 **자동 기록 수신처**로 유지 — 후일 채팅 AI 상담 요약(#135 follow-up) 등 시스템이 적재하면 자동 표시.
 - `kim-*` CSS 클래스 리네임 — 필요 재부상 시 별도 기계 치환 PR(#141 byte-diff 방법론).
 - 견적서 첨부 팝업·견적 발송 상태/만료(D-day) — 해당 기능 슬라이스에서 실데이터로.
 - 목록 `initialCustomers` 목업(`data/customers.ts`)과 대시보드/파이낸스 목업 — 이 슬라이스 무관.
