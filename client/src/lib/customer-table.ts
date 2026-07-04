@@ -11,6 +11,8 @@ export type FinalUpdateInfo = {
   action: string;
   field: string;
   label: string;
+  // 원본 시각 ISO — label 재파싱의 연도 하드코딩 우회. 파생 데이터만 채움, mock 맵은 없음.
+  atIso?: string;
   days: number;
   customerRecontacted?: boolean;
 };
@@ -185,7 +187,7 @@ export function firstResponseDisplay(assignedAt: string, updateInfo: FinalUpdate
   if (!updateInfo) return "대기 중";
 
   const assignedTime = operationDateValue(assignedAt);
-  const firstActionTime = operationDateValue(updateInfo.label);
+  const firstActionTime = updateInfo.atIso ? new Date(updateInfo.atIso).getTime() : operationDateValue(updateInfo.label);
   if (!assignedTime || !firstActionTime || firstActionTime < assignedTime) return "기록 확인";
 
   const minutes = Math.round((firstActionTime - assignedTime) / 60_000);

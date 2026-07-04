@@ -38,6 +38,12 @@ describe("deriveFinalUpdateInfo", () => {
     const info = deriveFinalUpdateInfo({ ...base, lastActivityAt: "2026-07-01T09:05:00+09:00" }, NOW)!;
     expect(info.label).toBe("7월 1일 09:05");
     expect(info.days).toBe(3);
+    expect(info.atIso).toBe(new Date("2026-07-01T09:05:00+09:00").toISOString());
+  });
+
+  test("days는 달력일 차이 — 어제 23시 활동 + 오늘 01시 현재 = 1일", () => {
+    const info = deriveFinalUpdateInfo({ ...base, lastActivityAt: "2026-07-03T23:00:00+09:00" }, new Date("2026-07-04T01:00:00+09:00"))!;
+    expect(info.days).toBe(1);
   });
 
   test("미래 시각(시계 오차)은 days 0으로 클램프", () => {
