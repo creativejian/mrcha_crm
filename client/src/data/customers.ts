@@ -27,6 +27,8 @@ export type Customer = {
   chance?: string;
   nextAction: string;
   aiSummary: string;
+  lastActivityAt?: string | null; // 서버 파생 최근 담당자 활동(ISO) — 관리 상태 계산 입력
+  recontacted?: boolean;
   settlementStatus?: string;
   fee?: string;
   cost?: string;
