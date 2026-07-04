@@ -2,7 +2,7 @@ import { test, expect } from "bun:test";
 
 import { sleepUnlessAborted } from "./sleep";
 
-// 하트비트 주기·쓰기 타임아웃(routes/assistant.ts)이 의존하는 계약 — 지금까지 prod tail로만 검증되던 경로.
+// 하트비트 주기·쓰기 타임아웃(lib/sse-liveness.ts)이 의존하는 계약 — 지금까지 prod tail로만 검증되던 경로.
 
 test("이미 abort된 signal이면 즉시 해소(리스너 미등록)", async () => {
   const ac = new AbortController();
