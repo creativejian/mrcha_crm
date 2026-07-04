@@ -10,10 +10,10 @@ import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker } from "@/components/VehiclePicker";
 
 import {
-  kimDiscountLabelOptions,
-  kimManualMileageOptions,
+  discountLabelOptions,
+  manualMileageOptions,
   emptyQuotePricing,
-  kimQuotePurchaseMethodOptions,
+  quotePurchaseMethodOptions,
 } from "./quote-workbench-meta";
 import { type useQuoteWorkbench } from "./hooks/useQuoteWorkbench";
 
@@ -180,7 +180,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                 </button>
                 {solutionWorkbenchModeMenu === "purchase" ? (
                   <div className="kim-quote-workbench-mode-menu" role="menu">
-                    {kimQuotePurchaseMethodOptions.filter((option) => option !== solutionWorkbenchPurchaseMethod).map((option) => (
+                    {quotePurchaseMethodOptions.filter((option) => option !== solutionWorkbenchPurchaseMethod).map((option) => (
                       <button
                         key={option}
                         onClick={() => {
@@ -358,7 +358,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                   <div className="kim-jeff-form-row kim-jeff-discount-row" key={line.id}>
                     <span>추가 할인</span>
                     <select className="kim-jeff-discount-label" aria-label="할인 항목명" defaultValue={line.label}>
-                      {kimDiscountLabelOptions.map((option) => <option key={option}>{option}</option>)}
+                      {discountLabelOptions.map((option) => <option key={option}>{option}</option>)}
                     </select>
                     <div className="kim-jeff-segment">
                       <button className={line.unit === "amount" ? "active" : ""} onClick={() => setDiscountLineMode(line.id, "amount")} type="button">금액</button>
@@ -439,7 +439,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           <label><span>보증금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={depositMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "none")} type="button">없음</button><button className={depositMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "amount")} type="button">금액</button><button className={depositMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${depositMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="deposit" data-discount-unit={depositMode === "percent" ? "percent" : "amount"} defaultValue={condition.depositValue} disabled={isConditionSaved} readOnly={depositMode === "none"} /><em>{depositMode === "percent" ? "%" : "원"}</em></div></div></label>
                           <label><span>선수금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={downPaymentMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "none")} type="button">없음</button><button className={downPaymentMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "amount")} type="button">금액</button><button className={downPaymentMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${downPaymentMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="downPayment" data-discount-unit={downPaymentMode === "percent" ? "percent" : "amount"} defaultValue={condition.downPaymentValue} disabled={isConditionSaved} readOnly={downPaymentMode === "none"} /><em>{downPaymentMode === "percent" ? "%" : "원"}</em></div></div></label>
                           <label><span>잔존가치</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={residualMode === "max" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "max")} type="button">최대</button><button className={residualMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "amount")} type="button">금액</button><button className={residualMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${residualMode === "max" ? " is-fixed" : ""}`}><input data-sc-field="residual" data-discount-unit={residualMode === "percent" ? "percent" : "amount"} defaultValue={condition.residualValue} disabled={isConditionSaved} readOnly={residualMode === "max"} /><em>{residualMode === "percent" ? "%" : "원"}</em></div></div></label>
-                          <label><span>약정거리</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={mileageMode === "basic" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "basic")} type="button">기본</button><button className={mileageMode === "custom" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "custom")} type="button">변경</button></div><select className={`kim-manual-value-select${mileageMode === "basic" ? " is-fixed" : ""}`} value={mileageValue} disabled={isConditionSaved || mileageMode === "basic"} onChange={(event) => setManualMileageValue(condition.id, event.currentTarget.value)}>{kimManualMileageOptions.map((option) => <option key={option}>{option}</option>)}</select></div></label>
+                          <label><span>약정거리</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={mileageMode === "basic" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "basic")} type="button">기본</button><button className={mileageMode === "custom" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "custom")} type="button">변경</button></div><select className={`kim-manual-value-select${mileageMode === "basic" ? " is-fixed" : ""}`} value={mileageValue} disabled={isConditionSaved || mileageMode === "basic"} onChange={(event) => setManualMileageValue(condition.id, event.currentTarget.value)}>{manualMileageOptions.map((option) => <option key={option}>{option}</option>)}</select></div></label>
                           <label><span>자동차세</span><div className="kim-jeff-segment"><button className="active" disabled={isConditionSaved} type="button">불포함</button><button disabled={isConditionSaved} type="button">포함</button></div></label>
                           <label className="before-emphasis"><span>보조금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className="active" disabled={isConditionSaved} type="button">비해당</button><button disabled={isConditionSaved} type="button">해당</button></div><div className="kim-jeff-money-input"><input defaultValue="0" disabled={isConditionSaved} readOnly /><em>원</em></div></div></label>
                           <div className="kim-manual-compare-row amount emphasis"><span>월 납입금</span><div className="kim-manual-monthly-control"><button aria-label="솔루션 조회" className="kim-manual-solution-query" disabled={isConditionSaved || !solutionWorkbenchCanQuery} onClick={() => onToast("financial-dolim-solution 연결 전 임시 조회 버튼입니다.")} title="솔루션 조회" type="button"><Calculator size={14} strokeWidth={2.15} /></button><div className="kim-jeff-money-input"><input aria-label="월 납입금" data-sc-field="monthly" defaultValue={condition.monthlyPayment} disabled={isConditionSaved} /><em>원</em></div></div></div>

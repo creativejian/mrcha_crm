@@ -4,7 +4,7 @@ import { type Customer } from "@/data/customers";
 import { addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { type CustomerDetailData } from "@/lib/customers";
 import { nowMs, scheduleTimeFromFormData } from "@/lib/detail-utils";
-import { sortKimSchedulesByDateTime, scheduleRecordKey, type KimScheduleItem } from "@/lib/schedule-items";
+import { sortSchedulesByDateTime, scheduleRecordKey, type ScheduleItem } from "@/lib/schedule-items";
 
 type UseCustomerSchedulesArgs = {
   detail: CustomerDetailData; // 초기 schedules / completedScheduleKeys 매핑 소스
@@ -15,7 +15,7 @@ type UseCustomerSchedulesArgs = {
 };
 
 export function useCustomerSchedules({ detail, customer, onToast, markRecentUpdate, onCloseFloatingEditor }: UseCustomerSchedulesArgs) {
-  const [schedules, setSchedules] = useState<KimScheduleItem[]>(() =>
+  const [schedules, setSchedules] = useState<ScheduleItem[]>(() =>
     detail.schedules.map((s) => ({
       id: s.id,
       date: s.scheduledDate ?? "",
@@ -37,7 +37,7 @@ export function useCustomerSchedules({ detail, customer, onToast, markRecentUpda
   const scheduleEditRef = useRef<HTMLFormElement>(null);
   const scheduleBodyRef = useRef<HTMLDivElement>(null);
 
-  const sortedSchedules = sortKimSchedulesByDateTime(schedules);
+  const sortedSchedules = sortSchedulesByDateTime(schedules);
 
   useEffect(() => {
     if (!confirmingScheduleCompleteId) return;
@@ -176,7 +176,7 @@ export function useCustomerSchedules({ detail, customer, onToast, markRecentUpda
     }
   }
 
-  function toggleScheduleComplete(item: KimScheduleItem) {
+  function toggleScheduleComplete(item: ScheduleItem) {
     const key = scheduleRecordKey(item);
     const nextDone = !completedScheduleKeys.includes(key);
     const prevCompleted = completedScheduleKeys;

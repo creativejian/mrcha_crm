@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type Se
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { formatActivity, formatPhone, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { finalUpdateStatus, resolveChance } from "@/lib/customer-table";
-import { formatKimAssignmentTime } from "@/lib/detail-utils";
-import { type AdvisorTeam, type CustomerTypeValue, formatKimAdvisorValue, formatKimJobValue, formatKimLocationValue, isKimAutomaticSource } from "@/lib/status-fields";
+import { formatAssignmentTime } from "@/lib/detail-utils";
+import { type AdvisorTeam, type CustomerTypeValue, formatAdvisorValue, formatJobValue, formatLocationValue, isAutomaticSource } from "@/lib/status-fields";
 import { deriveFinalUpdateInfo } from "@/lib/manage-status";
 
 import { fieldLabel } from "../status-meta";
@@ -85,10 +85,10 @@ export function useCustomerWorkflow({
 }: UseCustomerWorkflowArgs) {
   const [statusValues, setStatusValues] = useState<Record<StatusFieldKey, string>>(() => ({
     phone: detail.phone ? formatPhone(detail.phone) : "미입력",
-    job: detail.customerType ? formatKimJobValue(detail.customerType as CustomerTypeValue, detail.customerTypeDetail ?? "") : "미입력",
+    job: detail.customerType ? formatJobValue(detail.customerType as CustomerTypeValue, detail.customerTypeDetail ?? "") : "미입력",
     location: detail.residence ?? "확인 필요",
     source: detail.source ?? "미입력",
-    advisor: detail.advisorName ? formatKimAdvisorValue((detail.team ?? "인천본사") as AdvisorTeam, detail.advisorName) : "미배정",
+    advisor: detail.advisorName ? formatAdvisorValue((detail.team ?? "인천본사") as AdvisorTeam, detail.advisorName) : "미배정",
     assignedAt: detail.assignedAt ? formatActivity(detail.assignedAt) : "미배정",
   }));
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
@@ -132,7 +132,7 @@ export function useCustomerWorkflow({
   }
 
   function openStatusEditor(next: OpenEditorState) {
-    if (next.kind === "status" && next.key === "source" && isKimAutomaticSource(statusValues.source)) {
+    if (next.kind === "status" && next.key === "source" && isAutomaticSource(statusValues.source)) {
       setOpenEditor(null);
       onToast("자동 접수 경로는 수정할 수 없습니다.");
       return;
@@ -187,7 +187,7 @@ export function useCustomerWorkflow({
     const formData = new FormData(event.currentTarget);
     const customerType = String(formData.get("customerType") ?? "개인") as CustomerTypeValue;
     const customerTypeDetail = String(formData.get("customerTypeDetail") ?? "").trim();
-    const nextJobValue = formatKimJobValue(customerType, customerTypeDetail);
+    const nextJobValue = formatJobValue(customerType, customerTypeDetail);
     const prevJob = statusValues.job;
     setStatusValues((current) => ({ ...current, job: nextJobValue }));
     setOpenEditor(null);
@@ -201,7 +201,7 @@ export function useCustomerWorkflow({
     const formData = new FormData(event.currentTarget);
     const province = String(formData.get("province") ?? "확인 필요");
     const detailField = String(formData.get("detail") ?? "확인 필요");
-    const nextLocation = formatKimLocationValue(province, detailField);
+    const nextLocation = formatLocationValue(province, detailField);
     const prevLocation = statusValues.location;
     setStatusValues((current) => ({ ...current, location: nextLocation }));
     setOpenEditor(null);
@@ -228,11 +228,11 @@ export function useCustomerWorkflow({
     const formData = new FormData(event.currentTarget);
     const team = String(formData.get("team") ?? "인천본사") as AdvisorTeam;
     const advisor = String(formData.get("advisor") ?? "").trim();
-    const nextAdvisor = formatKimAdvisorValue(team, advisor);
+    const nextAdvisor = formatAdvisorValue(team, advisor);
     const prevAdvisor = statusValues.advisor;
     const prevAssignedAt = statusValues.assignedAt;
     // 배정시각 표시는 담당자가 실제로 바뀔 때만 갱신 — 서버도 동일 담당자 재저장엔 assigned_at을 유지한다.
-    setStatusValues((current) => ({ ...current, advisor: nextAdvisor, assignedAt: current.advisor === nextAdvisor ? current.assignedAt : formatKimAssignmentTime() }));
+    setStatusValues((current) => ({ ...current, advisor: nextAdvisor, assignedAt: current.advisor === nextAdvisor ? current.assignedAt : formatAssignmentTime() }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast("담당자 배정 완료");

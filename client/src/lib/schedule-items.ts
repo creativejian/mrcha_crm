@@ -3,9 +3,9 @@
 //   - 메모: 작성일(시:분) 오름차순
 //   - 해야 할 일: 완료 항목 먼저, 그다음 미완료를 급함→오늘→내일→이번 주→지정 순
 //   - 예정 일정: 날짜+시간 오름차순
-import { kimCheckDueDateRank, kimCheckDueRank, kimTimeLabelMinutes } from "./detail-utils";
+import { checkDueDateRank, checkDueRank, timeLabelMinutes } from "./detail-utils";
 
-export type KimScheduleItem = {
+export type ScheduleItem = {
   id: string;
   date: string;
   time: string;
@@ -13,55 +13,55 @@ export type KimScheduleItem = {
   memo: string;
 };
 
-export type KimCheckItem = {
+export type CheckItem = {
   id: string;
   category: string;
   due: string;
   body: string;
 };
 
-export type KimCustomerMemoItem = {
+export type CustomerMemoItem = {
   id: string;
   body: string;
   createdAt: string;
 };
 
-export function scheduleRecordKey(item: KimScheduleItem) {
+export function scheduleRecordKey(item: ScheduleItem) {
   return item.id;
 }
 
-export function sortKimCustomerMemosByCreatedAt(items: KimCustomerMemoItem[]) {
+export function sortCustomerMemosByCreatedAt(items: CustomerMemoItem[]) {
   return [...items].sort((left, right) => {
-    const minuteDiff = kimTimeLabelMinutes(left.createdAt) - kimTimeLabelMinutes(right.createdAt);
+    const minuteDiff = timeLabelMinutes(left.createdAt) - timeLabelMinutes(right.createdAt);
     if (minuteDiff !== 0) return minuteDiff;
     return left.id.localeCompare(right.id);
   });
 }
 
-export function sortKimCheckItemsByWorkRule(items: KimCheckItem[], completedItemIds: string[]) {
+export function sortCheckItemsByWorkRule(items: CheckItem[], completedItemIds: string[]) {
   const completedSet = new Set(completedItemIds);
   return [...items].sort((left, right) => {
     const leftCompleted = completedSet.has(left.id);
     const rightCompleted = completedSet.has(right.id);
     if (leftCompleted !== rightCompleted) return leftCompleted ? -1 : 1;
     if (leftCompleted && rightCompleted) return items.indexOf(left) - items.indexOf(right);
-    const dueDiff = kimCheckDueRank(left.due) - kimCheckDueRank(right.due);
+    const dueDiff = checkDueRank(left.due) - checkDueRank(right.due);
     if (dueDiff !== 0) return dueDiff;
-    const dateDiff = kimCheckDueDateRank(left.due) - kimCheckDueDateRank(right.due);
+    const dateDiff = checkDueDateRank(left.due) - checkDueDateRank(right.due);
     if (dateDiff !== 0) return dateDiff;
     return items.indexOf(left) - items.indexOf(right);
   });
 }
 
-export function kimScheduleSortValue(item: KimScheduleItem) {
+export function scheduleSortValue(item: ScheduleItem) {
   const dateValue = item.date || "9999-12-31";
   const timeValue = item.time || "23:59";
   return `${dateValue}T${timeValue}`;
 }
 
-export function sortKimSchedulesByDateTime(items: KimScheduleItem[]) {
+export function sortSchedulesByDateTime(items: ScheduleItem[]) {
   return [...items].sort((left, right) => {
-    const dateTimeDiff = kimScheduleSortValue(left).localeCompare(kimScheduleSortValue(right));
+    const dateTimeDiff = scheduleSortValue(left).localeCompare(scheduleSortValue(right));
     if (dateTimeDiff !== 0) return dateTimeDiff;
     return items.indexOf(left) - items.indexOf(right);
   });

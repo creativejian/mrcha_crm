@@ -4,19 +4,19 @@ import { formatLocalPhone, localPhoneFrom } from "@/lib/detail-utils";
 import {
   type AdvisorTeam,
   type CustomerTypeValue,
-  kimAdvisorOptions,
-  kimAutomaticSourceOptions,
-  kimCustomerTypeOptions,
-  kimManualSourceOptions,
-  kimRegionOptions,
-  parseKimAdvisorValue,
-  parseKimJobValue,
-  parseKimLocationValue,
-  parseKimSourceValue,
+  advisorOptionsByTeam,
+  automaticSourceOptions,
+  customerTypeOptions,
+  manualSourceOptions,
+  regionOptions,
+  parseAdvisorValue,
+  parseJobValue,
+  parseLocationValue,
+  parseSourceValue,
 } from "@/lib/status-fields";
 
 // 직군 상세분류 옵션(개인일 때). 본체에서 이동 — 값 무변경.
-const kimPersonalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];
+const personalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];
 
 export function PhoneStatusInput({ initialValue }: { initialValue: string }) {
   // 010은 고정 prefix. 입력값은 뒤 8자리(4-4)만 다룬다. 폼 제출 시 name="value"=8자리, 저장 핸들러가 010 prepend.
@@ -54,7 +54,7 @@ export function JobStatusEditor({
   onCancel: () => void;
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
-  const initialJob = parseKimJobValue(initialValue);
+  const initialJob = parseJobValue(initialValue);
   const [customerType, setCustomerType] = useState<CustomerTypeValue>(initialJob.type);
 
   return (
@@ -67,14 +67,14 @@ export function JobStatusEditor({
           name="customerType"
           onChange={(event) => setCustomerType(event.currentTarget.value as CustomerTypeValue)}
         >
-          {kimCustomerTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          {customerTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
       {customerType === "개인" ? (
         <label>
           <span>상세 분류</span>
-          <select defaultValue={kimPersonalJobDetailOptions.includes(initialJob.detail) ? initialJob.detail : "4대보험"} name="customerTypeDetail">
-            {kimPersonalJobDetailOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          <select defaultValue={personalJobDetailOptions.includes(initialJob.detail) ? initialJob.detail : "4대보험"} name="customerTypeDetail">
+            {personalJobDetailOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
         </label>
       ) : (
@@ -100,9 +100,9 @@ export function LocationStatusEditor({
   onCancel: () => void;
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
-  const initialLocation = parseKimLocationValue(initialValue);
+  const initialLocation = parseLocationValue(initialValue);
   const [province, setProvince] = useState(initialLocation.province);
-  const detailOptions = kimRegionOptions[province] ?? kimRegionOptions["확인 필요"];
+  const detailOptions = regionOptions[province] ?? regionOptions["확인 필요"];
   const detailValue = detailOptions.includes(initialLocation.detail) ? initialLocation.detail : "확인 필요";
 
   return (
@@ -115,7 +115,7 @@ export function LocationStatusEditor({
           name="province"
           onChange={(event) => setProvince(event.currentTarget.value)}
         >
-          {Object.keys(kimRegionOptions).map((option) => <option key={option} value={option}>{option}</option>)}
+          {Object.keys(regionOptions).map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
       <label>
@@ -141,7 +141,7 @@ export function SourceStatusEditor({
   onCancel: () => void;
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
-  const initialSource = parseKimSourceValue(initialValue);
+  const initialSource = parseSourceValue(initialValue);
 
   return (
     <form className="kim-edit-form" onSubmit={onSubmit}>
@@ -149,10 +149,10 @@ export function SourceStatusEditor({
         <span>상담경로 수정</span>
         <select autoFocus defaultValue={initialSource} name="source">
           <optgroup label="자동 접수">
-            {kimAutomaticSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            {automaticSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </optgroup>
           <optgroup label="수동 접수">
-            {kimManualSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            {manualSourceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </optgroup>
         </select>
       </label>
@@ -173,9 +173,9 @@ export function AdvisorStatusEditor({
   onCancel: () => void;
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
-  const initialAdvisor = parseKimAdvisorValue(initialValue);
+  const initialAdvisor = parseAdvisorValue(initialValue);
   const [team, setTeam] = useState<AdvisorTeam>(initialAdvisor.team);
-  const advisorOptions = kimAdvisorOptions[team];
+  const advisorOptions = advisorOptionsByTeam[team];
   const advisorValue = advisorOptions.includes(initialAdvisor.advisor) ? initialAdvisor.advisor : advisorOptions[0];
 
   return (
@@ -188,7 +188,7 @@ export function AdvisorStatusEditor({
           name="team"
           onChange={(event) => setTeam(event.currentTarget.value as AdvisorTeam)}
         >
-          {Object.keys(kimAdvisorOptions).map((option) => <option key={option} value={option}>{option}</option>)}
+          {Object.keys(advisorOptionsByTeam).map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
       <label>

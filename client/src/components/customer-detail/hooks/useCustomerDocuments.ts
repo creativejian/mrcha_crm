@@ -5,8 +5,8 @@ import { deleteDocumentApi, getDocumentUrlApi, reorderDocumentsApi, updateDocume
 import { type CustomerDetailData } from "@/lib/customers";
 import { classifyDocumentWithAI } from "@/lib/document-classify";
 import type { MergeSource } from "@/lib/document-merge";
-import { isDocumentFileDrag, kimDocumentFileKind, nowMs } from "@/lib/detail-utils";
-import { type KimDocumentItem } from "@/components/customer-detail/types";
+import { isDocumentFileDrag, documentFileKind, nowMs } from "@/lib/detail-utils";
+import { type DocumentItem } from "@/components/customer-detail/types";
 
 type UseCustomerDocumentsArgs = {
   detail: CustomerDetailData; // 초기 documents 매핑 + 서류 API의 customerId(detail.id) 소스
@@ -16,7 +16,7 @@ type UseCustomerDocumentsArgs = {
 };
 
 export function useCustomerDocuments({ detail, customer, onToast, markRecentUpdate }: UseCustomerDocumentsArgs) {
-  const [documents, setDocuments] = useState<KimDocumentItem[]>(() =>
+  const [documents, setDocuments] = useState<DocumentItem[]>(() =>
     detail.documents.map((d) => ({
       id: d.id,
       // 분류의 진실원본은 doc_type(분류 변경 PATCH가 갱신). 레거시 title 컬럼은 제거됨.
@@ -113,7 +113,7 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
         const tempId = `kim-document-${nowMs()}-${index}-${Math.round(file.size)}`;
         const objectUrl = URL.createObjectURL(file);
         const mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
-        const optimistic: KimDocumentItem = {
+        const optimistic: DocumentItem = {
           id: tempId,
           title: "",
           status: "분류 중…",
@@ -286,7 +286,7 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
   // 다운로드는 signed URL(또는 업로드 직후 objectUrl)을 blob으로 받아 같은 출처에서 내려받는다.
   // signed URL의 Content-Disposition은 supabase가 한글 파일명을 이중 인코딩해 깨지므로,
   // blob + a.download로 원본 파일명(한글 포함)을 그대로 보존한다.
-  async function downloadKimDocument(url: string, fileName: string) {
+  async function downloadDocument(url: string, fileName: string) {
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(String(res.status));
@@ -318,7 +318,7 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
       // Promise.all은 입력 순서를 보존하므로 병합 순서 = 서류함 표시 순서 그대로다.
       const fetched = await Promise.all(
         documents.map(async (documentItem): Promise<MergeSource | null> => {
-          const kind = kimDocumentFileKind(documentItem.mimeType, documentItem.fileName);
+          const kind = documentFileKind(documentItem.mimeType, documentItem.fileName);
           if (kind !== "이미지" && kind !== "PDF") return null;
           let blob: Blob | null = null;
           if (documentItem.file) {
@@ -405,7 +405,7 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
       confirmDelete: deleteDocument,
       openPreview: (id: string) => setPreviewDocumentId(id),
       closePreview: () => setPreviewDocumentId(null),
-      download: downloadKimDocument,
+      download: downloadDocument,
       mergePdf: downloadDocumentsMergedPdf,
       onImageLoad: (url: string) => setLoadedPreviewUrl(url),
     },

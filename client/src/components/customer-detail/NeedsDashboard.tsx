@@ -4,7 +4,7 @@ import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import { type CustomerDetailData } from "@/lib/customers";
 
 import { NEEDS_COLOR_PLACEHOLDER } from "./needs-meta";
-import { kimMethodOptions } from "./purchase-meta";
+import { methodOptions } from "./purchase-meta";
 import { type OpenEditorState } from "./types";
 import type { useCustomerNeeds } from "./hooks/useCustomerNeeds";
 
@@ -45,7 +45,7 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
             <label>
               <span>구매방식</span>
               <select defaultValue={needs.method} name="method">
-                {kimMethodOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                {methodOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
           </div>

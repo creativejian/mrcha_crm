@@ -5,9 +5,9 @@ import { type CustomerDetailData } from "@/lib/customers";
 import { toQuoteItem, flattenPrimaryScenario, type QuoteItem } from "@/lib/quote-items";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl } from "@/lib/customer-quotes";
 import { formatKoreanShortTime } from "@/lib/detail-utils";
-import { type KimQuoteActionFrame, type KimQuoteStatusTooltip } from "@/lib/popover-frames";
+import { type QuoteActionFrame, type QuoteStatusTooltip } from "@/lib/popover-frames";
 
-import { kimQuoteStatusDetailParts } from "../quote-meta";
+import { quoteStatusDetailParts } from "../quote-meta";
 
 type UseQuoteListArgs = {
   detail: CustomerDetailData; // quotes 초기값 + preview-URL effect의 detail.id
@@ -25,9 +25,9 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate }: Us
   const [confirmingQuoteContractEditId, setConfirmingQuoteContractEditId] = useState<string | null>(null);
   const [confirmingQuoteContractDowngrade, setConfirmingQuoteContractDowngrade] = useState<{ id: string; status: "confirmed" | "considering" } | null>(null);
   const [openQuoteActionId, setOpenQuoteActionId] = useState<string | null>(null);
-  const [quoteActionFrame, setQuoteActionFrame] = useState<KimQuoteActionFrame | null>(null);
-  const [hoveredQuoteStatus, setHoveredQuoteStatus] = useState<KimQuoteStatusTooltip | null>(null);
-  const [pinnedQuoteStatus, setPinnedQuoteStatus] = useState<KimQuoteStatusTooltip | null>(null);
+  const [quoteActionFrame, setQuoteActionFrame] = useState<QuoteActionFrame | null>(null);
+  const [hoveredQuoteStatus, setHoveredQuoteStatus] = useState<QuoteStatusTooltip | null>(null);
+  const [pinnedQuoteStatus, setPinnedQuoteStatus] = useState<QuoteStatusTooltip | null>(null);
   const [quoteDropTargetId, setQuoteDropTargetId] = useState<string | null>(null);
   const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
   const [previewSentQuoteId, setPreviewSentQuoteId] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate }: Us
   const openQuoteAction = quotes.find((quote) => quote.id === openQuoteActionId) ?? null;
   const activeQuoteStatusTooltip = pinnedQuoteStatus ?? hoveredQuoteStatus;
   const activeQuoteStatus = activeQuoteStatusTooltip ? quotes.find((quote) => quote.id === activeQuoteStatusTooltip.id) ?? null : null;
-  const activeQuoteStatusDetail = activeQuoteStatus ? kimQuoteStatusDetailParts(activeQuoteStatus) : null;
+  const activeQuoteStatusDetail = activeQuoteStatus ? quoteStatusDetailParts(activeQuoteStatus) : null;
   const previewQuote = quotes.find((quote) => quote.id === previewQuoteId) ?? null;
   // 미리보기 URL: 업로드 직후 메모리 objectUrl 우선, 영속본은 signed URL을 비동기 발급.
   const activePreviewQuoteUrl = previewQuote ? previewQuote.objectUrl ?? previewQuoteUrl : null;

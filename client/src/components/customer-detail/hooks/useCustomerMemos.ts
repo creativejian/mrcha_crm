@@ -4,7 +4,7 @@ import { type Customer } from "@/data/customers";
 import { addMemo, updateMemo, deleteMemo } from "@/lib/customer-children";
 import { formatActivity, type CustomerDetailData } from "@/lib/customers";
 import { formatKoreanShortTime } from "@/lib/detail-utils";
-import { sortKimCustomerMemosByCreatedAt, type KimCustomerMemoItem } from "@/lib/schedule-items";
+import { sortCustomerMemosByCreatedAt, type CustomerMemoItem } from "@/lib/schedule-items";
 
 type UseCustomerMemosArgs = {
   detail: CustomerDetailData; // 초기 customerMemos 매핑 소스
@@ -14,7 +14,7 @@ type UseCustomerMemosArgs = {
 };
 
 export function useCustomerMemos({ detail, customer, onToast, markRecentUpdate }: UseCustomerMemosArgs) {
-  const [customerMemos, setCustomerMemos] = useState<KimCustomerMemoItem[]>(() =>
+  const [customerMemos, setCustomerMemos] = useState<CustomerMemoItem[]>(() =>
     detail.memos.map((m) => ({
       id: m.id,
       body: m.body ?? "",
@@ -29,7 +29,7 @@ export function useCustomerMemos({ detail, customer, onToast, markRecentUpdate }
   const customerMemoEditRef = useRef<HTMLFormElement>(null);
   const customerMemoBodyRef = useRef<HTMLDivElement>(null);
 
-  const sortedCustomerMemos = sortKimCustomerMemosByCreatedAt(customerMemos);
+  const sortedCustomerMemos = sortCustomerMemosByCreatedAt(customerMemos);
 
   useEffect(() => {
     const container = customerMemoBodyRef.current;

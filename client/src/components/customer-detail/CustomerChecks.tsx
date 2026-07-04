@@ -1,8 +1,8 @@
 import { Check, Trash2 } from "lucide-react";
 
 import { TASK_CATEGORY_OPTIONS } from "@/data/customers";
-import { kimCheckDueOptions, parseKimCheckDueDate } from "@/lib/detail-utils";
-import { type KimCheckItem } from "@/lib/schedule-items";
+import { checkDueOptions, parseCheckDueDate } from "@/lib/detail-utils";
+import { type CheckItem } from "@/lib/schedule-items";
 
 import type { useCustomerChecks } from "./hooks/useCustomerChecks";
 
@@ -22,7 +22,7 @@ export function CustomerChecks({
 }: CustomerChecksProps) {
   const { bodyRef, confirmRef, deleteRef, editRef } = refs;
 
-  function renderEditForm(item: KimCheckItem) {
+  function renderEditForm(item: CheckItem) {
     return (
       <form
         className="kim-check-edit-row"
@@ -38,7 +38,7 @@ export function CustomerChecks({
         <div className="kim-check-composer-pickers">
           <div className="kim-check-due-stack">
             <div className="kim-check-composer-controls due" aria-label="해야 할 일 마감 수정">
-              {kimCheckDueOptions.map((option) => (
+              {checkDueOptions.map((option) => (
                 <label key={option}>
                   <input checked={selectedEditingDue === option} name="due" onChange={() => handlers.setEditingDue(option)} type="radio" value={option} />
                   <span>{option}</span>
@@ -48,7 +48,7 @@ export function CustomerChecks({
             {selectedEditingDue === "지정" ? (
               <label className="kim-check-date-field compact">
                 <span>마감 날짜</span>
-                <input defaultValue={parseKimCheckDueDate(item.due)} name="dueDate" type="date" />
+                <input defaultValue={parseCheckDueDate(item.due)} name="dueDate" type="date" />
               </label>
             ) : null}
           </div>
@@ -181,7 +181,7 @@ export function CustomerChecks({
             <div className="kim-check-composer-pickers">
               <div className="kim-check-due-stack">
                 <div className="kim-check-composer-controls due" aria-label="해야 할 일 마감">
-                  {kimCheckDueOptions.map((option) => (
+                  {checkDueOptions.map((option) => (
                     <label key={option}>
                       <input checked={selectedDue === option} name="due" onChange={() => handlers.setDue(option)} type="radio" value={option} />
                       <span>{option}</span>

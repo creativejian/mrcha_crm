@@ -1,9 +1,9 @@
 // 김민준 고객 상세의 floating 편집 popover·견적 액션/툴팁의 화면 좌표 계산.
 // getBoundingClientRect + 뷰포트 경계로 위치를 잡는 순수 DOM 계산이라 데이터와 무관.
 // 에디터 상태 타입(OpenEditorState)은 본체 소유라, 여기 가드는 string 입력을 받아
-// KimPurchaseFloatingKind로 좁힌다.
+// PurchaseFloatingKind로 좁힌다.
 
-export type KimPurchaseFloatingKind =
+export type PurchaseFloatingKind =
   | "purchaseMethod"
   | "purchaseTiming"
   | "purchaseCostFocus"
@@ -14,15 +14,15 @@ export type KimPurchaseFloatingKind =
   | "purchaseCustomerNotes"
   | "purchaseReviewNotes";
 
-export type KimPurchasePopoverFrame = { align?: "left" | "right"; top: number; left: number };
-export type KimQuoteActionFrame = { top: number; left: number };
-export type KimQuoteStatusTooltip = { id: string; top: number; left: number };
+export type PurchasePopoverFrame = { align?: "left" | "right"; top: number; left: number };
+export type QuoteActionFrame = { top: number; left: number };
+export type QuoteStatusTooltip = { id: string; top: number; left: number };
 
-export function isKimPurchaseFloatingKind(kind: string): kind is KimPurchaseFloatingKind {
+export function isPurchaseFloatingKind(kind: string): kind is PurchaseFloatingKind {
   return ["purchaseMethod", "purchaseTiming", "purchaseCostFocus", "purchaseTerm", "purchaseInitialCost", "purchaseAnnualMileage", "purchaseDeliveryMethod", "purchaseCustomerNotes", "purchaseReviewNotes"].includes(kind);
 }
 
-export function kimPurchasePopoverSize(kind: KimPurchaseFloatingKind) {
+export function purchasePopoverSize(kind: PurchaseFloatingKind) {
   switch (kind) {
     case "purchaseMethod":
       return { width: 390, height: 48 };
@@ -47,11 +47,11 @@ export function kimPurchasePopoverSize(kind: KimPurchaseFloatingKind) {
   }
 }
 
-export function calculateKimPurchasePopoverFrame(target: HTMLElement, kind: KimPurchaseFloatingKind): KimPurchasePopoverFrame {
+export function calculatePurchasePopoverFrame(target: HTMLElement, kind: PurchaseFloatingKind): PurchasePopoverFrame {
   const rect = target.getBoundingClientRect();
   const gap = 8;
   const margin = 14;
-  const { width, height } = kimPurchasePopoverSize(kind);
+  const { width, height } = purchasePopoverSize(kind);
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const alignRight = kind === "purchaseInitialCost" || kind === "purchaseTiming" || kind === "purchaseReviewNotes";
@@ -71,7 +71,7 @@ export function calculateKimPurchasePopoverFrame(target: HTMLElement, kind: KimP
   return { align: alignRight ? "right" : "left", top, left };
 }
 
-export function calculateKimQuoteActionFrame(target: HTMLElement): KimQuoteActionFrame {
+export function calculateQuoteActionFrame(target: HTMLElement): QuoteActionFrame {
   const rect = target.getBoundingClientRect();
   const width = 214;
   const margin = 10;
@@ -80,7 +80,7 @@ export function calculateKimQuoteActionFrame(target: HTMLElement): KimQuoteActio
   return { top, left };
 }
 
-export function calculateKimQuoteStatusTooltip(target: HTMLElement, id: string): KimQuoteStatusTooltip {
+export function calculateQuoteStatusTooltip(target: HTMLElement, id: string): QuoteStatusTooltip {
   const rect = target.getBoundingClientRect();
   const margin = 10;
   const top = Math.max(margin, rect.top - 8);

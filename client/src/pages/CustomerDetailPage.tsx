@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { nowMs } from "@/lib/detail-utils";
-import { type KimPurchasePopoverFrame, isKimPurchaseFloatingKind } from "@/lib/popover-frames";
-import { type KimRecentUpdate, type OpenEditorState } from "@/components/customer-detail/types";
+import { type PurchasePopoverFrame, isPurchaseFloatingKind } from "@/lib/popover-frames";
+import { type RecentUpdate, type OpenEditorState } from "@/components/customer-detail/types";
 import { CustomerDetailHeader } from "@/components/customer-detail/CustomerDetailHeader";
 import { CustomerMemos } from "@/components/customer-detail/CustomerMemos";
 import { useCustomerMemos } from "@/components/customer-detail/hooks/useCustomerMemos";
@@ -80,9 +80,9 @@ function CustomerDetailContent({
   onQuotesPersisted?: () => void;
 }) {
   // 구매조건 영역의 팝업 위치(purchasePopoverFrame)는 부모 소유 — toggleEditor·외부클릭 dismiss effect가 기록한다.
-  const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<KimPurchasePopoverFrame | null>(null);
+  const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<PurchasePopoverFrame | null>(null);
   const [openEditor, setOpenEditor] = useState<OpenEditorState | null>(null);
-  const [recentUpdate, setRecentUpdate] = useState<KimRecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
+  const [recentUpdate, setRecentUpdate] = useState<RecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
   const [recentUpdateNow, setRecentUpdateNow] = useState(() => Date.now());
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -105,7 +105,7 @@ function CustomerDetailContent({
   }
 
   function toggleEditor(next: OpenEditorState) {
-    if (!isKimPurchaseFloatingKind(next.kind)) {
+    if (!isPurchaseFloatingKind(next.kind)) {
       setPurchasePopoverFrame(null);
     }
     setOpenEditor((current) => editorMatches(current, next) ? null : next);

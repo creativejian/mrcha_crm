@@ -6,21 +6,21 @@ import { type QuoteItem } from "@/lib/quote-items";
 import { type QuoteGuidance } from "@/data/quote-guidance";
 import { computePricing, type PricingInputs } from "@/lib/quote-pricing";
 
-export type KimDiscountUnit = "amount" | "percent";
-export type KimDiscountLine = { id: string; label: string; amount: string; unit: KimDiscountUnit };
-export type KimManualDepositMode = "none" | "amount" | "percent";
-export type KimManualResidualMode = "max" | "amount" | "percent";
-export type KimManualMileageMode = "basic" | "custom";
-export type KimManualCard = {
+export type DiscountUnit = "amount" | "percent";
+export type DiscountLine = { id: string; label: string; amount: string; unit: DiscountUnit };
+export type ManualDepositMode = "none" | "amount" | "percent";
+export type ManualResidualMode = "max" | "amount" | "percent";
+export type ManualMileageMode = "basic" | "custom";
+export type ManualCard = {
   id: string; title: string; round: string; copyLabel: string;
   lender: string; monthlyPayment: string;
   totalReturn: string; totalTakeover: string; dueAtDelivery: string; interestRate: string;
-  depositMode: KimManualDepositMode; depositValue: string;
-  downPaymentMode: KimManualDepositMode; downPaymentValue: string;
-  residualMode: KimManualResidualMode; residualValue: string;
+  depositMode: ManualDepositMode; depositValue: string;
+  downPaymentMode: ManualDepositMode; downPaymentValue: string;
+  residualMode: ManualResidualMode; residualValue: string;
 };
-export const kimDiscountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
-export const kimManualMileageOptions = [
+export const discountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
+export const manualMileageOptions = [
   "10,000km / 년",
   "15,000km / 년",
   "20,000km / 년",
@@ -29,31 +29,31 @@ export const kimManualMileageOptions = [
   "35,000km / 년",
   "40,000km / 년",
 ] as const;
-export type KimAcquisitionTaxMode = "normal" | "hybrid" | "electric" | "manual";
+export type AcquisitionTaxMode = "normal" | "hybrid" | "electric" | "manual";
 
-export type KimQuoteEntryMode = "solution" | "manual" | "original";
-export type KimQuotePurchaseMethod = PurchaseMethod;
-export type KimRecognizedQuoteFile = { file: File; fileName: string; fileSize: number; mimeType: string };
-export type KimEditScenario = {
+export type QuoteEntryMode = "solution" | "manual" | "original";
+export type QuotePurchaseMethod = PurchaseMethod;
+export type RecognizedQuoteFile = { file: File; fileName: string; fileSize: number; mimeType: string };
+export type EditScenario = {
   scenarioNo: number;
   lender: string;
   monthlyPayment: string;
   termMonths: number;
-  depositMode: KimManualDepositMode;
+  depositMode: ManualDepositMode;
   depositValue: string;
-  downPaymentMode: KimManualDepositMode;
+  downPaymentMode: ManualDepositMode;
   downPaymentValue: string;
-  residualMode: KimManualResidualMode;
+  residualMode: ManualResidualMode;
   residualValue: string;
-  mileageMode: KimManualMileageMode;
+  mileageMode: ManualMileageMode;
   mileageValue: string;
 };
-export type KimEditPrefill = {
+export type EditPrefill = {
   optionIds: number[];
   exteriorColorId: number | null;
   interiorColorId: number | null;
   pricing: { base: number; option: number; discount: number; acquisitionTax: number; bond: number; delivery: number; incidental: number };
-  scenarios: KimEditScenario[];
+  scenarios: EditScenario[];
   guidance: QuoteGuidance | null;
 };
 
@@ -66,9 +66,9 @@ export const emptyQuotePricing: PricingInputs = {
   delivery: 0,
   incidental: 0,
 };
-export const kimMaybachQuotePricingResult = computePricing(emptyQuotePricing);
+export const maybachQuotePricingResult = computePricing(emptyQuotePricing);
 
-export const emptyQuoteConditionCards: KimManualCard[] = [
+export const emptyQuoteConditionCards: ManualCard[] = [
   {
     id: "manual-condition-1",
     title: "견적 작성",
@@ -82,11 +82,11 @@ export const emptyQuoteConditionCards: KimManualCard[] = [
     totalTakeover: "0",
     dueAtDelivery: "0",
     interestRate: "0",
-    depositMode: "none" as KimManualDepositMode,
+    depositMode: "none" as ManualDepositMode,
     depositValue: "0",
-    downPaymentMode: "none" as KimManualDepositMode,
+    downPaymentMode: "none" as ManualDepositMode,
     downPaymentValue: "0",
-    residualMode: "max" as KimManualResidualMode,
+    residualMode: "max" as ManualResidualMode,
     residualValue: "-",
   },
   {
@@ -100,11 +100,11 @@ export const emptyQuoteConditionCards: KimManualCard[] = [
     totalTakeover: "0",
     dueAtDelivery: "0",
     interestRate: "0",
-    depositMode: "none" as KimManualDepositMode,
+    depositMode: "none" as ManualDepositMode,
     depositValue: "0",
-    downPaymentMode: "none" as KimManualDepositMode,
+    downPaymentMode: "none" as ManualDepositMode,
     downPaymentValue: "0",
-    residualMode: "max" as KimManualResidualMode,
+    residualMode: "max" as ManualResidualMode,
     residualValue: "-",
   },
   {
@@ -118,27 +118,27 @@ export const emptyQuoteConditionCards: KimManualCard[] = [
     totalTakeover: "0",
     dueAtDelivery: "0",
     interestRate: "0",
-    depositMode: "none" as KimManualDepositMode,
+    depositMode: "none" as ManualDepositMode,
     depositValue: "0",
-    downPaymentMode: "none" as KimManualDepositMode,
+    downPaymentMode: "none" as ManualDepositMode,
     downPaymentValue: "0",
-    residualMode: "max" as KimManualResidualMode,
+    residualMode: "max" as ManualResidualMode,
     residualValue: "-",
   },
 ] as const;
 
-export const kimQuotePurchaseMethodOptions = PURCHASE_METHOD_OPTIONS;
+export const quotePurchaseMethodOptions = PURCHASE_METHOD_OPTIONS;
 
-export function normalizeKimQuotePurchaseMethod(value?: string): KimQuotePurchaseMethod {
-  if (value && kimQuotePurchaseMethodOptions.includes(value as KimQuotePurchaseMethod)) return value as KimQuotePurchaseMethod;
+export function normalizeQuotePurchaseMethod(value?: string): QuotePurchaseMethod {
+  if (value && quotePurchaseMethodOptions.includes(value as QuotePurchaseMethod)) return value as QuotePurchaseMethod;
   return "운용리스";
 }
 
-export function primaryKimQuotePurchaseMethod(fields: { label: string; value: string }[]) {
-  return normalizeKimQuotePurchaseMethod(fields.find((field) => field.label === "구매방식")?.value);
+export function primaryQuotePurchaseMethod(fields: { label: string; value: string }[]) {
+  return normalizeQuotePurchaseMethod(fields.find((field) => field.label === "구매방식")?.value);
 }
 
-export function createKimQuoteCode(existingQuotes: QuoteItem[]) {
+export function createQuoteCode(existingQuotes: QuoteItem[]) {
   const yearMonth = "2606";
   const nextSequence = existingQuotes.reduce((max, quote) => {
     const match = quote.quoteCode.match(/^QT-\d{4}-(\d{4})$/);

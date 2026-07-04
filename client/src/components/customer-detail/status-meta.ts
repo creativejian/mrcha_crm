@@ -25,7 +25,7 @@ export function fieldLabel(key: StatusFieldKey) {
   return statusFieldMeta.find((field) => field.key === key)?.label ?? "항목";
 }
 
-export function kimChanceOptionClass(option: CustomerChanceOption, selected: boolean) {
+export function chanceOptionClass(option: CustomerChanceOption, selected: boolean) {
   const toneByChance: Record<CustomerChanceOption, string> = {
     높음: "chance-purple",
     중간: "chance-neutral",
@@ -36,7 +36,7 @@ export function kimChanceOptionClass(option: CustomerChanceOption, selected: boo
   return ["kim-chance-option", toneByChance[option], selected ? "active" : ""].filter(Boolean).join(" ");
 }
 
-export function kimChanceValueClass(option: CustomerChanceOption) {
+export function chanceValueClass(option: CustomerChanceOption) {
   const toneByChance: Record<CustomerChanceOption, string> = {
     높음: "chance-purple",
     중간: "chance-neutral",
@@ -47,6 +47,6 @@ export function kimChanceValueClass(option: CustomerChanceOption) {
   return `kim-chance-value ${toneByChance[option]}`;
 }
 
-export function isKimUnassignedStatus(key: StatusFieldKey, value: string) {
+export function isUnassignedStatus(key: StatusFieldKey, value: string) {
   return (key === "advisor" || key === "assignedAt") && value === "미배정";
 }

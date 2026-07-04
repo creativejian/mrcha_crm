@@ -1,23 +1,23 @@
 import { useState, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction, type SyntheticEvent } from "react";
 
-import { formatKimNumberWithCommas } from "@/lib/detail-utils";
-import { calculateKimPurchasePopoverFrame, type KimPurchaseFloatingKind, type KimPurchasePopoverFrame } from "@/lib/popover-frames";
+import { formatNumberWithCommas } from "@/lib/detail-utils";
+import { calculatePurchasePopoverFrame, type PurchaseFloatingKind, type PurchasePopoverFrame } from "@/lib/popover-frames";
 import { type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 
 import { type OpenEditorState } from "../types";
 import {
-  kimContractFocusOptions,
-  kimContractTermOptions,
-  kimCustomerNoteOptions,
-  kimMethodOptions,
+  contractFocusOptions,
+  contractTermOptions,
+  customerNoteOptions,
+  methodOptions,
   purchaseFieldScaffold,
-  kimPurchaseTagSelectionLimit,
-  kimReviewNoteOptions,
-  parseKimInitialCost,
+  purchaseTagSelectionLimit,
+  reviewNoteOptions,
+  parseInitialCost,
   PURCHASE_FIELD_KEY,
-  type KimInitialCostKind,
-  type KimInitialCostSelection,
-  type KimInitialCostUnit,
+  type InitialCostKind,
+  type InitialCostSelection,
+  type InitialCostUnit,
 } from "../purchase-meta";
 
 type UseCustomerPurchaseArgs = {
@@ -30,7 +30,7 @@ type UseCustomerPurchaseArgs = {
   savePatch: (patch: CustomerWritePatch, rollback: () => void) => void;
   markRecentUpdate: (section: string) => void;
   // purchasePopoverFrame 상태는 부모 소유(toggleEditor·외부클릭 dismiss effect가 기록) — 쓰기 setter만 주입.
-  setPurchasePopoverFrame: Dispatch<SetStateAction<KimPurchasePopoverFrame | null>>;
+  setPurchasePopoverFrame: Dispatch<SetStateAction<PurchasePopoverFrame | null>>;
 };
 
 export function useCustomerPurchase({
@@ -51,17 +51,17 @@ export function useCustomerPurchase({
     }),
   );
   const [showTimingMonths, setShowTimingMonths] = useState(false);
-  const [initialCostKind, setInitialCostKind] = useState<KimInitialCostSelection>("보증금");
-  const [initialCostUnit, setInitialCostUnit] = useState<KimInitialCostUnit>("%");
+  const [initialCostKind, setInitialCostKind] = useState<InitialCostSelection>("보증금");
+  const [initialCostUnit, setInitialCostUnit] = useState<InitialCostUnit>("%");
   const [initialCostAmount, setInitialCostAmount] = useState("30");
 
-  function openPurchaseFloatingEditor(event: ReactMouseEvent<HTMLButtonElement>, next: Extract<OpenEditorState, { kind: KimPurchaseFloatingKind }>) {
+  function openPurchaseFloatingEditor(event: ReactMouseEvent<HTMLButtonElement>, next: Extract<OpenEditorState, { kind: PurchaseFloatingKind }>) {
     if (openEditor && editorMatches(openEditor, next)) {
       setOpenEditor(null);
       setPurchasePopoverFrame(null);
       return;
     }
-    setPurchasePopoverFrame(calculateKimPurchasePopoverFrame(event.currentTarget, next.kind));
+    setPurchasePopoverFrame(calculatePurchasePopoverFrame(event.currentTarget, next.kind));
     setOpenEditor(next);
   }
 
@@ -79,13 +79,13 @@ export function useCustomerPurchase({
 
   function togglePurchaseMethod(option: string) {
     const currentMethodField = purchaseFields.find((field) => field.label === "구매방식");
-    const selectedMethods = new Set((currentMethodField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => kimMethodOptions.includes(value)));
+    const selectedMethods = new Set((currentMethodField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => methodOptions.includes(value)));
     if (selectedMethods.has(option)) {
       selectedMethods.delete(option);
     } else {
       selectedMethods.add(option);
     }
-    const orderedMethods = kimMethodOptions.filter((method) => selectedMethods.has(method));
+    const orderedMethods = methodOptions.filter((method) => selectedMethods.has(method));
     const nextValue = orderedMethods.length > 0 ? orderedMethods.join(" · ") : "확인 필요";
     const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
@@ -98,13 +98,13 @@ export function useCustomerPurchase({
 
   function togglePurchaseTerm(option: string) {
     const currentTermField = purchaseFields.find((field) => field.label === "계약기간");
-    const selectedTerms = new Set((currentTermField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => kimContractTermOptions.includes(value)));
+    const selectedTerms = new Set((currentTermField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => contractTermOptions.includes(value)));
     if (selectedTerms.has(option)) {
       selectedTerms.delete(option);
     } else {
       selectedTerms.add(option);
     }
-    const orderedTerms = kimContractTermOptions.filter((term) => selectedTerms.has(term));
+    const orderedTerms = contractTermOptions.filter((term) => selectedTerms.has(term));
     const nextValue = orderedTerms.length > 0 ? orderedTerms.join(" · ") : "확인 필요";
     const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
@@ -123,16 +123,16 @@ export function useCustomerPurchase({
       return;
     }
     const currentInitialCostField = purchaseFields.find((field) => field.label === "초기비용");
-    const parsedInitialCost = parseKimInitialCost(currentInitialCostField?.value ?? "보증금 30%");
+    const parsedInitialCost = parseInitialCost(currentInitialCostField?.value ?? "보증금 30%");
     setInitialCostKind(parsedInitialCost.kind);
     setInitialCostUnit(parsedInitialCost.unit);
     setInitialCostAmount(parsedInitialCost.amount);
-    setPurchasePopoverFrame(calculateKimPurchasePopoverFrame(event.currentTarget, "purchaseInitialCost"));
+    setPurchasePopoverFrame(calculatePurchasePopoverFrame(event.currentTarget, "purchaseInitialCost"));
     setOpenEditor(nextEditor);
   }
 
-  function selectInitialCostKind(option: KimInitialCostKind) {
-    const nextKind: KimInitialCostSelection = initialCostKind === option ? "" : option;
+  function selectInitialCostKind(option: InitialCostKind) {
+    const nextKind: InitialCostSelection = initialCostKind === option ? "" : option;
     setInitialCostKind(nextKind);
     if (!nextKind || nextKind === "무보증") {
       setInitialCostAmount("");
@@ -147,7 +147,7 @@ export function useCustomerPurchase({
       onToast("초기비용 값을 입력해 주세요.");
       return;
     }
-    const formattedAmount = initialCostUnit === "금액" ? formatKimNumberWithCommas(trimmedAmount) : trimmedAmount;
+    const formattedAmount = initialCostUnit === "금액" ? formatNumberWithCommas(trimmedAmount) : trimmedAmount;
     const nextValue = !initialCostKind
       ? "확인 필요"
       : initialCostKind === "무보증"
@@ -201,17 +201,17 @@ export function useCustomerPurchase({
 
   function togglePurchaseCostFocus(option: string) {
     const currentCostFocusField = purchaseFields.find((field) => field.label === "계약 포커스");
-    const selectedFocuses = new Set((currentCostFocusField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimContractFocusOptions.includes(value)));
+    const selectedFocuses = new Set((currentCostFocusField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => contractFocusOptions.includes(value)));
     if (selectedFocuses.has(option)) {
       selectedFocuses.delete(option);
     } else {
-      if (selectedFocuses.size >= kimPurchaseTagSelectionLimit) {
+      if (selectedFocuses.size >= purchaseTagSelectionLimit) {
         onToast("최대 4개까지만 선택 가능합니다.");
         return;
       }
       selectedFocuses.add(option);
     }
-    const orderedFocuses = kimContractFocusOptions.filter((focus) => selectedFocuses.has(focus));
+    const orderedFocuses = contractFocusOptions.filter((focus) => selectedFocuses.has(focus));
     const nextValue = orderedFocuses.length > 0 ? orderedFocuses.map((focus) => `#${focus}`).join(" ") : "확인 필요";
     const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
@@ -224,17 +224,17 @@ export function useCustomerPurchase({
 
   function togglePurchaseCustomerNote(option: string) {
     const currentCustomerNoteField = purchaseFields.find((field) => field.label === "고객 특이사항");
-    const selectedNotes = new Set((currentCustomerNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimCustomerNoteOptions.includes(value)));
+    const selectedNotes = new Set((currentCustomerNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => customerNoteOptions.includes(value)));
     if (selectedNotes.has(option)) {
       selectedNotes.delete(option);
     } else {
-      if (selectedNotes.size >= kimPurchaseTagSelectionLimit) {
+      if (selectedNotes.size >= purchaseTagSelectionLimit) {
         onToast("최대 4개까지만 선택 가능합니다.");
         return;
       }
       selectedNotes.add(option);
     }
-    const orderedNotes = kimCustomerNoteOptions.filter((note) => selectedNotes.has(note));
+    const orderedNotes = customerNoteOptions.filter((note) => selectedNotes.has(note));
     const nextValue = orderedNotes.length > 0 ? orderedNotes.map((note) => `#${note}`).join(" ") : "확인 필요";
     const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
@@ -247,17 +247,17 @@ export function useCustomerPurchase({
 
   function togglePurchaseReviewNote(option: string) {
     const currentReviewNoteField = purchaseFields.find((field) => field.label === "심사 특이사항");
-    const selectedNotes = new Set((currentReviewNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimReviewNoteOptions.includes(value)));
+    const selectedNotes = new Set((currentReviewNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => reviewNoteOptions.includes(value)));
     if (selectedNotes.has(option)) {
       selectedNotes.delete(option);
     } else {
-      if (selectedNotes.size >= kimPurchaseTagSelectionLimit) {
+      if (selectedNotes.size >= purchaseTagSelectionLimit) {
         onToast("최대 4개까지만 선택 가능합니다.");
         return;
       }
       selectedNotes.add(option);
     }
-    const orderedNotes = kimReviewNoteOptions.filter((note) => selectedNotes.has(note));
+    const orderedNotes = reviewNoteOptions.filter((note) => selectedNotes.has(note));
     const nextValue = orderedNotes.length > 0 ? orderedNotes.map((note) => `#${note}`).join(" ") : "확인 필요";
     const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (

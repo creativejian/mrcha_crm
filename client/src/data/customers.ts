@@ -38,7 +38,7 @@ export type Customer = {
 // 계약 가능성 옵션. CustomerManagementPage 가능성 popover·필터, CustomerDetailPage 상태 편집에 공유.
 export const CHANCE_OPTIONS: readonly CustomerChanceOption[] = ["높음", "중간", "낮음", "보류", "확정"];
 
-// 서류 분류 종류(닫힌 집합 22종). classifyKimDocumentFile(파일명 자동분류) 반환값과 동일.
+// 서류 분류 종류(닫힌 집합 22종). classifyDocumentFile(파일명 자동분류) 반환값과 동일.
 // CustomerDetailPage 분류 select + seed-lookups(category="doc_type") 공유 SSOT.
 export const DOC_TYPE_OPTIONS: readonly string[] = [
   "면허증",
