@@ -1023,3 +1023,26 @@ test("GET /api/customers/:id/quote-requests 앱 유입 고객 → 200 배열(요
     expect(["app_user", "phone", "none"]).toContain(r.matchType);
   }
 });
+
+test("lastActivityAt 파생: 자식(메모) 추가 시각이 customers.updated_at보다 새로우면 그 시각", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+
+  const created = await app.request(`/api/customers/${cid}/memos`, { method: "POST", headers: h, body: JSON.stringify({ body: "파생 검증 메모" }) });
+  expect(created.status).toBe(201);
+  const memo = (await created.json()) as { id: string; createdAt: string };
+
+  // 상세: 파생값 = 방금 만든 메모 created_at (이 고객의 최신 활동)
+  const got = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as { lastActivityAt: string | null };
+  expect(new Date(got.lastActivityAt ?? 0).getTime()).toBe(new Date(memo.createdAt).getTime());
+
+  // 목록도 동일 파생
+  const list2 = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; lastActivityAt: string | null }>;
+  expect(new Date(list2.find((c) => c.id === cid)?.lastActivityAt ?? 0).getTime()).toBe(new Date(memo.createdAt).getTime());
+
+  // 정리(공유 master 비파괴)
+  await app.request(`/api/customers/${cid}/memos/${memo.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+});
