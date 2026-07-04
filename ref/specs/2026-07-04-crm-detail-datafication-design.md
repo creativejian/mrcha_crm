@@ -32,7 +32,7 @@
 
 ### ① 관리 상태 파생
 
-- **서버**: 목록·상세 조회 쿼리에 파생 필드 — `GREATEST(customers.updated_at, max(자식 updated_at))`, 자식 = customer_memos·customer_tasks·customer_schedules·customer_documents. 응답의 기존 `lastActivityAt` 자리를 파생값으로 대체(의미 재정의를 코드 주석으로 명시). `last_activity_at` 컬럼 자체는 불변·미사용 — drop은 follow-up.
+- **서버**: 목록·상세 조회 쿼리에 파생 필드 — `GREATEST(customers.updated_at, max(자식 created_at))`, 자식 = customer_memos·customer_tasks·customer_schedules·customer_documents. **(구현 조사 보정: 자식 4테이블엔 updated_at 컬럼이 없음 — 자식 추가는 잡히고 자식 수정은 못 잡는 허용 근사. 자식 updated_at 컬럼 추가는 follow-up.)** 응답의 기존 `lastActivityAt` 자리를 파생값으로 대체(의미 재정의를 코드 주석으로 명시). `last_activity_at` 컬럼 자체는 불변·미사용 — drop은 follow-up.
 - **프론트**: `client/src/lib/manage-status.ts` 신설, 순수 bucketing 함수(TDD). 규칙(현행 문서 기준 그대로):
   - `recontacted=true` → `재문의` (기간 무관)
   - `statusGroup=신규 && status=상담접수` → 공백(액션 전)
