@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { type Customer } from "@/data/customers";
 import { addTask, updateTask, deleteTask } from "@/lib/customer-children";
 import { type CustomerDetailData } from "@/lib/customers";
-import { formatShortDateLabel, kimCheckDueOptions, kimCheckDueSelection } from "@/lib/kim-detail-utils";
-import { sortKimCheckItemsByWorkRule, type KimCheckItem } from "@/lib/kim-schedule";
+import { formatShortDateLabel, checkDueOptions, checkDueSelection } from "@/lib/detail-utils";
+import { sortCheckItemsByWorkRule, type CheckItem } from "@/lib/schedule-items";
 
 type UseCustomerChecksArgs = {
   detail: CustomerDetailData; // 초기 checkItems / completedCheckItems 매핑 소스
@@ -16,7 +16,7 @@ type UseCustomerChecksArgs = {
 };
 
 export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate, onCustomerListChanged }: UseCustomerChecksArgs) {
-  const [checkItems, setCheckItems] = useState<KimCheckItem[]>(() =>
+  const [checkItems, setCheckItems] = useState<CheckItem[]>(() =>
     detail.tasks.map((t) => ({
       id: t.id,
       category: t.category ?? "",
@@ -40,12 +40,12 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate,
   const checkBodyRef = useRef<HTMLDivElement>(null);
 
   const remainingCheckCount = checkItems.filter((item) => !completedCheckItems.includes(item.id)).length;
-  const sortedCheckItems = sortKimCheckItemsByWorkRule(checkItems, completedCheckItems);
+  const sortedCheckItems = sortCheckItemsByWorkRule(checkItems, completedCheckItems);
 
-  function openCheckItemEdit(item: KimCheckItem) {
+  function openCheckItemEdit(item: CheckItem) {
     setAddingCheckItem(false);
     setConfirmingCheckItemTitle(null);
-    setSelectedEditingCheckDue(kimCheckDueSelection(item.due));
+    setSelectedEditingCheckDue(checkDueSelection(item.due));
     setEditingCheckItemId(item.id);
   }
 
@@ -160,7 +160,7 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate,
     const category = String(formData.get("category") ?? "체크");
     const dueSelection = String(formData.get("due") ?? currentDue);
     const dueDate = String(formData.get("dueDate") ?? "");
-    const currentDueIsCustom = !kimCheckDueOptions.includes(currentDue);
+    const currentDueIsCustom = !checkDueOptions.includes(currentDue);
     if (dueSelection === "지정" && !dueDate && !currentDueIsCustom) {
       onToast("마감 날짜를 선택해주세요.");
       return;

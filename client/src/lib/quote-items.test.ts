@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { flattenPrimaryScenario, formatScenarioMoneyMode, toKimQuoteItem, type CustomerDetailQuote } from "./kim-quote";
+import { flattenPrimaryScenario, formatScenarioMoneyMode, toQuoteItem, type CustomerDetailQuote } from "./quote-items";
 
 const NOW = new Date("2026-05-28T12:00:00+09:00").getTime();
 
@@ -51,9 +51,9 @@ function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote
   };
 }
 
-describe("toKimQuoteItem", () => {
+describe("toQuoteItem", () => {
   it("대표 시나리오(primaryScenarioId)에서 금융 4필드를 평탄화", () => {
-    const k = toKimQuoteItem(makeQuote(), NOW);
+    const k = toQuoteItem(makeQuote(), NOW);
     expect(k.financeType).toBe("운용리스");
     expect(k.term).toBe("60개월");
     expect(k.monthlyPayment).toBe("월 2,473,200원");
@@ -61,7 +61,7 @@ describe("toKimQuoteItem", () => {
   });
 
   it("quote 헤더 필드 직매핑 + union 좁히기", () => {
-    const k = toKimQuoteItem(makeQuote(), NOW);
+    const k = toQuoteItem(makeQuote(), NOW);
     expect(k.id).toBe("q1");
     expect(k.quoteCode).toBe("QT-2606-0001");
     expect(k.source).toBe("solution");
@@ -74,22 +74,22 @@ describe("toKimQuoteItem", () => {
   });
 
   it("vehicleName/title은 brand+model+trim 조합", () => {
-    const k = toKimQuoteItem(makeQuote(), NOW);
+    const k = toQuoteItem(makeQuote(), NOW);
     expect(k.vehicleName).toBe("벤츠 Maybach S-Class S 500 4M Long");
     expect(k.title).toBe("벤츠 Maybach S-Class S 500 4M Long");
   });
 
   it("validLabel: 미래는 D-day", () => {
-    expect(toKimQuoteItem(makeQuote(), NOW).validLabel).toBe("D-6");
+    expect(toQuoteItem(makeQuote(), NOW).validLabel).toBe("D-6");
   });
 
   it("validLabel: 과거/null", () => {
-    expect(toKimQuoteItem(makeQuote({ validUntil: "2026-05-27T12:00:00+09:00" }), NOW).validLabel).toBe("만료됨");
-    expect(toKimQuoteItem(makeQuote({ validUntil: null }), NOW).validLabel).toBeUndefined();
+    expect(toQuoteItem(makeQuote({ validUntil: "2026-05-27T12:00:00+09:00" }), NOW).validLabel).toBe("만료됨");
+    expect(toQuoteItem(makeQuote({ validUntil: null }), NOW).validLabel).toBeUndefined();
   });
 
   it("시나리오 비거나 값 null이면 폴백", () => {
-    const k = toKimQuoteItem(makeQuote({ primaryScenarioId: null, scenarios: [] }), NOW);
+    const k = toQuoteItem(makeQuote({ primaryScenarioId: null, scenarios: [] }), NOW);
     expect(k.financeType).toBeUndefined();
     expect(k.term).toBe("조건 미정");
     expect(k.monthlyPayment).toBeUndefined();
@@ -97,7 +97,7 @@ describe("toKimQuoteItem", () => {
   });
 
   it("primaryScenarioId 없으면 scenarioNo 최소를 대표로", () => {
-    const k = toKimQuoteItem(
+    const k = toQuoteItem(
       makeQuote({
         primaryScenarioId: null,
         scenarios: [
@@ -111,7 +111,7 @@ describe("toKimQuoteItem", () => {
   });
 
   it("알 수 없는 enum 값은 안전 폴백", () => {
-    const k = toKimQuoteItem(makeQuote({ entryMode: "weird", appStatus: null, decisionStatus: null, stockStatus: "??" }), NOW);
+    const k = toQuoteItem(makeQuote({ entryMode: "weird", appStatus: null, decisionStatus: null, stockStatus: "??" }), NOW);
     expect(k.source).toBe("manual");
     expect(k.appStatus).toBe("draft");
     expect(k.decisionStatus).toBe("none");
@@ -119,7 +119,7 @@ describe("toKimQuoteItem", () => {
   });
 
   it("#4c-2 가격(string)→number, 색상 이름/hex 매핑", () => {
-    const k = toKimQuoteItem(makeQuote({
+    const k = toQuoteItem(makeQuote({
       finalVehiclePrice: "241500000",
       exteriorColorName: "옵시디언 블랙", exteriorColorHex: "#0a0a0a",
       interiorColorName: "마키아토 베이지", interiorColorHex: "#d8c7a8",
@@ -133,33 +133,33 @@ describe("toKimQuoteItem", () => {
 
   it("guidance(추가 안내)를 매핑하고 null이면 undefined", () => {
     const g = { deliveryComment: "a", stockNotice: "b", expectedDelivery: "c", customerRegion: "d", keyPoint: "e", recommendReason: "f", services: ["s1", "s2"] };
-    expect(toKimQuoteItem(makeQuote({ guidance: g }), NOW).guidance).toEqual(g);
-    expect(toKimQuoteItem(makeQuote({ guidance: null }), NOW).guidance).toBeUndefined();
+    expect(toQuoteItem(makeQuote({ guidance: g }), NOW).guidance).toEqual(g);
+    expect(toQuoteItem(makeQuote({ guidance: null }), NOW).guidance).toBeUndefined();
   });
 
   it("#4c-2 가격/색상 없으면 undefined", () => {
-    const k = toKimQuoteItem(makeQuote(), NOW);
+    const k = toQuoteItem(makeQuote(), NOW);
     expect(k.finalVehiclePrice).toBeUndefined();
     expect(k.exteriorColorName).toBeUndefined();
     expect(k.interiorColorName).toBeUndefined();
   });
 
   it("PR1 catalog FK(trimId/색상 id) 있으면 number 매핑", () => {
-    const k = toKimQuoteItem(makeQuote({ trimId: 1024, exteriorColorId: 7, interiorColorId: 12 }), NOW);
+    const k = toQuoteItem(makeQuote({ trimId: 1024, exteriorColorId: 7, interiorColorId: 12 }), NOW);
     expect(k.trimId).toBe(1024);
     expect(k.exteriorColorId).toBe(7);
     expect(k.interiorColorId).toBe(12);
   });
 
   it("PR1 catalog FK 없으면(null) undefined", () => {
-    const k = toKimQuoteItem(makeQuote(), NOW);
+    const k = toQuoteItem(makeQuote(), NOW);
     expect(k.trimId).toBeUndefined();
     expect(k.exteriorColorId).toBeUndefined();
     expect(k.interiorColorId).toBeUndefined();
   });
 
   it("#4c-3a scenarios 배열 보존(N건) + 대표 평탄화 유지", () => {
-    const k = toKimQuoteItem(makeQuote({
+    const k = toQuoteItem(makeQuote({
       primaryScenarioId: "s1",
       scenarios: [
         { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "우리금융캐피탈", termMonths: 60, monthlyPayment: "2398000", depositMode: "percent", depositValue: "30", downPaymentMode: null, downPaymentValue: null, residualMode: "max", residualValue: null, mileageMode: "basic", mileageValue: "20,000km / 년", isSaved: true },
@@ -174,13 +174,13 @@ describe("toKimQuoteItem", () => {
   });
 });
 
-describe("toKimQuoteItem primaryScenarioId 노출", () => {
+describe("toQuoteItem primaryScenarioId 노출", () => {
   it("primaryScenarioId를 매핑", () => {
-    const k = toKimQuoteItem(makeQuote({ primaryScenarioId: "s1" }), NOW);
+    const k = toQuoteItem(makeQuote({ primaryScenarioId: "s1" }), NOW);
     expect(k.primaryScenarioId).toBe("s1");
   });
   it("primaryScenarioId null이면 undefined", () => {
-    const k = toKimQuoteItem(makeQuote({ primaryScenarioId: null }), NOW);
+    const k = toQuoteItem(makeQuote({ primaryScenarioId: null }), NOW);
     expect(k.primaryScenarioId).toBeUndefined();
   });
 });
@@ -220,15 +220,15 @@ describe("formatScenarioMoneyMode", () => {
   });
 });
 
-describe("toKimQuoteItem 견적 원본 file_* 매핑 (#4d)", () => {
+describe("toQuoteItem 견적 원본 file_* 매핑 (#4d)", () => {
   it("file_* 있으면 fileName/fileSize/mimeType 매핑", () => {
-    const k = toKimQuoteItem(makeQuote({ fileName: "원본견적.pdf", fileSize: 12345, fileMime: "application/pdf" }), NOW);
+    const k = toQuoteItem(makeQuote({ fileName: "원본견적.pdf", fileSize: 12345, fileMime: "application/pdf" }), NOW);
     expect(k.fileName).toBe("원본견적.pdf");
     expect(k.fileSize).toBe(12345);
     expect(k.mimeType).toBe("application/pdf");
   });
   it("file_* 없으면 undefined", () => {
-    const k = toKimQuoteItem(makeQuote(), NOW);
+    const k = toQuoteItem(makeQuote(), NOW);
     expect(k.fileName).toBeUndefined();
     expect(k.fileSize).toBeUndefined();
     expect(k.mimeType).toBeUndefined();

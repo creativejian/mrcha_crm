@@ -1,23 +1,23 @@
 import { BriefcaseBusiness, Calculator, Check, ChevronDown, Download, Eye, FilePlus2, FileText, FileUp, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Send, Star, Trash2, UserRound, X } from "lucide-react";
 
 import { type Customer } from "@/data/customers";
-import { formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/kim-quote";
+import { formatMonthly, formatScenarioMoneyMode, type QuoteItem } from "@/lib/quote-items";
 import { formatMoney } from "@/lib/quote-pricing";
-import { formatKimFileSize, isDocumentFileDrag, kimDocumentFileKind, kimQuoteValidClass } from "@/lib/kim-detail-utils";
-import { calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
+import { formatFileSize, isDocumentFileDrag, documentFileKind, quoteValidClass } from "@/lib/detail-utils";
+import { calculateQuoteActionFrame, calculateQuoteStatusTooltip } from "@/lib/popover-frames";
 import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
 
 import {
-  kimQuoteAppSendLabel,
-  kimQuoteAppStatusLabel,
-  kimQuoteDecisionLabel,
-  kimQuoteDeleteConfirmMessage,
-  kimQuoteDeleteConfirmTitle,
-  kimQuoteStockClass,
+  quoteAppSendLabel,
+  quoteAppStatusLabel,
+  quoteDecisionLabel,
+  quoteDeleteConfirmMessage,
+  quoteDeleteConfirmTitle,
+  quoteStockClass,
 } from "./quote-meta";
 import type { useQuoteList } from "./hooks/useQuoteList";
 
-function kimQuoteSourceIcon(source: KimQuoteItem["source"]) {
+function quoteSourceIcon(source: QuoteItem["source"]) {
   if (source === "solution") return <Calculator size={12} strokeWidth={2.35} />;
   if (source === "original") return <FileText size={12} strokeWidth={2.35} />;
   return <PencilLine size={12} strokeWidth={2.35} />;
@@ -29,7 +29,7 @@ type QuoteListProps = {
   onToast: (message: string) => void;
   // 워크벤치 시드(부모 보유 9b/9d/9e) — seam 콜백. 견적함 "+"=신규, 액션 "견적 수정"=수정.
   onOpenNewWorkbench: () => void;
-  onEditQuote: (quote: KimQuoteItem) => void;
+  onEditQuote: (quote: QuoteItem) => void;
 };
 
 export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, onEditQuote }: QuoteListProps) {
@@ -123,23 +123,23 @@ export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, on
                       className={`kim-quote-status-detail ${quote.appStatus === "viewed" ? "send-viewed" : "send-sent"}${pinnedQuoteStatus?.id === quote.id ? " is-pinned" : ""}`}
                       onClick={(event) => {
                         event.stopPropagation();
-                        const nextFrame = calculateKimQuoteStatusTooltip(event.currentTarget, quote.id);
+                        const nextFrame = calculateQuoteStatusTooltip(event.currentTarget, quote.id);
                         setPinnedQuoteStatus((current) => (current?.id === quote.id ? null : nextFrame));
                         setHoveredQuoteStatus(null);
                       }}
-                      onMouseEnter={(event) => setHoveredQuoteStatus(calculateKimQuoteStatusTooltip(event.currentTarget, quote.id))}
+                      onMouseEnter={(event) => setHoveredQuoteStatus(calculateQuoteStatusTooltip(event.currentTarget, quote.id))}
                       onMouseLeave={() => setHoveredQuoteStatus(null)}
                       type="button"
                     >
-                      {kimQuoteSourceIcon(quote.source)}
+                      {quoteSourceIcon(quote.source)}
                       <i aria-hidden="true" />
-                      <span>{kimQuoteAppStatusLabel(quote.appStatus, quote)}</span>
+                      <span>{quoteAppStatusLabel(quote.appStatus, quote)}</span>
                     </button>
                   ) : (
                     <b className="send-draft">
-                      {kimQuoteSourceIcon(quote.source)}
+                      {quoteSourceIcon(quote.source)}
                       <i aria-hidden="true" />
-                      <span>{kimQuoteAppStatusLabel(quote.appStatus, quote)}</span>
+                      <span>{quoteAppStatusLabel(quote.appStatus, quote)}</span>
                     </b>
                   )}
                 </span>
@@ -155,8 +155,8 @@ export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, on
                     {quote.term ? <span>{quote.term}</span> : null}
                     {quote.monthlyPayment ? <strong>{quote.monthlyPayment}</strong> : <span>월 납입금 확인 전</span>}
                     {quote.lender ? <span>{quote.lender}</span> : null}
-                    {quote.stockStatus ? <span className={`stock${kimQuoteStockClass(quote.stockStatus)}`}>{quote.stockStatus}</span> : null}
-                    {quote.validLabel ? <span className={`valid${kimQuoteValidClass(quote.validLabel)}`}>{quote.validLabel}</span> : null}
+                    {quote.stockStatus ? <span className={`stock${quoteStockClass(quote.stockStatus)}`}>{quote.stockStatus}</span> : null}
+                    {quote.validLabel ? <span className={`valid${quoteValidClass(quote.validLabel)}`}>{quote.validLabel}</span> : null}
                   </div>
                   {(quote.finalVehiclePrice != null || quote.exteriorColorName || quote.interiorColorName || quote.fileName) ? (
                     <div className="kim-quote-meta-pricing">
@@ -235,13 +235,13 @@ export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, on
                       <span className="kim-quote-replace-pill">수정견적으로 교체 필요</span>
                     ) : null}
                     {quote.decisionStatus && quote.decisionStatus !== "none" ? (
-                      <span className={`kim-quote-decision-pill decision-${quote.decisionStatus}`}>{kimQuoteDecisionLabel(quote.decisionStatus)}</span>
+                      <span className={`kim-quote-decision-pill decision-${quote.decisionStatus}`}>{quoteDecisionLabel(quote.decisionStatus)}</span>
                     ) : null}
                     <button
                       aria-label={`${quote.title} 견적 작업 열기`}
                       className={openQuoteActionId === quote.id ? "is-active" : undefined}
                       onClick={(event) => {
-                        const nextFrame = calculateKimQuoteActionFrame(event.currentTarget);
+                        const nextFrame = calculateQuoteActionFrame(event.currentTarget);
                         setConfirmingQuoteDeleteId(null);
                         setConfirmingQuoteSendId(null);
                         setConfirmingQuoteContractId(null);
@@ -293,7 +293,7 @@ export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, on
         >
           <div className="kim-quote-action-popover-head">
             <span>{openQuoteAction.quoteCode}</span>
-            <b className={openQuoteAction.appStatus === "viewed" ? "is-viewed" : openQuoteAction.appStatus === "sent" ? "is-sent" : "is-draft"}>{kimQuoteAppSendLabel(openQuoteAction.appStatus, openQuoteAction)}</b>
+            <b className={openQuoteAction.appStatus === "viewed" ? "is-viewed" : openQuoteAction.appStatus === "sent" ? "is-sent" : "is-draft"}>{quoteAppSendLabel(openQuoteAction.appStatus, openQuoteAction)}</b>
           </div>
           <button type="button" onClick={() => {
             setConfirmingQuoteContractId(null);
@@ -464,8 +464,8 @@ export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, on
               </div>
             ) : (
               <div className="kim-quote-send-confirm kim-quote-delete-inline-confirm" role="dialog" aria-label="견적 항목 삭제 확인">
-                <strong>{kimQuoteDeleteConfirmTitle(openQuoteAction)}</strong>
-                <p>{kimQuoteDeleteConfirmMessage(openQuoteAction)}</p>
+                <strong>{quoteDeleteConfirmTitle(openQuoteAction)}</strong>
+                <p>{quoteDeleteConfirmMessage(openQuoteAction)}</p>
                 <div>
                   <button type="button" onClick={() => setConfirmingQuoteDeleteId(null)}>취소</button>
                   <button className="danger" type="button" onClick={() => {
@@ -530,7 +530,7 @@ export function QuotePreviewModals({ quoteList, onDownloadOriginal }: QuotePrevi
             <div className="kim-document-preview-head">
               <div>
                 <strong>{previewQuote.title}</strong>
-                <span>{previewQuote.quoteCode} · {previewQuote.fileName} · {formatKimFileSize(previewQuote.fileSize)}</span>
+                <span>{previewQuote.quoteCode} · {previewQuote.fileName} · {formatFileSize(previewQuote.fileSize)}</span>
               </div>
               <div className="kim-document-preview-head-actions">
                 <button aria-label="견적 원본 다운로드" disabled={!activePreviewQuoteUrl} onClick={() => { if (activePreviewQuoteUrl) onDownloadOriginal(activePreviewQuoteUrl, previewQuote.fileName ?? "quote"); }} type="button"><Download size={15} strokeWidth={2.3} /></button>
@@ -543,7 +543,7 @@ export function QuotePreviewModals({ quoteList, onDownloadOriginal }: QuotePrevi
                 <p>불러오는 중…</p>
               ) : previewQuote.mimeType?.startsWith("image/") ? (
                 <img alt={previewQuote.title} src={activePreviewQuoteUrl} />
-              ) : kimDocumentFileKind(previewQuote.mimeType, previewQuote.fileName) === "PDF" ? (
+              ) : documentFileKind(previewQuote.mimeType, previewQuote.fileName) === "PDF" ? (
                 <iframe src={activePreviewQuoteUrl} title={previewQuote.title} />
               ) : (
                 <p>미리보기를 지원하지 않는 파일입니다.</p>

@@ -1,4 +1,4 @@
-// 김민준 고객 상세(CustomerDetailPage) 전용 순수 유틸.
+// 고객 상세(CustomerDetailPage) 전용 순수 유틸.
 // 타입/상수에 의존하지 않는(string·number·Date만 입출력) 함수만 모은다.
 // 컴포넌트 상태와 무관해 단위 테스트가 쉽고, 거대 페이지 컴포넌트에서 분리해 가독성을 높인다.
 
@@ -16,7 +16,7 @@ export function formatKoreanShortTime(date = new Date()) {
   return `오늘 ${hours}:${minutes}`;
 }
 
-export function formatKimAssignmentTime(date = new Date()) {
+export function formatAssignmentTime(date = new Date()) {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
   return `오늘 ${hours}:${minutes}`;
@@ -41,25 +41,25 @@ export function formatScheduleDateLabel(value: string) {
   return `${Number(month)}/${Number(day)}`;
 }
 
-export const kimScheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
-export const kimScheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
+export const scheduleHourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
+export const scheduleMinuteOptions = ["00", "10", "20", "30", "40", "50"];
 
 export function parseScheduleTimeParts(value?: string) {
   const [rawHour, rawMinute] = (value || "10:00").split(":");
-  const hour = kimScheduleHourOptions.includes(rawHour) ? rawHour : "10";
-  const minute = kimScheduleMinuteOptions.includes(rawMinute) ? rawMinute : "00";
+  const hour = scheduleHourOptions.includes(rawHour) ? rawHour : "10";
+  const minute = scheduleMinuteOptions.includes(rawMinute) ? rawMinute : "00";
   return { hour, minute };
 }
 
 export function scheduleTimeFromFormData(formData: FormData) {
   const hour = String(formData.get("scheduleHour") ?? "10");
   const minute = String(formData.get("scheduleMinute") ?? "00");
-  const safeHour = kimScheduleHourOptions.includes(hour) ? hour : "10";
-  const safeMinute = kimScheduleMinuteOptions.includes(minute) ? minute : "00";
+  const safeHour = scheduleHourOptions.includes(hour) ? hour : "10";
+  const safeMinute = scheduleMinuteOptions.includes(minute) ? minute : "00";
   return `${safeHour}:${safeMinute}`;
 }
 
-export function formatKimRecentUpdateTime(updatedAt: number, now: number) {
+export function formatRecentUpdateTime(updatedAt: number, now: number) {
   const elapsedMinutes = Math.max(0, Math.floor((now - updatedAt) / 60000));
   if (elapsedMinutes < 10) return "방금 전";
   if (elapsedMinutes < 60) return `${Math.floor(elapsedMinutes / 10) * 10}분 전`;
@@ -74,7 +74,7 @@ export function formatKimRecentUpdateTime(updatedAt: number, now: number) {
   return `${year}-${month}-${day}`;
 }
 
-export function kimTimeLabelMinutes(value: string) {
+export function timeLabelMinutes(value: string) {
   const [, time = ""] = value.split(" ");
   const [rawHour, rawMinute] = time.split(":");
   const hour = Number(rawHour);
@@ -103,13 +103,13 @@ export function localPhoneFrom(fullValue: string) {
 
 // --- 숫자 · 파일 크기 ---
 
-export function formatKimNumberWithCommas(value: string) {
+export function formatNumberWithCommas(value: string) {
   const digits = value.replace(/[^\d]/g, "");
   if (!digits) return "";
   return Number(digits).toLocaleString("ko-KR");
 }
 
-export function formatKimFileSize(size?: number) {
+export function formatFileSize(size?: number) {
   if (!size) return "크기 확인 전";
   if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))}KB`;
   return `${(size / 1024 / 1024).toFixed(1)}MB`;
@@ -117,7 +117,7 @@ export function formatKimFileSize(size?: number) {
 
 // --- 문서 분류 (파일명 기반) ---
 
-export function classifyKimDocumentFile(fileName: string) {
+export function classifyDocumentFile(fileName: string) {
   const normalized = fileName.normalize("NFC").toLowerCase().replace(/\s|_|-/g, "");
   if (/운전면허|면허|driver.?license|license/.test(normalized)) return "면허증";
   if (/주민등록등본|등본|초본|resident|register/.test(normalized)) return "주민등록등본";
@@ -143,7 +143,7 @@ export function classifyKimDocumentFile(fileName: string) {
   return "기타서류";
 }
 
-export function kimDocumentFileKind(mimeType?: string, fileName = "") {
+export function documentFileKind(mimeType?: string, fileName = "") {
   if (mimeType?.startsWith("image/")) return "이미지";
   if (mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) return "PDF";
   return "파일";
@@ -156,23 +156,23 @@ export function isDocumentFileDrag(event: ReactDragEvent<HTMLElement>) {
 
 // --- 구매 조건 표시/태그 ---
 
-export function kimPurchaseValueClass(value: string) {
+export function purchaseValueClass(value: string) {
   if (value === "미정") return "is-empty";
   if (value === "확인 필요") return "needs-confirmation";
   return "";
 }
 
-export function isKimPurchaseTagField(label: string) {
+export function isPurchaseTagField(label: string) {
   return label === "계약 포커스" || label === "고객 특이사항" || label === "심사 특이사항";
 }
 
-export function kimPurchaseTags(value: string) {
+export function purchaseTags(value: string) {
   return value.split("#").map((tag) => tag.trim()).filter(Boolean).map((tag) => `#${tag}`);
 }
 
 // --- 상담/견적 표시 클래스 ---
 
-export function kimConsultKindClass(kind: string) {
+export function consultKindClass(kind: string) {
   if (kind === "통화") return " call";
   if (kind === "카톡" || kind === "앱상담") return " chat";
   if (kind === "상태변경" || kind === "상태") return " status";
@@ -180,7 +180,7 @@ export function kimConsultKindClass(kind: string) {
   return "";
 }
 
-export function kimQuoteValidClass(label?: string) {
+export function quoteValidClass(label?: string) {
   if (!label) return "";
   if (label.includes("만료")) return " expired";
   if (/D-[01]$/.test(label)) return " urgent";
@@ -189,7 +189,7 @@ export function kimQuoteValidClass(label?: string) {
 
 // --- 해야 할 일(체크) 마감 랭크 ---
 
-export function kimCheckDueRank(value: string) {
+export function checkDueRank(value: string) {
   if (value === "급함") return 0;
   if (value === "오늘") return 1;
   if (value === "내일") return 2;
@@ -197,22 +197,22 @@ export function kimCheckDueRank(value: string) {
   return 4;
 }
 
-export function kimCheckDueDateRank(value: string) {
+export function checkDueDateRank(value: string) {
   const [month, day] = value.split("/").map(Number);
   if (!Number.isFinite(month) || !Number.isFinite(day)) return Number.MAX_SAFE_INTEGER;
   return month * 100 + day;
 }
 
-export function parseKimCheckDueDate(value: string, date = new Date()) {
+export function parseCheckDueDate(value: string, date = new Date()) {
   const [month, day] = value.split("/");
   if (!month || !day) return "";
   return `${date.getFullYear()}-${String(Number(month)).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
 }
 
 // 해야 할 일 마감 선택지. 마지막 "지정"은 임의 날짜 입력 분기.
-export const kimCheckDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
+export const checkDueOptions = ["오늘", "내일", "이번 주", "급함", "지정"];
 
 // 저장된 due 값이 표준 선택지에 없으면 "지정"(임의 날짜)으로 본다.
-export function kimCheckDueSelection(value: string) {
-  return kimCheckDueOptions.includes(value) ? value : "지정";
+export function checkDueSelection(value: string) {
+  return checkDueOptions.includes(value) ? value : "지정";
 }

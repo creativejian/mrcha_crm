@@ -1,12 +1,12 @@
 import { ChevronRight } from "lucide-react";
 
-import { formatKimRecentUpdateTime } from "@/lib/kim-detail-utils";
+import { formatRecentUpdateTime } from "@/lib/detail-utils";
 
-import type { KimRecentUpdate } from "./types";
+import type { RecentUpdate } from "./types";
 
 type CustomerDetailHeaderProps = {
   now: number;
-  recentUpdate: KimRecentUpdate;
+  recentUpdate: RecentUpdate;
   name: string;
   customerCode: string;
   receivedLabel: string;
@@ -26,7 +26,7 @@ export function CustomerDetailHeader({ now, recentUpdate, name, customerCode, re
               <em className="kim-header-received-text num">{receivedLabel ? `· ${receivedLabel} 접수` : ""}</em>
             </h2>
             <p>
-              {formatKimRecentUpdateTime(recentUpdate.updatedAt, now)}{" "}
+              {formatRecentUpdateTime(recentUpdate.updatedAt, now)}{" "}
               <span className="kim-header-update-mark">{recentUpdate.section} 업데이트</span>
             </p>
           </div>

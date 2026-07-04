@@ -2,12 +2,12 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent as ReactD
 
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
-import { toKimQuoteItem, flattenPrimaryScenario, type KimQuoteItem } from "@/lib/kim-quote";
+import { toQuoteItem, flattenPrimaryScenario, type QuoteItem } from "@/lib/quote-items";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl } from "@/lib/customer-quotes";
-import { formatKoreanShortTime } from "@/lib/kim-detail-utils";
-import { type KimQuoteActionFrame, type KimQuoteStatusTooltip } from "@/lib/kim-popover-frames";
+import { formatKoreanShortTime } from "@/lib/detail-utils";
+import { type QuoteActionFrame, type QuoteStatusTooltip } from "@/lib/popover-frames";
 
-import { kimQuoteStatusDetailParts } from "../quote-meta";
+import { quoteStatusDetailParts } from "../quote-meta";
 
 type UseQuoteListArgs = {
   detail: CustomerDetailData; // quotes 초기값 + preview-URL effect의 detail.id
@@ -18,16 +18,16 @@ type UseQuoteListArgs = {
 
 // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 부모 보유.
 export function useQuoteList({ detail, customer, onToast, markRecentUpdate }: UseQuoteListArgs) {
-  const [quotes, setQuotes] = useState<KimQuoteItem[]>(() => detail.quotes.map((q) => toKimQuoteItem(q, Date.now())));
+  const [quotes, setQuotes] = useState<QuoteItem[]>(() => detail.quotes.map((q) => toQuoteItem(q, Date.now())));
   const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
   const [confirmingQuoteSendId, setConfirmingQuoteSendId] = useState<string | null>(null);
   const [confirmingQuoteContractId, setConfirmingQuoteContractId] = useState<string | null>(null);
   const [confirmingQuoteContractEditId, setConfirmingQuoteContractEditId] = useState<string | null>(null);
   const [confirmingQuoteContractDowngrade, setConfirmingQuoteContractDowngrade] = useState<{ id: string; status: "confirmed" | "considering" } | null>(null);
   const [openQuoteActionId, setOpenQuoteActionId] = useState<string | null>(null);
-  const [quoteActionFrame, setQuoteActionFrame] = useState<KimQuoteActionFrame | null>(null);
-  const [hoveredQuoteStatus, setHoveredQuoteStatus] = useState<KimQuoteStatusTooltip | null>(null);
-  const [pinnedQuoteStatus, setPinnedQuoteStatus] = useState<KimQuoteStatusTooltip | null>(null);
+  const [quoteActionFrame, setQuoteActionFrame] = useState<QuoteActionFrame | null>(null);
+  const [hoveredQuoteStatus, setHoveredQuoteStatus] = useState<QuoteStatusTooltip | null>(null);
+  const [pinnedQuoteStatus, setPinnedQuoteStatus] = useState<QuoteStatusTooltip | null>(null);
   const [quoteDropTargetId, setQuoteDropTargetId] = useState<string | null>(null);
   const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
   const [previewSentQuoteId, setPreviewSentQuoteId] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate }: Us
   const openQuoteAction = quotes.find((quote) => quote.id === openQuoteActionId) ?? null;
   const activeQuoteStatusTooltip = pinnedQuoteStatus ?? hoveredQuoteStatus;
   const activeQuoteStatus = activeQuoteStatusTooltip ? quotes.find((quote) => quote.id === activeQuoteStatusTooltip.id) ?? null : null;
-  const activeQuoteStatusDetail = activeQuoteStatus ? kimQuoteStatusDetailParts(activeQuoteStatus) : null;
+  const activeQuoteStatusDetail = activeQuoteStatus ? quoteStatusDetailParts(activeQuoteStatus) : null;
   const previewQuote = quotes.find((quote) => quote.id === previewQuoteId) ?? null;
   // 미리보기 URL: 업로드 직후 메모리 objectUrl 우선, 영속본은 signed URL을 비동기 발급.
   const activePreviewQuoteUrl = previewQuote ? previewQuote.objectUrl ?? previewQuoteUrl : null;
@@ -220,7 +220,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate }: Us
     onToast(`${customer.name} 고객 앱 견적함으로 발송했습니다. 대상: ${customer.customerId}`);
   }
 
-  function updateQuoteDecisionStatus(id: string, decisionStatus: KimQuoteItem["decisionStatus"]) {
+  function updateQuoteDecisionStatus(id: string, decisionStatus: QuoteItem["decisionStatus"]) {
     const prevQuotes = quotes;
     setQuotes((current) => current.map((quote) => (
       quote.id === id ? { ...quote, decisionStatus } : quote

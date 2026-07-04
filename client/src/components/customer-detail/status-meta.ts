@@ -4,28 +4,28 @@ import { BriefcaseBusiness, CalendarClock, MapPin, Phone, Route, UserRound } fro
 
 import { type CustomerChanceOption } from "@/data/customers";
 
-import { type KimStatusFieldKey, type KimWorkflowKey } from "./types";
+import { type StatusFieldKey, type WorkflowKey } from "./types";
 
-export const kimMinjunStatusFieldMeta = [
+export const statusFieldMeta = [
   { key: "phone", label: "연락처", icon: Phone },
   { key: "job", label: "직군", icon: BriefcaseBusiness },
   { key: "location", label: "거주지", icon: MapPin },
   { key: "source", label: "상담경로", icon: Route },
   { key: "advisor", label: "담당자", icon: UserRound },
   { key: "assignedAt", label: "배정시간", icon: CalendarClock },
-] satisfies { key: KimStatusFieldKey; label: string; icon: typeof Phone }[];
+] satisfies { key: StatusFieldKey; label: string; icon: typeof Phone }[];
 
-export const kimMinjunWorkflowMeta = [
+export const workflowMeta = [
   { key: "stage", label: "진행 상태", tone: "stage" },
   { key: "chance", label: "계약 가능성", tone: "chance" },
   { key: "manage", label: "관리 상태", tone: "normal" },
-] satisfies { key: KimWorkflowKey; label: string; tone: string }[];
+] satisfies { key: WorkflowKey; label: string; tone: string }[];
 
-export function fieldLabel(key: KimStatusFieldKey) {
-  return kimMinjunStatusFieldMeta.find((field) => field.key === key)?.label ?? "항목";
+export function fieldLabel(key: StatusFieldKey) {
+  return statusFieldMeta.find((field) => field.key === key)?.label ?? "항목";
 }
 
-export function kimChanceOptionClass(option: CustomerChanceOption, selected: boolean) {
+export function chanceOptionClass(option: CustomerChanceOption, selected: boolean) {
   const toneByChance: Record<CustomerChanceOption, string> = {
     높음: "chance-purple",
     중간: "chance-neutral",
@@ -36,7 +36,7 @@ export function kimChanceOptionClass(option: CustomerChanceOption, selected: boo
   return ["kim-chance-option", toneByChance[option], selected ? "active" : ""].filter(Boolean).join(" ");
 }
 
-export function kimChanceValueClass(option: CustomerChanceOption) {
+export function chanceValueClass(option: CustomerChanceOption) {
   const toneByChance: Record<CustomerChanceOption, string> = {
     높음: "chance-purple",
     중간: "chance-neutral",
@@ -47,6 +47,6 @@ export function kimChanceValueClass(option: CustomerChanceOption) {
   return `kim-chance-value ${toneByChance[option]}`;
 }
 
-export function isKimUnassignedStatus(key: KimStatusFieldKey, value: string) {
+export function isUnassignedStatus(key: StatusFieldKey, value: string) {
   return (key === "advisor" || key === "assignedAt") && value === "미배정";
 }

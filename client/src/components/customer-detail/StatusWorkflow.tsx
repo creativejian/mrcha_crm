@@ -2,12 +2,12 @@ import { Check, History, MessageSquareText } from "lucide-react";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { CHANCE_OPTIONS, customerStatusGroups, type Customer } from "@/data/customers";
-import { kimConsultKindClass } from "@/lib/kim-detail-utils";
-import { hasKimAppSourceQueue } from "@/lib/kim-status-fields";
+import { consultKindClass } from "@/lib/detail-utils";
+import { hasAppSourceQueue } from "@/lib/status-fields";
 
 import { AdvisorStatusEditor, JobStatusEditor, LocationStatusEditor, PhoneStatusInput, SourceStatusEditor } from "./StatusFieldEditors";
-import { fieldLabel, isKimUnassignedStatus, kimChanceOptionClass, kimChanceValueClass, kimMinjunStatusFieldMeta, kimMinjunWorkflowMeta } from "./status-meta";
-import { type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "./types";
+import { fieldLabel, isUnassignedStatus, chanceOptionClass, chanceValueClass, statusFieldMeta, workflowMeta } from "./status-meta";
+import { type StatusFieldKey, type WorkflowKey, type OpenEditorState } from "./types";
 import type { useCustomerWorkflow } from "./hooks/useCustomerWorkflow";
 
 type StatusWorkflowProps = {
@@ -24,7 +24,7 @@ type StatusWorkflowProps = {
 export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, workflow }: StatusWorkflowProps) {
   const { statusValues, stageGroup, stageStatus, chance, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
 
-  function renderStatusEditor(key: KimStatusFieldKey) {
+  function renderStatusEditor(key: StatusFieldKey) {
     return (
       <div className="kim-edit-popover compact" role="dialog" aria-label={`${fieldLabel(key)} 수정`}>
         {key === "job" ? (
@@ -71,7 +71,7 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
     );
   }
 
-  function renderWorkflowEditor(key: KimWorkflowKey) {
+  function renderWorkflowEditor(key: WorkflowKey) {
     if (key === "stage") {
       const secondaryOptions = customerStatusGroups[stageGroup] ?? [];
       return (
@@ -113,7 +113,7 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
             const selected = option === chance;
             return (
               <button
-                className={kimChanceOptionClass(option, selected)}
+                className={chanceOptionClass(option, selected)}
                 key={option}
                 onClick={() => handlers.selectChance(option)}
                 type="button"
@@ -143,7 +143,7 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
               const isLatestMemo = item.kind === "메모" && !timelineItems.slice(index + 1).some((nextItem) => nextItem.kind === "메모");
               return (
                 <article
-                  className={`kim-consult-event${kimConsultKindClass(item.kind)}${isLatestMemo ? " is-latest-memo" : " is-muted-history"}`}
+                  className={`kim-consult-event${consultKindClass(item.kind)}${isLatestMemo ? " is-latest-memo" : " is-muted-history"}`}
                   key={`${item.kind}-${item.title}-${item.meta}-${index}`}
                 >
                   <span>{item.kind}</span>
@@ -168,7 +168,7 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
   return (
     <section className="detail-section kim-status-dashboard">
       <div className="kim-status-grid">
-        {kimMinjunStatusFieldMeta.map((field) => {
+        {statusFieldMeta.map((field) => {
           const Icon = field.icon;
           if (field.key === "source") {
             return (
@@ -177,9 +177,9 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
                   <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                   <span className="kim-status-copy">
                   <span>{field.label}</span>
-                  <strong className={`has-inline-actions${isKimUnassignedStatus(field.key, statusValues[field.key]) ? " is-unassigned" : ""}`}>
+                  <strong className={`has-inline-actions${isUnassignedStatus(field.key, statusValues[field.key]) ? " is-unassigned" : ""}`}>
                     {statusValues[field.key]}
-                    {hasKimAppSourceQueue(statusValues[field.key]) ? (
+                    {hasAppSourceQueue(statusValues[field.key]) ? (
                     <button
                       aria-label="앱 상담 큐 보기"
                       className="kim-app-queue-button"
@@ -205,7 +205,7 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
                 <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                 <span className="kim-status-copy">
                 <span>{field.label}</span>
-                <strong className={isKimUnassignedStatus(field.key, statusValues[field.key]) ? "is-unassigned" : undefined}>{statusValues[field.key]}</strong>
+                <strong className={isUnassignedStatus(field.key, statusValues[field.key]) ? "is-unassigned" : undefined}>{statusValues[field.key]}</strong>
                 </span>
               </button>
               {openEditor?.kind === "status" && openEditor.key === field.key ? renderStatusEditor(field.key) : null}
@@ -214,11 +214,11 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
         })}
       </div>
       <div className="kim-workflow-strip" aria-label={`${customer.name} 업무 상태`}>
-        {kimMinjunWorkflowMeta.map((field) => (
+        {workflowMeta.map((field) => (
           <div className="kim-edit-anchor workflow" key={field.key} ref={openEditor?.kind === "workflow" && openEditor.key === field.key ? editorRef : undefined}>
             <button className={`kim-workflow-card ${field.tone}`} onClick={() => handlers.openWorkflowEditor(field.key)} type="button">
               <span>{field.label}</span>
-              <strong className={field.key === "chance" ? kimChanceValueClass(chance) : undefined}>{workflowValue(field.key)}</strong>
+              <strong className={field.key === "chance" ? chanceValueClass(chance) : undefined}>{workflowValue(field.key)}</strong>
             </button>
             {openEditor?.kind === "workflow" && openEditor.key === field.key ? renderWorkflowEditor(field.key) : null}
           </div>

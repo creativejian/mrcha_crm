@@ -1,21 +1,21 @@
 import { ListChecks } from "lucide-react";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
-import { formatKimNumberWithCommas, isKimPurchaseTagField, kimPurchaseTags, kimPurchaseValueClass } from "@/lib/kim-detail-utils";
-import { isKimPurchaseFloatingKind, type KimPurchasePopoverFrame } from "@/lib/kim-popover-frames";
+import { formatNumberWithCommas, isPurchaseTagField, purchaseTags, purchaseValueClass } from "@/lib/detail-utils";
+import { isPurchaseFloatingKind, type PurchasePopoverFrame } from "@/lib/popover-frames";
 
 import {
-  kimAnnualMileageOptions,
-  kimContractFocusOptions,
-  kimContractTermOptions,
-  kimCustomerNoteOptions,
-  kimDeliveryMethodOptions,
-  kimInitialCostKindOptions,
-  kimInitialCostUnitOptions,
-  kimMethodOptions,
-  kimReviewNoteOptions,
-  kimTimingMonthOptions,
-  kimTimingPresetOptions,
+  annualMileageOptions,
+  contractFocusOptions,
+  contractTermOptions,
+  customerNoteOptions,
+  deliveryMethodOptions,
+  initialCostKindOptions,
+  initialCostUnitOptions,
+  methodOptions,
+  reviewNoteOptions,
+  timingMonthOptions,
+  timingPresetOptions,
 } from "./purchase-meta";
 import { type OpenEditorState } from "./types";
 import type { useCustomerPurchase } from "./hooks/useCustomerPurchase";
@@ -26,7 +26,7 @@ type PurchaseConditionsProps = {
   openEditor: OpenEditorState | null;
   setOpenEditor: Dispatch<SetStateAction<OpenEditorState | null>>;
   editorRef: RefObject<HTMLDivElement | null>;
-  purchasePopoverFrame: KimPurchasePopoverFrame | null;
+  purchasePopoverFrame: PurchasePopoverFrame | null;
   purchase: ReturnType<typeof useCustomerPurchase>;
 };
 
@@ -82,12 +82,12 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
 
   function renderPurchaseMethodEditor() {
     const currentMethodField = purchaseFields.find((field) => field.label === "구매방식");
-    const selectedMethods = new Set((currentMethodField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => kimMethodOptions.includes(value)));
+    const selectedMethods = new Set((currentMethodField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => methodOptions.includes(value)));
 
     return (
       <div className="kim-edit-popover purchase-method" role="dialog" aria-label="구매방식 수정">
         <div className="kim-method-segmented" role="group" aria-label="구매방식 선택">
-          {kimMethodOptions.map((option) => (
+          {methodOptions.map((option) => (
             <button
               aria-pressed={selectedMethods.has(option)}
               className={selectedMethods.has(option) ? "active" : ""}
@@ -105,12 +105,12 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
 
   function renderPurchaseTermEditor() {
     const currentTermField = purchaseFields.find((field) => field.label === "계약기간");
-    const selectedTerms = new Set((currentTermField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => kimContractTermOptions.includes(value)));
+    const selectedTerms = new Set((currentTermField?.value ?? "").split("·").map((value) => value.trim()).filter((value) => contractTermOptions.includes(value)));
 
     return (
       <div className="kim-edit-popover purchase-term" role="dialog" aria-label="계약기간 수정">
         <div className="kim-method-segmented" role="group" aria-label="계약기간 선택">
-          {kimContractTermOptions.map((option) => (
+          {contractTermOptions.map((option) => (
             <button
               aria-pressed={selectedTerms.has(option)}
               className={selectedTerms.has(option) ? "active" : ""}
@@ -131,7 +131,7 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
       <div className="kim-edit-popover purchase-initial-cost" role="dialog" aria-label="초기비용 수정">
         <div className="kim-initial-cost-editor">
           <div className="kim-initial-cost-group" role="group" aria-label="초기비용 유형 선택">
-            {kimInitialCostKindOptions.map((option) => (
+            {initialCostKindOptions.map((option) => (
               <button
                 aria-pressed={initialCostKind === option}
                 className={initialCostKind === option ? "active" : ""}
@@ -146,7 +146,7 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
           {initialCostKind && initialCostKind !== "무보증" ? (
             <div className="kim-initial-cost-entry">
               <div className="kim-initial-cost-unit" role="group" aria-label="초기비용 입력 방식">
-                {kimInitialCostUnitOptions.map((option) => (
+                {initialCostUnitOptions.map((option) => (
                   <button
                     aria-pressed={initialCostUnit === option}
                     className={initialCostUnit === option ? "active" : ""}
@@ -165,7 +165,7 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
                     inputMode="numeric"
                     onChange={(event) => setInitialCostAmount(event.target.value.replace(/[^\d]/g, ""))}
                     placeholder={initialCostUnit === "%" ? "30" : "1000"}
-                    value={initialCostUnit === "금액" ? formatKimNumberWithCommas(initialCostAmount) : initialCostAmount}
+                    value={initialCostUnit === "금액" ? formatNumberWithCommas(initialCostAmount) : initialCostAmount}
                   />
                   <em>{initialCostUnit === "%" ? "%" : "만원"}</em>
                 </div>
@@ -188,7 +188,7 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
     return (
       <div className="kim-edit-popover purchase-annual-mileage" role="dialog" aria-label="연간 주행거리 수정">
         <div className="kim-mileage-picker" role="group" aria-label="연간 주행거리 선택">
-          {kimAnnualMileageOptions.map((option) => (
+          {annualMileageOptions.map((option) => (
             <button
               aria-pressed={currentValue === option}
               className={currentValue === option ? "active" : ""}
@@ -211,7 +211,7 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
     return (
       <div className="kim-edit-popover purchase-delivery-method" role="dialog" aria-label="인도 방식 수정">
         <div className="kim-delivery-method-picker" role="group" aria-label="인도 방식 선택">
-          {kimDeliveryMethodOptions.map((option) => (
+          {deliveryMethodOptions.map((option) => (
             <button
               aria-pressed={currentValue === option}
               className={currentValue === option ? "active" : ""}
@@ -238,7 +238,7 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
       <div className="kim-edit-popover purchase-timing" role="dialog" aria-label="출고 희망 시기 수정">
         <div className="kim-timing-picker">
           <div className="kim-timing-options" role="group" aria-label="출고 희망 시기 선택">
-            {kimTimingPresetOptions.map((option) => (
+            {timingPresetOptions.map((option) => (
               <button
                 aria-pressed={selectedOption === option}
                 className={selectedOption === option ? "active" : ""}
@@ -261,7 +261,7 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
           </div>
           {showMonthPicker ? (
             <div className="kim-month-options" role="group" aria-label="특정 월 선택">
-              {kimTimingMonthOptions.map((month) => (
+              {timingMonthOptions.map((month) => (
                 <button
                   aria-pressed={selectedMonth === month}
                   className={selectedMonth === month ? "active" : ""}
@@ -281,12 +281,12 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
 
   function renderPurchaseCostFocusEditor() {
     const currentCostFocusField = purchaseFields.find((field) => field.label === "계약 포커스");
-    const selectedFocuses = new Set((currentCostFocusField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimContractFocusOptions.includes(value)));
+    const selectedFocuses = new Set((currentCostFocusField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => contractFocusOptions.includes(value)));
 
     return (
       <div className="kim-edit-popover purchase-cost-focus" role="dialog" aria-label="계약 포커스 수정">
         <div className="kim-cost-focus-picker" role="group" aria-label="계약 포커스 선택">
-          {kimContractFocusOptions.map((option) => (
+          {contractFocusOptions.map((option) => (
             <button
               aria-pressed={selectedFocuses.has(option)}
               className={selectedFocuses.has(option) ? "active" : ""}
@@ -304,12 +304,12 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
 
   function renderPurchaseCustomerNotesEditor() {
     const currentCustomerNoteField = purchaseFields.find((field) => field.label === "고객 특이사항");
-    const selectedNotes = new Set((currentCustomerNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimCustomerNoteOptions.includes(value)));
+    const selectedNotes = new Set((currentCustomerNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => customerNoteOptions.includes(value)));
 
     return (
       <div className="kim-edit-popover purchase-customer-notes" role="dialog" aria-label="고객 특이사항 수정">
         <div className="kim-customer-note-picker" role="group" aria-label="고객 특이사항 선택">
-          {kimCustomerNoteOptions.map((option) => (
+          {customerNoteOptions.map((option) => (
             <button
               aria-pressed={selectedNotes.has(option)}
               className={selectedNotes.has(option) ? "active" : ""}
@@ -327,12 +327,12 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
 
   function renderPurchaseReviewNotesEditor() {
     const currentReviewNoteField = purchaseFields.find((field) => field.label === "심사 특이사항");
-    const selectedNotes = new Set((currentReviewNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => kimReviewNoteOptions.includes(value)));
+    const selectedNotes = new Set((currentReviewNoteField?.value ?? "").split("#").map((value) => value.trim()).filter((value) => reviewNoteOptions.includes(value)));
 
     return (
       <div className="kim-edit-popover purchase-review-notes" role="dialog" aria-label="심사 특이사항 수정">
         <div className="kim-review-note-picker" role="group" aria-label="심사 특이사항 선택">
-          {kimReviewNoteOptions.map((option) => (
+          {reviewNoteOptions.map((option) => (
             <button
               aria-pressed={selectedNotes.has(option)}
               className={selectedNotes.has(option) ? "active" : ""}
@@ -349,7 +349,7 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
   }
 
   function renderFloatingPurchaseEditor() {
-    if (!openEditor || !isKimPurchaseFloatingKind(openEditor.kind) || !purchasePopoverFrame) return null;
+    if (!openEditor || !isPurchaseFloatingKind(openEditor.kind) || !purchasePopoverFrame) return null;
 
     return (
       <div
@@ -428,19 +428,19 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
                 type="button"
               >
                 <span>{field.label}</span>
-                {isKimPurchaseTagField(field.label) && field.value !== "확인 필요" && field.value.trim() !== "" ? (
+                {isPurchaseTagField(field.label) && field.value !== "확인 필요" && field.value.trim() !== "" ? (
                   <strong className="is-tag-list">
-                    {kimPurchaseTags(field.value).map((tag) => <span key={tag}>{tag}</span>)}
+                    {purchaseTags(field.value).map((tag) => <span key={tag}>{tag}</span>)}
                   </strong>
                 ) : (
-                  <strong className={kimPurchaseValueClass(displayValue)}>{displayValue}</strong>
+                  <strong className={purchaseValueClass(displayValue)}>{displayValue}</strong>
                 )}
               </button>
             );
 
             return (
               <div
-                className={`kim-purchase-condition-anchor editable${isKimPurchaseTagField(field.label) ? " judgment" : ""}${(field.label === "구매방식" && openEditor?.kind === "purchaseMethod") || (field.label === "출고 희망 시기" && openEditor?.kind === "purchaseTiming") || (field.label === "계약 포커스" && openEditor?.kind === "purchaseCostFocus") || (field.label === "계약기간" && openEditor?.kind === "purchaseTerm") || (field.label === "초기비용" && openEditor?.kind === "purchaseInitialCost") || (field.label === "연간 주행거리" && openEditor?.kind === "purchaseAnnualMileage") || (field.label === "인도 방식" && openEditor?.kind === "purchaseDeliveryMethod") || (field.label === "고객 특이사항" && openEditor?.kind === "purchaseCustomerNotes") || (field.label === "심사 특이사항" && openEditor?.kind === "purchaseReviewNotes") ? " active" : ""}`}
+                className={`kim-purchase-condition-anchor editable${isPurchaseTagField(field.label) ? " judgment" : ""}${(field.label === "구매방식" && openEditor?.kind === "purchaseMethod") || (field.label === "출고 희망 시기" && openEditor?.kind === "purchaseTiming") || (field.label === "계약 포커스" && openEditor?.kind === "purchaseCostFocus") || (field.label === "계약기간" && openEditor?.kind === "purchaseTerm") || (field.label === "초기비용" && openEditor?.kind === "purchaseInitialCost") || (field.label === "연간 주행거리" && openEditor?.kind === "purchaseAnnualMileage") || (field.label === "인도 방식" && openEditor?.kind === "purchaseDeliveryMethod") || (field.label === "고객 특이사항" && openEditor?.kind === "purchaseCustomerNotes") || (field.label === "심사 특이사항" && openEditor?.kind === "purchaseReviewNotes") ? " active" : ""}`}
                 key={field.label}
               >
                 {itemButton}

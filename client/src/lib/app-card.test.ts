@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAppCardModel, type AppCardModelInput } from "./kim-app-card";
+import { buildAppCardModel, type AppCardModelInput } from "./app-card";
 import { DEFAULT_QUOTE_GUIDANCE } from "@/data/quote-guidance";
 
 const base: AppCardModelInput = {

@@ -2,7 +2,7 @@ import { formatActivity } from "./customers";
 import type { QuoteGuidance } from "@/data/quote-guidance";
 
 // 견적함 UI 항목 타입(기존 CustomerDetailPage 내부 정의에서 이동).
-export type KimQuoteItem = {
+export type QuoteItem = {
   id: string;
   quoteCode: string;
   title: string;
@@ -149,10 +149,10 @@ export function formatMonthly(raw: string | null): string | undefined {
   return `월 ${n.toLocaleString("ko-KR")}원`;
 }
 
-// 대표 시나리오 → 견적 행 요약 4필드(financeType/term/monthlyPayment/lender). toKimQuoteItem과 "대표로" 핸들러가 공유.
+// 대표 시나리오 → 견적 행 요약 4필드(financeType/term/monthlyPayment/lender). toQuoteItem과 "대표로" 핸들러가 공유.
 export function flattenPrimaryScenario(
   s: CustomerDetailScenario | null,
-): Pick<KimQuoteItem, "financeType" | "term" | "monthlyPayment" | "lender"> {
+): Pick<QuoteItem, "financeType" | "term" | "monthlyPayment" | "lender"> {
   return {
     financeType: s?.purchaseMethod ?? undefined,
     term: formatTerm(s?.termMonths ?? null),
@@ -184,8 +184,8 @@ function validLabelFromUntil(validUntil: string | null, nowMs: number): string |
   return days > 0 ? `D-${days}` : "만료됨";
 }
 
-// 대표 시나리오를 평탄화해 기존 KimQuoteItem 형태로 변환(접근 1). 파일/원본 필드는 읽기 범위 밖.
-export function toKimQuoteItem(q: CustomerDetailQuote, nowMs: number): KimQuoteItem {
+// 대표 시나리오를 평탄화해 기존 QuoteItem 형태로 변환(접근 1). 파일/원본 필드는 읽기 범위 밖.
+export function toQuoteItem(q: CustomerDetailQuote, nowMs: number): QuoteItem {
   const primary = pickPrimaryScenario(q);
   const vehicleName = [q.brandName, q.modelName, q.trimName].filter(Boolean).join(" ");
   return {

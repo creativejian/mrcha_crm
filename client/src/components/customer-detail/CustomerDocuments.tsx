@@ -1,13 +1,13 @@
 import { Download, Eye, File, FileText, FileUp, FolderOpen, GripVertical, Image, Paperclip, Trash2, X } from "lucide-react";
 
 import { DOC_TYPE_OPTIONS } from "@/data/customers";
-import { formatKimFileSize, kimDocumentFileKind } from "@/lib/kim-detail-utils";
+import { formatFileSize, documentFileKind } from "@/lib/detail-utils";
 
 import type { useCustomerDocuments } from "./hooks/useCustomerDocuments";
 
 type CustomerDocumentsProps = ReturnType<typeof useCustomerDocuments>;
 
-function kimDocumentFileIcon(kind: string) {
+function documentFileIcon(kind: string) {
   if (kind === "이미지") return <Image size={13} strokeWidth={2.25} />;
   if (kind === "PDF") return <FileText size={13} strokeWidth={2.25} />;
   return <File size={13} strokeWidth={2.25} />;
@@ -68,7 +68,7 @@ export function CustomerDocuments({
               </div>
             ) : documents.map((doc, index) => {
               const shouldOpenDocumentDeleteAbove = index > 0 && index === documents.length - 1;
-              const fileKind = kimDocumentFileKind(doc.mimeType, doc.fileName);
+              const fileKind = documentFileKind(doc.mimeType, doc.fileName);
               return (
               <div
                 className={`kim-doc-row${draggedId === doc.id ? " is-dragging" : ""}${dropTargetId === doc.id ? " is-drop-target" : ""}`}
@@ -79,13 +79,13 @@ export function CustomerDocuments({
                 onDrop={(event) => handlers.dropRow(event, doc.id)}
               >
                 <span aria-label={`${fileKind} 파일`} className={`kim-doc-kind-badge kind-${fileKind === "이미지" ? "image" : fileKind === "PDF" ? "pdf" : "file"}`} title={`${fileKind} 파일`}>
-                  {kimDocumentFileIcon(fileKind)}
+                  {documentFileIcon(fileKind)}
                 </span>
                 <div>
                   <select className="kim-doc-type-native-select" aria-label={`${doc.fileName} 문서 종류 변경`} value={doc.title} onChange={(event) => handlers.updateType(doc.id, event.target.value)}>
                     {DOC_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
-                  <p>{doc.status} · {doc.fileName} · {formatKimFileSize(doc.fileSize)}</p>
+                  <p>{doc.status} · {doc.fileName} · {formatFileSize(doc.fileSize)}</p>
                 </div>
                 <div className="kim-doc-row-actions">
                   <span
@@ -136,7 +136,7 @@ export function CustomerDocuments({
             <div className="kim-document-preview-head">
               <div>
                 <strong>{previewDocument.title}</strong>
-                <span>{previewDocument.fileName} · {formatKimFileSize(previewDocument.fileSize)}</span>
+                <span>{previewDocument.fileName} · {formatFileSize(previewDocument.fileSize)}</span>
               </div>
               <div className="kim-document-preview-head-actions">
                 {/* 닫기처럼 항상 렌더 — URL 발급 전엔 disabled로(이전엔 URL 준비 후에야 버튼이 떠 뒤늦게 나타났다). */}
@@ -152,7 +152,7 @@ export function CustomerDocuments({
                   {!previewImageLoaded ? <div className="kim-document-preview-loading" role="status">불러오는 중…</div> : null}
                   <img alt={previewDocument.title} src={activePreviewDocumentUrl} onLoad={() => handlers.onImageLoad(activePreviewDocumentUrl)} style={previewImageLoaded ? undefined : { display: "none" }} />
                 </>
-              ) : kimDocumentFileKind(previewDocument.mimeType, previewDocument.fileName) === "PDF" ? (
+              ) : documentFileKind(previewDocument.mimeType, previewDocument.fileName) === "PDF" ? (
                 <iframe src={activePreviewDocumentUrl} title={previewDocument.title} />
               ) : (
                 <div className="kim-document-preview-fallback">

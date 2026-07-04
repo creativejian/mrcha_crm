@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { nowMs } from "@/lib/kim-detail-utils";
-import { type KimPurchasePopoverFrame, isKimPurchaseFloatingKind } from "@/lib/kim-popover-frames";
-import { type KimRecentUpdate, type OpenEditorState } from "@/components/customer-detail/types";
+import { nowMs } from "@/lib/detail-utils";
+import { type PurchasePopoverFrame, isPurchaseFloatingKind } from "@/lib/popover-frames";
+import { type RecentUpdate, type OpenEditorState } from "@/components/customer-detail/types";
 import { CustomerDetailHeader } from "@/components/customer-detail/CustomerDetailHeader";
 import { CustomerMemos } from "@/components/customer-detail/CustomerMemos";
 import { useCustomerMemos } from "@/components/customer-detail/hooks/useCustomerMemos";
@@ -38,11 +38,7 @@ type CustomerDetailPageProps = {
   variant?: "page" | "drawer";
 };
 
-// 정의는 @/components/customer-detail/types 의 OpenEditorState 로 이동.
-// 본체 내 기존 KimOpenEditor 참조 보존을 위한 별칭(리네임은 다음 Task에서).
-type KimOpenEditor = OpenEditorState;
-
-function kimEditorMatches(openEditor: KimOpenEditor | null, next: KimOpenEditor) {
+function editorMatches(openEditor: OpenEditorState | null, next: OpenEditorState) {
   if (!openEditor || openEditor.kind !== next.kind) return false;
   if (openEditor.kind === "needs" && next.kind === "needs") return true;
   if (openEditor.kind === "purchase" && next.kind === "purchase") return true;
@@ -62,7 +58,7 @@ function kimEditorMatches(openEditor: KimOpenEditor | null, next: KimOpenEditor)
   return false;
 }
 
-function KimMinjunDetailContent({
+function CustomerDetailContent({
   chanceOverride,
   customer,
   detail,
@@ -84,9 +80,9 @@ function KimMinjunDetailContent({
   onQuotesPersisted?: () => void;
 }) {
   // 구매조건 영역의 팝업 위치(purchasePopoverFrame)는 부모 소유 — toggleEditor·외부클릭 dismiss effect가 기록한다.
-  const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<KimPurchasePopoverFrame | null>(null);
+  const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<PurchasePopoverFrame | null>(null);
   const [openEditor, setOpenEditor] = useState<OpenEditorState | null>(null);
-  const [recentUpdate, setRecentUpdate] = useState<KimRecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
+  const [recentUpdate, setRecentUpdate] = useState<RecentUpdate>(() => ({ section: "고객 메모", updatedAt: Date.now() }));
   const [recentUpdateNow, setRecentUpdateNow] = useState(() => Date.now());
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -108,11 +104,11 @@ function KimMinjunDetailContent({
     setRecentUpdateNow(updatedAt);
   }
 
-  function toggleEditor(next: KimOpenEditor) {
-    if (!isKimPurchaseFloatingKind(next.kind)) {
+  function toggleEditor(next: OpenEditorState) {
+    if (!isPurchaseFloatingKind(next.kind)) {
       setPurchasePopoverFrame(null);
     }
-    setOpenEditor((current) => kimEditorMatches(current, next) ? null : next);
+    setOpenEditor((current) => editorMatches(current, next) ? null : next);
   }
 
   const memos = useCustomerMemos({ detail, customer, onToast, markRecentUpdate });
@@ -124,8 +120,8 @@ function KimMinjunDetailContent({
   const schedules = useCustomerSchedules({ detail, customer, onToast, markRecentUpdate, onCloseFloatingEditor: () => setOpenEditor(null) });
   // 상태+워크플로우 영역. openEditor/setOpenEditor/toggleEditor/savePatch는 부모 소유 공유 인프라(니즈·구매조건도 사용)라 인자로 주입.
   const workflow = useCustomerWorkflow({ detail, customer, chanceOverride, manageStatusOverride, onToast, onWorkflowChange, markRecentUpdate, openEditor, setOpenEditor, toggleEditor, savePatch });
-  // 상세 구매조건 영역. openEditor/setOpenEditor/kimEditorMatches/savePatch/markRecentUpdate/setPurchasePopoverFrame는 부모 소유 공유 인프라라 인자로 주입.
-  const purchase = useCustomerPurchase({ detail, onToast, openEditor, setOpenEditor, kimEditorMatches, savePatch, markRecentUpdate, setPurchasePopoverFrame });
+  // 상세 구매조건 영역. openEditor/setOpenEditor/editorMatches/savePatch/markRecentUpdate/setPurchasePopoverFrame는 부모 소유 공유 인프라라 인자로 주입.
+  const purchase = useCustomerPurchase({ detail, onToast, openEditor, setOpenEditor, editorMatches, savePatch, markRecentUpdate, setPurchasePopoverFrame });
   // 고객 니즈 영역(앱 견적요청 카드 목록 + 단일 need 카드). savePatch/markRecentUpdate/setOpenEditor는 부모 소유 공유 인프라라 인자로 주입.
   const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor });
   // 견적 워크벤치 영역(9b~9e). markRecentUpdate/quoteList/purchase.fields/needs.reloadAppRequests는 부모 보유 공유 인프라라 인자로 주입.
@@ -283,7 +279,7 @@ export function CustomerDetailPage({
       {detailError ? (
         <div className="kim-detail-loading">고객 정보를 불러오지 못했습니다.</div>
       ) : detail ? (
-        <KimMinjunDetailContent
+        <CustomerDetailContent
           key={customer.id}
           detail={detail}
           chanceOverride={chanceOverride}

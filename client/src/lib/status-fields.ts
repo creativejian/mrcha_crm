@@ -1,24 +1,24 @@
-// 김민준 고객 상세의 상태 필드(직군·거주지·상담경로·담당자) 도메인.
+// 고객 상세의 상태 필드(직군·거주지·상담경로·담당자) 도메인.
 // "표시 문자열 ↔ 구조화 값" 파싱/포맷과 그에 쓰는 옵션 상수·타입을 한곳에 모은다.
 // 데이터 소스(DB/mock)와 무관한 순수 변환이라 단위 테스트가 쉽다.
 
 import { SOURCE_AUTOMATIC_OPTIONS, SOURCE_MANUAL_OPTIONS, SOURCE_LEGACY_AUTOMATIC_OPTIONS } from "@/data/customers";
 
-export type KimCustomerType = "개인" | "개인사업자" | "법인사업자";
-export type KimAdvisorTeam = "인천본사" | "상담팀" | "견적팀" | "계약팀" | "출고팀";
+export type CustomerTypeValue = "개인" | "개인사업자" | "법인사업자";
+export type AdvisorTeam = "인천본사" | "상담팀" | "견적팀" | "계약팀" | "출고팀";
 
-export const kimCustomerTypeOptions: KimCustomerType[] = ["개인", "개인사업자", "법인사업자"];
-export const kimAutomaticSourceOptions = SOURCE_AUTOMATIC_OPTIONS;
-export const kimLegacyAutomaticSourceOptions = SOURCE_LEGACY_AUTOMATIC_OPTIONS;
-export const kimManualSourceOptions = SOURCE_MANUAL_OPTIONS;
-export const kimAdvisorOptions: Record<KimAdvisorTeam, string[]> = {
+export const customerTypeOptions: CustomerTypeValue[] = ["개인", "개인사업자", "법인사업자"];
+export const automaticSourceOptions = SOURCE_AUTOMATIC_OPTIONS;
+export const legacyAutomaticSourceOptions = SOURCE_LEGACY_AUTOMATIC_OPTIONS;
+export const manualSourceOptions = SOURCE_MANUAL_OPTIONS;
+export const advisorOptionsByTeam: Record<AdvisorTeam, string[]> = {
   인천본사: ["김지안", "이주선"],
   상담팀: ["이주선", "김지안", "문태호"],
   견적팀: ["이건수", "김지안"],
   계약팀: ["김지안", "이주선"],
   출고팀: ["한지훈", "김지안"],
 };
-export const kimRegionOptions: Record<string, string[]> = {
+export const regionOptions: Record<string, string[]> = {
   "확인 필요": ["확인 필요"],
   서울특별시: ["확인 필요", "강남구", "강동구", "강북구", "강서구", "관악구", "광진구", "구로구", "금천구", "노원구", "도봉구", "동대문구", "동작구", "마포구", "서대문구", "서초구", "성동구", "성북구", "송파구", "양천구", "영등포구", "용산구", "은평구", "종로구", "중구", "중랑구"],
   경기도: ["확인 필요", "수원시", "성남시", "고양시", "용인시", "부천시", "안산시", "안양시", "남양주시", "화성시", "평택시", "의정부시", "시흥시", "파주시", "김포시", "광명시", "광주시", "군포시", "하남시", "오산시", "이천시", "안성시", "구리시", "의왕시", "양주시", "포천시", "여주시", "동두천시", "과천시"],
@@ -40,29 +40,29 @@ export const kimRegionOptions: Record<string, string[]> = {
 
 // --- 직군 ---
 
-export function parseKimJobValue(value: string): { type: KimCustomerType; detail: string } {
+export function parseJobValue(value: string): { type: CustomerTypeValue; detail: string } {
   const [typeValue, detailValue] = value.split("·").map((part) => part.trim());
-  const type = kimCustomerTypeOptions.includes(typeValue as KimCustomerType) ? typeValue as KimCustomerType : "개인";
+  const type = customerTypeOptions.includes(typeValue as CustomerTypeValue) ? typeValue as CustomerTypeValue : "개인";
   const fallbackDetail = type === "개인" ? "4대보험" : "";
   return { type, detail: detailValue || fallbackDetail };
 }
 
-export function formatKimJobValue(type: KimCustomerType, detail: string) {
+export function formatJobValue(type: CustomerTypeValue, detail: string) {
   const normalizedDetail = detail.trim() || (type === "개인" ? "4대보험" : "미입력");
   return `${type} · ${normalizedDetail}`;
 }
 
 // --- 거주지 ---
 
-export function parseKimLocationValue(value: string) {
+export function parseLocationValue(value: string) {
   const [provinceValue, detailValue] = value.split("·").map((part) => part.trim());
-  const province = kimRegionOptions[provinceValue] ? provinceValue : "확인 필요";
-  const detailOptions = kimRegionOptions[province];
+  const province = regionOptions[provinceValue] ? provinceValue : "확인 필요";
+  const detailOptions = regionOptions[province];
   const detail = detailOptions.includes(detailValue) ? detailValue : "확인 필요";
   return { province, detail };
 }
 
-export function formatKimLocationValue(province: string, detail: string) {
+export function formatLocationValue(province: string, detail: string) {
   if (province === "확인 필요") return "확인 필요";
   if (!detail || detail === "확인 필요") return province;
   return `${province} · ${detail}`;
@@ -70,33 +70,33 @@ export function formatKimLocationValue(province: string, detail: string) {
 
 // --- 상담경로 ---
 
-export function parseKimSourceValue(value: string): string {
-  const allOptions = [...kimAutomaticSourceOptions, ...kimManualSourceOptions];
+export function parseSourceValue(value: string): string {
+  const allOptions = [...automaticSourceOptions, ...manualSourceOptions];
   if (allOptions.includes(value)) return value;
-  if (kimLegacyAutomaticSourceOptions.includes(value)) return "디엘(상담)";
+  if (legacyAutomaticSourceOptions.includes(value)) return "디엘(상담)";
   return "기타";
 }
 
-export function isKimAutomaticSource(value: string) {
-  return kimAutomaticSourceOptions.includes(value) || kimLegacyAutomaticSourceOptions.includes(value);
+export function isAutomaticSource(value: string) {
+  return automaticSourceOptions.includes(value) || legacyAutomaticSourceOptions.includes(value);
 }
 
-export function hasKimAppSourceQueue(value: string) {
+export function hasAppSourceQueue(value: string) {
   return value.includes("앱");
 }
 
 // --- 담당자 ---
 
-export function parseKimAdvisorValue(value: string): { team: KimAdvisorTeam; advisor: string } {
+export function parseAdvisorValue(value: string): { team: AdvisorTeam; advisor: string } {
   const [advisorValue, teamValue] = value.split("·").map((part) => part.trim());
-  const fallbackTeam: KimAdvisorTeam = "인천본사";
-  const team = kimAdvisorOptions[teamValue as KimAdvisorTeam] ? teamValue as KimAdvisorTeam : fallbackTeam;
-  const advisors = kimAdvisorOptions[team];
+  const fallbackTeam: AdvisorTeam = "인천본사";
+  const team = advisorOptionsByTeam[teamValue as AdvisorTeam] ? teamValue as AdvisorTeam : fallbackTeam;
+  const advisors = advisorOptionsByTeam[team];
   const advisor = advisors.includes(advisorValue) ? advisorValue : advisors[0];
   return { team, advisor };
 }
 
-export function formatKimAdvisorValue(team: KimAdvisorTeam, advisor: string) {
+export function formatAdvisorValue(team: AdvisorTeam, advisor: string) {
   if (!advisor || advisor === "미배정") return "미배정";
   return `${advisor} · ${team}`;
 }

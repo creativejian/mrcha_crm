@@ -1,8 +1,8 @@
 import { CalendarClock, Check, Trash2 } from "lucide-react";
 
 import { SCHEDULE_TYPE_OPTIONS } from "@/data/customers";
-import { formatDateInputValue, formatScheduleDateLabel, kimScheduleHourOptions, kimScheduleMinuteOptions, parseScheduleTimeParts } from "@/lib/kim-detail-utils";
-import { scheduleRecordKey, type KimScheduleItem } from "@/lib/kim-schedule";
+import { formatDateInputValue, formatScheduleDateLabel, scheduleHourOptions, scheduleMinuteOptions, parseScheduleTimeParts } from "@/lib/detail-utils";
+import { scheduleRecordKey, type ScheduleItem } from "@/lib/schedule-items";
 
 import type { useCustomerSchedules } from "./hooks/useCustomerSchedules";
 
@@ -20,7 +20,7 @@ export function CustomerSchedules({
 }: CustomerSchedulesProps) {
   const { bodyRef, completeRef, deleteRef, editRef } = refs;
 
-  function renderInlineForm(item?: KimScheduleItem) {
+  function renderInlineForm(item?: ScheduleItem) {
     const isEditing = Boolean(item);
     const timeParts = parseScheduleTimeParts(item?.time);
     return (
@@ -44,13 +44,13 @@ export function CustomerSchedules({
             <label className="kim-schedule-time-field">
               <span className="kim-schedule-time-picker">
                 <select aria-label="예정 일정 시" defaultValue={timeParts.hour} name="scheduleHour">
-                  {kimScheduleHourOptions.map((hour) => (
+                  {scheduleHourOptions.map((hour) => (
                     <option key={hour} value={hour}>{hour}</option>
                   ))}
                 </select>
                 <b aria-hidden="true">:</b>
                 <select aria-label="예정 일정 분" defaultValue={timeParts.minute} name="scheduleMinute">
-                  {kimScheduleMinuteOptions.map((minute) => (
+                  {scheduleMinuteOptions.map((minute) => (
                     <option key={minute} value={minute}>{minute}</option>
                   ))}
                 </select>

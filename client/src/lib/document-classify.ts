@@ -1,5 +1,5 @@
 import { DOC_TYPE_OPTIONS } from "@/data/customers";
-import { classifyKimDocumentFile } from "@/lib/kim-detail-utils";
+import { classifyDocumentFile } from "@/lib/detail-utils";
 
 import { createImageThumbnail } from "./image-thumbnail";
 import { supabase } from "./supabase";
@@ -42,5 +42,5 @@ export async function classifyDocumentWithAI(file: File): Promise<DocumentClassi
     // AI 분류 실패는 사용자에게 노출하지 않고 파일명 regex로 degrade한다. 관측성 위해 로그만 남긴다.
     console.warn("[document-classify] AI 분류 실패, 파일명 regex 폴백", err);
   }
-  return { docType: classifyKimDocumentFile(file.name), source: "fallback" };
+  return { docType: classifyDocumentFile(file.name), source: "fallback" };
 }
