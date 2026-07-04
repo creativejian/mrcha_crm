@@ -1175,17 +1175,24 @@
    신규 클래스 자체에 전폭을 부여해 해결(기존 .wide/.kim-app-guidance-grid 룰은 무변경). */
 .kim-app-guidance-grid .guidance-list { grid-column: 1 / -1; }
 .guidance-list-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+/* 삭제 버튼은 같은 폼의 할인 삭제 버튼(.kim-jeff-discount-remove, workbench.css)과 값 정렬 —
+   동일 목적·동일 아이콘이라 신규 danger 색 도입 없이 중립 톤 유지(도메인 파일 분리로 룰은 별도). */
 .guidance-list-row button {
-  width: 26px;
-  height: 26px;
-  display: grid;
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
   place-items: center;
-  border: 1px solid rgba(17, 17, 17, 0.08);
-  border-radius: 5px;
-  background: #fbfbfa;
-  color: #8a919b;
+  border: 1px solid #d8dde4;
+  border-radius: 4px;
+  background: #fff;
+  color: #4b5563;
+  padding: 0;
 }
-.guidance-list-row button:hover { color: #d13438; border-color: rgba(209, 52, 56, 0.35); }
+.guidance-list-row button:hover {
+  border-color: #b8c0ca;
+  background: #f8fafc;
+  color: #111827;
+}
 .guidance-list-add {
   justify-self: start;
   border: 1px dashed rgba(var(--brand-rgb), 0.35);
