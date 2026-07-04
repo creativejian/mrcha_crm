@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
 import { flattenPrimaryScenario, type CustomerDetailScenario, type QuoteItem } from "@/lib/quote-items";
-import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, type QuoteGuidance } from "@/data/quote-guidance";
+import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { type VehicleSelection } from "@/components/VehiclePicker";
@@ -738,7 +738,8 @@ export function useQuoteWorkbench({
       interiorColorId: interiorColor?.id ?? null,
       interiorColorName: interiorColor?.name ?? null,
       interiorColorHex: interiorColor?.hexValue ?? null,
-      guidance,
+      // 동적 입력칸(+)의 빈 줄/공백은 저장 직전 제거(빈 항목 영속 방지).
+      guidance: sanitizeQuoteGuidance(guidance),
     };
     // 작성완료 시 화면의 채워진 카드 전체를 추출(savedIds 의존 제거). 빈 배열이면 scenarios 키를 누락 →
     // 서버 delete→insert(customer-quotes.ts: if(patch.scenarios) {delete; insert})가 발동하지 않아 기존 시나리오 보존(빈배열 wipe 방지).

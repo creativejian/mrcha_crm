@@ -482,35 +482,56 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           {QUOTE_GUIDANCE_OPTIONS.deliveryComment.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
-                      <label><span>서비스 1</span><input value={guidance.services[0] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[0] = v; return { ...g, services: s }; }); }} /></label>
                       <label>
                         <span>재고여부</span>
                         <select value={guidance.stockNotice} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, stockNotice: v })); }}>
                           {QUOTE_GUIDANCE_OPTIONS.stockNotice.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
-                      <label><span>서비스 2</span><input value={guidance.services[1] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[1] = v; return { ...g, services: s }; }); }} /></label>
                       <label>
                         <span>예상 출고 기간</span>
                         <select value={guidance.expectedDelivery} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, expectedDelivery: v })); }}>
                           {QUOTE_GUIDANCE_OPTIONS.expectedDelivery.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
-                      <label><span>서비스 3</span><input value={guidance.services[2] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[2] = v; return { ...g, services: s }; }); }} /></label>
                       <label>
                         <span>고객 지역</span>
                         <select value={guidance.customerRegion} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, customerRegion: v })); }}>
                           {QUOTE_GUIDANCE_OPTIONS.customerRegion.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
-                      <label><span>서비스 4</span><input value={guidance.services[3] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[3] = v; return { ...g, services: s }; }); }} /></label>
-                      <label className="wide">
+                      <div className="wide guidance-list" role="group" aria-label="핵심포인트 목록">
                         <span>핵심포인트</span>
-                        {/* Task 7에서 동적 입력(+)로 교체 예정 — 임시로 keyPoints[0]만 바인딩 */}
-                        <select value={guidance.keyPoints[0] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, keyPoints: [v, ...g.keyPoints.slice(1)] })); }}>
-                          {QUOTE_GUIDANCE_OPTIONS.keyPoint.map((o) => <option key={o}>{o}</option>)}
-                        </select>
-                      </label>
+                        {guidance.keyPoints.map((point, i) => (
+                          <div className="guidance-list-row" key={i}>
+                            <input
+                              list="guidance-keypoint-options"
+                              placeholder="카드에 bullet로 노출됩니다"
+                              value={point}
+                              onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const k = [...g.keyPoints]; k[i] = v; return { ...g, keyPoints: k }; }); }}
+                            />
+                            <button aria-label={`핵심포인트 ${i + 1} 삭제`} onClick={() => setGuidance((g) => ({ ...g, keyPoints: g.keyPoints.filter((_, idx) => idx !== i) }))} type="button"><Trash2 size={13} strokeWidth={2.1} /></button>
+                          </div>
+                        ))}
+                        <button className="guidance-list-add" onClick={() => setGuidance((g) => ({ ...g, keyPoints: [...g.keyPoints, ""] }))} type="button">+ 핵심포인트 추가</button>
+                        <datalist id="guidance-keypoint-options">
+                          {QUOTE_GUIDANCE_OPTIONS.keyPoint.map((o) => <option key={o} value={o} />)}
+                        </datalist>
+                      </div>
+                      <div className="wide guidance-list" role="group" aria-label="서비스 목록">
+                        <span>서비스 목록</span>
+                        {guidance.services.map((service, i) => (
+                          <div className="guidance-list-row" key={i}>
+                            <input
+                              placeholder="라벨: 내용 (예: 썬팅: 후퍼옵틱 KBR 전면)"
+                              value={service}
+                              onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[i] = v; return { ...g, services: s }; }); }}
+                            />
+                            <button aria-label={`서비스 ${i + 1} 삭제`} onClick={() => setGuidance((g) => ({ ...g, services: g.services.filter((_, idx) => idx !== i) }))} type="button"><Trash2 size={13} strokeWidth={2.1} /></button>
+                          </div>
+                        ))}
+                        <button className="guidance-list-add" onClick={() => setGuidance((g) => ({ ...g, services: [...g.services, ""] }))} type="button">+ 서비스 추가</button>
+                      </div>
                       <label className="wide"><span>추천이유</span><textarea value={guidance.recommendReason} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, recommendReason: v })); }} rows={2} /></label>
                     </div>
                   </div>

@@ -1168,3 +1168,31 @@
   font-weight: 720;
   outline: 0;
 }
+
+/* 추가 안내 동적 입력 리스트(핵심포인트/서비스 +) — 앱카드 리디자인(2026-07-04) */
+.guidance-list { display: grid; gap: 6px; }
+/* .kim-app-guidance-grid label.wide만 전폭 셀렉터라 label이 아닌 이 div엔 안 걸림 —
+   신규 클래스 자체에 전폭을 부여해 해결(기존 .wide/.kim-app-guidance-grid 룰은 무변경). */
+.kim-app-guidance-grid .guidance-list { grid-column: 1 / -1; }
+.guidance-list-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+.guidance-list-row button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  border-radius: 5px;
+  background: #fbfbfa;
+  color: #8a919b;
+}
+.guidance-list-row button:hover { color: #d13438; border-color: rgba(209, 52, 56, 0.35); }
+.guidance-list-add {
+  justify-self: start;
+  border: 1px dashed rgba(var(--brand-rgb), 0.35);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--brand);
+  background: rgba(var(--brand-rgb), 0.04);
+}
