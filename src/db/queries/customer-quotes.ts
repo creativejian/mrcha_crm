@@ -9,7 +9,7 @@ export type QuoteGuidanceInput = {
   stockNotice: string;
   expectedDelivery: string;
   customerRegion: string;
-  keyPoint: string;
+  keyPoints: string[];
   recommendReason: string;
   services: string[];
 };
@@ -68,6 +68,14 @@ export type ScenarioInput = QuoteScenarioPatch & {
   residualValue?: string | null;
   mileageMode?: string | null;
   mileageValue?: string | null;
+  // 앱카드 4섹션(2026-07-04): 계산엔진 연결 전 수기 입력 결과 필드 + 자동차세/보조금
+  carTaxIncluded?: boolean | null;
+  subsidyApplicable?: boolean | null;
+  subsidyAmount?: string | null;
+  totalReturnCost?: string | null;
+  totalTakeoverCost?: string | null;
+  dueAtDelivery?: string | null;
+  interestRate?: string | null;
 };
 
 // 헤더 컬럼만 골라 set 객체로(컬럼 아닌 키 bumpRevision/scenario는 제외).
@@ -85,7 +93,13 @@ function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
   if (p.guidance !== undefined) set.guidance = p.guidance;
   if (p.appStatus !== undefined) {
     set.appStatus = p.appStatus;
-    if (p.appStatus === "sent") set.sentAt = new Date(); // 발송 시 서버가 시각 확정
+    if (p.appStatus === "sent") {
+      // 발송 시 서버가 시각 확정 + 유효기간 7일 자동 스탬프(갭ⓐ, 2026-07-04 이사님 결정).
+      // 재발송도 재스탬프(유효기간 리셋 — 수정 후 재발송이 새 유효기간을 갖는 의도된 동작).
+      const sentAt = new Date();
+      set.sentAt = sentAt;
+      set.validUntil = new Date(sentAt.getTime() + 7 * 86_400_000);
+    }
   }
   if (p.trimId !== undefined) set.trimId = p.trimId;
   if (p.basePrice !== undefined) set.basePrice = p.basePrice;
@@ -256,6 +270,13 @@ async function insertScenarios(
       residualValue: sc.residualValue ?? null,
       mileageMode: sc.mileageMode ?? null,
       mileageValue: sc.mileageValue ?? null,
+      carTaxIncluded: sc.carTaxIncluded ?? null,
+      subsidyApplicable: sc.subsidyApplicable ?? null,
+      subsidyAmount: sc.subsidyAmount ?? null,
+      totalReturnCost: sc.totalReturnCost ?? null,
+      totalTakeoverCost: sc.totalTakeoverCost ?? null,
+      dueAtDelivery: sc.dueAtDelivery ?? null,
+      interestRate: sc.interestRate ?? null,
     }).returning({ id: quoteScenarios.id });
     inserted.push({ id: s.id, scenarioNo });
   }

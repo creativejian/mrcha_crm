@@ -19,6 +19,14 @@ export function parseMonthlyPayment(raw: string): string | null {
   return digits ? digits : null;
 }
 
+// "5.32%"/"5.32" → "5.32"(소수점 보존, numeric interest_rate은 문자열 전송). 빈값/숫자 아님/0/100 초과는 null(100 초과 = 콤마 오입력 "5,32"→532 같은 비현실 금리 차단).
+export function parseInterestRate(raw: string): string | null {
+  const cleaned = raw.replace(/[^\d.]/g, "");
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) && n > 0 && n <= 100 ? String(n) : null;
+}
+
 // PATCH 바디(서버 zod와 동형). 보낸 키만 갱신.
 export type QuoteWritePatch = {
   status?: string | null;
@@ -125,6 +133,14 @@ export type ScenarioInput = {
   residualValue?: string | null;
   mileageMode?: string | null;
   mileageValue?: string | null;
+  // 앱카드 4섹션(2026-07-04): 계산엔진 연결 전 수기 입력 결과 필드 + 자동차세/보조금
+  carTaxIncluded?: boolean | null;
+  subsidyApplicable?: boolean | null;
+  subsidyAmount?: string | null;
+  totalReturnCost?: string | null;
+  totalTakeoverCost?: string | null;
+  dueAtDelivery?: string | null;
+  interestRate?: string | null;
 };
 
 // 새 견적 생성. 서버가 quote_code·id 부여 → 반환값으로 낙관 임시 항목을 교체한다. 성공 시 상세 캐시 무효화.

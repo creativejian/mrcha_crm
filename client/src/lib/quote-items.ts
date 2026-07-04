@@ -1,5 +1,5 @@
 import { formatActivity } from "./customers";
-import type { QuoteGuidance } from "@/data/quote-guidance";
+import { normalizeQuoteGuidance, type QuoteGuidance } from "@/data/quote-guidance";
 
 // 견적함 UI 항목 타입(기존 CustomerDetailPage 내부 정의에서 이동).
 export type QuoteItem = {
@@ -67,6 +67,14 @@ export type CustomerDetailScenario = {
   mileageMode: string | null;
   mileageValue: string | null;
   isSaved: boolean;
+  // 앱카드 4섹션(2026-07-04): 서버가 select() 전체 반환이라 항상 실림(옵셔널 아님)
+  carTaxIncluded: boolean | null;
+  subsidyApplicable: boolean | null;
+  subsidyAmount: string | null;
+  totalReturnCost: string | null;
+  totalTakeoverCost: string | null;
+  dueAtDelivery: string | null;
+  interestRate: string | null;
 };
 
 export type CustomerDetailQuote = {
@@ -176,7 +184,7 @@ export function formatScenarioMoneyMode(mode: string | null, value: string | nul
 }
 
 // valid_until → 화면 D-day. 미래면 "D-N", 지났으면 "만료됨", 없으면 표시 안 함.
-function validLabelFromUntil(validUntil: string | null, nowMs: number): string | undefined {
+export function validLabelFromUntil(validUntil: string | null, nowMs: number): string | undefined {
   if (!validUntil) return undefined;
   const until = new Date(validUntil).getTime();
   if (Number.isNaN(until)) return undefined;
@@ -222,6 +230,6 @@ export function toQuoteItem(q: CustomerDetailQuote, nowMs: number): QuoteItem {
     mimeType: q.fileMime ?? undefined,
     primaryScenarioId: q.primaryScenarioId ?? undefined,
     scenarios: q.scenarios,
-    guidance: q.guidance ?? undefined,
+    guidance: normalizeQuoteGuidance(q.guidance) ?? undefined,
   };
 }

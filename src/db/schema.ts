@@ -210,7 +210,7 @@ export const quotes = crm.table("quotes", {
   stockStatus: text("stock_status"),
   validUntil: timestamp("valid_until", { withTimezone: true }),
   note: text("note"),
-  guidance: jsonb("guidance"), // {deliveryComment, stockNotice, expectedDelivery, customerRegion, keyPoint, recommendReason, services[]} — 앱 노출용 안내, 표시 전용
+  guidance: jsonb("guidance"), // {deliveryComment, stockNotice, expectedDelivery, customerRegion, keyPoints[], recommendReason, services[]} — 앱 노출용 안내, 표시 전용
   primaryScenarioId: uuid("primary_scenario_id"), // → crm.quote_scenarios.id (순환, FK: 시나리오 생성 후 UPDATE/Phase B)
   fileName: text("file_name"),
   fileSize: integer("file_size"),

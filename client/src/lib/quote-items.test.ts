@@ -45,7 +45,7 @@ function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote
     fileMime: null,
     guidance: null,
     scenarios: [
-      { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false },
+      { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: 60, monthlyPayment: "2473200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false, carTaxIncluded: null, subsidyApplicable: null, subsidyAmount: null, totalReturnCost: null, totalTakeoverCost: null, dueAtDelivery: null, interestRate: null },
     ],
     ...over,
   };
@@ -101,8 +101,8 @@ describe("toQuoteItem", () => {
       makeQuote({
         primaryScenarioId: null,
         scenarios: [
-          { id: "s2", scenarioNo: 2, purchaseMethod: "할부", lender: "B", termMonths: 36, monthlyPayment: "100", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false },
-          { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "A", termMonths: 60, monthlyPayment: "200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false },
+          { id: "s2", scenarioNo: 2, purchaseMethod: "할부", lender: "B", termMonths: 36, monthlyPayment: "100", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false, carTaxIncluded: null, subsidyApplicable: null, subsidyAmount: null, totalReturnCost: null, totalTakeoverCost: null, dueAtDelivery: null, interestRate: null },
+          { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "A", termMonths: 60, monthlyPayment: "200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false, carTaxIncluded: null, subsidyApplicable: null, subsidyAmount: null, totalReturnCost: null, totalTakeoverCost: null, dueAtDelivery: null, interestRate: null },
         ],
       }),
       NOW,
@@ -132,7 +132,7 @@ describe("toQuoteItem", () => {
   });
 
   it("guidance(추가 안내)를 매핑하고 null이면 undefined", () => {
-    const g = { deliveryComment: "a", stockNotice: "b", expectedDelivery: "c", customerRegion: "d", keyPoint: "e", recommendReason: "f", services: ["s1", "s2"] };
+    const g = { deliveryComment: "a", stockNotice: "b", expectedDelivery: "c", customerRegion: "d", keyPoints: ["e"], recommendReason: "f", services: ["s1", "s2"] };
     expect(toQuoteItem(makeQuote({ guidance: g }), NOW).guidance).toEqual(g);
     expect(toQuoteItem(makeQuote({ guidance: null }), NOW).guidance).toBeUndefined();
   });
@@ -162,8 +162,8 @@ describe("toQuoteItem", () => {
     const k = toQuoteItem(makeQuote({
       primaryScenarioId: "s1",
       scenarios: [
-        { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "우리금융캐피탈", termMonths: 60, monthlyPayment: "2398000", depositMode: "percent", depositValue: "30", downPaymentMode: null, downPaymentValue: null, residualMode: "max", residualValue: null, mileageMode: "basic", mileageValue: "20,000km / 년", isSaved: true },
-        { id: "s2", scenarioNo: 2, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: null, monthlyPayment: "2473200", depositMode: "amount", depositValue: "10000000", downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: true },
+        { id: "s1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "우리금융캐피탈", termMonths: 60, monthlyPayment: "2398000", depositMode: "percent", depositValue: "30", downPaymentMode: null, downPaymentValue: null, residualMode: "max", residualValue: null, mileageMode: "basic", mileageValue: "20,000km / 년", isSaved: true, carTaxIncluded: null, subsidyApplicable: null, subsidyAmount: null, totalReturnCost: null, totalTakeoverCost: null, dueAtDelivery: null, interestRate: null },
+        { id: "s2", scenarioNo: 2, purchaseMethod: "운용리스", lender: "iM캐피탈", termMonths: null, monthlyPayment: "2473200", depositMode: "amount", depositValue: "10000000", downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: true, carTaxIncluded: null, subsidyApplicable: null, subsidyAmount: null, totalReturnCost: null, totalTakeoverCost: null, dueAtDelivery: null, interestRate: null },
       ],
     }), NOW);
     expect(k.scenarios?.length).toBe(2);
@@ -187,7 +187,7 @@ describe("toQuoteItem primaryScenarioId 노출", () => {
 
 describe("flattenPrimaryScenario", () => {
   it("시나리오 → 대표 요약 4필드", () => {
-    const flat = flattenPrimaryScenario({ id: "s2", scenarioNo: 2, purchaseMethod: "할부", lender: "B캐피탈", termMonths: 36, monthlyPayment: "200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false });
+    const flat = flattenPrimaryScenario({ id: "s2", scenarioNo: 2, purchaseMethod: "할부", lender: "B캐피탈", termMonths: 36, monthlyPayment: "200", depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null, residualMode: null, residualValue: null, mileageMode: null, mileageValue: null, isSaved: false, carTaxIncluded: null, subsidyApplicable: null, subsidyAmount: null, totalReturnCost: null, totalTakeoverCost: null, dueAtDelivery: null, interestRate: null });
     expect(flat.financeType).toBe("할부");
     expect(flat.term).toBe("36개월");
     expect(flat.monthlyPayment).toBe("월 200원");

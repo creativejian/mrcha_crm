@@ -4,8 +4,8 @@ import { useLocation, useNavigate } from "react-router";
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
 import { flattenPrimaryScenario, type CustomerDetailScenario, type QuoteItem } from "@/lib/quote-items";
-import { DEFAULT_QUOTE_GUIDANCE, type QuoteGuidance } from "@/data/quote-guidance";
-import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
+import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
+import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { type VehicleSelection } from "@/components/VehiclePicker";
 import { buildAppCardModel, type AppCardModel } from "@/lib/app-card";
@@ -81,10 +81,14 @@ export function useQuoteWorkbench({
   const [manualResidualModes, setManualResidualModes] = useState<Record<string, ManualResidualMode>>({});
   const [manualMileageModes, setManualMileageModes] = useState<Record<string, ManualMileageMode>>({});
   const [manualMileageValues, setManualMileageValues] = useState<Record<string, string>>({});
+  const [manualCarTaxIncluded, setManualCarTaxIncluded] = useState<Record<string, boolean>>({});
+  const [manualSubsidyApplicable, setManualSubsidyApplicable] = useState<Record<string, boolean>>({});
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   // 신규 작성완료 후 "이후 UPDATE 대상 id". editingQuoteId(=비교카드 key·prefill)를 안 건드려야 카드 리마운트(입력 리셋)를 막는다.
   const persistedQuoteIdRef = useRef<string | null>(null);
   const [guidance, setGuidance] = useState<QuoteGuidance>(DEFAULT_QUOTE_GUIDANCE);
+  // 신규 워크벤치 guidance 시드 — 고객 지역은 거주지에서 파생(미입력이면 "확인 필요", 임의 지역 확정 표기 방지).
+  const seedGuidance = () => ({ ...DEFAULT_QUOTE_GUIDANCE, customerRegion: regionFromResidence(detail.residence) });
   const [editPrefill, setEditPrefill] = useState<EditPrefill | null>(null);
   // 앱 견적요청 승격(S3) prefill. editPrefill(수정·가격 포함)과 별개 — 차량/옵션만 채우고 가격은 catalog 계산.
   const [quoteRequestPrefill, setQuoteRequestPrefill] = useState<{ trimId: number | null; optionIds: number[] } | null>(null);
@@ -121,9 +125,11 @@ export function useQuoteWorkbench({
       persistedQuoteIdRef.current = null;
       setEditPrefill(null);
       resetWorkbenchVehicle();
-      setGuidance(DEFAULT_QUOTE_GUIDANCE);
+      setGuidance(seedGuidance());
       setManualQuoteCards([...emptyQuoteConditionCards]);
       setManualTermMonths({});
+      setManualCarTaxIncluded({});
+      setManualSubsidyApplicable({});
       setSavedManualQuoteConditionIds([]);
       setRecognizedQuoteFile(null);
       setSolutionWorkbenchEntryMode("manual");
@@ -166,14 +172,26 @@ export function useQuoteWorkbench({
     [workbenchVehicle?.brand?.name, workbenchVehicle?.model?.name, trimDetail?.trimName ?? trimDetail?.name].filter(Boolean).join(" ")
     || [editingQuote?.brand, editingQuote?.model, editingQuote?.trim].filter(Boolean).join(" ")
     || "차량 미선택";
+  // 앱카드 푸터/디데이용 영속 견적(수정 진입 editingQuoteId 또는 신규 첫 작성완료 persistedQuoteIdRef).
+  // ref 읽기지만 quoteCode 도착(detail 재페치/quotes swap) 자체가 재렌더를 유발해 최신값이 잡힌다.
+  const persistedQuoteId = editingQuoteId ?? persistedQuoteIdRef.current;
+  const persistedQuote = persistedQuoteId ? detail.quotes.find((q) => q.id === persistedQuoteId) : undefined;
   const appCardModel: AppCardModel = buildAppCardModel({
     brandName: workbenchVehicle?.brand?.name ?? null,
     modelName: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
     trimName: trimDetail?.trimName ?? trimDetail?.name ?? null,
     modelYear: trimDetail?.modelYear ?? null,
     basePrice: pricingInputs.basePrice,
+    optionTotal: pricingInputs.optionPrice,
+    optionNames: trimDetail ? trimDetail.options.filter((o) => selectedWorkbenchOptionIds.includes(o.id)).map((o) => o.name) : [],
     discount: pricingInputs.discount,
+    discountLabels: discountLines.map((line) => line.label),
     finalVehiclePrice: pricing.finalVehiclePrice,
+    acquisitionTax: pricingInputs.acquisitionTax,
+    acquisitionTaxMode,
+    bond: pricingInputs.bond,
+    delivery: pricingInputs.delivery,
+    incidental: pricingInputs.incidental,
     registrationCost: pricing.registrationCost,
     acquisitionCost: pricing.acquisitionCost,
     exteriorColorName: exteriorColor?.name ?? null,
@@ -181,6 +199,11 @@ export function useQuoteWorkbench({
     guidance,
     purchaseMethod: solutionWorkbenchPurchaseMethod,
     scenario: cardScenario,
+    quoteCode: persistedQuote?.quoteCode ?? null,
+    appStatus: persistedQuote?.appStatus ?? null,
+    sentAtIso: persistedQuote?.sentAt ?? null,
+    validUntilIso: persistedQuote?.validUntil ?? null,
+    nowMs: nowMs(),
   });
   const workbenchFirstTermMonths = manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60;
 
@@ -311,6 +334,11 @@ export function useQuoteWorkbench({
         downPaymentValue: sc.downPaymentMode === "percent" ? sc.downPaymentValue : (sc.downPaymentValue ? formatMoney(Number(sc.downPaymentValue)) : "0"),
         residualMode: sc.residualMode,
         residualValue: sc.residualMode === "max" ? "-" : (sc.residualMode === "percent" ? sc.residualValue : (sc.residualValue ? formatMoney(Number(sc.residualValue)) : "0")),
+        subsidyAmount: sc.subsidyAmount && Number(sc.subsidyAmount) > 0 ? formatMoney(Number(sc.subsidyAmount)) : "0",
+        totalReturn: sc.totalReturnCost ? formatMoney(Number(sc.totalReturnCost)) : "0",
+        totalTakeover: sc.totalTakeoverCost ? formatMoney(Number(sc.totalTakeoverCost)) : "0",
+        dueAtDelivery: sc.dueAtDelivery ? formatMoney(Number(sc.dueAtDelivery)) : "0",
+        interestRate: sc.interestRate || "0",
       };
     });
   }
@@ -543,6 +571,16 @@ export function useQuoteWorkbench({
     markQuoteDraftChanged();
   }
 
+  function setManualCarTaxFor(conditionId: string, included: boolean) {
+    setManualCarTaxIncluded((current) => ({ ...current, [conditionId]: included }));
+    markQuoteDraftChanged();
+  }
+
+  function setManualSubsidyFor(conditionId: string, applicable: boolean) {
+    setManualSubsidyApplicable((current) => ({ ...current, [conditionId]: applicable }));
+    markQuoteDraftChanged();
+  }
+
   function validateQuoteDetailDraft() {
     const form = quoteDetailFormRef.current;
     if (!form) return ["세부 견적 작성 영역을 확인해 주세요."];
@@ -617,6 +655,8 @@ export function useQuoteWorkbench({
   // 빈 비교 슬롯(manual-condition-2/3 기본값: 미선택·0)은 제외 → 불필요한 빈 시나리오/"비교 N" 오표시·데이터 손실 방지.
   // 순서는 manualQuoteCards 순(round1 우선)이라 [0]=대표(round1) 보장. 빈 배열 가능 → 호출부에서 scenarios 키를 누락(서버 delete→insert 미발동).
   function extractWorkbenchScenarios(): ScenarioInput[] {
+    // 결과 필드 0/빈값은 null(가짜 0 영속 방지 — 계획서 설계 결정 10).
+    const nz = (raw: string | null) => (raw != null && Number(raw) > 0 ? raw : null);
     const compareForm = quoteDetailFormRef.current;
     const scenarios: ScenarioInput[] = [];
     for (const card of manualQuoteCards) {
@@ -648,6 +688,13 @@ export function useQuoteWorkbench({
         residualValue: residualMode === "max" ? null : parseMonthlyPayment(fieldVal("residual") ?? ""),
         mileageMode,
         mileageValue,
+        carTaxIncluded: manualCarTaxIncluded[condId] ?? false,
+        subsidyApplicable: manualSubsidyApplicable[condId] ?? false,
+        subsidyAmount: (manualSubsidyApplicable[condId] ?? false) ? nz(parseMonthlyPayment(fieldVal("subsidy") ?? "")) : null,
+        totalReturnCost: nz(parseMonthlyPayment(fieldVal("totalReturn") ?? "")),
+        totalTakeoverCost: nz(parseMonthlyPayment(fieldVal("totalTakeover") ?? "")),
+        dueAtDelivery: nz(parseMonthlyPayment(fieldVal("dueAtDelivery") ?? "")),
+        interestRate: parseInterestRate(fieldVal("interestRate") ?? ""),
       });
     }
     return scenarios;
@@ -671,7 +718,7 @@ export function useQuoteWorkbench({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 비교카드 state 변경 시 대표 시나리오 재추출(의도된 동기화 effect)
     setCardScenario(extractWorkbenchScenarios()[0] ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 아래 dep 변경 시점에만 재추출(extract가 읽는 DOM/내부 state는 그 시점 최신; 함수/객체 dep 추가 시 매 렌더 실행)
-  }, [savedManualQuoteConditionIds, manualQuoteCards, manualTermMonths, manualDepositModes, manualDownPaymentModes, manualResidualModes, manualMileageModes, manualMileageValues, solutionWorkbenchPurchaseMethod]);
+  }, [savedManualQuoteConditionIds, manualQuoteCards, manualTermMonths, manualDepositModes, manualDownPaymentModes, manualResidualModes, manualMileageModes, manualMileageValues, manualCarTaxIncluded, manualSubsidyApplicable, solutionWorkbenchPurchaseMethod]);
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
   // 신규는 첫 INSERT 후 반환 id를 editingQuoteId로 세팅 → 이후 UPDATE(중복 INSERT 방지).
@@ -721,7 +768,8 @@ export function useQuoteWorkbench({
       interiorColorId: interiorColor?.id ?? null,
       interiorColorName: interiorColor?.name ?? null,
       interiorColorHex: interiorColor?.hexValue ?? null,
-      guidance,
+      // 동적 입력칸(+)의 빈 줄/공백은 저장 직전 제거(빈 항목 영속 방지).
+      guidance: sanitizeQuoteGuidance(guidance),
     };
     // 작성완료 시 화면의 채워진 카드 전체를 추출(savedIds 의존 제거). 빈 배열이면 scenarios 키를 누락 →
     // 서버 delete→insert(customer-quotes.ts: if(patch.scenarios) {delete; insert})가 발동하지 않아 기존 시나리오 보존(빈배열 wipe 방지).
@@ -765,6 +813,13 @@ export function useQuoteWorkbench({
         mileageMode: sc.mileageMode ?? null,
         mileageValue: sc.mileageValue ?? null,
         isSaved: sc.isSaved ?? false,
+        carTaxIncluded: sc.carTaxIncluded ?? null,
+        subsidyApplicable: sc.subsidyApplicable ?? null,
+        subsidyAmount: sc.subsidyAmount ?? null,
+        totalReturnCost: sc.totalReturnCost ?? null,
+        totalTakeoverCost: sc.totalTakeoverCost ?? null,
+        dueAtDelivery: sc.dueAtDelivery ?? null,
+        interestRate: sc.interestRate ?? null,
       }));
       // 대표 = scenario_no 최소(서버 insertScenarios 로직과 동일). 추출은 round1 우선이라 보통 [0].
       const primary = displayScenarios.reduce((m, s) => ((s.scenarioNo ?? 0) < (m.scenarioNo ?? 0) ? s : m), displayScenarios[0]);
@@ -869,6 +924,8 @@ export function useQuoteWorkbench({
     setSavedManualQuoteConditionIds([]);
     setManualQuoteCards([...emptyQuoteConditionCards]);
     setManualTermMonths({});
+    setManualCarTaxIncluded({});
+    setManualSubsidyApplicable({});
     setIsQuoteAppCardPreviewOpen(false);
     onToast("워크벤치 입력값을 초기화했습니다.");
   }
@@ -913,9 +970,11 @@ export function useQuoteWorkbench({
     setEditPrefill(null);
     setSourceQuoteRequestId(null);
     resetWorkbenchVehicle();
-    setGuidance(DEFAULT_QUOTE_GUIDANCE);
+    setGuidance(seedGuidance());
     setManualQuoteCards([...emptyQuoteConditionCards]);
     setManualTermMonths({});
+    setManualCarTaxIncluded({});
+    setManualSubsidyApplicable({});
     setSavedManualQuoteConditionIds([]);
     setRecognizedQuoteFile(null);
     setSolutionWorkbenchPurchaseMethod(primaryQuotePurchaseMethod(purchaseFields));
@@ -948,6 +1007,13 @@ export function useQuoteWorkbench({
       residualValue: s.residualValue ?? "-",
       mileageMode: (s.mileageMode as ManualMileageMode) ?? "basic",
       mileageValue: s.mileageValue ?? "20,000km / 년",
+      carTaxIncluded: s.carTaxIncluded ?? false,
+      subsidyApplicable: s.subsidyApplicable ?? false,
+      subsidyAmount: s.subsidyAmount ?? "0",
+      totalReturnCost: s.totalReturnCost ?? "",
+      totalTakeoverCost: s.totalTakeoverCost ?? "",
+      dueAtDelivery: s.dueAtDelivery ?? "",
+      interestRate: s.interestRate ?? "",
     }));
     setEditPrefill(dq ? {
       optionIds: dq.options?.map((o) => o.id) ?? [],
@@ -963,7 +1029,7 @@ export function useQuoteWorkbench({
         incidental: Number(dq.incidental ?? 0),
       },
       scenarios: editScenarios,
-      guidance: dq.guidance ?? null,
+      guidance: normalizeQuoteGuidance(dq.guidance) ?? null,
     } : null);
     // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
     setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...emptyQuoteConditionCards]);
@@ -974,11 +1040,13 @@ export function useQuoteWorkbench({
     setManualMileageModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageMode])));
     setManualMileageValues(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageValue])));
     setManualTermMonths(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.termMonths])));
+    setManualCarTaxIncluded(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.carTaxIncluded])));
+    setManualSubsidyApplicable(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.subsidyApplicable])));
     setEditingQuoteId(quote.id);
     persistedQuoteIdRef.current = null;
     setSourceQuoteRequestId(null);
     resetWorkbenchVehicle();
-    setGuidance(dq?.guidance ?? DEFAULT_QUOTE_GUIDANCE);
+    setGuidance(normalizeQuoteGuidance(dq?.guidance) ?? DEFAULT_QUOTE_GUIDANCE);
     setSolutionWorkbenchPurchaseMethod(normalizeQuotePurchaseMethod(quote.financeType));
     setSolutionWorkbenchEntryMode(quote.source === "solution" ? "solution" : quote.source === "original" ? "original" : "manual");
     setSolutionWorkbenchModeMenu(null);
@@ -1020,6 +1088,8 @@ export function useQuoteWorkbench({
     manualResidualModes,
     manualMileageModes,
     manualMileageValues,
+    manualCarTaxIncluded,
+    manualSubsidyApplicable,
     editingQuoteId,
     guidance,
     quoteRequestPrefill,
@@ -1085,6 +1155,8 @@ export function useQuoteWorkbench({
       setManualMileageMode,
       setManualMileageValue,
       setManualTermMonthsFor,
+      setManualCarTaxFor,
+      setManualSubsidyFor,
       // 저장/발송/초기화
       saveQuoteDetailDraft,
       saveQuoteFromWorkbench,

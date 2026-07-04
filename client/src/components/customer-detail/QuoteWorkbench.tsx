@@ -42,6 +42,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     manualResidualModes,
     manualMileageModes,
     manualMileageValues,
+    manualCarTaxIncluded,
+    manualSubsidyApplicable,
     editingQuoteId,
     guidance,
     quoteRequestPrefill,
@@ -102,6 +104,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     setManualMileageMode,
     setManualMileageValue,
     setManualTermMonthsFor,
+    setManualCarTaxFor,
+    setManualSubsidyFor,
     saveQuoteDetailDraft,
     saveQuoteFromWorkbench,
     guardQuoteDraftOutput,
@@ -421,6 +425,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                     const residualMode = manualResidualModes[condition.id] ?? condition.residualMode;
                     const mileageMode = manualMileageModes[condition.id] ?? "basic";
                     const mileageValue = mileageMode === "basic" ? "20,000km / 년" : manualMileageValues[condition.id] ?? "20,000km / 년";
+                    const carTaxOn = manualCarTaxIncluded[condition.id] ?? false;
+                    const subsidyOn = manualSubsidyApplicable[condition.id] ?? false;
 
                     return (
                       <section className={`kim-manual-compare-card${isConditionSaved ? " is-saved" : ""}`} data-scenario-card={condition.id} key={`${editingQuoteId ?? "new"}-${condition.id}`}>
@@ -440,14 +446,14 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           <label><span>선수금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={downPaymentMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "none")} type="button">없음</button><button className={downPaymentMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "amount")} type="button">금액</button><button className={downPaymentMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${downPaymentMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="downPayment" data-discount-unit={downPaymentMode === "percent" ? "percent" : "amount"} defaultValue={condition.downPaymentValue} disabled={isConditionSaved} readOnly={downPaymentMode === "none"} /><em>{downPaymentMode === "percent" ? "%" : "원"}</em></div></div></label>
                           <label><span>잔존가치</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={residualMode === "max" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "max")} type="button">최대</button><button className={residualMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "amount")} type="button">금액</button><button className={residualMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${residualMode === "max" ? " is-fixed" : ""}`}><input data-sc-field="residual" data-discount-unit={residualMode === "percent" ? "percent" : "amount"} defaultValue={condition.residualValue} disabled={isConditionSaved} readOnly={residualMode === "max"} /><em>{residualMode === "percent" ? "%" : "원"}</em></div></div></label>
                           <label><span>약정거리</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={mileageMode === "basic" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "basic")} type="button">기본</button><button className={mileageMode === "custom" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "custom")} type="button">변경</button></div><select className={`kim-manual-value-select${mileageMode === "basic" ? " is-fixed" : ""}`} value={mileageValue} disabled={isConditionSaved || mileageMode === "basic"} onChange={(event) => setManualMileageValue(condition.id, event.currentTarget.value)}>{manualMileageOptions.map((option) => <option key={option}>{option}</option>)}</select></div></label>
-                          <label><span>자동차세</span><div className="kim-jeff-segment"><button className="active" disabled={isConditionSaved} type="button">불포함</button><button disabled={isConditionSaved} type="button">포함</button></div></label>
-                          <label className="before-emphasis"><span>보조금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className="active" disabled={isConditionSaved} type="button">비해당</button><button disabled={isConditionSaved} type="button">해당</button></div><div className="kim-jeff-money-input"><input defaultValue="0" disabled={isConditionSaved} readOnly /><em>원</em></div></div></label>
+                          <label><span>자동차세</span><div className="kim-jeff-segment"><button className={!carTaxOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualCarTaxFor(condition.id, false)} type="button">불포함</button><button className={carTaxOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualCarTaxFor(condition.id, true)} type="button">포함</button></div></label>
+                          <label className="before-emphasis"><span>보조금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={!subsidyOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualSubsidyFor(condition.id, false)} type="button">비해당</button><button className={subsidyOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualSubsidyFor(condition.id, true)} type="button">해당</button></div><div className={`kim-jeff-money-input${!subsidyOn ? " is-fixed" : ""}`}><input aria-label="보조금 금액" data-sc-field="subsidy" defaultValue={condition.subsidyAmount} disabled={isConditionSaved} readOnly={!subsidyOn} /><em>원</em></div></div></label>
                           <div className="kim-manual-compare-row amount emphasis"><span>월 납입금</span><div className="kim-manual-monthly-control"><button aria-label="솔루션 조회" className="kim-manual-solution-query" disabled={isConditionSaved || !solutionWorkbenchCanQuery} onClick={() => onToast("financial-dolim-solution 연결 전 임시 조회 버튼입니다.")} title="솔루션 조회" type="button"><Calculator size={14} strokeWidth={2.15} /></button><div className="kim-jeff-money-input"><input aria-label="월 납입금" data-sc-field="monthly" defaultValue={condition.monthlyPayment} disabled={isConditionSaved} /><em>원</em></div></div></div>
                           <div className="kim-manual-result-grid">
-                            <label><span>반납 총비용</span><div className="kim-jeff-money-input"><input disabled={isConditionSaved} readOnly value={condition.totalReturn} /><em>원</em></div></label>
-                            <label><span>인수 총비용</span><div className="kim-jeff-money-input"><input disabled={isConditionSaved} readOnly value={condition.totalTakeover} /><em>원</em></div></label>
-                            <label><span>출고 전 납입</span><div className="kim-jeff-money-input"><input disabled={isConditionSaved} readOnly value={condition.dueAtDelivery} /><em>원</em></div></label>
-                            <label><span>금리</span><div className="kim-jeff-money-input"><input disabled={isConditionSaved} readOnly value={condition.interestRate} /><em>%</em></div></label>
+                            <label><span>반납 총비용</span><div className="kim-jeff-money-input"><input aria-label="반납 총비용" data-sc-field="totalReturn" defaultValue={condition.totalReturn} disabled={isConditionSaved} /><em>원</em></div></label>
+                            <label><span>인수 총비용</span><div className="kim-jeff-money-input"><input aria-label="인수 총비용" data-sc-field="totalTakeover" defaultValue={condition.totalTakeover} disabled={isConditionSaved} /><em>원</em></div></label>
+                            <label><span>출고 전 납입</span><div className="kim-jeff-money-input"><input aria-label="출고 전 납입" data-sc-field="dueAtDelivery" defaultValue={condition.dueAtDelivery} disabled={isConditionSaved} /><em>원</em></div></label>
+                            <label><span>금리</span><div className="kim-jeff-money-input"><input aria-label="금리" data-discount-unit="percent" data-sc-field="interestRate" defaultValue={condition.interestRate} disabled={isConditionSaved} /><em>%</em></div></label>
                           </div>
                           <button
                             className="kim-manual-condition-save"
@@ -482,34 +488,56 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           {QUOTE_GUIDANCE_OPTIONS.deliveryComment.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
-                      <label><span>서비스 1</span><input value={guidance.services[0] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[0] = v; return { ...g, services: s }; }); }} /></label>
                       <label>
                         <span>재고여부</span>
                         <select value={guidance.stockNotice} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, stockNotice: v })); }}>
                           {QUOTE_GUIDANCE_OPTIONS.stockNotice.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
-                      <label><span>서비스 2</span><input value={guidance.services[1] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[1] = v; return { ...g, services: s }; }); }} /></label>
                       <label>
                         <span>예상 출고 기간</span>
                         <select value={guidance.expectedDelivery} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, expectedDelivery: v })); }}>
                           {QUOTE_GUIDANCE_OPTIONS.expectedDelivery.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
-                      <label><span>서비스 3</span><input value={guidance.services[2] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[2] = v; return { ...g, services: s }; }); }} /></label>
                       <label>
                         <span>고객 지역</span>
                         <select value={guidance.customerRegion} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, customerRegion: v })); }}>
                           {QUOTE_GUIDANCE_OPTIONS.customerRegion.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
-                      <label><span>서비스 4</span><input value={guidance.services[3] ?? ""} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[3] = v; return { ...g, services: s }; }); }} /></label>
-                      <label className="wide">
+                      <div className="wide guidance-list" role="group" aria-label="핵심포인트 목록">
                         <span>핵심포인트</span>
-                        <select value={guidance.keyPoint} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, keyPoint: v })); }}>
-                          {QUOTE_GUIDANCE_OPTIONS.keyPoint.map((o) => <option key={o}>{o}</option>)}
-                        </select>
-                      </label>
+                        {guidance.keyPoints.map((point, i) => (
+                          <div className="guidance-list-row" key={i}>
+                            <input
+                              list="guidance-keypoint-options"
+                              placeholder="카드에 bullet로 노출됩니다"
+                              value={point}
+                              onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const k = [...g.keyPoints]; k[i] = v; return { ...g, keyPoints: k }; }); }}
+                            />
+                            <button aria-label={`핵심포인트 ${i + 1} 삭제`} onClick={() => setGuidance((g) => ({ ...g, keyPoints: g.keyPoints.filter((_, idx) => idx !== i) }))} type="button"><Trash2 size={13} strokeWidth={2.1} /></button>
+                          </div>
+                        ))}
+                        <button className="guidance-list-add" onClick={() => setGuidance((g) => ({ ...g, keyPoints: [...g.keyPoints, ""] }))} type="button">+ 핵심포인트 추가</button>
+                        <datalist id="guidance-keypoint-options">
+                          {QUOTE_GUIDANCE_OPTIONS.keyPoint.map((o) => <option key={o} value={o} />)}
+                        </datalist>
+                      </div>
+                      <div className="wide guidance-list" role="group" aria-label="서비스 목록">
+                        <span>서비스 목록</span>
+                        {guidance.services.map((service, i) => (
+                          <div className="guidance-list-row" key={i}>
+                            <input
+                              placeholder="라벨: 내용 (예: 썬팅: 후퍼옵틱 KBR 전면)"
+                              value={service}
+                              onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => { const s = [...g.services]; s[i] = v; return { ...g, services: s }; }); }}
+                            />
+                            <button aria-label={`서비스 ${i + 1} 삭제`} onClick={() => setGuidance((g) => ({ ...g, services: g.services.filter((_, idx) => idx !== i) }))} type="button"><Trash2 size={13} strokeWidth={2.1} /></button>
+                          </div>
+                        ))}
+                        <button className="guidance-list-add" onClick={() => setGuidance((g) => ({ ...g, services: [...g.services, ""] }))} type="button">+ 서비스 추가</button>
+                      </div>
                       <label className="wide"><span>추천이유</span><textarea value={guidance.recommendReason} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, recommendReason: v })); }} rows={2} /></label>
                     </div>
                   </div>
