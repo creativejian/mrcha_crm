@@ -22,5 +22,6 @@ export const CHAT_TAB_LABELS: Record<ChatQueueTab, string> = {
 };
 
 // 앱 admin 미러 system 문구 (handoff_provider.dart:85, :96 원문 그대로 — 변경 금지).
-export const CHAT_SYSTEM_MSG_TAKEOVER = "상담원이 대화에 참여했습니다.";
-export const CHAT_SYSTEM_MSG_RETURN = "상담원이 퇴장했습니다. 차선생이 대화를 이어갑니다.";
+// 앱 고객측 알림 감지(chat_session_controller.dart isExternalSystemNotification)는 신구 문구 모두 수용.
+export const CHAT_SYSTEM_MSG_TAKEOVER = "담당 상담사가 연결되었습니다.";
+export const CHAT_SYSTEM_MSG_RETURN = "상담사 연결이 종료되었습니다. 차선생이 대화를 이어갑니다.";
