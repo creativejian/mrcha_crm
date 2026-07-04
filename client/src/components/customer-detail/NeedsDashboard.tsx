@@ -91,14 +91,8 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                         ) : null}
                         {req.promotedQuoteIds.length > 0 ? (
                           // 승격 견적 있음: 기본 액션은 중복 작성 방지를 위해 "견적 보기"(최신 승격 견적), "추가 작성"은 보조 액션으로 낮춤.
-                          <>
-                            <button
-                              className="kim-needs-request-create"
-                              onClick={() => onViewQuote(req.id, req.promotedQuoteIds[0])}
-                              type="button"
-                            >
-                              견적 보기
-                            </button>
+                          // 가로 한 줄(보조 왼쪽·기본 오른쪽 끝) — 배지+버튼 2줄 유지로 카드 높이 증가 방지.
+                          <div className="kim-needs-request-button-row">
                             <button
                               className="kim-needs-request-create-secondary"
                               onClick={() => { void openWorkbenchForQuoteRequest(req.id).catch(() => onToast("견적요청 정보를 불러오지 못했습니다.")); }}
@@ -106,7 +100,14 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                             >
                               추가 작성
                             </button>
-                          </>
+                            <button
+                              className="kim-needs-request-create"
+                              onClick={() => onViewQuote(req.id, req.promotedQuoteIds[0])}
+                              type="button"
+                            >
+                              견적 보기
+                            </button>
+                          </div>
                         ) : (
                           <button
                             className="kim-needs-request-create"

@@ -226,6 +226,13 @@
 }
 
 /* "견적 보기"(주 액션, kim-needs-request-create) 대비 시각 위계를 낮춘 보조 액션 — 승격 견적 있는 요청의 "추가 작성". */
+/* 승격 견적 있을 때 버튼 2개 가로 행 — 배지+버튼 2줄 유지(카드 높이 증가 방지) */
+.kim-needs-request-button-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .kim-needs-request-create-secondary {
   min-height: 28px;
   border: 1px solid #dededb;
