@@ -19,12 +19,12 @@ export function parseMonthlyPayment(raw: string): string | null {
   return digits ? digits : null;
 }
 
-// "5.32%"/"5.32" → "5.32"(소수점 보존, numeric interest_rate은 문자열 전송). 0 이하/숫자 아님은 null.
+// "5.32%"/"5.32" → "5.32"(소수점 보존, numeric interest_rate은 문자열 전송). 빈값/숫자 아님/0/100 초과는 null(100 초과 = 콤마 오입력 "5,32"→532 같은 비현실 금리 차단).
 export function parseInterestRate(raw: string): string | null {
   const cleaned = raw.replace(/[^\d.]/g, "");
   if (!cleaned) return null;
   const n = Number(cleaned);
-  return Number.isFinite(n) && n > 0 ? String(n) : null;
+  return Number.isFinite(n) && n > 0 && n <= 100 ? String(n) : null;
 }
 
 // PATCH 바디(서버 zod와 동형). 보낸 키만 갱신.

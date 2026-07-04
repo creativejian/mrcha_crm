@@ -17,13 +17,13 @@ describe("parseMonthlyPayment", () => {
 });
 
 describe("parseInterestRate", () => {
-  it("소수점을 보존한다: '5.32%' → '5.32'", () => {
-    expect(parseInterestRate("5.32%")).toBe("5.32");
-    expect(parseInterestRate("5.32")).toBe("5.32");
-  });
-  it("0/빈값/숫자 아님은 null", () => {
-    expect(parseInterestRate("0")).toBeNull();
-    expect(parseInterestRate("")).toBeNull();
-    expect(parseInterestRate("-")).toBeNull();
-  });
+  it("'5.32%' → '5.32' (소수점 보존)", () => expect(parseInterestRate("5.32%")).toBe("5.32"));
+  it("'5.32' → '5.32'", () => expect(parseInterestRate("5.32")).toBe("5.32"));
+  it("'100' → '100' (상한 경계값 허용)", () => expect(parseInterestRate("100")).toBe("100"));
+  it("'-5.32' → '5.32' (부호 스트립은 의도된 정규화)", () => expect(parseInterestRate("-5.32")).toBe("5.32"));
+  it("'0' → null", () => expect(parseInterestRate("0")).toBeNull());
+  it("빈 문자열 → null", () => expect(parseInterestRate("")).toBeNull());
+  it("'-' 같은 비숫자 → null", () => expect(parseInterestRate("-")).toBeNull());
+  it("'5,32' 콤마 오입력 → null (532%로 부풀지 않고 차단)", () => expect(parseInterestRate("5,32")).toBeNull());
+  it("'1,234' → null (100 초과 차단)", () => expect(parseInterestRate("1,234")).toBeNull());
 });
