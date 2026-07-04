@@ -2,8 +2,8 @@ import { useState, type SyntheticEvent } from "react";
 
 import { formatLocalPhone, localPhoneFrom } from "@/lib/detail-utils";
 import {
-  type KimAdvisorTeam,
-  type KimCustomerType,
+  type AdvisorTeam,
+  type CustomerTypeValue,
   kimAdvisorOptions,
   kimAutomaticSourceOptions,
   kimCustomerTypeOptions,
@@ -55,7 +55,7 @@ export function JobStatusEditor({
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
   const initialJob = parseKimJobValue(initialValue);
-  const [customerType, setCustomerType] = useState<KimCustomerType>(initialJob.type);
+  const [customerType, setCustomerType] = useState<CustomerTypeValue>(initialJob.type);
 
   return (
     <form className="kim-edit-form" onSubmit={onSubmit}>
@@ -65,7 +65,7 @@ export function JobStatusEditor({
           autoFocus
           defaultValue={initialJob.type}
           name="customerType"
-          onChange={(event) => setCustomerType(event.currentTarget.value as KimCustomerType)}
+          onChange={(event) => setCustomerType(event.currentTarget.value as CustomerTypeValue)}
         >
           {kimCustomerTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
@@ -174,7 +174,7 @@ export function AdvisorStatusEditor({
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
   const initialAdvisor = parseKimAdvisorValue(initialValue);
-  const [team, setTeam] = useState<KimAdvisorTeam>(initialAdvisor.team);
+  const [team, setTeam] = useState<AdvisorTeam>(initialAdvisor.team);
   const advisorOptions = kimAdvisorOptions[team];
   const advisorValue = advisorOptions.includes(initialAdvisor.advisor) ? initialAdvisor.advisor : advisorOptions[0];
 
@@ -186,7 +186,7 @@ export function AdvisorStatusEditor({
           autoFocus
           defaultValue={initialAdvisor.team}
           name="team"
-          onChange={(event) => setTeam(event.currentTarget.value as KimAdvisorTeam)}
+          onChange={(event) => setTeam(event.currentTarget.value as AdvisorTeam)}
         >
           {Object.keys(kimAdvisorOptions).map((option) => <option key={option} value={option}>{option}</option>)}
         </select>

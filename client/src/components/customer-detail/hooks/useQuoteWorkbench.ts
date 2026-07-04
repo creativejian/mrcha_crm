@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router";
 
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
-import { flattenPrimaryScenario, type CustomerDetailScenario, type KimQuoteItem } from "@/lib/quote-items";
+import { flattenPrimaryScenario, type CustomerDetailScenario, type QuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, type QuoteGuidance } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
@@ -13,11 +13,11 @@ import { computePricing, formatMoney, parseMoney, type PricingInputs, type Prici
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
 import { nowMs, formatKoreanShortTime } from "@/lib/detail-utils";
 
-import { kimMinjunPurchaseFields } from "../purchase-meta";
+import { purchaseFieldScaffold } from "../purchase-meta";
 import {
   createKimQuoteCode,
-  kimManualQuoteConditionCards,
-  kimMaybachQuotePricingMock,
+  emptyQuoteConditionCards,
+  emptyQuotePricing,
   kimMaybachQuotePricingResult,
   kimQuotePurchaseMethodOptions,
   normalizeKimQuotePurchaseMethod,
@@ -67,7 +67,7 @@ export function useQuoteWorkbench({
   reloadAppRequests,
 }: UseQuoteWorkbenchArgs) {
   const [isQuoteSolutionWorkbenchOpen, setIsQuoteSolutionWorkbenchOpen] = useState(false);
-  const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(kimMinjunPurchaseFields));
+  const [solutionWorkbenchPurchaseMethod, setSolutionWorkbenchPurchaseMethod] = useState<KimQuotePurchaseMethod>(() => primaryKimQuotePurchaseMethod(purchaseFieldScaffold));
   const [solutionWorkbenchEntryMode, setSolutionWorkbenchEntryMode] = useState<KimQuoteEntryMode>("manual");
   const [solutionWorkbenchModeMenu, setSolutionWorkbenchModeMenu] = useState<"purchase" | "entry" | null>(null);
   const [isQuoteAppCardPreviewOpen, setIsQuoteAppCardPreviewOpen] = useState(false);
@@ -75,7 +75,7 @@ export function useQuoteWorkbench({
   const [isQuoteDraftDirty, setIsQuoteDraftDirty] = useState(false);
   const [savedManualQuoteConditionIds, setSavedManualQuoteConditionIds] = useState<string[]>([]);
   const [manualTermMonths, setManualTermMonths] = useState<Record<string, number>>({});
-  const [manualQuoteCards, setManualQuoteCards] = useState<KimManualCard[]>(() => [...kimManualQuoteConditionCards]);
+  const [manualQuoteCards, setManualQuoteCards] = useState<KimManualCard[]>(() => [...emptyQuoteConditionCards]);
   const [manualDepositModes, setManualDepositModes] = useState<Record<string, KimManualDepositMode>>({});
   const [manualDownPaymentModes, setManualDownPaymentModes] = useState<Record<string, KimManualDepositMode>>({});
   const [manualResidualModes, setManualResidualModes] = useState<Record<string, KimManualResidualMode>>({});
@@ -92,7 +92,7 @@ export function useQuoteWorkbench({
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<KimRecognizedQuoteFile | null>(null);
   const [isQuoteWorkbenchOriginalDragActive, setIsQuoteWorkbenchOriginalDragActive] = useState(false);
   const [pricing, setPricing] = useState<PricingResult>(kimMaybachQuotePricingResult);
-  const [pricingInputs, setPricingInputs] = useState<PricingInputs>(kimMaybachQuotePricingMock);
+  const [pricingInputs, setPricingInputs] = useState<PricingInputs>(emptyQuotePricing);
   const [cardScenario, setCardScenario] = useState<ScenarioInput | null>(null);
   const pricingPanelRef = useRef<HTMLElement>(null);
   const [primaryDiscountUnit, setPrimaryDiscountUnit] = useState<KimDiscountUnit>("amount");
@@ -122,7 +122,7 @@ export function useQuoteWorkbench({
       setEditPrefill(null);
       resetWorkbenchVehicle();
       setGuidance(DEFAULT_QUOTE_GUIDANCE);
-      setManualQuoteCards([...kimManualQuoteConditionCards]);
+      setManualQuoteCards([...emptyQuoteConditionCards]);
       setManualTermMonths({});
       setSavedManualQuoteConditionIds([]);
       setRecognizedQuoteFile(null);
@@ -298,7 +298,7 @@ export function useQuoteWorkbench({
 
   // 수정 진입 시 기존 시나리오(round)를 비교카드 골격에 덮어쓴다(빈 슬롯은 기본 mock).
   function buildManualCardsFromScenarios(scenarios: KimEditScenario[]): KimManualCard[] {
-    return kimManualQuoteConditionCards.map((base) => {
+    return emptyQuoteConditionCards.map((base) => {
       const sc = scenarios.find((s) => String(s.scenarioNo) === base.round);
       if (!sc) return base;
       return {
@@ -686,7 +686,7 @@ export function useQuoteWorkbench({
       return;
     }
 
-    const source: KimQuoteItem["source"] = solutionWorkbenchEntryMode === "solution" ? "solution" : solutionWorkbenchEntryMode === "original" ? "original" : "manual";
+    const source: QuoteItem["source"] = solutionWorkbenchEntryMode === "solution" ? "solution" : solutionWorkbenchEntryMode === "original" ? "original" : "manual";
     const sourceLabel = source === "solution" ? "솔루션 조회 조건" : source === "original" ? "원본 인식 후 보정" : "수기 입력 조건";
     const savedAt = formatKoreanShortTime();
     const root = pricingPanelRef.current;
@@ -746,7 +746,7 @@ export function useQuoteWorkbench({
     // 대표 평탄화 4필드(financeType/term/monthlyPayment/lender, 카드 요약줄이 읽음) + primaryScenarioId(비교 아코디언 ★).
     // 빈 배열이면 빈 객체 → optimistic도 기존 q 유지(빈 카드 작성완료 화면 정합, DB empty-wipe 가드와 동일 분기).
     // 임시 scenario id(kim-scenario-…)는 서버 재페치 전까지만. setPrimaryScenario는 미매칭 id를 서버가 무시(no-op).
-    const optimisticScenarioFields: Partial<Pick<KimQuoteItem, "scenarios" | "primaryScenarioId" | "financeType" | "term" | "monthlyPayment" | "lender">> = (() => {
+    const optimisticScenarioFields: Partial<Pick<QuoteItem, "scenarios" | "primaryScenarioId" | "financeType" | "term" | "monthlyPayment" | "lender">> = (() => {
       if (!scenarios.length) return {};
       const tempBase = nowMs();
       const displayScenarios: CustomerDetailScenario[] = scenarios.map((sc, i) => ({
@@ -867,7 +867,7 @@ export function useQuoteWorkbench({
     setIsQuoteDraftSaved(false);
     setIsQuoteDraftDirty(false);
     setSavedManualQuoteConditionIds([]);
-    setManualQuoteCards([...kimManualQuoteConditionCards]);
+    setManualQuoteCards([...emptyQuoteConditionCards]);
     setManualTermMonths({});
     setIsQuoteAppCardPreviewOpen(false);
     onToast("워크벤치 입력값을 초기화했습니다.");
@@ -914,7 +914,7 @@ export function useQuoteWorkbench({
     setSourceQuoteRequestId(null);
     resetWorkbenchVehicle();
     setGuidance(DEFAULT_QUOTE_GUIDANCE);
-    setManualQuoteCards([...kimManualQuoteConditionCards]);
+    setManualQuoteCards([...emptyQuoteConditionCards]);
     setManualTermMonths({});
     setSavedManualQuoteConditionIds([]);
     setRecognizedQuoteFile(null);
@@ -925,7 +925,7 @@ export function useQuoteWorkbench({
   }
 
   // 견적 "수정" seam — detail.quotes에서 시나리오/비교카드/맵 복원(9b/9d/9e 상태). 9a 액션 팝오버가 호출.
-  function openEditQuote(quote: KimQuoteItem) {
+  function openEditQuote(quote: QuoteItem) {
     if (quote.decisionStatus === "contracting") {
       quoteList.handlers.setConfirmingQuoteSendId(null);
       quoteList.handlers.setConfirmingQuoteDeleteId(null);
@@ -966,7 +966,7 @@ export function useQuoteWorkbench({
       guidance: dq.guidance ?? null,
     } : null);
     // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
-    setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...kimManualQuoteConditionCards]);
+    setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...emptyQuoteConditionCards]);
     setSavedManualQuoteConditionIds(editScenarios.map((s) => `manual-condition-${s.scenarioNo}`));
     setManualDepositModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.depositMode])));
     setManualDownPaymentModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.downPaymentMode])));

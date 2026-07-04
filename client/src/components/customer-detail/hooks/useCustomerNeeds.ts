@@ -3,7 +3,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction, type Synthetic
 import { type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { fetchCustomerQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 
-import { KIM_NEEDS_COLOR_PLACEHOLDER, type KimNeedsState } from "../needs-meta";
+import { NEEDS_COLOR_PLACEHOLDER, type NeedsState } from "../needs-meta";
 import { type OpenEditorState } from "../types";
 
 type UseCustomerNeedsArgs = {
@@ -22,10 +22,10 @@ export function useCustomerNeeds({
   markRecentUpdate,
   setOpenEditor,
 }: UseCustomerNeedsArgs) {
-  const [needs, setNeeds] = useState<KimNeedsState>(() => ({
+  const [needs, setNeeds] = useState<NeedsState>(() => ({
     model: detail.needModel ?? "",
     trim: detail.needTrim ?? "",
-    colors: detail.needColors ?? KIM_NEEDS_COLOR_PLACEHOLDER,
+    colors: detail.needColors ?? NEEDS_COLOR_PLACEHOLDER,
     method: detail.needMethod ?? "",
     memo: detail.needMemo ?? "",
   }));

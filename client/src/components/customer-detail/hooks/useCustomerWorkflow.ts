@@ -4,11 +4,11 @@ import { customerStatusGroups, type Customer, type CustomerChanceOption, type Cu
 import { formatActivity, formatPhone, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { finalUpdateStatus, resolveChance } from "@/lib/customer-table";
 import { formatKimAssignmentTime } from "@/lib/detail-utils";
-import { type KimAdvisorTeam, type KimCustomerType, formatKimAdvisorValue, formatKimJobValue, formatKimLocationValue, isKimAutomaticSource } from "@/lib/status-fields";
+import { type AdvisorTeam, type CustomerTypeValue, formatKimAdvisorValue, formatKimJobValue, formatKimLocationValue, isKimAutomaticSource } from "@/lib/status-fields";
 import { deriveFinalUpdateInfo } from "@/lib/manage-status";
 
 import { fieldLabel } from "../status-meta";
-import { type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "../types";
+import { type StatusFieldKey, type WorkflowKey, type OpenEditorState } from "../types";
 
 // onWorkflowChange — 부모 CustomerDetailPageProps의 인라인 시그니처와 구조적으로 동일.
 type WorkflowChange = (
@@ -83,12 +83,12 @@ export function useCustomerWorkflow({
   toggleEditor,
   savePatch,
 }: UseCustomerWorkflowArgs) {
-  const [statusValues, setStatusValues] = useState<Record<KimStatusFieldKey, string>>(() => ({
+  const [statusValues, setStatusValues] = useState<Record<StatusFieldKey, string>>(() => ({
     phone: detail.phone ? formatPhone(detail.phone) : "미입력",
-    job: detail.customerType ? formatKimJobValue(detail.customerType as KimCustomerType, detail.customerTypeDetail ?? "") : "미입력",
+    job: detail.customerType ? formatKimJobValue(detail.customerType as CustomerTypeValue, detail.customerTypeDetail ?? "") : "미입력",
     location: detail.residence ?? "확인 필요",
     source: detail.source ?? "미입력",
-    advisor: detail.advisorName ? formatKimAdvisorValue((detail.team ?? "인천본사") as KimAdvisorTeam, detail.advisorName) : "미배정",
+    advisor: detail.advisorName ? formatKimAdvisorValue((detail.team ?? "인천본사") as AdvisorTeam, detail.advisorName) : "미배정",
     assignedAt: detail.assignedAt ? formatActivity(detail.assignedAt) : "미배정",
   }));
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
@@ -125,7 +125,7 @@ export function useCustomerWorkflow({
     return () => window.cancelAnimationFrame(frame);
   }, [openEditor?.kind, timelineItems.length]);
 
-  function workflowValue(key: KimWorkflowKey) {
+  function workflowValue(key: WorkflowKey) {
     if (key === "stage") return `${stageGroup} · ${stageStatus}`;
     if (key === "chance") return chance;
     return manage || "—"; // 관리 상태 없음(신규·상담접수)이면 목록 공백과 동치인 "—"
@@ -151,7 +151,7 @@ export function useCustomerWorkflow({
     openStatusEditor({ kind: "status", key: "source" });
   }
 
-  function openWorkflowEditor(key: KimWorkflowKey) {
+  function openWorkflowEditor(key: WorkflowKey) {
     if (key === "manage") {
       setOpenEditor(null);
       onToast("관리 상태는 상담 메모와 최근 업데이트 기준으로 자동 반영됩니다.");
@@ -160,7 +160,7 @@ export function useCustomerWorkflow({
     toggleEditor({ kind: "workflow", key });
   }
 
-  function saveStatusField(event: SyntheticEvent<HTMLFormElement>, key: KimStatusFieldKey) {
+  function saveStatusField(event: SyntheticEvent<HTMLFormElement>, key: StatusFieldKey) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const value = String(formData.get("value") ?? "").trim();
@@ -185,7 +185,7 @@ export function useCustomerWorkflow({
   function saveJobField(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const customerType = String(formData.get("customerType") ?? "개인") as KimCustomerType;
+    const customerType = String(formData.get("customerType") ?? "개인") as CustomerTypeValue;
     const customerTypeDetail = String(formData.get("customerTypeDetail") ?? "").trim();
     const nextJobValue = formatKimJobValue(customerType, customerTypeDetail);
     const prevJob = statusValues.job;
@@ -226,7 +226,7 @@ export function useCustomerWorkflow({
   function saveAdvisorField(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const team = String(formData.get("team") ?? "인천본사") as KimAdvisorTeam;
+    const team = String(formData.get("team") ?? "인천본사") as AdvisorTeam;
     const advisor = String(formData.get("advisor") ?? "").trim();
     const nextAdvisor = formatKimAdvisorValue(team, advisor);
     const prevAdvisor = statusValues.advisor;

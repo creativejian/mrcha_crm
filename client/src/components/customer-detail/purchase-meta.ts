@@ -1,6 +1,6 @@
 // 구매조건(상세 구매조건) 영역의 순수 메타/타입/유틸. 훅(useCustomerPurchase)·컴포넌트(PurchaseConditions)가 공유한다.
 // 부모(CustomerDetailPage)도 일부를 import한다: 니즈 편집 폼의 구매방식 select(kimMethodOptions),
-// 워크벤치 기본 구매방식 시드(kimMinjunPurchaseFields). (본체에서 추출 — 동작/값 무변경.)
+// 워크벤치 기본 구매방식 시드(purchaseFieldScaffold). (본체에서 추출 — 동작/값 무변경.)
 
 import { ANNUAL_MILEAGE_OPTIONS, CONTRACT_TERM_OPTIONS, DELIVERY_METHOD_OPTIONS } from "@/data/customers";
 import { type CustomerWritePatch } from "@/lib/customers";
@@ -12,7 +12,7 @@ export type KimInitialCostUnit = "%" | "금액";
 // 9필드 전부 crm.customers 컬럼(needMethod/needTiming/needContractTerm/needInitialCost/
 // needAnnualMileage/needDeliveryMethod/needContractFocus/needCustomerNote/needReviewNote)에 영속.
 // purchaseFields 초기화는 PURCHASE_FIELD_KEY로 detail.need*를 매핑(빈/없음은 렌더 시 "미정").
-export const kimMinjunPurchaseFields = [
+export const purchaseFieldScaffold = [
   { label: "구매방식", value: "" },
   { label: "계약기간", value: "" },
   { label: "초기비용", value: "" },

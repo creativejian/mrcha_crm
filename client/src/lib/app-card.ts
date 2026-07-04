@@ -21,7 +21,7 @@ export type AppCardModelInput = {
   scenario: ScenarioInput | null;
 };
 
-// 카드 표시용 라벨 모델. KimAppCardPreview가 이 값을 그대로 렌더한다.
+// 카드 표시용 라벨 모델. AppCardPreview가 이 값을 그대로 렌더한다.
 export type AppCardModel = {
   brand: string;
   modelLabel: string;

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent as ReactD
 
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
-import { toKimQuoteItem, flattenPrimaryScenario, type KimQuoteItem } from "@/lib/quote-items";
+import { toQuoteItem, flattenPrimaryScenario, type QuoteItem } from "@/lib/quote-items";
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl } from "@/lib/customer-quotes";
 import { formatKoreanShortTime } from "@/lib/detail-utils";
 import { type KimQuoteActionFrame, type KimQuoteStatusTooltip } from "@/lib/popover-frames";
@@ -18,7 +18,7 @@ type UseQuoteListArgs = {
 
 // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 부모 보유.
 export function useQuoteList({ detail, customer, onToast, markRecentUpdate }: UseQuoteListArgs) {
-  const [quotes, setQuotes] = useState<KimQuoteItem[]>(() => detail.quotes.map((q) => toKimQuoteItem(q, Date.now())));
+  const [quotes, setQuotes] = useState<QuoteItem[]>(() => detail.quotes.map((q) => toQuoteItem(q, Date.now())));
   const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
   const [confirmingQuoteSendId, setConfirmingQuoteSendId] = useState<string | null>(null);
   const [confirmingQuoteContractId, setConfirmingQuoteContractId] = useState<string | null>(null);
@@ -220,7 +220,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate }: Us
     onToast(`${customer.name} 고객 앱 견적함으로 발송했습니다. 대상: ${customer.customerId}`);
   }
 
-  function updateQuoteDecisionStatus(id: string, decisionStatus: KimQuoteItem["decisionStatus"]) {
+  function updateQuoteDecisionStatus(id: string, decisionStatus: QuoteItem["decisionStatus"]) {
     const prevQuotes = quotes;
     setQuotes((current) => current.map((quote) => (
       quote.id === id ? { ...quote, decisionStatus } : quote

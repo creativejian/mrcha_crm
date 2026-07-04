@@ -3,7 +3,7 @@ import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { type CustomerDetailData } from "@/lib/customers";
 
-import { KIM_NEEDS_COLOR_PLACEHOLDER } from "./needs-meta";
+import { NEEDS_COLOR_PLACEHOLDER } from "./needs-meta";
 import { kimMethodOptions } from "./purchase-meta";
 import { type OpenEditorState } from "./types";
 import type { useCustomerNeeds } from "./hooks/useCustomerNeeds";
@@ -101,7 +101,7 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
               )}
             </div>
             {/* 문의사항·관심 색상은 고객 단위(요청별 아님). 값 있을 때만 노출(스크롤 영역 밖 고정). */}
-            {needs.memo.trim() || (needs.colors.trim() && needs.colors !== KIM_NEEDS_COLOR_PLACEHOLDER) ? (
+            {needs.memo.trim() || (needs.colors.trim() && needs.colors !== NEEDS_COLOR_PLACEHOLDER) ? (
               <div className="kim-needs-customer-meta">
                 {needs.memo.trim() ? (
                   <div className="kim-needs-card-memo">
@@ -109,7 +109,7 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                     <p>{needs.memo}</p>
                   </div>
                 ) : null}
-                {needs.colors.trim() && needs.colors !== KIM_NEEDS_COLOR_PLACEHOLDER ? (
+                {needs.colors.trim() && needs.colors !== NEEDS_COLOR_PLACEHOLDER ? (
                   <div className="kim-needs-card-memo">
                     <span>관심 색상</span>
                     <p>{needs.colors}</p>

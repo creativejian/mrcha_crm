@@ -1,7 +1,7 @@
 import { BriefcaseBusiness, Calculator, Check, ChevronDown, Download, Eye, FilePlus2, FileText, FileUp, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Send, Star, Trash2, UserRound, X } from "lucide-react";
 
 import { type Customer } from "@/data/customers";
-import { formatMonthly, formatScenarioMoneyMode, type KimQuoteItem } from "@/lib/quote-items";
+import { formatMonthly, formatScenarioMoneyMode, type QuoteItem } from "@/lib/quote-items";
 import { formatMoney } from "@/lib/quote-pricing";
 import { formatKimFileSize, isDocumentFileDrag, kimDocumentFileKind, kimQuoteValidClass } from "@/lib/detail-utils";
 import { calculateKimQuoteActionFrame, calculateKimQuoteStatusTooltip } from "@/lib/popover-frames";
@@ -17,7 +17,7 @@ import {
 } from "./quote-meta";
 import type { useQuoteList } from "./hooks/useQuoteList";
 
-function kimQuoteSourceIcon(source: KimQuoteItem["source"]) {
+function kimQuoteSourceIcon(source: QuoteItem["source"]) {
   if (source === "solution") return <Calculator size={12} strokeWidth={2.35} />;
   if (source === "original") return <FileText size={12} strokeWidth={2.35} />;
   return <PencilLine size={12} strokeWidth={2.35} />;
@@ -29,7 +29,7 @@ type QuoteListProps = {
   onToast: (message: string) => void;
   // 워크벤치 시드(부모 보유 9b/9d/9e) — seam 콜백. 견적함 "+"=신규, 액션 "견적 수정"=수정.
   onOpenNewWorkbench: () => void;
-  onEditQuote: (quote: KimQuoteItem) => void;
+  onEditQuote: (quote: QuoteItem) => void;
 };
 
 export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, onEditQuote }: QuoteListProps) {

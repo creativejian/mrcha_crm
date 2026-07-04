@@ -10,7 +10,7 @@ import {
   kimContractTermOptions,
   kimCustomerNoteOptions,
   kimMethodOptions,
-  kimMinjunPurchaseFields,
+  purchaseFieldScaffold,
   kimPurchaseTagSelectionLimit,
   kimReviewNoteOptions,
   parseKimInitialCost,
@@ -26,7 +26,7 @@ type UseCustomerPurchaseArgs = {
   // 부모 소유 공유 인프라(상태·니즈도 사용). 훅은 인자로만 받아 쓴다.
   openEditor: OpenEditorState | null;
   setOpenEditor: Dispatch<SetStateAction<OpenEditorState | null>>;
-  kimEditorMatches: (openEditor: OpenEditorState | null, next: OpenEditorState) => boolean;
+  editorMatches: (openEditor: OpenEditorState | null, next: OpenEditorState) => boolean;
   savePatch: (patch: CustomerWritePatch, rollback: () => void) => void;
   markRecentUpdate: (section: string) => void;
   // purchasePopoverFrame 상태는 부모 소유(toggleEditor·외부클릭 dismiss effect가 기록) — 쓰기 setter만 주입.
@@ -38,13 +38,13 @@ export function useCustomerPurchase({
   onToast,
   openEditor,
   setOpenEditor,
-  kimEditorMatches,
+  editorMatches,
   savePatch,
   markRecentUpdate,
   setPurchasePopoverFrame,
 }: UseCustomerPurchaseArgs) {
   const [purchaseFields, setPurchaseFields] = useState(() =>
-    kimMinjunPurchaseFields.map((field) => {
+    purchaseFieldScaffold.map((field) => {
       const key = PURCHASE_FIELD_KEY[field.label];
       const stored = key ? (detail as Record<string, unknown>)[key] : undefined;
       return typeof stored === "string" && stored ? { ...field, value: stored } : field;
@@ -56,7 +56,7 @@ export function useCustomerPurchase({
   const [initialCostAmount, setInitialCostAmount] = useState("30");
 
   function openPurchaseFloatingEditor(event: ReactMouseEvent<HTMLButtonElement>, next: Extract<OpenEditorState, { kind: KimPurchaseFloatingKind }>) {
-    if (openEditor && kimEditorMatches(openEditor, next)) {
+    if (openEditor && editorMatches(openEditor, next)) {
       setOpenEditor(null);
       setPurchasePopoverFrame(null);
       return;
@@ -117,7 +117,7 @@ export function useCustomerPurchase({
 
   function openPurchaseInitialCostEditor(event: ReactMouseEvent<HTMLButtonElement>) {
     const nextEditor = { kind: "purchaseInitialCost" } as const;
-    if (openEditor && kimEditorMatches(openEditor, nextEditor)) {
+    if (openEditor && editorMatches(openEditor, nextEditor)) {
       setOpenEditor(null);
       setPurchasePopoverFrame(null);
       return;

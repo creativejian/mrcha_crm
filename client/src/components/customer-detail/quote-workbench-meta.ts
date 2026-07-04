@@ -2,7 +2,7 @@
 // 훅(useQuoteWorkbench)과 컴포넌트(QuoteWorkbench)가 공유한다.
 
 import { PURCHASE_METHOD_OPTIONS, type PurchaseMethod } from "@/data/customers";
-import { type KimQuoteItem } from "@/lib/quote-items";
+import { type QuoteItem } from "@/lib/quote-items";
 import { type QuoteGuidance } from "@/data/quote-guidance";
 import { computePricing, type PricingInputs } from "@/lib/quote-pricing";
 
@@ -57,7 +57,7 @@ export type KimEditPrefill = {
   guidance: QuoteGuidance | null;
 };
 
-export const kimMaybachQuotePricingMock: PricingInputs = {
+export const emptyQuotePricing: PricingInputs = {
   basePrice: 0,
   optionPrice: 0,
   discount: 0,
@@ -66,9 +66,9 @@ export const kimMaybachQuotePricingMock: PricingInputs = {
   delivery: 0,
   incidental: 0,
 };
-export const kimMaybachQuotePricingResult = computePricing(kimMaybachQuotePricingMock);
+export const kimMaybachQuotePricingResult = computePricing(emptyQuotePricing);
 
-export const kimManualQuoteConditionCards: KimManualCard[] = [
+export const emptyQuoteConditionCards: KimManualCard[] = [
   {
     id: "manual-condition-1",
     title: "견적 작성",
@@ -138,7 +138,7 @@ export function primaryKimQuotePurchaseMethod(fields: { label: string; value: st
   return normalizeKimQuotePurchaseMethod(fields.find((field) => field.label === "구매방식")?.value);
 }
 
-export function createKimQuoteCode(existingQuotes: KimQuoteItem[]) {
+export function createKimQuoteCode(existingQuotes: QuoteItem[]) {
   const yearMonth = "2606";
   const nextSequence = existingQuotes.reduce((max, quote) => {
     const match = quote.quoteCode.match(/^QT-\d{4}-(\d{4})$/);

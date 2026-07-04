@@ -6,8 +6,8 @@ import { kimConsultKindClass } from "@/lib/detail-utils";
 import { hasKimAppSourceQueue } from "@/lib/status-fields";
 
 import { AdvisorStatusEditor, JobStatusEditor, LocationStatusEditor, PhoneStatusInput, SourceStatusEditor } from "./StatusFieldEditors";
-import { fieldLabel, isKimUnassignedStatus, kimChanceOptionClass, kimChanceValueClass, kimMinjunStatusFieldMeta, kimMinjunWorkflowMeta } from "./status-meta";
-import { type KimStatusFieldKey, type KimWorkflowKey, type OpenEditorState } from "./types";
+import { fieldLabel, isKimUnassignedStatus, kimChanceOptionClass, kimChanceValueClass, statusFieldMeta, workflowMeta } from "./status-meta";
+import { type StatusFieldKey, type WorkflowKey, type OpenEditorState } from "./types";
 import type { useCustomerWorkflow } from "./hooks/useCustomerWorkflow";
 
 type StatusWorkflowProps = {
@@ -24,7 +24,7 @@ type StatusWorkflowProps = {
 export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, workflow }: StatusWorkflowProps) {
   const { statusValues, stageGroup, stageStatus, chance, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
 
-  function renderStatusEditor(key: KimStatusFieldKey) {
+  function renderStatusEditor(key: StatusFieldKey) {
     return (
       <div className="kim-edit-popover compact" role="dialog" aria-label={`${fieldLabel(key)} 수정`}>
         {key === "job" ? (
@@ -71,7 +71,7 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
     );
   }
 
-  function renderWorkflowEditor(key: KimWorkflowKey) {
+  function renderWorkflowEditor(key: WorkflowKey) {
     if (key === "stage") {
       const secondaryOptions = customerStatusGroups[stageGroup] ?? [];
       return (
@@ -168,7 +168,7 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
   return (
     <section className="detail-section kim-status-dashboard">
       <div className="kim-status-grid">
-        {kimMinjunStatusFieldMeta.map((field) => {
+        {statusFieldMeta.map((field) => {
           const Icon = field.icon;
           if (field.key === "source") {
             return (
@@ -214,7 +214,7 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
         })}
       </div>
       <div className="kim-workflow-strip" aria-label={`${customer.name} 업무 상태`}>
-        {kimMinjunWorkflowMeta.map((field) => (
+        {workflowMeta.map((field) => (
           <div className="kim-edit-anchor workflow" key={field.key} ref={openEditor?.kind === "workflow" && openEditor.key === field.key ? editorRef : undefined}>
             <button className={`kim-workflow-card ${field.tone}`} onClick={() => handlers.openWorkflowEditor(field.key)} type="button">
               <span>{field.label}</span>
