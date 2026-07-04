@@ -794,6 +794,35 @@ test("견적 시나리오 확장 필드(앱카드): 금리·총비용·자동차
   }
 });
 
+test("견적 발송(갭ⓐ): PATCH appStatus=sent → valid_until = sent_at + 7일 자동 스탬프", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  let quoteId: string | null = null;
+  try {
+    const created = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h, body: JSON.stringify({ entryMode: "manual", status: "작성중" }),
+    });
+    quoteId = ((await created.json()) as { id: string }).id;
+    const patched = await app.request(`/api/customers/${cid}/quotes/${quoteId}`, {
+      method: "PATCH", headers: h, body: JSON.stringify({ appStatus: "sent" }),
+    });
+    expect(patched.status).toBe(200);
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+      quotes: Array<{ id: string; sentAt: string | null; validUntil: string | null }>;
+    };
+    const q = detail.quotes.find((x) => x.id === quoteId)!;
+    expect(q.sentAt).not.toBeNull();
+    expect(q.validUntil).not.toBeNull();
+    const gapDays = (new Date(q.validUntil!).getTime() - new Date(q.sentAt!).getTime()) / 86_400_000;
+    expect(gapDays).toBeCloseTo(7, 5);
+  } finally {
+    if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
 test("진행상태 검증: 종속 안 맞는 status → 400", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });

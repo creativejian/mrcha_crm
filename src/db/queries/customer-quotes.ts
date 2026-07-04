@@ -93,7 +93,13 @@ function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
   if (p.guidance !== undefined) set.guidance = p.guidance;
   if (p.appStatus !== undefined) {
     set.appStatus = p.appStatus;
-    if (p.appStatus === "sent") set.sentAt = new Date(); // 발송 시 서버가 시각 확정
+    if (p.appStatus === "sent") {
+      // 발송 시 서버가 시각 확정 + 유효기간 7일 자동 스탬프(갭ⓐ, 2026-07-04 이사님 결정).
+      // 재발송도 재스탬프(유효기간 리셋 — 수정 후 재발송이 새 유효기간을 갖는 의도된 동작).
+      const sentAt = new Date();
+      set.sentAt = sentAt;
+      set.validUntil = new Date(sentAt.getTime() + 7 * 86_400_000);
+    }
   }
   if (p.trimId !== undefined) set.trimId = p.trimId;
   if (p.basePrice !== undefined) set.basePrice = p.basePrice;
