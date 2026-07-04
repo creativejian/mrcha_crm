@@ -233,6 +233,11 @@
   align-items: center;
 }
 
+/* 긴 제목이 폭을 눌러도 버튼 라벨이 2줄로 꺾이지 않게(제목 열이 감기는 쪽이 정상 동작) */
+.kim-needs-request-button-row button {
+  white-space: nowrap;
+}
+
 .kim-needs-request-create-secondary {
   min-height: 28px;
   border: 1px solid #dededb;
