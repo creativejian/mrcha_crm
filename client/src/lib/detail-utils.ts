@@ -1,4 +1,4 @@
-// 김민준 고객 상세(CustomerDetailPage) 전용 순수 유틸.
+// 고객 상세(CustomerDetailPage) 전용 순수 유틸.
 // 타입/상수에 의존하지 않는(string·number·Date만 입출력) 함수만 모은다.
 // 컴포넌트 상태와 무관해 단위 테스트가 쉽고, 거대 페이지 컴포넌트에서 분리해 가독성을 높인다.
 

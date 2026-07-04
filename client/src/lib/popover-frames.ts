@@ -1,4 +1,4 @@
-// 김민준 고객 상세의 floating 편집 popover·견적 액션/툴팁의 화면 좌표 계산.
+// 고객 상세의 floating 편집 popover·견적 액션/툴팁의 화면 좌표 계산.
 // getBoundingClientRect + 뷰포트 경계로 위치를 잡는 순수 DOM 계산이라 데이터와 무관.
 // 에디터 상태 타입(OpenEditorState)은 본체 소유라, 여기 가드는 string 입력을 받아
 // PurchaseFloatingKind로 좁힌다.
