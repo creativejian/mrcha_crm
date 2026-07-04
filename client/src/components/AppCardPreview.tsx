@@ -7,8 +7,15 @@ import type { AppCardModel } from "@/lib/app-card";
 // model 1개만 받고 DOM/state를 직접 읽지 않는다(조립은 부모 워크벤치 책임).
 // 바깥 .kim-app-card-preview는 워크벤치 grid 배치가 참조하므로 유지, 내부는 app-card-* 신규 문법.
 export function AppCardPreview({ model, inModal = false }: { model: AppCardModel; inModal?: boolean }) {
-  const [costOpen, setCostOpen] = useState(true);
-  const [conditionOpen, setConditionOpen] = useState(true);
+  // 앱 동작 미러: 취득원가/추천조건 아코디언은 접힌 채 시작, "상세 견적"이 일괄 펼침 토글.
+  const [costOpen, setCostOpen] = useState(false);
+  const [conditionOpen, setConditionOpen] = useState(false);
+  const detailOpen = costOpen && conditionOpen;
+  function toggleDetail() {
+    const next = !detailOpen;
+    setCostOpen(next);
+    setConditionOpen(next);
+  }
   return (
     <aside className={`kim-app-card-preview${inModal ? " in-modal" : ""}`} aria-label="앱 견적카드 미리보기">
       <div className="app-card">
@@ -52,7 +59,7 @@ export function AppCardPreview({ model, inModal = false }: { model: AppCardModel
             ) : null}
             <div className="app-card-cta-row">
               <button className="app-card-consult" disabled type="button">이 견적으로 상담 시작하기</button>
-              <span className="app-card-detail-pill">● 상세 견적</span>
+              <button aria-expanded={detailOpen} className="app-card-detail-pill" onClick={toggleDetail} type="button">● 상세 견적</button>
             </div>
           </div>
         </section>

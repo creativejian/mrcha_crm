@@ -687,13 +687,16 @@ body.kim-detail-overlay-open .customer-detail-drawer {
 .app-card-consult:disabled { opacity: 1; cursor: default; }
 .app-card-detail-pill {
   background: #f1f2f4;
+  border: 0;
   border-radius: 999px;
   padding: 13px 16px;
   font-size: 0.96em;
   font-weight: 800;
   color: #14181f;
   white-space: nowrap;
+  cursor: pointer;
 }
+.app-card-detail-pill:hover { background: #e7e9ec; }
 
 /* ── 공통 블록(섹션 2~4): 솔리드 컬러 헤더 + 흰 본문 ── */
 .app-card-block {
