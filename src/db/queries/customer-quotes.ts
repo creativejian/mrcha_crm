@@ -3,6 +3,7 @@ import { and, asc, eq, like, sql } from "drizzle-orm";
 import { buildAdvisorQuotePayload } from "../../lib/app-card-payload";
 import { trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
+import { quoteRequests } from "../public-app";
 import { quotes, quoteScenarios } from "../schema";
 import { completeQuoteRequest, deleteAdvisorQuoteByCrmQuoteId, upsertAdvisorQuote } from "./advisor-quotes";
 import { getCustomerAppUserId } from "./customers";
@@ -224,6 +225,20 @@ async function syncAdvisorQuoteOnSend(customerId: string, quoteId: string, ex: E
     modelYear = trim?.modelYear ?? null;
   }
 
+  // loose id ↔ 엄격 FK 경계(최종 통합 리뷰 I-1): crm.quotes.source_quote_request_id는 FK 없는 loose id지만
+  // advisor_quotes.quote_request_id는 quote_requests 엄격 FK(ON DELETE SET NULL)다. 승격 후 앱 측에서
+  // 원 요청이 삭제되면 dangling id를 그대로 upsert 시 FK 위반→트랜잭션 롤백→그 견적은 (재)발송이 영구
+  // 차단된다. 발송 직전 존재를 확인해 없으면 "요청 무관 제안 견적"(스펙 확정 결정 1의 nullable 어휘)으로
+  // null 강등하고 completed 전이도 생략한다. 존재 확인은 sourceQuoteRequestId 있을 때만 +1 왕복.
+  let quoteRequestId: string | null = null;
+  if (q.sourceQuoteRequestId) {
+    const [req] = await ex
+      .select({ id: quoteRequests.id })
+      .from(quoteRequests)
+      .where(eq(quoteRequests.id, q.sourceQuoteRequestId));
+    quoteRequestId = req?.id ?? null;
+  }
+
   // crm 스키마 timestamptz는 Date(mode 미지정), advisor_quotes(public 관례)는 string — ISO 변환 필수.
   const { payload, vehicleLabel, monthlyPayment } = buildAdvisorQuotePayload(q, primary, {
     modelYear,
@@ -232,7 +247,7 @@ async function syncAdvisorQuoteOnSend(customerId: string, quoteId: string, ex: E
   await upsertAdvisorQuote(
     {
       userId: appUserId,
-      quoteRequestId: q.sourceQuoteRequestId,
+      quoteRequestId,
       crmQuoteId: q.id,
       quoteCode: q.quoteCode,
       revision: q.revision,
@@ -244,8 +259,8 @@ async function syncAdvisorQuoteOnSend(customerId: string, quoteId: string, ex: E
     },
     ex,
   );
-  // 원 견적요청 완료 전이(스펙 확정 결정 6). 요청 무관 발송(null)은 스킵.
-  if (q.sourceQuoteRequestId) await completeQuoteRequest(q.sourceQuoteRequestId, ex);
+  // 원 견적요청 완료 전이(스펙 확정 결정 6). 요청 무관 발송·원 요청 삭제(null 강등)는 스킵.
+  if (quoteRequestId) await completeQuoteRequest(quoteRequestId, ex);
 }
 
 // 견적 삭제(시나리오는 ON DELETE CASCADE). customer_id 가드 불일치/없으면 null(→404).

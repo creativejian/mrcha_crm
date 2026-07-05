@@ -199,6 +199,34 @@ test("견적요청 연결 견적 발송: quote_requests open→completed 전이 
   }
 });
 
+test("원 요청 삭제된 견적(dangling sourceQuoteRequestId) 발송: FK 차단 없이 성공 — quote_request_id null 강등", async () => {
+  const userId = await anyProfileId();
+  const ids: { quoteId?: string; customerId?: string } = {};
+  try {
+    ids.customerId = await makeCustomer(userId);
+    // 승격 후 앱 측에서 원 요청이 삭제된 상황 재현 — crm 쪽은 loose id(FK 없음)라 dangling 참조가 남는다.
+    // 이걸 그대로 advisor_quotes(엄격 FK)에 upsert하면 위반→롤백→그 견적은 발송 영구 차단(통합 리뷰 I-1).
+    const created = await createQuote(ids.customerId, baseQuoteBody({ sourceQuoteRequestId: crypto.randomUUID() }), db);
+    ids.quoteId = created.id;
+
+    // ① 에러 없이 발송 성공
+    const res = await updateQuote(ids.customerId, created.id, { appStatus: "sent" }, db);
+    expect(res?.id).toBe(created.id);
+
+    // ③ 내부 스탬프 정상
+    const [sent] = await db.select().from(quotes).where(eq(quotes.id, created.id));
+    expect(sent.appStatus).toBe("sent");
+    expect(sent.sentAt).not.toBeNull();
+
+    // ② advisor 행 생성 + quote_request_id는 "요청 무관 제안 견적"(스펙 확정 결정 1 어휘)으로 null 강등
+    const rows = await db.select().from(advisorQuotes).where(eq(advisorQuotes.crmQuoteId, created.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].quoteRequestId).toBeNull();
+  } finally {
+    await cleanup(ids);
+  }
+});
+
 test("deleteQuote: 발송된 견적 삭제 시 advisor_quotes 행도 회수(보낸 카드 소멸)", async () => {
   const userId = await anyProfileId();
   const ids: { quoteId?: string; customerId?: string } = {};
