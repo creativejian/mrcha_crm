@@ -3,9 +3,9 @@ import { and, asc, eq, like, sql } from "drizzle-orm";
 import { buildAdvisorQuotePayload } from "../../lib/app-card-payload";
 import { trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
-import { quoteRequests } from "../public-app";
+import { advisorQuotes, quoteRequests } from "../public-app";
 import { quotes, quoteScenarios } from "../schema";
-import { completeQuoteRequest, deleteAdvisorQuoteByCrmQuoteId, upsertAdvisorQuote } from "./advisor-quotes";
+import { completeQuoteRequest, deleteAdvisorQuoteByCrmQuoteId, reopenQuoteRequestIfUndelivered, upsertAdvisorQuote } from "./advisor-quotes";
 import { getCustomerAppUserId } from "./customers";
 
 // 추가 안내 사항(앱 노출용). client/src/data/quote-guidance.ts QuoteGuidance와 동형.
@@ -269,6 +269,13 @@ export async function deleteQuote(
   quoteId: string,
   ex: Executor = getDefaultDb(),
 ): Promise<{ id: string } | null> {
+  // 회수 전에 보낸 카드의 요청 연결을 확보 — 회수 후 잔여 카드 0이면 요청 status 복원에 쓴다.
+  // crm.quotes.source_quote_request_id 대신 advisor 행의 값을 읽는 이유: 앱 화면을 지배하는 건 advisor 쪽이고,
+  // dangling 강등(null)까지 반영된 정합값이라서. 미발송 견적은 행이 없어 복원 자체가 무관.
+  const [advisorRow] = await ex
+    .select({ quoteRequestId: advisorQuotes.quoteRequestId })
+    .from(advisorQuotes)
+    .where(eq(advisorQuotes.crmQuoteId, quoteId));
   const [row] = await ex
     .delete(quotes)
     .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)))
@@ -276,6 +283,8 @@ export async function deleteQuote(
   if (!row) return null;
   // 보낸 카드 회수(스펙 확정 결정 7): loose id라 CASCADE가 없어 직접 삭제. 미발송 견적은 행이 없어 no-op.
   await deleteAdvisorQuoteByCrmQuoteId(quoteId, ex);
+  // 마지막 카드 회수면 요청 completed→open 복원(앱 정책 제안 2026-07-05 — "완료인데 견적 없음" 모순 방지).
+  if (advisorRow?.quoteRequestId) await reopenQuoteRequestIfUndelivered(advisorRow.quoteRequestId, ex);
   return row;
 }
 

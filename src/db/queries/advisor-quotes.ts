@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import { advisorQuotes, quoteRequests } from "../public-app";
@@ -60,6 +60,22 @@ export async function deleteAdvisorQuoteByCrmQuoteId(crmQuoteId: string, ex: Exe
 // 요청 없는 발송(quote_request_id null)은 호출부가 걸러 이 함수까지 오지 않는다.
 export async function completeQuoteRequest(requestId: string, ex: Executor = getDefaultDb()): Promise<void> {
   await ex.update(quoteRequests).set({ status: "completed" }).where(eq(quoteRequests.id, requestId));
+}
+
+// completed 전이의 역연산(앱 정책 제안 2026-07-05): 마지막 카드 회수로 요청의 advisor 카드가 0이 되면
+// "완료인데 견적 없음" 모순이 영구히 남는다 — 잔여 0일 때만 open 복원. completed 가드로 어드민 수동
+// closed(마감)는 되살리지 않는다. 삭제와 같은 트랜잭션에서 호출해야 앱 재조회 시점에 한 번에 정합.
+export async function reopenQuoteRequestIfUndelivered(requestId: string, ex: Executor = getDefaultDb()): Promise<void> {
+  const [remaining] = await ex
+    .select({ id: advisorQuotes.id })
+    .from(advisorQuotes)
+    .where(eq(advisorQuotes.quoteRequestId, requestId))
+    .limit(1);
+  if (remaining) return;
+  await ex
+    .update(quoteRequests)
+    .set({ status: "open" })
+    .where(and(eq(quoteRequests.id, requestId), eq(quoteRequests.status, "completed")));
 }
 
 // CRM 견적함 read-through용: crmQuoteId → viewed_at. 발송 안 된(행 없는) id는 Map에 미포함 —
