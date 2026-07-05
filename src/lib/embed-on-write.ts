@@ -65,6 +65,8 @@ export function scheduleEmbedOnWrite(c: HookContext, job: EmbedOnWriteJob): void
     // 명시적 on만 허용(test:server의 off 프리픽스를 우회한 `bun test <파일>` 직접 실행이
     // 실 Gemini 호출+master crm.embeddings 오염을 낸 실사고 방지, 2026-07-05)
     // ③그 외(로컬 dev·prod)는 키 있으면 on.
+    // 전제: bun은 NODE_ENV가 미설정일 때만 test로 자동 세팅한다 — 셸에 NODE_ENV가 export된 환경에선
+    // ②가 무력화될 수 있어 test:server의 EMBED_ON_WRITE=off 프리픽스가 1차 방어로 잔존한다.
     if (!apiKey || flag === "off" || (flag !== "on" && process.env.NODE_ENV === "test")) {
       if (!gateSkipWarned) {
         gateSkipWarned = true;

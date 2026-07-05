@@ -21,7 +21,8 @@ beforeAll(async () => {
   process.env.EMBED_ON_WRITE = "on";
   embedOnWriteDeps.embedTexts = async (texts) => { embedCalls++; return texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01)); };
   auth = await makeTestAuth("admin");
-  const [c] = await db.insert(customers).values({ customerCode: "CU-EMBRT-9992", name: "배선테스트" }).returning({ id: customers.id });
+  // 랜덤 서픽스 — 공유 master 재실행 트랩 방지(afterAll 실패/강제 종료로 고아 행이 남아도 다음 실행이 unique 위반으로 연쇄 실패하지 않게).
+  const [c] = await db.insert(customers).values({ customerCode: `CU-EMBRT-${crypto.randomUUID().slice(0, 8)}`, name: "배선테스트" }).returning({ id: customers.id });
   CUST = c.id;
 });
 

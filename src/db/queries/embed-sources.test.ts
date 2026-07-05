@@ -6,19 +6,21 @@ import { customerMemos, customers, quotes, quoteScenarios } from "../schema";
 import { loadCorpusSource } from "./embed-sources";
 
 const db = getDefaultDb();
+// 랜덤 서픽스 — 공유 master 재실행 트랩 방지(afterAll 실패/강제 종료로 고아 행이 남아도 다음 실행이 unique 위반으로 연쇄 실패하지 않게).
+const QUOTE_CODE = `QT-EMBSRC-${crypto.randomUUID().slice(0, 8)}`;
 let CUST = "";
 let MEMO = "";
 let QUOTE = "";
 
 beforeAll(async () => {
   const [c] = await db.insert(customers).values({
-    customerCode: "CU-EMBSRC-9991", name: "로더테스트", needMemo: "니즈 로더 검증", needCustomerNote: "  ",
+    customerCode: `CU-EMBSRC-${crypto.randomUUID().slice(0, 8)}`, name: "로더테스트", needMemo: "니즈 로더 검증", needCustomerNote: "  ",
   }).returning({ id: customers.id });
   CUST = c.id;
   const [m] = await db.insert(customerMemos).values({ customerId: CUST, body: "메모 로더 검증" }).returning({ id: customerMemos.id });
   MEMO = m.id;
   const [q] = await db.insert(quotes).values({
-    quoteCode: "QT-EMBSRC-9991", customerId: CUST, brandName: "BMW", modelName: "320i", trimName: "320i M Sport", appStatus: "draft", revision: 0,
+    quoteCode: QUOTE_CODE, customerId: CUST, brandName: "BMW", modelName: "320i", trimName: "320i M Sport", appStatus: "draft", revision: 0,
   }).returning({ id: quotes.id });
   QUOTE = q.id;
   const [s] = await db.insert(quoteScenarios).values({
@@ -50,5 +52,5 @@ test("loadCorpusSource(need_*): 필드 선택 — 공백뿐 필드는 그대로 
 test("loadCorpusSource(quote): 대표 시나리오 기준 청크 텍스트", async () => {
   const snap = await loadCorpusSource("quote", QUOTE, db);
   expect(snap?.customerName).toBe("로더테스트");
-  expect(snap?.text).toBe("QT-EMBSRC-9991 · BMW 320i M Sport · 운용리스 · 60개월 · 월 2,350,000원 · 하나캐피탈 · 작성 중");
+  expect(snap?.text).toBe(`${QUOTE_CODE} · BMW 320i M Sport · 운용리스 · 60개월 · 월 2,350,000원 · 하나캐피탈 · 작성 중`);
 });
