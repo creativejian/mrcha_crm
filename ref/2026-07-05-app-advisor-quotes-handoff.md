@@ -80,7 +80,7 @@ CREATE POLICY "Staff can view all advisor quotes" ON public.advisor_quotes
 | `residualCondLabel` | string | 조건부 잔존 표기 |
 | `totalCostLabel` | string | "총 비용 계산 후 안내" |
 | `discountRowLabel` | string | "최대 할인 적용" 행 라벨 |
-| `discountLabel` | string | "-0원" |
+| `discountLabel` | string | **맨숫자** "0" · "1,000,000" — 앱이 `-{값}원`으로 렌더("-"·"원"은 정적 부착, CRM AppCardPreview 미러) |
 | `depositLabel` | string | "(30%) 22,290,000원" (보증금/선수금/선납금 박스) |
 | `mileageLabel` | string | "연 20,000km" |
 | `keyPoints` | string[] | 견적 핵심 포인트 bullet 목록 |
@@ -106,7 +106,7 @@ CREATE POLICY "Staff can view all advisor quotes" ON public.advisor_quotes
 | `recommendReasons` | string[] | 추천 이유 bullet |
 | `services` | {label,value}[] | "썬팅: 후퍼옵틱…" → {label:"썬팅", value:"후퍼옵틱…"}. label 빈 문자열 가능 |
 | `footerStampLabel` | string | 발송 시각 표기(고정값) |
-| `quoteCodeLabel` | string | "No. QT-2607-0012" |
+| `quoteCodeLabel` | string | **"QT-2607-0012"** — "No. " 접두는 payload에 없음, 앱 푸터가 `No. {값}`으로 정적 부착(CRM AppCardPreview:154 미러) |
 
 값이 없는 항목은 CRM이 `"—"` 또는 `"계산 후 안내"` 같은 안내 문자열로 채워 보낸다(null 아님, 위 nullable 명시 필드 제외). 실제 행 샘플은 통합 시점에 CRM 세션이 스모크 발송으로 1건 제공한다.
 

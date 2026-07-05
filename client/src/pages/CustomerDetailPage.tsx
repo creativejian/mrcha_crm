@@ -231,6 +231,7 @@ function CustomerDetailContent({
         <QuoteList
           quoteList={quoteList}
           customer={customer}
+          appUserId={detail.appUserId}
           onToast={onToast}
           onOpenNewWorkbench={workbench.openNewWorkbench}
           onEditQuote={workbench.openEditQuote}

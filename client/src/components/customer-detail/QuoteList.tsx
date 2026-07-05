@@ -1,7 +1,7 @@
 import { BriefcaseBusiness, Calculator, Check, ChevronDown, Download, Eye, FilePlus2, FileText, FileUp, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Send, Star, Trash2, UserRound, X } from "lucide-react";
 
 import { type Customer } from "@/data/customers";
-import { formatMonthly, formatScenarioMoneyMode, type QuoteItem } from "@/lib/quote-items";
+import { formatMonthly, formatScenarioMoneyMode, viewedBadgeOf, type QuoteItem } from "@/lib/quote-items";
 import { formatMoney } from "@/lib/quote-pricing";
 import { formatFileSize, isDocumentFileDrag, documentFileKind, quoteValidClass } from "@/lib/detail-utils";
 import { calculateQuoteActionFrame, calculateQuoteStatusTooltip } from "@/lib/popover-frames";
@@ -26,13 +26,15 @@ function quoteSourceIcon(source: QuoteItem["source"]) {
 type QuoteListProps = {
   quoteList: ReturnType<typeof useQuoteList>;
   customer: Customer;
+  // 앱 연결 게이트(detail.appUserId) — 없으면 열람 배지 미노출(내부 발송 "미열람" 오표기 방지, 편차 노트 Task 5/6).
+  appUserId: string | null;
   onToast: (message: string) => void;
   // 워크벤치 시드(부모 보유 9b/9d/9e) — seam 콜백. 견적함 "+"=신규, 액션 "견적 수정"=수정.
   onOpenNewWorkbench: () => void;
   onEditQuote: (quote: QuoteItem) => void;
 };
 
-export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, onEditQuote }: QuoteListProps) {
+export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWorkbench, onEditQuote }: QuoteListProps) {
   const {
     quotes,
     quoteBodyRef,
@@ -96,6 +98,7 @@ export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, on
             {quotes.length === 0 ? (
               <div className="kim-list-empty">작성된 견적이 없습니다.</div>
             ) : quotes.map((quote) => {
+              const viewedBadge = viewedBadgeOf(quote, appUserId);
               return (
               <div
                 className={`kim-quote-row app-status-${quote.appStatus}${quoteDropTargetId === quote.id ? " is-file-drop-target" : ""}${openQuoteActionId === quote.id ? " is-action-open" : ""}`}
@@ -150,6 +153,11 @@ export function QuoteList({ quoteList, customer, onToast, onOpenNewWorkbench, on
                     {quote.trim ? <span>{quote.trim}</span> : null}
                     {quote.quoteRound ? <b>{quote.quoteRound}</b> : null}
                     {quote.sourceQuoteRequestId ? <span className="quote-source-app-badge">앱 요청</span> : null}
+                    {viewedBadge ? (
+                      <span className={viewedBadge.viewed ? "quote-viewed-badge" : "quote-unviewed-badge"} title={viewedBadge.title}>
+                        {viewedBadge.label}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="kim-quote-meta-secondary">
                     {quote.financeType ? <span>{quote.financeType}</span> : null}

@@ -1,6 +1,7 @@
 import { asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
+import { listAdvisorViewedAt } from "./advisor-quotes";
 import {
   consultations,
   customerDocuments,
@@ -151,16 +152,27 @@ export async function getCustomer(id: string, executor: Executor = getDefaultDb(
   ]);
 
   const quoteIds = quoteRows.map((q) => q.id);
-  const scenarioRows = quoteIds.length
-    ? await executor.select().from(quoteScenarios).where(inArray(quoteScenarios.quoteId, quoteIds)).orderBy(asc(quoteScenarios.scenarioNo))
-    : [];
+  const [scenarioRows, advisorViewed] = await Promise.all([
+    quoteIds.length
+      ? executor.select().from(quoteScenarios).where(inArray(quoteScenarios.quoteId, quoteIds)).orderBy(asc(quoteScenarios.scenarioNo))
+      : Promise.resolve([]),
+    // 열람 read-through(스펙 결정 8): 앱이 스탬프하는 public.advisor_quotes.viewed_at이 열람 SSOT라
+    // 동기화 배치 없이 조회 시점에 병합한다(crm.quotes.viewed_at은 아무도 write 안 해 항상 null).
+    listAdvisorViewedAt(quoteIds, executor),
+  ]);
   const scenariosByQuote = new Map<string, (typeof quoteScenarios.$inferSelect)[]>();
   for (const s of scenarioRows) {
     const arr = scenariosByQuote.get(s.quoteId);
     if (arr) arr.push(s);
     else scenariosByQuote.set(s.quoteId, [s]);
   }
-  const quotesWithScenarios: QuoteWithScenarios[] = quoteRows.map(({ filePath: _filePath, ...rest }) => ({ ...rest, scenarios: scenariosByQuote.get(rest.id) ?? [] }));
+  const quotesWithScenarios: QuoteWithScenarios[] = quoteRows.map(({ filePath: _filePath, ...rest }) => {
+    // Map 시맨틱: absent=앱 미전달, null=전달·미열람. 여기선 값이 있는 경우만 승격하므로
+    // absent/null 구분 소실이 무해(폴백 rest.viewedAt은 사실상 항상 null). advisor 쪽은
+    // mode:"string"이라 Date로 변환해 CustomerDetail 타입(Date | null)을 불변 유지.
+    const viewed = advisorViewed.get(rest.id);
+    return { ...rest, viewedAt: viewed != null ? new Date(viewed) : rest.viewedAt, scenarios: scenariosByQuote.get(rest.id) ?? [] };
+  });
 
   return { ...customer, tasks, schedules, memos, documents, consultations: consults, quotes: quotesWithScenarios };
 }

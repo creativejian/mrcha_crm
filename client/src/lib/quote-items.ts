@@ -196,6 +196,23 @@ export function validLabelFromUntil(validUntil: string | null, nowMs: number): s
   return days > 0 ? `D-${days}` : "만료됨";
 }
 
+// 견적함 열람 배지(스펙 결정 8 read-through 표시). viewed=true → "고객 열람"(녹색), false → "미열람"(조용한 톤).
+export type QuoteViewedBadge = { viewed: boolean; label: "고객 열람" | "미열람"; title?: string };
+
+// 열람 배지 판정. viewedAt은 toQuoteItem이 이미 formatActivity로 포맷한 표시 문자열이라 title에 그대로 재사용.
+export function viewedBadgeOf(
+  quote: Pick<QuoteItem, "appStatus" | "viewedAt">,
+  appUserId: string | null | undefined,
+): QuoteViewedBadge | null {
+  // 앱 미연결 고객은 발송해도 앱에 전달되지 않으므로 "미열람" 오표기를 막기 위해 배지 자체를 숨긴다(편차 노트 Task 5/6).
+  if (!appUserId) return null;
+  // 발송 전 카드는 열람 개념이 없다. sent/viewed 묶음 = 기존 발송 상태 표기(quoteDeleteConfirmTitle 등)와 동일 조건.
+  if (quote.appStatus !== "sent" && quote.appStatus !== "viewed") return null;
+  return quote.viewedAt
+    ? { viewed: true, label: "고객 열람", title: `고객 열람 · ${quote.viewedAt}` }
+    : { viewed: false, label: "미열람" };
+}
+
 // 대표 시나리오를 평탄화해 기존 QuoteItem 형태로 변환(접근 1). 파일/원본 필드는 읽기 범위 밖.
 export function toQuoteItem(q: CustomerDetailQuote, nowMs: number): QuoteItem {
   const primary = pickPrimaryScenario(q);

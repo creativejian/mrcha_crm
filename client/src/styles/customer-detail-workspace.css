@@ -582,6 +582,35 @@
   white-space: nowrap;
 }
 
+/* 열람 배지(advisor_quotes.viewed_at read-through) — 앱 연결 고객의 발송 견적에만.
+   "앱 요청" 배지와 같은 문법(높이 18px·radius 5px·10px/800)으로 결을 맞춘다. */
+.quote-viewed-badge,
+.quote-unviewed-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  height: 18px;
+  border-radius: 5px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* 고객 열람 = 재고있음(stock.in-stock)과 같은 녹색 계열의 긍정 신호 */
+.quote-viewed-badge {
+  border: 1px solid rgba(3, 152, 85, 0.24);
+  background: rgba(3, 152, 85, 0.08);
+  color: #039855;
+}
+
+/* 미열람 = 조용한 그레이(대기 상태라 시선을 끌지 않는다) */
+.quote-unviewed-badge {
+  border: 1px solid #dededb;
+  background: #f6f6f5;
+  color: #5f6872;
+}
+
 .kim-quote-meta-secondary strong {
   background: #e9f1ff;
   color: #155eef;
