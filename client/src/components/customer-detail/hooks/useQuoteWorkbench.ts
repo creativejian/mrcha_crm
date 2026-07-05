@@ -881,6 +881,8 @@ export function useQuoteWorkbench({
         status: "작성중",
         ...optimisticVehicle,
         appStatus: send ? "sent" : "draft",
+        // 승격 작성이면 낙관 카드에도 출처를 실어 "앱 요청" 배지가 리로딩 없이 즉시 표시되게(서버 payload와 동일 값).
+        sourceQuoteRequestId: sourceQuoteRequestId ?? undefined,
         quoteRound: "1차",
         financeType: solutionWorkbenchPurchaseMethod,
         term: "조건 미정",

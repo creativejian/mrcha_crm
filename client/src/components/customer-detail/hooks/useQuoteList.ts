@@ -6,6 +6,7 @@ import { toQuoteItem, flattenPrimaryScenario, type QuoteItem } from "@/lib/quote
 import { updateQuote as apiUpdateQuote, deleteQuote as apiDeleteQuote, uploadQuoteOriginal, deleteQuoteOriginal, getQuoteOriginalUrl } from "@/lib/customer-quotes";
 import { formatKoreanShortTime } from "@/lib/detail-utils";
 import { type QuoteActionFrame, type QuoteStatusTooltip } from "@/lib/popover-frames";
+import { fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 
 import { quoteStatusDetailParts } from "../quote-meta";
 
@@ -14,10 +15,11 @@ type UseQuoteListArgs = {
   customer: Customer;
   onToast: (message: string) => void;
   markRecentUpdate: (section: string) => void; // 부모 소유 — 콜백 주입
+  reloadAppRequests: () => void; // 승격 견적 삭제 시 니즈 카드 배지("견적 N건"·견적 보기) 갱신 — 부모(needs) 소유
 };
 
 // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 부모 보유.
-export function useQuoteList({ detail, customer, onToast, markRecentUpdate }: UseQuoteListArgs) {
+export function useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests }: UseQuoteListArgs) {
   const [quotes, setQuotes] = useState<QuoteItem[]>(() => detail.quotes.map((q) => toQuoteItem(q, Date.now())));
   const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
   const [confirmingQuoteSendId, setConfirmingQuoteSendId] = useState<string | null>(null);
@@ -195,7 +197,13 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate }: Us
     setConfirmingQuoteDeleteId(null);
     setConfirmingQuoteContractId(null);
     if (customer.id && !id.startsWith("kim-")) {
-      void apiDeleteQuote(customer.id, id).catch(() => { setQuotes(prevQuotes); onToast("삭제에 실패했습니다."); });
+      void apiDeleteQuote(customer.id, id)
+        .then(() => {
+          // 승격 견적 삭제 시 니즈 카드 배지/버튼과 인박스 캐시를 서버 확정 후 갱신(생성 경로 useQuoteWorkbench와 대칭 —
+          // 즉시 갱신하면 서버가 아직 옛 카운트를 반환해 리로딩 전까지 어긋난다).
+          if (targetQuote?.sourceQuoteRequestId) { void fetchAppQuoteRequestsCached(true); reloadAppRequests(); }
+        })
+        .catch(() => { setQuotes(prevQuotes); onToast("삭제에 실패했습니다."); });
     }
     markRecentUpdate("견적함");
     onToast("견적 항목을 삭제했습니다.");

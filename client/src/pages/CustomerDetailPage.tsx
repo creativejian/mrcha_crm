@@ -113,8 +113,11 @@ function CustomerDetailContent({
 
   const memos = useCustomerMemos({ detail, customer, onToast, markRecentUpdate });
   const checks = useCustomerChecks({ detail, customer, onToast, markRecentUpdate, onCustomerListChanged });
+  // 고객 니즈 영역(앱 견적요청 카드 목록 + 단일 need 카드). savePatch/markRecentUpdate/setOpenEditor는 부모 소유 공유 인프라라 인자로 주입.
+  // quoteList보다 먼저 선언 — 승격 견적 삭제 시 니즈 카드 배지 갱신(reloadAppRequests)을 quoteList에 주입해야 해서.
+  const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor });
   // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 useQuoteWorkbench가 보유.
-  const quoteList = useQuoteList({ detail, customer, onToast, markRecentUpdate });
+  const quoteList = useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests: needs.reloadAppRequests });
   const documents = useCustomerDocuments({ detail, customer, onToast, markRecentUpdate });
   // 예정 일정 영역 — setOpenEditor(saveSchedule이 닫음)가 위에서 선언돼야 해서 여기서 호출.
   const schedules = useCustomerSchedules({ detail, customer, onToast, markRecentUpdate, onCloseFloatingEditor: () => setOpenEditor(null) });
@@ -122,8 +125,6 @@ function CustomerDetailContent({
   const workflow = useCustomerWorkflow({ detail, customer, chanceOverride, manageStatusOverride, onToast, onWorkflowChange, markRecentUpdate, openEditor, setOpenEditor, toggleEditor, savePatch });
   // 상세 구매조건 영역. openEditor/setOpenEditor/editorMatches/savePatch/markRecentUpdate/setPurchasePopoverFrame는 부모 소유 공유 인프라라 인자로 주입.
   const purchase = useCustomerPurchase({ detail, onToast, openEditor, setOpenEditor, editorMatches, savePatch, markRecentUpdate, setPurchasePopoverFrame });
-  // 고객 니즈 영역(앱 견적요청 카드 목록 + 단일 need 카드). savePatch/markRecentUpdate/setOpenEditor는 부모 소유 공유 인프라라 인자로 주입.
-  const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor });
   // 견적 워크벤치 영역(9b~9e). markRecentUpdate/quoteList/purchase.fields/needs.reloadAppRequests는 부모 보유 공유 인프라라 인자로 주입.
   // openWorkbenchForQuoteRequest는 니즈 카드 "견적 작성"·?quoteRequest 딥링크가 호출 → 훅이 반환하면 부모가 NeedsDashboard에 중계.
   const workbench = useQuoteWorkbench({ detail, customer, onToast, markRecentUpdate, onQuotesPersisted, quoteList, purchaseFields: purchase.fields, reloadAppRequests: needs.reloadAppRequests });
