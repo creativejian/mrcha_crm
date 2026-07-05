@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { flattenPrimaryScenario, formatScenarioMoneyMode, toQuoteItem, type CustomerDetailQuote } from "./quote-items";
+import { formatActivity } from "./customers";
+import { flattenPrimaryScenario, formatScenarioMoneyMode, toQuoteItem, viewedBadgeOf, type CustomerDetailQuote } from "./quote-items";
 
 const NOW = new Date("2026-05-28T12:00:00+09:00").getTime();
 
@@ -244,5 +245,36 @@ describe("toQuoteItem 견적 원본 file_* 매핑 (#4d)", () => {
     expect(k.fileName).toBeUndefined();
     expect(k.fileSize).toBeUndefined();
     expect(k.mimeType).toBeUndefined();
+  });
+});
+
+describe("toQuoteItem viewedAt 배선 (열람 read-through 표시)", () => {
+  it("서버 ISO viewedAt을 sentAt과 동일하게 formatActivity 표시 문자열로 변환", () => {
+    const iso = "2026-05-28T13:05:00+09:00";
+    const k = toQuoteItem(makeQuote({ viewedAt: iso }), NOW);
+    expect(k.viewedAt).toBe(formatActivity(iso));
+  });
+  it("viewedAt null이면 undefined(배지 판정에서 미열람 처리)", () => {
+    expect(toQuoteItem(makeQuote(), NOW).viewedAt).toBeUndefined();
+  });
+});
+
+describe("viewedBadgeOf (견적함 열람 배지 판정)", () => {
+  it("앱 미연결 고객(appUserId 없음)은 발송 카드여도 null — 내부 발송에 '미열람' 오표기 방지", () => {
+    expect(viewedBadgeOf({ appStatus: "sent", viewedAt: undefined }, null)).toBeNull();
+    expect(viewedBadgeOf({ appStatus: "sent", viewedAt: "26/05/28 13:05" }, null)).toBeNull();
+  });
+  it("발송 전(draft/queued) 카드는 null — 열람 개념 없음", () => {
+    expect(viewedBadgeOf({ appStatus: "draft", viewedAt: undefined }, "app-user-1")).toBeNull();
+    expect(viewedBadgeOf({ appStatus: "queued", viewedAt: undefined }, "app-user-1")).toBeNull();
+  });
+  it("발송됨 + viewedAt 있으면 '고객 열람' + title에 열람 시각", () => {
+    const badge = viewedBadgeOf({ appStatus: "sent", viewedAt: "26/05/28 13:05" }, "app-user-1");
+    expect(badge).toEqual({ viewed: true, label: "고객 열람", title: "고객 열람 · 26/05/28 13:05" });
+    // 레거시 appStatus "viewed"도 발송됨 묶음(기존 발송 상태 표기와 동일 조건)
+    expect(viewedBadgeOf({ appStatus: "viewed", viewedAt: "26/05/28 13:05" }, "app-user-1")?.viewed).toBe(true);
+  });
+  it("발송됨 + viewedAt 없으면 '미열람'(조용한 톤)", () => {
+    expect(viewedBadgeOf({ appStatus: "sent", viewedAt: undefined }, "app-user-1")).toEqual({ viewed: false, label: "미열람" });
   });
 });
