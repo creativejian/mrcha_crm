@@ -698,13 +698,3 @@
 .kim-schedule-type-controls span {
   min-width: 52px;
 }
-
-.kim-work-hero {
-  min-height: 78px;
-  border-bottom: 1px solid #eeeeec;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px;
-  padding: 14px;
-}
