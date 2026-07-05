@@ -1,7 +1,11 @@
 import { and, asc, eq, like, sql } from "drizzle-orm";
 
+import { buildAdvisorQuotePayload } from "../../lib/app-card-payload";
+import { trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { quotes, quoteScenarios } from "../schema";
+import { completeQuoteRequest, deleteAdvisorQuoteByCrmQuoteId, upsertAdvisorQuote } from "./advisor-quotes";
+import { getCustomerAppUserId } from "./customers";
 
 // 추가 안내 사항(앱 노출용). client/src/data/quote-guidance.ts QuoteGuidance와 동형.
 export type QuoteGuidanceInput = {
@@ -170,17 +174,72 @@ export async function updateQuote(
     await ex.delete(quoteScenarios).where(eq(quoteScenarios.quoteId, quoteId));
     const { primaryId } = await insertScenarios(ex, quoteId, patch.scenarios);
     await ex.update(quotes).set({ primaryScenarioId: primaryId }).where(eq(quotes.id, quoteId));
-    return { id: row.id };
-  }
-
-  // 대표 시나리오 1건 갱신(헤더 PATCH와 함께 온 경우) — 갱신된 대표 기준.
-  if (patch.scenario) {
+  } else if (patch.scenario) {
+    // 대표 시나리오 1건 갱신(헤더 PATCH와 함께 온 경우) — 갱신된 대표 기준.
     const target = scs.find((s) => s.id === primaryId) ?? scs[0];
     if (target) {
       await ex.update(quoteScenarios).set(scenarioSet(patch.scenario)).where(eq(quoteScenarios.id, target.id));
     }
   }
+
+  // 발송 훅은 반드시 함수 "맨 끝"(시나리오 교체/대표 갱신 이후) — 워크벤치 발송은
+  // {scenarios 전체 교체, appStatus:"sent"}가 한 PATCH에 동봉되므로 교체 반영 후의 fresh 상태를 스냅샷해야 한다.
+  if (patch.appStatus === "sent") {
+    await syncAdvisorQuoteOnSend(customerId, quoteId, ex);
+  }
   return { id: row.id };
+}
+
+// 발송 훅(견적 앱 발송 파이프라인, 2026-07-05 스펙): appStatus "sent" 전이 시 같은 트랜잭션에서
+// 앱 수신함 public.advisor_quotes에 라벨 완성본 카드를 upsert하고, 원 견적요청을 completed로 전이한다.
+async function syncAdvisorQuoteOnSend(customerId: string, quoteId: string, ex: Executor): Promise<void> {
+  // 앱 미연결 고객(app_user_id null)은 전부 생략 — 기존 내부 스탬프 발송 그대로(스펙 확정 결정 5).
+  const owner = await getCustomerAppUserId(customerId, ex);
+  const appUserId = owner?.appUserId ?? null;
+  if (!appUserId) return;
+
+  // fresh read: 헤더 UPDATE(sent_at/valid_until 스탬프)와 시나리오 교체가 모두 반영된 현재 상태.
+  const [q] = await ex.select().from(quotes).where(eq(quotes.id, quoteId));
+  if (!q?.sentAt) return; // sent 전이 직후라 스탬프는 항상 존재 — 타입 좁히기 겸 방어
+  const scs = await ex
+    .select()
+    .from(quoteScenarios)
+    .where(eq(quoteScenarios.quoteId, quoteId))
+    .orderBy(asc(quoteScenarios.scenarioNo));
+  const primary = scs.find((s) => s.id === q.primaryScenarioId) ?? scs[0] ?? null;
+
+  // crm.quotes에는 model_year가 없다 — trimId → catalog.trims 조인으로 조달(없으면 null, 조립기가 년식 생략).
+  let modelYear: number | null = null;
+  if (q.trimId != null) {
+    const [trim] = await ex
+      .select({ modelYear: trimsInCatalog.modelYear })
+      .from(trimsInCatalog)
+      .where(eq(trimsInCatalog.id, q.trimId));
+    modelYear = trim?.modelYear ?? null;
+  }
+
+  // crm 스키마 timestamptz는 Date(mode 미지정), advisor_quotes(public 관례)는 string — ISO 변환 필수.
+  const { payload, vehicleLabel, monthlyPayment } = buildAdvisorQuotePayload(q, primary, {
+    modelYear,
+    sentAtIso: q.sentAt.toISOString(),
+  });
+  await upsertAdvisorQuote(
+    {
+      userId: appUserId,
+      quoteRequestId: q.sourceQuoteRequestId,
+      crmQuoteId: q.id,
+      quoteCode: q.quoteCode,
+      revision: q.revision,
+      vehicleLabel,
+      monthlyPayment,
+      payload,
+      sentAt: q.sentAt.toISOString(),
+      validUntil: q.validUntil?.toISOString() ?? null,
+    },
+    ex,
+  );
+  // 원 견적요청 완료 전이(스펙 확정 결정 6). 요청 무관 발송(null)은 스킵.
+  if (q.sourceQuoteRequestId) await completeQuoteRequest(q.sourceQuoteRequestId, ex);
 }
 
 // 견적 삭제(시나리오는 ON DELETE CASCADE). customer_id 가드 불일치/없으면 null(→404).
@@ -193,7 +252,10 @@ export async function deleteQuote(
     .delete(quotes)
     .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)))
     .returning({ id: quotes.id });
-  return row ?? null;
+  if (!row) return null;
+  // 보낸 카드 회수(스펙 확정 결정 7): loose id라 CASCADE가 없어 직접 삭제. 미발송 견적은 행이 없어 no-op.
+  await deleteAdvisorQuoteByCrmQuoteId(quoteId, ex);
+  return row;
 }
 
 // 다음 견적 코드 QT-YYMM-#### (현재월 기준, 기존 최대 시퀀스 +1). UNIQUE 컬럼이라 서버가 canonical 생성.

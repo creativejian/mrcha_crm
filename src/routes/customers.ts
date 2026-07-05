@@ -282,7 +282,9 @@ customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValida
 });
 customers.delete("/:id/quotes/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
-  return run(c, () => deleteQuote(p.id, p.childId, c.var.db), "견적을 찾을 수 없습니다.");
+  // 트랜잭션: 견적 삭제와 advisor_quotes 회수(발송 파이프라인 스펙 결정 7)가 함께 성공/실패해야
+  // 앱에 회수 실패한 유령 카드가 남지 않는다.
+  return run(c, () => c.var.db.transaction((tx) => deleteQuote(p.id, p.childId, tx)), "견적을 찾을 수 없습니다.");
 });
 
 // ── 견적 원본 파일(#4d — 견적함 행 드롭, 이미지/PDF Storage 영속) ──────
