@@ -341,7 +341,7 @@ export async function createCustomerFromRequest(
       needModel,
       needTrim,
       needMethod: req.paymentMethod ? (NEED_METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod) : null,
-      source: "앱 견적비교",
+      source: "앱 견적요청",
       statusGroup: "신규",
       status: "상담접수",
       receivedAt: new Date(req.createdAt),

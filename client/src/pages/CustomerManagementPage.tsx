@@ -598,7 +598,7 @@ export function CustomerManagementPage({
       onMouseEnter: onOpenCustomer && customer.id
         ? () => {
             prefetchCustomerDetail(customer.id as string);
-            if (customer.source === "앱 견적비교") prefetchCustomerQuoteRequests(customer.id as string);
+            if (customer.source === "앱 견적요청") prefetchCustomerQuoteRequests(customer.id as string);
           }
         : undefined,
       tabIndex: onOpenCustomer ? 0 : undefined,

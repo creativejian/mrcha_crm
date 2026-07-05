@@ -42,12 +42,12 @@ describe("거주지 (location)", () => {
 
 describe("상담경로 (source)", () => {
   it("parseSourceValue는 등록 옵션/레거시를 정규화하고 미등록은 기타로", () => {
-    expect(parseSourceValue("앱 견적비교")).toBe("앱 견적비교");
+    expect(parseSourceValue("앱 견적요청")).toBe("앱 견적요청");
     expect(parseSourceValue("디엘홈페이지")).toBe("디엘(상담)");
     expect(parseSourceValue("지인 소개행사")).toBe("기타");
   });
   it("isAutomaticSource는 자동+레거시 소스를 true", () => {
-    expect(isAutomaticSource("앱 견적비교")).toBe(true);
+    expect(isAutomaticSource("앱 견적요청")).toBe(true);
     expect(isAutomaticSource("디엘홈페이지")).toBe(true);
     expect(isAutomaticSource("대표전화")).toBe(false);
   });

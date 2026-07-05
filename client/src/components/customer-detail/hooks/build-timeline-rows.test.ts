@@ -7,7 +7,7 @@ const customer = {
   no: 20, customerId: "CU-2605-0020", receivedAt: "26/05/14 12:56", assignedAt: "26/05/14 13:04",
   team: "인천본사", name: "김민준", customerType: "개인", customerTypeDetail: "4대보험", phone: "010-1234-5678",
   vehicle: "Maybach S-Class", method: "운용리스", advisor: "김지안", statusGroup: "견적", status: "견적발송",
-  date: "26/07/01 09:00", source: "앱 견적비교", talkCount: "", priority: "높음", nextAction: "재견적", aiSummary: "",
+  date: "26/07/01 09:00", source: "앱 견적요청", talkCount: "", priority: "높음", nextAction: "재견적", aiSummary: "",
 } as Customer;
 
 const consultation = (id: string, occurredAt: string | null, summary: string, createdAt = "2026-06-01T10:00:00+09:00") =>
