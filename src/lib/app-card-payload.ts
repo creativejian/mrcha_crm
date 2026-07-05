@@ -16,7 +16,7 @@ export type AdvisorPayloadQuoteRow = {
   trimName: string | null;
   basePrice: string | null;
   optionTotal: string | null;
-  options: unknown; // [{id, name, price}] — name만 사용
+  options: unknown; // [{trim_option_id, name, price}] — name만 사용 (schema.ts crm.quotes.options)
   discountLines: unknown; // [{label, amount, unit}] — label만 사용
   finalDiscount: string | null;
   acquisitionTax: string | null;

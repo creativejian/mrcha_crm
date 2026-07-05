@@ -15,7 +15,7 @@ const fullQuote: AdvisorPayloadQuoteRow = {
   trimName: "520i M Sport",
   basePrice: "74300000",
   optionTotal: "1000000",
-  options: [{ id: 1, name: "썬루프", price: 1000000 }],
+  options: [{ trim_option_id: 101, name: "썬루프", price: 1000000 }],
   discountLines: [{ label: "프로모션", amount: 1000000, unit: "amount" }],
   finalDiscount: "1000000",
   acquisitionTax: "5200000",
