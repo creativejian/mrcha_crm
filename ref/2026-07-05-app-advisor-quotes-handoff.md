@@ -91,7 +91,8 @@ CREATE POLICY "Staff can view all advisor quotes" ON public.advisor_quotes
 | `exteriorColorLabel` / `interiorColorLabel` | string | "미선택" 폴백 포함 |
 | `optionSummaryLabel` | string | 옵션 요약 |
 | `stockNotice` / `expectedDelivery` / `customerRegion` | string | 재고 안내·출고 예정·고객 지역(발송 시점 스냅샷) |
-| `basePriceLabel` `optionTotalLabel` `finalVehiclePriceLabel` `acquisitionTaxLabel` `acquisitionTaxModeLabel` `bondLabel` `deliveryFeeLabel` `incidentalLabel` `registrationCostLabel` `acquisitionCostLabel` | string | 취득원가 구성 아코디언 각 행("74,300,000원" 등, 세율 모드 라벨 "일반/하이브리드 감면/…") |
+| `basePriceLabel` `optionTotalLabel` `finalVehiclePriceLabel` `acquisitionTaxLabel` `bondLabel` `deliveryFeeLabel` `incidentalLabel` `registrationCostLabel` `acquisitionCostLabel` | string | 취득원가 구성 아코디언 금액 9필드 — **맨숫자** "59,000,000"·"0" (콤마 포함, '원' 없음). 앱이 `{값}원`으로 정적 부착(CRM AppCardPreview 미러) |
+| `acquisitionTaxModeLabel` | string | 세율 모드 텍스트 "일반/하이브리드 감면/전기차 감면/직접 입력" — 그대로 표기('원' 부착 대상 아님) |
 
 | 키 | 타입 | 설명(섹션 3 — 추천 견적 조건) |
 |---|---|---|
@@ -120,7 +121,7 @@ CREATE POLICY "Staff can view all advisor quotes" ON public.advisor_quotes
 
 ## 하지 말 것
 
-- payload 값 재계산·재포맷(콤마·원 단위·% 병기 전부 완성본).
+- payload 값 재계산·재포맷(콤마·% 병기는 전부 완성본). **정적 부착 예외 3종만 앱이 장식을 붙인다**: discountLabel(`-{값}원`)·quoteCodeLabel(`No. {값}`)·취득원가 금액 9필드(`{값}원`) — 전부 CRM AppCardPreview 미러.
 - advisor_quotes에 앱이 INSERT/DELETE(쓰기는 CRM 전담).
 - `statusLabel`/`ddayLabel`을 payload에서 찾기(의도적으로 없음 — 컬럼에서 계산).
 - bids 테이블/Bid 모델 재활용(폐기 확정 — DB 컬럼명과 Dart 모델도 어긋나 있는 dormant 코드).
