@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 
 import { buildQuoteChunkText } from "../../lib/assistant-corpus";
+import { pickPrimaryScenario } from "../../lib/primary-scenario";
 import { getDefaultDb, type Executor } from "../client";
 import { customerMemos, customers, customerTasks, quotes, quoteScenarios } from "../schema";
 
@@ -68,7 +69,7 @@ export async function loadCorpusSource(
         .innerJoin(customers, eq(customers.id, quotes.customerId))
         .where(eq(quotes.id, sourceId));
       if (!q) return null;
-      // 대표 시나리오: primary_scenario_id 일치 → 없으면 scenario_no 최소(발송 조립기와 동일 규칙).
+      // 대표 시나리오 선택 규칙은 pickPrimaryScenario(SSOT) — 발송 조립기·백필과 동일.
       const scs = await ex
         .select({
           id: quoteScenarios.id,
@@ -80,7 +81,7 @@ export async function loadCorpusSource(
         .from(quoteScenarios)
         .where(eq(quoteScenarios.quoteId, sourceId))
         .orderBy(asc(quoteScenarios.scenarioNo));
-      const sc = scs.find((s) => s.id === q.primaryScenarioId) ?? scs[0] ?? null;
+      const sc = pickPrimaryScenario(scs, q.primaryScenarioId);
       return { customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc) };
     }
   }

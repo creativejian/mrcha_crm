@@ -10,6 +10,7 @@ import { upsertEmbedding } from "../db/queries/embeddings";
 import { buildChunkContent, buildQuoteChunkText, contentHash, type CorpusRow } from "../lib/assistant-corpus";
 import { embedTexts } from "../lib/gemini-embed";
 import { resolveGeminiTarget } from "../lib/gemini-target";
+import { pickPrimaryScenario } from "../lib/primary-scenario";
 
 const db = getDefaultDb();
 const apiKey = process.env.GEMINI_API_KEY;
@@ -24,7 +25,7 @@ function nonEmpty(col: AnyPgColumn) {
 async function gather(): Promise<CorpusRow[]> {
   const rows: CorpusRow[] = [];
 
-  // 자식 테이블 3종은 push 형태가 동일 — 쿼리는 콜사이트에서 조립해 넘긴다(견적 코퍼스 확장 시 collect 1줄 추가).
+  // 자식 테이블 3종은 push 형태가 동일 — 쿼리는 콜사이트에서 조립해 넘긴다(견적은 시나리오 조인이 필요해 아래 별도 블록).
   // if (row.text)는 select 프로젝션이 nullable이라 남긴 타입 좁히기다(WHERE nonEmpty가 이미 걸러줌).
   async function collect(sourceType: CorpusRow["sourceType"], query: PromiseLike<{ id: string; customerId: string; name: string; text: string | null }[]>) {
     for (const row of await query) {
@@ -55,7 +56,7 @@ async function gather(): Promise<CorpusRow[]> {
     if (n.needReviewNote?.trim()) rows.push({ sourceType: "need_review_note", sourceId: n.id, customerId: n.id, customerName: n.name, text: n.needReviewNote });
   }
 
-  // 견적: 견적당 1청크 — 대표 시나리오(primary_scenario_id 일치, 없으면 scenario_no 최소) 기준(스펙 결정 2).
+  // 견적: 견적당 1청크 — 대표 시나리오(pickPrimaryScenario SSOT) 기준(스펙 결정 2).
   const quoteRows = await db
     .select({
       id: quotes.id, customerId: quotes.customerId, name: customers.name, quoteCode: quotes.quoteCode,
@@ -78,8 +79,7 @@ async function gather(): Promise<CorpusRow[]> {
     scByQuote.set(s.quoteId, list);
   }
   for (const q of quoteRows) {
-    const list = scByQuote.get(q.id) ?? [];
-    const sc = list.find((s) => s.id === q.primaryScenarioId) ?? list[0] ?? null;
+    const sc = pickPrimaryScenario(scByQuote.get(q.id) ?? [], q.primaryScenarioId);
     rows.push({ sourceType: "quote", sourceId: q.id, customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc) });
   }
 
