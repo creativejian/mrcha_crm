@@ -11,8 +11,10 @@ import {
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
+import { deleteEmbeddingBySource } from "../db/queries/embeddings";
 import { validateLookupValue, validateStatusSelection } from "../lib/lookup-validate";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
+import { scheduleEmbedOnWrite } from "../lib/embed-on-write";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
 import { run } from "./shared";
@@ -98,7 +100,18 @@ customers.patch(
         if (current.advisorName !== patch.advisorName) finalPatch = { ...patch, assignedAt: new Date() };
       }
     }
-    return run(c, () => updateCustomer(c.req.valid("param").id, finalPatch, c.var.db), "고객을 찾을 수 없습니다.");
+    return run(c, async () => {
+      const row = await updateCustomer(c.req.valid("param").id, finalPatch, c.var.db);
+      if (row) {
+        const id = c.req.valid("param").id;
+        // 니즈 3필드 중 이번 PATCH에 온 키만 재임베딩(스펙 결정 3). 값 비움 포함 —
+        // 훅의 fresh read가 빈 텍스트로 판정해 임베딩 행을 삭제한다(경로 통일).
+        if (patch.needMemo !== undefined) scheduleEmbedOnWrite(c, { sourceType: "need_memo", sourceId: id });
+        if (patch.needCustomerNote !== undefined) scheduleEmbedOnWrite(c, { sourceType: "need_customer_note", sourceId: id });
+        if (patch.needReviewNote !== undefined) scheduleEmbedOnWrite(c, { sourceType: "need_review_note", sourceId: id });
+      }
+      return row;
+    }, "고객을 찾을 수 없습니다.");
   },
 );
 
@@ -211,15 +224,27 @@ const quotePatchBody = z.object({
   scenarios: z.array(quoteScenarioBody).max(3).optional(),
 });
 
-customers.post("/:id/memos", zValidator("param", idParam), zValidator("json", memoBody), async (c) =>
-  c.json(await addMemo(c.req.valid("param").id, c.req.valid("json"), c.var.db), 201));
+customers.post("/:id/memos", zValidator("param", idParam), zValidator("json", memoBody), async (c) => {
+  const row = await addMemo(c.req.valid("param").id, c.req.valid("json"), c.var.db);
+  scheduleEmbedOnWrite(c, { sourceType: "memo", sourceId: row.id });
+  return c.json(row, 201);
+});
 customers.patch("/:id/memos/:childId", zValidator("param", childParam), zValidator("json", memoBody), (c) => {
   const p = c.req.valid("param");
-  return run(c, () => updateMemo(p.id, p.childId, c.req.valid("json"), c.var.db), "메모를 찾을 수 없습니다.");
+  return run(c, async () => {
+    const row = await updateMemo(p.id, p.childId, c.req.valid("json"), c.var.db);
+    if (row) scheduleEmbedOnWrite(c, { sourceType: "memo", sourceId: p.childId });
+    return row;
+  }, "메모를 찾을 수 없습니다.");
 });
 customers.delete("/:id/memos/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
-  return run(c, () => deleteMemo(p.id, p.childId, c.var.db), "메모를 찾을 수 없습니다.");
+  return run(c, async () => {
+    const row = await deleteMemo(p.id, p.childId, c.var.db);
+    // 삭제 정리는 동기 1쿼리(Gemini 무관) — 응답 시점에 검색에서 제거(스펙 결정 6). 실패는 로그만(고아는 백필이 청소).
+    if (row) await deleteEmbeddingBySource("memo", p.childId, c.var.db).catch((e) => console.error("[embed-on-write] 삭제 정리 실패:", e));
+    return row;
+  }, "메모를 찾을 수 없습니다.");
 });
 
 customers.post("/:id/tasks", zValidator("param", idParam), zValidator("json", taskBody), async (c) => {
@@ -228,7 +253,9 @@ customers.post("/:id/tasks", zValidator("param", idParam), zValidator("json", ta
     const error = validateLookupValue("task_category", body.category);
     if (error) return c.json({ error }, 400);
   }
-  return c.json(await addTask(c.req.valid("param").id, body, c.var.db), 201);
+  const row = await addTask(c.req.valid("param").id, body, c.var.db);
+  scheduleEmbedOnWrite(c, { sourceType: "task", sourceId: row.id });
+  return c.json(row, 201);
 });
 customers.patch("/:id/tasks/:childId", zValidator("param", childParam), zValidator("json", taskBody), async (c) => {
   const p = c.req.valid("param");
@@ -237,11 +264,19 @@ customers.patch("/:id/tasks/:childId", zValidator("param", childParam), zValidat
     const error = validateLookupValue("task_category", body.category);
     if (error) return c.json({ error }, 400);
   }
-  return run(c, () => updateTask(p.id, p.childId, body, c.var.db), "할 일을 찾을 수 없습니다.");
+  return run(c, async () => {
+    const row = await updateTask(p.id, p.childId, body, c.var.db);
+    if (row) scheduleEmbedOnWrite(c, { sourceType: "task", sourceId: p.childId });
+    return row;
+  }, "할 일을 찾을 수 없습니다.");
 });
 customers.delete("/:id/tasks/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
-  return run(c, () => deleteTask(p.id, p.childId, c.var.db), "할 일을 찾을 수 없습니다.");
+  return run(c, async () => {
+    const row = await deleteTask(p.id, p.childId, c.var.db);
+    if (row) await deleteEmbeddingBySource("task", p.childId, c.var.db).catch((e) => console.error("[embed-on-write] 삭제 정리 실패:", e));
+    return row;
+  }, "할 일을 찾을 수 없습니다.");
 });
 
 customers.post("/:id/schedules", zValidator("param", idParam), zValidator("json", scheduleBody), async (c) => {
@@ -271,6 +306,8 @@ customers.post("/:id/quotes", zValidator("param", idParam), zValidator("json", q
   const id = c.req.valid("param").id;
   const body = c.req.valid("json");
   const row = await c.var.db.transaction((tx) => createQuote(id, body, tx));
+  // 트랜잭션 resolve(=커밋) 후 스케줄 — 훅의 fresh read가 커밋 전 구값을 보는 것을 방지(스펙 함정).
+  scheduleEmbedOnWrite(c, { sourceType: "quote", sourceId: row.id });
   return c.json(row, 201);
 });
 
@@ -278,13 +315,21 @@ customers.post("/:id/quotes", zValidator("param", idParam), zValidator("json", q
 customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValidator("json", quotePatchBody), (c) => {
   const p = c.req.valid("param");
   const body = c.req.valid("json");
-  return run(c, () => c.var.db.transaction((tx) => updateQuote(p.id, p.childId, body, tx)), "견적을 찾을 수 없습니다.");
+  return run(c, async () => {
+    const row = await c.var.db.transaction((tx) => updateQuote(p.id, p.childId, body, tx));
+    if (row) scheduleEmbedOnWrite(c, { sourceType: "quote", sourceId: p.childId }); // 발송(appStatus sent) 포함 — 커밋 후
+    return row;
+  }, "견적을 찾을 수 없습니다.");
 });
 customers.delete("/:id/quotes/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
   // 트랜잭션: 견적 삭제와 advisor_quotes 회수(발송 파이프라인 스펙 결정 7)가 함께 성공/실패해야
   // 앱에 회수 실패한 유령 카드가 남지 않는다.
-  return run(c, () => c.var.db.transaction((tx) => deleteQuote(p.id, p.childId, tx)), "견적을 찾을 수 없습니다.");
+  return run(c, async () => {
+    const row = await c.var.db.transaction((tx) => deleteQuote(p.id, p.childId, tx));
+    if (row) await deleteEmbeddingBySource("quote", p.childId, c.var.db).catch((e) => console.error("[embed-on-write] 삭제 정리 실패:", e));
+    return row;
+  }, "견적을 찾을 수 없습니다.");
 });
 
 // ── 견적 원본 파일(#4d — 견적함 행 드롭, 이미지/PDF Storage 영속) ──────
