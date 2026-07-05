@@ -117,7 +117,7 @@ CREATE POLICY "Staff can view all advisor quotes" ON public.advisor_quotes
 2. **내 견적함**(`my_quotes_screen.dart`): "상담사 견적" 섹션 추가(기존 AI견적서·견적요청 2섹션에 병렬). 목록 카드는 정규 컬럼만으로 렌더 가능(`vehicle_label`, `monthly_payment`, `sent_at`, `viewed_at` 미확인 뱃지, `valid_until` D-day). 리치 카드 레퍼런스 = `AiEstimateCard`.
 3. **견적 상세 스텁 교체**(`quote_detail_screen.dart:202-233`): "딜러 입찰을 기다리는 중입니다" 정적 카드 → 해당 `quote_request_id`의 advisor_quotes 조회. 있으면 상담사 견적 카드(payload 4섹션 렌더), 없으면 대기 문구 유지하되 **딜러 입찰 어휘 제거**("상담사가 견적을 준비하고 있어요" 등 — 입찰 모델 폐기).
 4. **열람 스탬프**: 상담사 견적 상세(또는 카드 펼침) 진입 시 `viewed_at IS NULL`이면 `UPDATE ... SET viewed_at = now()`(본인 행, RLS 허용). 이미 값 있으면 덮지 않기(최초 열람 시각 보존).
-5. **status 라벨 참고**: CRM 발송 시 원 `quote_requests.status`가 `'completed'`로 바뀐다 — 기존 `quoteStatusLabel`(완료/초록)이 그대로 동작하므로 코드 변경 불요, 의미만 인지("완료 = 상담사 견적 도착").
+5. **status 라벨 참고**: CRM 발송 시 원 `quote_requests.status`가 `'completed'`로 바뀐다 — 기존 `quoteStatusLabel`(완료/초록)이 그대로 동작하므로 코드 변경 불요, 의미만 인지("완료 = 상담사 견적 도착"). **역연산(2026-07-05 앱 정책 제안 반영)**: CRM에서 견적을 삭제(회수)해 그 요청의 advisor 카드가 0이 되면 같은 트랜잭션에서 `status→'open'` 복원 — "완료인데 견적 없음" 모순이 안 남는다(잔여 카드 있으면 completed 유지, 어드민 수동 `closed`는 불가침).
 
 ## 하지 말 것
 
