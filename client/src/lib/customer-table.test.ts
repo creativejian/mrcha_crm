@@ -21,7 +21,7 @@ function makeCustomer(overrides: Partial<Customer>): Customer {
     statusGroup: "상담중",
     status: "구매방식상담중",
     date: "5/14 10:00",
-    source: "앱 견적비교",
+    source: "앱 견적요청",
     talkCount: "1/0",
     priority: "중간",
     nextAction: "",
