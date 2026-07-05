@@ -155,4 +155,7 @@ if (patch.appStatus === "sent") {
 
 ## 구현 편차 노트 (실행 중 결정 기록 — 코드 블록보다 우선)
 
-(비어 있음 — 구현자가 plan과 다르게 간 결정을 여기 적는다)
+- **Task 1 완료(65358e8, 리뷰 2단계 통과).** drizzle 정의는 실 DDL 파리티로 plan 스케치보다 정확(`.unique()`·default 표기 = 타입 전용). quality 리뷰 Approve — 아래 2건은 후속 태스크 계약:
+- **Task 4 주의(타입 경계)**: `crm.quotes.sentAt/validUntil`은 drizzle mode 미지정(=Date), `AdvisorQuoteUpsert`는 string(public-app.ts 관례) — 발송 훅에서 `q.sentAt.toISOString()` 변환 필수(plan 스케치의 `q.sentAt!` 그대로는 타입 에러).
+- **Task 4 추가(modelYear)**: `crm.quotes`에 model_year 컬럼 없음 — 카드 sublineLabel "YYYY년식"은 `quotes.trimId → catalog.trims.model_year` 조인으로 조달(trimId null이면 null, 조립기는 null 허용). 클라 출처 = `useQuoteWorkbench.ts:199` `trimDetail?.modelYear`.
+- **Task 5/6 주의(Map 시맨틱)**: `listAdvisorViewedAt`는 "행 없음(absent)=앱 미전달"과 "null=전달·미열람"을 구분한다. `get() ?? fallback` 병합은 이 구분을 접지만 SSOT상 fallback이 항상 null이라 무해. 단 **Task 6 배지는 `detail.appUserId` 있는 고객만 노출**(앱 미연결 고객의 내부 발송에 "미열람" 오표기 방지).
