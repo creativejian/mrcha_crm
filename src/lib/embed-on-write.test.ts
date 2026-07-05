@@ -98,6 +98,21 @@ test("scheduleEmbedOnWrite: EMBED_ON_WRITE=off / 키 부재 → no-op(dbHold 미
   }
 });
 
+test("scheduleEmbedOnWrite: 플래그 미지정 + NODE_ENV=test → 기본 off(no-op) — 스크립트 우회 직접 실행 오염 가드", () => {
+  arm({ snap: { customerId: "c1", customerName: "김민준", text: "x" }, existingHash: null });
+  const savedFlag = process.env.EMBED_ON_WRITE;
+  delete process.env.EMBED_ON_WRITE; // process.env 폴백 차단 — env에도 미지정이라 flag=undefined
+  try {
+    // bun test는 NODE_ENV=test를 자동 설정(1.3.14 실측) — 명시적 on 없이는 게이트가 막아야 한다
+    expect(process.env.NODE_ENV).toBe("test");
+    const { ctx, held } = fakeHookContext({ GEMINI_API_KEY: "k" });
+    scheduleEmbedOnWrite(ctx, JOB);
+    expect(held()).toBeUndefined();
+  } finally {
+    if (savedFlag !== undefined) process.env.EMBED_ON_WRITE = savedFlag;
+  }
+});
+
 test("scheduleEmbedOnWrite: 프록시URL+무Authorization → resolveGeminiTarget throw를 흡수(no-op·dbHold 미등록)", () => {
   arm({ snap: { customerId: "c1", customerName: "김민준", text: "x" }, existingHash: null });
   const { ctx, held } = fakeHookContext(

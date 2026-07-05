@@ -59,12 +59,16 @@ export function scheduleEmbedOnWrite(c: HookContext, job: EmbedOnWriteJob): void
   try {
     const env = (c.env ?? {}) as { GEMINI_API_KEY?: string; GEMINI_PROXY_URL?: string; EMBED_ON_WRITE?: string };
     const apiKey = env.GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
-    const flag = env.EMBED_ON_WRITE ?? process.env.EMBED_ON_WRITE;
     // sentinel 정규화 — 킬스위치 오타("OFF", " off")가 fail-open(실 Gemini 호출)되는 방향이 나쁘다.
-    if (!apiKey || flag?.trim().toLowerCase() === "off") {
+    const flag = (env.EMBED_ON_WRITE ?? process.env.EMBED_ON_WRITE)?.trim().toLowerCase();
+    // 게이트 3규칙: ①명시적 off는 항상 off ②bun test(NODE_ENV=test 자동 설정)에서는 기본 off —
+    // 명시적 on만 허용(test:server의 off 프리픽스를 우회한 `bun test <파일>` 직접 실행이
+    // 실 Gemini 호출+master crm.embeddings 오염을 낸 실사고 방지, 2026-07-05)
+    // ③그 외(로컬 dev·prod)는 키 있으면 on.
+    if (!apiKey || flag === "off" || (flag !== "on" && process.env.NODE_ENV === "test")) {
       if (!gateSkipWarned) {
         gateSkipWarned = true;
-        console.warn("[embed-on-write] 증분 임베딩 비활성(키 부재 또는 EMBED_ON_WRITE=off) — 이후 동일 skip은 무로그");
+        console.warn("[embed-on-write] 증분 임베딩 비활성(키 부재·EMBED_ON_WRITE=off·NODE_ENV=test 기본 off) — 이후 동일 skip은 무로그");
       }
       return; // 키 없는 환경·테스트(EMBED_ON_WRITE=off)는 임베딩 없이 저장만
     }
