@@ -2,8 +2,11 @@
 // 앱은 재계산·재포맷 없이 그대로 렌더한다(발송본 고정 — 계약: ref/2026-07-05-app-advisor-quotes-handoff.md 2절).
 //
 // ⚠️ 라벨 파리티 tripwire: 아래 라벨 로직·문구·포맷은 클라 buildAppCardModel(client/src/lib/app-card.ts)에서
-// 복사한 재현본이다. 한쪽을 수정하면 반드시 양쪽 + 파리티 테스트(Task 3, client/src/lib/app-card-payload-parity.test.ts)를
-// 함께 갱신할 것 — doc-types 파리티 가드와 같은 원칙.
+// 복사한 재현본이다. 파리티 테스트(client/src/lib/app-card-payload-parity.test.ts)가 드리프트를 잡는다 —
+// doc-types 파리티 가드와 같은 원칙. 카드 라벨/필드 변경 시 갱신 대상 3곳:
+//   ① 이 서버 조립기 — payload 스냅샷 생산
+//   ② 인계문 payload 계약표 ref/2026-07-05-app-advisor-quotes-handoff.md 2절 — Flutter가 소비하는 계약 SSOT
+//   ③ Flutter 앱(mr-cha-app) 렌더 위젯 — payload 소비자
 //
 // 순수 모듈: drizzle/클라 import 금지(입력은 DB 행 모양의 구조적 타입), Node/bun 전용 API 금지.
 // vitest(클라 테스트)가 상대경로로 import해 클라 조립기와 파리티 비교한다.

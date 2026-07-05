@@ -13,8 +13,11 @@ import type { ScenarioInput } from "./customer-quotes";
 import { computePricing } from "./quote-pricing";
 
 // ⚠️ 파리티 가드: 클라 app-card.ts(buildAppCardModel) ↔ 서버 src/lib/app-card-payload.ts(buildAdvisorQuotePayload)
-// 라벨 로직·문구·포맷은 복제 재현 관계다. 한쪽을 수정하면 반드시 양쪽을 함께 갱신할 것 —
-// 이 테스트가 드리프트를 기계적으로 잡는다(doc-type-parity/roles-parity와 같은 tripwire 패턴).
+// 라벨 로직·문구·포맷은 복제 재현 관계다. 이 테스트가 드리프트를 기계적으로 잡는다
+// (doc-type-parity/roles-parity와 같은 tripwire 패턴). red가 나면(=클라 카드 라벨/필드 변경) 갱신 대상은 3곳:
+//   ① 서버 조립기 src/lib/app-card-payload.ts — payload 스냅샷 생산
+//   ② 인계문 payload 계약표 ref/2026-07-05-app-advisor-quotes-handoff.md 2절 — Flutter가 소비하는 계약 SSOT
+//   ③ Flutter 앱(mr-cha-app) 렌더 위젯 — payload 소비자
 // 비교 계약: payload = 클라 모델 − {statusLabel, ddayLabel}(앱이 컬럼에서 계산) + payloadVersion.
 
 // 앱이 viewed_at/valid_until 컬럼으로 계산하는 클라 전용 표시 필드(스냅샷하면 "D-7" 박제 버그 — 스펙 결정 2).
@@ -99,10 +102,10 @@ const installmentScenario: AdvisorPayloadScenarioRow = {
   residualValue: "43094000",
 };
 
-// 동일 의미 픽스처 2벌을 한 시나리오 행에서 조립한다.
+// 동일 의미 픽스처 2벌을 한 시나리오 행에서 조립한다(null = 대표 시나리오 없는 견적).
 // 서버 행(AdvisorPayloadScenarioRow)은 클라 ScenarioInput의 구조적 부분집합이라 그대로 재사용 —
 // 값 대응(운용리스 "30" ↔ "30" 등)을 손으로 두 벌 쓰다 어긋나는 실수를 원천 차단한다.
-function buildBoth(scenario: AdvisorPayloadScenarioRow): { clientModel: AppCardModel; payload: AdvisorQuotePayload } {
+function buildBoth(scenario: AdvisorPayloadScenarioRow | null): { clientModel: AppCardModel; payload: AdvisorQuotePayload } {
   const serverQuote: AdvisorPayloadQuoteRow = {
     quoteCode: QUOTE_CODE,
     brandName: "BMW",
@@ -123,7 +126,7 @@ function buildBoth(scenario: AdvisorPayloadScenarioRow): { clientModel: AppCardM
     guidance,
   };
 
-  const clientScenario: ScenarioInput = scenario;
+  const clientScenario: ScenarioInput | null = scenario;
   const clientInput: AppCardModelInput = {
     brandName: "BMW",
     modelName: "5 Series",
@@ -146,7 +149,8 @@ function buildBoth(scenario: AdvisorPayloadScenarioRow): { clientModel: AppCardM
     interiorColorName: "블랙",
     guidance,
     // 클라는 워크벤치 state, 서버는 대표 시나리오 행에서 조달 — 같은 견적이면 같은 값(서버 조립기 주석 참조).
-    purchaseMethod: scenario.purchaseMethod ?? "",
+    // 시나리오 없으면 서버가 ""를 쓰므로 클라 입력도 ""로 대응(동일 의미).
+    purchaseMethod: scenario?.purchaseMethod ?? "",
     scenario: clientScenario,
     quoteCode: QUOTE_CODE,
     appStatus: "sent",
@@ -168,7 +172,13 @@ function assertParity(clientModel: AppCardModel, payload: AdvisorQuotePayload): 
     ...Object.keys(clientModel).filter((k) => !CLIENT_ONLY_KEYS.includes(k)),
     "payloadVersion",
   ].sort();
-  expect(Object.keys(payload).sort()).toEqual(expectedKeys);
+  expect(
+    Object.keys(payload).sort(),
+    "payload 키 집합 드리프트 — 새 표시 필드는 서버 조립기(src/lib/app-card-payload.ts)·인계문 계약표(ref/2026-07-05-app-advisor-quotes-handoff.md 2절)·Flutter 앱(mr-cha-app) 3곳에 전파할 것",
+  ).toEqual(expectedKeys);
+
+  // payloadVersion 값 고정 — 키 존재는 위 잠금이 보지만 값(계약 버전)은 별도 검증.
+  expect(payload.payloadVersion).toBe(1);
 
   // 공유 키 전부 값 비교 — 실패 메시지에 키 이름을 실어 어느 라벨이 어긋났는지 바로 보이게 한다.
   const clientRec: Record<string, unknown> = clientModel;
@@ -195,6 +205,12 @@ describe("발송 payload 클라↔서버 파리티", () => {
     const { clientModel, payload } = buildBoth(installmentScenario);
     expect(clientModel.downPaymentRowLabel).toBe("선납금");
     expect(clientModel.downPaymentLabel).toBe("10,000,000원");
+    assertParity(clientModel, payload);
+  });
+
+  it("시나리오 없음 — null 폴백(조건 미정·금융사 미정·계산 후 안내 등)까지 전 필드 일치", () => {
+    const { clientModel, payload } = buildBoth(null);
+    expect(clientModel.hasScenario).toBe(false);
     assertParity(clientModel, payload);
   });
 });
