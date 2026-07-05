@@ -60,7 +60,6 @@ async function main() {
         needMethod: c.method,
         receivedAt: toTimestamp(c.receivedAt),
         assignedAt: toTimestamp(c.assignedAt),
-        lastActivityAt: toTimestamp(c.date),
       })
       .onConflictDoNothing({ target: customers.customerCode })
       .returning({ id: customers.id });

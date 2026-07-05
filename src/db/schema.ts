@@ -12,6 +12,7 @@ import {
   date,
   check,
   customType,
+  index,
   unique,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -77,7 +78,7 @@ export const customers = crm.table("customers", {
   source: text("source"),
   sourceConsultationId: uuid("source_consultation_id"), // → public.consultations.id (FK: Phase B)
   receivedAt: timestamp("received_at", { withTimezone: true }),
-  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
+  // last_activity_at 컬럼은 drop(0017) — 관리 상태는 GREATEST 파생(queries/customers.ts staffActivityAt)이 대체.
   recontacted: boolean("recontacted").default(false).notNull(),
   aiSummary: text("ai_summary"),
   needModel: text("need_model"),
@@ -117,7 +118,11 @@ export const customerTasks = crm.table("customer_tasks", {
   body: text("body"),
   done: boolean("done").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, (t) => [check("customer_tasks_category_check", inListCheck(t.category, TASK_CATEGORY_OPTIONS))]);
+}, (t) => [
+  check("customer_tasks_category_check", inListCheck(t.category, TASK_CATEGORY_OPTIONS)),
+  // 목록 관리 상태 파생(staffActivityAt)의 상관 서브쿼리 max(created_at) 패턴용 — 고객 행당 seq scan 방지.
+  index("customer_tasks_customer_id_created_at_idx").on(t.customerId, t.createdAt),
+]);
 
 export const customerSchedules = crm.table("customer_schedules", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -130,7 +135,10 @@ export const customerSchedules = crm.table("customer_schedules", {
   memo: text("memo"),
   done: boolean("done").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, (t) => [check("customer_schedules_type_check", inListCheck(t.type, SCHEDULE_TYPE_OPTIONS))]);
+}, (t) => [
+  check("customer_schedules_type_check", inListCheck(t.type, SCHEDULE_TYPE_OPTIONS)),
+  index("customer_schedules_customer_id_created_at_idx").on(t.customerId, t.createdAt),
+]);
 
 export const customerDocuments = crm.table("customer_documents", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -146,7 +154,10 @@ export const customerDocuments = crm.table("customer_documents", {
   thumbPath: text("thumb_path"),
   sortOrder: integer("sort_order"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, (t) => [check("customer_documents_doc_type_check", inListCheck(t.docType, DOC_TYPE_OPTIONS))]);
+}, (t) => [
+  check("customer_documents_doc_type_check", inListCheck(t.docType, DOC_TYPE_OPTIONS)),
+  index("customer_documents_customer_id_created_at_idx").on(t.customerId, t.createdAt),
+]);
 
 export const customerMemos = crm.table("customer_memos", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -155,7 +166,7 @@ export const customerMemos = crm.table("customer_memos", {
     .references(() => customers.id, { onDelete: "cascade" }),
   body: text("body"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [index("customer_memos_customer_id_created_at_idx").on(t.customerId, t.createdAt)]);
 
 // CRM 상담 이력/타임라인 — app public.consultations 와 별개.
 export const consultations = crm.table("consultations", {
