@@ -1,13 +1,17 @@
 import { and, asc, eq, like, sql } from "drizzle-orm";
 
 import { buildAdvisorQuotePayload } from "../../lib/app-card-payload";
+import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
 import { pickPrimaryScenario } from "../../lib/primary-scenario";
 import { trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
-import { advisorQuotes, quoteRequests } from "../public-app";
+import { quoteRequests } from "../public-app";
 import { quotes, quoteScenarios } from "../schema";
 import { completeQuoteRequest, deleteAdvisorQuoteByCrmQuoteId, reopenQuoteRequestIfUndelivered, upsertAdvisorQuote } from "./advisor-quotes";
 import { getCustomerAppUserId } from "./customers";
+
+// 발송 시 유효기간 7일(앱카드 D-day 정책 — 갭ⓐ, 2026-07-04 이사님 결정).
+const SENT_VALID_MS = 7 * 86_400_000;
 
 // 추가 안내 사항(앱 노출용). client/src/data/quote-guidance.ts QuoteGuidance와 동형.
 export type QuoteGuidanceInput = {
@@ -100,11 +104,11 @@ function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
   if (p.appStatus !== undefined) {
     set.appStatus = p.appStatus;
     if (p.appStatus === "sent") {
-      // 발송 시 서버가 시각 확정 + 유효기간 7일 자동 스탬프(갭ⓐ, 2026-07-04 이사님 결정).
+      // 발송 시 서버가 시각 확정 + 유효기간 자동 스탬프(갭ⓐ, 2026-07-04 이사님 결정).
       // 재발송도 재스탬프(유효기간 리셋 — 수정 후 재발송이 새 유효기간을 갖는 의도된 동작).
       const sentAt = new Date();
       set.sentAt = sentAt;
-      set.validUntil = new Date(sentAt.getTime() + 7 * 86_400_000);
+      set.validUntil = new Date(sentAt.getTime() + SENT_VALID_MS);
     }
   }
   if (p.trimId !== undefined) set.trimId = p.trimId;
@@ -177,8 +181,8 @@ export async function updateQuote(
     const { primaryId } = await insertScenarios(ex, quoteId, patch.scenarios);
     await ex.update(quotes).set({ primaryScenarioId: primaryId }).where(eq(quotes.id, quoteId));
   } else if (patch.scenario) {
-    // 대표 시나리오 1건 갱신(헤더 PATCH와 함께 온 경우) — 갱신된 대표 기준.
-    const target = scs.find((s) => s.id === primaryId) ?? scs[0];
+    // 대표 시나리오 1건 갱신(헤더 PATCH와 함께 온 경우) — 갱신된 대표 기준(선택 규칙 SSOT).
+    const target = pickPrimaryScenario(scs, primaryId);
     if (target) {
       await ex.update(quoteScenarios).set(scenarioSet(patch.scenario)).where(eq(quoteScenarios.id, target.id));
     }
@@ -270,36 +274,31 @@ export async function deleteQuote(
   quoteId: string,
   ex: Executor = getDefaultDb(),
 ): Promise<{ id: string } | null> {
-  // 회수 전에 보낸 카드의 요청 연결을 확보 — 회수 후 잔여 카드 0이면 요청 status 복원에 쓴다.
-  // crm.quotes.source_quote_request_id 대신 advisor 행의 값을 읽는 이유: 앱 화면을 지배하는 건 advisor 쪽이고,
-  // dangling 강등(null)까지 반영된 정합값이라서. 미발송 견적은 행이 없어 복원 자체가 무관.
-  const [advisorRow] = await ex
-    .select({ quoteRequestId: advisorQuotes.quoteRequestId })
-    .from(advisorQuotes)
-    .where(eq(advisorQuotes.crmQuoteId, quoteId));
   const [row] = await ex
     .delete(quotes)
     .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)))
     .returning({ id: quotes.id });
   if (!row) return null;
-  // 보낸 카드 회수(스펙 확정 결정 7): loose id라 CASCADE가 없어 직접 삭제. 미발송 견적은 행이 없어 no-op.
-  await deleteAdvisorQuoteByCrmQuoteId(quoteId, ex);
-  // 마지막 카드 회수면 요청 completed→open 복원(앱 정책 제안 2026-07-05 — "완료인데 견적 없음" 모순 방지).
-  if (advisorRow?.quoteRequestId) await reopenQuoteRequestIfUndelivered(advisorRow.quoteRequestId, ex);
+  try {
+    // 보낸 카드 회수(스펙 확정 결정 7): loose id라 CASCADE가 없어 직접 삭제. 미발송 견적은 행이 없어 no-op.
+    // RETURNING으로 요청 연결을 함께 회수 — crm.quotes.source_quote_request_id 대신 advisor 행 값을 쓰는 이유:
+    // 앱 화면을 지배하는 건 advisor 쪽이고, dangling 강등(null)까지 반영된 정합값이라서.
+    const recalled = await deleteAdvisorQuoteByCrmQuoteId(quoteId, ex);
+    // 마지막 카드 회수면 요청 completed→open 복원(앱 정책 제안 2026-07-05 — "완료인데 견적 없음" 모순 방지).
+    if (recalled?.quoteRequestId) await reopenQuoteRequestIfUndelivered(recalled.quoteRequestId, ex);
+  } catch (e) {
+    // 회수도 발송처럼 저빈도·고중요(실패 시 앱에 유령 카드) — 트랜잭션 롤백 전 사후 진단 로그를 남긴다.
+    console.error(`[advisor-quotes] 카드 회수/요청 복원 실패 quote=${quoteId}:`, e);
+    throw e;
+  }
   return row;
 }
 
-// 다음 견적 코드 QT-YYMM-#### (현재월 기준, 기존 최대 시퀀스 +1). UNIQUE 컬럼이라 서버가 canonical 생성.
+// 다음 견적 코드 QT-YYMM-#### (KST 현재월 기준, 기존 최대 시퀀스 +1). UNIQUE 컬럼이라 서버가 canonical 생성.
 export async function nextQuoteCode(ex: Executor = getDefaultDb()): Promise<string> {
-  const now = new Date();
-  const yymm = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const prefix = `QT-${yymm}-`;
+  const prefix = `QT-${yymmKstOf()}-`;
   const rows = await ex.select({ code: quotes.quoteCode }).from(quotes).where(like(quotes.quoteCode, `${prefix}%`));
-  const max = rows.reduce((m, r) => {
-    const match = r.code.match(/-(\d{4})$/);
-    return match ? Math.max(m, Number(match[1])) : m;
-  }, 0);
-  return `${prefix}${String(max + 1).padStart(4, "0")}`;
+  return nextSequenceCode(prefix, rows.map((r) => r.code));
 }
 
 // 생성 바디(라우트 zod와 동형). 헤더 + 대표 시나리오 1건. #4c-2: 가격/색상/옵션 스냅샷(전부 optional, composer는 미전송).

@@ -1,5 +1,6 @@
 import { desc, eq, inArray, like, or } from "drizzle-orm";
 
+import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles, quoteRequestOptions, quoteRequests } from "../public-app";
@@ -249,18 +250,12 @@ export async function getQuoteRequestDetail(
   };
 }
 
-// 다음 고객 코드 CU-YYMM-#### (현재월 기준, 기존 최대 시퀀스 +1). customer_code UNIQUE라 서버가 canonical 생성.
-// customer-quotes.ts nextQuoteCode와 동형(QT→CU, quotes→customers).
+// 다음 고객 코드 CU-YYMM-#### (KST 현재월 기준, 기존 최대 시퀀스 +1). customer_code UNIQUE라 서버가 canonical 생성.
+// 공통 로직은 lib/business-code.ts(nextQuoteCode와 공유).
 export async function nextCustomerCode(ex: Executor = getDefaultDb()): Promise<string> {
-  const now = new Date();
-  const yymm = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const prefix = `CU-${yymm}-`;
+  const prefix = `CU-${yymmKstOf()}-`;
   const rows = await ex.select({ code: customers.customerCode }).from(customers).where(like(customers.customerCode, `${prefix}%`));
-  const max = rows.reduce((m, r) => {
-    const match = r.code.match(/-(\d{4})$/);
-    return match ? Math.max(m, Number(match[1])) : m;
-  }, 0);
-  return `${prefix}${String(max + 1).padStart(4, "0")}`;
+  return nextSequenceCode(prefix, rows.map((r) => r.code));
 }
 
 // payment_method 한글 — S1 프론트 PAYMENT_METHOD_LABEL과 동일 어휘. customers.need_method는 한글로 저장한다.

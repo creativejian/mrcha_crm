@@ -28,3 +28,22 @@ export function resolveGeminiTarget(opts: {
 export function geminiHeaders(target: GeminiTarget): Record<string, string> {
   return { "Content-Type": "application/json", "x-goog-api-key": target.apiKey, ...target.extraHeaders };
 }
+
+// 요청 컨텍스트 → target 배선의 단일 소스(백엔드 Gemini 호출자 공용 — assistant /ask·embed-on-write).
+// env 읽기 규칙: CF Pages는 c.env, 로컬(Bun.serve)은 c.env가 Bun Server 객체라 GEMINI_* 키가 없어
+// process.env 폴백. apiKey 부재 시 null 반환 — 500 응답 vs 조용한 no-op 같은 정책은 호출부 책임.
+// 프록시 설정 + Authorization 부재는 resolveGeminiTarget이 throw(전 호출자가 staff JWT 뒤라 실경로 없음).
+// 구조적 타입 — hono Context가 Variables에 invariant라 교차 Variables 라우트가 못 들어오는 문제 회피.
+export function resolveGeminiTargetFromRequest(c: {
+  env: unknown;
+  req: { header: (name: string) => string | undefined };
+}): GeminiTarget | null {
+  const env = (c.env ?? {}) as { GEMINI_API_KEY?: string; GEMINI_PROXY_URL?: string };
+  const apiKey = env.GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  return resolveGeminiTarget({
+    apiKey,
+    proxyUrl: env.GEMINI_PROXY_URL ?? process.env.GEMINI_PROXY_URL,
+    authHeader: c.req.header("Authorization"),
+  });
+}

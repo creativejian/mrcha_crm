@@ -20,40 +20,38 @@ export type AdvisorQuoteUpsert = {
 // 발송/재발송: crm_quote_id UNIQUE conflict 시 전체 교체 + viewed_at NULL 리셋.
 // 재발송본은 내용이 바뀐 새 카드라 앱 사용자 입장에서 "다시 미확인"이 맞다(spec 결정).
 export async function upsertAdvisorQuote(v: AdvisorQuoteUpsert, ex: Executor = getDefaultDb()): Promise<void> {
+  // insert values ↔ conflict set 공통 1벌 — 필드 추가 시 set 누락으로 "재발송이 일부 필드만 교체"되는 무음 드리프트 방지.
+  const common = {
+    userId: v.userId,
+    quoteRequestId: v.quoteRequestId,
+    quoteCode: v.quoteCode,
+    revision: v.revision,
+    vehicleLabel: v.vehicleLabel,
+    monthlyPayment: v.monthlyPayment,
+    payload: v.payload,
+    sentAt: v.sentAt,
+    validUntil: v.validUntil,
+  };
   await ex
     .insert(advisorQuotes)
-    .values({
-      userId: v.userId,
-      quoteRequestId: v.quoteRequestId,
-      crmQuoteId: v.crmQuoteId,
-      quoteCode: v.quoteCode,
-      revision: v.revision,
-      vehicleLabel: v.vehicleLabel,
-      monthlyPayment: v.monthlyPayment,
-      payload: v.payload,
-      sentAt: v.sentAt,
-      validUntil: v.validUntil,
-    })
+    .values({ ...common, crmQuoteId: v.crmQuoteId })
     .onConflictDoUpdate({
       target: advisorQuotes.crmQuoteId,
-      set: {
-        userId: v.userId,
-        quoteRequestId: v.quoteRequestId,
-        quoteCode: v.quoteCode,
-        revision: v.revision,
-        vehicleLabel: v.vehicleLabel,
-        monthlyPayment: v.monthlyPayment,
-        payload: v.payload,
-        sentAt: v.sentAt,
-        validUntil: v.validUntil,
-        viewedAt: null,
-      },
+      set: { ...common, viewedAt: null },
     });
 }
 
-// 견적 삭제 시 보낸 카드 회수. 발송된 적 없는 견적이면 행이 없다 — no-op(멱등).
-export async function deleteAdvisorQuoteByCrmQuoteId(crmQuoteId: string, ex: Executor = getDefaultDb()): Promise<void> {
-  await ex.delete(advisorQuotes).where(eq(advisorQuotes.crmQuoteId, crmQuoteId));
+// 견적 삭제 시 보낸 카드 회수. 발송된 적 없는 견적이면 행이 없다 — null(멱등).
+// RETURNING으로 요청 연결을 함께 반환 — 호출부(deleteQuote)가 pre-select 없이 reopen 분기에 쓴다.
+export async function deleteAdvisorQuoteByCrmQuoteId(
+  crmQuoteId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<{ quoteRequestId: string | null } | null> {
+  const [row] = await ex
+    .delete(advisorQuotes)
+    .where(eq(advisorQuotes.crmQuoteId, crmQuoteId))
+    .returning({ quoteRequestId: advisorQuotes.quoteRequestId });
+  return row ?? null;
 }
 
 // 발송 시 원 견적요청 완료 전이. UPDATE가 상수 set이라 재호출해도 같은 결과(멱등),

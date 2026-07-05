@@ -6,7 +6,7 @@ import { deleteEmbeddingBySource, getEmbeddingHash, upsertEmbedding } from "../d
 import { holdWork } from "../middleware/db";
 import { buildChunkContent, contentHash } from "./assistant-corpus";
 import { embedTexts } from "./gemini-embed";
-import { resolveGeminiTarget, type GeminiTarget } from "./gemini-target";
+import { resolveGeminiTargetFromRequest, type GeminiTarget } from "./gemini-target";
 
 // 증분 임베딩(스펙 2026-07-05): 쓰기 라우트가 성공 직후 scheduleEmbedOnWrite를 호출하면
 // 응답 반환 후 백그라운드에서 fresh read→hash 비교→임베딩→upsert가 돈다. 실패는 로그만
@@ -57,8 +57,7 @@ let gateSkipWarned = false;
 // 저장 성공 경로에서 호출. 어떤 경우에도 throw하지 않는다(저장 응답 불변) — 게이트 미충족은 조용히 no-op.
 export function scheduleEmbedOnWrite(c: HookContext, job: EmbedOnWriteJob): void {
   try {
-    const env = (c.env ?? {}) as { GEMINI_API_KEY?: string; GEMINI_PROXY_URL?: string; EMBED_ON_WRITE?: string };
-    const apiKey = env.GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
+    const env = (c.env ?? {}) as { EMBED_ON_WRITE?: string };
     // sentinel 정규화 — 킬스위치 오타("OFF", " off")가 fail-open(실 Gemini 호출)되는 방향이 나쁘다.
     const flag = (env.EMBED_ON_WRITE ?? process.env.EMBED_ON_WRITE)?.trim().toLowerCase();
     // 게이트 3규칙: ①명시적 off는 항상 off ②bun test(NODE_ENV=test 자동 설정)에서는 기본 off —
@@ -67,19 +66,17 @@ export function scheduleEmbedOnWrite(c: HookContext, job: EmbedOnWriteJob): void
     // ③그 외(로컬 dev·prod)는 키 있으면 on.
     // 전제: bun은 NODE_ENV가 미설정일 때만 test로 자동 세팅한다 — 셸에 NODE_ENV가 export된 환경에선
     // ②가 무력화될 수 있어 test:server의 EMBED_ON_WRITE=off 프리픽스가 1차 방어로 잔존한다.
-    if (!apiKey || flag === "off" || (flag !== "on" && process.env.NODE_ENV === "test")) {
+    const gatedOff = flag === "off" || (flag !== "on" && process.env.NODE_ENV === "test");
+    // env→target 배선 SSOT(gemini-target.ts) — 키 부재는 null, 프록시 설정 시 서울 핀+Authorization 포워딩(#144).
+    // 게이트 off가 target 해석보다 먼저다(해석은 프록시 오설정 시 throw 가능 — 킬스위치는 무조건 조용히 skip).
+    const target = gatedOff ? null : resolveGeminiTargetFromRequest(c);
+    if (!target) {
       if (!gateSkipWarned) {
         gateSkipWarned = true;
         console.warn("[embed-on-write] 증분 임베딩 비활성(키 부재·EMBED_ON_WRITE=off·NODE_ENV=test 기본 off) — 이후 동일 skip은 무로그");
       }
       return; // 키 없는 환경·테스트(EMBED_ON_WRITE=off)는 임베딩 없이 저장만
     }
-    // prod는 GEMINI_PROXY_URL 설정 시 서울 핀 프록시 경유(#144) — Authorization 포워딩 필수.
-    const target = resolveGeminiTarget({
-      apiKey,
-      proxyUrl: env.GEMINI_PROXY_URL ?? process.env.GEMINI_PROXY_URL,
-      authHeader: c.req.header("Authorization"),
-    });
     const task = runEmbedJob(job, target, c.var.db).then(
       (outcome) => { if (outcome !== "unchanged") console.log(`[embed-on-write] ${job.sourceType}/${job.sourceId} ${outcome}`); },
       (e) => console.error(`[embed-on-write] ${job.sourceType}/${job.sourceId} 실패:`, e),

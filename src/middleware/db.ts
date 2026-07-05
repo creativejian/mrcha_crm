@@ -25,15 +25,17 @@ export function tryWaitUntil(c: Pick<Context, "executionCtx">, p: Promise<unknow
 // 두 배선을 헬퍼 하나로 묶는 이유: 개별 배선은 누락해도 로컬(bun 싱글톤 db·executionCtx 없음)에선
 // 정상 동작하고 prod에서만 P0가 된다(#143 실사고 — 신규 스트리밍 라우트가 이 헬퍼만 쓰면 구조적으로 안전).
 // 파라미터는 구조적 타입 — hono Context가 Variables에 invariant라 교차 Variables 라우트가 못 들어온다.
-// 주의: 기존 dbHold를 덮어쓴다(holdWork와 달리 체인 안 함). 같은 요청에서 holdWork와 섞어 쓰려면
-// 이 함수를 먼저 호출할 것 — 현재 유일 호출처(assistant 스트리밍)는 holdWork와 공존하지 않는다.
+// holdWork 위임이라 기존 dbHold와 체인한다 — 같은 요청에서 holdWork(예: 쓰기 훅)와 순서 무관하게 안전
+// (과거엔 덮어쓰기라 "먼저 호출" 주석 규약에 의존했다 — 0705 배치 B에서 계약 통일).
 export function holdStreamLifetime(
-  c: Pick<Context, "executionCtx"> & { set: (key: "dbHold", value: Promise<unknown>) => void },
+  c: Pick<Context, "executionCtx"> & {
+    get: (key: "dbHold") => Promise<unknown> | undefined;
+    set: (key: "dbHold", value: Promise<unknown>) => void;
+  },
 ): () => void {
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
-  c.set("dbHold", held);
-  tryWaitUntil(c, held);
+  holdWork(c, held);
   return release;
 }
 

@@ -111,6 +111,10 @@ async function cleanupOrphans() {
 }
 
 async function main() {
+  // 고아 정리를 선두에서 — 임베딩 단계의 throw(매핑 불일치 등)가 정리를 건너뛰지 않게 하고,
+  // 고아 제거 후 hash 스캔 대상도 줄어든다(임베딩과 완전 독립이라 순서 의존 없음).
+  await cleanupOrphans();
+
   const rows = await gather();
   const contents = rows.map(buildChunkContent);
   const hashes = contents.map(contentHash);
@@ -138,8 +142,6 @@ async function main() {
     } catch (e) { console.error(`upsert 실패 ${rows[i].sourceType}/${rows[i].sourceId}:`, e); }
   }
   console.log(`백필 완료: ${ok}/${pendingIdx.length} upsert`);
-
-  await cleanupOrphans();
   process.exit(0);
 }
 

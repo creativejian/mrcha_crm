@@ -17,7 +17,7 @@ import {
 import { embedTexts } from "../lib/gemini-embed";
 import { generateAnswer, generateAnswerStream } from "../lib/gemini-generate";
 import { resolveCustomerScope } from "../lib/assistant-scope";
-import { resolveGeminiTarget, type GeminiTarget } from "../lib/gemini-target";
+import { resolveGeminiTargetFromRequest, type GeminiTarget } from "../lib/gemini-target";
 import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
 import { createSseLiveness } from "../lib/sse-liveness";
@@ -80,14 +80,12 @@ assistant.patch("/messages/:id", zValidator("param", messageIdParam), zValidator
 assistant.post("/ask", zValidator("json", askSchema), async (c) => {
   const question = c.req.valid("json").question.trim();
   if (!question) return c.json({ error: "질문을 입력하세요." }, 400);
-  const apiKey = (c.env as { GEMINI_API_KEY?: string } | undefined)?.GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
-  if (!apiKey) return c.json({ error: "서버 설정 오류입니다. 관리자에게 문의하세요." }, 500);
+  // env→target 배선 SSOT(gemini-target.ts) — GEMINI_PROXY_URL 설정 시(prod) 서울 핀 릴레이 경유.
+  const target = resolveGeminiTargetFromRequest(c);
+  if (!target) return c.json({ error: "서버 설정 오류입니다. 관리자에게 문의하세요." }, 500);
 
   const staffUserId = c.var.user.id;
   try {
-    // GEMINI_PROXY_URL 설정 시(prod) Supabase Edge 릴레이 경유 — HKG 콜로 리전 차단 우회.
-    const proxyUrl = (c.env as { GEMINI_PROXY_URL?: string } | undefined)?.GEMINI_PROXY_URL ?? process.env.GEMINI_PROXY_URL;
-    const target = resolveGeminiTarget({ apiKey, proxyUrl, authHeader: c.req.header("Authorization") });
     // 히스토리 로드는 임베딩→검색 체인과 독립 — 병렬로 시작해 원격 DB 왕복 1회분 지연을 없앤다.
     const scope = resolveCustomerScope(c.var.user);
     const [history, hits] = await Promise.all([
