@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type Se
 
 import { customerStatusGroups, type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { formatActivity, formatPhone, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { finalUpdateStatus, resolveChance } from "@/lib/customer-table";
+import { resolveChance } from "@/lib/customer-table";
 import { formatAssignmentTime } from "@/lib/detail-utils";
 import { type AdvisorTeam, type CustomerTypeValue, formatAdvisorValue, formatJobValue, formatLocationValue, isAutomaticSource } from "@/lib/status-fields";
-import { deriveFinalUpdateInfo } from "@/lib/manage-status";
+import { resolveUpdateBadge } from "@/lib/manage-status";
 
 import { fieldLabel } from "../status-meta";
 import { type StatusFieldKey, type WorkflowKey, type OpenEditorState } from "../types";
@@ -50,9 +50,8 @@ export function buildTimelineRows(customer: Customer, consultations: CustomerDet
 // 상세 관리 상태 = 목록과 동일 규칙. override(워크플로우 변경) 있으면 그것, 없으면 서버 파생
 // lastActivityAt 기반 계산, 파생 불가(신규·상담접수/활동 없음)면 ""(목록처럼 공백). 무조건 "정상" 폴백 금지.
 function resolveManageStatus(override: CustomerManageStatus | undefined, customer: Customer): CustomerManageStatus | "" {
-  if (override) return override;
-  const info = deriveFinalUpdateInfo(customer);
-  return info ? (finalUpdateStatus(info).label as CustomerManageStatus) : "";
+  const { status } = resolveUpdateBadge(customer, { manageStatusOverride: override });
+  return (status?.label as CustomerManageStatus) ?? "";
 }
 
 type UseCustomerWorkflowArgs = {

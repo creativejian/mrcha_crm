@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { formatActivity } from "./customers";
-import { flattenPrimaryScenario, formatScenarioMoneyMode, toQuoteItem, viewedBadgeOf, type CustomerDetailQuote } from "./quote-items";
+import { dedupedModelTrim, downPaymentRowLabelOf, flattenPrimaryScenario, formatScenarioMoneyMode, toQuoteItem, trimWithoutModelPrefix, viewedBadgeOf, type CustomerDetailQuote } from "./quote-items";
 
 const NOW = new Date("2026-05-28T12:00:00+09:00").getTime();
 
@@ -260,6 +260,38 @@ describe("toQuoteItem viewedAt 배선 (열람 read-through 표시)", () => {
   });
 });
 
+describe("dedupedModelTrim / trimWithoutModelPrefix — 트림명 모델 접두 중복 제거(카드·견적함·워크벤치 공통 규칙)", () => {
+  it("트림명이 모델명을 접두로 포함하면 중복 없이 합친다", () => {
+    expect(dedupedModelTrim("X7", "X7 xDrive40i M Spt")).toBe("X7 xDrive40i M Spt");
+    expect(dedupedModelTrim("5시리즈", "520i M Spt")).toBe("5시리즈 520i M Spt");
+  });
+  it("빈 값은 남은 쪽만(둘 다 없으면 빈 문자열 — 폴백은 호출부)", () => {
+    expect(dedupedModelTrim(null, "트림")).toBe("트림");
+    expect(dedupedModelTrim("모델", null)).toBe("모델");
+    expect(dedupedModelTrim(null, null)).toBe("");
+  });
+  it("분리 렌더용: 트림에서 모델 접두를 걷어낸 나머지(전부 중복이면 빈 문자열)", () => {
+    expect(trimWithoutModelPrefix("X7", "X7 xDrive40i M Spt")).toBe("xDrive40i M Spt");
+    expect(trimWithoutModelPrefix("5시리즈", "520i")).toBe("520i");
+    expect(trimWithoutModelPrefix("X7", "X7")).toBe("");
+    expect(trimWithoutModelPrefix(null, "트림")).toBe("트림");
+  });
+  it("toQuoteItem vehicleName/title도 같은 규칙으로 dedupe", () => {
+    const k = toQuoteItem(makeQuote({ modelName: "X7", trimName: "X7 xDrive40i" }), NOW);
+    expect(k.vehicleName).toBe("벤츠 X7 xDrive40i");
+    expect(k.title).toBe("벤츠 X7 xDrive40i");
+  });
+});
+
+describe("downPaymentRowLabelOf — 구매방식 종속 초기비용 행 라벨(도메인 규칙 표 SSOT)", () => {
+  it("할부=선납금, 리스/렌트/미정=선수금", () => {
+    expect(downPaymentRowLabelOf("할부")).toBe("선납금");
+    expect(downPaymentRowLabelOf("운용리스")).toBe("선수금");
+    expect(downPaymentRowLabelOf(null)).toBe("선수금");
+    expect(downPaymentRowLabelOf(undefined)).toBe("선수금");
+  });
+});
+
 describe("viewedBadgeOf (견적함 열람 배지 판정)", () => {
   it("앱 미연결 고객(appUserId 없음)은 발송 카드여도 null — 내부 발송에 '미열람' 오표기 방지", () => {
     expect(viewedBadgeOf({ appStatus: "sent", viewedAt: undefined }, null)).toBeNull();
@@ -272,8 +304,6 @@ describe("viewedBadgeOf (견적함 열람 배지 판정)", () => {
   it("발송됨 + viewedAt 있으면 '고객 열람' + title에 열람 시각", () => {
     const badge = viewedBadgeOf({ appStatus: "sent", viewedAt: "26/05/28 13:05" }, "app-user-1");
     expect(badge).toEqual({ viewed: true, label: "고객 열람", title: "고객 열람 · 26/05/28 13:05" });
-    // 레거시 appStatus "viewed"도 발송됨 묶음(기존 발송 상태 표기와 동일 조건)
-    expect(viewedBadgeOf({ appStatus: "viewed", viewedAt: "26/05/28 13:05" }, "app-user-1")?.viewed).toBe(true);
   });
   it("발송됨 + viewedAt 없으면 '미열람'(조용한 톤)", () => {
     expect(viewedBadgeOf({ appStatus: "sent", viewedAt: undefined }, "app-user-1")).toEqual({ viewed: false, label: "미열람" });

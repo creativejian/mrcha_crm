@@ -173,9 +173,9 @@ describe("buildAppCardModel — 섹션 4·발송 상태", () => {
     expect(m.footerStampLabel).toBe("발송 전 미리보기");
     expect(m.quoteCodeLabel).toBe("저장 후 부여");
   });
-  it("만료·확인한 견적", () => {
-    const m = buildAppCardModel({ ...base, appStatus: "viewed", validUntilIso: "2026-07-01T00:00:00+09:00" });
-    expect(m.statusLabel).toBe("확인한 견적");
+  it("만료 표기 + statusLabel은 항상 발송자 관점 '미확인 견적'(확인/미확인은 앱이 viewed_at으로 계산)", () => {
+    const m = buildAppCardModel({ ...base, validUntilIso: "2026-07-01T00:00:00+09:00" });
+    expect(m.statusLabel).toBe("미확인 견적");
     expect(m.ddayLabel).toBe("만료됨");
   });
 });

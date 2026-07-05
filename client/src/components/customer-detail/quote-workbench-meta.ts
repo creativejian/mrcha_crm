@@ -74,7 +74,8 @@ export const emptyQuotePricing: PricingInputs = {
   delivery: 0,
   incidental: 0,
 };
-export const maybachQuotePricingResult = computePricing(emptyQuotePricing);
+// 워크벤치 pricing 초기 state(빈 기본값 계산 결과) — 이름은 목업 시절 maybachQuotePricingResult에서 정리(0705 배치 D).
+export const initialQuotePricingResult = computePricing(emptyQuotePricing);
 
 export const emptyQuoteConditionCards: ManualCard[] = [
   {

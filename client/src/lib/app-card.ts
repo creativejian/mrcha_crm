@@ -1,7 +1,7 @@
 import type { QuoteGuidance } from "@/data/quote-guidance";
 import { formatActivity } from "./customers";
 import type { ScenarioInput } from "./customer-quotes";
-import { formatTerm, validLabelFromUntil } from "./quote-items";
+import { dedupedModelTrim, downPaymentRowLabelOf, formatTerm, validLabelFromUntil } from "./quote-items";
 import { formatMoney } from "./quote-pricing";
 
 // 미리보기 카드 조립 입력. 워크벤치 state에서 추출한 스냅샷(순수 변환을 위해 원시값만 받는다).
@@ -110,14 +110,9 @@ function moneyLabelOf(raw: string | null | undefined, fallback: string): string 
   return n == null ? fallback : `${formatMoney(n)}원`;
 }
 
-// 모델+트림 표시명. 카탈로그 트림명이 모델명을 접두로 포함하는 경우(BMW 등) 중복 없이 트림명만 쓴다.
+// 모델+트림 표시명 — 중복 제거 규칙은 quote-items.dedupedModelTrim SSOT(견적함/워크벤치와 공유).
 function vehicleTitleOf(modelName: string | null, trimName: string | null): string {
-  const model = modelName?.trim() ?? "";
-  const trim = trimName?.trim() ?? "";
-  if (!model && !trim) return "차량 미선택";
-  if (!model) return trim;
-  if (!trim) return model;
-  return trim.startsWith(model) ? trim : `${model} ${trim}`;
+  return dedupedModelTrim(modelName, trimName) || "차량 미선택";
 }
 
 // mode+value 병기 포맷. percent 금액 환산 기준 = finalVehiclePrice(0이면 %만).
@@ -173,7 +168,9 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
   const totalTakeover = numOr(s?.totalTakeoverCost);
   const totalCost = totalReturn ?? totalTakeover; // 반납 우선(설계 결정 2)
   return {
-    statusLabel: input.appStatus === "viewed" ? "확인한 견적" : "미확인 견적",
+    // appStatus "viewed"는 dead 값 정리(0705 배치 D) — CRM 프리뷰는 항상 발송자 관점 "미확인 견적"
+    // (실 카드의 확인/미확인은 앱이 advisor_quotes.viewed_at으로 계산 — 서버 조립기 statusLabel 제외와 같은 이유).
+    statusLabel: "미확인 견적",
     ddayLabel: ddayLabelOf(input.validUntilIso, input.nowMs),
     brand: input.brandName ?? "차량 미선택",
     vehicleTitle: vehicleTitleOf(input.modelName, input.trimName),
@@ -214,7 +211,7 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     hasScenario: s != null,
     lenderLabel: s?.lender ?? "금융사 미정",
     downPaymentLabel: s ? moneyModeLabel(s.downPaymentMode, s.downPaymentValue, fvp, { noneLabel: "없음", percentFirst: true }) : "없음",
-    downPaymentRowLabel: input.purchaseMethod === "할부" ? "선납금" : "선수금",
+    downPaymentRowLabel: downPaymentRowLabelOf(input.purchaseMethod),
     carTaxLabel: s?.carTaxIncluded === true ? "포함" : "불포함",
     subsidyLabel: s?.subsidyApplicable === true ? moneyLabelOf(s.subsidyAmount, NO_SOURCE) : "해당 없음",
     rateLabel: rate != null ? `${rate}%` : NO_SOURCE,

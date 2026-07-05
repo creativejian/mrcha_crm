@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router";
 
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
-import { flattenPrimaryScenario, type CustomerDetailScenario, type QuoteItem } from "@/lib/quote-items";
+import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
@@ -19,7 +19,7 @@ import {
   createQuoteCode,
   emptyQuoteConditionCards,
   emptyQuotePricing,
-  maybachQuotePricingResult,
+  initialQuotePricingResult,
   quotePurchaseMethodOptions,
   normalizeQuotePurchaseMethod,
   primaryQuotePurchaseMethod,
@@ -96,7 +96,7 @@ export function useQuoteWorkbench({
   const [sourceQuoteRequestId, setSourceQuoteRequestId] = useState<string | null>(null);
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<RecognizedQuoteFile | null>(null);
   const [isQuoteWorkbenchOriginalDragActive, setIsQuoteWorkbenchOriginalDragActive] = useState(false);
-  const [pricing, setPricing] = useState<PricingResult>(maybachQuotePricingResult);
+  const [pricing, setPricing] = useState<PricingResult>(initialQuotePricingResult);
   const [pricingInputs, setPricingInputs] = useState<PricingInputs>(emptyQuotePricing);
   const [cardScenario, setCardScenario] = useState<ScenarioInput | null>(null);
   const pricingPanelRef = useRef<HTMLElement>(null);
@@ -184,8 +184,8 @@ export function useQuoteWorkbench({
   // 워크벤치 헤더 차량명: 실시간 선택(workbenchVehicle/trimDetail) 우선, prefill 로드 전엔 수정 견적 저장 텍스트로 폴백(잔상/빈깜빡임 제거).
   const editingQuote = editingQuoteId ? quoteList.quotes.find((q) => q.id === editingQuoteId) : undefined;
   const workbenchVehicleLabel =
-    [workbenchVehicle?.brand?.name, workbenchVehicle?.model?.name, trimDetail?.trimName ?? trimDetail?.name].filter(Boolean).join(" ")
-    || [editingQuote?.brand, editingQuote?.model, editingQuote?.trim].filter(Boolean).join(" ")
+    [workbenchVehicle?.brand?.name, dedupedModelTrim(workbenchVehicle?.model?.name, trimDetail?.trimName ?? trimDetail?.name)].filter(Boolean).join(" ")
+    || [editingQuote?.brand, dedupedModelTrim(editingQuote?.model, editingQuote?.trim)].filter(Boolean).join(" ")
     || "차량 미선택";
   // 앱카드 푸터/디데이용 영속 견적(수정 진입 editingQuoteId 또는 신규 첫 작성완료 persistedQuoteIdRef).
   // ref 읽기지만 quoteCode 도착(detail 재페치/quotes swap) 자체가 재렌더를 유발해 최신값이 잡힌다.
@@ -234,7 +234,12 @@ export function useQuoteWorkbench({
   }
 
   function formatJeffMoneyInput(input: HTMLInputElement) {
-    if (input.dataset.discountUnit === "percent") return;
+    if (input.dataset.discountUnit === "percent") {
+      // percent도 빈값 blur는 amount처럼 "0" 복원 — 빈 문자열 잔존이 프리필/검증 경계로 새는 것 방지.
+      // 값이 있으면 그대로(소수점 보존 — 콤마 포맷 우회가 percent 분기의 존재 이유).
+      if (!input.value.trim()) input.value = "0";
+      return;
+    }
     const value = parseMoney(input.value);
     input.value = value ? formatMoney(value) : "0";
   }
@@ -789,7 +794,7 @@ export function useQuoteWorkbench({
     const selectedOptions = trimDetail
       ? trimDetail.options.filter((o) => selectedWorkbenchOptionIds.includes(o.id)).map((o) => ({ id: o.id, name: o.name, price: o.price }))
       : [];
-    const vehicleName = [brandName, modelName, trimName].filter(Boolean).join(" ") || "차량 미선택";
+    const vehicleName = [brandName, dedupedModelTrim(modelName, trimName)].filter(Boolean).join(" ") || "차량 미선택";
     const num = (n: number | undefined | null) => (n == null ? null : String(n));
 
     // UPDATE patch / INSERT payload 공유 스냅샷 컬럼

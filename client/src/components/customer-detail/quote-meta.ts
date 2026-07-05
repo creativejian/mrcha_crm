@@ -1,22 +1,13 @@
 // 견적함 영역(9a)의 순수 표시 헬퍼 — 본체에서 이동(동작/로직 무변경).
 // JSX를 반환하는 quoteSourceIcon은 QuoteList.tsx에 둔다(이 파일은 문자열/클래스만).
+// appStatus "viewed" 분기는 dead 정리(0705 배치 D) — 아무 코드도 write하지 않고 실데이터 0,
+// 열람 표시는 viewedBadgeOf(viewedAt read-through)가 담당한다. quoteAppSendLabel(byte-동일 복제)도 통합.
 
 import { type QuoteItem } from "@/lib/quote-items";
 
-// quoteAppStatusLabel(행 상태 배지)·quoteAppSendLabel(액션 팝오버 발송 라벨)은
-// 현재 구현이 동일하지만 의미(상태 표시 / 발송 표시)가 달라 분기 여지를 위해 분리 유지한다.
+// 행 상태 배지·액션 팝오버 발송 라벨 공용(과거 2벌이었으나 구현이 갈라진 적 없어 1벌화).
 export function quoteAppStatusLabel(status: QuoteItem["appStatus"], quote?: QuoteItem) {
-  if ((quote?.revision ?? 1) > 1 && status === "viewed") return "수정 열람";
   if ((quote?.revision ?? 1) > 1 && status === "sent") return "수정 발송";
-  if (status === "viewed") return "고객 열람";
-  if (status === "sent") return "발송 완료";
-  return "발송 전";
-}
-
-export function quoteAppSendLabel(status: QuoteItem["appStatus"], quote?: QuoteItem) {
-  if ((quote?.revision ?? 1) > 1 && status === "viewed") return "수정 열람";
-  if ((quote?.revision ?? 1) > 1 && status === "sent") return "수정 발송";
-  if (status === "viewed") return "고객 열람";
   if (status === "sent") return "발송 완료";
   return "발송 전";
 }
@@ -28,16 +19,10 @@ function quoteRevisionLabel(quote: QuoteItem) {
 }
 
 export function quoteStatusDetailParts(quote: QuoteItem) {
-  if ((quote.revision ?? 1) > 1 && (quote.appStatus === "sent" || quote.appStatus === "viewed")) {
+  if ((quote.revision ?? 1) > 1 && quote.appStatus === "sent") {
     return {
       time: `${quoteRevisionLabel(quote) ?? "수정본"} · ${quote.revisedAt ?? quote.sentAt ?? "수정 시각 확인 전"}`,
-      body: quote.appStatus === "viewed" ? "수정 견적 열람 완료" : "재발송",
-    };
-  }
-  if (quote.appStatus === "viewed") {
-    return {
-      time: quote.viewedAt ?? "열람 시각 확인 전",
-      body: "고객이 견적 열람 완료",
+      body: "재발송",
     };
   }
   if (quote.appStatus === "sent") {
@@ -50,14 +35,14 @@ export function quoteStatusDetailParts(quote: QuoteItem) {
 }
 
 export function quoteDeleteConfirmTitle(quote: QuoteItem) {
-  if (quote.appStatus === "sent" || quote.appStatus === "viewed") {
+  if (quote.appStatus === "sent") {
     return "발송된 견적 삭제";
   }
   return "발송 전 견적 삭제";
 }
 
 export function quoteDeleteConfirmMessage(quote: QuoteItem) {
-  if (quote.appStatus === "sent" || quote.appStatus === "viewed") {
+  if (quote.appStatus === "sent") {
     return "고객 앱 견적함에 있는 견적도 함께 삭제됩니다.";
   }
   return "아직 고객 앱에 보내지 않은 견적입니다. 이 견적을 삭제합니다.";
