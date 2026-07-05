@@ -38,7 +38,9 @@ export function MoveTrimsDialog({
                 <select
                   className="select"
                   value={targetId ?? ""}
+                  // Safari: 팝오버 선택 시 input(신값)→controlled 복원→change(구값) 순서라 onInput 병행 필수(2026-07-05 실측).
                   onChange={(e) => setTargetId(Number(e.currentTarget.value))}
+                  onInput={(e) => setTargetId(Number(e.currentTarget.value))}
                 >
                   {targets.map((m) => (
                     <option key={m.id} value={m.id}>

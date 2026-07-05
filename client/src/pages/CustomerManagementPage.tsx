@@ -978,8 +978,13 @@ export function CustomerManagementPage({
               <span>페이지당</span>
               <select
                 className="select page-size-select"
+                // Safari: 팝오버 선택 시 input(신값)→controlled 복원→change(구값) 순서라 onInput 병행 필수(2026-07-05 실측). setState 멱등이라 이중 발화 무해.
                 onChange={(event) => {
                   setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number]);
+                  setCurrentPage(1);
+                }}
+                onInput={(event) => {
+                  setPageSize(Number(event.currentTarget.value) as (typeof pageSizeOptions)[number]);
                   setCurrentPage(1);
                 }}
                 value={pageSize}

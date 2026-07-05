@@ -1,3 +1,4 @@
+import { type SyntheticEvent } from "react";
 import { Calculator, Check, ChevronDown, ChevronRight, FilePlus2, FileText, FileUp, RotateCcw, Smartphone, Trash2, X } from "lucide-react";
 
 import { type Customer } from "@/data/customers";
@@ -113,6 +114,17 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     selectQuoteWorkbenchOriginalFile,
     dropQuoteOriginalToWorkbench,
   } = workbench.handlers;
+
+  // Safari는 select 팝오버 선택 시 input이 change보다 먼저 발화하고, React가 input 이벤트 처리 직후 controlled
+  // 값을 복원해 change 시점엔 이미 구값이다(실측: input 값=인천 → change 값=서울, 2026-07-05). onInput에서
+  // 즉시 state를 갱신해 복원을 무력화한다 — controlled select는 반드시 onChange+onInput 병행으로 바인딩할 것.
+  const bindGuidanceSelect = (field: "deliveryComment" | "stockNotice" | "expectedDelivery" | "customerRegion") => {
+    const commit = (event: SyntheticEvent<HTMLSelectElement>) => {
+      const v = event.currentTarget.value;
+      setGuidance((g) => ({ ...g, [field]: v }));
+    };
+    return { value: guidance[field], onChange: commit, onInput: commit };
+  };
 
   if (!isQuoteSolutionWorkbenchOpen) return null;
 
@@ -485,25 +497,25 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                     <div className="kim-app-guidance-grid">
                       <label>
                         <span>출고시기 코멘트</span>
-                        <select value={guidance.deliveryComment} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, deliveryComment: v })); }}>
+                        <select {...bindGuidanceSelect("deliveryComment")}>
                           {QUOTE_GUIDANCE_OPTIONS.deliveryComment.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
                       <label>
                         <span>재고여부</span>
-                        <select value={guidance.stockNotice} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, stockNotice: v })); }}>
+                        <select {...bindGuidanceSelect("stockNotice")}>
                           {QUOTE_GUIDANCE_OPTIONS.stockNotice.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
                       <label>
                         <span>예상 출고 기간</span>
-                        <select value={guidance.expectedDelivery} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, expectedDelivery: v })); }}>
+                        <select {...bindGuidanceSelect("expectedDelivery")}>
                           {QUOTE_GUIDANCE_OPTIONS.expectedDelivery.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
                       <label>
                         <span>고객 지역</span>
-                        <select value={guidance.customerRegion} onChange={(e) => { const v = e.currentTarget.value; setGuidance((g) => ({ ...g, customerRegion: v })); }}>
+                        <select {...bindGuidanceSelect("customerRegion")}>
                           {QUOTE_GUIDANCE_OPTIONS.customerRegion.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
