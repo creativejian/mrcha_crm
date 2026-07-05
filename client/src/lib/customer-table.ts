@@ -9,7 +9,6 @@ export type StagePickerLevel = "primary" | "secondary";
 
 export type FinalUpdateInfo = {
   action: string;
-  field: string;
   label: string;
   // 원본 시각 ISO — label 재파싱의 연도 하드코딩 우회. 파생 데이터만 채움, mock 맵은 없음.
   atIso?: string;

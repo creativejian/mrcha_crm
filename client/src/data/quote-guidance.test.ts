@@ -14,6 +14,11 @@ describe("normalizeQuoteGuidance", () => {
     expect(normalizeQuoteGuidance(null)).toBeNull();
     expect(normalizeQuoteGuidance(undefined)).toBeNull();
   });
+  it("keyPoint(legacy)와 keyPoints 동시 존재 시 keyPoints 우선 — 빈 배열이어도 legacy 무시(서버 guidanceOf와 동일 의미론)", () => {
+    const base = { deliveryComment: "a", stockNotice: "b", expectedDelivery: "c", customerRegion: "d", recommendReason: "r", services: [] };
+    expect(normalizeQuoteGuidance({ ...base, keyPoint: "옛값", keyPoints: ["신값"] })?.keyPoints).toEqual(["신값"]);
+    expect(normalizeQuoteGuidance({ ...base, keyPoint: "옛값", keyPoints: [] })?.keyPoints).toEqual([]);
+  });
 });
 
 describe("sanitizeQuoteGuidance", () => {

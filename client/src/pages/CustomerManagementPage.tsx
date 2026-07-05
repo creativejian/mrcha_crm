@@ -1,9 +1,9 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ADVISOR_NAMES, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
-import { badgeClass, finalUpdateStatus, finalUpdateStatusFromManage, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
+import { badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { prefetchCustomerDetail } from "@/lib/customers";
-import { deriveFinalUpdateInfo } from "@/lib/manage-status";
+import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
@@ -138,8 +138,10 @@ export function CustomerManagementPage({
     return customers.filter((customer) => {
       const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${customer.aiSummary}`.toLowerCase();
       const chance = resolveChance(customer, chanceOverrides[customer.no]);
-      const updateInfo = finalUpdateOverrides[customer.no] ?? deriveFinalUpdateInfo(customer);
-      const updateStatus = manageStatusOverrides[customer.no] ?? (updateInfo ? finalUpdateStatus(updateInfo).label : "");
+      const updateStatus = resolveUpdateBadge(customer, {
+        finalUpdateOverride: finalUpdateOverrides[customer.no],
+        manageStatusOverride: manageStatusOverrides[customer.no],
+      }).status?.label ?? "";
       return modeFilter(mode, customer) &&
         (!keyword || searchable.includes(keyword)) &&
         (!statusGroup || customer.statusGroup === statusGroup) &&
@@ -416,7 +418,7 @@ export function CustomerManagementPage({
   function markFinalUpdate(customerNo: number, field: string, action = `${field} 업데이트`) {
     setFinalUpdateOverrides((current) => ({
       ...current,
-      [customerNo]: { action, field, label: "방금 전", days: 0 },
+      [customerNo]: { action, label: "방금 전", days: 0 },
     }));
   }
 
@@ -585,10 +587,10 @@ export function CustomerManagementPage({
 
   function renderRow(customer: Customer) {
     const chance = resolveChance(customer, chanceOverrides[customer.no]);
-    const updateInfo = finalUpdateOverrides[customer.no] ?? deriveFinalUpdateInfo(customer);
-    const updateStatus = manageStatusOverrides[customer.no]
-      ? finalUpdateStatusFromManage(manageStatusOverrides[customer.no])
-      : updateInfo ? finalUpdateStatus(updateInfo) : null;
+    const { info: updateInfo, status: updateStatus } = resolveUpdateBadge(customer, {
+      finalUpdateOverride: finalUpdateOverrides[customer.no],
+      manageStatusOverride: manageStatusOverrides[customer.no],
+    });
     const operationResponseValue = showAdvisorColumn ? firstResponseDisplay(customer.assignedAt, updateInfo) : "담당 배정 후 표시";
     const twoStepPickerOpen = openStagePicker?.customerNo === customer.no ? openStagePicker.level : null;
     const nextActionEditing = editingNextAction?.customerNo === customer.no;

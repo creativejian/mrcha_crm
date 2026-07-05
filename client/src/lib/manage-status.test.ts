@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { finalUpdateStatus } from "./customer-table";
-import { deriveFinalUpdateInfo } from "./manage-status";
+import { deriveFinalUpdateInfo, resolveUpdateBadge } from "./manage-status";
 
 const NOW = new Date("2026-07-04T12:00:00+09:00");
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
@@ -49,5 +49,34 @@ describe("deriveFinalUpdateInfo", () => {
   test("미래 시각(시계 오차)은 days 0으로 클램프", () => {
     const info = deriveFinalUpdateInfo({ ...base, lastActivityAt: daysAgo(-1) }, NOW)!;
     expect(info.days).toBe(0);
+  });
+});
+
+// override 합성 규칙 SSOT — 목록 필터·행 렌더·상세 워크플로우 3곳이 공유(한쪽만 픽스되는 드리프트 방지).
+describe("resolveUpdateBadge", () => {
+  const source = { ...base, lastActivityAt: daysAgo(2) };
+
+  test("override 없음: 파생 info + 그 버킷 status", () => {
+    const { info, status } = resolveUpdateBadge(source, { now: NOW });
+    expect(info?.days).toBe(2);
+    expect(status?.label).toBe("정상");
+  });
+
+  test("finalUpdateOverride가 파생을 대체(방금 전 갱신 마킹)", () => {
+    const override = { action: "상담 메모 업데이트", label: "방금 전", days: 0 };
+    const { info, status } = resolveUpdateBadge(source, { finalUpdateOverride: override, now: NOW });
+    expect(info).toBe(override);
+    expect(status?.label).toBe("정상");
+  });
+
+  test("manageStatusOverride는 info와 무관하게 status를 결정(워크플로우 수동 변경 우선)", () => {
+    const { status } = resolveUpdateBadge(source, { manageStatusOverride: "지연", now: NOW });
+    expect(status?.label).toBe("지연");
+  });
+
+  test("파생 불가(신규·상담접수)면 둘 다 null", () => {
+    const { info, status } = resolveUpdateBadge({ ...source, statusGroup: "신규", status: "상담접수" }, { now: NOW });
+    expect(info).toBeNull();
+    expect(status).toBeNull();
   });
 });

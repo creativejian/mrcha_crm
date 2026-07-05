@@ -1,14 +1,13 @@
 import { BriefcaseBusiness, Calculator, Check, ChevronDown, Download, Eye, FilePlus2, FileText, FileUp, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Send, Star, Trash2, UserRound, X } from "lucide-react";
 
 import { type Customer } from "@/data/customers";
-import { formatMonthly, formatScenarioMoneyMode, viewedBadgeOf, type QuoteItem } from "@/lib/quote-items";
+import { downPaymentRowLabelOf, formatMonthly, formatScenarioMoneyMode, trimWithoutModelPrefix, viewedBadgeOf, type QuoteItem } from "@/lib/quote-items";
 import { formatMoney } from "@/lib/quote-pricing";
 import { formatFileSize, isDocumentFileDrag, documentFileKind, quoteValidClass } from "@/lib/detail-utils";
 import { calculateQuoteActionFrame, calculateQuoteStatusTooltip } from "@/lib/popover-frames";
 import { prefetchWorkbenchVehicle } from "@/lib/vehicles-cache";
 
 import {
-  quoteAppSendLabel,
   quoteAppStatusLabel,
   quoteDecisionLabel,
   quoteDeleteConfirmMessage,
@@ -99,6 +98,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               <div className="kim-list-empty">작성된 견적이 없습니다.</div>
             ) : quotes.map((quote) => {
               const viewedBadge = viewedBadgeOf(quote, appUserId);
+              const trimDisplay = trimWithoutModelPrefix(quote.model, quote.trim);
               return (
               <div
                 className={`kim-quote-row app-status-${quote.appStatus}${quoteDropTargetId === quote.id ? " is-file-drop-target" : ""}${openQuoteActionId === quote.id ? " is-action-open" : ""}`}
@@ -121,9 +121,9 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                 onDrop={(event) => dropQuoteFile(event, quote.id)}
               >
                 <span className="kim-quote-status-stack">
-                  {quote.appStatus === "sent" || quote.appStatus === "viewed" ? (
+                  {quote.appStatus === "sent" ? (
                     <button
-                      className={`kim-quote-status-detail ${quote.appStatus === "viewed" ? "send-viewed" : "send-sent"}${pinnedQuoteStatus?.id === quote.id ? " is-pinned" : ""}`}
+                      className={`kim-quote-status-detail send-sent${pinnedQuoteStatus?.id === quote.id ? " is-pinned" : ""}`}
                       onClick={(event) => {
                         event.stopPropagation();
                         const nextFrame = calculateQuoteStatusTooltip(event.currentTarget, quote.id);
@@ -150,7 +150,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                   <div className="kim-quote-meta-primary">
                     {quote.brand ? <span>{quote.brand}</span> : null}
                     <strong>{quote.model || quote.vehicleName || quote.title}</strong>
-                    {quote.trim ? <span>{quote.trim}</span> : null}
+                    {trimDisplay ? <span>{trimDisplay}</span> : null}
                     {quote.quoteRound ? <b>{quote.quoteRound}</b> : null}
                     {quote.sourceQuoteRequestId ? <span className="quote-source-app-badge">앱 요청</span> : null}
                     {viewedBadge ? (
@@ -227,7 +227,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                                     {monthly ? <strong>{monthly}</strong> : <span>월 납입금 미정</span>}
                                     {deposit ? <span>보증금 {deposit}</span> : null}
                                     {/* 도메인 규칙(Task 3와 동일): 구매방식이 할부면 초기비용 어휘는 "선납금" */}
-                                    {downPayment ? <span>{quote.financeType === "할부" ? "선납금" : "선수금"} {downPayment}</span> : null}
+                                    {downPayment ? <span>{downPaymentRowLabelOf(quote.financeType)} {downPayment}</span> : null}
                                     {residual ? <span>잔존 {residual}</span> : null}
                                     {scenario.mileageValue ? <span>약정 {scenario.mileageValue}</span> : null}
                                   </div>
@@ -303,13 +303,13 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
         >
           <div className="kim-quote-action-popover-head">
             <span>{openQuoteAction.quoteCode}</span>
-            <b className={openQuoteAction.appStatus === "viewed" ? "is-viewed" : openQuoteAction.appStatus === "sent" ? "is-sent" : "is-draft"}>{quoteAppSendLabel(openQuoteAction.appStatus, openQuoteAction)}</b>
+            <b className={openQuoteAction.appStatus === "sent" ? "is-sent" : "is-draft"}>{quoteAppStatusLabel(openQuoteAction.appStatus, openQuoteAction)}</b>
           </div>
           <button type="button" onClick={() => {
             setConfirmingQuoteContractId(null);
             setConfirmingQuoteDeleteId(null);
             setConfirmingQuoteContractEditId(null);
-            if (openQuoteAction.appStatus === "sent" || openQuoteAction.appStatus === "viewed") {
+            if (openQuoteAction.appStatus === "sent") {
               setPreviewSentQuoteId(openQuoteAction.id);
               setOpenQuoteActionId(null);
               setQuoteActionFrame(null);
@@ -318,8 +318,8 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               setConfirmingQuoteSendId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
             }
           }}>
-            {openQuoteAction.appStatus === "sent" || openQuoteAction.appStatus === "viewed" ? <Eye size={13} strokeWidth={2.3} /> : <Send size={13} strokeWidth={2.3} />}
-            {openQuoteAction.appStatus === "sent" || openQuoteAction.appStatus === "viewed" ? "발송 견적 보기" : "앱 발송"}
+            {openQuoteAction.appStatus === "sent" ? <Eye size={13} strokeWidth={2.3} /> : <Send size={13} strokeWidth={2.3} />}
+            {openQuoteAction.appStatus === "sent" ? "발송 견적 보기" : "앱 발송"}
           </button>
           {confirmingQuoteSendId === openQuoteAction.id ? (
             <div className="kim-quote-send-confirm" role="dialog" aria-label="견적 앱 발송 확인">

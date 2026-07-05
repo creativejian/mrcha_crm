@@ -11,7 +11,8 @@ export type QuoteItem = {
   source: "manual" | "solution" | "original";
   // 승격 출처 앱 견적요청 id(있으면 견적함 "앱 요청" 배지 노출).
   sourceQuoteRequestId?: string;
-  appStatus: "draft" | "queued" | "sent" | "viewed";
+  // "viewed"는 dead 값 정리(0705 배치 D) — 열람 표시는 viewedAt(advisor read-through)이 SSOT.
+  appStatus: "draft" | "queued" | "sent";
   brand?: string;
   model?: string;
   trim?: string;
@@ -130,7 +131,8 @@ export type CustomerDetailQuote = {
 
 const MS_DAY = 86_400_000;
 const QUOTE_SOURCES = ["manual", "solution", "original"] as const;
-const APP_STATUSES = ["draft", "queued", "sent", "viewed"] as const;
+// "viewed"는 dead 값 정리(0705 배치 D) — 어떤 코드도 write하지 않고 실데이터 0(열람 표시는 viewedAt read-through가 SSOT).
+const APP_STATUSES = ["draft", "queued", "sent"] as const;
 const STOCK_STATUSES = ["재고있음", "재고없음", "재고확인중"] as const;
 const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"] as const;
 
@@ -150,6 +152,30 @@ function pickPrimaryScenario(q: CustomerDetailQuote): CustomerDetailScenario | n
     if (found) return found;
   }
   return [...q.scenarios].sort((a, b) => (a.scenarioNo ?? 0) - (b.scenarioNo ?? 0))[0];
+}
+
+// 카탈로그 트림명이 모델명을 접두로 포함하는 경우(BMW 등) 중복 제거 — 카드·견적함·워크벤치 공통 표시 규칙.
+// 둘 다 없으면 빈 문자열(폴백 문구는 호출부 소관 — 앱카드 "차량 미선택", 견적함 quoteCode 등).
+export function dedupedModelTrim(modelName?: string | null, trimName?: string | null): string {
+  const model = modelName?.trim() ?? "";
+  const trim = trimName?.trim() ?? "";
+  if (!model) return trim;
+  if (!trim) return model;
+  return trim.startsWith(model) ? trim : `${model} ${trim}`;
+}
+
+// 분리 렌더용(모델·트림을 각자 칸에 표시): 트림에서 모델명 접두를 걷어낸 나머지("" 가능 — 호출부가 숨김).
+export function trimWithoutModelPrefix(modelName?: string | null, trimName?: string | null): string {
+  const model = modelName?.trim() ?? "";
+  const trim = trimName?.trim() ?? "";
+  if (!trim) return "";
+  return model && trim.startsWith(model) ? trim.slice(model.length).trim() : trim;
+}
+
+// 구매방식 종속 초기비용 행 라벨(이사님 도메인 규칙 표): 할부=선납금(금액만), 리스/렌트=선수금.
+// 앱카드 모델(app-card.ts)·견적함 요약 칩(QuoteList)이 공유 — 서버 조립기 복제본은 파리티 설계상 별도.
+export function downPaymentRowLabelOf(purchaseMethod?: string | null): "선납금" | "선수금" {
+  return purchaseMethod === "할부" ? "선납금" : "선수금";
 }
 
 export function formatTerm(termMonths: number | null): string {
@@ -208,8 +234,8 @@ export function viewedBadgeOf(
 ): QuoteViewedBadge | null {
   // 앱 미연결 고객은 발송해도 앱에 전달되지 않으므로 "미열람" 오표기를 막기 위해 배지 자체를 숨긴다(편차 노트 Task 5/6).
   if (!appUserId) return null;
-  // 발송 전 카드는 열람 개념이 없다. sent/viewed 묶음 = 기존 발송 상태 표기(quoteDeleteConfirmTitle 등)와 동일 조건.
-  if (quote.appStatus !== "sent" && quote.appStatus !== "viewed") return null;
+  // 발송 전 카드는 열람 개념이 없다.
+  if (quote.appStatus !== "sent") return null;
   return quote.viewedAt
     ? { viewed: true, label: "고객 열람", title: `고객 열람 · ${quote.viewedAt}` }
     : { viewed: false, label: "미열람" };
@@ -218,7 +244,7 @@ export function viewedBadgeOf(
 // 대표 시나리오를 평탄화해 기존 QuoteItem 형태로 변환(접근 1). 파일/원본 필드는 읽기 범위 밖.
 export function toQuoteItem(q: CustomerDetailQuote, nowMs: number): QuoteItem {
   const primary = pickPrimaryScenario(q);
-  const vehicleName = [q.brandName, q.modelName, q.trimName].filter(Boolean).join(" ");
+  const vehicleName = [q.brandName, dedupedModelTrim(q.modelName, q.trimName)].filter(Boolean).join(" ");
   return {
     id: q.id,
     quoteCode: q.quoteCode,
