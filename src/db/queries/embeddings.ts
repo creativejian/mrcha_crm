@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { EMBEDDING_DIM } from "../../lib/gemini-embed";
 import { getDefaultDb, type Executor } from "../client";
@@ -63,4 +63,26 @@ export async function searchEmbeddings(
     content: String(r.content),
     similarity: Number(r.similarity),
   }));
+}
+
+// hash skip용: 기존 임베딩 행의 content_hash 조회. 행 없으면 null(→ 신규 임베딩).
+export async function getEmbeddingHash(
+  sourceType: string,
+  sourceId: string,
+  executor: Executor = getDefaultDb(),
+): Promise<string | null> {
+  const rows = await executor
+    .select({ contentHash: embeddings.contentHash })
+    .from(embeddings)
+    .where(and(eq(embeddings.sourceType, sourceType), eq(embeddings.sourceId, sourceId)));
+  return rows[0]?.contentHash ?? null;
+}
+
+// 원본 삭제/텍스트 비움 시 임베딩 행 제거. 멱등 — 행이 없어도 no-op(미발송 견적 삭제 등).
+export async function deleteEmbeddingBySource(
+  sourceType: string,
+  sourceId: string,
+  executor: Executor = getDefaultDb(),
+): Promise<void> {
+  await executor.delete(embeddings).where(and(eq(embeddings.sourceType, sourceType), eq(embeddings.sourceId, sourceId)));
 }

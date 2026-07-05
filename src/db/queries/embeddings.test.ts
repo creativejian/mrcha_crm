@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { getDefaultDb } from "../client";
 import { customers, embeddings } from "../schema";
-import { upsertEmbedding, searchEmbeddings } from "./embeddings";
+import { upsertEmbedding, searchEmbeddings, getEmbeddingHash, deleteEmbeddingBySource } from "./embeddings";
 
 const db = getDefaultDb();
 const MEMO_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
@@ -36,4 +36,31 @@ test("searchEmbeddings: scope=all 이면 유사도순 top-k에 방금 넣은 행
 test("searchEmbeddings: scope=빈 배열이면 결과 없음", async () => {
   const res = await searchEmbeddings(vec(0.9), [], 5, db);
   expect(res).toHaveLength(0);
+});
+
+test("getEmbeddingHash: 있는 행은 해시, 없는 행은 null", async () => {
+  const SRC = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+  await upsertEmbedding(
+    { sourceType: "memo", sourceId: SRC, customerId: CUST, content: "해시 조회 테스트", contentHash: "hash-v1", embedding: vec(3) },
+    db,
+  );
+  expect(await getEmbeddingHash("memo", SRC, db)).toBe("hash-v1");
+  expect(await getEmbeddingHash("memo", "dddddddd-dddd-dddd-dddd-dddddddddddd", db)).toBeNull();
+  expect(await getEmbeddingHash("task", SRC, db)).toBeNull(); // 같은 id라도 source_type이 다르면 별개
+});
+
+test("deleteEmbeddingBySource: 삭제 + 멱등(없어도 no-op)", async () => {
+  // 자립 테스트: 앞선 테스트가 남긴 행에 의존하지 않고 직접 심는다(-t 단독 실행에서도 실제 삭제를 검증).
+  const SRC = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+  await upsertEmbedding(
+    { sourceType: "memo", sourceId: SRC, customerId: CUST, content: "삭제 테스트", contentHash: "hash-del", embedding: vec(4) },
+    db,
+  );
+  expect(await getEmbeddingHash("memo", SRC, db)).toBe("hash-del"); // 삭제 전 존재 확인
+  await deleteEmbeddingBySource("task", SRC, db); // 다른 source_type 삭제는 이 행을 건드리지 않음
+  expect(await getEmbeddingHash("memo", SRC, db)).toBe("hash-del");
+  await deleteEmbeddingBySource("memo", SRC, db);
+  expect(await getEmbeddingHash("memo", SRC, db)).toBeNull();
+  await deleteEmbeddingBySource("memo", SRC, db); // 재호출도 throw 없음(멱등)
+  expect(await getEmbeddingHash("memo", SRC, db)).toBeNull();
 });

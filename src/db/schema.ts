@@ -43,7 +43,7 @@ const ENTRY_MODES = ["manual", "solution", "original"];
 const APP_STATUSES = ["draft", "queued", "sent", "viewed"];
 const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"];
 const ACQ_TAX_MODES = ["normal", "hybrid", "electric", "manual"];
-const EMBEDDING_SOURCE_TYPES = ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation"];
+const EMBEDDING_SOURCE_TYPES = ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation", "quote"];
 const ASSISTANT_ROLES = ["user", "assistant"];
 
 // nullable 컬럼 IN CHECK(기존 null 보존). 값=코드 상수 SSOT에서 sql.join. 종속(그룹-상태)은 앱 검증.
@@ -271,7 +271,7 @@ const vector3072 = customType<{ data: number[]; driverData: string }>({
 // RAG 코퍼스 임베딩 스토어. 청크 1행 = 메모/할일/니즈메모/상담이력 하나.
 export const embeddings = crm.table("embeddings", {
   id: uuid("id").defaultRandom().primaryKey(),
-  sourceType: text("source_type").notNull(), // memo|task|need_memo|need_customer_note|need_review_note|consultation
+  sourceType: text("source_type").notNull(), // memo|task|need_memo|need_customer_note|need_review_note|consultation|quote
   sourceId: uuid("source_id").notNull(),      // 원본 행 id (need_*는 customer_id)
   customerId: uuid("customer_id")             // scope 필터·고객 메타 조인
     .notNull()

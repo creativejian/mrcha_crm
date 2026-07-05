@@ -1,0 +1,1366 @@
+{
+  "id": "f0ea0e9e-f1fc-4a84-8fd4-9c59660d1526",
+  "prevId": "f8f89788-7c67-4b66-a0ac-640d4504475a",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "crm.assistant_messages": {
+      "name": "assistant_messages",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "staff_user_id": {
+          "name": "staff_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sources": {
+          "name": "sources",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "assistant_messages_role_check": {
+          "name": "assistant_messages_role_check",
+          "value": "\"crm\".\"assistant_messages\".\"role\" IS NULL OR \"crm\".\"assistant_messages\".\"role\" IN ('user', 'assistant')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "crm.consultations": {
+      "name": "consultations",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "advisor_id": {
+          "name": "advisor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "consultations_customer_id_customers_id_fk": {
+          "name": "consultations_customer_id_customers_id_fk",
+          "tableFrom": "consultations",
+          "tableTo": "customers",
+          "schemaTo": "crm",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "crm.customer_documents": {
+      "name": "customer_documents",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doc_type": {
+          "name": "doc_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_size": {
+          "name": "file_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_mime": {
+          "name": "file_mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_path": {
+          "name": "file_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thumb_path": {
+          "name": "thumb_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "customer_documents_customer_id_customers_id_fk": {
+          "name": "customer_documents_customer_id_customers_id_fk",
+          "tableFrom": "customer_documents",
+          "tableTo": "customers",
+          "schemaTo": "crm",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "customer_documents_doc_type_check": {
+          "name": "customer_documents_doc_type_check",
+          "value": "\"crm\".\"customer_documents\".\"doc_type\" IS NULL OR \"crm\".\"customer_documents\".\"doc_type\" IN ('면허증', '주민등록등본', '원천징수영수증', '사업자등록증', '부가세과세증명원', '소득금액증명원', '자동이체통장사본', '매매계약서', '리스승인서', '계약사실확인서', '법인(점)주주명부', '법인(점)등기부등본', '법인(점)법인인감증명서', '법인(점)개인인감증명서', '법인(점)재무제표(당해)', '법인(점)재무제표(전기)', '등록(점)자동차등록증', '등록(점)세금계산서', '등록(점)취득세납부영수증', '등록(점)등록비영수증', '등록(점)보험가입증명서', '기타서류')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "crm.customer_memos": {
+      "name": "customer_memos",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "customer_memos_customer_id_customers_id_fk": {
+          "name": "customer_memos_customer_id_customers_id_fk",
+          "tableFrom": "customer_memos",
+          "tableTo": "customers",
+          "schemaTo": "crm",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "crm.customer_schedules": {
+      "name": "customer_schedules",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scheduled_date": {
+          "name": "scheduled_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scheduled_time": {
+          "name": "scheduled_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "memo": {
+          "name": "memo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done": {
+          "name": "done",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "customer_schedules_customer_id_customers_id_fk": {
+          "name": "customer_schedules_customer_id_customers_id_fk",
+          "tableFrom": "customer_schedules",
+          "tableTo": "customers",
+          "schemaTo": "crm",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "customer_schedules_type_check": {
+          "name": "customer_schedules_type_check",
+          "value": "\"crm\".\"customer_schedules\".\"type\" IS NULL OR \"crm\".\"customer_schedules\".\"type\" IN ('재연락', '결정확인', '체크', '견적', '안내', '요청', '내부', '심사')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "crm.customer_tasks": {
+      "name": "customer_tasks",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due": {
+          "name": "due",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done": {
+          "name": "done",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "customer_tasks_customer_id_customers_id_fk": {
+          "name": "customer_tasks_customer_id_customers_id_fk",
+          "tableFrom": "customer_tasks",
+          "tableTo": "customers",
+          "schemaTo": "crm",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "customer_tasks_category_check": {
+          "name": "customer_tasks_category_check",
+          "value": "\"crm\".\"customer_tasks\".\"category\" IS NULL OR \"crm\".\"customer_tasks\".\"category\" IN ('체크', '견적', '안내', '요청', '내부', '심사')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "crm.customers": {
+      "name": "customers",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "customer_code": {
+          "name": "customer_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_user_id": {
+          "name": "app_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "residence": {
+          "name": "residence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "customer_type": {
+          "name": "customer_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "customer_type_detail": {
+          "name": "customer_type_detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_group": {
+          "name": "status_group",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "chance": {
+          "name": "chance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "advisor_id": {
+          "name": "advisor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "advisor_name": {
+          "name": "advisor_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "team": {
+          "name": "team",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_consultation_id": {
+          "name": "source_consultation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_activity_at": {
+          "name": "last_activity_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recontacted": {
+          "name": "recontacted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "ai_summary": {
+          "name": "ai_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_model": {
+          "name": "need_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_trim": {
+          "name": "need_trim",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_method": {
+          "name": "need_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_timing": {
+          "name": "need_timing",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_colors": {
+          "name": "need_colors",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_compare": {
+          "name": "need_compare",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_memo": {
+          "name": "need_memo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_contract_term": {
+          "name": "need_contract_term",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_initial_cost": {
+          "name": "need_initial_cost",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_annual_mileage": {
+          "name": "need_annual_mileage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_delivery_method": {
+          "name": "need_delivery_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_contract_focus": {
+          "name": "need_contract_focus",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_customer_note": {
+          "name": "need_customer_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "need_review_note": {
+          "name": "need_review_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "customers_customer_code_unique": {
+          "name": "customers_customer_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "customer_code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "customers_status_group_check": {
+          "name": "customers_status_group_check",
+          "value": "\"crm\".\"customers\".\"status_group\" IS NULL OR \"crm\".\"customers\".\"status_group\" IN ('신규', '상담중', '견적', '차량체크', '심사서류', '관리중', '상담완료', '계약완료', '불발')"
+        },
+        "customers_status_check": {
+          "name": "customers_status_check",
+          "value": "\"crm\".\"customers\".\"status\" IS NULL OR \"crm\".\"customers\".\"status\" IN ('상담접수', '1차부재중', '지속적부재', '연락해야함', '구매방식상담중', '차량상담중', '견적상담중', '준비중', '발송완료', '추후안내예정', '재고확인중', '재고있음', '재고없음', '대기필요', '서류상담중', '서류안내함', '서류대기중', '서류받음', '부결후관리', '구매시기미도래', '추후재컨택', '조건재확인', '재상담대기', '딜러사계약중', '대리점발주중', '특판발주중', '배정완료', '출고완료', '계약취소', '구매철회')"
+        },
+        "customers_chance_check": {
+          "name": "customers_chance_check",
+          "value": "\"crm\".\"customers\".\"chance\" IS NULL OR \"crm\".\"customers\".\"chance\" IN ('높음', '중간', '낮음', '보류', '확정')"
+        },
+        "customers_source_check": {
+          "name": "customers_source_check",
+          "value": "\"crm\".\"customers\".\"source\" IS NULL OR \"crm\".\"customers\".\"source\" IN ('앱 견적요청', '앱 AI상담', '앱 상담원 연결', '디엘(상담)', '디엘(견적서)', '대표전화', '카카오', '소개', '추천', '재구매', '유튜브', '검색', '기타')"
+        },
+        "customers_customer_type_check": {
+          "name": "customers_customer_type_check",
+          "value": "\"crm\".\"customers\".\"customer_type\" IS NULL OR \"crm\".\"customers\".\"customer_type\" IN ('개인', '개인사업자', '법인사업자')"
+        },
+        "customers_need_annual_mileage_check": {
+          "name": "customers_need_annual_mileage_check",
+          "value": "\"crm\".\"customers\".\"need_annual_mileage\" IS NULL OR \"crm\".\"customers\".\"need_annual_mileage\" IN ('10,000km', '15,000km', '20,000km', '25,000km', '30,000km', '35,000km', '40,000km', '무제한', '확인 필요')"
+        },
+        "customers_need_delivery_method_check": {
+          "name": "customers_need_delivery_method_check",
+          "value": "\"crm\".\"customers\".\"need_delivery_method\" IS NULL OR \"crm\".\"customers\".\"need_delivery_method\" IN ('탁송 요청', '매장 출고', '직접 수령', '협의 필요', '확인 필요')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "crm.embeddings": {
+      "name": "embeddings",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector(3072)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "embeddings_customer_id_customers_id_fk": {
+          "name": "embeddings_customer_id_customers_id_fk",
+          "tableFrom": "embeddings",
+          "tableTo": "customers",
+          "schemaTo": "crm",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "embeddings_source_uq": {
+          "name": "embeddings_source_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "source_type",
+            "source_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "embeddings_source_type_check": {
+          "name": "embeddings_source_type_check",
+          "value": "\"crm\".\"embeddings\".\"source_type\" IS NULL OR \"crm\".\"embeddings\".\"source_type\" IN ('memo', 'task', 'need_memo', 'need_customer_note', 'need_review_note', 'consultation', 'quote')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "crm.quote_scenarios": {
+      "name": "quote_scenarios",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "quote_id": {
+          "name": "quote_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scenario_no": {
+          "name": "scenario_no",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_saved": {
+          "name": "is_saved",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "saved_at": {
+          "name": "saved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "purchase_method": {
+          "name": "purchase_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lender": {
+          "name": "lender",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "term_months": {
+          "name": "term_months",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deposit_mode": {
+          "name": "deposit_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deposit_value": {
+          "name": "deposit_value",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "down_payment_mode": {
+          "name": "down_payment_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "down_payment_value": {
+          "name": "down_payment_value",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "residual_mode": {
+          "name": "residual_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "residual_value": {
+          "name": "residual_value",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mileage_mode": {
+          "name": "mileage_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mileage_value": {
+          "name": "mileage_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "car_tax_included": {
+          "name": "car_tax_included",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subsidy_applicable": {
+          "name": "subsidy_applicable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subsidy_amount": {
+          "name": "subsidy_amount",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "monthly_payment": {
+          "name": "monthly_payment",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_return_cost": {
+          "name": "total_return_cost",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_takeover_cost": {
+          "name": "total_takeover_cost",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_at_delivery": {
+          "name": "due_at_delivery",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interest_rate": {
+          "name": "interest_rate",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "quote_scenarios_quote_id_quotes_id_fk": {
+          "name": "quote_scenarios_quote_id_quotes_id_fk",
+          "tableFrom": "quote_scenarios",
+          "tableTo": "quotes",
+          "schemaTo": "crm",
+          "columnsFrom": [
+            "quote_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "quote_scenarios_purchase_method_check": {
+          "name": "quote_scenarios_purchase_method_check",
+          "value": "\"crm\".\"quote_scenarios\".\"purchase_method\" IS NULL OR \"crm\".\"quote_scenarios\".\"purchase_method\" IN ('장기렌트', '운용리스', '금융리스', '중고리스', '할부', '일시불')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "crm.quotes": {
+      "name": "quotes",
+      "schema": "crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "quote_code": {
+          "name": "quote_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entry_mode": {
+          "name": "entry_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quote_round": {
+          "name": "quote_round",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_quote_request_id": {
+          "name": "source_quote_request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_ai_estimate_id": {
+          "name": "source_ai_estimate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trim_id": {
+          "name": "trim_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "brand_name": {
+          "name": "brand_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_name": {
+          "name": "model_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trim_name": {
+          "name": "trim_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_price": {
+          "name": "base_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exterior_color_id": {
+          "name": "exterior_color_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exterior_color_name": {
+          "name": "exterior_color_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exterior_color_hex": {
+          "name": "exterior_color_hex",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interior_color_id": {
+          "name": "interior_color_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interior_color_name": {
+          "name": "interior_color_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interior_color_hex": {
+          "name": "interior_color_hex",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "options": {
+          "name": "options",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "option_total": {
+          "name": "option_total",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discount_lines": {
+          "name": "discount_lines",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "final_discount": {
+          "name": "final_discount",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "acquisition_tax": {
+          "name": "acquisition_tax",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "acquisition_tax_mode": {
+          "name": "acquisition_tax_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bond": {
+          "name": "bond",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery": {
+          "name": "delivery",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "incidental": {
+          "name": "incidental",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "final_vehicle_price": {
+          "name": "final_vehicle_price",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "acquisition_cost": {
+          "name": "acquisition_cost",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "app_status": {
+          "name": "app_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_status": {
+          "name": "decision_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stock_status": {
+          "name": "stock_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valid_until": {
+          "name": "valid_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "guidance": {
+          "name": "guidance",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "primary_scenario_id": {
+          "name": "primary_scenario_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_size": {
+          "name": "file_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_mime": {
+          "name": "file_mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_path": {
+          "name": "file_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "viewed_at": {
+          "name": "viewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "quotes_customer_id_customers_id_fk": {
+          "name": "quotes_customer_id_customers_id_fk",
+          "tableFrom": "quotes",
+          "tableTo": "customers",
+          "schemaTo": "crm",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "quotes_quote_code_unique": {
+          "name": "quotes_quote_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "quote_code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "quotes_entry_mode_check": {
+          "name": "quotes_entry_mode_check",
+          "value": "\"crm\".\"quotes\".\"entry_mode\" IS NULL OR \"crm\".\"quotes\".\"entry_mode\" IN ('manual', 'solution', 'original')"
+        },
+        "quotes_app_status_check": {
+          "name": "quotes_app_status_check",
+          "value": "\"crm\".\"quotes\".\"app_status\" IS NULL OR \"crm\".\"quotes\".\"app_status\" IN ('draft', 'queued', 'sent', 'viewed')"
+        },
+        "quotes_decision_status_check": {
+          "name": "quotes_decision_status_check",
+          "value": "\"crm\".\"quotes\".\"decision_status\" IS NULL OR \"crm\".\"quotes\".\"decision_status\" IN ('none', 'considering', 'confirmed', 'contracting')"
+        },
+        "quotes_acquisition_tax_mode_check": {
+          "name": "quotes_acquisition_tax_mode_check",
+          "value": "\"crm\".\"quotes\".\"acquisition_tax_mode\" IS NULL OR \"crm\".\"quotes\".\"acquisition_tax_mode\" IN ('normal', 'hybrid', 'electric', 'manual')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "crm": "crm"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

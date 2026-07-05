@@ -25,6 +25,8 @@ export function tryWaitUntil(c: Pick<Context, "executionCtx">, p: Promise<unknow
 // 두 배선을 헬퍼 하나로 묶는 이유: 개별 배선은 누락해도 로컬(bun 싱글톤 db·executionCtx 없음)에선
 // 정상 동작하고 prod에서만 P0가 된다(#143 실사고 — 신규 스트리밍 라우트가 이 헬퍼만 쓰면 구조적으로 안전).
 // 파라미터는 구조적 타입 — hono Context가 Variables에 invariant라 교차 Variables 라우트가 못 들어온다.
+// 주의: 기존 dbHold를 덮어쓴다(holdWork와 달리 체인 안 함). 같은 요청에서 holdWork와 섞어 쓰려면
+// 이 함수를 먼저 호출할 것 — 현재 유일 호출처(assistant 스트리밍)는 holdWork와 공존하지 않는다.
 export function holdStreamLifetime(
   c: Pick<Context, "executionCtx"> & { set: (key: "dbHold", value: Promise<unknown>) => void },
 ): () => void {
@@ -33,6 +35,23 @@ export function holdStreamLifetime(
   c.set("dbHold", held);
   tryWaitUntil(c, held);
   return release;
+}
+
+// 응답 후 백그라운드 작업(증분 임베딩 등)을 dbHold+waitUntil에 등록 — holdStreamLifetime과 달리
+// 수동 release가 아니라 작업 promise 완료가 곧 해소다. 같은 요청에서 여러 번 호출되면 기존 hold와
+// 체인한다(고객 PATCH가 니즈 3필드를 동시에 보내는 경우 — 덮어쓰면 앞선 작업이 연결 종료에 잘린다).
+// 작업 실패는 여기서 흡수(연결 종료·waitUntil은 성패와 무관하게 진행돼야 한다) — 로깅은 호출부 책임.
+export function holdWork(
+  c: Pick<Context, "executionCtx"> & {
+    get: (key: "dbHold") => Promise<unknown> | undefined;
+    set: (key: "dbHold", value: Promise<unknown>) => void;
+  },
+  work: Promise<unknown>,
+): void {
+  const settled = work.then(() => undefined, () => undefined);
+  const prev = c.get("dbHold");
+  c.set("dbHold", prev ? Promise.all([prev.then(() => undefined, () => undefined), settled]) : settled);
+  tryWaitUntil(c, settled);
 }
 
 // hold(스트림 수명)가 있으면 그 해소를 기다렸다가 연결을 닫는다 — hold 실패 여부와 무관하게 반드시 닫는다.

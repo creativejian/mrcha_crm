@@ -1,14 +1,16 @@
-// 코퍼스(상담메모·상담이력·니즈메모·할일)를 임베딩해 crm.embeddings에 upsert하는 일회성 스크립트.
+// 코퍼스(상담메모·상담이력·니즈메모·할일·견적)를 임베딩해 crm.embeddings에 upsert하는 보정 스크립트.
+// 증분 임베딩 훅(embed-on-write) 도입 후에는 백필이 아니라 복구/정리 도구다 — hash skip으로 재실행 저비용.
 // 실행: bun run src/scripts/backfill-embeddings.ts  (.env.local의 GEMINI_API_KEY·DATABASE_URL 사용)
-import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, ne, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { getDefaultDb } from "../db/client";
-import { customers, customerMemos, customerTasks, consultations } from "../db/schema";
+import { customers, customerMemos, customerTasks, consultations, embeddings, quotes, quoteScenarios } from "../db/schema";
 import { upsertEmbedding } from "../db/queries/embeddings";
-import { buildChunkContent, contentHash, type CorpusRow } from "../lib/assistant-corpus";
+import { buildChunkContent, buildQuoteChunkText, contentHash, type CorpusRow } from "../lib/assistant-corpus";
 import { embedTexts } from "../lib/gemini-embed";
 import { resolveGeminiTarget } from "../lib/gemini-target";
+import { pickPrimaryScenario } from "../lib/primary-scenario";
 
 const db = getDefaultDb();
 const apiKey = process.env.GEMINI_API_KEY;
@@ -23,7 +25,7 @@ function nonEmpty(col: AnyPgColumn) {
 async function gather(): Promise<CorpusRow[]> {
   const rows: CorpusRow[] = [];
 
-  // 자식 테이블 3종은 push 형태가 동일 — 쿼리는 콜사이트에서 조립해 넘긴다(견적 코퍼스 확장 시 collect 1줄 추가).
+  // 자식 테이블 3종은 push 형태가 동일 — 쿼리는 콜사이트에서 조립해 넘긴다(견적은 시나리오 조인이 필요해 아래 별도 블록).
   // if (row.text)는 select 프로젝션이 nullable이라 남긴 타입 좁히기다(WHERE nonEmpty가 이미 걸러줌).
   async function collect(sourceType: CorpusRow["sourceType"], query: PromiseLike<{ id: string; customerId: string; name: string; text: string | null }[]>) {
     for (const row of await query) {
@@ -53,27 +55,91 @@ async function gather(): Promise<CorpusRow[]> {
     if (n.needCustomerNote?.trim()) rows.push({ sourceType: "need_customer_note", sourceId: n.id, customerId: n.id, customerName: n.name, text: n.needCustomerNote });
     if (n.needReviewNote?.trim()) rows.push({ sourceType: "need_review_note", sourceId: n.id, customerId: n.id, customerName: n.name, text: n.needReviewNote });
   }
+
+  // 견적: 견적당 1청크 — 대표 시나리오(pickPrimaryScenario SSOT) 기준(스펙 결정 2).
+  const quoteRows = await db
+    .select({
+      id: quotes.id, customerId: quotes.customerId, name: customers.name, quoteCode: quotes.quoteCode,
+      brandName: quotes.brandName, modelName: quotes.modelName, trimName: quotes.trimName,
+      appStatus: quotes.appStatus, sentAt: quotes.sentAt, guidance: quotes.guidance,
+      primaryScenarioId: quotes.primaryScenarioId,
+    })
+    .from(quotes).innerJoin(customers, eq(customers.id, quotes.customerId));
+  const scRows = await db
+    .select({
+      id: quoteScenarios.id, quoteId: quoteScenarios.quoteId, scenarioNo: quoteScenarios.scenarioNo,
+      purchaseMethod: quoteScenarios.purchaseMethod, termMonths: quoteScenarios.termMonths,
+      monthlyPayment: quoteScenarios.monthlyPayment, lender: quoteScenarios.lender,
+    })
+    .from(quoteScenarios).orderBy(asc(quoteScenarios.scenarioNo));
+  const scByQuote = new Map<string, typeof scRows>();
+  for (const s of scRows) {
+    const list = scByQuote.get(s.quoteId) ?? [];
+    list.push(s);
+    scByQuote.set(s.quoteId, list);
+  }
+  for (const q of quoteRows) {
+    const sc = pickPrimaryScenario(scByQuote.get(q.id) ?? [], q.primaryScenarioId);
+    rows.push({ sourceType: "quote", sourceId: q.id, customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc) });
+  }
+
   return rows;
+}
+
+// 고아 정리(스펙 결정 6): 원본이 삭제됐거나 텍스트가 비워진 임베딩 행 제거 — 삭제 훅 도입 전 축적분 청소.
+// need_*는 고객 행이 남는 한 cascade가 못 지우므로 "필드 비워짐"도 고아로 본다. 고객 삭제는 FK cascade가 처리.
+async function cleanupOrphans() {
+  const deleted = await db.execute(sql`
+    delete from crm.embeddings e where
+      (e.source_type = 'memo' and not exists (
+        select 1 from crm.customer_memos m where m.id = e.source_id and btrim(coalesce(m.body, '')) <> ''))
+      or (e.source_type = 'task' and not exists (
+        select 1 from crm.customer_tasks t where t.id = e.source_id and btrim(coalesce(t.body, '')) <> ''))
+      or (e.source_type = 'consultation' and not exists (
+        select 1 from crm.consultations cs where cs.id = e.source_id and btrim(coalesce(cs.summary, '')) <> ''))
+      or (e.source_type = 'quote' and not exists (
+        select 1 from crm.quotes q where q.id = e.source_id))
+      or (e.source_type = 'need_memo' and not exists (
+        select 1 from crm.customers c where c.id = e.source_id and btrim(coalesce(c.need_memo, '')) <> ''))
+      or (e.source_type = 'need_customer_note' and not exists (
+        select 1 from crm.customers c where c.id = e.source_id and btrim(coalesce(c.need_customer_note, '')) <> ''))
+      or (e.source_type = 'need_review_note' and not exists (
+        select 1 from crm.customers c where c.id = e.source_id and btrim(coalesce(c.need_review_note, '')) <> ''))
+    returning e.id
+  `);
+  console.log(`고아 정리: ${[...(deleted as Iterable<unknown>)].length}행 삭제`);
 }
 
 async function main() {
   const rows = await gather();
-  console.log(`코퍼스 ${rows.length}청크 수집`);
   const contents = rows.map(buildChunkContent);
-  const vectors = await embedTexts(contents, geminiTarget, "RETRIEVAL_DOCUMENT");
-  // 임베딩 개수가 청크 수와 다르면 인덱스 매핑이 어긋나므로 중단(부분 응답 방어).
-  if (vectors.length !== rows.length) throw new Error(`임베딩 개수(${vectors.length}) != 코퍼스 청크 수(${rows.length}) — 매핑 불일치`);
+  const hashes = contents.map(contentHash);
+
+  // hash skip(스펙 결정 4): 기존 행과 content가 같으면 재임베딩하지 않는다 — 재실행 비용 절감.
+  const existing = await db
+    .select({ sourceType: embeddings.sourceType, sourceId: embeddings.sourceId, contentHash: embeddings.contentHash })
+    .from(embeddings);
+  const hashByKey = new Map(existing.map((r) => [`${r.sourceType}/${r.sourceId}`, r.contentHash]));
+  const pendingIdx = rows.map((_, i) => i).filter((i) => hashByKey.get(`${rows[i].sourceType}/${rows[i].sourceId}`) !== hashes[i]);
+  console.log(`코퍼스 ${rows.length}청크 수집 — ${pendingIdx.length} 임베딩 대상, ${rows.length - pendingIdx.length} skip(hash 동일)`);
+
+  const vectors = await embedTexts(pendingIdx.map((i) => contents[i]), geminiTarget, "RETRIEVAL_DOCUMENT");
+  // 임베딩 개수가 대상 수와 다르면 인덱스 매핑이 어긋나므로 중단(부분 응답 방어).
+  if (vectors.length !== pendingIdx.length) throw new Error(`임베딩 개수(${vectors.length}) != 대상 청크 수(${pendingIdx.length}) — 매핑 불일치`);
   let ok = 0;
-  for (let i = 0; i < rows.length; i++) {
+  for (let k = 0; k < pendingIdx.length; k++) {
+    const i = pendingIdx[k];
     try {
       await upsertEmbedding({
         sourceType: rows[i].sourceType, sourceId: rows[i].sourceId, customerId: rows[i].customerId,
-        content: contents[i], contentHash: contentHash(contents[i]), embedding: vectors[i],
+        content: contents[i], contentHash: hashes[i], embedding: vectors[k],
       }, db);
       ok++;
     } catch (e) { console.error(`upsert 실패 ${rows[i].sourceType}/${rows[i].sourceId}:`, e); }
   }
-  console.log(`백필 완료: ${ok}/${rows.length} upsert`);
+  console.log(`백필 완료: ${ok}/${pendingIdx.length} upsert`);
+
+  await cleanupOrphans();
   process.exit(0);
 }
 

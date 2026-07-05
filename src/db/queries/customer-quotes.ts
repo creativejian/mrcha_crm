@@ -1,6 +1,7 @@
 import { and, asc, eq, like, sql } from "drizzle-orm";
 
 import { buildAdvisorQuotePayload } from "../../lib/app-card-payload";
+import { pickPrimaryScenario } from "../../lib/primary-scenario";
 import { trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { advisorQuotes, quoteRequests } from "../public-app";
@@ -213,7 +214,7 @@ async function syncAdvisorQuoteOnSend(customerId: string, quoteId: string, ex: E
     .from(quoteScenarios)
     .where(eq(quoteScenarios.quoteId, quoteId))
     .orderBy(asc(quoteScenarios.scenarioNo));
-  const primary = scs.find((s) => s.id === q.primaryScenarioId) ?? scs[0] ?? null;
+  const primary = pickPrimaryScenario(scs, q.primaryScenarioId);
 
   // crm.quotes에는 model_year가 없다 — trimId → catalog.trims 조인으로 조달(없으면 null, 조립기가 년식 생략).
   let modelYear: number | null = null;
