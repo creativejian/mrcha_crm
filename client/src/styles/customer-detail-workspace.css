@@ -1,5 +1,4 @@
 .kim-workspace-band .kim-purchase-conditions,
-.kim-workspace-band .kim-consult-log,
 .kim-workspace-band .kim-customer-memo-section,
 .kim-workspace-band .kim-mvp-card {
   border: 1px solid #e4e4e2;
@@ -316,31 +315,6 @@
   font-size: 11.5px;
   font-weight: 540;
   line-height: 1.35;
-}
-
-.kim-quote-row-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 5px;
-}
-
-.kim-quote-row-meta small {
-  min-height: 18px;
-  border-radius: 5px;
-  display: inline-flex;
-  align-items: center;
-  background: #f0f1f3;
-  color: #4f5862;
-  padding: 0 6px;
-  font-size: 10.5px;
-  font-weight: 720;
-  line-height: 18px;
-}
-
-.kim-quote-row-meta small.strong {
-  background: #e9f1ff;
-  color: #155eef;
 }
 
 .kim-quote-row-main {
@@ -993,8 +967,6 @@
 }
 
 .kim-quote-row label,
-.kim-quote-row-actions button.kim-quote-send-button,
-.kim-quote-row-actions button.kim-quote-sent-preview-button,
 .kim-quote-row-actions button.has-file {
   width: 24px;
 }
@@ -1055,27 +1027,6 @@
   color: #8f969c;
   padding: 0;
   box-shadow: none;
-}
-
-.kim-quote-row-actions button.kim-quote-send-button {
-  width: 24px;
-  min-width: 0;
-  display: inline-grid;
-  place-items: center;
-  color: var(--brand);
-  padding: 0;
-}
-
-.kim-quote-row-actions button.kim-quote-sent-preview-button {
-  width: 24px;
-  height: 24px;
-  min-width: 0;
-  border-color: #dededb;
-  display: inline-grid;
-  place-items: center;
-  background: #fbfbfa;
-  color: #8f969c;
-  padding: 0;
 }
 
 .kim-sent-quote-preview-panel {
@@ -1316,7 +1267,6 @@
 }
 
 .kim-doc-card.is-drop-active .kim-file-drop-overlay,
-.kim-quote-drop-head.is-drop-active .kim-file-drop-overlay,
 .kim-quote-row.is-file-drop-target .kim-file-drop-overlay {
   opacity: 1;
 }
@@ -1359,25 +1309,6 @@
 .kim-quote-row .kim-file-drop-overlay svg {
   width: 20px;
   height: 20px;
-}
-
-.kim-quote-head-drop-overlay {
-  inset: 5px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  background: rgba(255, 255, 255, 0.93);
-}
-
-.kim-quote-head-drop-overlay strong {
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.kim-quote-head-drop-overlay span {
-  display: none;
 }
 
 .kim-doc-empty {

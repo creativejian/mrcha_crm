@@ -273,19 +273,11 @@
   border-top: 0;
 }
 
-.kim-work-dashboard,
-.kim-reference-dashboard {
-  grid-column: 1 / -1;
-}
-
 .kim-mvp-ops-grid,
-.kim-condition-quote-grid,
 .kim-condition-consult-grid,
 .kim-workspace-band,
 .kim-purchase-conditions,
-.kim-mvp-feature-row,
-.kim-mvp-section,
-.kim-mvp-grid {
+.kim-mvp-section {
   grid-column: 1 / -1;
 }
 
@@ -294,10 +286,8 @@
   gap: 30px;
 }
 
-.kim-condition-quote-grid,
 .kim-condition-consult-grid,
-.kim-mvp-ops-grid,
-.kim-mvp-feature-row {
+.kim-mvp-ops-grid {
   display: grid;
   gap: 10px;
   align-items: stretch;
@@ -307,18 +297,9 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.kim-condition-quote-grid,
-.kim-mvp-feature-row {
-  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
-}
-
 .kim-mvp-ops-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   row-gap: 30px;
-}
-
-.kim-mvp-feature-row .kim-mvp-section {
-  grid-column: auto;
 }
 
 .kim-mvp-ops-grid .kim-mvp-section,
@@ -326,15 +307,11 @@
   grid-column: auto;
 }
 
-.kim-condition-quote-grid .kim-purchase-conditions,
 .kim-condition-consult-grid .kim-purchase-conditions,
-.kim-condition-consult-grid .kim-consult-log,
-.kim-condition-consult-grid .kim-customer-memo-section,
-.kim-condition-quote-grid .kim-quote-card {
+.kim-condition-consult-grid .kim-customer-memo-section {
   grid-column: auto;
 }
 
-.kim-customer-dashboard .kim-consult-log,
 .kim-customer-dashboard .kim-customer-memo-section {
   border: 0;
   border-radius: 0;
@@ -358,12 +335,6 @@
   justify-content: flex-start;
   gap: 14px;
   padding: 12px 14px;
-}
-
-.kim-consult-log .kim-mvp-section-head {
-  min-height: 34px;
-  border-bottom: 0;
-  padding: 0;
 }
 
 .kim-customer-memo-section .kim-mvp-section-head,
@@ -642,87 +613,6 @@
 .kim-timeline-popover .kim-timeline-popover-body.is-scrollable {
   max-height: min(580px, calc(100vh - 260px));
   overflow-y: auto;
-}
-
-.kim-consult-composer {
-  border-bottom: 1px solid #eeeeec;
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: end;
-  padding: 12px 14px;
-  background: #fbfbfa;
-}
-
-.kim-consult-composer label {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.kim-consult-composer label > span {
-  color: #8f969c;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.kim-consult-composer select,
-.kim-consult-composer textarea {
-  box-sizing: border-box;
-  width: 100%;
-  border: 1px solid #dededb;
-  border-radius: 6px;
-  background: #fff;
-  color: #30363d;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 560;
-  outline: 0;
-}
-
-.kim-consult-composer select {
-  height: 34px;
-  padding: 0 9px;
-}
-
-.kim-consult-composer textarea {
-  min-height: 72px;
-  resize: vertical;
-  padding: 8px 9px;
-  line-height: 1.48;
-}
-
-.kim-consult-composer select:focus,
-.kim-consult-composer textarea:focus {
-  border-color: rgba(var(--brand-rgb), 0.55);
-  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.08);
-}
-
-.kim-consult-composer-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding-bottom: 1px;
-}
-
-.kim-consult-composer-actions button {
-  height: 30px;
-  border: 1px solid #dededb;
-  border-radius: 6px;
-  background: #fff;
-  color: #4f5862;
-  padding: 0 11px;
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 760;
-  line-height: 28px;
-}
-
-.kim-consult-composer-actions button.primary {
-  border-color: #111;
-  background: #111;
-  color: #fff;
 }
 
 .kim-consult-timeline {
@@ -1182,12 +1072,6 @@
   border-color: rgba(var(--brand-rgb), 0.24);
   background: rgba(var(--brand-rgb), 0.08);
   color: var(--brand);
-}
-
-.kim-mvp-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
 }
 
 .kim-quote-card {
