@@ -2,6 +2,7 @@ import { Download, Eye, File, FileText, FileUp, FolderOpen, GripVertical, Image,
 
 import { DOC_TYPE_OPTIONS } from "@/data/customers";
 import { formatFileSize, documentFileKind } from "@/lib/detail-utils";
+import { bindSelect } from "@/lib/select-bind";
 
 import type { useCustomerDocuments } from "./hooks/useCustomerDocuments";
 
@@ -82,7 +83,7 @@ export function CustomerDocuments({
                   {documentFileIcon(fileKind)}
                 </span>
                 <div>
-                  <select className="kim-doc-type-native-select" aria-label={`${doc.fileName} 문서 종류 변경`} value={doc.title} onChange={(event) => handlers.updateType(doc.id, event.target.value)}>
+                  <select className="kim-doc-type-native-select" aria-label={`${doc.fileName} 문서 종류 변경`} {...bindSelect(doc.title, (v) => handlers.updateType(doc.id, v))}>
                     {DOC_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                   <p>{doc.status} · {doc.fileName} · {formatFileSize(doc.fileSize)}</p>

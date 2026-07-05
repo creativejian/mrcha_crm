@@ -1,8 +1,8 @@
-import { type SyntheticEvent } from "react";
 import { Calculator, Check, ChevronDown, ChevronRight, FilePlus2, FileText, FileUp, RotateCcw, Smartphone, Trash2, X } from "lucide-react";
 
 import { type Customer } from "@/data/customers";
 import { formatMoney } from "@/lib/quote-pricing";
+import { bindSelect } from "@/lib/select-bind";
 import { isDocumentFileDrag } from "@/lib/detail-utils";
 import { QUOTE_GUIDANCE_OPTIONS } from "@/data/quote-guidance";
 import { ColorPicker } from "@/components/ColorPicker";
@@ -95,6 +95,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     openQuoteActionTrimId,
     addDiscountLine,
     removeDiscountLine,
+    setDiscountLineLabel,
     setPrimaryDiscountMode,
     setDiscountLineMode,
     saveManualQuoteCondition,
@@ -115,16 +116,9 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     dropQuoteOriginalToWorkbench,
   } = workbench.handlers;
 
-  // Safari는 select 팝오버 선택 시 input이 change보다 먼저 발화하고, React가 input 이벤트 처리 직후 controlled
-  // 값을 복원해 change 시점엔 이미 구값이다(실측: input 값=인천 → change 값=서울, 2026-07-05). onInput에서
-  // 즉시 state를 갱신해 복원을 무력화한다 — controlled select는 반드시 onChange+onInput 병행으로 바인딩할 것.
-  const bindGuidanceSelect = (field: "deliveryComment" | "stockNotice" | "expectedDelivery" | "customerRegion") => {
-    const commit = (event: SyntheticEvent<HTMLSelectElement>) => {
-      const v = event.currentTarget.value;
-      setGuidance((g) => ({ ...g, [field]: v }));
-    };
-    return { value: guidance[field], onChange: commit, onInput: commit };
-  };
+  // controlled select Safari 병행 바인딩 규칙(실측 배경 포함)은 lib/select-bind.ts 참조.
+  const bindGuidanceSelect = (field: "deliveryComment" | "stockNotice" | "expectedDelivery" | "customerRegion") =>
+    bindSelect(guidance[field], (v) => setGuidance((g) => ({ ...g, [field]: v })));
 
   if (!isQuoteSolutionWorkbenchOpen) return null;
 
@@ -373,7 +367,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                 {discountLines.map((line) => (
                   <div className="kim-jeff-form-row kim-jeff-discount-row" key={line.id}>
                     <span>추가 할인</span>
-                    <select className="kim-jeff-discount-label" aria-label="할인 항목명" defaultValue={line.label}>
+                    <select className="kim-jeff-discount-label" aria-label="할인 항목명" {...bindSelect(line.label, (v) => setDiscountLineLabel(line.id, v))}>
                       {discountLabelOptions.map((option) => <option key={option}>{option}</option>)}
                     </select>
                     <div className="kim-jeff-segment">
@@ -458,7 +452,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           {/* 선수금/선납금 라벨 SSOT = appCardModel.downPaymentRowLabel(구매방식 종속 도메인 규칙 — app-card.ts) */}
                           <label><span>{appCardModel.downPaymentRowLabel}</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={downPaymentMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "none")} type="button">없음</button><button className={downPaymentMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "amount")} type="button">금액</button><button className={downPaymentMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${downPaymentMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="downPayment" data-discount-unit={downPaymentMode === "percent" ? "percent" : "amount"} defaultValue={condition.downPaymentValue} disabled={isConditionSaved} readOnly={downPaymentMode === "none"} /><em>{downPaymentMode === "percent" ? "%" : "원"}</em></div></div></label>
                           <label><span>잔존가치</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={residualMode === "max" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "max")} type="button">최대</button><button className={residualMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "amount")} type="button">금액</button><button className={residualMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${residualMode === "max" ? " is-fixed" : ""}`}><input data-sc-field="residual" data-discount-unit={residualMode === "percent" ? "percent" : "amount"} defaultValue={condition.residualValue} disabled={isConditionSaved} readOnly={residualMode === "max"} /><em>{residualMode === "percent" ? "%" : "원"}</em></div></div></label>
-                          <label><span>약정거리</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={mileageMode === "basic" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "basic")} type="button">기본</button><button className={mileageMode === "custom" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "custom")} type="button">변경</button></div><select className={`kim-manual-value-select${mileageMode === "basic" ? " is-fixed" : ""}`} value={mileageValue} disabled={isConditionSaved || mileageMode === "basic"} onChange={(event) => setManualMileageValue(condition.id, event.currentTarget.value)}>{manualMileageOptions.map((option) => <option key={option}>{option}</option>)}</select></div></label>
+                          <label><span>약정거리</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={mileageMode === "basic" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "basic")} type="button">기본</button><button className={mileageMode === "custom" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "custom")} type="button">변경</button></div><select className={`kim-manual-value-select${mileageMode === "basic" ? " is-fixed" : ""}`} disabled={isConditionSaved || mileageMode === "basic"} {...bindSelect(mileageValue, (v) => setManualMileageValue(condition.id, v))}>{manualMileageOptions.map((option) => <option key={option}>{option}</option>)}</select></div></label>
                           <label><span>자동차세</span><div className="kim-jeff-segment"><button className={!carTaxOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualCarTaxFor(condition.id, false)} type="button">불포함</button><button className={carTaxOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualCarTaxFor(condition.id, true)} type="button">포함</button></div></label>
                           <label className="before-emphasis"><span>보조금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={!subsidyOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualSubsidyFor(condition.id, false)} type="button">비해당</button><button className={subsidyOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualSubsidyFor(condition.id, true)} type="button">해당</button></div><div className={`kim-jeff-money-input${!subsidyOn ? " is-fixed" : ""}`}><input aria-label="보조금 금액" data-sc-field="subsidy" defaultValue={condition.subsidyAmount} disabled={isConditionSaved} readOnly={!subsidyOn} /><em>원</em></div></div></label>
                           <div className="kim-manual-compare-row amount emphasis"><span>월 납입금</span><div className="kim-manual-monthly-control"><button aria-label="솔루션 조회" className="kim-manual-solution-query" disabled={isConditionSaved || !solutionWorkbenchCanQuery} onClick={() => onToast("financial-dolim-solution 연결 전 임시 조회 버튼입니다.")} title="솔루션 조회" type="button"><Calculator size={14} strokeWidth={2.15} /></button><div className="kim-jeff-money-input"><input aria-label="월 납입금" data-sc-field="monthly" defaultValue={condition.monthlyPayment} disabled={isConditionSaved} /><em>원</em></div></div></div>

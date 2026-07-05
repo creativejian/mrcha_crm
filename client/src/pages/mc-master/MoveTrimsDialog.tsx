@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 
 import type { CatalogModel } from "@/lib/catalog";
+import { bindSelect } from "@/lib/select-bind";
 
 // 선택한 트림을 같은 브랜드의 다른 모델로 이동(앱 '모델 이동' 다이얼로그).
 export function MoveTrimsDialog({
@@ -35,13 +36,7 @@ export function MoveTrimsDialog({
             <>
               <label className="va-field">
                 <span>대상 모델 (같은 브랜드)</span>
-                <select
-                  className="select"
-                  value={targetId ?? ""}
-                  // Safari: 팝오버 선택 시 input(신값)→controlled 복원→change(구값) 순서라 onInput 병행 필수(2026-07-05 실측).
-                  onChange={(e) => setTargetId(Number(e.currentTarget.value))}
-                  onInput={(e) => setTargetId(Number(e.currentTarget.value))}
-                >
+                <select className="select" {...bindSelect(targetId ?? "", (v) => setTargetId(Number(v)))}>
                   {targets.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.name}
