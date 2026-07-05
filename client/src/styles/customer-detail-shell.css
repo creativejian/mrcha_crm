@@ -585,6 +585,8 @@
 .kim-status-copy strong .kim-app-queue-button {
   width: 28px;
   height: 28px;
+  margin-left: 9px;
+  vertical-align: middle;
   border: 1px solid var(--brand);
   border-radius: 6px;
   display: inline-flex;
