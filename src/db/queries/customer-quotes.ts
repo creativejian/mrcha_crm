@@ -185,7 +185,13 @@ export async function updateQuote(
   // 발송 훅은 반드시 함수 "맨 끝"(시나리오 교체/대표 갱신 이후) — 워크벤치 발송은
   // {scenarios 전체 교체, appStatus:"sent"}가 한 PATCH에 동봉되므로 교체 반영 후의 fresh 상태를 스냅샷해야 한다.
   if (patch.appStatus === "sent") {
-    await syncAdvisorQuoteOnSend(customerId, quoteId, ex);
+    try {
+      await syncAdvisorQuoteOnSend(customerId, quoteId, ex);
+    } catch (e) {
+      // 발송은 저빈도·고중요 조작 — 실패 시 트랜잭션 롤백(스탬프 포함)되지만 사후 진단용 로그는 여기서만 남는다.
+      console.error(`[advisor-quotes] 발송 수신함 반영 실패 quote=${quoteId}:`, e);
+      throw e;
+    }
   }
   return { id: row.id };
 }
