@@ -144,6 +144,7 @@ const detailRes: CustomerDetailResponse = {
       optionTotal: null,
       finalDiscount: null,
       acquisitionTax: null,
+      acquisitionTaxMode: null,
       bond: null,
       delivery: null,
       incidental: null,

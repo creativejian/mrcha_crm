@@ -104,6 +104,8 @@ export type CustomerDetailQuote = {
   optionTotal: string | null;
   finalDiscount: string | null;
   acquisitionTax: string | null;
+  // 취득세 모드(normal|hybrid|electric|manual, DB CHECK) — 수정 진입 시 워크벤치 토글 복원용.
+  acquisitionTaxMode: string | null;
   bond: string | null;
   delivery: string | null;
   incidental: string | null;

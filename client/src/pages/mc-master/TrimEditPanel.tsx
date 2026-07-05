@@ -10,6 +10,7 @@ import {
   statusLabel,
 } from "@/data/vehicle-taxonomy";
 import type { CatalogTrim, TrimInput } from "@/lib/catalog";
+import { bindSelect } from "@/lib/select-bind";
 import { EditDrawer } from "./EditDrawer";
 import { formatThousands, parseWon } from "./trim-format";
 
@@ -68,7 +69,7 @@ export function TrimEditPanel({
       )}
       <label className="va-field">
         <span>상태</span>
-        <select className="select" value={status} onChange={(e) => setStatus(e.currentTarget.value as VehicleStatus)}>
+        <select className="select" {...bindSelect(status, (v) => setStatus(v as VehicleStatus))}>
           {VEHICLE_STATUSES.map((s) => (
             <option key={s} value={s}>
               {statusLabel(s)}
@@ -97,7 +98,7 @@ export function TrimEditPanel({
       </label>
       <label className="va-field">
         <span>연료 *</span>
-        <select className="select" value={fuelType} onChange={(e) => setFuelType(e.currentTarget.value)}>
+        <select className="select" {...bindSelect(fuelType, setFuelType)}>
           {FUEL_TYPES.map((f) => (
             <option key={f} value={f}>
               {f}
@@ -107,7 +108,7 @@ export function TrimEditPanel({
       </label>
       <label className="va-field">
         <span>구동방식</span>
-        <select className="select" value={driveSystem} onChange={(e) => setDriveSystem(e.currentTarget.value)}>
+        <select className="select" {...bindSelect(driveSystem, setDriveSystem)}>
           {DRIVE_SYSTEMS.map((d) => (
             <option key={d} value={d}>
               {d}
@@ -121,7 +122,7 @@ export function TrimEditPanel({
       </label>
       <label className="va-field">
         <span>변속기</span>
-        <select className="select" value={transmissionType} onChange={(e) => setTransmissionType(e.currentTarget.value)}>
+        <select className="select" {...bindSelect(transmissionType, setTransmissionType)}>
           {TRANSMISSION_TYPES.map((t) => (
             <option key={t} value={t}>
               {t}

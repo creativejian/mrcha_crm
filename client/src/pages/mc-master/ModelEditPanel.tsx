@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { MODEL_CATEGORIES, VEHICLE_STATUSES, type VehicleStatus, statusLabel } from "@/data/vehicle-taxonomy";
 import type { CatalogModel } from "@/lib/catalog";
+import { bindSelect } from "@/lib/select-bind";
 import { EditDrawer } from "./EditDrawer";
 
 // model=null → 추가 모드, model 있음 → 수정 모드(이름 RO, category·status만).
@@ -40,7 +41,7 @@ export function ModelEditPanel({
       </label>
       <label className="va-field">
         <span>카테고리</span>
-        <select className="select" value={category} onChange={(e) => setCategory(e.currentTarget.value)}>
+        <select className="select" {...bindSelect(category, setCategory)}>
           <option value="">미분류</option>
           {MODEL_CATEGORIES.map((c) => (
             <option key={c} value={c}>
@@ -51,7 +52,7 @@ export function ModelEditPanel({
       </label>
       <label className="va-field">
         <span>상태</span>
-        <select className="select" value={status} onChange={(e) => setStatus(e.currentTarget.value as VehicleStatus)}>
+        <select className="select" {...bindSelect(status, (v) => setStatus(v as VehicleStatus))}>
           {VEHICLE_STATUSES.map((s) => (
             <option key={s} value={s}>
               {statusLabel(s)}

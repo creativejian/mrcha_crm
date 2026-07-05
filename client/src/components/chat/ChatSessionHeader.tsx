@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { CHAT_MODE_LABELS } from "@/data/chat";
 import { assignSession, returnSessionToAi, takeOverSession, type ChatSession, type StaffOption } from "@/lib/chat";
+import { useActionSelect } from "@/lib/select-bind";
 
 type ChatSessionHeaderProps = {
   session: ChatSession;
@@ -12,10 +13,13 @@ type ChatSessionHeaderProps = {
 
 export function ChatSessionHeader({ session, staffId, staffOptions, onChanged, onToast }: ChatSessionHeaderProps) {
   const [busy, setBusy] = useState(false);
-  // Safari는 select 팝오버 선택 시 input(신값)→controlled 복원(value="")→change(구값 "") 순서라 change만 보면
-  // 배정값이 유실된다(QuoteWorkbench guidance select와 동일 계열, 2026-07-05 실측). onInput에서 값을 보관했다가
-  // change에서 폴백으로 사용 — 실행은 change 1곳뿐이라 이중 배정 없음.
-  const pendingAssignRef = useRef("");
+  // 액션형(value 고정) select Safari 유실 대응 — 규칙·배경은 lib/select-bind.ts 참조.
+  const assignBind = useActionSelect((nextStaffId) => {
+    void run(async () => {
+      await assignSession(session.id, nextStaffId);
+      onToast("상담원을 배정했습니다.");
+    });
+  });
   const assignedName = staffOptions.find((option) => option.id === session.assignedStaffId)?.name ?? null;
   const isMineHuman = session.mode === "human" && staffId !== null && session.assignedStaffId === staffId;
 
@@ -45,17 +49,7 @@ export function ChatSessionHeader({ session, staffId, staffOptions, onChanged, o
               aria-label="상담원 배정"
               className="chat-assign-select"
               disabled={busy || staffOptions.length === 0}
-              onInput={(event) => { pendingAssignRef.current = event.currentTarget.value; }}
-              onChange={(event) => {
-                const nextStaffId = event.target.value || pendingAssignRef.current;
-                pendingAssignRef.current = "";
-                if (!nextStaffId) return;
-                void run(async () => {
-                  await assignSession(session.id, nextStaffId);
-                  onToast("상담원을 배정했습니다.");
-                });
-              }}
-              value=""
+              {...assignBind}
             >
               <option value="">배정…</option>
               {staffOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}

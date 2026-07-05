@@ -140,11 +140,10 @@ export function useQuoteWorkbench({
         emptyQuoteConditionCards[1],
         emptyQuoteConditionCards[2],
       ]);
-      setManualTermMonths(seed.termMonths != null ? { "manual-condition-1": seed.termMonths } : {});
-      setManualDepositModes(seed.depositMode ? { "manual-condition-1": seed.depositMode } : {});
-      setManualDownPaymentModes(seed.downPaymentMode ? { "manual-condition-1": seed.downPaymentMode } : {});
-      setManualCarTaxIncluded({});
-      setManualSubsidyApplicable({});
+      clearCardUiState(); // 이전 세션 잔상(잔존가치/약정거리 모드·할인 행·취득세 등) 청소 후 시드만 얹는다
+      if (seed.termMonths != null) setManualTermMonths({ "manual-condition-1": seed.termMonths });
+      if (seed.depositMode) setManualDepositModes({ "manual-condition-1": seed.depositMode });
+      if (seed.downPaymentMode) setManualDownPaymentModes({ "manual-condition-1": seed.downPaymentMode });
       setSavedManualQuoteConditionIds([]);
       setRecognizedQuoteFile(null);
       setSolutionWorkbenchEntryMode("manual");
@@ -469,6 +468,12 @@ export function useQuoteWorkbench({
     markQuoteDraftChanged();
   }
 
+  // 추가 할인 행 항목명 변경 — select가 defaultValue만 갖고 state 미배선이라 라벨이 "재구매 할인"으로 박제되던 것 픽스.
+  function setDiscountLineLabel(id: string, label: string) {
+    setDiscountLines((prev) => prev.map((line) => (line.id === id ? { ...line, label } : line)));
+    markQuoteDraftChanged();
+  }
+
   function setDiscountLineMode(id: string, unit: DiscountUnit) {
     const current = discountLines.find((line) => line.id === id);
     const root = pricingPanelRef.current;
@@ -498,6 +503,23 @@ export function useQuoteWorkbench({
   function resetWorkbenchPricing() {
     setPricingInputs(emptyQuotePricing);
     setPricing(computePricing(emptyQuotePricing));
+  }
+
+  // 워크벤치 열기/승격/초기화 시 카드 UI 상태 잔상 제거 — 모드 Record·할인 행·취득세 모드는
+  // extractWorkbenchScenarios/persist가 읽어 화면 잔상이 아니라 저장까지 오염되므로 가격과 함께 반드시 청소한다.
+  // (수정 진입은 시나리오에서 전량 재구성하므로 Record는 복원 setter가 대체 — discountLines/취득세만 별도 처리.)
+  function clearCardUiState() {
+    setManualTermMonths({});
+    setManualDepositModes({});
+    setManualDownPaymentModes({});
+    setManualResidualModes({});
+    setManualMileageModes({});
+    setManualMileageValues({});
+    setManualCarTaxIncluded({});
+    setManualSubsidyApplicable({});
+    setDiscountLines([]);
+    setAcquisitionTaxMode("normal");
+    setPrimaryDiscountUnit("amount");
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -948,9 +970,8 @@ export function useQuoteWorkbench({
     setIsQuoteDraftDirty(false);
     setSavedManualQuoteConditionIds([]);
     setManualQuoteCards([...emptyQuoteConditionCards]);
-    setManualTermMonths({});
-    setManualCarTaxIncluded({});
-    setManualSubsidyApplicable({});
+    clearCardUiState();
+    setGuidance(seedGuidance()); // 추가 안내(섹션4)도 워크벤치 입력값 — 초기화 의미론에 포함
     setIsQuoteAppCardPreviewOpen(false);
     resetWorkbenchPricing();
     onToast("워크벤치 입력값을 초기화했습니다.");
@@ -998,9 +1019,7 @@ export function useQuoteWorkbench({
     resetWorkbenchVehicle();
     setGuidance(seedGuidance());
     setManualQuoteCards([...emptyQuoteConditionCards]);
-    setManualTermMonths({});
-    setManualCarTaxIncluded({});
-    setManualSubsidyApplicable({});
+    clearCardUiState();
     setSavedManualQuoteConditionIds([]);
     setRecognizedQuoteFile(null);
     setSolutionWorkbenchPurchaseMethod(primaryQuotePurchaseMethod(purchaseFields));
@@ -1069,6 +1088,10 @@ export function useQuoteWorkbench({
     setManualTermMonths(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.termMonths])));
     setManualCarTaxIncluded(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.carTaxIncluded])));
     setManualSubsidyApplicable(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.subsidyApplicable])));
+    // 취득세 모드는 견적 저장본에서 복원(미복원 시 이전 세션 잔상이 persist payload에 실려 수정 저장을 오염).
+    setAcquisitionTaxMode((dq?.acquisitionTaxMode as AcquisitionTaxMode) ?? "normal");
+    setDiscountLines([]); // discount_lines는 미영속 — 다른 견적의 추가 할인 행 잔상 방지
+    setPrimaryDiscountUnit("amount");
     setEditingQuoteId(quote.id);
     persistedQuoteIdRef.current = null;
     setSourceQuoteRequestId(null);
@@ -1174,6 +1197,7 @@ export function useQuoteWorkbench({
       removeDiscountLine,
       setPrimaryDiscountMode,
       setDiscountLineMode,
+      setDiscountLineLabel,
       // 비교카드
       saveManualQuoteCondition,
       editManualQuoteCondition,

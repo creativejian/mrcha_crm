@@ -4,6 +4,7 @@ import { ADVISOR_NAMES, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer,
 import { badgeClass, finalUpdateStatus, finalUpdateStatusFromManage, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { prefetchCustomerDetail } from "@/lib/customers";
 import { deriveFinalUpdateInfo } from "@/lib/manage-status";
+import { bindSelect } from "@/lib/select-bind";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -788,15 +789,15 @@ export function CustomerManagementPage({
               </>
             ) : (
               <>
-                <select className="select" onChange={(event) => { setStatusGroup(event.target.value); setStatus(""); setCurrentPage(1); }} value={statusGroup}>
+                <select className="select" {...bindSelect(statusGroup, (v) => { setStatusGroup(v); setStatus(""); setCurrentPage(1); })}>
                   <option value="">진행 상태 · 1차</option>
                   {Object.keys(customerStatusGroups).map((group) => <option key={group}>{group}</option>)}
                 </select>
-                <select className="select" onChange={(event) => { setStatus(event.target.value); setCurrentPage(1); }} value={status}>
+                <select className="select" {...bindSelect(status, (v) => { setStatus(v); setCurrentPage(1); })}>
                   <option value="">진행 상태 · 2차</option>
                   {statuses.map((item, index) => <option key={`${item}-${index}`}>{item}</option>)}
                 </select>
-                <select className="select" onChange={(event) => { setAdvisor(event.target.value); setCurrentPage(1); }} value={advisor}>
+                <select className="select" {...bindSelect(advisor, (v) => { setAdvisor(v); setCurrentPage(1); })}>
                   <option value="">담당자</option>
                   {ADVISOR_NAMES.map((name) => <option key={name}>{name}</option>)}
                 </select>
@@ -978,16 +979,10 @@ export function CustomerManagementPage({
               <span>페이지당</span>
               <select
                 className="select page-size-select"
-                // Safari: 팝오버 선택 시 input(신값)→controlled 복원→change(구값) 순서라 onInput 병행 필수(2026-07-05 실측). setState 멱등이라 이중 발화 무해.
-                onChange={(event) => {
-                  setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number]);
+                {...bindSelect(pageSize, (v) => {
+                  setPageSize(Number(v) as (typeof pageSizeOptions)[number]);
                   setCurrentPage(1);
-                }}
-                onInput={(event) => {
-                  setPageSize(Number(event.currentTarget.value) as (typeof pageSizeOptions)[number]);
-                  setCurrentPage(1);
-                }}
-                value={pageSize}
+                })}
               >
                 {pageSizeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
