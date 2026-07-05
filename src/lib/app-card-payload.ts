@@ -120,18 +120,18 @@ const TAX_MODE_LABELS: Record<string, string> = {
 };
 
 // 클라 quote-pricing.ts formatMoney 재현
-function formatMoney(value: number): string {
+export function formatMoney(value: number): string {
   return Math.round(value)
     .toString()
     .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 // 클라 quote-items.ts formatTerm 재현
-function formatTerm(termMonths: number | null): string {
+export function formatTerm(termMonths: number | null): string {
   return termMonths != null ? `${termMonths}개월` : "조건 미정";
 }
 
-function numOr(raw: string | null | undefined): number | null {
+export function numOr(raw: string | null | undefined): number | null {
   if (raw == null || raw === "") return null;
   const n = Number(raw);
   return Number.isNaN(n) ? null : n;
@@ -148,7 +148,7 @@ function moneyLabelOf(raw: string | null | undefined, fallback: string): string 
 }
 
 // 모델+트림 표시명. 카탈로그 트림명이 모델명을 접두로 포함하는 경우(BMW 등) 중복 없이 트림명만 쓴다.
-function vehicleTitleOf(modelName: string | null, trimName: string | null): string {
+export function vehicleTitleOf(modelName: string | null, trimName: string | null): string {
   const model = modelName?.trim() ?? "";
   const trim = trimName?.trim() ?? "";
   if (!model && !trim) return "차량 미선택";
@@ -181,7 +181,7 @@ function moneyModeLabel(
 // 푸터 발송시각 — 클라 formatActivity("YY/MM/DD HH:mm") 재현. 단 클라는 브라우저 로컬(KST) 기준이고
 // 서버 런타임(CF Workers)은 UTC라 로컬 타임존을 쓰면 9시간 어긋난다 → KST(+09:00, 한국은 DST 없음) 고정 환산.
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-function stampLabelOf(iso: string): string {
+export function stampLabelOf(iso: string): string {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return "발송 전 미리보기"; // 클라 stampLabelOf 폴백 재현(무효 입력 방어)
   const d = new Date(t + KST_OFFSET_MS);
@@ -228,7 +228,7 @@ type GuidanceShape = {
 // 클라 normalizeQuoteGuidance(client/src/data/quote-guidance.ts) 재현: keyPoints 배열 우선, 없으면
 // legacy keyPoint(단수) 승격, 둘 다 없으면 []. null guidance는 빈 guidance로 방어 —
 // 클라 워크벤치의 DEFAULT_QUOTE_GUIDANCE 폴백은 "작성 시드"라 발송본에 주입하지 않는다(상담사가 안 쓴 제안문 발송 방지).
-function guidanceOf(raw: unknown): GuidanceShape {
+export function guidanceOf(raw: unknown): GuidanceShape {
   const g: Record<string, unknown> =
     typeof raw === "object" && raw != null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const str = (v: unknown): string => (typeof v === "string" ? v : "");
