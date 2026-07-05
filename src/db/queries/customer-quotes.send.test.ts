@@ -6,6 +6,7 @@ import { trimsInCatalog } from "../catalog";
 import { advisorQuotes, profiles, quoteRequests } from "../public-app";
 import { customers, quotes } from "../schema";
 import { createQuote, deleteQuote, updateQuote, type QuoteCreateBody } from "./customer-quotes";
+import { getCustomer } from "./customers";
 
 const db = getDefaultDb();
 
@@ -215,6 +216,49 @@ test("deleteQuote: 발송된 견적 삭제 시 advisor_quotes 행도 회수(보�
 
     const after = await db.select().from(advisorQuotes).where(eq(advisorQuotes.crmQuoteId, created.id));
     expect(after).toHaveLength(0); // 스펙 확정 결정 7 — loose id라 CASCADE 없음, 훅이 직접 회수
+  } finally {
+    await cleanup(ids);
+  }
+});
+
+test("read-through(Task 5): 앱 열람 시각이 getCustomer quotes[].viewedAt에 병합된다", async () => {
+  const userId = await anyProfileId();
+  const ids: { quoteId?: string; customerId?: string } = {};
+  try {
+    ids.customerId = await makeCustomer(userId);
+    const created = await createQuote(ids.customerId, baseQuoteBody(), db);
+    ids.quoteId = created.id;
+    await updateQuote(ids.customerId, created.id, { appStatus: "sent" }, db);
+
+    // 앱 열람 시뮬레이션 — 앱이 advisor_quotes.viewed_at을 직접 스탬프한다(열람 SSOT, 스펙 결정 8).
+    const viewed = new Date();
+    await db.update(advisorQuotes).set({ viewedAt: viewed.toISOString() }).where(eq(advisorQuotes.crmQuoteId, created.id));
+
+    const detail = await getCustomer(ids.customerId, db);
+    const quote = detail?.quotes.find((q) => q.id === created.id);
+    expect(quote).toBeDefined();
+    // crm.quotes.viewed_at은 아무도 write하지 않아 항상 null — 응답 값은 advisor 병합본이어야 한다.
+    expect(quote!.viewedAt).not.toBeNull();
+    expect(quote!.viewedAt!.getTime()).toBe(viewed.getTime());
+  } finally {
+    await cleanup(ids);
+  }
+});
+
+test("read-through(Task 5): 미열람(advisor viewed_at null)이면 viewedAt null 유지", async () => {
+  const userId = await anyProfileId();
+  const ids: { quoteId?: string; customerId?: string } = {};
+  try {
+    ids.customerId = await makeCustomer(userId);
+    const created = await createQuote(ids.customerId, baseQuoteBody(), db);
+    ids.quoteId = created.id;
+    await updateQuote(ids.customerId, created.id, { appStatus: "sent" }, db);
+    // 발송 직후 = advisor 행 존재·viewed_at null(전달·미열람).
+
+    const detail = await getCustomer(ids.customerId, db);
+    const quote = detail?.quotes.find((q) => q.id === created.id);
+    expect(quote).toBeDefined();
+    expect(quote!.viewedAt).toBeNull();
   } finally {
     await cleanup(ids);
   }
