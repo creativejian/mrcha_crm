@@ -6,13 +6,16 @@ import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { type useAssistantThread } from "@/components/ai/useAssistantThread";
 import { NEW_TURN_TOP_GAP, computeTurnMinHeight } from "@/lib/assistant-layout";
 
-const quickAiPrompts = [
-  "오늘 내가 먼저 처리할 일 정리해줘",
-  "계약 가능성 높은 고객 순위 뽑아줘",
-  "응답 지연 고객 알려줘",
-  "오늘 견적 보낼 고객 정리해줘",
-  "출고/정산 리스크 찾아줘",
-];
+// 빠른 질문 = 집계·조건형 질의라 RAG(임베딩 검색)로 원리적 불가 — 텍스트가 그대로 전송되면 서버가
+// 도구 키(화이트리스트 리포트 쿼리)로 결정론 라우팅한다. 문구는 이사님 소유(수정 시 아래 매핑 유지),
+// 키 어휘는 서버 ASSISTANT_TOOL_KEYS와 파리티 테스트(quick-prompt-tools.test.ts)가 잠근다.
+export const QUICK_AI_PROMPTS = [
+  { text: "오늘 내가 먼저 처리할 일 정리해줘", tool: "today_actions" },
+  { text: "계약 가능성 높은 고객 순위 뽑아줘", tool: "chance_ranking" },
+  { text: "응답 지연 고객 알려줘", tool: "stale_customers" },
+  { text: "오늘 견적 보낼 고객 정리해줘", tool: "quote_ready" },
+  { text: "출고/정산 리스크 찾아줘", tool: "delivery_risk" },
+] as const;
 
 type AiAssistantPanelProps = {
   thread: ReturnType<typeof useAssistantThread>; // 스레드 상태는 Topbar 소유 — 팝오버를 닫아도 대화가 유지된다
@@ -25,7 +28,7 @@ type AiAssistantPanelProps = {
 // Topbar 업무 AI 팝오버 본체(헤더·대화·입력). 팝오버 열림/닫힘·shield는 Topbar 책임.
 export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, onClose }: AiAssistantPanelProps) {
   const [input, setInput] = useState("");
-  const [selectedPrompt, setSelectedPrompt] = useState(quickAiPrompts[0]);
+  const [selectedPrompt, setSelectedPrompt] = useState<string>(QUICK_AI_PROMPTS[0].text);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { entries, historyStatus, hasMore, loadingOlder, asking, prependAnchorRef, newTurnAnchorRef } = thread;
   // 마지막 턴 assistant 요소에 줄 min-height(px). 새 턴 전송 시 계산 — 영속 교체 후에도 렌더에 유지돼 스크롤 점프가 없다.
@@ -90,7 +93,10 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
     const question = input.trim();
     if (!question || asking) return;
     setInput("");
-    await thread.submit(question);
+    // 전송 텍스트가 빠른 질문과 정확히 일치하면 도구 결정론 라우팅 — 사용자가 문구를 고치면
+    // 자유 질문(기존 RAG 경로)으로 흐른다(모델 라우팅은 PR2).
+    const tool = QUICK_AI_PROMPTS.find((p) => p.text === question)?.tool;
+    await thread.submit(question, tool);
   }
 
   return (
@@ -109,8 +115,8 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
           <div className="work-ai-quick">
             <span>빠른 질문</span>
             <div>
-              {quickAiPrompts.map((prompt) => (
-                <button className={selectedPrompt === prompt ? "active" : ""} key={prompt} onClick={() => { setSelectedPrompt(prompt); setInput(prompt); }} type="button">{prompt}</button>
+              {QUICK_AI_PROMPTS.map((prompt) => (
+                <button className={selectedPrompt === prompt.text ? "active" : ""} key={prompt.text} onClick={() => { setSelectedPrompt(prompt.text); setInput(prompt.text); }} type="button">{prompt.text}</button>
               ))}
             </div>
           </div>
