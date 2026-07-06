@@ -3,7 +3,7 @@ import { test, expect, afterEach } from "bun:test";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { EMBEDDING_DIM } from "../lib/gemini-embed";
-import { assistantDeps, DISPLAY_LIMIT } from "./assistant";
+import { assistantDeps, DISPLAY_LIMIT, SIMILARITY_THRESHOLD } from "./assistant";
 
 process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || "test-key";
 
@@ -243,6 +243,73 @@ test("POST /ask stream:true hits 0건 → 고정 문구 text 1회 + done(저장 
   streamRagFakes(seen);
   assistantDeps.searchEmbeddings = async () => [];
   // eslint-disable-next-line require-yield -- hits 0건이면 호출 자체가 없어야 함을 검증하는 가드(호출되면 즉시 throw)
+  assistantDeps.generateAnswerStream = async function* () { throw new Error("호출되면 안 됨"); };
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const events = parseSse(await res.text());
+  const texts = events.filter((e) => e.event === "text");
+  expect(texts).toHaveLength(1);
+  expect((JSON.parse(texts[0].data) as { chunk: string }).chunk).toBe("관련 CRM 데이터를 찾지 못했습니다.");
+  expect(seen.updated!.content).toBe("관련 CRM 데이터를 찾지 못했습니다.");
+});
+
+// 근거 유사도 임계값(2026-07-06 실측 기반) — top-k는 관련도와 무관하게 항상 k개를 돌려주므로
+// 미달 청크를 프롬프트(생성 오염)·sources(화면 근거 8줄 노이즈) 양쪽에서 제외한다.
+const mkHit = (id: string, similarity: number) =>
+  ({ id, sourceType: "memo", sourceId: id, customerId: "c1", content: `근거-${id}`, similarity });
+
+test("POST /ask 임계값 미달 청크는 프롬프트·sources에서 제외(경계값 == 임계값은 유지)", async () => {
+  let userPrompt = "";
+  let savedSources: unknown[] = [];
+  assistantDeps.listRecentMessages = async () => [];
+  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
+  assistantDeps.searchEmbeddings = async () => [mkHit("e1", 0.9), mkHit("e2", SIMILARITY_THRESHOLD), mkHit("e3", 0.749), mkHit("e4", 0.6)];
+  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
+  assistantDeps.generateAnswer = async (_s: string, u: string) => { userPrompt = u; return "답변"; };
+  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => {
+    savedSources = (rows[1] as { sources: unknown[] }).sources;
+    return rows as never;
+  };
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q" }) });
+  expect(res.status).toBe(200);
+  expect(userPrompt).toContain("근거-e1");
+  expect(userPrompt).toContain("근거-e2"); // 경계값(== 임계값)은 유지 — ≥ 비교
+  expect(userPrompt).not.toContain("근거-e3");
+  expect(userPrompt).not.toContain("근거-e4");
+  expect(savedSources).toHaveLength(2);
+});
+
+test("POST /ask 전부 임계값 미달 → 기존 hits 0건 경로(Gemini 미호출·고정 답변·sources 빈 배열)", async () => {
+  let savedSources: unknown[] | null = null;
+  assistantDeps.listRecentMessages = async () => [];
+  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
+  assistantDeps.searchEmbeddings = async () => [mkHit("e1", 0.74), mkHit("e2", 0.6)];
+  assistantDeps.getCustomerMetaByIds = async () => new Map();
+  assistantDeps.generateAnswer = async () => { throw new Error("호출되면 안 됨"); };
+  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => {
+    savedSources = (rows[1] as { sources: unknown[] }).sources;
+    return rows as never;
+  };
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q" }) });
+  expect(res.status).toBe(200);
+  const json = (await res.json()) as { messages: { content: string }[] };
+  expect(json.messages[1].content).toBe("관련 CRM 데이터를 찾지 못했습니다.");
+  expect(savedSources).toHaveLength(0);
+});
+
+test("POST /ask stream:true 전부 임계값 미달 → hits 0건과 동일(고정 문구 text 1회)", async () => {
+  const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
+  streamRagFakes(seen);
+  assistantDeps.searchEmbeddings = async () => [mkHit("e1", 0.7)];
+  // eslint-disable-next-line require-yield -- 전부 미달이면 호출 자체가 없어야 함을 검증하는 가드(호출되면 즉시 throw)
   assistantDeps.generateAnswerStream = async function* () { throw new Error("호출되면 안 됨"); };
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
