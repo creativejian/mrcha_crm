@@ -111,6 +111,7 @@ async function gather(): Promise<CorpusRow[]> {
       id: quotes.id, customerId: quotes.customerId, name: customers.name, quoteCode: quotes.quoteCode,
       brandName: quotes.brandName, modelName: quotes.modelName, trimName: quotes.trimName,
       appStatus: quotes.appStatus, sentAt: quotes.sentAt, guidance: quotes.guidance,
+      discountLines: quotes.discountLines, finalDiscount: quotes.finalDiscount,
       primaryScenarioId: quotes.primaryScenarioId,
     })
     .from(quotes).innerJoin(customers, eq(customers.id, quotes.customerId));
@@ -128,8 +129,9 @@ async function gather(): Promise<CorpusRow[]> {
     scByQuote.set(s.quoteId, list);
   }
   for (const q of quoteRows) {
-    const sc = pickPrimaryScenario(scByQuote.get(q.id) ?? [], q.primaryScenarioId);
-    rows.push({ sourceType: "quote", sourceId: q.id, customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc) });
+    const scs = scByQuote.get(q.id) ?? [];
+    const sc = pickPrimaryScenario(scs, q.primaryScenarioId);
+    rows.push({ sourceType: "quote", sourceId: q.id, customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc, scs.filter((s) => s !== sc)) });
   }
 
   return rows;

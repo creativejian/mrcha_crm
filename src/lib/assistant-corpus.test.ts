@@ -29,19 +29,40 @@ const FULL_QUOTE: QuoteChunkQuote = {
     keyPoints: ["즉시 출고", "보증 연장"],
     services: ["썬팅: 후퍼옵틱"],
   },
+  discountLines: [{ label: "재구매 할인", amount: 200000, unit: "amount" }],
+  finalDiscount: "6700000",
 };
 const FULL_SC: QuoteChunkScenario = { purchaseMethod: "운용리스", termMonths: 60, monthlyPayment: "2350000", lender: "하나캐피탈" };
 
-test("buildQuoteChunkText: 풀필드 — 헤더+대표 시나리오+발송(KST)+guidance", () => {
+test("buildQuoteChunkText: 풀필드 — 헤더+대표 시나리오+할인 구성+발송(KST)+guidance", () => {
   expect(buildQuoteChunkText(FULL_QUOTE, FULL_SC)).toBe(
-    "QT-2607-0001 · BMW 320i M Sport · 운용리스 · 60개월 · 월 2,350,000원 · 하나캐피탈 · 26/07/05 09:30 발송"
+    "QT-2607-0001 · BMW 320i M Sport · 운용리스 · 60개월 · 월 2,350,000원 · 하나캐피탈 · 할인 6,700,000원 (재구매 할인 200,000원) · 26/07/05 09:30 발송"
     + " · 추천이유: 재고 확보 차량 조건 우수 · 핵심포인트: 즉시 출고, 보증 연장 · 서비스: 썬팅: 후퍼옵틱",
   );
 });
 
-test("buildQuoteChunkText: 최소 필드 — 차량 미선택·시나리오 없음·draft", () => {
-  const q: QuoteChunkQuote = { quoteCode: "QT-2607-0002", brandName: null, modelName: null, trimName: null, appStatus: "draft", sentAt: null, guidance: null };
+test("buildQuoteChunkText: 최소 필드 — 차량 미선택·시나리오 없음·할인 없음·draft", () => {
+  const q: QuoteChunkQuote = { quoteCode: "QT-2607-0002", brandName: null, modelName: null, trimName: null, appStatus: "draft", sentAt: null, guidance: null, discountLines: null, finalDiscount: null };
   expect(buildQuoteChunkText(q, null)).toBe("QT-2607-0002 · 차량 미선택 · 작성 중");
+});
+
+test("buildQuoteChunkText: 할인 — percent 행 표기·총액 0은 생략(행만 병기)·비정형 jsonb 방어", () => {
+  expect(buildQuoteChunkText({ ...FULL_QUOTE, discountLines: [{ label: "프로모션", amount: 1.5, unit: "percent" }], finalDiscount: null }, null))
+    .toContain("할인 (프로모션 1.5%)");
+  expect(buildQuoteChunkText({ ...FULL_QUOTE, discountLines: null, finalDiscount: "0" }, null)).not.toContain("할인");
+  expect(buildQuoteChunkText({ ...FULL_QUOTE, discountLines: [{ broken: true }, "x"], finalDiscount: "500000" }, null))
+    .toContain("할인 500,000원 ·");
+});
+
+test("buildQuoteChunkText: 비교 시나리오 2·3안 — 대표 제외 목록, 값 없는 안 생략", () => {
+  const others: QuoteChunkScenario[] = [
+    { purchaseMethod: "할부", termMonths: 60, monthlyPayment: "2100000", lender: "우리캐피탈" },
+    { purchaseMethod: null, termMonths: null, monthlyPayment: null, lender: null }, // 빈 안은 생략
+  ];
+  const text = buildQuoteChunkText(FULL_QUOTE, FULL_SC, others);
+  expect(text).toContain("비교안: 할부 60개월 월 2,100,000원 우리캐피탈");
+  expect(text).not.toContain("비교안: 할부 60개월 월 2,100,000원 우리캐피탈 /");
+  expect(buildQuoteChunkText(FULL_QUOTE, FULL_SC, [])).not.toContain("비교안");
 });
 
 test("buildQuoteChunkText: sent인데 sentAt 없으면 작성 중(방어), viewed도 발송으로 표기", () => {
@@ -60,7 +81,7 @@ test("buildQuoteChunkText: legacy keyPoint(단수) 승격 — normalizeQuoteGuid
 
 test("buildQuoteChunkText: 값 없는 항목 생략 — 빈 라벨 나열 금지", () => {
   const sc: QuoteChunkScenario = { purchaseMethod: "할부", termMonths: null, monthlyPayment: null, lender: null };
-  const text = buildQuoteChunkText({ ...FULL_QUOTE, appStatus: "draft", sentAt: null, guidance: null }, sc);
+  const text = buildQuoteChunkText({ ...FULL_QUOTE, appStatus: "draft", sentAt: null, guidance: null, discountLines: null, finalDiscount: null }, sc);
   expect(text).toBe("QT-2607-0001 · BMW 320i M Sport · 할부 · 작성 중");
 });
 
