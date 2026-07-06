@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 
 import { PURCHASE_UNSET_SENTINEL } from "../../client/src/data/customers";
 import { formatMoney, formatTerm, guidanceOf, numOr, stampLabelOf, vehicleTitleOf } from "./app-card-payload";
+import { DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "./quote-request-labels";
 
-export type CorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "consultation" | "quote" | "customer_profile" | "schedule" | "customer_documents";
+export type CorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "consultation" | "quote" | "customer_profile" | "schedule" | "customer_documents" | "quote_request";
 
 export type CorpusRow = {
   sourceType: CorpusSourceType;
@@ -24,6 +25,7 @@ const LABEL: Record<CorpusSourceType, string> = {
   customer_profile: "프로필",
   schedule: "일정",
   customer_documents: "서류함",
+  quote_request: "앱 견적요청",
 };
 
 // 임베딩할 content 문자열. 고객명·소스라벨을 앞에 붙여 검색·생성 컨텍스트를 풍부하게 한다.
@@ -160,6 +162,52 @@ export function buildScheduleChunkText(s: ScheduleChunkSchedule): string {
   ];
   if (!parts.some(Boolean)) return "";
   return [...parts, s.done ? "완료" : null].filter(Boolean).join(" · ");
+}
+
+// ── 앱 견적요청 청크(2026-07-06) ──────────────────────────────────────────────
+// 요청당 1행(source_id = quote_request_id). 요청은 요청별 조건(차량·방식·기간·보증금·옵션) 밀도가
+// 견적 청크와 동급이라 aggregate가 아닌 개별 청크(견적 선례) — 어느 요청의 조건인지 섞이지 않는다.
+// status(open/completed/closed)는 미포함: 승격/발송 여부는 quote 청크가 커버하고, 앱이 write하는
+// 전이를 CRM 훅이 못 쫓아 스테일로 박제된다(견적 열람 미포함과 동일 논리).
+// 고객 연결은 customers.app_user_id 직접 연결만(phone 매칭은 표시용 휴리스틱 — 임베딩 부적합).
+
+export type QuoteRequestChunkRequest = {
+  createdAt: string; // public-app timestamptz mode:"string"
+  brandName: string | null;
+  modelName: string | null;
+  trimName: string | null;
+  paymentMethod: string | null; // lease|rent|installment|cash 원값 — 라벨 변환은 빌더가 담당
+  period: number | null;
+  depositType: string | null; // deposit|advance|prepayment
+  depositRatio: number | null; // 0~100 정수 %
+  rentalDeposit: number | null; // 환산 금액(원)
+  trimPrice: number | null;
+  optionNames: string[];
+};
+
+// 보증금 파트: 유형 라벨 + 비율/금액 병기(클라 depositLabelOf 어휘 동일). 비율·금액 둘 다 0/없음이면
+// 항목째 생략(값 없는 라벨 잔존 금지).
+function requestDepositLabelOf(r: QuoteRequestChunkRequest): string | null {
+  const name = r.depositType ? (DEPOSIT_TYPE_LABEL[r.depositType] ?? r.depositType) : null;
+  if (!name) return null;
+  const parts = [r.depositRatio ? `${r.depositRatio}%` : null, r.rentalDeposit ? `${formatMoney(r.rentalDeposit)}원` : null].filter(Boolean);
+  return parts.length ? `${name} ${parts.join(" ")}` : null;
+}
+
+// 값 없는 항목 생략. createdAt이 notNull이라 텍스트는 항상 비지 않는다 — 삭제 경로는
+// 고아 정리(요청 삭제/고객 연결 해제)만.
+export function buildQuoteRequestChunkText(r: QuoteRequestChunkRequest): string {
+  const vehicle = [r.brandName, r.modelName, r.trimName].filter(Boolean).join(" ");
+  const parts: (string | null)[] = [
+    `${kstDateOf(new Date(r.createdAt))} 요청`,
+    vehicle || null,
+    r.paymentMethod ? (PAYMENT_METHOD_LABEL[r.paymentMethod] ?? r.paymentMethod) : null,
+    r.period != null ? formatTerm(r.period) : null,
+    requestDepositLabelOf(r),
+    r.optionNames.length ? `옵션: ${r.optionNames.join(", ")}` : null,
+    r.trimPrice ? `차량가 ${formatMoney(r.trimPrice)}원` : null,
+  ];
+  return parts.filter(Boolean).join(" · ");
 }
 
 // ── 서류함 청크(2026-07-06) ───────────────────────────────────────────────────

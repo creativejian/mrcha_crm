@@ -1,8 +1,10 @@
 import { asc, eq } from "drizzle-orm";
 
-import { buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildScheduleChunkText } from "../../lib/assistant-corpus";
+import { buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildQuoteRequestChunkText, buildScheduleChunkText } from "../../lib/assistant-corpus";
 import { pickPrimaryScenario } from "../../lib/primary-scenario";
+import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
+import { quoteRequestOptions, quoteRequests } from "../public-app";
 import { customerDocuments, customerMemos, customers, customerSchedules, customerTasks, quotes, quoteScenarios } from "../schema";
 
 // 증분 임베딩 훅의 fresh read — 커밋된 최신 원본+고객명 스냅샷.
@@ -11,7 +13,7 @@ export type CorpusSourceSnapshot = { customerId: string; customerName: string; t
 
 // on-write 대상 소스타입. consultation은 CRM 쓰기 경로가 없어 제외(스펙 결정 3 —
 // 채팅 AI 요약 자동 수신 경로가 생기면 그쪽에서 훅 추가).
-export type WritableCorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "quote" | "customer_profile" | "schedule" | "customer_documents";
+export type WritableCorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "quote" | "customer_profile" | "schedule" | "customer_documents" | "quote_request";
 
 export async function loadCorpusSource(
   sourceType: WritableCorpusSourceType,
@@ -77,6 +79,60 @@ export async function loadCorpusSource(
         .where(eq(customers.id, sourceId));
       if (!r) return null;
       return { customerId: sourceId, customerName: r.name, text: buildCustomerProfileChunkText(r) };
+    }
+    case "quote_request": {
+      // 요청당 1행(public.quote_requests). 고객 연결 = customers.app_user_id 직접 연결만 —
+      // 미연결 요청은 null(임베딩 없음, link/create-customer 승격 훅이 연결 시점에 적재).
+      const [req] = await ex
+        .select({
+          userId: quoteRequests.userId,
+          createdAt: quoteRequests.createdAt,
+          trimId: quoteRequests.trimId,
+          paymentMethod: quoteRequests.paymentMethod,
+          period: quoteRequests.period,
+          depositType: quoteRequests.depositType,
+          depositRatio: quoteRequests.depositRatio,
+          rentalDeposit: quoteRequests.rentalDeposit,
+          trimPrice: quoteRequests.trimPrice,
+        })
+        .from(quoteRequests)
+        .where(eq(quoteRequests.id, sourceId));
+      if (!req) return null;
+      const [cust] = await ex
+        .select({ id: customers.id, name: customers.name })
+        .from(customers)
+        .where(eq(customers.appUserId, req.userId));
+      if (!cust) return null;
+      const [trim, opts] = await Promise.all([
+        req.trimId != null
+          ? ex
+              .select({ trimName: trimsInCatalog.trimName, modelName: modelsInCatalog.name, brandName: brandsInCatalog.name })
+              .from(trimsInCatalog)
+              .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
+              .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
+              .where(eq(trimsInCatalog.id, req.trimId))
+              .then((rows) => rows[0] ?? null)
+          : Promise.resolve(null),
+        ex
+          .select({ optionName: quoteRequestOptions.optionName })
+          .from(quoteRequestOptions)
+          .where(eq(quoteRequestOptions.quoteRequestId, sourceId))
+          .orderBy(asc(quoteRequestOptions.id)),
+      ]);
+      const text = buildQuoteRequestChunkText({
+        createdAt: req.createdAt,
+        brandName: trim?.brandName ?? null,
+        modelName: trim?.modelName ?? null,
+        trimName: trim?.trimName ?? null,
+        paymentMethod: req.paymentMethod,
+        period: req.period,
+        depositType: req.depositType,
+        depositRatio: req.depositRatio,
+        rentalDeposit: req.rentalDeposit,
+        trimPrice: req.trimPrice,
+        optionNames: opts.map((o) => o.optionName),
+      });
+      return { customerId: cust.id, customerName: cust.name, text };
     }
     case "customer_documents": {
       // 고객당 1행(source_id = customer_id): 서류 메타 목록. 구성 규칙은 빌더(SSOT), 순서는 업로드일

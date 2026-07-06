@@ -1,0 +1,2 @@
+ALTER TABLE "crm"."embeddings" DROP CONSTRAINT "embeddings_source_type_check";--> statement-breakpoint
+ALTER TABLE "crm"."embeddings" ADD CONSTRAINT "embeddings_source_type_check" CHECK ("crm"."embeddings"."source_type" IS NULL OR "crm"."embeddings"."source_type" IN ('memo', 'task', 'need_memo', 'need_customer_note', 'need_review_note', 'consultation', 'quote', 'customer_profile', 'schedule', 'customer_documents', 'quote_request'));

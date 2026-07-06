@@ -1,6 +1,7 @@
 import { desc, eq, inArray, like, or } from "drizzle-orm";
 
 import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
+import { PAYMENT_METHOD_LABEL } from "../../lib/quote-request-labels";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles, quoteRequestOptions, quoteRequests } from "../public-app";
@@ -258,20 +259,19 @@ export async function nextCustomerCode(ex: Executor = getDefaultDb()): Promise<s
   return nextSequenceCode(prefix, rows.map((r) => r.code));
 }
 
-// payment_method 한글 — S1 프론트 PAYMENT_METHOD_LABEL과 동일 어휘. customers.need_method는 한글로 저장한다.
-const NEED_METHOD_LABEL: Record<string, string> = {
-  lease: "운용리스",
-  rent: "장기렌트",
-  installment: "할부",
-  cash: "일시불",
-};
+// 승격/연결 시점 임베딩 훅용 — 해당 앱 유저의 요청 id 전부(요청 청크는 고객 연결이 생겨야 적재 가능).
+export async function listQuoteRequestIdsByUser(appUserId: string, ex: Executor = getDefaultDb()): Promise<string[]> {
+  const rows = await ex.select({ id: quoteRequests.id }).from(quoteRequests).where(eq(quoteRequests.userId, appUserId));
+  return rows.map((r) => r.id);
+}
 
 // 요청의 user_id를 대상 고객의 app_user_id에 set(전화 매칭된 기존 고객 연결). 요청/고객 없으면 null.
+// appUserId는 라우트의 요청 청크 임베딩 훅용(응답 JSON에 실려도 무해한 식별자).
 export async function linkRequestToCustomer(
   requestId: string,
   customerId: string,
   ex: Executor = getDefaultDb(),
-): Promise<{ id: string; customerCode: string; name: string } | null> {
+): Promise<{ id: string; customerCode: string; name: string; appUserId: string } | null> {
   const [req] = await ex.select({ userId: quoteRequests.userId }).from(quoteRequests).where(eq(quoteRequests.id, requestId));
   if (!req) return null;
   const [row] = await ex
@@ -279,7 +279,7 @@ export async function linkRequestToCustomer(
     .set({ appUserId: req.userId, updatedAt: new Date() })
     .where(eq(customers.id, customerId))
     .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
-  return row ?? null;
+  return row ? { ...row, appUserId: req.userId } : null;
 }
 
 // profiles + 요청 데이터로 신규 customers INSERT(app_user_id 연결). 같은 user로 이미 고객 있으면 기존 반환(중복 방지).
@@ -287,7 +287,7 @@ export async function linkRequestToCustomer(
 export async function createCustomerFromRequest(
   requestId: string,
   ex: Executor = getDefaultDb(),
-): Promise<{ id: string; customerCode: string; name: string } | null> {
+): Promise<{ id: string; customerCode: string; name: string; appUserId: string } | null> {
   const [req] = await ex
     .select({
       userId: quoteRequests.userId,
@@ -303,7 +303,7 @@ export async function createCustomerFromRequest(
     .select({ id: customers.id, customerCode: customers.customerCode, name: customers.name })
     .from(customers)
     .where(eq(customers.appUserId, req.userId));
-  if (existing) return existing;
+  if (existing) return { ...existing, appUserId: req.userId };
 
   const [profile] = await ex
     .select({ fullName: profiles.fullName, phoneNumber: profiles.phoneNumber })
@@ -335,12 +335,13 @@ export async function createCustomerFromRequest(
       appUserId: req.userId,
       needModel,
       needTrim,
-      needMethod: req.paymentMethod ? (NEED_METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod) : null,
+      // payment_method 한글 라벨 — 서버 SSOT lib/quote-request-labels(요청 청크 빌더와 공유).
+      needMethod: req.paymentMethod ? (PAYMENT_METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod) : null,
       source: "앱 견적요청",
       statusGroup: "신규",
       status: "상담접수",
       receivedAt: new Date(req.createdAt),
     })
     .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
-  return row;
+  return { ...row, appUserId: req.userId };
 }

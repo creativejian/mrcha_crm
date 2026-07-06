@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 
-import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildScheduleChunkText, contentHash, dateLabelOf, kstDateLabel, type CorpusRow, type CustomerProfileChunkCustomer, type DocumentChunkDocument, type QuoteChunkQuote, type QuoteChunkScenario, type ScheduleChunkSchedule } from "./assistant-corpus";
+import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildQuoteRequestChunkText, buildScheduleChunkText, contentHash, dateLabelOf, kstDateLabel, type CorpusRow, type CustomerProfileChunkCustomer, type DocumentChunkDocument, type QuoteChunkQuote, type QuoteChunkScenario, type QuoteRequestChunkRequest, type ScheduleChunkSchedule } from "./assistant-corpus";
 
 test("buildChunkContent: 소스타입별 라벨 + 고객명 + 본문", () => {
   const row: CorpusRow = { sourceType: "memo", sourceId: "s1", customerId: "c1", customerName: "김민준", text: "GLC 재고 문의" };
@@ -209,4 +209,48 @@ test("buildCustomerDocumentsChunkText: doc_type null은 미분류, 파일명 없
 test("buildChunkContent: customer_documents 라벨", () => {
   const row: CorpusRow = { sourceType: "customer_documents", sourceId: "c1", customerId: "c1", customerName: "김민준", text: "운전면허증 a.jpg (2026-07-01 업로드)" };
   expect(buildChunkContent(row)).toBe("고객 김민준 서류함: 운전면허증 a.jpg (2026-07-01 업로드)");
+});
+
+// ── 앱 견적요청 청크(2026-07-06) — 요청당 1행, status 미포함(발송/승격은 quote 청크가 커버). ──
+
+const FULL_REQUEST: QuoteRequestChunkRequest = {
+  createdAt: "2026-06-29T05:00:00+00:00", // KST 2026-06-29 14:00
+  brandName: "BMW",
+  modelName: "5 Series",
+  trimName: "520i",
+  paymentMethod: "lease",
+  period: 60,
+  depositType: "deposit",
+  depositRatio: 20,
+  rentalDeposit: 10496000,
+  trimPrice: 52480000,
+  optionNames: ["썬루프", "하이패스"],
+};
+
+test("buildQuoteRequestChunkText: 풀필드 — 요청일(KST)·차량·방식 한글·기간·보증금 병기·옵션·차량가", () => {
+  expect(buildQuoteRequestChunkText(FULL_REQUEST)).toBe(
+    "2026-06-29 요청 · BMW 5 Series 520i · 운용리스 · 60개월 · 보증금 20% 10,496,000원 · 옵션: 썬루프, 하이패스 · 차량가 52,480,000원",
+  );
+});
+
+test("buildQuoteRequestChunkText: 값 없는 항목 생략 — 트림 소실·무옵션·보증금 0", () => {
+  const text = buildQuoteRequestChunkText({
+    ...FULL_REQUEST,
+    brandName: null, modelName: null, trimName: null,
+    depositType: "advance", depositRatio: 0, rentalDeposit: 0,
+    trimPrice: null, optionNames: [],
+  });
+  expect(text).toBe("2026-06-29 요청 · 운용리스 · 60개월"); // 보증금 0/0은 항목째 생략(선수금 라벨 잔존 금지)
+});
+
+test("buildQuoteRequestChunkText: 선납금(prepayment) 금액만·미지 코드는 원값 유지", () => {
+  const text = buildQuoteRequestChunkText({ ...FULL_REQUEST, paymentMethod: "installment", depositType: "prepayment", depositRatio: 0, rentalDeposit: 5000000 });
+  expect(text).toContain("할부");
+  expect(text).toContain("선납금 5,000,000원");
+  expect(buildQuoteRequestChunkText({ ...FULL_REQUEST, paymentMethod: "custom" })).toContain("custom");
+});
+
+test("buildChunkContent: quote_request 라벨", () => {
+  const row: CorpusRow = { sourceType: "quote_request", sourceId: "r1", customerId: "c1", customerName: "제임스", text: "2026-06-29 요청 · BMW 5 Series 520i" };
+  expect(buildChunkContent(row)).toBe("고객 제임스 앱 견적요청: 2026-06-29 요청 · BMW 5 Series 520i");
 });
