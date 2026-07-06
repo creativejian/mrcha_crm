@@ -159,7 +159,7 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     if (c.req.valid("json").stream === true) {
       // await 필수: 선저장(insertAssistantMessages) 실패를 이 try/catch가 잡으려면 rejection이
       // 이 스코프 안에서 throw로 전환돼야 한다(그냥 return하면 catch를 건너뛰고 app.onError로 샌다).
-      return await streamAsk(c, { question, staffUserId, target, history, hits, promptChunks, sources, systemPrompt });
+      return await streamAsk(c, { question, staffUserId, target, history, promptChunks, sources, systemPrompt });
     }
 
     const answer = promptChunks.length === 0
@@ -191,12 +191,12 @@ function insertTurn(
 }
 
 type AskContext = Context<{ Variables: AuthVariables & DbVariables }>;
+// hits는 넘기지 않는다 — NO_HITS 게이트가 promptChunks 기준(#171)으로 바뀐 뒤 streamAsk 내부 사용처 0.
 type StreamAskArgs = {
   question: string;
   staffUserId: string;
   target: GeminiTarget;
   history: { role: "user" | "assistant"; content: string }[];
-  hits: Awaited<ReturnType<typeof searchEmbeddings>>;
   promptChunks: { customerName: string; customerStatus: string; content: string }[];
   sources: unknown;
   systemPrompt: string; // RAG(SYSTEM_PROMPT) vs 도구 리포트(TOOL_SYSTEM_PROMPT) — 호출부가 선택

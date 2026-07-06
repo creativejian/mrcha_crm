@@ -1,6 +1,7 @@
 import { test, expect } from "bun:test";
 
-import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildQuoteRequestChunkText, buildScheduleChunkText, contentHash, dateLabelOf, kstDateLabel, type CorpusRow, type CustomerProfileChunkCustomer, type DocumentChunkDocument, type QuoteChunkQuote, type QuoteChunkScenario, type QuoteRequestChunkRequest, type ScheduleChunkSchedule } from "./assistant-corpus";
+import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildQuoteRequestChunkText, buildScheduleChunkText, contentHash, type CorpusRow, type CustomerProfileChunkCustomer, type DocumentChunkDocument, type QuoteChunkQuote, type QuoteChunkScenario, type QuoteRequestChunkRequest, type ScheduleChunkSchedule } from "./assistant-corpus";
+import { dateLabelOf, kstDateLabel } from "./kst-date";
 
 test("buildChunkContent: 소스타입별 라벨 + 고객명 + 본문", () => {
   const row: CorpusRow = { sourceType: "memo", sourceId: "s1", customerId: "c1", customerName: "김민준", text: "GLC 재고 문의" };

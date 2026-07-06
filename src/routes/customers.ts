@@ -11,10 +11,9 @@ import {
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
-import { deleteEmbeddingBySource } from "../db/queries/embeddings";
 import { validateLookupValue, validateStatusSelection } from "../lib/lookup-validate";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
-import { scheduleEmbedOnWrite } from "../lib/embed-on-write";
+import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import type { DbVariables } from "../middleware/db";
 import { run } from "./shared";
@@ -264,8 +263,7 @@ customers.delete("/:id/memos/:childId", zValidator("param", childParam), (c) => 
   const p = c.req.valid("param");
   return run(c, async () => {
     const row = await deleteMemo(p.id, p.childId, c.var.db);
-    // 삭제 정리는 동기 1쿼리(Gemini 무관) — 응답 시점에 검색에서 제거(스펙 결정 6). 실패는 로그만(고아는 백필이 청소).
-    if (row) await deleteEmbeddingBySource("memo", p.childId, c.var.db).catch((e) => console.error("[embed-on-write] 삭제 정리 실패:", e));
+    if (row) await cleanupEmbeddingOnDelete("memo", p.childId, c.var.db); // 정리 정책 주석은 헬퍼 참조
     return row;
   }, "메모를 찾을 수 없습니다.");
 });
@@ -297,7 +295,7 @@ customers.delete("/:id/tasks/:childId", zValidator("param", childParam), (c) => 
   const p = c.req.valid("param");
   return run(c, async () => {
     const row = await deleteTask(p.id, p.childId, c.var.db);
-    if (row) await deleteEmbeddingBySource("task", p.childId, c.var.db).catch((e) => console.error("[embed-on-write] 삭제 정리 실패:", e));
+    if (row) await cleanupEmbeddingOnDelete("task", p.childId, c.var.db);
     return row;
   }, "할 일을 찾을 수 없습니다.");
 });
@@ -329,7 +327,7 @@ customers.delete("/:id/schedules/:childId", zValidator("param", childParam), (c)
   const p = c.req.valid("param");
   return run(c, async () => {
     const row = await deleteSchedule(p.id, p.childId, c.var.db);
-    if (row) await deleteEmbeddingBySource("schedule", p.childId, c.var.db).catch((e) => console.error("[embed-on-write] 삭제 정리 실패:", e));
+    if (row) await cleanupEmbeddingOnDelete("schedule", p.childId, c.var.db);
     return row;
   }, "일정을 찾을 수 없습니다.");
 });
@@ -360,7 +358,7 @@ customers.delete("/:id/quotes/:childId", zValidator("param", childParam), (c) =>
   // 앱에 회수 실패한 유령 카드가 남지 않는다.
   return run(c, async () => {
     const row = await c.var.db.transaction((tx) => deleteQuote(p.id, p.childId, tx));
-    if (row) await deleteEmbeddingBySource("quote", p.childId, c.var.db).catch((e) => console.error("[embed-on-write] 삭제 정리 실패:", e));
+    if (row) await cleanupEmbeddingOnDelete("quote", p.childId, c.var.db);
     return row;
   }, "견적을 찾을 수 없습니다.");
 });

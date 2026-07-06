@@ -3,41 +3,68 @@ import { test, expect, afterEach } from "bun:test";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { EMBEDDING_DIM } from "../lib/gemini-embed";
-import { assistantDeps, DISPLAY_LIMIT, SIMILARITY_THRESHOLD } from "./assistant";
+import { assistantDeps, DISPLAY_LIMIT, SIMILARITY_THRESHOLD, type AssistantDeps } from "./assistant";
 
 process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || "test-key";
 
 const realDeps = { ...assistantDeps };
 afterEach(() => { Object.assign(assistantDeps, realDeps); });
 
+// RAG 경로 기본 스텁 일괄 장착(스트림/논스트림 공용) — 각 테스트는 필요한 dep만 overrides로 교체하고,
+// 여분 스텁은 afterEach의 realDeps 리셋이 흡수한다.
+// ⚠️ "호출되면 안 됨" 부정 가드는 기본값에 넣지 않는다 — 가드 의도가 본문에 보이도록 해당 테스트의 override로 유지.
+type RagSeen = { inserted: unknown[][]; updated?: { id: string; content: string }; deletedId?: string };
+function ragFakes(seen: RagSeen, overrides: Partial<AssistantDeps> = {}) {
+  assistantDeps.listRecentMessages = async () => [];
+  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
+  assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
+  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
+  assistantDeps.insertAssistantMessages = async (rows) => {
+    seen.inserted.push(rows as unknown[]);
+    return rows.map((r, i) => ({ ...r, id: `row-${i}` })) as never;
+  };
+  assistantDeps.updateAssistantMessage = async (id: string, _staffUserId: string, content: string, sources: unknown) => {
+    seen.updated = { id, content };
+    return { id, staffUserId: "s", role: "assistant", content, sources, createdAt: new Date(1) } as never;
+  };
+  assistantDeps.deleteAssistantMessage = async (id: string, _staffUserId: string) => { seen.deletedId = id; };
+  Object.assign(assistantDeps, overrides);
+}
+
+// POST /api/assistant/ask 공통 요청 — token null = 무토큰(401 케이스), body에 stream:true면 SSE도 동일 경로.
+function askJson(app: ReturnType<typeof createApp>, token: string | null, body: Record<string, unknown>) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token !== null) headers.Authorization = `Bearer ${token}`;
+  return app.request("/api/assistant/ask", { method: "POST", headers, body: JSON.stringify(body) });
+}
+
 test("POST /ask 무토큰 → 401", async () => {
   const { keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: "q" }) });
+  const res = await askJson(app, null, { question: "q" });
   expect(res.status).toBe(401);
 });
 
 test("POST /ask 빈 질문 → 400", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "  " }) });
+  const res = await askJson(app, token, { question: "  " });
   expect(res.status).toBe(400);
 });
 
 test("POST /ask → 200: 멀티턴 history 전달 + user/assistant 2건 저장", async () => {
   const seen: { historyLen: number; saved: number } = { historyLen: -1, saved: -1 };
-  assistantDeps.listRecentMessages = async () => [
-    { id: "m1", staffUserId: "s", role: "user", content: "이전질문", sources: null, createdAt: new Date(0) },
-  ] as never;
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
-  assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
-  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
-  assistantDeps.generateAnswer = async (_s: string, _u: string, _t: unknown, opts?: { history?: { role: string }[] }) => { seen.historyLen = opts?.history?.length ?? 0; return "답변"; };
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => { seen.saved = rows.length; return rows as never; };
+  ragFakes({ inserted: [] }, {
+    listRecentMessages: async () => [
+      { id: "m1", staffUserId: "s", role: "user", content: "이전질문", sources: null, createdAt: new Date(0) },
+    ] as never,
+    generateAnswer: async (_s: string, _u: string, _t: unknown, opts?: { history?: { role: string }[] }) => { seen.historyLen = opts?.history?.length ?? 0; return "답변"; },
+    insertAssistantMessages: async (rows: unknown[]) => { seen.saved = rows.length; return rows as never; },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "이번질문" }) });
+  const res = await askJson(app, token, { question: "이번질문" });
   expect(res.status).toBe(200);
   const json = (await res.json()) as { messages: { role: string; content: string }[] };
   expect(seen.historyLen).toBe(1);
@@ -49,12 +76,13 @@ test("POST /ask → 200: 멀티턴 history 전달 + user/assistant 2건 저장",
 
 test("POST /ask Gemini 실패 → 500 한국어, 저장 0건", async () => {
   let saved = 0;
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async () => { throw new Error("boom"); };
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => { saved += (rows as unknown[]).length; return rows as never; };
+  ragFakes({ inserted: [] }, {
+    embedTexts: async () => { throw new Error("boom"); },
+    insertAssistantMessages: async (rows: unknown[]) => { saved += rows.length; return rows as never; },
+  });
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q" }) });
+  const res = await askJson(app, token, { question: "q" });
   expect(res.status).toBe(500);
   expect((await res.json() as { error: string }).error).toBe("일시적으로 답변에 실패했습니다.");
   expect(saved).toBe(0);
@@ -106,30 +134,13 @@ function parseSse(text: string): { event: string; data: string }[] {
   return events;
 }
 
-function streamRagFakes(seen: { inserted: unknown[][]; updated?: { id: string; content: string }; deletedId?: string }) {
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
-  assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
-  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
-  assistantDeps.insertAssistantMessages = async (rows) => {
-    seen.inserted.push(rows as unknown[]);
-    return rows.map((r, i) => ({ ...r, id: `row-${i}` })) as never;
-  };
-  assistantDeps.updateAssistantMessage = async (id: string, _staffUserId: string, content: string, sources: unknown) => {
-    seen.updated = { id, content };
-    return { id, staffUserId: "s", role: "assistant", content, sources, createdAt: new Date(1) } as never;
-  };
-  assistantDeps.deleteAssistantMessage = async (id: string, _staffUserId: string) => { seen.deletedId = id; };
-}
-
 test("POST /ask stream:true → 선저장 + text 이벤트 릴레이 + done에 영속본 2건", async () => {
   const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
-  streamRagFakes(seen);
-  assistantDeps.generateAnswerStream = async function* () { yield "안녕"; yield "하세요"; };
+  ragFakes(seen, { generateAnswerStream: async function* () { yield "안녕"; yield "하세요"; } });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const res = await askJson(app, token, { question: "q", stream: true });
   expect(res.status).toBe(200);
   expect(res.headers.get("content-type")).toContain("text/event-stream");
 
@@ -192,31 +203,30 @@ test("PATCH /messages/:id — 빈 content는 400", async () => {
 // 2026-07-03 prod 실측: 클라 disconnect 후 pending Gemini read는 CF에서 해소되지 않아 finalize가
 // waitUntil 유예(30s)를 넘겨 취소된다(유령 placeholder). abort 시 업스트림 fetch를 즉시 끊기 위한 배선.
 test("POST /ask stream:true → generateAnswerStream에 AbortSignal이 전달된다", async () => {
-  const seen: { inserted: unknown[][] } = { inserted: [] };
-  streamRagFakes(seen);
   let sig: unknown = "unset";
-  assistantDeps.generateAnswerStream = async function* (
-    _s: string, _u: string, _t: unknown, opts?: { signal?: AbortSignal },
-  ) {
-    sig = opts?.signal;
-    yield "x";
-  };
+  ragFakes({ inserted: [] }, {
+    generateAnswerStream: async function* (
+      _s: string, _u: string, _t: unknown, opts?: { signal?: AbortSignal },
+    ) {
+      sig = opts?.signal;
+      yield "x";
+    },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const res = await askJson(app, token, { question: "q", stream: true });
   await res.text();
   expect(sig).toBeInstanceOf(AbortSignal);
 });
 
 test("POST /ask stream:true 스트림 중간 실패(부분 있음) → 부분+ERROR_SUFFIX 저장 + done", async () => {
   const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
-  streamRagFakes(seen);
-  assistantDeps.generateAnswerStream = async function* () { yield "부분"; throw new Error("boom"); };
+  ragFakes(seen, { generateAnswerStream: async function* () { yield "부분"; throw new Error("boom"); } });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const res = await askJson(app, token, { question: "q", stream: true });
   const events = parseSse(await res.text());
   expect(seen.updated!.content).toBe("부분 (연결 오류로 중단됨)");
   expect(events.some((e) => e.event === "done")).toBe(true);
@@ -225,13 +235,14 @@ test("POST /ask stream:true 스트림 중간 실패(부분 있음) → 부분+ER
 
 test("POST /ask stream:true 0자 실패 → placeholder 삭제 + error 이벤트", async () => {
   const seen: { inserted: unknown[][]; deletedId?: string } = { inserted: [] };
-  streamRagFakes(seen);
-  // eslint-disable-next-line require-yield -- 0자(즉시 실패) 시나리오 재현을 위해 의도적으로 yield 없이 throw
-  assistantDeps.generateAnswerStream = async function* () { throw new Error("boom"); };
+  ragFakes(seen, {
+    // eslint-disable-next-line require-yield -- 0자(즉시 실패) 시나리오 재현을 위해 의도적으로 yield 없이 throw
+    generateAnswerStream: async function* () { throw new Error("boom"); },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const res = await askJson(app, token, { question: "q", stream: true });
   const events = parseSse(await res.text());
   expect(seen.deletedId).toBe("row-1");
   const error = events.find((e) => e.event === "error");
@@ -240,15 +251,16 @@ test("POST /ask stream:true 0자 실패 → placeholder 삭제 + error 이벤트
 
 test("POST /ask stream:true hits 0건 → 고정 문구 text 1회 + done(저장 동일)", async () => {
   const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
-  streamRagFakes(seen);
-  assistantDeps.searchEmbeddings = async () => [];
-  assistantDeps.routeAssistantTool = async () => null; // PR2: hits 0이면 라우팅이 시도됨 — 이 테스트는 도구 불필요 판단 경로
-  // eslint-disable-next-line require-yield -- hits 0건이면 호출 자체가 없어야 함을 검증하는 가드(호출되면 즉시 throw)
-  assistantDeps.generateAnswerStream = async function* () { throw new Error("호출되면 안 됨"); };
+  ragFakes(seen, {
+    searchEmbeddings: async () => [],
+    routeAssistantTool: async () => null, // PR2: hits 0이면 라우팅이 시도됨 — 이 테스트는 도구 불필요 판단 경로
+    // eslint-disable-next-line require-yield -- hits 0건이면 호출 자체가 없어야 함을 검증하는 가드(호출되면 즉시 throw)
+    generateAnswerStream: async function* () { throw new Error("호출되면 안 됨"); },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const res = await askJson(app, token, { question: "q", stream: true });
   const events = parseSse(await res.text());
   const texts = events.filter((e) => e.event === "text");
   expect(texts).toHaveLength(1);
@@ -264,19 +276,18 @@ const mkHit = (id: string, similarity: number) =>
 test("POST /ask 임계값 미달 청크는 프롬프트·sources에서 제외(경계값 == 임계값은 유지)", async () => {
   let userPrompt = "";
   let savedSources: unknown[] = [];
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
-  assistantDeps.searchEmbeddings = async () => [mkHit("e1", 0.9), mkHit("e2", SIMILARITY_THRESHOLD), mkHit("e3", 0.749), mkHit("e4", 0.6)];
-  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
-  assistantDeps.generateAnswer = async (_s: string, u: string) => { userPrompt = u; return "답변"; };
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => {
-    savedSources = (rows[1] as { sources: unknown[] }).sources;
-    return rows as never;
-  };
+  ragFakes({ inserted: [] }, {
+    searchEmbeddings: async () => [mkHit("e1", 0.9), mkHit("e2", SIMILARITY_THRESHOLD), mkHit("e3", 0.749), mkHit("e4", 0.6)],
+    generateAnswer: async (_s: string, u: string) => { userPrompt = u; return "답변"; },
+    insertAssistantMessages: async (rows: unknown[]) => {
+      savedSources = (rows[1] as { sources: unknown[] }).sources;
+      return rows as never;
+    },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q" }) });
+  const res = await askJson(app, token, { question: "q" });
   expect(res.status).toBe(200);
   expect(userPrompt).toContain("근거-e1");
   expect(userPrompt).toContain("근거-e2"); // 경계값(== 임계값)은 유지 — ≥ 비교
@@ -287,20 +298,20 @@ test("POST /ask 임계값 미달 청크는 프롬프트·sources에서 제외(�
 
 test("POST /ask 전부 임계값 미달 → 기존 hits 0건 경로(Gemini 미호출·고정 답변·sources 빈 배열)", async () => {
   let savedSources: unknown[] | null = null;
-  assistantDeps.routeAssistantTool = async () => null; // 라우팅도 도구 불필요 판단
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
-  assistantDeps.searchEmbeddings = async () => [mkHit("e1", 0.74), mkHit("e2", 0.6)];
-  assistantDeps.getCustomerMetaByIds = async () => new Map();
-  assistantDeps.generateAnswer = async () => { throw new Error("호출되면 안 됨"); };
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => {
-    savedSources = (rows[1] as { sources: unknown[] }).sources;
-    return rows as never;
-  };
+  ragFakes({ inserted: [] }, {
+    routeAssistantTool: async () => null, // 라우팅도 도구 불필요 판단
+    searchEmbeddings: async () => [mkHit("e1", 0.74), mkHit("e2", 0.6)],
+    getCustomerMetaByIds: async () => new Map(),
+    generateAnswer: async () => { throw new Error("호출되면 안 됨"); },
+    insertAssistantMessages: async (rows: unknown[]) => {
+      savedSources = (rows[1] as { sources: unknown[] }).sources;
+      return rows as never;
+    },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q" }) });
+  const res = await askJson(app, token, { question: "q" });
   expect(res.status).toBe(200);
   const json = (await res.json()) as { messages: { content: string }[] };
   expect(json.messages[1].content).toBe("관련 CRM 데이터를 찾지 못했습니다.");
@@ -309,15 +320,16 @@ test("POST /ask 전부 임계값 미달 → 기존 hits 0건 경로(Gemini 미�
 
 test("POST /ask stream:true 전부 임계값 미달 → hits 0건과 동일(고정 문구 text 1회)", async () => {
   const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
-  streamRagFakes(seen);
-  assistantDeps.searchEmbeddings = async () => [mkHit("e1", 0.7)];
-  assistantDeps.routeAssistantTool = async () => null;
-  // eslint-disable-next-line require-yield -- 전부 미달이면 호출 자체가 없어야 함을 검증하는 가드(호출되면 즉시 throw)
-  assistantDeps.generateAnswerStream = async function* () { throw new Error("호출되면 안 됨"); };
+  ragFakes(seen, {
+    searchEmbeddings: async () => [mkHit("e1", 0.7)],
+    routeAssistantTool: async () => null,
+    // eslint-disable-next-line require-yield -- 전부 미달이면 호출 자체가 없어야 함을 검증하는 가드(호출되면 즉시 throw)
+    generateAnswerStream: async function* () { throw new Error("호출되면 안 됨"); },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const res = await askJson(app, token, { question: "q", stream: true });
   const events = parseSse(await res.text());
   const texts = events.filter((e) => e.event === "text");
   expect(texts).toHaveLength(1);
@@ -331,23 +343,24 @@ test("POST /ask tool 지정 → 검색 생략·도구 결과 근거·sources 리
   let userPrompt = "";
   let savedSources: unknown[] = [];
   let calledKey = "";
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async () => { throw new Error("도구 경로에서 임베딩이 호출되면 안 됨"); };
-  assistantDeps.runAssistantTool = async (key) => {
-    calledKey = key;
-    return { label: "오늘 처리할 일", lines: ["김민준 — GLC 재고 확인 (기한 오늘)", "박서연 — 월납입표 확인 (기한 급함)"] };
-  };
-  assistantDeps.getCustomerMetaByIds = async () => new Map();
   let systemPrompt = "";
-  assistantDeps.generateAnswer = async (sp: string, u: string) => { systemPrompt = sp; userPrompt = u; return "정리했습니다"; };
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => {
-    savedSources = (rows[1] as { sources: unknown[] }).sources;
-    return rows as never;
-  };
+  ragFakes({ inserted: [] }, {
+    embedTexts: async () => { throw new Error("도구 경로에서 임베딩이 호출되면 안 됨"); },
+    runAssistantTool: async (key) => {
+      calledKey = key;
+      return { label: "오늘 처리할 일", lines: ["김민준 — GLC 재고 확인 (기한 오늘)", "박서연 — 월납입표 확인 (기한 급함)"] };
+    },
+    getCustomerMetaByIds: async () => new Map(),
+    generateAnswer: async (sp: string, u: string) => { systemPrompt = sp; userPrompt = u; return "정리했습니다"; },
+    insertAssistantMessages: async (rows: unknown[]) => {
+      savedSources = (rows[1] as { sources: unknown[] }).sources;
+      return rows as never;
+    },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "오늘 내가 먼저 처리할 일 정리해줘", tool: "today_actions" }) });
+  const res = await askJson(app, token, { question: "오늘 내가 먼저 처리할 일 정리해줘", tool: "today_actions" });
   expect(res.status).toBe(200);
   expect(calledKey).toBe("today_actions");
   expect(userPrompt).toContain("김민준 — GLC 재고 확인");
@@ -362,16 +375,16 @@ test("POST /ask tool 지정 → 검색 생략·도구 결과 근거·sources 리
 
 test("POST /ask tool 결과 0건 → NO_HITS가 아니라 '조회 결과 없음' 근거로 생성", async () => {
   let userPrompt = "";
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async () => { throw new Error("호출되면 안 됨"); };
-  assistantDeps.runAssistantTool = async () => ({ label: "출고/정산 리스크", lines: [] });
-  assistantDeps.getCustomerMetaByIds = async () => new Map();
-  assistantDeps.generateAnswer = async (_s: string, u: string) => { userPrompt = u; return "해당 고객이 없습니다"; };
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => rows as never;
+  ragFakes({ inserted: [] }, {
+    embedTexts: async () => { throw new Error("호출되면 안 됨"); },
+    runAssistantTool: async () => ({ label: "출고/정산 리스크", lines: [] }),
+    getCustomerMetaByIds: async () => new Map(),
+    generateAnswer: async (_s: string, u: string) => { userPrompt = u; return "해당 고객이 없습니다"; },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "출고/정산 리스크 찾아줘", tool: "delivery_risk" }) });
+  const res = await askJson(app, token, { question: "출고/정산 리스크 찾아줘", tool: "delivery_risk" });
   expect(res.status).toBe(200);
   expect(userPrompt).toContain("조회 결과 없음");
   expect((await res.json() as { messages: { content: string }[] }).messages[1].content).toBe("해당 고객이 없습니다"); // 고정 NO_HITS 문구가 아님
@@ -380,20 +393,21 @@ test("POST /ask tool 결과 0건 → NO_HITS가 아니라 '조회 결과 없음'
 test("POST /ask 알 수 없는 tool 값 → 400(zod 어휘 게이트)", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", tool: "drop_table" }) });
+  const res = await askJson(app, token, { question: "q", tool: "drop_table" });
   expect(res.status).toBe(400);
 });
 
 test("POST /ask stream:true + tool → 도구 근거로 스트림 생성(고정 문구 아님)", async () => {
   const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
-  streamRagFakes(seen);
-  assistantDeps.embedTexts = async () => { throw new Error("도구 경로에서 임베딩이 호출되면 안 됨"); };
-  assistantDeps.runAssistantTool = async () => ({ label: "계약 가능성 순위", lines: ["1위 김민준 — 확정"] });
-  assistantDeps.generateAnswerStream = async function* () { yield "1위는 "; yield "김민준입니다"; };
+  ragFakes(seen, {
+    embedTexts: async () => { throw new Error("도구 경로에서 임베딩이 호출되면 안 됨"); },
+    runAssistantTool: async () => ({ label: "계약 가능성 순위", lines: ["1위 김민준 — 확정"] }),
+    generateAnswerStream: async function* () { yield "1위는 "; yield "김민준입니다"; },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "계약 가능성 높은 고객 순위 뽑아줘", stream: true, tool: "chance_ranking" }) });
+  const res = await askJson(app, token, { question: "계약 가능성 높은 고객 순위 뽑아줘", stream: true, tool: "chance_ranking" });
   const events = parseSse(await res.text());
   const texts = events.filter((e) => e.event === "text").map((e) => (JSON.parse(e.data) as { chunk: string }).chunk);
   expect(texts).toEqual(["1위는 ", "김민준입니다"]);
@@ -403,15 +417,13 @@ test("POST /ask stream:true + tool → 도구 근거로 스트림 생성(고정 
 test("POST /ask stream:true 선저장(insert) 실패 → SSE 아닌 기존 catch가 JSON 500 반환", async () => {
   // streamAsk 안의 선저장은 streamSSE 진입 전(RAG 계산과 같은 try 블록 안)이라, 실패 시
   // SSE 프로토콜이 아니라 기존 논스트리밍 catch와 동일한 JSON 500 에러 응답이어야 한다.
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
-  assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
-  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
-  assistantDeps.insertAssistantMessages = async () => { throw new Error("insert boom"); };
+  ragFakes({ inserted: [] }, {
+    insertAssistantMessages: async () => { throw new Error("insert boom"); },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "q", stream: true }) });
+  const res = await askJson(app, token, { question: "q", stream: true });
   expect(res.status).toBe(500);
   expect(res.headers.get("content-type")).not.toContain("text/event-stream");
   expect((await res.json() as { error: string }).error).toBe("일시적으로 답변에 실패했습니다.");
@@ -422,52 +434,47 @@ test("POST /ask stream:true 선저장(insert) 실패 → SSE 아닌 기존 catch
 
 test("POST /ask 근거 0건 + 라우팅 성공 → 도구 실행(params 전달)·NO_HITS 아님", async () => {
   let toolCall: unknown = null; // 클로저 대입이라 좁힘 없이 unknown으로 두고 toEqual로 전체 비교
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
-  assistantDeps.searchEmbeddings = async () => [];
-  assistantDeps.routeAssistantTool = async () => ({ key: "search_customers", params: { source: "앱" } });
-  assistantDeps.runAssistantTool = async (key, params) => {
-    toolCall = { key, params };
-    return { label: "고객 검색(상담경로 앱)", lines: ["제임스 — 상담경로 앱 견적요청"] };
-  };
-  assistantDeps.getCustomerMetaByIds = async () => new Map();
-  assistantDeps.generateAnswer = async (_s: string, u: string) => (u.includes("제임스") ? "제임스입니다" : "근거 누락");
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => rows as never;
+  ragFakes({ inserted: [] }, {
+    searchEmbeddings: async () => [],
+    routeAssistantTool: async () => ({ key: "search_customers", params: { source: "앱" } }),
+    runAssistantTool: async (key, params) => {
+      toolCall = { key, params };
+      return { label: "고객 검색(상담경로 앱)", lines: ["제임스 — 상담경로 앱 견적요청"] };
+    },
+    getCustomerMetaByIds: async () => new Map(),
+    generateAnswer: async (_s: string, u: string) => (u.includes("제임스") ? "제임스입니다" : "근거 누락"),
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "앱을 통해서 들어온 고객은 누구야" }) });
+  const res = await askJson(app, token, { question: "앱을 통해서 들어온 고객은 누구야" });
   expect(res.status).toBe(200);
   expect(toolCall).toEqual({ key: "search_customers", params: { source: "앱" } });
   expect((await res.json() as { messages: { content: string }[] }).messages[1].content).toBe("제임스입니다");
 });
 
 test("POST /ask 근거 0건 + 라우팅 null(도구 불필요) → 기존 NO_HITS 고정 답변", async () => {
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
-  assistantDeps.searchEmbeddings = async () => [];
-  assistantDeps.routeAssistantTool = async () => null;
-  assistantDeps.runAssistantTool = async () => { throw new Error("라우팅 null이면 실행되면 안 됨"); };
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => rows as never;
+  ragFakes({ inserted: [] }, {
+    searchEmbeddings: async () => [],
+    routeAssistantTool: async () => null,
+    runAssistantTool: async () => { throw new Error("라우팅 null이면 실행되면 안 됨"); },
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "잡담" }) });
+  const res = await askJson(app, token, { question: "잡담" });
   expect((await res.json() as { messages: { content: string }[] }).messages[1].content).toBe("관련 CRM 데이터를 찾지 못했습니다.");
 });
 
 test("POST /ask 근거 있으면 라우팅 미호출(RAG 우선 — 골든 구조 가드)", async () => {
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
-  assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 0.9 }];
-  assistantDeps.routeAssistantTool = async () => { throw new Error("근거가 있으면 라우팅되면 안 됨"); };
-  assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
-  assistantDeps.generateAnswer = async () => "근거 기반 답변";
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => rows as never;
+  ragFakes({ inserted: [] }, {
+    routeAssistantTool: async () => { throw new Error("근거가 있으면 라우팅되면 안 됨"); },
+    generateAnswer: async () => "근거 기반 답변",
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "김민준 근황" }) });
+  const res = await askJson(app, token, { question: "김민준 근황" });
   expect((await res.json() as { messages: { content: string }[] }).messages[1].content).toBe("근거 기반 답변");
 });
 
@@ -476,18 +483,17 @@ test("POST /ask staff 토큰 → searchEmbeddings·runAssistantTool에 {advisorI
   const STAFF_SUB = crypto.randomUUID();
   let searchScope: unknown = null;
   let toolScope: unknown = null;
-  assistantDeps.listRecentMessages = async () => [];
-  assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
-  assistantDeps.searchEmbeddings = async (_v, scope) => { searchScope = scope; return []; };
-  assistantDeps.routeAssistantTool = async () => ({ key: "search_customers", params: {} }) as never;
-  assistantDeps.runAssistantTool = async (_k, _p, scope) => { toolScope = scope; return { label: "조건 검색", lines: [] }; };
-  assistantDeps.getCustomerMetaByIds = async () => new Map();
-  assistantDeps.generateAnswer = async () => "답변";
-  assistantDeps.insertAssistantMessages = async (rows: unknown[]) => rows as never;
+  ragFakes({ inserted: [] }, {
+    searchEmbeddings: async (_v, scope) => { searchScope = scope; return []; },
+    routeAssistantTool: async () => ({ key: "search_customers", params: {} }) as never,
+    runAssistantTool: async (_k, _p, scope) => { toolScope = scope; return { label: "조건 검색", lines: [] }; },
+    getCustomerMetaByIds: async () => new Map(),
+    generateAnswer: async () => "답변",
+  });
 
   const { token, keyResolver, issuer } = await makeTestAuth("staff", STAFF_SUB);
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ question: "내 고객 근황" }) });
+  const res = await askJson(app, token, { question: "내 고객 근황" });
   expect(res.status).toBe(200);
   expect(searchScope).toEqual({ advisorId: STAFF_SUB });
   expect(toolScope).toEqual({ advisorId: STAFF_SUB }); // 근거 0건 → 라우팅 도구도 같은 scope
@@ -495,6 +501,6 @@ test("POST /ask staff 토큰 → searchEmbeddings·runAssistantTool에 {advisorI
   // admin은 전체("all") — 기존 동작 불변 가드.
   const admin = await makeTestAuth("admin");
   const adminApp = createApp({ keyResolver: admin.keyResolver, issuer: admin.issuer });
-  await adminApp.request("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${admin.token}` }, body: JSON.stringify({ question: "전체 근황" }) });
+  await askJson(adminApp, admin.token, { question: "전체 근황" });
   expect(searchScope).toBe("all");
 });

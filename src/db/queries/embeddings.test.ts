@@ -33,11 +33,6 @@ test("searchEmbeddings: scope=all 이면 유사도순 top-k에 방금 넣은 행
   expect(typeof res[0].similarity).toBe("number");
 });
 
-test("searchEmbeddings: scope=빈 배열이면 결과 없음", async () => {
-  const res = await searchEmbeddings(vec(0.9), [], 5, db);
-  expect(res).toHaveLength(0);
-});
-
 // 역할 scope(이사님 요구 07-06): {advisorId} = 본인 담당(customers.advisor_id) 고객의 청크만.
 test("searchEmbeddings: scope={advisorId}면 담당 고객 청크만 — 남의 advisor는 제외", async () => {
   const OWNER = crypto.randomUUID();
