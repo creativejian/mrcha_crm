@@ -1,6 +1,7 @@
 import { asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
+import { staffActivityAt } from "./activity";
 import { listAdvisorViewedAt } from "./advisor-quotes";
 import {
   consultations,
@@ -17,28 +18,15 @@ import {
 export type CustomerListRow = typeof customers.$inferSelect & { latestTask: string | null };
 
 // 상담메모(목업 nextAction): customer_tasks 최신 미완료 1건 body를 상관 서브쿼리로.
-// customer_id 비교는 crm.customers.id로 완전정규화 — 섀도잉 사유는 아래 staffActivityAt 주석 참조(동일 버그 클래스).
+// customer_id 비교는 crm.customers.id로 완전정규화 — 섀도잉 사유는 activity.ts staffActivityAt 주석 참조(동일 버그 클래스).
 const latestTaskBody = sql<string | null>`(
   select t.body from crm.customer_tasks t
   where t.customer_id = crm.customers.id and t.done = false
   order by t.created_at desc limit 1
 )`;
 
-// 목록·상세가 공유하는 "마지막 담당자 액션" 파생 — 관리 상태(정상/확인필요/지연/장기방치)의 입력.
-// customers.updated_at(본체 PATCH 스탬프) + 자식 추가 시각 max(created_at). 자식 테이블엔 updated_at이
-// 없어 수정은 못 잡는다(허용 근사 — 컬럼 추가는 follow-up). last_activity_at 컬럼(시드 후 미갱신·죽은 값)은
-// 이 파생값으로 응답에서 대체된다(컬럼 자체는 불변, drop은 follow-up).
-// 주의: 상관 서브쿼리 안에서는 반드시 `crm.customers.id`로 완전정규화한다 — 자식 테이블(memo/task/schedule/
-// document) 모두 자기 자신의 "id" 컬럼을 갖고 있어, `${customers.id}`(비정규화 "id")를 쓰면 SQL 스코프 규칙상
-// 바깥 customers.id가 아니라 서브쿼리 자신의 테이블(m.id/t.id/...)로 섀도잉되어 조건이 사실상 항상 거짓이 된다
-// (greatest가 전부 NULL을 받아 customers.updated_at만 남는 조용한 오답 — 실측으로 발견, 자세한 재현은 커밋 기록 참조).
-const staffActivityAt = sql<Date | null>`greatest(
-  ${customers.updatedAt},
-  (select max(m.created_at) from crm.customer_memos m where m.customer_id = crm.customers.id),
-  (select max(t.created_at) from crm.customer_tasks t where t.customer_id = crm.customers.id),
-  (select max(s.created_at) from crm.customer_schedules s where s.customer_id = crm.customers.id),
-  (select max(d.created_at) from crm.customer_documents d where d.customer_id = crm.customers.id)
-)`;
+// "마지막 담당자 액션" 파생은 activity.ts로 이동(0706 배치 B) — 업무 AI 도구와 공유하는 SSOT.
+// 파생 집합·완전정규화(섀도잉) 주의사항은 그쪽 주석 참조.
 
 // 쓰기 가능한 customers 컬럼만(고객 쓰기 #1 범위). 값 enum 검증은 추후.
 export type CustomerWritePatch = Partial<

@@ -237,6 +237,9 @@ export const quotes = crm.table("quotes", {
   check("quotes_app_status_check", inListCheck(t.appStatus, APP_STATUSES)),
   check("quotes_decision_status_check", inListCheck(t.decisionStatus, DECISION_STATUSES)),
   check("quotes_acquisition_tax_mode_check", inListCheck(t.acquisitionTaxMode, ACQ_TAX_MODES)),
+  // 활동 파생(activity.ts staffActivityAt)의 상관 서브쿼리 max(created_at) 패턴용 — #165 자식 4테이블과
+  // 동일 사유(0706 배치 B에서 견적이 활동 집합에 편입되며 추가).
+  index("quotes_customer_id_created_at_idx").on(t.customerId, t.createdAt),
 ]);
 
 export const quoteScenarios = crm.table("quote_scenarios", {
