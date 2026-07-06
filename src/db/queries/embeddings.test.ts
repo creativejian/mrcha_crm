@@ -38,6 +38,18 @@ test("searchEmbeddings: scope=빈 배열이면 결과 없음", async () => {
   expect(res).toHaveLength(0);
 });
 
+// 역할 scope(이사님 요구 07-06): {advisorId} = 본인 담당(customers.advisor_id) 고객의 청크만.
+test("searchEmbeddings: scope={advisorId}면 담당 고객 청크만 — 남의 advisor는 제외", async () => {
+  const OWNER = crypto.randomUUID();
+  await db.update(customers).set({ advisorId: OWNER }).where(eq(customers.id, CUST));
+  const own = await searchEmbeddings(vec(0.9), { advisorId: OWNER }, 5, db);
+  expect(own.some((r) => r.customerId === CUST)).toBe(true);
+  expect(own.every((r) => r.customerId === CUST)).toBe(true); // 담당 밖 고객 청크 유입 없음
+  const other = await searchEmbeddings(vec(0.9), { advisorId: crypto.randomUUID() }, 5, db);
+  expect(other.some((r) => r.customerId === CUST)).toBe(false);
+  await db.update(customers).set({ advisorId: null }).where(eq(customers.id, CUST));
+});
+
 test("getEmbeddingHash: 있는 행은 해시, 없는 행은 null", async () => {
   const SRC = "cccccccc-cccc-cccc-cccc-cccccccccccc";
   await upsertEmbedding(

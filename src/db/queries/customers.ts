@@ -53,6 +53,7 @@ export type CustomerWritePatch = Partial<
     | "status"
     | "chance"
     | "advisorName"
+    | "advisorId"
     | "team"
     | "assignedAt"
     | "needModel"

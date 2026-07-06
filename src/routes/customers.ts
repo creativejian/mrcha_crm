@@ -32,6 +32,7 @@ export const customerWriteSchema = z.object({
   status: z.string().nullable().optional(),
   chance: z.string().nullable().optional(),
   advisorName: z.string().nullable().optional(),
+  advisorId: z.uuid().nullable().optional(), // 담당자 profiles.id — 역할 scope(staff=본인 담당)의 매칭 키
   team: z.string().nullable().optional(),
   needModel: z.string().nullable().optional(),
   needTrim: z.string().nullable().optional(),
@@ -107,6 +108,10 @@ customers.patch(
         if (!current) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
         if (current.advisorName !== patch.advisorName) finalPatch = { ...patch, assignedAt: new Date() };
       }
+      // 담당자 변경인데 advisorId가 안 오면 id를 비운다 — 이름만 갈리고 구 id가 남는 스테일
+      // (타 상담사 scope에 남의 고객이 잡히는 사고) 방지. 해제(null)도 같은 규칙으로 id 동반 해제.
+      // 디렉토리 기반 배정 UI(후속 PR)가 항상 advisorId를 동봉하면 이 분기는 방어선으로만 남는다.
+      if (patch.advisorId === undefined) finalPatch = { ...finalPatch, advisorId: null };
     }
     return run(c, async () => {
       const row = await updateCustomer(c.req.valid("param").id, finalPatch, c.var.db);
