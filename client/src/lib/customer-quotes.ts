@@ -37,7 +37,7 @@ export type QuoteWritePatch = {
   brandName?: string | null;
   modelName?: string | null;
   trimName?: string | null;
-  appStatus?: "draft" | "queued" | "sent" | "viewed" | null;
+  appStatus?: "draft" | "queued" | "sent" | null; // "viewed" 축소(배치 E) — 열람은 viewedAt(read-through) SSOT
   decisionStatus?: "none" | "considering" | "confirmed" | "contracting" | null;
   note?: string | null;
   primaryScenarioId?: string | null;

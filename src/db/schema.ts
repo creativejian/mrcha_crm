@@ -41,7 +41,7 @@ export const crm = pgSchema("crm");
 const STATUS_GROUP_OPTIONS = Object.keys(customerStatusGroups);
 const STATUS_OPTIONS = [...new Set(Object.values(customerStatusGroups).flat())];
 const ENTRY_MODES = ["manual", "solution", "original"];
-const APP_STATUSES = ["draft", "queued", "sent", "viewed"];
+const APP_STATUSES = ["draft", "queued", "sent"]; // "viewed" 축소(배치 E) — 열람은 advisor_quotes.viewed_at SSOT, writer 0 실측(#166)
 const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"];
 const ACQ_TAX_MODES = ["normal", "hybrid", "electric", "manual"];
 const EMBEDDING_SOURCE_TYPES = ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation", "quote", "customer_profile", "schedule", "customer_documents", "quote_request"];
@@ -216,7 +216,7 @@ export const quotes = crm.table("quotes", {
   finalVehiclePrice: numeric("final_vehicle_price"),
   acquisitionCost: numeric("acquisition_cost"),
   status: text("status"),
-  appStatus: text("app_status"), // draft|queued|sent|viewed
+  appStatus: text("app_status"), // draft|queued|sent
   decisionStatus: text("decision_status"), // none|considering|confirmed|contracting
   stockStatus: text("stock_status"),
   validUntil: timestamp("valid_until", { withTimezone: true }),

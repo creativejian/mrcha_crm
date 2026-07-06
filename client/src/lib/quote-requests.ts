@@ -1,3 +1,4 @@
+import { DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "../data/quote-request-labels";
 import { formatActivity, invalidateCustomerDetail } from "./customers";
 import { getJson, sendJson } from "./http";
 import { formatPriceRangeKorean } from "./price-format";
@@ -27,18 +28,8 @@ export type AppQuoteRequestRow = {
   matchType: "app_user" | "phone" | "none";
 };
 
-// 앱 enum → 한글. Flutter 앱 SSOT(purchase_method.dart / deposit_type.dart / quote_status.dart)와 일치.
-export const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  lease: "운용리스",
-  rent: "장기렌트",
-  installment: "할부",
-  cash: "일시불",
-};
-const DEPOSIT_TYPE_LABEL: Record<string, string> = {
-  deposit: "보증금",
-  advance: "선수금",
-  prepayment: "선납금",
-};
+// 결제방식/보증금 라벨은 data/quote-request-labels(클라·서버 공용 SSOT — 배치 E 수렴)에서 import.
+// STATUS_LABEL은 클라 전용 잔존 — 서버 코퍼스는 status를 의도적으로 미포함(스테일 박제 방지).
 const STATUS_LABEL: Record<string, string> = {
   open: "진행중",
   closed: "마감",

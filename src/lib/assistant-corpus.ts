@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { PURCHASE_UNSET_SENTINEL } from "../../client/src/data/customers";
 import { formatMoney, formatTerm, guidanceOf, numOr, stampLabelOf, vehicleTitleOf } from "./app-card-payload";
 import { dateLabelOf, kstDateOf } from "./kst-date";
-import { DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "./quote-request-labels";
+import { DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "../../client/src/data/quote-request-labels";
 
 export type CorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "consultation" | "quote" | "customer_profile" | "schedule" | "customer_documents" | "quote_request";
 
@@ -48,7 +48,7 @@ export type QuoteChunkQuote = {
   brandName: string | null;
   modelName: string | null;
   trimName: string | null;
-  appStatus: string | null; // draft|queued|sent|viewed
+  appStatus: string | null; // draft|queued|sent
   sentAt: Date | null;
   guidance: unknown; // jsonb — guidanceOf가 legacy keyPoint(단수)까지 흡수
   discountLines: unknown; // jsonb [{label,amount,unit}] — 쓰기 zod 게이트(#168)를 신뢰하되 방어 파싱
@@ -98,7 +98,7 @@ export function buildQuoteChunkText(q: QuoteChunkQuote, sc: QuoteChunkScenario |
   const recommend = g.recommendReason.replace(/\s*\n+\s*/g, " ").trim();
   const compare = others.map(scenarioSummaryOf).filter(Boolean);
   const sentLabel =
-    (q.appStatus === "sent" || q.appStatus === "viewed") && q.sentAt
+    q.appStatus === "sent" && q.sentAt
       ? `${stampLabelOf(q.sentAt.toISOString())} 발송`
       : "작성 중";
   const parts: (string | null)[] = [

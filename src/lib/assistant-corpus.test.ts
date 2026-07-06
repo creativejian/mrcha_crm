@@ -66,13 +66,14 @@ test("buildQuoteChunkText: 비교 시나리오 2·3안 — 대표 제외 목록,
   expect(buildQuoteChunkText(FULL_QUOTE, FULL_SC, [])).not.toContain("비교안");
 });
 
-test("buildQuoteChunkText: sent인데 sentAt 없으면 작성 중(방어), viewed도 발송으로 표기", () => {
+test("buildQuoteChunkText: sent인데 sentAt 없으면 작성 중(방어), 열람 어휘 미포함", () => {
   const noStamp: QuoteChunkQuote = { ...FULL_QUOTE, appStatus: "sent", sentAt: null };
   expect(buildQuoteChunkText(noStamp, null)).toContain("작성 중");
-  const viewed: QuoteChunkQuote = { ...FULL_QUOTE, appStatus: "viewed" };
-  expect(buildQuoteChunkText(viewed, null)).toContain("26/07/05 09:30 발송");
-  // 열람 여부는 절대 미포함(스펙 결정 1 — 앱이 advisor_quotes에 직접 써 CRM 훅 없음)
-  expect(buildQuoteChunkText(viewed, null)).not.toContain("열람");
+  // 열람 여부는 절대 미포함(스펙 결정 1 — 앱이 advisor_quotes에 직접 써 CRM 훅 없음).
+  // "viewed" 어휘 자체가 crm.quotes에서 축소됨(배치 E) — 열람은 advisor_quotes.viewed_at SSOT.
+  const sent: QuoteChunkQuote = { ...FULL_QUOTE, appStatus: "sent" };
+  expect(buildQuoteChunkText(sent, null)).toContain("26/07/05 09:30 발송");
+  expect(buildQuoteChunkText(sent, null)).not.toContain("열람");
 });
 
 test("buildQuoteChunkText: legacy keyPoint(단수) 승격 — normalizeQuoteGuidance 재현", () => {
