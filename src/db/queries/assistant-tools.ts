@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { ASSISTANT_TOOL_LABELS, type AssistantToolKey, type AssistantToolResult } from "../../lib/assistant-tools";
 import type { CustomerScope } from "../../lib/assistant-scope";
+import { STALE_THRESHOLDS, staffActivityAt } from "./activity";
 import { getDefaultDb, type Executor } from "../client";
 import { customers, customerSchedules, customerTasks, quotes } from "../schema";
 
@@ -21,17 +22,6 @@ function kstTodayDate(): string {
   return new Date(Date.now() + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-// staffActivityAt(#154)와 동일 취지의 최근 활동 시각 — customers.updated_at과 자식 4테이블 max(created_at)의
-// GREATEST. 목록 쿼리(listCustomers)의 파생을 재사용하지 않고 재선언하는 이유: 목록은 표시 필드 전체를
-// 끌고 와 무겁고, 도구는 (id, name, status, 활동시각)만 필요하다. 외부참조는 완전정규화(#154 섀도잉 버그).
-const lastActivityAt = sql<Date | null>`greatest(
-  ${customers.updatedAt},
-  (select max(m.created_at) from crm.customer_memos m where m.customer_id = ${sql.raw("crm.customers.id")}),
-  (select max(t.created_at) from crm.customer_tasks t where t.customer_id = ${sql.raw("crm.customers.id")}),
-  (select max(s.created_at) from crm.customer_schedules s where s.customer_id = ${sql.raw("crm.customers.id")}),
-  (select max(q.created_at) from crm.quotes q where q.customer_id = ${sql.raw("crm.customers.id")})
-)`;
-
 function daysSince(at: Date | string | null): number | null {
   if (!at) return null;
   const t = new Date(at).getTime();
@@ -39,11 +29,12 @@ function daysSince(at: Date | string | null): number | null {
   return Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
 }
 
-// 관리 상태 버킷(클라 manage-status.ts와 동일 임계 — 7/15/30 달력일 근사).
+// 관리 상태 버킷 — 임계는 activity.ts STALE_THRESHOLDS(클라 파리티 잠금), 활동 시각은 staffActivityAt
+// (목록과 같은 파생 SSOT — 0706 배치 B에서 documents↔quotes 집합 드리프트 해소).
 function staleBucket(days: number): string | null {
-  if (days >= 30) return "장기방치";
-  if (days >= 15) return "지연";
-  if (days >= 7) return "확인필요";
+  if (days >= STALE_THRESHOLDS.abandoned) return "장기방치";
+  if (days >= STALE_THRESHOLDS.delayed) return "지연";
+  if (days >= STALE_THRESHOLDS.review) return "확인필요";
   return null;
 }
 
@@ -93,7 +84,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     // 최근 활동 7일+ 무활동 고객(버킷 병기) — 액션 전(신규·상담접수)은 제외(클라 관리 상태 규칙 미러).
     case "stale_customers": {
       const rows = await ex
-        .select({ name: customers.name, statusGroup: customers.statusGroup, status: customers.status, at: lastActivityAt })
+        .select({ name: customers.name, statusGroup: customers.statusGroup, status: customers.status, at: staffActivityAt })
         .from(customers)
         .where(scopeCond(scope));
       const lines = rows
@@ -127,12 +118,12 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     // 단계는 '출고 준비 및 정산 준비' 개념 — 출고/정산 화면이 CRM에 구현되면 그 데이터 기반으로 쿼리 교체).
     case "delivery_risk": {
       const rows = await ex
-        .select({ name: customers.name, status: customers.status, at: lastActivityAt })
+        .select({ name: customers.name, status: customers.status, at: staffActivityAt })
         .from(customers)
         .where(and(eq(customers.statusGroup, "계약완료"), scopeCond(scope)));
       const lines = rows
         .map((r) => ({ ...r, days: daysSince(r.at) }))
-        .filter((r): r is typeof r & { days: number } => r.days != null && r.days >= 7)
+        .filter((r): r is typeof r & { days: number } => r.days != null && r.days >= STALE_THRESHOLDS.review)
         .sort((a, b) => b.days - a.days)
         .map((r) => `${r.name} — 계약완료 단계(${r.status ?? "세부 미입력"}) · ${r.days}일 무활동`);
       return { label, lines };

@@ -1,0 +1,1 @@
+CREATE INDEX "quotes_customer_id_created_at_idx" ON "crm"."quotes" USING btree ("customer_id","created_at");
