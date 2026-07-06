@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { PURCHASE_UNSET_SENTINEL } from "../../client/src/data/customers";
 import { formatMoney, formatTerm, guidanceOf, numOr, stampLabelOf, vehicleTitleOf } from "./app-card-payload";
 
-export type CorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "consultation" | "quote" | "customer_profile";
+export type CorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "consultation" | "quote" | "customer_profile" | "schedule";
 
 export type CorpusRow = {
   sourceType: CorpusSourceType;
@@ -22,6 +22,7 @@ const LABEL: Record<CorpusSourceType, string> = {
   consultation: "상담이력",
   quote: "견적",
   customer_profile: "프로필",
+  schedule: "일정",
 };
 
 // 임베딩할 content 문자열. 고객명·소스라벨을 앞에 붙여 검색·생성 컨텍스트를 풍부하게 한다.
@@ -82,6 +83,47 @@ export function buildQuoteChunkText(q: QuoteChunkQuote, sc: QuoteChunkScenario |
   return parts.filter(Boolean).join(" · ");
 }
 
+
+// ── 일정 청크(2026-07-06) ─────────────────────────────────────────────────────
+// 일정당 1행(source_id = schedule_id). 날짜는 절대값으로 박는다(임베딩·생성 모두 시간 개념 없음) —
+// "예정/지남" 같은 상대 라벨은 다음 날이면 스테일이라 쓰지 않고, 과거/미래 판단은 생성 프롬프트의
+// 오늘 날짜(assistant-prompt withTodayContext)에 위임한다. 과거 일정도 전부 포함(이력 질문 답변 가치).
+
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+// "YYYY-MM-DD"(drizzle date 컬럼) → "YYYY-MM-DD(요일)". 파싱 불가 문자열은 요일 없이 원문 유지(방어).
+export function dateLabelOf(dateStr: string): string {
+  const t = Date.parse(`${dateStr}T00:00:00Z`);
+  return Number.isNaN(t) ? dateStr : `${dateStr}(${WEEKDAYS[new Date(t).getUTCDay()]})`;
+}
+
+// Date → KST 달력일 라벨. 로컬 getDay/getDate 기준이면 CF Workers(UTC)에서 00:00~09:00 KST 구간이
+// 전날로 밀린다(business-code yymmKstOf와 동일 이유) — UTC+9 환산으로 통일.
+export function kstDateLabel(now: Date): string {
+  return dateLabelOf(new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10));
+}
+
+export type ScheduleChunkSchedule = {
+  scheduledDate: string | null; // drizzle date = "YYYY-MM-DD"
+  scheduledTime: string | null;
+  type: string | null;
+  memo: string | null;
+  done: boolean;
+};
+
+// 값 없는 항목 생략. 실질 필드(날짜·시간·타입·메모) 전무면 빈 문자열 — done만으로는 청크를 만들지
+// 않는다(호출부가 빈 텍스트를 임베딩 행 삭제/미수집으로 처리). 미완료에 "예정" 라벨 금지(위 스테일 사유).
+export function buildScheduleChunkText(s: ScheduleChunkSchedule): string {
+  const when = [s.scheduledDate ? dateLabelOf(s.scheduledDate) : null, s.scheduledTime?.trim() || null]
+    .filter(Boolean).join(" ");
+  const parts: (string | null)[] = [
+    when || null,
+    s.type?.trim() || null,
+    s.memo?.replace(/\s*\n+\s*/g, " ").trim() || null,
+  ];
+  if (!parts.some(Boolean)) return "";
+  return [...parts, s.done ? "완료" : null].filter(Boolean).join(" · ");
+}
 
 // ── 고객 프로필 청크(2026-07-06) ──────────────────────────────────────────────
 // 고객당 1행(source_id = customer_id): 프로필 + 구조화 니즈. 서술형 니즈 3필드(need_memo/customer_note/

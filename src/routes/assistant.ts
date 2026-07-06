@@ -21,7 +21,7 @@ import { resolveCustomerScope } from "../lib/assistant-scope";
 import { resolveGeminiTargetFromRequest, type GeminiTarget } from "../lib/gemini-target";
 import { ASSISTANT_TOOL_KEYS } from "../lib/assistant-tools";
 import { routeAssistantTool } from "../lib/assistant-tool-router";
-import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT } from "../lib/assistant-prompt";
+import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withTodayContext } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
 import { createSseLiveness } from "../lib/sse-liveness";
 import type { AuthVariables } from "../middleware/auth";
@@ -153,15 +153,18 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
           sourceType: h.sourceType, snippet: h.content.slice(0, 120),
         }));
 
+    // 오늘 날짜(KST) 컨텍스트 — 일정 청크 등 절대 날짜 근거의 과거/미래 판단 기준(양 경로 공통).
+    const systemPrompt = withTodayContext(tool ? TOOL_SYSTEM_PROMPT : SYSTEM_PROMPT);
+
     if (c.req.valid("json").stream === true) {
       // await 필수: 선저장(insertAssistantMessages) 실패를 이 try/catch가 잡으려면 rejection이
       // 이 스코프 안에서 throw로 전환돼야 한다(그냥 return하면 catch를 건너뛰고 app.onError로 샌다).
-      return await streamAsk(c, { question, staffUserId, target, history, hits, promptChunks, sources, systemPrompt: tool ? TOOL_SYSTEM_PROMPT : SYSTEM_PROMPT });
+      return await streamAsk(c, { question, staffUserId, target, history, hits, promptChunks, sources, systemPrompt });
     }
 
     const answer = promptChunks.length === 0
       ? NO_HITS_ANSWER
-      : await assistantDeps.generateAnswer(tool ? TOOL_SYSTEM_PROMPT : SYSTEM_PROMPT, buildUserPrompt(question, buildContextBlock(promptChunks)), target, { history });
+      : await assistantDeps.generateAnswer(systemPrompt, buildUserPrompt(question, buildContextBlock(promptChunks)), target, { history });
 
     const saved = await insertTurn(staffUserId, question, { content: answer, sources }, c.var.db);
     // 답변·출처는 saved[1]에 영속 — 클라이언트는 messages만 소비한다(이중 표현 금지).

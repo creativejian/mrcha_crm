@@ -303,7 +303,9 @@ customers.post("/:id/schedules", zValidator("param", idParam), zValidator("json"
     const error = validateLookupValue("schedule_type", body.type);
     if (error) return c.json({ error }, 400);
   }
-  return c.json(await addSchedule(c.req.valid("param").id, body, c.var.db), 201);
+  const row = await addSchedule(c.req.valid("param").id, body, c.var.db);
+  scheduleEmbedOnWrite(c, { sourceType: "schedule", sourceId: row.id });
+  return c.json(row, 201);
 });
 customers.patch("/:id/schedules/:childId", zValidator("param", childParam), zValidator("json", scheduleBody), async (c) => {
   const p = c.req.valid("param");
@@ -312,11 +314,19 @@ customers.patch("/:id/schedules/:childId", zValidator("param", childParam), zVal
     const error = validateLookupValue("schedule_type", body.type);
     if (error) return c.json({ error }, 400);
   }
-  return run(c, () => updateSchedule(p.id, p.childId, body, c.var.db), "일정을 찾을 수 없습니다.");
+  return run(c, async () => {
+    const row = await updateSchedule(p.id, p.childId, body, c.var.db);
+    if (row) scheduleEmbedOnWrite(c, { sourceType: "schedule", sourceId: p.childId }); // done 토글 포함 — 완료 라벨 재임베딩
+    return row;
+  }, "일정을 찾을 수 없습니다.");
 });
 customers.delete("/:id/schedules/:childId", zValidator("param", childParam), (c) => {
   const p = c.req.valid("param");
-  return run(c, () => deleteSchedule(p.id, p.childId, c.var.db), "일정을 찾을 수 없습니다.");
+  return run(c, async () => {
+    const row = await deleteSchedule(p.id, p.childId, c.var.db);
+    if (row) await deleteEmbeddingBySource("schedule", p.childId, c.var.db).catch((e) => console.error("[embed-on-write] 삭제 정리 실패:", e));
+    return row;
+  }, "일정을 찾을 수 없습니다.");
 });
 
 // ── 견적 생성(composer 견적 작성 → quote + 대표 시나리오 INSERT) ──────

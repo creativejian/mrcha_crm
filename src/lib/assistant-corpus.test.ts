@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 
-import { buildChunkContent, buildCustomerProfileChunkText, buildQuoteChunkText, contentHash, type CorpusRow, type CustomerProfileChunkCustomer, type QuoteChunkQuote, type QuoteChunkScenario } from "./assistant-corpus";
+import { buildChunkContent, buildCustomerProfileChunkText, buildQuoteChunkText, buildScheduleChunkText, contentHash, dateLabelOf, kstDateLabel, type CorpusRow, type CustomerProfileChunkCustomer, type QuoteChunkQuote, type QuoteChunkScenario, type ScheduleChunkSchedule } from "./assistant-corpus";
 
 test("buildChunkContent: 소스타입별 라벨 + 고객명 + 본문", () => {
   const row: CorpusRow = { sourceType: "memo", sourceId: "s1", customerId: "c1", customerName: "김민준", text: "GLC 재고 문의" };
@@ -115,4 +115,53 @@ test("buildCustomerProfileChunkText: 트림만 있으면 관심 차종은 트림
 test("buildChunkContent: customer_profile 라벨", () => {
   const row: CorpusRow = { sourceType: "customer_profile", sourceId: "c1", customerId: "c1", customerName: "김민준", text: "거주지 인천광역시" };
   expect(buildChunkContent(row)).toBe("고객 김민준 프로필: 거주지 인천광역시");
+});
+
+// ── 일정 청크(2026-07-06) — 일정당 1행. 날짜는 절대값(요일 병기), 상대 라벨(예정/지남) 금지. ──
+
+const FULL_SCHEDULE: ScheduleChunkSchedule = {
+  scheduledDate: "2026-05-26",
+  scheduledTime: "16:00",
+  type: "견적",
+  memo: "GLC 재고 확인 후 X3 조건과 총비용 비교 견적 재발송",
+  done: false,
+};
+
+test("dateLabelOf: YYYY-MM-DD → 요일 병기, 파싱 불가는 원문 유지", () => {
+  expect(dateLabelOf("2026-05-26")).toBe("2026-05-26(화)");
+  expect(dateLabelOf("2026-07-06")).toBe("2026-07-06(월)");
+  expect(dateLabelOf("미정")).toBe("미정");
+});
+
+test("kstDateLabel: UTC 자정 직전도 KST 달력일 기준(요일 포함)", () => {
+  // 2026-07-05T23:30Z = KST 2026-07-06 08:30(월) — 로컬(UTC) getDay였다면 일요일로 밀린다.
+  expect(kstDateLabel(new Date("2026-07-05T23:30:00Z"))).toBe("2026-07-06(월)");
+  expect(kstDateLabel(new Date("2026-07-06T00:30:00Z"))).toBe("2026-07-06(월)");
+});
+
+test("buildScheduleChunkText: 풀필드 — 날짜(요일) 시간 · 타입 · 메모", () => {
+  expect(buildScheduleChunkText(FULL_SCHEDULE)).toBe(
+    "2026-05-26(화) 16:00 · 견적 · GLC 재고 확인 후 X3 조건과 총비용 비교 견적 재발송",
+  );
+});
+
+test("buildScheduleChunkText: done=true면 완료 라벨, 미완료는 라벨 없음(스테일 방지 — 예정 표기 금지)", () => {
+  expect(buildScheduleChunkText({ ...FULL_SCHEDULE, done: true })).toBe(
+    "2026-05-26(화) 16:00 · 견적 · GLC 재고 확인 후 X3 조건과 총비용 비교 견적 재발송 · 완료",
+  );
+  expect(buildScheduleChunkText(FULL_SCHEDULE)).not.toContain("예정");
+});
+
+test("buildScheduleChunkText: 값 없는 항목 생략 — 날짜 없이 메모만, 메모 개행은 공백 접기", () => {
+  expect(buildScheduleChunkText({ scheduledDate: null, scheduledTime: null, type: null, memo: "재연락\n오후 중", done: false })).toBe("재연락 오후 중");
+  expect(buildScheduleChunkText({ ...FULL_SCHEDULE, scheduledTime: null, memo: null })).toBe("2026-05-26(화) · 견적");
+});
+
+test("buildScheduleChunkText: 실질 필드 전무면 빈 문자열(→임베딩 행 삭제) — done만으로는 청크 없음", () => {
+  expect(buildScheduleChunkText({ scheduledDate: null, scheduledTime: "  ", type: null, memo: null, done: true })).toBe("");
+});
+
+test("buildChunkContent: schedule 라벨", () => {
+  const row: CorpusRow = { sourceType: "schedule", sourceId: "s1", customerId: "c1", customerName: "김민준", text: "2026-05-26(화) 16:00 · 견적" };
+  expect(buildChunkContent(row)).toBe("고객 김민준 일정: 2026-05-26(화) 16:00 · 견적");
 });

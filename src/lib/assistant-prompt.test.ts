@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 
-import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT, type PromptChunk } from "./assistant-prompt";
+import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT, withTodayContext, type PromptChunk } from "./assistant-prompt";
 
 const chunks: PromptChunk[] = [
   { customerName: "김민준", content: "고객 김민준 상담메모: GLC 재고 문의", customerStatus: "견적·발송완료" },
@@ -28,4 +28,12 @@ test("SYSTEM_PROMPT: 근거 기반·모르면 모른다 지침 포함", () => {
 // SSOT 가드 — 보간을 리터럴로 되돌리면 라우트 직접 반환(hits 0건)과 모델 지시 문구가 다시 갈라진다.
 test("SYSTEM_PROMPT: NO_HITS_ANSWER 문구를 그대로 포함(보간 SSOT)", () => {
   expect(SYSTEM_PROMPT).toContain(`'${NO_HITS_ANSWER}'`);
+});
+
+// 일정 청크(schedule) 도입 전제 — 근거의 절대 날짜를 과거/미래로 판단하려면 모델이 오늘을 알아야 한다.
+test("withTodayContext: 원문 프롬프트 뒤에 오늘 날짜(KST·요일) 라인 추가", () => {
+  // 2026-07-05T23:30Z = KST 2026-07-06(월) 08:30 — UTC 달력일이었다면 07-05로 밀린다.
+  const p = withTodayContext(SYSTEM_PROMPT, new Date("2026-07-05T23:30:00Z"));
+  expect(p.startsWith(SYSTEM_PROMPT)).toBe(true);
+  expect(p).toContain("오늘은 2026-07-06(월)");
 });
