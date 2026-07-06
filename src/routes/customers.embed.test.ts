@@ -130,6 +130,55 @@ test("견적 POST(트랜잭션) → quote 임베딩, DELETE → 동기 제거", 
   expect(await embeddingRow("quote", quote.id)).toBeNull();
 });
 
+test("일정 POST → schedule 임베딩, done 토글 재임베딩, 전체 비움 → 행 삭제, DELETE → 동기 제거", async () => {
+  const app = createApp({ keyResolver: auth.keyResolver, issuer: auth.issuer });
+  const res = await app.request(`/api/customers/${CUST}/schedules`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ scheduledDate: "2026-07-08", scheduledTime: "14:00", type: "재연락", memo: "임베딩 배선 검증 일정" }),
+  });
+  expect(res.status).toBe(201);
+  const schedule = (await res.json()) as { id: string };
+
+  await until(async () => (await embeddingRow("schedule", schedule.id)) != null);
+  expect((await embeddingRow("schedule", schedule.id))?.content).toBe(
+    "고객 배선테스트 일정: 2026-07-08(수) 14:00 · 재연락 · 임베딩 배선 검증 일정",
+  );
+
+  // done 토글 → 완료 라벨로 content 변경(재임베딩)
+  const donePatch = await app.request(`/api/customers/${CUST}/schedules/${schedule.id}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ done: true }),
+  });
+  expect(donePatch.status).toBe(200);
+  await until(async () => (await embeddingRow("schedule", schedule.id))?.content.endsWith("완료") === true);
+
+  // 실질 필드 전체 비움 → 빈 텍스트 → 훅이 임베딩 행 삭제(일정 행은 잔존)
+  const clear = await app.request(`/api/customers/${CUST}/schedules/${schedule.id}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ scheduledDate: null, scheduledTime: null, type: null, memo: null }),
+  });
+  expect(clear.status).toBe(200);
+  await until(async () => (await embeddingRow("schedule", schedule.id)) == null);
+
+  // 재작성 후 DELETE → 동기 제거
+  const refill = await app.request(`/api/customers/${CUST}/schedules/${schedule.id}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ memo: "삭제 검증" }),
+  });
+  expect(refill.status).toBe(200);
+  await until(async () => (await embeddingRow("schedule", schedule.id)) != null);
+  const del = await app.request(`/api/customers/${CUST}/schedules/${schedule.id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${auth.token}` },
+  });
+  expect(del.status).toBe(200);
+  expect(await embeddingRow("schedule", schedule.id)).toBeNull();
+});
+
 test("404 경로는 스케줄 안 함 — 없는 메모 PATCH에 임베딩 호출 0", async () => {
   const app = createApp({ keyResolver: auth.keyResolver, issuer: auth.issuer });
   const before = embedCalls;

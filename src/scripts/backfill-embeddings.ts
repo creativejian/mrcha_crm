@@ -1,13 +1,13 @@
-// 코퍼스(상담메모·상담이력·니즈메모·할일·견적)를 임베딩해 crm.embeddings에 upsert하는 보정 스크립트.
+// 코퍼스(상담메모·상담이력·니즈메모·할일·견적·프로필·일정)를 임베딩해 crm.embeddings에 upsert하는 보정 스크립트.
 // 증분 임베딩 훅(embed-on-write) 도입 후에는 백필이 아니라 복구/정리 도구다 — hash skip으로 재실행 저비용.
 // 실행: bun run src/scripts/backfill-embeddings.ts  (.env.local의 GEMINI_API_KEY·DATABASE_URL 사용)
 import { and, asc, eq, isNotNull, ne, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { getDefaultDb } from "../db/client";
-import { customers, customerMemos, customerTasks, consultations, embeddings, quotes, quoteScenarios } from "../db/schema";
+import { customers, customerMemos, customerSchedules, customerTasks, consultations, embeddings, quotes, quoteScenarios } from "../db/schema";
 import { upsertEmbedding } from "../db/queries/embeddings";
-import { buildChunkContent, buildCustomerProfileChunkText, buildQuoteChunkText, contentHash, type CorpusRow } from "../lib/assistant-corpus";
+import { buildChunkContent, buildCustomerProfileChunkText, buildQuoteChunkText, buildScheduleChunkText, contentHash, type CorpusRow } from "../lib/assistant-corpus";
 import { embedTexts } from "../lib/gemini-embed";
 import { resolveGeminiTarget } from "../lib/gemini-target";
 import { pickPrimaryScenario } from "../lib/primary-scenario";
@@ -74,6 +74,19 @@ async function gather(): Promise<CorpusRow[]> {
     if (text) rows.push({ sourceType: "customer_profile", sourceId: pr.id, customerId: pr.id, customerName: pr.name, text });
   }
 
+  // 일정: 일정당 1청크 — 텍스트 구성/생략 규칙은 빌더(SSOT). 실질 필드 전무(빈 텍스트)는 미수집.
+  const scheduleRows = await db
+    .select({
+      id: customerSchedules.id, customerId: customerSchedules.customerId, name: customers.name,
+      scheduledDate: customerSchedules.scheduledDate, scheduledTime: customerSchedules.scheduledTime,
+      type: customerSchedules.type, memo: customerSchedules.memo, done: customerSchedules.done,
+    })
+    .from(customerSchedules).innerJoin(customers, eq(customers.id, customerSchedules.customerId));
+  for (const s of scheduleRows) {
+    const text = buildScheduleChunkText(s);
+    if (text) rows.push({ sourceType: "schedule", sourceId: s.id, customerId: s.customerId, customerName: s.name, text });
+  }
+
   // 견적: 견적당 1청크 — 대표 시나리오(pickPrimaryScenario SSOT) 기준(스펙 결정 2).
   const quoteRows = await db
     .select({
@@ -125,6 +138,13 @@ async function cleanupOrphans() {
         select 1 from crm.customers c where c.id = e.source_id and btrim(coalesce(c.need_review_note, '')) <> ''))
       or (e.source_type = 'customer_profile' and not exists (
         select 1 from crm.customers c where c.id = e.source_id))
+      -- 일정: 행 삭제 또는 실질 필드(날짜·시간·타입·메모) 전무 — buildScheduleChunkText 빈 텍스트 판정의 SQL 미러.
+      or (e.source_type = 'schedule' and not exists (
+        select 1 from crm.customer_schedules s where s.id = e.source_id
+          and (s.scheduled_date is not null
+            or btrim(coalesce(s.scheduled_time, '')) <> ''
+            or btrim(coalesce(s.type, '')) <> ''
+            or btrim(coalesce(s.memo, '')) <> '')))
     returning e.id
   `);
   console.log(`고아 정리: ${[...(deleted as Iterable<unknown>)].length}행 삭제`);
