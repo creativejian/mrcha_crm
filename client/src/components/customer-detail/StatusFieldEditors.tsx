@@ -4,12 +4,12 @@ import { formatLocalPhone, localPhoneFrom } from "@/lib/detail-utils";
 import { useStaffDirectory } from "@/lib/staff";
 import {
   type CustomerTypeValue,
-  advisorOptionsByTeam,
+  ADVISOR_TEAMS,
   automaticSourceOptions,
   customerTypeOptions,
   manualSourceOptions,
   regionOptions,
-  parseAdvisorValue,
+  parseAdvisorTeam,
   parseJobValue,
   parseLocationValue,
   parseSourceValue,
@@ -178,7 +178,7 @@ export function AdvisorStatusEditor({
   // 담당자 후보 = 직원 디렉토리(profiles CRM 역할) — ADVISOR_NAMES 목업 폐기(팀별 담당자 필터도
   // 함께 폐기 — 팀 개념 없음 확정, 팀 select는 표시 필드로만 잔존). 배정 저장은 select 값(advisorId)을
   // 동봉해야 역할 scope가 성립한다(#176). 초기 선택은 id 매칭 우선, 백필 전 데이터(이름만)는 이름 폴백.
-  const initialTeam = parseAdvisorValue(initialValue).team;
+  const initialTeam = parseAdvisorTeam(initialValue);
   const { staff, loading } = useStaffDirectory();
   const displayName = initialValue.split("·")[0]?.trim();
   const selected = staff.find((s) => s.id === initialAdvisorId) ?? staff.find((s) => s.name === displayName);
@@ -188,7 +188,7 @@ export function AdvisorStatusEditor({
       <label>
         <span>팀 선택</span>
         <select autoFocus defaultValue={initialTeam} name="team">
-          {Object.keys(advisorOptionsByTeam).map((option) => <option key={option} value={option}>{option}</option>)}
+          {ADVISOR_TEAMS.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
       <label>

@@ -11,13 +11,10 @@ export const customerTypeOptions: CustomerTypeValue[] = ["개인", "개인사업
 export const automaticSourceOptions = SOURCE_AUTOMATIC_OPTIONS;
 export const legacyAutomaticSourceOptions = SOURCE_LEGACY_AUTOMATIC_OPTIONS;
 export const manualSourceOptions = SOURCE_MANUAL_OPTIONS;
-export const advisorOptionsByTeam: Record<AdvisorTeam, string[]> = {
-  인천본사: ["김지안", "이주선"],
-  상담팀: ["이주선", "김지안", "문태호"],
-  견적팀: ["이건수", "김지안"],
-  계약팀: ["김지안", "이주선"],
-  출고팀: ["한지훈", "김지안"],
-};
+// 팀 어휘(표시 필드로만 잔존 — 팀 개념 없음 확정, 어휘·존폐는 팀 개념 정리 때 재검토).
+// 담당자 후보는 GET /api/staff 디렉토리(#177)가 SSOT — 팀별 목업 이름 리스트(구 advisorOptionsByTeam)는
+// 배치 F에서 폐기(디렉토리와 이중 소스로 남아 실데이터 오인 표면이었음).
+export const ADVISOR_TEAMS: readonly AdvisorTeam[] = ["인천본사", "상담팀", "견적팀", "계약팀", "출고팀"];
 export const regionOptions: Record<string, string[]> = {
   "확인 필요": ["확인 필요"],
   서울특별시: ["확인 필요", "강남구", "강동구", "강북구", "강서구", "관악구", "광진구", "구로구", "금천구", "노원구", "도봉구", "동대문구", "동작구", "마포구", "서대문구", "서초구", "성동구", "성북구", "송파구", "양천구", "영등포구", "용산구", "은평구", "종로구", "중구", "중랑구"],
@@ -87,13 +84,12 @@ export function hasAppSourceQueue(value: string) {
 
 // --- 담당자 ---
 
-export function parseAdvisorValue(value: string): { team: AdvisorTeam; advisor: string } {
-  const [advisorValue, teamValue] = value.split("·").map((part) => part.trim());
-  const fallbackTeam: AdvisorTeam = "인천본사";
-  const team = advisorOptionsByTeam[teamValue as AdvisorTeam] ? teamValue as AdvisorTeam : fallbackTeam;
-  const advisors = advisorOptionsByTeam[team];
-  const advisor = advisors.includes(advisorValue) ? advisorValue : advisors[0];
-  return { team, advisor };
+// "이름 · 팀" 표시 문자열에서 팀만 해석 — 이름 해석은 디렉토리(id 매칭·이름 폴백, AdvisorStatusEditor)가
+// 담당한다. 구 parseAdvisorValue의 advisor 절반은 목업 리스트 강제 폴백(프로덕션 소비처 0인 dead —
+// 소비되는 순간 임의 담당자 오배정 함정)이라 배치 F에서 제거.
+export function parseAdvisorTeam(value: string): AdvisorTeam {
+  const teamValue = value.split("·").map((part) => part.trim())[1];
+  return ADVISOR_TEAMS.includes(teamValue as AdvisorTeam) ? (teamValue as AdvisorTeam) : "인천본사";
 }
 
 export function formatAdvisorValue(team: AdvisorTeam, advisor: string) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { restoreDiscountLines } from "./quote-workbench-meta";
+import { discountLineWon, restoreDiscountLines } from "./quote-workbench-meta";
 
 // 수정 진입 시 할인 구성 내역(discount_lines) 복원 — 행 state 재구성 + 기본 할인 분리 산술.
 // 기본 할인은 별도 저장하지 않으므로 finalDiscount(총액) − Σ추가 행 환산액으로 역산한다.
@@ -49,5 +49,17 @@ describe("restoreDiscountLines", () => {
   it("추가 행 합이 총액을 넘으면 기본 할인 0으로 클램프(음수면 parseMoney가 부호를 버려 오염)", () => {
     const r = restoreDiscountLines([{ label: "A", amount: 9_000_000, unit: "amount" }], 0, 6_500_000, 1);
     expect(r.primaryDiscount).toBe(0);
+  });
+});
+
+// 할인 행 원화 환산 단일 산술 — 역산(restore)·합산(sync)·단위 전환(convert) 3소비처가 공유(배치 F).
+describe("discountLineWon", () => {
+  it("amount 행은 값 그대로, percent 행은 basis 기준 반올림 환산", () => {
+    expect(discountLineWon("amount", 500_000, 75_300_000)).toBe(500_000);
+    expect(discountLineWon("percent", 1.5, 75_300_000)).toBe(1_129_500);
+    expect(discountLineWon("percent", 0.333, 10_000)).toBe(33); // 33.3 → 반올림
+  });
+  it("basis 0이면 percent 환산 0 (빈 가격 입력 방어)", () => {
+    expect(discountLineWon("percent", 10, 0)).toBe(0);
   });
 });

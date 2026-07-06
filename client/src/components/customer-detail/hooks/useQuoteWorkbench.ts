@@ -19,6 +19,7 @@ import {
   createQuoteCode,
   emptyQuoteConditionCards,
   emptyQuotePricing,
+  discountLineWon,
   initialQuotePricingResult,
   quotePurchaseMethodOptions,
   normalizeQuotePurchaseMethod,
@@ -418,12 +419,13 @@ export function useQuoteWorkbench({
   function syncDiscountTotalFromRows(root: HTMLElement) {
     const discountInputs = Array.from(root.querySelectorAll<HTMLInputElement>('input[data-discount-line="true"]'));
     if (!discountInputs.length) return;
-    const basePrice = parseMoney(root.querySelector<HTMLInputElement>('input[data-pricing="base"]')?.value ?? "");
-    const optionPrice = parseMoney(root.querySelector<HTMLInputElement>('input[data-pricing="option"]')?.value ?? "");
-    const discountBasis = basePrice + optionPrice;
+    // 환산 산술은 discountLineWon(quote-workbench-meta) 1벌 — 역산 복원(restoreDiscountLines)과 동일해야
+    // 수정 재진입 기본 할인이 안 어긋난다. basis 읽기도 discountBasis 헬퍼 1벌(배치 F).
+    const basis = discountBasis(root);
     const total = discountInputs.reduce((sum, input) => {
-      const value = input.dataset.discountUnit === "percent" ? parsePercent(input.value) : parseMoney(input.value);
-      return sum + (input.dataset.discountUnit === "percent" ? Math.round(discountBasis * value / 100) : value);
+      const unit: DiscountUnit = input.dataset.discountUnit === "percent" ? "percent" : "amount";
+      const value = unit === "percent" ? parsePercent(input.value) : parseMoney(input.value);
+      return sum + discountLineWon(unit, value, basis);
     }, 0);
     const discountTotal = root.querySelector<HTMLInputElement>('input[data-pricing="discount"]');
     if (discountTotal) discountTotal.value = formatMoney(total);
@@ -445,7 +447,8 @@ export function useQuoteWorkbench({
       input.value = "0";
       return;
     }
-    input.value = to === "percent" ? formatPercent(value / basis * 100) : formatMoney(Math.round(basis * value / 100));
+    // %→금액 환산은 discountLineWon 공유 산술(합산·역산과 동일 라운딩).
+    input.value = to === "percent" ? formatPercent(value / basis * 100) : formatMoney(discountLineWon("percent", value, basis));
   }
 
   function handlePricingPanelInput() {

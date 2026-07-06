@@ -6,7 +6,7 @@ import {
   formatLocationValue,
   hasAppSourceQueue,
   isAutomaticSource,
-  parseAdvisorValue,
+  parseAdvisorTeam,
   parseJobValue,
   parseLocationValue,
   parseSourceValue,
@@ -58,9 +58,10 @@ describe("상담경로 (source)", () => {
 });
 
 describe("담당자 (advisor)", () => {
-  it("parseAdvisorValue는 '담당자 · 팀'을 가르고, 미상 팀/담당자는 폴백", () => {
-    expect(parseAdvisorValue("이주선 · 상담팀")).toEqual({ team: "상담팀", advisor: "이주선" });
-    expect(parseAdvisorValue("없는사람 · 없는팀")).toEqual({ team: "인천본사", advisor: "김지안" });
+  it("parseAdvisorTeam은 '담당자 · 팀'에서 팀만 해석, 미상 팀은 인천본사 폴백 — 이름 해석은 디렉토리 소관", () => {
+    expect(parseAdvisorTeam("이주선 · 상담팀")).toBe("상담팀");
+    expect(parseAdvisorTeam("없는사람 · 없는팀")).toBe("인천본사");
+    expect(parseAdvisorTeam("강현준 · 인천본사")).toBe("인천본사"); // 목업 리스트 밖 실 직원명도 팀 해석 무영향
   });
   it("formatAdvisorValue는 미배정/빈 값을 '미배정'", () => {
     expect(formatAdvisorValue("상담팀", "이주선")).toBe("이주선 · 상담팀");
