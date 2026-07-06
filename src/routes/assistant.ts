@@ -27,6 +27,13 @@ import { holdStreamLifetime, type DbVariables } from "../middleware/db";
 export const assistant = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
 const TOP_K = 8;
+// 근거 채택 유사도 임계값(cosine, ≥ 유지) — top-k는 관련도와 무관하게 항상 k개를 돌려주므로, 미달 청크를
+// 프롬프트(생성 오염)와 sources(답변 하단 근거 표시 노이즈) 양쪽에서 제외한다. 값은 2026-07-06 실측 기반
+// (질문 8종 × 코퍼스 37청크): 진짜 관련 0.765~0.835 · 관련 질문에 딸려온 무관 청크 ≤0.757 · 무관 질문
+// (잡담/일반지식) 최고 0.61~0.72. 갭(0.757↔0.765) 하단에 마진을 두고 0.75 — 재현율 우선(더 올리면 약한
+// 질의가 통째로 NO_HITS로 떨어진다). 전부 미달이면 기존 hits 0건 경로(NO_HITS_ANSWER, Gemini 미호출).
+// prod 재조정은 아래 필터 로그(tail)로 컷 분포를 보고 한다.
+export const SIMILARITY_THRESHOLD = 0.75;
 const HISTORY_LIMIT = 10; // 멀티턴 컨텍스트로 넣을 최근 메시지 수(앱과 동일)
 export const DISPLAY_LIMIT = 30; // 패널 진입 시 로드할 최근 메시지 수 — 클라 AI_HISTORY_PAGE와 파리티(테스트 가드)
 const askSchema = z.object({ question: z.string(), stream: z.boolean().optional() });
@@ -92,7 +99,16 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
       assistantDeps.listRecentMessages(staffUserId, HISTORY_LIMIT, c.var.db)
         .then((rows) => rows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))),
       assistantDeps.embedTexts([question], target, "RETRIEVAL_QUERY")
-        .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db)),
+        .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db))
+        .then((all) => {
+          const kept = all.filter((h) => h.similarity >= SIMILARITY_THRESHOLD);
+          // 임계값 튜닝용 관측 로그(tail) — 컷 최고점이 임계값에 자주 근접하면 재조정 신호.
+          if (kept.length < all.length) {
+            const cutTop = Math.max(...all.filter((h) => h.similarity < SIMILARITY_THRESHOLD).map((h) => h.similarity));
+            console.log(`[assistant] 근거 임계값 필터 ${all.length}→${kept.length} (컷 최고 ${cutTop.toFixed(4)})`);
+          }
+          return kept;
+        }),
     ]);
     const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
     const promptChunks = hits.map((h) => ({
