@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 
-import { buildQuoteChunkText } from "../../lib/assistant-corpus";
+import { buildCustomerProfileChunkText, buildQuoteChunkText } from "../../lib/assistant-corpus";
 import { pickPrimaryScenario } from "../../lib/primary-scenario";
 import { getDefaultDb, type Executor } from "../client";
 import { customerMemos, customers, customerTasks, quotes, quoteScenarios } from "../schema";
@@ -11,7 +11,7 @@ export type CorpusSourceSnapshot = { customerId: string; customerName: string; t
 
 // on-write 대상 소스타입. consultation은 CRM 쓰기 경로가 없어 제외(스펙 결정 3 —
 // 채팅 AI 요약 자동 수신 경로가 생기면 그쪽에서 훅 추가).
-export type WritableCorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "quote";
+export type WritableCorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "quote" | "customer_profile";
 
 export async function loadCorpusSource(
   sourceType: WritableCorpusSourceType,
@@ -50,6 +50,33 @@ export async function loadCorpusSource(
       if (!r) return null;
       const text = sourceType === "need_memo" ? r.needMemo : sourceType === "need_customer_note" ? r.needCustomerNote : r.needReviewNote;
       return { customerId: sourceId, customerName: r.name, text: text ?? "" };
+    }
+    case "customer_profile": {
+      // 고객당 1행(source_id = customer_id): 프로필 + 구조화 니즈 — 필드 구성/생략 규칙은 빌더(SSOT).
+      const [r] = await ex
+        .select({
+          name: customers.name,
+          residence: customers.residence,
+          customerType: customers.customerType,
+          customerTypeDetail: customers.customerTypeDetail,
+          source: customers.source,
+          advisorName: customers.advisorName,
+          needModel: customers.needModel,
+          needTrim: customers.needTrim,
+          needMethod: customers.needMethod,
+          needTiming: customers.needTiming,
+          needColors: customers.needColors,
+          needCompare: customers.needCompare,
+          needContractTerm: customers.needContractTerm,
+          needInitialCost: customers.needInitialCost,
+          needAnnualMileage: customers.needAnnualMileage,
+          needDeliveryMethod: customers.needDeliveryMethod,
+          needContractFocus: customers.needContractFocus,
+        })
+        .from(customers)
+        .where(eq(customers.id, sourceId));
+      if (!r) return null;
+      return { customerId: sourceId, customerName: r.name, text: buildCustomerProfileChunkText(r) };
     }
     case "quote": {
       const [q] = await ex

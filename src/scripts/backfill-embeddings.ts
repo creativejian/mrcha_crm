@@ -7,7 +7,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { getDefaultDb } from "../db/client";
 import { customers, customerMemos, customerTasks, consultations, embeddings, quotes, quoteScenarios } from "../db/schema";
 import { upsertEmbedding } from "../db/queries/embeddings";
-import { buildChunkContent, buildQuoteChunkText, contentHash, type CorpusRow } from "../lib/assistant-corpus";
+import { buildChunkContent, buildCustomerProfileChunkText, buildQuoteChunkText, contentHash, type CorpusRow } from "../lib/assistant-corpus";
 import { embedTexts } from "../lib/gemini-embed";
 import { resolveGeminiTarget } from "../lib/gemini-target";
 import { pickPrimaryScenario } from "../lib/primary-scenario";
@@ -54,6 +54,24 @@ async function gather(): Promise<CorpusRow[]> {
     if (n.needMemo?.trim()) rows.push({ sourceType: "need_memo", sourceId: n.id, customerId: n.id, customerName: n.name, text: n.needMemo });
     if (n.needCustomerNote?.trim()) rows.push({ sourceType: "need_customer_note", sourceId: n.id, customerId: n.id, customerName: n.name, text: n.needCustomerNote });
     if (n.needReviewNote?.trim()) rows.push({ sourceType: "need_review_note", sourceId: n.id, customerId: n.id, customerName: n.name, text: n.needReviewNote });
+  }
+
+  // 프로필 청크(customers 인라인, 고객당 1행): source_id = customer_id. 필드 구성/생략 규칙은 빌더(SSOT).
+  const profiles = await db
+    .select({
+      id: customers.id, name: customers.name,
+      residence: customers.residence, customerType: customers.customerType, customerTypeDetail: customers.customerTypeDetail,
+      source: customers.source, advisorName: customers.advisorName,
+      needModel: customers.needModel, needTrim: customers.needTrim, needMethod: customers.needMethod,
+      needTiming: customers.needTiming, needColors: customers.needColors, needCompare: customers.needCompare,
+      needContractTerm: customers.needContractTerm, needInitialCost: customers.needInitialCost,
+      needAnnualMileage: customers.needAnnualMileage, needDeliveryMethod: customers.needDeliveryMethod,
+      needContractFocus: customers.needContractFocus,
+    })
+    .from(customers);
+  for (const pr of profiles) {
+    const text = buildCustomerProfileChunkText(pr);
+    if (text) rows.push({ sourceType: "customer_profile", sourceId: pr.id, customerId: pr.id, customerName: pr.name, text });
   }
 
   // 견적: 견적당 1청크 — 대표 시나리오(pickPrimaryScenario SSOT) 기준(스펙 결정 2).
@@ -105,6 +123,8 @@ async function cleanupOrphans() {
         select 1 from crm.customers c where c.id = e.source_id and btrim(coalesce(c.need_customer_note, '')) <> ''))
       or (e.source_type = 'need_review_note' and not exists (
         select 1 from crm.customers c where c.id = e.source_id and btrim(coalesce(c.need_review_note, '')) <> ''))
+      or (e.source_type = 'customer_profile' and not exists (
+        select 1 from crm.customers c where c.id = e.source_id))
     returning e.id
   `);
   console.log(`고아 정리: ${[...(deleted as Iterable<unknown>)].length}행 삭제`);
