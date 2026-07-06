@@ -48,6 +48,8 @@ export type QuoteChunkQuote = {
   appStatus: string | null; // draft|queued|sent|viewed
   sentAt: Date | null;
   guidance: unknown; // jsonb — guidanceOf가 legacy keyPoint(단수)까지 흡수
+  discountLines: unknown; // jsonb [{label,amount,unit}] — 쓰기 zod 게이트(#168)를 신뢰하되 방어 파싱
+  finalDiscount: string | null; // drizzle numeric = string, 할인 총액
 };
 
 export type QuoteChunkScenario = {
@@ -57,14 +59,41 @@ export type QuoteChunkScenario = {
   lender: string | null;
 };
 
+// 할인 파트: 총액(finalDiscount) + 구성 행 라벨(#168 discount_lines — "재구매 할인 들어간 견적" 같은
+// 질문의 검색 근거). 0원 행도 병기(미리보기와 동일 규칙), 총액 0/없음 + 행 없음이면 생략.
+function discountLabelOf(finalDiscount: string | null, rawLines: unknown): string | null {
+  const total = numOr(finalDiscount);
+  const lines = (Array.isArray(rawLines) ? rawLines : []).flatMap((l) => {
+    const r = l as { label?: unknown; amount?: unknown; unit?: unknown };
+    if (typeof r?.label !== "string" || !r.label.trim() || typeof r.amount !== "number") return [];
+    return [`${r.label.trim()} ${r.unit === "percent" ? `${r.amount}%` : `${formatMoney(r.amount)}원`}`];
+  });
+  if (!total && !lines.length) return null;
+  return `할인${total ? ` ${formatMoney(total)}원` : ""}${lines.length ? ` (${lines.join(", ")})` : ""}`;
+}
+
+// 시나리오 1개 요약(비교안 목록용) — 대표 시나리오가 본문 파트로 펼치는 것과 같은 항목을 한 줄로.
+function scenarioSummaryOf(sc: QuoteChunkScenario): string | null {
+  const monthly = numOr(sc.monthlyPayment);
+  const parts = [
+    sc.purchaseMethod || null,
+    sc.termMonths != null ? formatTerm(sc.termMonths) : null,
+    monthly != null ? `월 ${formatMoney(monthly)}원` : null,
+    sc.lender || null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" ") : null;
+}
+
 // 값 없는 항목은 생략(빈 라벨 나열 금지). 열람(viewed_at) 상태는 넣지 않는다 —
 // 앱이 advisor_quotes에 직접 써 CRM 훅이 없어 스테일로 박제된다(스펙 결정 1).
-export function buildQuoteChunkText(q: QuoteChunkQuote, sc: QuoteChunkScenario | null): string {
+// others = 대표를 제외한 비교 시나리오 2·3안(호출부가 pickPrimaryScenario 결과로 분리).
+export function buildQuoteChunkText(q: QuoteChunkQuote, sc: QuoteChunkScenario | null, others: QuoteChunkScenario[] = []): string {
   const g = guidanceOf(q.guidance);
   const monthly = numOr(sc?.monthlyPayment ?? null);
   const keyPoints = g.keyPoints.map((k) => k.trim()).filter(Boolean);
   const services = g.services.map((s) => s.trim()).filter(Boolean);
   const recommend = g.recommendReason.replace(/\s*\n+\s*/g, " ").trim();
+  const compare = others.map(scenarioSummaryOf).filter(Boolean);
   const sentLabel =
     (q.appStatus === "sent" || q.appStatus === "viewed") && q.sentAt
       ? `${stampLabelOf(q.sentAt.toISOString())} 발송`
@@ -76,7 +105,9 @@ export function buildQuoteChunkText(q: QuoteChunkQuote, sc: QuoteChunkScenario |
     sc?.termMonths != null ? formatTerm(sc.termMonths) : null,
     monthly != null ? `월 ${formatMoney(monthly)}원` : null,
     sc?.lender || null,
+    discountLabelOf(q.finalDiscount, q.discountLines),
     sentLabel,
+    compare.length ? `비교안: ${compare.join(" / ")}` : null,
     recommend ? `추천이유: ${recommend}` : null,
     keyPoints.length ? `핵심포인트: ${keyPoints.join(", ")}` : null,
     services.length ? `서비스: ${services.join(", ")}` : null,

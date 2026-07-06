@@ -119,6 +119,8 @@ export async function loadCorpusSource(
           appStatus: quotes.appStatus,
           sentAt: quotes.sentAt,
           guidance: quotes.guidance,
+          discountLines: quotes.discountLines,
+          finalDiscount: quotes.finalDiscount,
           primaryScenarioId: quotes.primaryScenarioId,
         })
         .from(quotes)
@@ -138,7 +140,7 @@ export async function loadCorpusSource(
         .where(eq(quoteScenarios.quoteId, sourceId))
         .orderBy(asc(quoteScenarios.scenarioNo));
       const sc = pickPrimaryScenario(scs, q.primaryScenarioId);
-      return { customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc) };
+      return { customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc, scs.filter((s) => s !== sc)) };
     }
   }
 }
