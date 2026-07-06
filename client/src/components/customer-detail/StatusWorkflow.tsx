@@ -22,7 +22,7 @@ type StatusWorkflowProps = {
 };
 
 export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, workflow }: StatusWorkflowProps) {
-  const { statusValues, stageGroup, stageStatus, chance, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
+  const { statusValues, advisorId, stageGroup, stageStatus, chance, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
 
   function renderStatusEditor(key: StatusFieldKey) {
     return (
@@ -48,6 +48,7 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
         ) : key === "advisor" ? (
           <AdvisorStatusEditor
             initialValue={statusValues.advisor}
+            initialAdvisorId={advisorId}
             onCancel={() => setOpenEditor(null)}
             onSubmit={handlers.saveAdvisorField}
           />

@@ -101,6 +101,7 @@ export type CustomerDetailResponse = {
   customerTypeDetail: string | null;
   source: string | null;
   advisorName: string | null;
+  advisorId: string | null; // 담당자 profiles.id — 배정 select 초기값·역할 scope 매칭 키(#176)
   team: string | null;
   assignedAt: string | null;
   receivedAt: string | null;
@@ -137,6 +138,7 @@ export type CustomerDetailData = Pick<
   | "customerTypeDetail"
   | "source"
   | "advisorName"
+  | "advisorId"
   | "team"
   | "assignedAt"
   | "receivedAt"
@@ -173,6 +175,7 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
     customerTypeDetail: res.customerTypeDetail,
     source: res.source,
     advisorName: res.advisorName,
+    advisorId: res.advisorId,
     team: res.team,
     assignedAt: res.assignedAt,
     receivedAt: res.receivedAt,
@@ -244,6 +247,7 @@ export type CustomerWritePatch = {
   status?: string | null;
   chance?: string | null;
   advisorName?: string | null;
+  advisorId?: string | null; // 이름과 함께 동봉 — 서버 정합 규칙이 이름만 오면 id를 비운다(#176)
   team?: string | null;
   needModel?: string | null;
   needTrim?: string | null;

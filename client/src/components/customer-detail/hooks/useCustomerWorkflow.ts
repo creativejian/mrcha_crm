@@ -4,6 +4,7 @@ import { customerStatusGroups, type Customer, type CustomerChanceOption, type Cu
 import { formatActivity, formatPhone, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { resolveChance } from "@/lib/customer-table";
 import { formatAssignmentTime } from "@/lib/detail-utils";
+import { staffNameOf } from "@/lib/staff";
 import { type AdvisorTeam, type CustomerTypeValue, formatAdvisorValue, formatJobValue, formatLocationValue, isAutomaticSource } from "@/lib/status-fields";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 
@@ -90,6 +91,8 @@ export function useCustomerWorkflow({
     advisor: detail.advisorName ? formatAdvisorValue((detail.team ?? "인천본사") as AdvisorTeam, detail.advisorName) : "미배정",
     assignedAt: detail.assignedAt ? formatActivity(detail.assignedAt) : "미배정",
   }));
+  // 배정 select 초기값(디렉토리 id 매칭) — 저장 성공 시 낙관 갱신해 같은 drawer 재편집도 최신 id 기준.
+  const [advisorId, setAdvisorId] = useState<string | null>(detail.advisorId);
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
   const [stageStatus, setStageStatus] = useState(customer.status);
   const [chance, setChance] = useState<CustomerChanceOption>(resolveChance(customer, chanceOverride));
@@ -226,18 +229,26 @@ export function useCustomerWorkflow({
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const team = String(formData.get("team") ?? "인천본사") as AdvisorTeam;
-    const advisor = String(formData.get("advisor") ?? "").trim();
+    // select 값은 디렉토리 advisorId(uuid) — 표시명은 세션 캐시에서 동기 해석(편집기가 디렉토리
+    // 로드 후에만 제출 가능해 캐시가 항상 따뜻하다). 해석 실패 = 저장 안 함(이름 없는 배정 금지).
+    const nextAdvisorId = String(formData.get("advisorId") ?? "").trim();
+    const advisor = nextAdvisorId ? staffNameOf(nextAdvisorId) : null;
+    if (!nextAdvisorId || !advisor) return;
     const nextAdvisor = formatAdvisorValue(team, advisor);
     const prevAdvisor = statusValues.advisor;
+    const prevAdvisorId = advisorId;
     const prevAssignedAt = statusValues.assignedAt;
     // 배정시각 표시는 담당자가 실제로 바뀔 때만 갱신 — 서버도 동일 담당자 재저장엔 assigned_at을 유지한다.
     setStatusValues((current) => ({ ...current, advisor: nextAdvisor, assignedAt: current.advisor === nextAdvisor ? current.assignedAt : formatAssignmentTime() }));
+    setAdvisorId(nextAdvisorId);
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast("담당자 배정 완료");
-    // advisorName은 이름만(빈 값=미배정→null). team은 그대로. 배정시각은 서버가 now()로 기록.
-    savePatch({ advisorName: advisor || null, team }, () =>
-      setStatusValues((current) => ({ ...current, advisor: prevAdvisor, assignedAt: prevAssignedAt })));
+    // advisorId 동봉 필수(#176 역할 scope 매칭 키 — 이름만 보내면 서버 정합 규칙이 id를 비운다).
+    savePatch({ advisorName: advisor, advisorId: nextAdvisorId, team }, () => {
+      setStatusValues((current) => ({ ...current, advisor: prevAdvisor, assignedAt: prevAssignedAt }));
+      setAdvisorId(prevAdvisorId);
+    });
   }
 
   function selectStageGroup(nextGroup: string) {
@@ -278,6 +289,7 @@ export function useCustomerWorkflow({
 
   return {
     statusValues,
+    advisorId,
     stageGroup,
     stageStatus,
     chance,

@@ -99,9 +99,6 @@ export const PURCHASE_UNSET_SENTINEL = "확인 필요";
 // 관리 상태(최종 업데이트) 옵션. CustomerManageStatus 유니온과 값이 1:1.
 export const CUSTOMER_MANAGE_STATUSES: readonly CustomerManageStatus[] = ["정상", "확인필요", "재문의", "지연", "장기방치"];
 
-// 담당자 배정 목업(추후 profiles 연동). 담당자 select·순환 배정에 사용.
-export const ADVISOR_NAMES: readonly string[] = ["김지안", "이주선", "이건수"];
-
 export const customerStatusGroups: Record<string, string[]> = {
   신규: ["상담접수", "1차부재중", "지속적부재", "연락해야함"],
   상담중: ["구매방식상담중", "차량상담중", "견적상담중"],
