@@ -10,7 +10,12 @@
   → 서버가 임베딩 검색을 생략하고 화이트리스트 리포트 쿼리 결과를 근거 블록으로 생성. 도구 5종
   (`src/lib/assistant-tools.ts` 키·라벨 + `src/db/queries/assistant-tools.ts` 실행기). Gemini function calling
   프로토콜 미사용 — 버튼이 의도를 확정하므로 모델 라우팅 자체가 불필요, 호출 1회 유지.
-- **PR2(후속)**: 자유 질문 **모델 라우팅** — functionDeclarations 동봉 1차 호출로 도구 선택 감지. 이사님 피드백 후.
+- **PR2(07-06 오후 구현)**: 자유 질문 **모델 라우팅** — **RAG 우선·근거 0건 폴백** 설계: 근거가 잡히는 질문은
+  기존 경로 그대로(추가 호출 0·오라우팅 구조적 불가 = 골든 가드), 근거 0건(기존 NO_HITS 지점)에서만
+  functionDeclarations 동봉 1차 논스트림 호출로 도구 선택(mode AUTO·화이트리스트 게이트·실패 시 null →
+  NO_HITS 폴백). 신규 도구 `search_customers`(이름/진행 상태/구매방식/상담경로 부분 일치, zod 파라미터).
+  **도구 답변은 전용 TOOL_SYSTEM_PROMPT** — RAG 프롬프트의 NO_HITS 지시가 실리면 리포트 8건이 있어도
+  모델이 고정 문구를 뱉는 실측 결함(e2e 발견) 대응.
 
 ## 배경 / 문제
 

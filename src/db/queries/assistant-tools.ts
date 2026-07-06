@@ -1,4 +1,5 @@
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, ilike, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { z } from "zod";
 
 import { ASSISTANT_TOOL_LABELS, type AssistantToolKey, type AssistantToolResult } from "../../lib/assistant-tools";
 import { getDefaultDb, type Executor } from "../client";
@@ -39,7 +40,16 @@ function staleBucket(days: number): string | null {
   return null;
 }
 
-export async function runAssistantTool(key: AssistantToolKey, ex: Executor = getDefaultDb()): Promise<AssistantToolResult> {
+// search_customers 파라미터(라우터가 모델 args를 그대로 넘김 — zod로 좁힌다. 미지 키는 무시).
+const searchCustomersParams = z.object({
+  name: z.string().optional(),
+  statusGroup: z.string().optional(),
+  purchaseMethod: z.string().optional(),
+  source: z.string().optional(),
+});
+
+// params: 자유 질문 라우팅(PR2)의 모델 인자 — 버튼 결정론 경로(PR1)는 빈 객체를 넘긴다.
+export async function runAssistantTool(key: AssistantToolKey, params: Record<string, unknown>, ex: Executor = getDefaultDb()): Promise<AssistantToolResult> {
   const label = ASSISTANT_TOOL_LABELS[key];
   switch (key) {
     // 미완료 할일(기한 급함/오늘) + 오늘 일정(KST) — "오늘 내가 먼저 처리할 일".
@@ -117,6 +127,30 @@ export async function runAssistantTool(key: AssistantToolKey, ex: Executor = get
         .sort((a, b) => b.days - a.days)
         .map((r) => `${r.name} — 계약완료 단계(${r.status ?? "세부 미입력"}) · ${r.days}일 무활동`);
       return { label, lines };
+    }
+
+    // 조건 검색(PR2 자유 질문 라우팅 전용): 이름/진행 상태/구매방식/상담경로 필터 조합 — 부분 일치는
+    // ilike(모델이 "앱"처럼 축약을 넘겨도 "앱 견적요청"·"앱 상담원 연결"이 걸리게). 상한 30.
+    case "search_customers": {
+      const parsed = searchCustomersParams.safeParse(params);
+      const f = parsed.success ? parsed.data : {};
+      const conds: SQL[] = [];
+      if (f.name) conds.push(ilike(customers.name, `%${f.name}%`));
+      if (f.statusGroup) conds.push(eq(customers.statusGroup, f.statusGroup));
+      if (f.purchaseMethod) conds.push(ilike(customers.needMethod, `%${f.purchaseMethod}%`));
+      if (f.source) conds.push(ilike(customers.source, `%${f.source}%`));
+      const rows = await ex
+        .select({ name: customers.name, source: customers.source, statusGroup: customers.statusGroup, status: customers.status, needMethod: customers.needMethod })
+        .from(customers)
+        .where(conds.length ? and(...conds) : undefined)
+        .limit(30);
+      const filterLabel = [
+        f.name && `이름 ${f.name}`, f.statusGroup && `진행 ${f.statusGroup}`,
+        f.purchaseMethod && `구매방식 ${f.purchaseMethod}`, f.source && `상담경로 ${f.source}`,
+      ].filter(Boolean).join(" · ") || "전체";
+      const lines = rows.map((r) =>
+        `${r.name} — 상담경로 ${r.source ?? "미입력"} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}${r.needMethod ? ` · 구매방식 ${r.needMethod}` : ""}`);
+      return { label: `${label}(${filterLabel})`, lines };
     }
   }
 }
