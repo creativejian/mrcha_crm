@@ -28,6 +28,10 @@ const CLIENT_ONLY_KEYS = ["statusLabel", "ddayLabel"];
 // 대신 양쪽 모두 "YY/MM/DD HH:mm" 포맷을 assert해 포맷 드리프트만 가드한다.
 const STAMP_FORMAT = /^\d{2}\/\d{2}\/\d{2} \d{2}:\d{2}$/;
 
+// discountRowLabel도 값 비교에서 제외한다 — 의도된 이탈(2026-07-05 이사님 결정: "CRM은 모든 할인 항목
+// 표시, 고객 앱은 총액만"). 클라 미리보기는 구성 내역을 병기("최대 할인 적용 (재구매 할인)")하고,
+// 고객 payload는 항상 고정 문구다. 양쪽 값은 assertParity에서 각각 별도로 고정한다(스킵이 아니라 잠금).
+
 const SENT_AT_ISO = "2026-07-05T03:04:00.000Z";
 const QUOTE_CODE = "QT-2607-0001";
 const MODEL_YEAR = 2026;
@@ -114,7 +118,6 @@ function buildBoth(scenario: AdvisorPayloadScenarioRow | null): { clientModel: A
     basePrice: String(PRICES.basePrice),
     optionTotal: String(PRICES.optionTotal),
     options: [{ trim_option_id: 101, name: "썬루프", price: PRICES.optionTotal }],
-    discountLines: [{ label: "프로모션", amount: PRICES.discount, unit: "amount" }],
     finalDiscount: String(PRICES.discount),
     acquisitionTax: String(PRICES.acquisitionTax),
     acquisitionTaxMode: "normal",
@@ -184,13 +187,18 @@ function assertParity(clientModel: AppCardModel, payload: AdvisorQuotePayload): 
   const clientRec: Record<string, unknown> = clientModel;
   const payloadRec: Record<string, unknown> = payload;
   for (const key of Object.keys(clientModel)) {
-    if (CLIENT_ONLY_KEYS.includes(key) || key === "footerStampLabel") continue;
+    if (CLIENT_ONLY_KEYS.includes(key) || key === "footerStampLabel" || key === "discountRowLabel") continue;
     expect(payloadRec[key], key).toEqual(clientRec[key]);
   }
 
   // footerStampLabel — TZ 차이로 값 비교 제외(파일 상단 주석), 포맷만 양쪽 가드.
   expect(clientModel.footerStampLabel).toMatch(STAMP_FORMAT);
   expect(payload.footerStampLabel).toMatch(STAMP_FORMAT);
+
+  // discountRowLabel — 의도된 이탈(파일 상단 주석). 픽스처는 구성 내역 1행("프로모션")을 가지므로
+  // 클라는 병기, 고객 payload는 총액 고정 문구여야 한다(둘 다 값 잠금 — 어느 쪽 드리프트도 red).
+  expect(clientModel.discountRowLabel).toBe("최대 할인 적용 (프로모션)");
+  expect(payload.discountRowLabel).toBe("최대 할인 적용");
 }
 
 describe("발송 payload 클라↔서버 파리티", () => {

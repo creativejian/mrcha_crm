@@ -20,7 +20,8 @@ export type AdvisorPayloadQuoteRow = {
   basePrice: string | null;
   optionTotal: string | null;
   options: unknown; // [{trim_option_id, name, price}] — name만 사용 (schema.ts crm.quotes.options)
-  discountLines: unknown; // [{label, amount, unit}] — label만 사용
+  // crm.quotes.discount_lines(구성 내역)는 의도적으로 읽지 않는다 — 고객 payload는 할인 총액만
+  // (2026-07-05 이사님 결정: "CRM은 모든 할인 항목 표시, 고객 앱은 총액만"). 구성 내역은 CRM 미리보기 전용.
   finalDiscount: string | null;
   acquisitionTax: string | null;
   acquisitionTaxMode: string | null;
@@ -268,7 +269,6 @@ export function buildAdvisorQuotePayload(
   const acquisitionCost = finalVehiclePrice + registrationCost;
 
   const optionNames = stringListFrom(q.options, "name");
-  const discountLabels = stringListFrom(q.discountLines, "label");
   const guidance = guidanceOf(q.guidance);
   // 클라는 워크벤치 state에서 오지만 서버 SSOT는 대표 시나리오 행. sc/값 없으면 "" —
   // downPaymentRowLabel은 "할부"만 분기하므로 클라 폴백("운용리스" 정규화)과 라벨 결과가 같다.
@@ -297,7 +297,9 @@ export function buildAdvisorQuotePayload(
     residualLabel: sc ? moneyModeLabel(sc.residualMode, sc.residualValue, finalVehiclePrice, { noneLabel: CALC_PENDING, percentFirst: false }) : CALC_PENDING,
     residualCondLabel: sc ? moneyModeLabel(sc.residualMode, sc.residualValue, finalVehiclePrice, { noneLabel: CALC_PENDING, percentFirst: true }) : CALC_PENDING,
     totalCostLabel: totalCost != null ? `${formatMoney(totalCost)}원` : CALC_PENDING,
-    discountRowLabel: discountLabels.length ? `최대 할인 적용 (${discountLabels.join("·")})` : "최대 할인 적용",
+    // 클라 미리보기는 구성 내역을 병기하지만 고객 payload는 항상 고정 문구 — 의도된 클라↔서버 차이
+    // (파리티 테스트에서 명시 이탈 처리, 2026-07-05 이사님 결정).
+    discountRowLabel: "최대 할인 적용",
     discountLabel: formatMoney(discount),
     depositLabel: sc ? moneyModeLabel(sc.depositMode, sc.depositValue, finalVehiclePrice, { noneLabel: "0원 (무보증)", percentFirst: true }) : "조건 미정",
     mileageLabel: mileageLabelOf(sc?.mileageValue),

@@ -186,6 +186,9 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     residualLabel: s ? moneyModeLabel(s.residualMode, s.residualValue, fvp, { noneLabel: CALC_PENDING, percentFirst: false }) : CALC_PENDING,
     residualCondLabel: s ? moneyModeLabel(s.residualMode, s.residualValue, fvp, { noneLabel: CALC_PENDING, percentFirst: true }) : CALC_PENDING,
     totalCostLabel: totalCost != null ? `${formatMoney(totalCost)}원` : CALC_PENDING,
+    // CRM 미리보기는 구성 내역 라벨을 병기한다 — 고객 발송 payload(src/lib/app-card-payload.ts)는 항상
+    // "최대 할인 적용" 고정. 의도된 클라↔서버 차이(2026-07-05 이사님 결정: "CRM은 모든 할인 항목 표시,
+    // 고객 앱은 총액만") — 파리티 테스트가 양쪽 값을 각각 잠근다(app-card-payload-parity.test.ts).
     discountRowLabel: input.discountLabels.length ? `최대 할인 적용 (${input.discountLabels.join("·")})` : "최대 할인 적용",
     discountLabel: formatMoney(input.discount),
     depositLabel: s ? moneyModeLabel(s.depositMode, s.depositValue, fvp, { noneLabel: "0원 (무보증)", percentFirst: true }) : "조건 미정",

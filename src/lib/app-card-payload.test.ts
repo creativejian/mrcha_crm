@@ -16,7 +16,6 @@ const fullQuote: AdvisorPayloadQuoteRow = {
   basePrice: "74300000",
   optionTotal: "1000000",
   options: [{ trim_option_id: 101, name: "썬루프", price: 1000000 }],
-  discountLines: [{ label: "프로모션", amount: 1000000, unit: "amount" }],
   finalDiscount: "1000000",
   acquisitionTax: "5200000",
   acquisitionTaxMode: "normal",
@@ -87,7 +86,8 @@ describe("buildAdvisorQuotePayload", () => {
     expect(payload.residualLabel).toBe("43,094,000원 (58%)"); // 금액 선행
     expect(payload.residualCondLabel).toBe("(58%) 43,094,000원"); // percentFirst
     expect(payload.totalCostLabel).toBe("12,345,678원"); // 반납 우선
-    expect(payload.discountRowLabel).toBe("최대 할인 적용 (프로모션)");
+    // 고객 payload는 총액만 — 구성 내역 라벨 병기 없음(2026-07-05 이사님 결정, CRM 미리보기만 병기).
+    expect(payload.discountRowLabel).toBe("최대 할인 적용");
     expect(payload.discountLabel).toBe("1,000,000");
     expect(payload.mileageLabel).toBe("연 20,000km");
     expect(payload.keyPoints).toEqual(["잔존가치 최대 조건", "초기 부담 최소"]);
@@ -223,7 +223,6 @@ describe("buildAdvisorQuotePayload", () => {
         basePrice: null,
         optionTotal: null,
         options: null,
-        discountLines: null,
         finalDiscount: null,
         acquisitionTax: null,
         acquisitionTaxMode: null,
@@ -263,7 +262,7 @@ describe("buildAdvisorQuotePayload", () => {
     expect(payload.rateChipLabel).toBeNull();
     expect(payload.residualLabel).toBe("계산 후 안내"); // residualMode null
     expect(payload.depositLabel).toBe("0원 (무보증)"); // depositMode null
-    expect(payload.discountRowLabel).toBe("최대 할인 적용"); // discountLines 없음 → 괄호 없음
+    expect(payload.discountRowLabel).toBe("최대 할인 적용"); // 항상 고정(고객 payload는 총액만)
     expect(payload.discountLabel).toBe("0");
     expect(payload.mileageLabel).toBe("연 20,000km");
     expect(payload.exteriorColorLabel).toBe("미선택");

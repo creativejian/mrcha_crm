@@ -29,6 +29,7 @@ function makeQuote(over: Partial<CustomerDetailQuote> = {}): CustomerDetailQuote
     optionTotal: null,
     finalDiscount: null,
     acquisitionTax: null,
+    discountLines: null,
     acquisitionTaxMode: null,
     bond: null,
     delivery: null,

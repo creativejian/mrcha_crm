@@ -37,9 +37,21 @@ const editTargetQuote = {
   guidance: null,
 };
 
+// 할인 구성 내역 저장본을 가진 견적(수정 진입 복원 검증) — 기본 할인 역산은 quote-workbench-meta.test.ts가 커버.
+const editTargetWithDiscounts = {
+  ...editTargetQuote,
+  id: "q-edit-2",
+  basePrice: "75300000",
+  finalDiscount: "6500000",
+  discountLines: [
+    { label: "재구매 할인", amount: 500000, unit: "amount" },
+    { label: "프로모션", amount: 1.5, unit: "percent" },
+  ],
+};
+
 const detail = {
   residence: "서울 강남구",
-  quotes: [editTargetQuote],
+  quotes: [editTargetQuote, editTargetWithDiscounts],
 } as unknown as CustomerDetailData;
 const customer = { customerId: "CU-TEST-0001", name: "테스트" } as Customer;
 
@@ -145,7 +157,7 @@ describe("useQuoteWorkbench — 오픈/리셋 경로의 카드 UI 상태 잔상 
     expect(result.current.discountLines[0].label).toBe("제휴 할인");
   });
 
-  it("openEditQuote(수정 진입)가 견적의 acquisitionTaxMode를 복원하고 할인 행 잔상을 청소한다", () => {
+  it("openEditQuote(수정 진입)가 견적의 acquisitionTaxMode를 복원하고, 구성 내역 없는 견적은 할인 행 잔상을 청소한다", () => {
     const { result } = setup();
     injectResidue(result); // 잔상 electric — 복원 없으면 hybrid 견적이 electric으로 저장되는 데이터 오염
     act(() =>
@@ -158,6 +170,25 @@ describe("useQuoteWorkbench — 오픈/리셋 경로의 카드 UI 상태 잔상 
       } as unknown as QuoteItem),
     );
     expect(result.current.acquisitionTaxMode).toBe("hybrid");
-    expect(result.current.discountLines).toEqual([]);
+    expect(result.current.discountLines).toEqual([]); // discount_lines 없는 견적 = 빈 복원(잔상 청소 겸)
+  });
+
+  it("openEditQuote(수정 진입)가 저장된 할인 구성 내역을 복원한다 — 잔상이 아니라 저장본이 남는다", () => {
+    const { result } = setup();
+    injectResidue(result); // 잔상 1행("재구매 할인" 기본 생성) — 복원이 통째로 대체해야 함
+    act(() =>
+      result.current.openEditQuote({
+        id: "q-edit-2",
+        decisionStatus: null,
+        trimId: null,
+        financeType: "운용리스",
+        source: "manual",
+      } as unknown as QuoteItem),
+    );
+    // 표시값 규약: amount 행은 콤마 포맷, percent 행은 원문(소수 보존). id는 매번 새로 발급이라 비교 제외.
+    expect(result.current.discountLines.map(({ label, amount, unit }) => ({ label, amount, unit }))).toEqual([
+      { label: "재구매 할인", amount: "500,000", unit: "amount" },
+      { label: "프로모션", amount: "1.5", unit: "percent" },
+    ]);
   });
 });

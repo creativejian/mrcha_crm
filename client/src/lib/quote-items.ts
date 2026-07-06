@@ -80,6 +80,10 @@ export type CustomerDetailScenario = {
   interestRate: string | null;
 };
 
+// 할인 구성 내역 jsonb 행([{label, amount, unit}]) — CRM이 유일 writer(서버 zod 게이트)라 형태를 신뢰.
+// amount는 unit이 percent면 %값(소수 허용), 아니면 원. 기본 할인은 저장하지 않는다(finalDiscount 총액에서 역산).
+export type QuoteDiscountLine = { label: string; amount: number; unit: "amount" | "percent" };
+
 export type CustomerDetailQuote = {
   id: string;
   quoteCode: string;
@@ -104,6 +108,8 @@ export type CustomerDetailQuote = {
   basePrice: string | null;
   optionTotal: string | null;
   finalDiscount: string | null;
+  // 할인 구성 내역(기본 할인 제외 추가 행) — 수정 진입 복원 + CRM 미리보기 라벨 병기용.
+  discountLines: QuoteDiscountLine[] | null;
   acquisitionTax: string | null;
   // 취득세 모드(normal|hybrid|electric|manual, DB CHECK) — 수정 진입 시 워크벤치 토글 복원용.
   acquisitionTaxMode: string | null;

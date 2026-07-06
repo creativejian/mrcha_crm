@@ -2,12 +2,38 @@
 // 훅(useQuoteWorkbench)과 컴포넌트(QuoteWorkbench)가 공유한다.
 
 import { PURCHASE_METHOD_OPTIONS, type PurchaseMethod } from "@/data/customers";
-import { type QuoteItem } from "@/lib/quote-items";
+import { type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { type QuoteGuidance } from "@/data/quote-guidance";
-import { computePricing, type PricingInputs } from "@/lib/quote-pricing";
+import { computePricing, formatMoney, type PricingInputs } from "@/lib/quote-pricing";
 
 export type DiscountUnit = "amount" | "percent";
 export type DiscountLine = { id: string; label: string; amount: string; unit: DiscountUnit };
+
+// 수정 진입 복원: 저장된 할인 구성 내역(crm.quotes.discount_lines) → 워크벤치 행 state + 기본 할인 분리 산술.
+// 기본 할인은 별도 저장하지 않는다 — finalDiscount(총액) − Σ추가 행 환산액으로 역산한다
+// (percent 행 환산 기준 = basePrice+optionTotal, useQuoteWorkbench syncDiscountTotalFromRows와 동일 산술).
+// 행 id는 idBase(nowMs)+index로 매번 새로 발급 — uncontrolled input(defaultValue)의 리마운트를 보장.
+export function restoreDiscountLines(
+  saved: QuoteDiscountLine[] | null | undefined,
+  discountBasis: number, // basePrice + optionTotal
+  finalDiscount: number,
+  idBase: number,
+): { lines: DiscountLine[]; primaryDiscount: number } {
+  const rows = saved ?? [];
+  const lines: DiscountLine[] = rows.map((s, i) => ({
+    id: `discount-${idBase}-${i}`,
+    label: s.label,
+    // percent는 원문(소수 보존 — 콤마 포맷 우회 표시 규약), amount는 콤마 포맷(금액 입력칸 표시 규약).
+    amount: s.unit === "percent" ? String(s.amount) : formatMoney(s.amount),
+    unit: s.unit,
+  }));
+  const additional = rows.reduce(
+    (sum, s) => sum + (s.unit === "percent" ? Math.round(discountBasis * s.amount / 100) : s.amount),
+    0,
+  );
+  // 음수 클램프: 총액보다 행 합이 크면(과거 데이터 드리프트) parseMoney가 음수 부호를 버려 오염되므로 0이 안전.
+  return { lines, primaryDiscount: Math.max(0, finalDiscount - additional) };
+}
 export type ManualDepositMode = "none" | "amount" | "percent";
 export type ManualResidualMode = "max" | "amount" | "percent";
 export type ManualMileageMode = "basic" | "custom";
@@ -60,7 +86,9 @@ export type EditPrefill = {
   optionIds: number[];
   exteriorColorId: number | null;
   interiorColorId: number | null;
-  pricing: { base: number; option: number; discount: number; acquisitionTax: number; bond: number; delivery: number; incidental: number };
+  // discount는 총액(data-pricing="discount" 입력), primaryDiscount는 기본 할인 행(총액 − 추가 행 환산 합 —
+  // restoreDiscountLines 역산 결과. 추가 행 없으면 총액과 동일).
+  pricing: { base: number; option: number; discount: number; primaryDiscount: number; acquisitionTax: number; bond: number; delivery: number; incidental: number };
   scenarios: EditScenario[];
   guidance: QuoteGuidance | null;
 };
