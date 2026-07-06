@@ -26,11 +26,14 @@ export async function askAssistantStream(
   question: string,
   handlers: AssistantStreamHandlers,
   signal: AbortSignal,
+  // 빠른 질문 버튼 결정론 라우팅 — 서버가 임베딩 검색 대신 해당 리포트 쿼리를 근거로 생성.
+  // 어휘는 서버 zod(ASSISTANT_TOOL_KEYS)가 게이트, 클라 매핑과의 드리프트는 파리티 테스트가 잡는다.
+  tool?: string,
 ): Promise<AssistantAskResult> {
   const res = await apiFetch("/api/assistant/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, stream: true }),
+    body: JSON.stringify({ question, stream: true, ...(tool ? { tool } : {}) }),
     signal,
   });
   if (!res.ok) {

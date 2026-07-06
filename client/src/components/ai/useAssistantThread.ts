@@ -129,7 +129,7 @@ export function useAssistantThread() {
 
   // 질문 전송(SSE 스트리밍). text 청크는 드레인 타자기로 streamText에 점진 노출,
   // done 수신 시 드레인 완주를 기다린 뒤 영속본(user/assistant 2건)으로 교체. 실패 시 turn에 에러 표시.
-  async function submit(questionRaw: string): Promise<boolean> {
+  async function submit(questionRaw: string, tool?: string): Promise<boolean> {
     const question = questionRaw.trim();
     if (!question || asking) return false;
     const tempId = `pending-${++tempSeqRef.current}`;
@@ -190,6 +190,7 @@ export function useAssistantThread() {
           },
         },
         abort.signal,
+        tool,
       );
       doneResult = res;
       ensureTimer();

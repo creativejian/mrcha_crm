@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { getCustomerMetaByIds } from "../db/queries/embeddings-meta";
 import { searchEmbeddings } from "../db/queries/embeddings";
+import { runAssistantTool } from "../db/queries/assistant-tools";
 import {
   deleteAssistantMessage,
   insertAssistantMessages,
@@ -18,6 +19,7 @@ import { embedTexts } from "../lib/gemini-embed";
 import { generateAnswer, generateAnswerStream } from "../lib/gemini-generate";
 import { resolveCustomerScope } from "../lib/assistant-scope";
 import { resolveGeminiTargetFromRequest, type GeminiTarget } from "../lib/gemini-target";
+import { ASSISTANT_TOOL_KEYS } from "../lib/assistant-tools";
 import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
 import { createSseLiveness } from "../lib/sse-liveness";
@@ -36,7 +38,9 @@ const TOP_K = 8;
 export const SIMILARITY_THRESHOLD = 0.75;
 const HISTORY_LIMIT = 10; // 멀티턴 컨텍스트로 넣을 최근 메시지 수(앱과 동일)
 export const DISPLAY_LIMIT = 30; // 패널 진입 시 로드할 최근 메시지 수 — 클라 AI_HISTORY_PAGE와 파리티(테스트 가드)
-const askSchema = z.object({ question: z.string(), stream: z.boolean().optional() });
+// tool = 빠른 질문 버튼 결정론 라우팅(B안 PR1) — 지정 시 임베딩 검색을 생략하고 화이트리스트
+// 리포트 쿼리 결과를 근거로 생성한다. 자유 질문 모델 라우팅(function calling)은 PR2.
+const askSchema = z.object({ question: z.string(), stream: z.boolean().optional(), tool: z.enum(ASSISTANT_TOOL_KEYS).optional() });
 const messagesQuery = z.object({ before: z.iso.datetime().optional(), beforeId: z.uuid().optional() });
 const messageIdParam = z.object({ id: z.uuid() });
 const trimSchema = z.object({ content: z.string().trim().min(1).max(20000) });
@@ -45,6 +49,7 @@ const trimSchema = z.object({ content: z.string().trim().min(1).max(20000) });
 export type AssistantDeps = {
   embedTexts: typeof embedTexts;
   searchEmbeddings: typeof searchEmbeddings;
+  runAssistantTool: typeof runAssistantTool;
   generateAnswer: typeof generateAnswer;
   generateAnswerStream: typeof generateAnswerStream;
   getCustomerMetaByIds: typeof getCustomerMetaByIds;
@@ -57,6 +62,7 @@ export type AssistantDeps = {
 export const assistantDeps: AssistantDeps = {
   embedTexts,
   searchEmbeddings,
+  runAssistantTool,
   generateAnswer,
   generateAnswerStream,
   getCustomerMetaByIds,
@@ -94,32 +100,44 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
   const staffUserId = c.var.user.id;
   try {
     // 히스토리 로드는 임베딩→검색 체인과 독립 — 병렬로 시작해 원격 DB 왕복 1회분 지연을 없앤다.
+    // tool(빠른 질문 버튼 결정론) 지정 시 임베딩 검색 대신 리포트 쿼리를 같은 슬롯에서 병렬 실행.
     const scope = resolveCustomerScope(c.var.user);
-    const [history, hits] = await Promise.all([
+    const toolKey = c.req.valid("json").tool;
+    const [history, retrieval] = await Promise.all([
       assistantDeps.listRecentMessages(staffUserId, HISTORY_LIMIT, c.var.db)
         .then((rows) => rows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))),
-      assistantDeps.embedTexts([question], target, "RETRIEVAL_QUERY")
-        .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db))
-        .then((all) => {
-          const kept = all.filter((h) => h.similarity >= SIMILARITY_THRESHOLD);
-          // 임계값 튜닝용 관측 로그(tail) — 컷 최고점이 임계값에 자주 근접하면 재조정 신호.
-          if (kept.length < all.length) {
-            const cutTop = Math.max(...all.filter((h) => h.similarity < SIMILARITY_THRESHOLD).map((h) => h.similarity));
-            console.log(`[assistant] 근거 임계값 필터 ${all.length}→${kept.length} (컷 최고 ${cutTop.toFixed(4)})`);
-          }
-          return kept;
-        }),
+      toolKey
+        ? assistantDeps.runAssistantTool(toolKey, c.var.db)
+            .then((tool) => ({ hits: [] as Awaited<ReturnType<typeof searchEmbeddings>>, tool }))
+        : assistantDeps.embedTexts([question], target, "RETRIEVAL_QUERY")
+            .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db))
+            .then((all) => {
+              const kept = all.filter((h) => h.similarity >= SIMILARITY_THRESHOLD);
+              // 임계값 튜닝용 관측 로그(tail) — 컷 최고점이 임계값에 자주 근접하면 재조정 신호.
+              if (kept.length < all.length) {
+                const cutTop = Math.max(...all.filter((h) => h.similarity < SIMILARITY_THRESHOLD).map((h) => h.similarity));
+                console.log(`[assistant] 근거 임계값 필터 ${all.length}→${kept.length} (컷 최고 ${cutTop.toFixed(4)})`);
+              }
+              return { hits: kept, tool: null };
+            }),
     ]);
+    const { hits, tool } = retrieval;
     const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
-    const promptChunks = hits.map((h) => ({
-      customerName: metaById.get(h.customerId)?.name ?? "고객",
-      customerStatus: metaById.get(h.customerId)?.status ?? "",
-      content: h.content,
-    }));
-    const sources = hits.map((h) => ({
-      customerId: h.customerId, customerName: metaById.get(h.customerId)?.name ?? "고객",
-      sourceType: h.sourceType, snippet: h.content.slice(0, 120),
-    }));
+    // 도구 결과는 근거 블록 1청크로 — 0건도 "조회 결과 없음"으로 실어 NO_HITS(고정 답변)가 아니라
+    // 모델이 "해당 없음"을 정리하게 한다(리포트 질문에 "데이터를 못 찾았다"는 오답).
+    const promptChunks = tool
+      ? [{ customerName: tool.label, customerStatus: "리포트", content: tool.lines.length ? tool.lines.join("\n") : "조회 결과 없음" }]
+      : hits.map((h) => ({
+          customerName: metaById.get(h.customerId)?.name ?? "고객",
+          customerStatus: metaById.get(h.customerId)?.status ?? "",
+          content: h.content,
+        }));
+    const sources = tool
+      ? [{ customerId: "", customerName: "리포트", sourceType: "tool", snippet: `${tool.label} — ${tool.lines.length}건 조회` }]
+      : hits.map((h) => ({
+          customerId: h.customerId, customerName: metaById.get(h.customerId)?.name ?? "고객",
+          sourceType: h.sourceType, snippet: h.content.slice(0, 120),
+        }));
 
     if (c.req.valid("json").stream === true) {
       // await 필수: 선저장(insertAssistantMessages) 실패를 이 try/catch가 잡으려면 rejection이
@@ -127,7 +145,7 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
       return await streamAsk(c, { question, staffUserId, target, history, hits, promptChunks, sources });
     }
 
-    const answer = hits.length === 0
+    const answer = promptChunks.length === 0
       ? NO_HITS_ANSWER
       : await assistantDeps.generateAnswer(SYSTEM_PROMPT, buildUserPrompt(question, buildContextBlock(promptChunks)), target, { history });
 
@@ -208,7 +226,7 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
       else c.req.raw.signal.addEventListener("abort", () => onClientAbort("signal"));
 
       try {
-        if (args.hits.length === 0) {
+        if (args.promptChunks.length === 0) {
           fullText = NO_HITS_ANSWER;
           await raceDead(sse.writeSSE({ event: "text", data: JSON.stringify({ chunk: fullText }) }));
         } else {
