@@ -44,7 +44,7 @@ const ENTRY_MODES = ["manual", "solution", "original"];
 const APP_STATUSES = ["draft", "queued", "sent", "viewed"];
 const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"];
 const ACQ_TAX_MODES = ["normal", "hybrid", "electric", "manual"];
-const EMBEDDING_SOURCE_TYPES = ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation", "quote", "customer_profile", "schedule", "customer_documents"];
+const EMBEDDING_SOURCE_TYPES = ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation", "quote", "customer_profile", "schedule", "customer_documents", "quote_request"];
 const ASSISTANT_ROLES = ["user", "assistant"];
 
 // nullable 컬럼 IN CHECK(기존 null 보존). 값=코드 상수 SSOT에서 sql.join. 종속(그룹-상태)은 앱 검증.

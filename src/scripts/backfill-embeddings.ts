@@ -1,13 +1,15 @@
-// 코퍼스(상담메모·상담이력·니즈메모·할일·견적·프로필·일정)를 임베딩해 crm.embeddings에 upsert하는 보정 스크립트.
+// 코퍼스(상담메모·상담이력·니즈메모·할일·견적·프로필·일정·서류함·앱 견적요청)를 임베딩해 crm.embeddings에 upsert하는 보정 스크립트.
 // 증분 임베딩 훅(embed-on-write) 도입 후에는 백필이 아니라 복구/정리 도구다 — hash skip으로 재실행 저비용.
 // 실행: bun run src/scripts/backfill-embeddings.ts  (.env.local의 GEMINI_API_KEY·DATABASE_URL 사용)
-import { and, asc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { getDefaultDb } from "../db/client";
 import { customers, customerDocuments, customerMemos, customerSchedules, customerTasks, consultations, embeddings, quotes, quoteScenarios } from "../db/schema";
+import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../db/catalog";
+import { quoteRequestOptions, quoteRequests } from "../db/public-app";
 import { upsertEmbedding } from "../db/queries/embeddings";
-import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildScheduleChunkText, contentHash, type CorpusRow, type DocumentChunkDocument } from "../lib/assistant-corpus";
+import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildQuoteRequestChunkText, buildScheduleChunkText, contentHash, type CorpusRow, type DocumentChunkDocument } from "../lib/assistant-corpus";
 import { embedTexts } from "../lib/gemini-embed";
 import { resolveGeminiTarget } from "../lib/gemini-target";
 import { pickPrimaryScenario } from "../lib/primary-scenario";
@@ -134,6 +136,50 @@ async function gather(): Promise<CorpusRow[]> {
     rows.push({ sourceType: "quote", sourceId: q.id, customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc, scs.filter((s) => s !== sc)) });
   }
 
+  // 앱 견적요청: 요청당 1청크 — 고객 연결(customers.app_user_id) 있는 요청만. 같은 app_user에
+  // 고객이 여럿이면 첫 행만(중복 push 방지 — upsert가 마지막 승리라 비결정적이 되는 것 차단).
+  // 앱이 write하는 신규 요청은 CRM 훅이 없어 이 collect가 유일한 보정 경로(승격 훅은 연결 시점만).
+  const reqRows = await db
+    .select({
+      id: quoteRequests.id, customerId: customers.id, name: customers.name,
+      createdAt: quoteRequests.createdAt, trimId: quoteRequests.trimId,
+      paymentMethod: quoteRequests.paymentMethod, period: quoteRequests.period,
+      depositType: quoteRequests.depositType, depositRatio: quoteRequests.depositRatio,
+      rentalDeposit: quoteRequests.rentalDeposit, trimPrice: quoteRequests.trimPrice,
+    })
+    .from(quoteRequests).innerJoin(customers, eq(customers.appUserId, quoteRequests.userId));
+  const uniqueReqs = [...new Map(reqRows.map((r) => [r.id, r])).values()];
+  const reqTrimIds = [...new Set(uniqueReqs.map((r) => r.trimId).filter((v): v is number => v != null))];
+  const [reqTrims, reqOpts] = await Promise.all([
+    reqTrimIds.length
+      ? db.select({ id: trimsInCatalog.id, trimName: trimsInCatalog.trimName, modelName: modelsInCatalog.name, brandName: brandsInCatalog.name })
+          .from(trimsInCatalog)
+          .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
+          .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
+          .where(inArray(trimsInCatalog.id, reqTrimIds))
+      : Promise.resolve([] as { id: number; trimName: string | null; modelName: string | null; brandName: string | null }[]),
+    db.select({ quoteRequestId: quoteRequestOptions.quoteRequestId, optionName: quoteRequestOptions.optionName })
+      .from(quoteRequestOptions).orderBy(asc(quoteRequestOptions.id)),
+  ]);
+  const reqTrimMap = new Map(reqTrims.map((t) => [t.id, t]));
+  const reqOptMap = new Map<string, string[]>();
+  for (const o of reqOpts) {
+    const list = reqOptMap.get(o.quoteRequestId) ?? [];
+    list.push(o.optionName);
+    reqOptMap.set(o.quoteRequestId, list);
+  }
+  for (const r of uniqueReqs) {
+    const t = r.trimId != null ? reqTrimMap.get(r.trimId) : undefined;
+    const text = buildQuoteRequestChunkText({
+      createdAt: r.createdAt,
+      brandName: t?.brandName ?? null, modelName: t?.modelName ?? null, trimName: t?.trimName ?? null,
+      paymentMethod: r.paymentMethod, period: r.period,
+      depositType: r.depositType, depositRatio: r.depositRatio, rentalDeposit: r.rentalDeposit,
+      trimPrice: r.trimPrice, optionNames: reqOptMap.get(r.id) ?? [],
+    });
+    rows.push({ sourceType: "quote_request", sourceId: r.id, customerId: r.customerId, customerName: r.name, text });
+  }
+
   return rows;
 }
 
@@ -168,6 +214,11 @@ async function cleanupOrphans() {
       -- 서류함(aggregate, source_id=customer_id): 해당 고객 서류가 0건이면 고아(고객 삭제는 FK cascade가 처리).
       or (e.source_type = 'customer_documents' and not exists (
         select 1 from crm.customer_documents d where d.customer_id = e.source_id))
+      -- 앱 견적요청: 요청 삭제 또는 고객 연결(app_user_id) 해제 — 연결 있는 요청만 코퍼스 대상.
+      or (e.source_type = 'quote_request' and not exists (
+        select 1 from public.quote_requests qr
+          join crm.customers c on c.app_user_id = qr.user_id
+          where qr.id = e.source_id))
     returning e.id
   `);
   console.log(`고아 정리: ${[...(deleted as Iterable<unknown>)].length}행 삭제`);
