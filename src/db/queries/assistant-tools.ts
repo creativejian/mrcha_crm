@@ -2,12 +2,19 @@ import { and, eq, ilike, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { ASSISTANT_TOOL_LABELS, type AssistantToolKey, type AssistantToolResult } from "../../lib/assistant-tools";
+import type { CustomerScope } from "../../lib/assistant-scope";
 import { getDefaultDb, type Executor } from "../client";
 import { customers, customerSchedules, customerTasks, quotes } from "../schema";
 
 // 업무 AI 도구 실행기 — 전부 read-only 화이트리스트 쿼리(자유 SQL 금지, 스펙 확정 방향 2).
-// scope는 v1 admin=전체(resolveCustomerScope seam이 "all"만 반환 — 역할 scope 슬라이스에서 이 파일도 필터 추가).
+// scope(역할 scope, 이사님 요구 07-06): admin/manager=전체, staff=본인 담당(customers.advisor_id) —
+// 모든 도구 쿼리가 customers 기반이라 advisor 조건 하나로 균일하게 걸린다("내가"의 실제 의미).
 // quote_ready·delivery_risk 정의는 07-06 잠정(이사님 사후 컨펌 대상) — 변경 = 이 파일 쿼리 교체만.
+
+// scope → customers 조건. "all"=무조건(undefined), {advisorId}=본인 담당만.
+function scopeCond(scope: CustomerScope): SQL | undefined {
+  return scope === "all" ? undefined : eq(customers.advisorId, scope.advisorId);
+}
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 function kstTodayDate(): string {
@@ -49,7 +56,7 @@ const searchCustomersParams = z.object({
 });
 
 // params: 자유 질문 라우팅(PR2)의 모델 인자 — 버튼 결정론 경로(PR1)는 빈 객체를 넘긴다.
-export async function runAssistantTool(key: AssistantToolKey, params: Record<string, unknown>, ex: Executor = getDefaultDb()): Promise<AssistantToolResult> {
+export async function runAssistantTool(key: AssistantToolKey, params: Record<string, unknown>, scope: CustomerScope, ex: Executor = getDefaultDb()): Promise<AssistantToolResult> {
   const label = ASSISTANT_TOOL_LABELS[key];
   switch (key) {
     // 미완료 할일(기한 급함/오늘) + 오늘 일정(KST) — "오늘 내가 먼저 처리할 일".
@@ -58,12 +65,12 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         .select({ name: customers.name, body: customerTasks.body, due: customerTasks.due })
         .from(customerTasks)
         .innerJoin(customers, eq(customers.id, customerTasks.customerId))
-        .where(and(eq(customerTasks.done, false), inArray(customerTasks.due, ["급함", "오늘"])));
+        .where(and(eq(customerTasks.done, false), inArray(customerTasks.due, ["급함", "오늘"]), scopeCond(scope)));
       const schedules = await ex
         .select({ name: customers.name, time: customerSchedules.scheduledTime, type: customerSchedules.type, memo: customerSchedules.memo })
         .from(customerSchedules)
         .innerJoin(customers, eq(customers.id, customerSchedules.customerId))
-        .where(and(eq(customerSchedules.done, false), eq(customerSchedules.scheduledDate, kstTodayDate())));
+        .where(and(eq(customerSchedules.done, false), eq(customerSchedules.scheduledDate, kstTodayDate()), scopeCond(scope)));
       const lines = [
         ...tasks.map((t) => `${t.name} — 할일: ${t.body ?? "(내용 없음)"} (기한 ${t.due})`),
         ...schedules.map((s) => `${s.name} — 일정: ${[s.time, s.type, s.memo].filter(Boolean).join(" · ")}`),
@@ -77,7 +84,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       const rows = await ex
         .select({ name: customers.name, chance: customers.chance, statusGroup: customers.statusGroup, status: customers.status })
         .from(customers)
-        .where(isNotNull(customers.chance))
+        .where(and(isNotNull(customers.chance), scopeCond(scope)))
         .orderBy(sql`case ${customers.chance} when '확정' then 0 when '높음' then 1 when '중간' then 2 when '보류' then 3 else 4 end`)
         .limit(20);
       return { label, lines: rows.map((r, i) => `${i + 1}위 ${r.name} — 계약 가능성 ${r.chance} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`) };
@@ -87,7 +94,8 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     case "stale_customers": {
       const rows = await ex
         .select({ name: customers.name, statusGroup: customers.statusGroup, status: customers.status, at: lastActivityAt })
-        .from(customers);
+        .from(customers)
+        .where(scopeCond(scope));
       const lines = rows
         .filter((r) => !(r.statusGroup === "신규" && r.status === "상담접수"))
         .map((r) => ({ ...r, days: daysSince(r.at) }))
@@ -102,12 +110,12 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       const stage = await ex
         .select({ name: customers.name, status: customers.status })
         .from(customers)
-        .where(eq(customers.statusGroup, "견적"));
+        .where(and(eq(customers.statusGroup, "견적"), scopeCond(scope)));
       const drafts = await ex
         .select({ name: customers.name, quoteCode: quotes.quoteCode, vehicle: quotes.modelName })
         .from(quotes)
         .innerJoin(customers, eq(customers.id, quotes.customerId))
-        .where(eq(quotes.appStatus, "draft"));
+        .where(and(eq(quotes.appStatus, "draft"), scopeCond(scope)));
       const lines = [
         ...stage.map((r) => `${r.name} — 진행 상태 견적 단계(${r.status ?? "세부 미입력"})`),
         ...drafts.map((r) => `${r.name} — 작성 중 견적 ${r.quoteCode}${r.vehicle ? ` (${r.vehicle})` : ""} 미발송`),
@@ -121,7 +129,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       const rows = await ex
         .select({ name: customers.name, status: customers.status, at: lastActivityAt })
         .from(customers)
-        .where(eq(customers.statusGroup, "계약완료"));
+        .where(and(eq(customers.statusGroup, "계약완료"), scopeCond(scope)));
       const lines = rows
         .map((r) => ({ ...r, days: daysSince(r.at) }))
         .filter((r): r is typeof r & { days: number } => r.days != null && r.days >= 7)
@@ -136,6 +144,8 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       const parsed = searchCustomersParams.safeParse(params);
       const f = parsed.success ? parsed.data : {};
       const conds: SQL[] = [];
+      const sCond = scopeCond(scope);
+      if (sCond) conds.push(sCond);
       if (f.name) conds.push(ilike(customers.name, `%${f.name}%`));
       if (f.statusGroup) conds.push(eq(customers.statusGroup, f.statusGroup));
       if (f.purchaseMethod) conds.push(ilike(customers.needMethod, `%${f.purchaseMethod}%`));

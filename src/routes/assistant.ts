@@ -110,7 +110,7 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
       assistantDeps.listRecentMessages(staffUserId, HISTORY_LIMIT, c.var.db)
         .then((rows) => rows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))),
       toolKey
-        ? assistantDeps.runAssistantTool(toolKey, {}, c.var.db)
+        ? assistantDeps.runAssistantTool(toolKey, {}, scope, c.var.db)
             .then((tool) => ({ hits: [] as Awaited<ReturnType<typeof searchEmbeddings>>, tool }))
         : assistantDeps.embedTexts([question], target, "RETRIEVAL_QUERY")
             .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db))
@@ -133,7 +133,7 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
       const routed = await assistantDeps.routeAssistantTool(question, target, { history });
       if (routed) {
         console.log(`[assistant] 도구 라우팅: ${routed.key}`, JSON.stringify(routed.params));
-        tool = await assistantDeps.runAssistantTool(routed.key, routed.params, c.var.db);
+        tool = await assistantDeps.runAssistantTool(routed.key, routed.params, scope, c.var.db);
       }
     }
     const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);

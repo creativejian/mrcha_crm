@@ -132,7 +132,7 @@ test("담당자 배정: 변경 시에만 assigned_at 스탬프, 동일 재저장
   const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   const db = getDefaultDb();
   const [orig] = await db
-    .select({ id: customers.id, advisorName: customers.advisorName, team: customers.team, assignedAt: customers.assignedAt })
+    .select({ id: customers.id, advisorName: customers.advisorName, advisorId: customers.advisorId, team: customers.team, assignedAt: customers.assignedAt })
     .from(customers)
     .limit(1);
   try {
@@ -153,8 +153,39 @@ test("담당자 배정: 변경 시에만 assigned_at 스탬프, 동일 재저장
     expect(cleared.advisorName).toBeNull();
     expect(cleared.assignedAt).toBeNull();
   } finally {
-    // 공유 master DB — 원래 배정 상태로 복원.
-    await db.update(customers).set({ advisorName: orig.advisorName, team: orig.team, assignedAt: orig.assignedAt }).where(eq(customers.id, orig.id));
+    // 공유 master DB — 원래 배정 상태로 복원(advisorId 포함 — 이름만 PATCH 시 id를 비우는 정합 규칙이 건드림).
+    await db.update(customers).set({ advisorName: orig.advisorName, advisorId: orig.advisorId, team: orig.team, assignedAt: orig.assignedAt }).where(eq(customers.id, orig.id));
+  }
+});
+
+// 역할 scope 매칭 키(이사님 요구 07-06): advisorId 저장 + 이름만 갈리면 id 자동 해제(스테일 id로
+// 타 상담사 scope에 남의 고객이 잡히는 사고 방지).
+test("담당자 advisorId: 동봉 시 저장, advisorName만 변경 시 id 자동 null", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const db = getDefaultDb();
+  const ADVISOR = crypto.randomUUID(); // loose id — profiles 행 불필요
+  const [smoke] = await db.insert(customers).values({ customerCode: `CU-ADVID-${crypto.randomUUID().slice(0, 8)}`, name: "배정키테스트" }).returning({ id: customers.id });
+  try {
+    // id 동봉 배정 → 둘 다 저장.
+    expect((await app.request(`/api/customers/${smoke.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ advisorName: "테스트담당B", advisorId: ADVISOR }) })).status).toBe(200);
+    const [saved] = await db.select({ advisorName: customers.advisorName, advisorId: customers.advisorId }).from(customers).where(eq(customers.id, smoke.id));
+    expect(saved.advisorName).toBe("테스트담당B");
+    expect(saved.advisorId).toBe(ADVISOR);
+
+    // 이름만 변경(id 미동봉) → id 자동 해제.
+    expect((await app.request(`/api/customers/${smoke.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ advisorName: "테스트담당C" }) })).status).toBe(200);
+    const [renamed] = await db.select({ advisorId: customers.advisorId }).from(customers).where(eq(customers.id, smoke.id));
+    expect(renamed.advisorId).toBeNull();
+
+    // 배정과 무관한 PATCH(advisorName 없음)는 id 불변.
+    await db.update(customers).set({ advisorId: ADVISOR }).where(eq(customers.id, smoke.id));
+    expect((await app.request(`/api/customers/${smoke.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ residence: "서울" }) })).status).toBe(200);
+    const [untouched] = await db.select({ advisorId: customers.advisorId }).from(customers).where(eq(customers.id, smoke.id));
+    expect(untouched.advisorId).toBe(ADVISOR);
+  } finally {
+    await db.delete(customers).where(eq(customers.id, smoke.id));
   }
 });
 
