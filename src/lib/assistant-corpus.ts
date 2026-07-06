@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { PURCHASE_UNSET_SENTINEL } from "../../client/src/data/customers";
 import { formatMoney, formatTerm, guidanceOf, numOr, stampLabelOf, vehicleTitleOf } from "./app-card-payload";
 
-export type CorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "consultation" | "quote" | "customer_profile" | "schedule";
+export type CorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "consultation" | "quote" | "customer_profile" | "schedule" | "customer_documents";
 
 export type CorpusRow = {
   sourceType: CorpusSourceType;
@@ -23,6 +23,7 @@ const LABEL: Record<CorpusSourceType, string> = {
   quote: "견적",
   customer_profile: "프로필",
   schedule: "일정",
+  customer_documents: "서류함",
 };
 
 // 임베딩할 content 문자열. 고객명·소스라벨을 앞에 붙여 검색·생성 컨텍스트를 풍부하게 한다.
@@ -97,10 +98,15 @@ export function dateLabelOf(dateStr: string): string {
   return Number.isNaN(t) ? dateStr : `${dateStr}(${WEEKDAYS[new Date(t).getUTCDay()]})`;
 }
 
-// Date → KST 달력일 라벨. 로컬 getDay/getDate 기준이면 CF Workers(UTC)에서 00:00~09:00 KST 구간이
+// Date → KST 달력일 "YYYY-MM-DD". 로컬 getDate 기준이면 CF Workers(UTC)에서 00:00~09:00 KST 구간이
 // 전날로 밀린다(business-code yymmKstOf와 동일 이유) — UTC+9 환산으로 통일.
+export function kstDateOf(now: Date): string {
+  return new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+}
+
+// Date → KST 달력일 라벨(요일 병기).
 export function kstDateLabel(now: Date): string {
-  return dateLabelOf(new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10));
+  return dateLabelOf(kstDateOf(now));
 }
 
 export type ScheduleChunkSchedule = {
@@ -123,6 +129,26 @@ export function buildScheduleChunkText(s: ScheduleChunkSchedule): string {
   ];
   if (!parts.some(Boolean)) return "";
   return [...parts, s.done ? "완료" : null].filter(Boolean).join(" · ");
+}
+
+// ── 서류함 청크(2026-07-06) ───────────────────────────────────────────────────
+// 고객당 1행(source_id = customer_id): 서류 메타 목록(분류·파일명·업로드일 — 내용 OCR 아님).
+// "서류 뭐 들어왔어?"는 목록 질문이라 서류당 얇은 청크 대신 근거 1청크에 전체 목록을 싣는다(TOP_K 점유
+// 최소화, customer_profile 선례). 목록 순서는 호출부가 업로드일(created_at, id)로 고정한다 —
+// sortOrder(표시 순서)를 쓰면 reorder마다 content가 바뀌어 무의미한 재임베딩이 난다.
+
+export type DocumentChunkDocument = {
+  docType: string | null;
+  fileName: string | null;
+  createdAt: Date;
+};
+
+// 미분류(doc_type null)는 "미분류"로 표기, 파일명 없으면 생략. 서류 0건이면 빈 문자열 —
+// 호출부가 빈 텍스트를 임베딩 행 삭제/미수집으로 처리한다.
+export function buildCustomerDocumentsChunkText(docs: DocumentChunkDocument[]): string {
+  return docs
+    .map((d) => [d.docType?.trim() || "미분류", d.fileName?.trim() || null, `(${kstDateOf(d.createdAt)} 업로드)`].filter(Boolean).join(" "))
+    .join(" · ");
 }
 
 // ── 고객 프로필 청크(2026-07-06) ──────────────────────────────────────────────

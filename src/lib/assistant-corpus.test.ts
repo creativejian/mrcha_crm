@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 
-import { buildChunkContent, buildCustomerProfileChunkText, buildQuoteChunkText, buildScheduleChunkText, contentHash, dateLabelOf, kstDateLabel, type CorpusRow, type CustomerProfileChunkCustomer, type QuoteChunkQuote, type QuoteChunkScenario, type ScheduleChunkSchedule } from "./assistant-corpus";
+import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildScheduleChunkText, contentHash, dateLabelOf, kstDateLabel, type CorpusRow, type CustomerProfileChunkCustomer, type DocumentChunkDocument, type QuoteChunkQuote, type QuoteChunkScenario, type ScheduleChunkSchedule } from "./assistant-corpus";
 
 test("buildChunkContent: 소스타입별 라벨 + 고객명 + 본문", () => {
   const row: CorpusRow = { sourceType: "memo", sourceId: "s1", customerId: "c1", customerName: "김민준", text: "GLC 재고 문의" };
@@ -164,4 +164,28 @@ test("buildScheduleChunkText: 실질 필드 전무면 빈 문자열(→임베딩
 test("buildChunkContent: schedule 라벨", () => {
   const row: CorpusRow = { sourceType: "schedule", sourceId: "s1", customerId: "c1", customerName: "김민준", text: "2026-05-26(화) 16:00 · 견적" };
   expect(buildChunkContent(row)).toBe("고객 김민준 일정: 2026-05-26(화) 16:00 · 견적");
+});
+
+// ── 서류함 청크(2026-07-06) — 고객당 1행, 서류 메타 목록(내용 OCR 아님). 순서는 호출부(업로드일 고정). ──
+
+test("buildCustomerDocumentsChunkText: 목록 — 분류 파일명 (업로드일 KST)", () => {
+  const docs: DocumentChunkDocument[] = [
+    { docType: "법인(점)등기부등본", fileName: "4.pdf", createdAt: new Date("2026-07-01T05:00:00Z") },
+    // UTC 2026-07-01 23:30 = KST 2026-07-02 — 업로드일은 KST 달력일 기준
+    { docType: "법인(점)주주명부", fileName: "1.png", createdAt: new Date("2026-07-01T23:30:00Z") },
+  ];
+  expect(buildCustomerDocumentsChunkText(docs)).toBe(
+    "법인(점)등기부등본 4.pdf (2026-07-01 업로드) · 법인(점)주주명부 1.png (2026-07-02 업로드)",
+  );
+});
+
+test("buildCustomerDocumentsChunkText: doc_type null은 미분류, 파일명 없으면 생략, 0건이면 빈 문자열", () => {
+  expect(buildCustomerDocumentsChunkText([{ docType: null, fileName: "  ", createdAt: new Date("2026-07-01T05:00:00Z") }]))
+    .toBe("미분류 (2026-07-01 업로드)");
+  expect(buildCustomerDocumentsChunkText([])).toBe("");
+});
+
+test("buildChunkContent: customer_documents 라벨", () => {
+  const row: CorpusRow = { sourceType: "customer_documents", sourceId: "c1", customerId: "c1", customerName: "김민준", text: "운전면허증 a.jpg (2026-07-01 업로드)" };
+  expect(buildChunkContent(row)).toBe("고객 김민준 서류함: 운전면허증 a.jpg (2026-07-01 업로드)");
 });
