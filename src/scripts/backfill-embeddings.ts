@@ -162,8 +162,13 @@ async function gather(): Promise<CorpusRow[]> {
           .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
           .where(inArray(trimsInCatalog.id, reqTrimIds))
       : Promise.resolve([] as { id: number; trimName: string | null; modelName: string | null; brandName: string | null }[]),
-    db.select({ quoteRequestId: quoteRequestOptions.quoteRequestId, optionName: quoteRequestOptions.optionName })
-      .from(quoteRequestOptions).orderBy(asc(quoteRequestOptions.id)),
+    // 코퍼스 대상(연결 요청)의 옵션만 — 무필터면 미연결 요청(앱 전체 유저) 옵션까지 전건 스캔(오버패치).
+    uniqueReqs.length
+      ? db.select({ quoteRequestId: quoteRequestOptions.quoteRequestId, optionName: quoteRequestOptions.optionName })
+          .from(quoteRequestOptions)
+          .where(inArray(quoteRequestOptions.quoteRequestId, uniqueReqs.map((r) => r.id)))
+          .orderBy(asc(quoteRequestOptions.id))
+      : Promise.resolve([] as { quoteRequestId: string; optionName: string }[]),
   ]);
   const reqTrimMap = new Map(reqTrims.map((t) => [t.id, t]));
   const reqOptMap = new Map<string, string[]>();

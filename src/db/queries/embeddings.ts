@@ -1,5 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 
+import type { CustomerScope } from "../../lib/assistant-scope";
 import { EMBEDDING_DIM } from "../../lib/gemini-embed";
 import { getDefaultDb, type Executor } from "../client";
 import { embeddings } from "../schema";
@@ -33,21 +34,20 @@ export type SearchHit = {
   similarity: number;
 };
 
-// 질문 벡터로 top-k 코사인 검색. scope="all"=전체, string[]=허용 customer_id(빈 배열=결과 없음),
-// {advisorId}=본인 담당 고객만(crm.customers.advisor_id 매칭 — 역할 scope, resolveCustomerScope 참조).
+// 질문 벡터로 top-k 코사인 검색. scope="all"=전체, {advisorId}=본인 담당 고객만(crm.customers.advisor_id
+// 매칭 — 역할 scope). scope 어휘는 CustomerScope(resolveCustomerScope SSOT)에 직결 — 어휘가 진화하면
+// 컴파일러가 이 소비처의 드리프트를 잡는다(B1 유산 string[] 변형은 prod 호출자 0이라 제거, 배치 C).
 // halfvec 캐스팅으로 HNSW 인덱스를 태운다(앱 관례와 동일). 코사인 유사도 = 1 - 거리.
 export async function searchEmbeddings(
   queryVec: number[],
-  scope: "all" | string[] | { advisorId: string },
+  scope: CustomerScope,
   k: number,
   executor: Executor = getDefaultDb(),
 ): Promise<SearchHit[]> {
-  if (Array.isArray(scope) && scope.length === 0) return [];
   const vecLiteral = `[${queryVec.join(",")}]`;
   const halfvec = sql.raw(`halfvec(${EMBEDDING_DIM})`); // HNSW 인덱스 식과 동일 차원 — EMBEDDING_DIM 단일 소스
   const scopeFilter =
     scope === "all" ? sql``
-    : Array.isArray(scope) ? sql`where customer_id = any(${sql`array[${sql.join(scope.map((id) => sql`${id}::uuid`), sql`, `)}]`})`
     : sql`where customer_id in (select c.id from crm.customers c where c.advisor_id = ${scope.advisorId}::uuid)`;
   const rows = await executor.execute(sql`
     select id, source_type as "sourceType", source_id as "sourceId", customer_id as "customerId", content,

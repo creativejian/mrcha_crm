@@ -18,6 +18,13 @@ export type EmbedJobOutcome = "deleted" | "unchanged" | "embedded";
 // 테스트 주입용(assistantDeps 패턴 — mock.module 대신 전역 누출 없는 필드 교체).
 export const embedOnWriteDeps = { loadCorpusSource, getEmbeddingHash, deleteEmbeddingBySource, upsertEmbedding, embedTexts };
 
+// 행별 타입(memo/task/schedule/quote)의 DELETE 라우트 공통 삭제 정리 — 동기 1쿼리(Gemini 무관),
+// 응답 시점에 검색에서 제거(스펙 결정 6). 실패는 로그만(고아는 백필이 청소). aggregate 타입
+// (customer_documents 등)의 삭제는 남은 목록 재임베딩이 정본이라 이 헬퍼가 아니라 scheduleEmbedOnWrite를 쓴다.
+export async function cleanupEmbeddingOnDelete(sourceType: WritableCorpusSourceType, sourceId: string, db: Db): Promise<void> {
+  await embedOnWriteDeps.deleteEmbeddingBySource(sourceType, sourceId, db).catch((e) => console.error("[embed-on-write] 삭제 정리 실패:", e));
+}
+
 // 태스크 본문. 순수 오케스트레이션 — 유닛은 fake deps로 직접 호출, 라우트 경유는 배선 테스트가 커버.
 export async function runEmbedJob(job: EmbedOnWriteJob, target: GeminiTarget, db: Db): Promise<EmbedJobOutcome> {
   const snap = await embedOnWriteDeps.loadCorpusSource(job.sourceType, job.sourceId, db);

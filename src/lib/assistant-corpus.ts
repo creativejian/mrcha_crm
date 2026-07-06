@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { PURCHASE_UNSET_SENTINEL } from "../../client/src/data/customers";
 import { formatMoney, formatTerm, guidanceOf, numOr, stampLabelOf, vehicleTitleOf } from "./app-card-payload";
+import { dateLabelOf, kstDateOf } from "./kst-date";
 import { DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "./quote-request-labels";
 
 export type CorpusSourceType = "memo" | "task" | "need_memo" | "need_customer_note" | "need_review_note" | "consultation" | "quote" | "customer_profile" | "schedule" | "customer_documents" | "quote_request";
@@ -122,25 +123,7 @@ export function buildQuoteChunkText(q: QuoteChunkQuote, sc: QuoteChunkScenario |
 // 일정당 1행(source_id = schedule_id). 날짜는 절대값으로 박는다(임베딩·생성 모두 시간 개념 없음) —
 // "예정/지남" 같은 상대 라벨은 다음 날이면 스테일이라 쓰지 않고, 과거/미래 판단은 생성 프롬프트의
 // 오늘 날짜(assistant-prompt withTodayContext)에 위임한다. 과거 일정도 전부 포함(이력 질문 답변 가치).
-
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
-
-// "YYYY-MM-DD"(drizzle date 컬럼) → "YYYY-MM-DD(요일)". 파싱 불가 문자열은 요일 없이 원문 유지(방어).
-export function dateLabelOf(dateStr: string): string {
-  const t = Date.parse(`${dateStr}T00:00:00Z`);
-  return Number.isNaN(t) ? dateStr : `${dateStr}(${WEEKDAYS[new Date(t).getUTCDay()]})`;
-}
-
-// Date → KST 달력일 "YYYY-MM-DD". 로컬 getDate 기준이면 CF Workers(UTC)에서 00:00~09:00 KST 구간이
-// 전날로 밀린다(business-code yymmKstOf와 동일 이유) — UTC+9 환산으로 통일.
-export function kstDateOf(now: Date): string {
-  return new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
-}
-
-// Date → KST 달력일 라벨(요일 병기).
-export function kstDateLabel(now: Date): string {
-  return dateLabelOf(kstDateOf(now));
-}
+// 날짜 헬퍼(dateLabelOf/kstDateOf/kstDateLabel)는 4개 도메인이 교차 소비해 lib/kst-date.ts로 이동(배치 C).
 
 export type ScheduleChunkSchedule = {
   scheduledDate: string | null; // drizzle date = "YYYY-MM-DD"

@@ -6,7 +6,7 @@ import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
 import { profiles, quoteRequests } from "../db/public-app";
 import { customers, embeddings, quotes } from "../db/schema";
-import { kstDateOf } from "../lib/assistant-corpus";
+import { kstDateOf } from "../lib/kst-date";
 import { EMBEDDING_DIM } from "../lib/gemini-embed";
 import { embedOnWriteDeps } from "../lib/embed-on-write";
 

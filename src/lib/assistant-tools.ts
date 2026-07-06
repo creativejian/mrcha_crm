@@ -26,14 +26,16 @@ export type AssistantToolResult = { label: string; lines: string[] };
 // RAG 근거 0건(기존 NO_HITS 지점)에서만 라우팅 호출에 동봉된다 — 근거로 답할 수 있는 질문은 라우팅
 // 자체가 없어(RAG 우선) 오라우팅이 구조적으로 불가능하다. description은 모델의 유일한 선택 근거 —
 // 도구 의미가 바뀌면 여기도 갱신.
-export const ASSISTANT_TOOL_DECLARATIONS = [
-  { name: "today_actions", description: "오늘 처리해야 할 미완료 할일(기한 급함/오늘)과 오늘 일정 목록을 조회한다." },
-  { name: "chance_ranking", description: "계약 가능성(확정/높음/중간/보류/낮음 — 상담사가 수동 판단해 입력한 값)이 높은 순서로 고객 순위 목록을 조회한다." },
-  { name: "stale_customers", description: "최근 활동이 7일 이상 없는 응답 지연/방치 고객 목록을 조회한다." },
-  { name: "quote_ready", description: "견적을 보내야 할 고객(진행 상태가 견적 단계이거나 작성 중 견적 보유) 목록을 조회한다." },
-  { name: "delivery_risk", description: "계약완료 단계인데 최근 활동이 없어 출고/정산 확인이 필요한 고객 목록을 조회한다." },
-  {
-    name: "search_customers",
+// Record<AssistantToolKey, …>로 선언(LABELS와 동일 패턴, 배치 C) — 새 도구를 KEYS에 추가하고 선언을
+// 빠뜨리면(라우팅 영원 불가) 또는 name 오타(화이트리스트 무음 드롭)면 컴파일 에러로 잡힌다.
+type ToolDeclarationDef = { description: string; parameters?: Record<string, unknown> };
+const TOOL_DECLARATION_DEFS: Record<AssistantToolKey, ToolDeclarationDef> = {
+  today_actions: { description: "오늘 처리해야 할 미완료 할일(기한 급함/오늘)과 오늘 일정 목록을 조회한다." },
+  chance_ranking: { description: "계약 가능성(확정/높음/중간/보류/낮음 — 상담사가 수동 판단해 입력한 값)이 높은 순서로 고객 순위 목록을 조회한다." },
+  stale_customers: { description: "최근 활동이 7일 이상 없는 응답 지연/방치 고객 목록을 조회한다." },
+  quote_ready: { description: "견적을 보내야 할 고객(진행 상태가 견적 단계이거나 작성 중 견적 보유) 목록을 조회한다." },
+  delivery_risk: { description: "계약완료 단계인데 최근 활동이 없어 출고/정산 확인이 필요한 고객 목록을 조회한다." },
+  search_customers: {
     description: "조건으로 고객을 검색해 목록을 조회한다. 이름·진행 상태·구매방식·상담경로(유입 경로) 필터를 조합할 수 있다.",
     parameters: {
       type: "object",
@@ -45,4 +47,6 @@ export const ASSISTANT_TOOL_DECLARATIONS = [
       },
     },
   },
-] as const;
+};
+// 배열은 KEYS 순서로 파생 — 기존 리터럴 배열과 요청 payload byte-동일.
+export const ASSISTANT_TOOL_DECLARATIONS = ASSISTANT_TOOL_KEYS.map((name) => ({ name, ...TOOL_DECLARATION_DEFS[name] }));

@@ -1,4 +1,4 @@
-import { kstDateLabel } from "./assistant-corpus";
+import { kstDateLabel } from "./kst-date";
 
 export type PromptChunk = { customerName: string; customerStatus: string; content: string };
 
