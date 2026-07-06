@@ -1,6 +1,6 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-06 밤 (**코퍼스 확장 ① 일정 완료·머지(PR #173 squash 243ff38 + 실 Gemini e2e)** — schedule 청크 + `withTodayContext` 오늘 날짜(KST) 프롬프트 주입. **다음 확정 = ② 서류 메타 → ③ 견적 보강 → ④ 앱 견적요청** — 아래 첫 항목)
+Last updated: 2026-07-06 밤 (**코퍼스 확장 ①·② 완료·머지: #173 일정(243ff38) · #174 서류함(f548b34)** — 각각 실 Gemini e2e 통과. **다음 확정 = ③ 견적 청크 보강 → ④ 앱 견적요청** — 아래 첫 항목)
 
 Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후 현재 CRM 작업만 빠르게 복구하기 위한 압축 문서다. 완료된 세부 로그는 git/PR과 `ref/specs|plans`를 기준으로 확인한다.
 
@@ -14,11 +14,11 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 
 ## Current Focus
 
-- **▶ 다음 작업(확정, 유슨생): 업무 AI 코퍼스 확장 계속 — ② 서류 메타부터.** 순서(각각 독립 소형 슬라이스, PR 1개씩 — #170/#173과 동일 패턴: 청크 빌더(assistant-corpus.ts)+loadCorpusSource 분기(embed-sources.ts)+쓰기 라우트 훅+EMBEDDING_SOURCE_TYPES CHECK 마이그(db:generate→migrate)+백필 collect/고아 분기+백필 실 실행+e2e):
-  ② **서류 메타**(customer_documents) — "서류 뭐 들어왔어?". doc_type·파일명·업로드일 목록(내용 OCR 아님). 훅 = 서류 업로드/분류 변경/삭제 라우트.
-  ③ **견적 청크 보강** — buildQuoteChunkText에 할인 구성 라벨(#168 discount_lines — 아침 테스트 12번 "재구매 할인 들어간 견적" 안 되던 것)+비교 시나리오 2·3안 추가. ⚠️빌더 변경 = 기존 견적 전체 content 변경 → hash 불일치 → **백필 재실행으로 소급**(라벨 헬퍼 변경 시 재임베딩 트리거 follow-up과 동일 메커니즘).
+- **▶ 다음 작업(확정, 유슨생): 업무 AI 코퍼스 확장 계속 — ③ 견적 청크 보강부터.**
+  ③ **견적 청크 보강** — buildQuoteChunkText에 할인 구성 라벨(#168 discount_lines — 아침 테스트 12번 "재구매 할인 들어간 견적" 안 되던 것)+비교 시나리오 2·3안 추가. 신규 소스타입/마이그 없음. ⚠️빌더 변경 = 기존 견적 전체 content 변경 → hash 불일치 → **백필 재실행으로 소급**(라벨 헬퍼 변경 시 재임베딩 트리거 follow-up과 동일 메커니즘).
   ④ **앱 견적요청**(public.quote_requests) — "앱으로 뭘 요청했었지?". public 스키마 read(crm 아님 — customer 연결은 app_user_id 경유), 훅 없음(앱이 write)이라 백필+주기 보정 또는 승격 시점 훅 검토.
   **공통 함정**: EMBED_ON_WRITE 게이트 3규칙(직접 `bun test <파일>` 금지 — 반드시 `bun run test:server`), 견적/메모 psql 직접 삭제 금지(임베딩 고아), 실 DB 픽스처 랜덤 서픽스.
+- **✅ 코퍼스 확장 ② 서류함 완료·머지(2026-07-06 밤, PR #174 squash f548b34)**: "서류 뭐 들어왔어?" 해소(클라 변경 0). **`customer_documents` aggregate 청크**(고객당 1행, source_id=customer_id, 라벨 "서류함") = 분류·파일명·업로드일(KST) 목록(내용 OCR 아님) — 목록 질문이라 근거 1청크에 전체 목록(서류당 얇은 청크는 TOP_K 점유·매칭 약함, profile 선례). **목록 순서 = 업로드일(created_at,id) 고정**(sortOrder면 reorder마다 재임베딩 — reorder 라우트 훅 없음 의도). **DELETE = 동기 삭제 아닌 재임베딩**(aggregate — 마지막 삭제는 빈 텍스트로 행 제거). 훅 3곳(업로드/분류/삭제) + CHECK 마이그 0020(적용) + 백필 고객별 그룹 collect/고아(서류 0건). 검증 4종+build(server 327) + 백필 실 실행(신규 1 = 김민준 4건 소급) + 실 Gemini e2e(업로드 2건→1114ms→목록 정답 인용→원복 완전).
 - **✅ 코퍼스 확장 ① 일정 완료·머지(2026-07-06 밤, PR #173 squash 243ff38)**: "다음 일정 뭐지?" 해소(클라 변경 0). **schedule 청크**(일정당 1행, source_id=schedule_id) = `날짜(요일) 시간 · 타입 · 메모 · 완료(done시)` — **날짜 절대값 명시·과거 일정 전체 포함·상대 라벨(예정/지남) 금지**(다음 날 스테일). **`withTodayContext`** — /ask 양 경로 시스템 프롬프트에 오늘 날짜(KST·요일) 주입(오늘을 모르면 "다음" 판단 불가 — 이 슬라이스의 숨은 전제, KST 환산은 yymmKstOf와 동일 사유). **e2e 실측 결함 수정**: 지난 일정만 잡힌 "다음 일정" 질문에 모델이 NO_HITS 고정 문구로 도망(#172 TOOL_SYSTEM_PROMPT와 같은 부류) → withTodayContext에 "미래 일정 없으면 없다고 답하고 지난 일정 언급" 지시 → "예정된 일정은 없습니다" 교정 실측. 배선 = 일정 CRUD 훅(done 토글 포함, DELETE 동기 정리) + CHECK 마이그 0019(적용·실측) + 백필(실 실행: 61청크 중 신규 1 소급·60 hash skip·고아 0). 검증 4종+build green(server 323·unit 450 골든 불변) + 실 Gemini e2e(일정 POST→846ms 임베딩→"2026-07-10(금) 15:00" 정답·schedule 근거 인용→원복 완전). follow-up(PR 본문): 지난 일정 언급은 소프트 지시(실사용 관찰), withTodayContext 도구 경로 중복 무해 관찰.
 - 그 외 후보(미확정): ①역할 scope 실제화(팀 개념 없음 — 아래 참조. 도구 쿼리 담당자 필터 접점) ②견적 계산엔진(이사님 브레인스토밍 선행) ③FCM 푸시(이사님 우선순위 대기) ④guidance 지역 옵션 확장.
 - **✅ 업무 AI 자유 질문 도구 라우팅 완료·머지(2026-07-06 저녁, PR #172 squash 5837537 + 실기 확인 + 이사님 컨펌 반영)**: "앱을 통해서 들어온 고객은 누구야" 같은 자유 문장 집계 질문 해소(클라 변경 0). **설계 = RAG 우선·근거 0건 폴백**: 근거 잡히는 질문은 기존 경로 그대로(추가 호출 0·오라우팅 구조적 불가 = 골든 가드 테스트), 근거 0건(기존 NO_HITS 지점)에서만 `assistant-tool-router.ts`가 functionDeclarations 동봉 1차 논스트림 호출(mode AUTO·화이트리스트 게이트·실패 null→NO_HITS 폴백 — 500으로 안 샘). 신규 도구 `search_customers`(이름/진행 상태/구매방식/상담경로 **부분 일치**, zod 파라미터 좁힘). `runAssistantTool(key, params, ex)`. **e2e 발견 결함 수정: TOOL_SYSTEM_PROMPT 분리** — RAG 프롬프트의 NO_HITS 지시가 도구 답변에 실리면 리포트 8건이 있어도 모델이 고정 문구를 뱉음(실측) → 도구 경로(버튼 포함)는 전용 프롬프트, 테스트 잠금. **이사님 컨펌(07-06 저녁) 3건 반영**: ①quote_ready 의도대로 ②계약완료 단계 = "출고 준비 및 정산 준비" 개념(출고/정산 화면 CRM 구현 후 데이터 기반 쿼리 교체) ③chance = 상담사 수동 입력값(자동 분기 아님 — 주석·도구 설명 명시). 검증: 4종+build green(unit 450·server 314) + 실 Gemini e2e(앱 8명/유튜브 2명 정확·잡담 NO_HITS 유지·골든 불변) + 브라우저 실기. follow-up: 집계형인데 우연히 근거 ≥1건이면 RAG 조각 답변(실사용 관찰), 도구 담당자 필터는 역할 scope에서.
