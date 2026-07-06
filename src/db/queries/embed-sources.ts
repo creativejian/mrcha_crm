@@ -101,7 +101,11 @@ export async function loadCorpusSource(
       const [cust] = await ex
         .select({ id: customers.id, name: customers.name })
         .from(customers)
-        .where(eq(customers.appUserId, req.userId));
+        .where(eq(customers.appUserId, req.userId))
+        // app_user_id 중복 고객(link 가드 도입 전 잔재) 대비 결정적 선택 — 최고령 고객(created_at, id).
+        // 백필 collect의 dedupe와 동일 규칙이라 on-write↔백필 hash 플립플롭이 없다.
+        .orderBy(asc(customers.createdAt), asc(customers.id))
+        .limit(1);
       if (!cust) return null;
       const [trim, opts] = await Promise.all([
         req.trimId != null

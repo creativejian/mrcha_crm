@@ -136,8 +136,9 @@ async function gather(): Promise<CorpusRow[]> {
     rows.push({ sourceType: "quote", sourceId: q.id, customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc, scs.filter((s) => s !== sc)) });
   }
 
-  // 앱 견적요청: 요청당 1청크 — 고객 연결(customers.app_user_id) 있는 요청만. 같은 app_user에
-  // 고객이 여럿이면 첫 행만(중복 push 방지 — upsert가 마지막 승리라 비결정적이 되는 것 차단).
+  // 앱 견적요청: 요청당 1청크 — 고객 연결(customers.app_user_id) 있는 요청만. 같은 app_user에 고객이
+  // 여럿이면(link 가드 도입 전 잔재) 최고령 고객(created_at, id) 기준 첫 행으로 결정 — 로더(embed-sources
+  // quote_request 분기)와 동일 규칙이라 on-write↔백필 hash 플립플롭이 없다.
   // 앱이 write하는 신규 요청은 CRM 훅이 없어 이 collect가 유일한 보정 경로(승격 훅은 연결 시점만).
   const reqRows = await db
     .select({
@@ -147,8 +148,11 @@ async function gather(): Promise<CorpusRow[]> {
       depositType: quoteRequests.depositType, depositRatio: quoteRequests.depositRatio,
       rentalDeposit: quoteRequests.rentalDeposit, trimPrice: quoteRequests.trimPrice,
     })
-    .from(quoteRequests).innerJoin(customers, eq(customers.appUserId, quoteRequests.userId));
-  const uniqueReqs = [...new Map(reqRows.map((r) => [r.id, r])).values()];
+    .from(quoteRequests).innerJoin(customers, eq(customers.appUserId, quoteRequests.userId))
+    .orderBy(asc(customers.createdAt), asc(customers.id));
+  const reqById = new Map<string, (typeof reqRows)[number]>();
+  for (const r of reqRows) if (!reqById.has(r.id)) reqById.set(r.id, r); // keep-first(최고령 고객)
+  const uniqueReqs = [...reqById.values()];
   const reqTrimIds = [...new Set(uniqueReqs.map((r) => r.trimId).filter((v): v is number => v != null))];
   const [reqTrims, reqOpts] = await Promise.all([
     reqTrimIds.length

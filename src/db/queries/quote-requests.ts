@@ -1,6 +1,7 @@
-import { desc, eq, inArray, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, ne, or } from "drizzle-orm";
 
 import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
+import { ConflictError } from "../../lib/errors";
 import { PAYMENT_METHOD_LABEL } from "../../lib/quote-request-labels";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
@@ -274,6 +275,14 @@ export async function linkRequestToCustomer(
 ): Promise<{ id: string; customerCode: string; name: string; appUserId: string } | null> {
   const [req] = await ex.select({ userId: quoteRequests.userId }).from(quoteRequests).where(eq(quoteRequests.id, requestId));
   if (!req) return null;
+  // 같은 앱 계정이 이미 다른 고객에 연결돼 있으면 거절(ConflictError → 409) — app_user_id 중복 고객은
+  // 요청 청크의 고객 귀속(임베딩·staff scope)을 비결정으로 만든다. createCustomerFromRequest의 기존-고객
+  // dedupe와 대칭(fail-closed). "기존 연결 고객으로 유도" UX 대안은 이사님 판단 대기.
+  const [linked] = await ex
+    .select({ customerCode: customers.customerCode, name: customers.name })
+    .from(customers)
+    .where(and(eq(customers.appUserId, req.userId), ne(customers.id, customerId)));
+  if (linked) throw new ConflictError(`이 앱 계정은 이미 ${linked.name}(${linked.customerCode}) 고객에 연결돼 있습니다.`);
   const [row] = await ex
     .update(customers)
     .set({ appUserId: req.userId, updatedAt: new Date() })

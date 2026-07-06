@@ -257,6 +257,13 @@ test("견적요청 승격(create-customer) → quote_request 임베딩(훅), 정
     expect(row?.content).toContain("운용리스 · 36개월 · 보증금 10% 1,000,000원");
     expect(row?.content).toContain("차량가 30,000,000원");
     expect(row?.content).not.toContain("open"); // status 미포함(스테일 박제 방지)
+
+    // 승격 INSERT가 시드한 프로필 필드(source/needMethod)의 customer_profile 청크도 함께 적재 —
+    // 고객 PATCH 훅(CUSTOMER_PROFILE_EMBED_KEYS)과 동일 불변을 승격 write 경로에도 잠근다.
+    await until(async () => (await embeddingRow("customer_profile", createdCustomerId)) != null);
+    const profileRow = await embeddingRow("customer_profile", createdCustomerId);
+    expect(profileRow?.content).toContain("상담경로 앱 견적요청");
+    expect(profileRow?.content).toContain("구매방식 운용리스");
   } finally {
     // 고객 삭제(임베딩 FK cascade) → 스모크 요청 삭제 — 공유 master 원복.
     if (createdCustomerId) await db.delete(customers).where(eq(customers.id, createdCustomerId));
