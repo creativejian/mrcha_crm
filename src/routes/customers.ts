@@ -442,6 +442,8 @@ customers.post("/:id/documents", zValidator("param", idParam), async (c) => {
       { docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, filePath: path, thumbPath, sortOrder },
       c.var.db,
     );
+    // 서류함 청크는 고객당 1행(aggregate) — sourceId는 서류가 아니라 고객 id.
+    scheduleEmbedOnWrite(c, { sourceType: "customer_documents", sourceId: customerId });
     return c.json({ id: row.id, docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, sortOrder, createdAt: row.createdAt }, 201);
   } catch (e) {
     await removeObject(env, path).catch(() => undefined); // 보상 삭제
@@ -462,7 +464,11 @@ customers.patch("/:id/documents/:childId", zValidator("param", childParam), zVal
     const error = validateLookupValue("doc_type", body.docType);
     if (error) return c.json({ error }, 400);
   }
-  return run(c, () => updateDocument(p.id, p.childId, body, c.var.db), "서류를 찾을 수 없습니다.");
+  return run(c, async () => {
+    const row = await updateDocument(p.id, p.childId, body, c.var.db);
+    if (row) scheduleEmbedOnWrite(c, { sourceType: "customer_documents", sourceId: p.id }); // 분류 변경 → 목록 재임베딩
+    return row;
+  }, "서류를 찾을 수 없습니다.");
 });
 
 customers.delete("/:id/documents/:childId", zValidator("param", childParam), async (c) => {
@@ -472,6 +478,9 @@ customers.delete("/:id/documents/:childId", zValidator("param", childParam), asy
   const env = c.env as StorageEnv;
   if (row.filePath) await removeObject(env, row.filePath).catch((err) => console.error("Storage remove 실패(고아 객체):", err));
   if (row.thumbPath) await removeObject(env, row.thumbPath).catch((err) => console.error("Storage thumb remove 실패(고아 객체):", err));
+  // aggregate 청크라 행별 타입과 달리 동기 삭제가 아니라 재임베딩 — 남은 목록으로 갱신하고,
+  // 마지막 서류 삭제(빈 텍스트)는 runEmbedJob이 임베딩 행을 지운다.
+  scheduleEmbedOnWrite(c, { sourceType: "customer_documents", sourceId: p.id });
   return c.json({ id: row.id });
 });
 

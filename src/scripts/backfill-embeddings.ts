@@ -5,9 +5,9 @@ import { and, asc, eq, isNotNull, ne, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { getDefaultDb } from "../db/client";
-import { customers, customerMemos, customerSchedules, customerTasks, consultations, embeddings, quotes, quoteScenarios } from "../db/schema";
+import { customers, customerDocuments, customerMemos, customerSchedules, customerTasks, consultations, embeddings, quotes, quoteScenarios } from "../db/schema";
 import { upsertEmbedding } from "../db/queries/embeddings";
-import { buildChunkContent, buildCustomerProfileChunkText, buildQuoteChunkText, buildScheduleChunkText, contentHash, type CorpusRow } from "../lib/assistant-corpus";
+import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildScheduleChunkText, contentHash, type CorpusRow, type DocumentChunkDocument } from "../lib/assistant-corpus";
 import { embedTexts } from "../lib/gemini-embed";
 import { resolveGeminiTarget } from "../lib/gemini-target";
 import { pickPrimaryScenario } from "../lib/primary-scenario";
@@ -87,6 +87,24 @@ async function gather(): Promise<CorpusRow[]> {
     if (text) rows.push({ sourceType: "schedule", sourceId: s.id, customerId: s.customerId, customerName: s.name, text });
   }
 
+  // 서류함: 고객당 1청크(서류 메타 목록) — 순서는 업로드일(created_at, id) 고정(빌더 주석 참조).
+  const docRows = await db
+    .select({
+      customerId: customerDocuments.customerId, name: customers.name,
+      docType: customerDocuments.docType, fileName: customerDocuments.fileName, createdAt: customerDocuments.createdAt,
+    })
+    .from(customerDocuments).innerJoin(customers, eq(customers.id, customerDocuments.customerId))
+    .orderBy(asc(customerDocuments.createdAt), asc(customerDocuments.id));
+  const docsByCustomer = new Map<string, { name: string; docs: DocumentChunkDocument[] }>();
+  for (const d of docRows) {
+    const entry = docsByCustomer.get(d.customerId) ?? { name: d.name, docs: [] };
+    entry.docs.push(d);
+    docsByCustomer.set(d.customerId, entry);
+  }
+  for (const [customerId, { name, docs }] of docsByCustomer) {
+    rows.push({ sourceType: "customer_documents", sourceId: customerId, customerId, customerName: name, text: buildCustomerDocumentsChunkText(docs) });
+  }
+
   // 견적: 견적당 1청크 — 대표 시나리오(pickPrimaryScenario SSOT) 기준(스펙 결정 2).
   const quoteRows = await db
     .select({
@@ -145,6 +163,9 @@ async function cleanupOrphans() {
             or btrim(coalesce(s.scheduled_time, '')) <> ''
             or btrim(coalesce(s.type, '')) <> ''
             or btrim(coalesce(s.memo, '')) <> '')))
+      -- 서류함(aggregate, source_id=customer_id): 해당 고객 서류가 0건이면 고아(고객 삭제는 FK cascade가 처리).
+      or (e.source_type = 'customer_documents' and not exists (
+        select 1 from crm.customer_documents d where d.customer_id = e.source_id))
     returning e.id
   `);
   console.log(`고아 정리: ${[...(deleted as Iterable<unknown>)].length}행 삭제`);
