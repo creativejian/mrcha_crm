@@ -2,6 +2,7 @@ import { apiFetch } from "./api";
 import { invalidateCustomerDetail } from "./customers";
 import { getJson, sendJson, sendVoid } from "./http";
 import type { QuoteGuidance } from "@/data/quote-guidance";
+import type { QuoteDiscountLine } from "./quote-items";
 
 // 견적함 표시 문자열 → 시나리오 컬럼값. 숫자만 남겨 파싱한다.
 
@@ -53,6 +54,8 @@ export type QuoteWritePatch = {
   optionTotal?: string | null;
   options?: { id: number; name: string; price: number | null }[] | null;
   finalDiscount?: string | null;
+  // 할인 구성 내역(기본 할인 제외 추가 행 — 전체 교체, null=클리어). 서버 zod와 동형.
+  discountLines?: QuoteDiscountLine[] | null;
   acquisitionTax?: string | null;
   acquisitionTaxMode?: "normal" | "hybrid" | "electric" | "manual" | null;
   bond?: string | null;
@@ -99,6 +102,8 @@ export type QuoteCreatePayload = {
   optionTotal?: string | null;
   options?: { id: number; name: string; price: number | null }[] | null;
   finalDiscount?: string | null;
+  // 할인 구성 내역(기본 할인 제외 추가 행 — 전체 교체, null=클리어). 서버 zod와 동형.
+  discountLines?: QuoteDiscountLine[] | null;
   acquisitionTax?: string | null;
   acquisitionTaxMode?: "normal" | "hybrid" | "electric" | "manual" | null;
   bond?: string | null;

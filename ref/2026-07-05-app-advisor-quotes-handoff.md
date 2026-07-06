@@ -79,7 +79,7 @@ CREATE POLICY "Staff can view all advisor quotes" ON public.advisor_quotes
 | `residualLabel` | string | "잔존가치 최대" |
 | `residualCondLabel` | string | 조건부 잔존 표기 |
 | `totalCostLabel` | string | "총 비용 계산 후 안내" |
-| `discountRowLabel` | string | "최대 할인 적용" 행 라벨 |
+| `discountRowLabel` | string | 항상 고정 문구 "최대 할인 적용" — 할인 구성 내역 라벨은 병기하지 않음(2026-07-06부터, 이사님 결정: 고객 앱은 총액만·구성 내역은 CRM 전용) |
 | `discountLabel` | string | **맨숫자** "0" · "1,000,000" — 앱이 `-{값}원`으로 렌더("-"·"원"은 정적 부착, CRM AppCardPreview 미러) |
 | `depositLabel` | string | "(30%) 22,290,000원" (보증금/선수금/선납금 박스) |
 | `mileageLabel` | string | "연 20,000km" |

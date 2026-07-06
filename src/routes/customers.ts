@@ -171,6 +171,9 @@ const quoteCreateBody = z.object({
   optionTotal: z.string().nullable().optional(),
   options: z.array(z.object({ id: z.number().int(), name: z.string(), price: z.number().nullable() })).nullable().optional(),
   finalDiscount: z.string().nullable().optional(),
+  // 할인 구성 내역(finalDiscount 총액의 내역 — 기본 할인 제외 추가 행만, 2026-07-05 이사님 결정:
+  // CRM은 모든 할인 항목 표시·고객 앱 payload는 총액만). amount는 unit이 percent면 %값(소수 허용), 아니면 원.
+  discountLines: z.array(z.object({ label: z.string(), amount: z.number(), unit: z.enum(["amount", "percent"]) })).nullable().optional(),
   acquisitionTax: z.string().nullable().optional(),
   acquisitionTaxMode: z.enum(["normal", "hybrid", "electric", "manual"]).nullable().optional(),
   bond: z.string().nullable().optional(),
@@ -208,6 +211,8 @@ const quotePatchBody = z.object({
   optionTotal: z.string().nullable().optional(),
   options: z.array(z.object({ id: z.number().int(), name: z.string(), price: z.number().nullable() })).nullable().optional(),
   finalDiscount: z.string().nullable().optional(),
+  // 할인 구성 내역 — quoteCreateBody 동형(전체 교체, null=클리어). 주석은 create 쪽 참조.
+  discountLines: z.array(z.object({ label: z.string(), amount: z.number(), unit: z.enum(["amount", "percent"]) })).nullable().optional(),
   acquisitionTax: z.string().nullable().optional(),
   acquisitionTaxMode: z.enum(["normal", "hybrid", "electric", "manual"]).nullable().optional(),
   bond: z.string().nullable().optional(),

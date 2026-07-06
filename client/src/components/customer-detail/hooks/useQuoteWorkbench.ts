@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router";
 
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
-import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteItem } from "@/lib/quote-items";
+import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
@@ -23,6 +23,7 @@ import {
   quotePurchaseMethodOptions,
   normalizeQuotePurchaseMethod,
   primaryQuotePurchaseMethod,
+  restoreDiscountLines,
   type AcquisitionTaxMode,
   type DiscountLine,
   type DiscountUnit,
@@ -403,6 +404,17 @@ export function useQuoteWorkbench({
     setPricing(computePricing(inputs));
   }
 
+  // 추가 할인 행 영속 스냅샷(crm.quotes.discount_lines) — 금액의 진실 원본은 uncontrolled DOM input
+  // (state amount는 초기 표시값이라 입력 후 stale). root 없으면 state 표시값 폴백. 빈 배열은 null
+  // (스키마 기본값과 정렬 — 추가 행 없는 견적은 행 자체가 없다는 의미로 저장).
+  function readDiscountLineSnapshots(root: HTMLElement | null): QuoteDiscountLine[] | null {
+    const rows = discountLines.map((line) => {
+      const raw = root?.querySelector<HTMLInputElement>(`input[data-discount-id="${line.id}"]`)?.value ?? line.amount;
+      return { label: line.label, amount: line.unit === "percent" ? parsePercent(raw) : parseMoney(raw), unit: line.unit };
+    });
+    return rows.length ? rows : null;
+  }
+
   function syncDiscountTotalFromRows(root: HTMLElement) {
     const discountInputs = Array.from(root.querySelectorAll<HTMLInputElement>('input[data-discount-line="true"]'));
     if (!discountInputs.length) return;
@@ -554,7 +566,9 @@ export function useQuoteWorkbench({
         setInput("bond", prefill.pricing.bond);
         setInput("delivery", prefill.pricing.delivery);
         setInput("incidental", prefill.pricing.incidental);
-        if (primaryDiscount) primaryDiscount.value = formatMoney(prefill.pricing.discount);
+        // 기본 할인 행은 총액이 아니라 분리 산술값(총액 − 추가 행 환산 합) — 추가 행은 복원된
+        // discountLines가 자기 입력칸(defaultValue)으로 렌더되므로 여기서 총액을 넣으면 이중 계상된다.
+        if (primaryDiscount) primaryDiscount.value = formatMoney(prefill.pricing.primaryDiscount);
       } else {
         setInput("base", detail.price);
         const qrOptionTotal = qrPrefill
@@ -805,6 +819,7 @@ export function useQuoteWorkbench({
       optionTotal: inputs ? num(inputs.optionPrice) : null,
       options: selectedOptions.length ? selectedOptions : null,
       finalDiscount: inputs ? num(inputs.discount) : null,
+      discountLines: readDiscountLineSnapshots(root),
       acquisitionTax: inputs ? num(inputs.acquisitionTax) : null,
       acquisitionTaxMode,
       bond: inputs ? num(inputs.bond) : null,
@@ -1066,6 +1081,14 @@ export function useQuoteWorkbench({
       dueAtDelivery: s.dueAtDelivery ?? "",
       interestRate: s.interestRate ?? "",
     }));
+    // 할인 구성 내역 복원(discount_lines 영속화) — 기본 할인은 finalDiscount(총액) − 추가 행 환산 합으로 역산.
+    // 행 state는 아래 setDiscountLines, 기본 할인 값은 applyTrimToPricing이 prefill.pricing.primaryDiscount로 쓴다.
+    const restoredDiscount = restoreDiscountLines(
+      dq?.discountLines,
+      Number(dq?.basePrice ?? 0) + Number(dq?.optionTotal ?? 0),
+      Number(dq?.finalDiscount ?? 0),
+      nowMs(),
+    );
     setEditPrefill(dq ? {
       optionIds: dq.options?.map((o) => o.id) ?? [],
       exteriorColorId: dq.exteriorColorId,
@@ -1074,6 +1097,7 @@ export function useQuoteWorkbench({
         base: Number(dq.basePrice ?? 0),
         option: Number(dq.optionTotal ?? 0),
         discount: Number(dq.finalDiscount ?? 0),
+        primaryDiscount: restoredDiscount.primaryDiscount,
         acquisitionTax: Number(dq.acquisitionTax ?? 0),
         bond: Number(dq.bond ?? 0),
         delivery: Number(dq.delivery ?? 0),
@@ -1095,7 +1119,7 @@ export function useQuoteWorkbench({
     setManualSubsidyApplicable(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.subsidyApplicable])));
     // 취득세 모드는 견적 저장본에서 복원(미복원 시 이전 세션 잔상이 persist payload에 실려 수정 저장을 오염).
     setAcquisitionTaxMode((dq?.acquisitionTaxMode as AcquisitionTaxMode) ?? "normal");
-    setDiscountLines([]); // discount_lines는 미영속 — 다른 견적의 추가 할인 행 잔상 방지
+    setDiscountLines(restoredDiscount.lines); // 저장본 복원(없으면 빈 행 — 다른 견적 잔상도 함께 청소)
     setPrimaryDiscountUnit("amount");
     setEditingQuoteId(quote.id);
     persistedQuoteIdRef.current = null;

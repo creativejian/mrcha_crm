@@ -43,6 +43,8 @@ export type QuoteHeaderPatch = {
   optionTotal?: string | null;
   options?: { id: number; name: string; price: number | null }[] | null;
   finalDiscount?: string | null;
+  // 할인 구성 내역(기본 할인 제외 추가 행 — finalDiscount 총액과 별개로 항목 라벨/값 보존, 전체 교체).
+  discountLines?: { label: string; amount: number; unit: string }[] | null;
   acquisitionTax?: string | null;
   acquisitionTaxMode?: string | null;
   bond?: string | null;
@@ -116,6 +118,7 @@ function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
   if (p.optionTotal !== undefined) set.optionTotal = p.optionTotal;
   if (p.options !== undefined) set.options = p.options;
   if (p.finalDiscount !== undefined) set.finalDiscount = p.finalDiscount;
+  if (p.discountLines !== undefined) set.discountLines = p.discountLines;
   if (p.acquisitionTax !== undefined) set.acquisitionTax = p.acquisitionTax;
   if (p.acquisitionTaxMode !== undefined) set.acquisitionTaxMode = p.acquisitionTaxMode;
   if (p.bond !== undefined) set.bond = p.bond;
@@ -318,6 +321,7 @@ export type QuoteCreateBody = {
   optionTotal?: string | null;
   options?: { id: number; name: string; price: number | null }[] | null;
   finalDiscount?: string | null;
+  discountLines?: { label: string; amount: number; unit: string }[] | null;
   acquisitionTax?: string | null;
   acquisitionTaxMode?: string | null;
   bond?: string | null;
@@ -404,6 +408,7 @@ export async function createQuote(
     optionTotal: body.optionTotal ?? null,
     options: body.options ?? null,
     finalDiscount: body.finalDiscount ?? null,
+    discountLines: body.discountLines ?? null,
     acquisitionTax: body.acquisitionTax ?? null,
     acquisitionTaxMode: body.acquisitionTaxMode ?? null,
     bond: body.bond ?? null,
