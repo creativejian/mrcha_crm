@@ -72,6 +72,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     }
 
     // customers.chance 순위(확정>높음>중간>보류>낮음) + 진행 상태 병기 — 상위 20.
+    // chance는 자동 분기가 아니라 상담사가 진행 중 독립 판단으로 입력하는 수동 값(이사님 확인 07-06).
     case "chance_ranking": {
       const rows = await ex
         .select({ name: customers.name, chance: customers.chance, statusGroup: customers.statusGroup, status: customers.status })
@@ -96,7 +97,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       return { label, lines };
     }
 
-    // [잠정] 진행 상태 "견적" 단계 고객 ∪ 작성 중(draft) 견적 보유 고객 — 사유 병기.
+    // 진행 상태 "견적" 단계 고객 ∪ 작성 중(draft) 견적 보유 고객 — 사유 병기(이사님 컨펌 07-06: 의도대로).
     case "quote_ready": {
       const stage = await ex
         .select({ name: customers.name, status: customers.status })
@@ -114,8 +115,8 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       return { label, lines };
     }
 
-    // [잠정] 계약완료 단계 ∩ 7일+ 무활동 = "출고 진행 중 활동 공백" 근사 — CRM에 출고/정산 데이터가
-    // 아직 없어 진행 상태 기반 근사(이사님 정의 확정 시 교체).
+    // 계약완료 단계 ∩ 7일+ 무활동 = "출고 준비·정산 준비 중 활동 공백"(이사님 컨펌 07-06: 계약완료
+    // 단계는 '출고 준비 및 정산 준비' 개념 — 출고/정산 화면이 CRM에 구현되면 그 데이터 기반으로 쿼리 교체).
     case "delivery_risk": {
       const rows = await ex
         .select({ name: customers.name, status: customers.status, at: lastActivityAt })

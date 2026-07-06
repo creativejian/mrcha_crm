@@ -3,8 +3,8 @@
 //
 // PR1 = 빠른 질문 버튼 결정론 경로(클라가 버튼 텍스트와 정확히 일치하는 질문에 tool 키 동봉 → 서버가
 // 임베딩 검색 대신 해당 리포트 쿼리 결과를 근거로 생성). 자유 질문 모델 라우팅(function calling)은 PR2.
-// ⚠️ 도구 정의 중 quote_ready·delivery_risk는 07-06 잠정(이사님 취침 중 임의 결정 — 사후 컨펌 대상,
-// 스펙 "이사님 결정 필요" 참조). 정의 변경은 실행기 쿼리 교체만으로 가능(키·버튼 문구 불변).
+// 도구 정의는 07-06 이사님 컨펌 완료(①quote_ready 의도대로 ②delivery_risk: 계약완료="출고 준비·정산
+// 준비" 개념 — 출고/정산 화면 구현 후 데이터 기반으로 교체 ③chance=상담사 수동 입력값). 스펙 참조.
 
 export const ASSISTANT_TOOL_KEYS = ["today_actions", "chance_ranking", "stale_customers", "quote_ready", "delivery_risk", "search_customers"] as const;
 export type AssistantToolKey = (typeof ASSISTANT_TOOL_KEYS)[number];
@@ -28,7 +28,7 @@ export type AssistantToolResult = { label: string; lines: string[] };
 // 도구 의미가 바뀌면 여기도 갱신.
 export const ASSISTANT_TOOL_DECLARATIONS = [
   { name: "today_actions", description: "오늘 처리해야 할 미완료 할일(기한 급함/오늘)과 오늘 일정 목록을 조회한다." },
-  { name: "chance_ranking", description: "계약 가능성(확정/높음/중간/보류/낮음)이 높은 순서로 고객 순위 목록을 조회한다." },
+  { name: "chance_ranking", description: "계약 가능성(확정/높음/중간/보류/낮음 — 상담사가 수동 판단해 입력한 값)이 높은 순서로 고객 순위 목록을 조회한다." },
   { name: "stale_customers", description: "최근 활동이 7일 이상 없는 응답 지연/방치 고객 목록을 조회한다." },
   { name: "quote_ready", description: "견적을 보내야 할 고객(진행 상태가 견적 단계이거나 작성 중 견적 보유) 목록을 조회한다." },
   { name: "delivery_risk", description: "계약완료 단계인데 최근 활동이 없어 출고/정산 확인이 필요한 고객 목록을 조회한다." },
