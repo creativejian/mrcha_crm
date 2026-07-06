@@ -1,5 +1,7 @@
 import type { Context } from "hono";
 
+import { ConflictError } from "../lib/errors";
+
 // 트리거/제약 위반 등 DB 에러를 사용자 친화 한글 메시지로.
 function dbErrorMessage(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
@@ -13,14 +15,15 @@ function dbErrorMessage(e: unknown): string {
   return msg;
 }
 
-// 라우트 핸들러 공통: 에러 → 500(한글 메시지), 결과 null + notFoundMsg → 404, 그 외 → 200(json).
-// catalog·customers 라우트가 공유한다.
+// 라우트 핸들러 공통: ConflictError → 409, 그 외 에러 → 500(한글 메시지),
+// 결과 null + notFoundMsg → 404, 그 외 → 200(json). catalog·customers 라우트가 공유한다.
 export async function run<T>(c: Context, work: () => Promise<T>, notFoundMsg?: string): Promise<Response> {
   try {
     const result = await work();
     if (result == null && notFoundMsg) return c.json({ error: notFoundMsg }, 404);
     return c.json(result ?? null);
   } catch (e) {
+    if (e instanceof ConflictError) return c.json({ error: e.message }, 409);
     return c.json({ error: dbErrorMessage(e) }, 500);
   }
 }
