@@ -9,10 +9,14 @@ import { customers, customerDocuments, customerMemos, customerSchedules, custome
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../db/catalog";
 import { quoteRequestOptions, quoteRequests } from "../db/public-app";
 import { upsertEmbedding } from "../db/queries/embeddings";
-import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildQuoteRequestChunkText, buildScheduleChunkText, contentHash, type CorpusRow, type DocumentChunkDocument } from "../lib/assistant-corpus";
+import {
+  CATALOG_TRIM_LABEL_COLUMNS, DOCUMENT_CHUNK_COLUMNS, ORPHAN_PREDICATES, PROFILE_CHUNK_COLUMNS,
+  QUOTE_CHUNK_COLUMNS, QUOTE_REQUEST_CHUNK_COLUMNS, QUOTE_SCENARIO_CHUNK_COLUMNS, SCHEDULE_CHUNK_COLUMNS,
+  quoteChunkTextOf, quoteRequestChunkTextOf,
+} from "../db/queries/embed-sources";
+import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildScheduleChunkText, contentHash, type CorpusRow, type DocumentChunkDocument } from "../lib/assistant-corpus";
 import { embedTexts } from "../lib/gemini-embed";
 import { resolveGeminiTarget } from "../lib/gemini-target";
-import { pickPrimaryScenario } from "../lib/primary-scenario";
 
 const db = getDefaultDb();
 const apiKey = process.env.GEMINI_API_KEY;
@@ -58,18 +62,10 @@ async function gather(): Promise<CorpusRow[]> {
     if (n.needReviewNote?.trim()) rows.push({ sourceType: "need_review_note", sourceId: n.id, customerId: n.id, customerName: n.name, text: n.needReviewNote });
   }
 
-  // 프로필 청크(customers 인라인, 고객당 1행): source_id = customer_id. 필드 구성/생략 규칙은 빌더(SSOT).
+  // 프로필 청크(customers 인라인, 고객당 1행): source_id = customer_id. 필드 구성/생략 규칙은 빌더(SSOT),
+  // 컬럼 목록은 로더와 공유(PROFILE_CHUNK_COLUMNS — 배치 D).
   const profiles = await db
-    .select({
-      id: customers.id, name: customers.name,
-      residence: customers.residence, customerType: customers.customerType, customerTypeDetail: customers.customerTypeDetail,
-      source: customers.source, advisorName: customers.advisorName,
-      needModel: customers.needModel, needTrim: customers.needTrim, needMethod: customers.needMethod,
-      needTiming: customers.needTiming, needColors: customers.needColors, needCompare: customers.needCompare,
-      needContractTerm: customers.needContractTerm, needInitialCost: customers.needInitialCost,
-      needAnnualMileage: customers.needAnnualMileage, needDeliveryMethod: customers.needDeliveryMethod,
-      needContractFocus: customers.needContractFocus,
-    })
+    .select({ id: customers.id, name: customers.name, ...PROFILE_CHUNK_COLUMNS })
     .from(customers);
   for (const pr of profiles) {
     const text = buildCustomerProfileChunkText(pr);
@@ -78,11 +74,7 @@ async function gather(): Promise<CorpusRow[]> {
 
   // 일정: 일정당 1청크 — 텍스트 구성/생략 규칙은 빌더(SSOT). 실질 필드 전무(빈 텍스트)는 미수집.
   const scheduleRows = await db
-    .select({
-      id: customerSchedules.id, customerId: customerSchedules.customerId, name: customers.name,
-      scheduledDate: customerSchedules.scheduledDate, scheduledTime: customerSchedules.scheduledTime,
-      type: customerSchedules.type, memo: customerSchedules.memo, done: customerSchedules.done,
-    })
+    .select({ id: customerSchedules.id, customerId: customerSchedules.customerId, name: customers.name, ...SCHEDULE_CHUNK_COLUMNS })
     .from(customerSchedules).innerJoin(customers, eq(customers.id, customerSchedules.customerId));
   for (const s of scheduleRows) {
     const text = buildScheduleChunkText(s);
@@ -91,10 +83,7 @@ async function gather(): Promise<CorpusRow[]> {
 
   // 서류함: 고객당 1청크(서류 메타 목록) — 순서는 업로드일(created_at, id) 고정(빌더 주석 참조).
   const docRows = await db
-    .select({
-      customerId: customerDocuments.customerId, name: customers.name,
-      docType: customerDocuments.docType, fileName: customerDocuments.fileName, createdAt: customerDocuments.createdAt,
-    })
+    .select({ customerId: customerDocuments.customerId, name: customers.name, ...DOCUMENT_CHUNK_COLUMNS })
     .from(customerDocuments).innerJoin(customers, eq(customers.id, customerDocuments.customerId))
     .orderBy(asc(customerDocuments.createdAt), asc(customerDocuments.id));
   const docsByCustomer = new Map<string, { name: string; docs: DocumentChunkDocument[] }>();
@@ -107,22 +96,12 @@ async function gather(): Promise<CorpusRow[]> {
     rows.push({ sourceType: "customer_documents", sourceId: customerId, customerId, customerName: name, text: buildCustomerDocumentsChunkText(docs) });
   }
 
-  // 견적: 견적당 1청크 — 대표 시나리오(pickPrimaryScenario SSOT) 기준(스펙 결정 2).
+  // 견적: 견적당 1청크 — 컬럼 목록·대표/비교안 조립은 로더와 공유(QUOTE_*_COLUMNS·quoteChunkTextOf, 배치 D).
   const quoteRows = await db
-    .select({
-      id: quotes.id, customerId: quotes.customerId, name: customers.name, quoteCode: quotes.quoteCode,
-      brandName: quotes.brandName, modelName: quotes.modelName, trimName: quotes.trimName,
-      appStatus: quotes.appStatus, sentAt: quotes.sentAt, guidance: quotes.guidance,
-      discountLines: quotes.discountLines, finalDiscount: quotes.finalDiscount,
-      primaryScenarioId: quotes.primaryScenarioId,
-    })
+    .select({ id: quotes.id, customerId: quotes.customerId, name: customers.name, ...QUOTE_CHUNK_COLUMNS })
     .from(quotes).innerJoin(customers, eq(customers.id, quotes.customerId));
   const scRows = await db
-    .select({
-      id: quoteScenarios.id, quoteId: quoteScenarios.quoteId, scenarioNo: quoteScenarios.scenarioNo,
-      purchaseMethod: quoteScenarios.purchaseMethod, termMonths: quoteScenarios.termMonths,
-      monthlyPayment: quoteScenarios.monthlyPayment, lender: quoteScenarios.lender,
-    })
+    .select({ quoteId: quoteScenarios.quoteId, ...QUOTE_SCENARIO_CHUNK_COLUMNS })
     .from(quoteScenarios).orderBy(asc(quoteScenarios.scenarioNo));
   const scByQuote = new Map<string, typeof scRows>();
   for (const s of scRows) {
@@ -131,9 +110,7 @@ async function gather(): Promise<CorpusRow[]> {
     scByQuote.set(s.quoteId, list);
   }
   for (const q of quoteRows) {
-    const scs = scByQuote.get(q.id) ?? [];
-    const sc = pickPrimaryScenario(scs, q.primaryScenarioId);
-    rows.push({ sourceType: "quote", sourceId: q.id, customerId: q.customerId, customerName: q.name, text: buildQuoteChunkText(q, sc, scs.filter((s) => s !== sc)) });
+    rows.push({ sourceType: "quote", sourceId: q.id, customerId: q.customerId, customerName: q.name, text: quoteChunkTextOf(q, scByQuote.get(q.id) ?? []) });
   }
 
   // 앱 견적요청: 요청당 1청크 — 고객 연결(customers.app_user_id) 있는 요청만. 같은 app_user에 고객이
@@ -141,13 +118,7 @@ async function gather(): Promise<CorpusRow[]> {
   // quote_request 분기)와 동일 규칙이라 on-write↔백필 hash 플립플롭이 없다.
   // 앱이 write하는 신규 요청은 CRM 훅이 없어 이 collect가 유일한 보정 경로(승격 훅은 연결 시점만).
   const reqRows = await db
-    .select({
-      id: quoteRequests.id, customerId: customers.id, name: customers.name,
-      createdAt: quoteRequests.createdAt, trimId: quoteRequests.trimId,
-      paymentMethod: quoteRequests.paymentMethod, period: quoteRequests.period,
-      depositType: quoteRequests.depositType, depositRatio: quoteRequests.depositRatio,
-      rentalDeposit: quoteRequests.rentalDeposit, trimPrice: quoteRequests.trimPrice,
-    })
+    .select({ id: quoteRequests.id, customerId: customers.id, name: customers.name, ...QUOTE_REQUEST_CHUNK_COLUMNS })
     .from(quoteRequests).innerJoin(customers, eq(customers.appUserId, quoteRequests.userId))
     .orderBy(asc(customers.createdAt), asc(customers.id));
   const reqById = new Map<string, (typeof reqRows)[number]>();
@@ -156,7 +127,7 @@ async function gather(): Promise<CorpusRow[]> {
   const reqTrimIds = [...new Set(uniqueReqs.map((r) => r.trimId).filter((v): v is number => v != null))];
   const [reqTrims, reqOpts] = await Promise.all([
     reqTrimIds.length
-      ? db.select({ id: trimsInCatalog.id, trimName: trimsInCatalog.trimName, modelName: modelsInCatalog.name, brandName: brandsInCatalog.name })
+      ? db.select({ id: trimsInCatalog.id, ...CATALOG_TRIM_LABEL_COLUMNS })
           .from(trimsInCatalog)
           .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
           .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
@@ -178,14 +149,8 @@ async function gather(): Promise<CorpusRow[]> {
     reqOptMap.set(o.quoteRequestId, list);
   }
   for (const r of uniqueReqs) {
-    const t = r.trimId != null ? reqTrimMap.get(r.trimId) : undefined;
-    const text = buildQuoteRequestChunkText({
-      createdAt: r.createdAt,
-      brandName: t?.brandName ?? null, modelName: t?.modelName ?? null, trimName: t?.trimName ?? null,
-      paymentMethod: r.paymentMethod, period: r.period,
-      depositType: r.depositType, depositRatio: r.depositRatio, rentalDeposit: r.rentalDeposit,
-      trimPrice: r.trimPrice, optionNames: reqOptMap.get(r.id) ?? [],
-    });
+    const t = r.trimId != null ? (reqTrimMap.get(r.trimId) ?? null) : null;
+    const text = quoteRequestChunkTextOf(r, t, reqOptMap.get(r.id) ?? []);
     rows.push({ sourceType: "quote_request", sourceId: r.id, customerId: r.customerId, customerName: r.name, text });
   }
 
@@ -193,41 +158,10 @@ async function gather(): Promise<CorpusRow[]> {
 }
 
 // 고아 정리(스펙 결정 6): 원본이 삭제됐거나 텍스트가 비워진 임베딩 행 제거 — 삭제 훅 도입 전 축적분 청소.
-// need_*는 고객 행이 남는 한 cascade가 못 지우므로 "필드 비워짐"도 고아로 본다. 고객 삭제는 FK cascade가 처리.
+// 타입별 판정 술어는 ORPHAN_PREDICATES(embed-sources — 로더/빌더 규칙 곁에 병치, 배치 D)가 SSOT.
 async function cleanupOrphans() {
   const deleted = await db.execute(sql`
-    delete from crm.embeddings e where
-      (e.source_type = 'memo' and not exists (
-        select 1 from crm.customer_memos m where m.id = e.source_id and btrim(coalesce(m.body, '')) <> ''))
-      or (e.source_type = 'task' and not exists (
-        select 1 from crm.customer_tasks t where t.id = e.source_id and btrim(coalesce(t.body, '')) <> ''))
-      or (e.source_type = 'consultation' and not exists (
-        select 1 from crm.consultations cs where cs.id = e.source_id and btrim(coalesce(cs.summary, '')) <> ''))
-      or (e.source_type = 'quote' and not exists (
-        select 1 from crm.quotes q where q.id = e.source_id))
-      or (e.source_type = 'need_memo' and not exists (
-        select 1 from crm.customers c where c.id = e.source_id and btrim(coalesce(c.need_memo, '')) <> ''))
-      or (e.source_type = 'need_customer_note' and not exists (
-        select 1 from crm.customers c where c.id = e.source_id and btrim(coalesce(c.need_customer_note, '')) <> ''))
-      or (e.source_type = 'need_review_note' and not exists (
-        select 1 from crm.customers c where c.id = e.source_id and btrim(coalesce(c.need_review_note, '')) <> ''))
-      or (e.source_type = 'customer_profile' and not exists (
-        select 1 from crm.customers c where c.id = e.source_id))
-      -- 일정: 행 삭제 또는 실질 필드(날짜·시간·타입·메모) 전무 — buildScheduleChunkText 빈 텍스트 판정의 SQL 미러.
-      or (e.source_type = 'schedule' and not exists (
-        select 1 from crm.customer_schedules s where s.id = e.source_id
-          and (s.scheduled_date is not null
-            or btrim(coalesce(s.scheduled_time, '')) <> ''
-            or btrim(coalesce(s.type, '')) <> ''
-            or btrim(coalesce(s.memo, '')) <> '')))
-      -- 서류함(aggregate, source_id=customer_id): 해당 고객 서류가 0건이면 고아(고객 삭제는 FK cascade가 처리).
-      or (e.source_type = 'customer_documents' and not exists (
-        select 1 from crm.customer_documents d where d.customer_id = e.source_id))
-      -- 앱 견적요청: 요청 삭제 또는 고객 연결(app_user_id) 해제 — 연결 있는 요청만 코퍼스 대상.
-      or (e.source_type = 'quote_request' and not exists (
-        select 1 from public.quote_requests qr
-          join crm.customers c on c.app_user_id = qr.user_id
-          where qr.id = e.source_id))
+    delete from crm.embeddings e where ${sql.join(Object.values(ORPHAN_PREDICATES), sql` or `)}
     returning e.id
   `);
   console.log(`고아 정리: ${[...(deleted as Iterable<unknown>)].length}행 삭제`);
