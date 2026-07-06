@@ -11,6 +11,16 @@ export const SYSTEM_PROMPT = [
   `관련 근거가 없으면 '${NO_HITS_ANSWER}'라고만 답하세요.`,
 ].join("\n");
 
+// 도구(리포트) 답변 전용 — RAG SYSTEM_PROMPT의 NO_HITS 지시를 제거한다. 리포트 결과가 프롬프트에
+// 실려 있는데도 모델이 보수적으로 "관련 CRM 데이터를 찾지 못했습니다"를 뱉는 실측 결함(2026-07-06
+// PR2 e2e, 8건 조회에 NO_HITS 답변) 대응. 0건은 "조회 결과 없음" 블록을 그대로 정리하게 지시.
+export const TOOL_SYSTEM_PROMPT = [
+  "당신은 자동차 CRM 상담사를 돕는 한국어 업무 어시스턴트입니다.",
+  "아래에 제공된 리포트 조회 결과를 사용해 질문에 답하세요. 결과에 없는 내용은 추측하지 마세요.",
+  "답변은 간결한 한국어로, 목록은 항목별로 정리하세요.",
+  "조회 결과가 '조회 결과 없음'이면 해당하는 고객/항목이 없다고 답하세요.",
+].join("\n");
+
 // 검색된 청크를 번호 매긴 근거 블록으로.
 export function buildContextBlock(chunks: PromptChunk[]): string {
   return chunks

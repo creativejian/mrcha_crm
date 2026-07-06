@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ASSISTANT_TOOL_KEYS } from "../../../src/lib/assistant-tools";
-import { QUICK_AI_PROMPTS } from "@/components/ai/AiAssistantPanel";
+import { QUICK_AI_PROMPTS } from "@/components/ai/quick-prompts";
 
 // 파리티 가드: 클라 빠른 질문 → 도구 키 매핑 ↔ 서버 화이트리스트(ASSISTANT_TOOL_KEYS).
 // 클라가 모르는 키를 보내면 서버 zod가 400으로 거부해 버튼이 조용히 죽는다 — 드리프트를 기계로 잡는다
