@@ -48,6 +48,14 @@ export const customerWriteSchema = z.object({
   needReviewNote: z.string().nullable().optional(),
 });
 
+// customer_profile 임베딩 청크를 구성하는 쓰기 가능 필드(buildCustomerProfileChunkText와 정렬).
+// needCompare는 청크에 포함되지만 아직 쓰기 스키마에 없어 제외(쓰기 경로가 생기면 추가).
+const CUSTOMER_PROFILE_EMBED_KEYS = [
+  "residence", "customerType", "customerTypeDetail", "source", "advisorName",
+  "needModel", "needTrim", "needMethod", "needTiming", "needColors",
+  "needContractTerm", "needInitialCost", "needAnnualMileage", "needDeliveryMethod", "needContractFocus",
+] as const satisfies readonly (keyof z.infer<typeof customerWriteSchema>)[];
+
 customers.get("/", async (c) => c.json(await listCustomers(c.var.db)));
 
 customers.get("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) =>
@@ -109,6 +117,11 @@ customers.patch(
         if (patch.needMemo !== undefined) scheduleEmbedOnWrite(c, { sourceType: "need_memo", sourceId: id });
         if (patch.needCustomerNote !== undefined) scheduleEmbedOnWrite(c, { sourceType: "need_customer_note", sourceId: id });
         if (patch.needReviewNote !== undefined) scheduleEmbedOnWrite(c, { sourceType: "need_review_note", sourceId: id });
+        // 프로필 청크(고객당 1행) 구성 필드가 이번 PATCH에 있으면 재임베딩 — 필드 목록은 빌더
+        // (buildCustomerProfileChunkText)와 정렬. 값이 실제로 안 바뀐 no-op PATCH는 content_hash skip이 흡수.
+        if (CUSTOMER_PROFILE_EMBED_KEYS.some((k) => patch[k] !== undefined)) {
+          scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: id });
+        }
       }
       return row;
     }, "고객을 찾을 수 없습니다.");

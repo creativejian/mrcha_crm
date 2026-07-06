@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 
-import { buildChunkContent, buildQuoteChunkText, contentHash, type CorpusRow, type QuoteChunkQuote, type QuoteChunkScenario } from "./assistant-corpus";
+import { buildChunkContent, buildCustomerProfileChunkText, buildQuoteChunkText, contentHash, type CorpusRow, type CustomerProfileChunkCustomer, type QuoteChunkQuote, type QuoteChunkScenario } from "./assistant-corpus";
 
 test("buildChunkContent: 소스타입별 라벨 + 고객명 + 본문", () => {
   const row: CorpusRow = { sourceType: "memo", sourceId: "s1", customerId: "c1", customerName: "김민준", text: "GLC 재고 문의" };
@@ -62,4 +62,57 @@ test("buildQuoteChunkText: 값 없는 항목 생략 — 빈 라벨 나열 금지
   const sc: QuoteChunkScenario = { purchaseMethod: "할부", termMonths: null, monthlyPayment: null, lender: null };
   const text = buildQuoteChunkText({ ...FULL_QUOTE, appStatus: "draft", sentAt: null, guidance: null }, sc);
   expect(text).toBe("QT-2607-0001 · BMW 320i M Sport · 할부 · 작성 중");
+});
+
+// ── 고객 프로필 청크(2026-07-06) — 프로필 + 구조화 니즈. 서술형 니즈 3필드는 별도 청크라 미포함. ──
+
+const FULL_PROFILE: CustomerProfileChunkCustomer = {
+  residence: "인천광역시",
+  customerType: "개인",
+  customerTypeDetail: "4대보험",
+  source: "유튜브",
+  advisorName: "김지안",
+  needModel: "Maybach S-Class",
+  needTrim: "S 500 4M Long",
+  needMethod: "운용리스",
+  needTiming: "좋은 조건 즉시",
+  needColors: "외장 블랙 · 내장 베이지",
+  needCompare: "GLC/X3",
+  needContractTerm: "60개월",
+  needInitialCost: "300만원 이하",
+  needAnnualMileage: "20,000km",
+  needDeliveryMethod: "방문 수령",
+  needContractFocus: "월 납입금 최소",
+};
+
+test("buildCustomerProfileChunkText: 풀필드 — 프로필+관심 차종 조합+구조화 니즈", () => {
+  expect(buildCustomerProfileChunkText(FULL_PROFILE)).toBe(
+    "거주지 인천광역시 · 직군 개인·4대보험 · 상담경로 유튜브 · 담당자 김지안 · 관심 차종 Maybach S-Class S 500 4M Long · 구매방식 운용리스 · 구매시기 좋은 조건 즉시 · 컬러 외장 블랙 · 내장 베이지 · 비교 차종 GLC/X3 · 계약기간 60개월 · 초기비용 300만원 이하 · 연간 주행거리 20,000km · 출고 방식 방문 수령 · 계약 중점 월 납입금 최소",
+  );
+});
+
+test("buildCustomerProfileChunkText: 빈 값·공백·'확인 필요' 센티널은 항목째 생략", () => {
+  const text = buildCustomerProfileChunkText({
+    ...FULL_PROFILE,
+    advisorName: null,
+    needCompare: "  ",
+    needAnnualMileage: "확인 필요",
+    needDeliveryMethod: "확인 필요",
+    needContractFocus: null,
+  });
+  expect(text).not.toContain("담당자");
+  expect(text).not.toContain("비교 차종");
+  expect(text).not.toContain("확인 필요");
+  expect(text).toContain("거주지 인천광역시");
+});
+
+test("buildCustomerProfileChunkText: 트림만 있으면 관심 차종은 트림만, 전부 비면 빈 문자열(→임베딩 행 삭제)", () => {
+  const empty = Object.fromEntries(Object.keys(FULL_PROFILE).map((k) => [k, null])) as CustomerProfileChunkCustomer;
+  expect(buildCustomerProfileChunkText(empty)).toBe("");
+  expect(buildCustomerProfileChunkText({ ...empty, needTrim: "S 500 4M Long" })).toBe("관심 차종 S 500 4M Long");
+});
+
+test("buildChunkContent: customer_profile 라벨", () => {
+  const row: CorpusRow = { sourceType: "customer_profile", sourceId: "c1", customerId: "c1", customerName: "김민준", text: "거주지 인천광역시" };
+  expect(buildChunkContent(row)).toBe("고객 김민준 프로필: 거주지 인천광역시");
 });

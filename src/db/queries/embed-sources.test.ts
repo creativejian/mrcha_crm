@@ -15,6 +15,7 @@ let QUOTE = "";
 beforeAll(async () => {
   const [c] = await db.insert(customers).values({
     customerCode: `CU-EMBSRC-${crypto.randomUUID().slice(0, 8)}`, name: "로더테스트", needMemo: "니즈 로더 검증", needCustomerNote: "  ",
+    residence: "인천광역시", customerType: "개인", customerTypeDetail: "4대보험", needModel: "320i", needAnnualMileage: "확인 필요",
   }).returning({ id: customers.id });
   CUST = c.id;
   const [m] = await db.insert(customerMemos).values({ customerId: CUST, body: "메모 로더 검증" }).returning({ id: customerMemos.id });
@@ -53,4 +54,13 @@ test("loadCorpusSource(quote): 대표 시나리오 기준 청크 텍스트", asy
   const snap = await loadCorpusSource("quote", QUOTE, db);
   expect(snap?.customerName).toBe("로더테스트");
   expect(snap?.text).toBe(`${QUOTE_CODE} · BMW 320i M Sport · 운용리스 · 60개월 · 월 2,350,000원 · 하나캐피탈 · 작성 중`);
+});
+
+
+test("loadCorpusSource(customer_profile): 프로필+구조화 니즈 청크 — 센티널 생략, 없는 id는 null", async () => {
+  const snap = await loadCorpusSource("customer_profile", CUST, db);
+  expect(snap?.customerId).toBe(CUST);
+  expect(snap?.customerName).toBe("로더테스트");
+  expect(snap?.text).toBe("거주지 인천광역시 · 직군 개인·4대보험 · 관심 차종 320i"); // 센티널("확인 필요")·빈 필드 생략
+  expect(await loadCorpusSource("customer_profile", "00000000-0000-0000-0000-000000000000", db)).toBeNull();
 });

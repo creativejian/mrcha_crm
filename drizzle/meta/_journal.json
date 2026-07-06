@@ -127,6 +127,13 @@
       "when": 1783259575436,
       "tag": "0017_past_longshot",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783311398584,
+      "tag": "0018_next_white_queen",
+      "breakpoints": true
     }
   ]
 }
