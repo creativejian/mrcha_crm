@@ -9,9 +9,16 @@ import { computePricing, formatMoney, type PricingInputs } from "@/lib/quote-pri
 export type DiscountUnit = "amount" | "percent";
 export type DiscountLine = { id: string; label: string; amount: string; unit: DiscountUnit };
 
+// 할인 행 1개의 원화 환산 — percent 행 환산 기준(basis) = basePrice + optionTotal.
+// 역산 복원(restoreDiscountLines)·총액 합산(syncDiscountTotalFromRows)·단위 전환(convertDiscountInputUnit)
+// 3소비처가 공유하는 단일 산술(배치 F) — 역산↔정산 산술이 어긋나면 수정 재진입 때 기본 할인이
+// 조용히 오염되는 load-bearing 불변이라, 주석 계약이 아니라 함수 1벌로 잠근다.
+export function discountLineWon(unit: DiscountUnit, value: number, basis: number): number {
+  return unit === "percent" ? Math.round(basis * value / 100) : value;
+}
+
 // 수정 진입 복원: 저장된 할인 구성 내역(crm.quotes.discount_lines) → 워크벤치 행 state + 기본 할인 분리 산술.
-// 기본 할인은 별도 저장하지 않는다 — finalDiscount(총액) − Σ추가 행 환산액으로 역산한다
-// (percent 행 환산 기준 = basePrice+optionTotal, useQuoteWorkbench syncDiscountTotalFromRows와 동일 산술).
+// 기본 할인은 별도 저장하지 않는다 — finalDiscount(총액) − Σ추가 행 환산액(discountLineWon 공유 산술)으로 역산.
 // 행 id는 idBase(nowMs)+index로 매번 새로 발급 — uncontrolled input(defaultValue)의 리마운트를 보장.
 export function restoreDiscountLines(
   saved: QuoteDiscountLine[] | null | undefined,
@@ -27,10 +34,7 @@ export function restoreDiscountLines(
     amount: s.unit === "percent" ? String(s.amount) : formatMoney(s.amount),
     unit: s.unit,
   }));
-  const additional = rows.reduce(
-    (sum, s) => sum + (s.unit === "percent" ? Math.round(discountBasis * s.amount / 100) : s.amount),
-    0,
-  );
+  const additional = rows.reduce((sum, s) => sum + discountLineWon(s.unit, s.amount, discountBasis), 0);
   // 음수 클램프: 총액보다 행 합이 크면(과거 데이터 드리프트) parseMoney가 음수 부호를 버려 오염되므로 0이 안전.
   return { lines, primaryDiscount: Math.max(0, finalDiscount - additional) };
 }

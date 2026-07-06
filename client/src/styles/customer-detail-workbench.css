@@ -1004,8 +1004,11 @@
 }
 
 .kim-jeff-form-row.kim-jeff-discount-row {
-  grid-template-columns: 80px minmax(104px, 1fr) auto minmax(126px, 144px) 24px;
-  gap: 10px;
+  /* col3(세그먼트) = max-content: 세그먼트는 overflow:hidden이라 grid 최소 크기가 0 — auto 트랙이 섹션 폭
+     부족 시 2px로 붕괴해 money input(position:relative, 나중 페인트)이 %/금액 버튼을 덮던 겹침(#168
+     follow-up)의 직접 원인 제거. 라벨/항목명/금액 최소폭은 세그먼트 실폭 확보를 위해 축소(64/72/104). */
+  grid-template-columns: 64px minmax(72px, 1fr) max-content minmax(104px, 144px) 24px;
+  gap: 8px;
 }
 
 .kim-jeff-discount-label {
@@ -1288,6 +1291,14 @@ select.kim-jeff-discount-label {
 
 .kim-jeff-form-row .kim-jeff-money-input {
   grid-column: 4;
+}
+
+/* 할인 행 한정: 고정 144px가 트랙 최소(104px)를 넘치며 세그먼트/삭제 버튼을 침범하던 것 → 트랙 추종.
+   다른 form-row·price-cell의 money input은 불변(스코프 한정 — 배치 F). */
+.kim-jeff-form-row.kim-jeff-discount-row .kim-jeff-money-input {
+  width: auto;
+  max-width: 144px;
+  justify-self: stretch;
 }
 
 .kim-jeff-price-cell .kim-jeff-money-input {
