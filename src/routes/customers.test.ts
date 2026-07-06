@@ -360,6 +360,18 @@ async function seedThrowawayQuote(customerId: string) {
   return q.id;
 }
 
+test("견적 쓰기: PATCH appStatus=viewed → 400 (어휘 축소, 배치 E — 열람은 advisor_quotes.viewed_at SSOT)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const res = await app.request(`/api/customers/${list[0].id}/quotes/${crypto.randomUUID()}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ appStatus: "viewed" }),
+  });
+  expect(res.status).toBe(400); // zod 게이트 — 대상 존재 여부(404) 이전에 어휘에서 거부, writer 재유입 방지
+});
+
 test("견적 쓰기: PATCH 헤더+대표시나리오 → getCustomer 반영", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });

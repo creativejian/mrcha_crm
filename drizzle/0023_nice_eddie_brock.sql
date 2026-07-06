@@ -1,0 +1,2 @@
+ALTER TABLE "crm"."quotes" DROP CONSTRAINT "quotes_app_status_check";--> statement-breakpoint
+ALTER TABLE "crm"."quotes" ADD CONSTRAINT "quotes_app_status_check" CHECK ("crm"."quotes"."app_status" IS NULL OR "crm"."quotes"."app_status" IN ('draft', 'queued', 'sent'));

@@ -66,7 +66,12 @@ export const DOC_TYPE_OPTIONS: readonly string[] = [
 ];
 
 // 유입 경로(source) — 자동/수동 + 합본. kim-status-fields가 re-export, seed/검증에 공유.
-export const SOURCE_AUTOMATIC_OPTIONS: readonly string[] = ["앱 견적요청", "앱 AI상담", "앱 상담원 연결", "디엘(상담)", "디엘(견적서)"];
+// 앱 견적요청 승격 고객의 source 값 — 서버 승격 INSERT(db/queries/quote-requests)와 클라 prefetch 비교
+// (CustomerManagementPage)가 공유하는 named const. SOURCE_AUTOMATIC_OPTIONS[0]이 이 상수를 참조해
+// 닫힌 집합(customers_source_check) 원소임이 구조적으로 보장된다 — 어휘 개명(0015 '앱 견적비교' 전례) 시
+// 여기 한 곳 수정. 단 업무 AI 코퍼스 근거 라벨(assistant-corpus LABEL)은 별개 문자열(재임베딩 결합 금지).
+export const APP_QUOTE_REQUEST_SOURCE = "앱 견적요청";
+export const SOURCE_AUTOMATIC_OPTIONS: readonly string[] = [APP_QUOTE_REQUEST_SOURCE, "앱 AI상담", "앱 상담원 연결", "디엘(상담)", "디엘(견적서)"];
 export const SOURCE_MANUAL_OPTIONS: readonly string[] = ["대표전화", "카카오", "소개", "추천", "재구매", "유튜브", "검색", "기타"];
 export const SOURCE_OPTIONS: readonly string[] = [...SOURCE_AUTOMATIC_OPTIONS, ...SOURCE_MANUAL_OPTIONS];
 export const SOURCE_LEGACY_AUTOMATIC_OPTIONS: readonly string[] = ["디엘홈페이지"];

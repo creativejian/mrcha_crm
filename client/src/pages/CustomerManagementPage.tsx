@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import { badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
@@ -607,7 +607,7 @@ export function CustomerManagementPage({
       onMouseEnter: onOpenCustomer && customer.id
         ? () => {
             prefetchCustomerDetail(customer.id as string);
-            if (customer.source === "앱 견적요청") prefetchCustomerQuoteRequests(customer.id as string);
+            if (customer.source === APP_QUOTE_REQUEST_SOURCE) prefetchCustomerQuoteRequests(customer.id as string);
           }
         : undefined,
       tabIndex: onOpenCustomer ? 0 : undefined,

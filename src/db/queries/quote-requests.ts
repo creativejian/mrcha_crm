@@ -2,7 +2,8 @@ import { and, desc, eq, inArray, like, ne, or } from "drizzle-orm";
 
 import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
 import { ConflictError } from "../../lib/errors";
-import { PAYMENT_METHOD_LABEL } from "../../lib/quote-request-labels";
+import { APP_QUOTE_REQUEST_SOURCE } from "../../../client/src/data/customers";
+import { PAYMENT_METHOD_LABEL } from "../../../client/src/data/quote-request-labels";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles, quoteRequestOptions, quoteRequests } from "../public-app";
@@ -344,9 +345,9 @@ export async function createCustomerFromRequest(
       appUserId: req.userId,
       needModel,
       needTrim,
-      // payment_method 한글 라벨 — 서버 SSOT lib/quote-request-labels(요청 청크 빌더와 공유).
+      // payment_method 한글 라벨 — 공용 SSOT client/src/data/quote-request-labels(요청 청크 빌더·클라 카드와 공유).
       needMethod: req.paymentMethod ? (PAYMENT_METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod) : null,
-      source: "앱 견적요청",
+      source: APP_QUOTE_REQUEST_SOURCE,
       statusGroup: "신규",
       status: "상담접수",
       receivedAt: new Date(req.createdAt),

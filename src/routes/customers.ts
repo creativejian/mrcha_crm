@@ -215,7 +215,8 @@ const quotePatchBody = z.object({
   brandName: z.string().nullable().optional(),
   modelName: z.string().nullable().optional(),
   trimName: z.string().nullable().optional(),
-  appStatus: z.enum(["draft", "queued", "sent", "viewed"]).nullable().optional(),
+  // "viewed" write 미수용(배치 E) — 열람은 앱이 advisor_quotes.viewed_at에 직접 기록(read-through), crm.quotes 어휘에서 축소.
+  appStatus: z.enum(["draft", "queued", "sent"]).nullable().optional(),
   decisionStatus: z.enum(["none", "considering", "confirmed", "contracting"]).nullable().optional(),
   note: z.string().nullable().optional(),
   guidance: quoteGuidanceSchema.nullable().optional(),
