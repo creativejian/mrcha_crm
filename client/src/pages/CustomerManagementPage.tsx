@@ -1,10 +1,11 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ADVISOR_NAMES, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import { badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
+import { useStaffDirectory } from "@/lib/staff";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -85,6 +86,8 @@ export function CustomerManagementPage({
   roleTab = "최고관리자",
 }: CustomerManagementPageProps) {
   const [internalCustomers, setInternalCustomers] = useState(initialCustomers);
+  // 담당자 후보/필터 = 직원 디렉토리(profiles CRM 역할) — ADVISOR_NAMES 목업 폐기(#176 후속).
+  const staffNames = useStaffDirectory().staff.map((s) => s.name);
   const [search, setSearch] = useState("");
   const [statusGroup, setStatusGroup] = useState("");
   const [status, setStatus] = useState("");
@@ -423,10 +426,13 @@ export function CustomerManagementPage({
   }
 
   function changeCustomerAdvisor(customerNo: number) {
+    // 디렉토리 이름 순환(구 ADVISOR_NAMES 목업 대체). 여전히 프론트 상태만 — 영속 배정은 상세
+    // 편집기(advisorId 동봉)가 담당, 이 버튼의 영속화는 별도 UX 결정 후.
+    if (!staffNames.length) return;
     updateCustomers((current) => current.map((customer) => {
       if (customer.no !== customerNo) return customer;
-      const currentIndex = ADVISOR_NAMES.findIndex((name) => name === customer.advisor);
-      const nextAdvisor = ADVISOR_NAMES[(currentIndex + 1 + ADVISOR_NAMES.length) % ADVISOR_NAMES.length];
+      const currentIndex = staffNames.findIndex((name) => name === customer.advisor);
+      const nextAdvisor = staffNames[(currentIndex + 1 + staffNames.length) % staffNames.length];
       return { ...customer, advisor: nextAdvisor, assignedAt: "방금 전" };
     }));
     markFinalUpdate(customerNo, "담당", "담당자 변경");
@@ -682,7 +688,7 @@ export function CustomerManagementPage({
   const draftFilterOptions = {
     statusGroup: Object.keys(customerStatusGroups).map((group) => ({ value: group, label: group })),
     status: statuses.map((item) => ({ value: item, label: item })),
-    advisor: ADVISOR_NAMES.map((name) => ({ value: name, label: name })),
+    advisor: staffNames.map((name) => ({ value: name, label: name })),
     chance: CHANCE_OPTIONS.map((option) => ({ value: option, label: option })),
     finalUpdate: CUSTOMER_MANAGE_STATUSES.map((option) => ({ value: option, label: option })),
   };
@@ -801,7 +807,7 @@ export function CustomerManagementPage({
                 </select>
                 <select className="select" {...bindSelect(advisor, (v) => { setAdvisor(v); setCurrentPage(1); })}>
                   <option value="">담당자</option>
-                  {ADVISOR_NAMES.map((name) => <option key={name}>{name}</option>)}
+                  {staffNames.map((name) => <option key={name}>{name}</option>)}
                 </select>
               </>
             )}

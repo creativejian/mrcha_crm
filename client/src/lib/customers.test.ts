@@ -98,6 +98,7 @@ const detailRes: CustomerDetailResponse = {
   customerTypeDetail: "4대보험",
   source: "디엘(견적서)",
   advisorName: "김지안",
+  advisorId: null,
   team: "인천본사",
   assignedAt: null,
   receivedAt: "2026-05-14T12:56:00+09:00",

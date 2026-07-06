@@ -1,8 +1,8 @@
 import { useState, type SyntheticEvent } from "react";
 
 import { formatLocalPhone, localPhoneFrom } from "@/lib/detail-utils";
+import { useStaffDirectory } from "@/lib/staff";
 import {
-  type AdvisorTeam,
   type CustomerTypeValue,
   advisorOptionsByTeam,
   automaticSourceOptions,
@@ -166,40 +166,43 @@ export function SourceStatusEditor({
 
 export function AdvisorStatusEditor({
   initialValue,
+  initialAdvisorId,
   onCancel,
   onSubmit,
 }: {
   initialValue: string;
+  initialAdvisorId: string | null;
   onCancel: () => void;
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
-  const initialAdvisor = parseAdvisorValue(initialValue);
-  const [team, setTeam] = useState<AdvisorTeam>(initialAdvisor.team);
-  const advisorOptions = advisorOptionsByTeam[team];
-  const advisorValue = advisorOptions.includes(initialAdvisor.advisor) ? initialAdvisor.advisor : advisorOptions[0];
+  // 담당자 후보 = 직원 디렉토리(profiles CRM 역할) — ADVISOR_NAMES 목업 폐기(팀별 담당자 필터도
+  // 함께 폐기 — 팀 개념 없음 확정, 팀 select는 표시 필드로만 잔존). 배정 저장은 select 값(advisorId)을
+  // 동봉해야 역할 scope가 성립한다(#176). 초기 선택은 id 매칭 우선, 백필 전 데이터(이름만)는 이름 폴백.
+  const initialTeam = parseAdvisorValue(initialValue).team;
+  const { staff, loading } = useStaffDirectory();
+  const displayName = initialValue.split("·")[0]?.trim();
+  const selected = staff.find((s) => s.id === initialAdvisorId) ?? staff.find((s) => s.name === displayName);
 
   return (
     <form className="kim-edit-form" onSubmit={onSubmit}>
       <label>
         <span>팀 선택</span>
-        <select
-          autoFocus
-          defaultValue={initialAdvisor.team}
-          name="team"
-          onChange={(event) => setTeam(event.currentTarget.value as AdvisorTeam)}
-        >
+        <select autoFocus defaultValue={initialTeam} name="team">
           {Object.keys(advisorOptionsByTeam).map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
       <label>
         <span>담당자 선택</span>
-        <select key={team} defaultValue={advisorValue} name="advisor">
-          {advisorOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+        {/* key: 디렉토리 도착 시 리마운트 — uncontrolled defaultValue를 로드 후 값으로 다시 시드(Safari 안전) */}
+        <select key={staff.length ? "ready" : "empty"} defaultValue={selected?.id ?? staff[0]?.id ?? ""} disabled={!staff.length} name="advisorId">
+          {staff.length
+            ? staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)
+            : <option value="">{loading ? "직원 목록 불러오는 중…" : "배정 가능한 직원 없음"}</option>}
         </select>
       </label>
       <div className="kim-edit-actions">
         <button type="button" onClick={onCancel}>취소</button>
-        <button className="primary" type="submit">배정</button>
+        <button className="primary" disabled={!staff.length} type="submit">배정</button>
       </div>
     </form>
   );
