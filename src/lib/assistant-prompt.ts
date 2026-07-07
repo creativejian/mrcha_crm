@@ -6,6 +6,12 @@ export type PromptChunk = { customerName: string; customerStatus: string; conten
 // 갈라지면 같은 상황의 답변이 경로(직접 반환 vs 모델 생성)별로 달라진다.
 export const NO_HITS_ANSWER = "관련 CRM 데이터를 찾지 못했습니다.";
 
+// 범위 밖 질문 안내 문구 SSOT — 근거 0건에서 도구 라우팅까지 "해당 없음"(도구 불필요)으로 판단된 질문
+// (잡담·일반 지식, 예: "오늘 날씨?")에 라우트가 직접 반환한다. NO_HITS_ANSWER로 답하면 범위 밖 질문이
+// 고장처럼 읽히는 UX(2026-07-07 실기 지적) 대응. 라우팅 실패(null)는 진짜 CRM 질문일 수 있어 범위 밖
+// 단정 없이 기존 NO_HITS_ANSWER 유지 — 문구 선택은 라우트(/ask)가 라우터 판정으로 분기한다.
+export const OUT_OF_SCOPE_ANSWER = "CRM 업무 질문에 답하는 어시스턴트입니다. 고객·견적·일정·서류 등 업무 관련 질문을 해 주세요.";
+
 export const SYSTEM_PROMPT = [
   "당신은 자동차 CRM 상담사를 돕는 한국어 업무 어시스턴트입니다.",
   "아래에 제공된 근거(고객 메모·상담이력·니즈)만 사용해 답하세요. 근거에 없는 내용은 추측하지 마세요.",

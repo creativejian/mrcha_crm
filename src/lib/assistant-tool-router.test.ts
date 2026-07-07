@@ -10,15 +10,20 @@ function fakeFetch(parts: unknown[]): typeof fetch {
     new Response(JSON.stringify({ candidates: [{ content: { parts } }] }), { status: 200 })) as unknown as typeof fetch;
 }
 
-test("routeAssistantTool: functionCall 파트 → {key, params}", async () => {
+test("routeAssistantTool: functionCall 파트 → {kind: call, key, params}", async () => {
   const routed = await routeAssistantTool("앱을 통해서 들어온 고객은 누구야", target, {
     fetchImpl: fakeFetch([{ functionCall: { name: "search_customers", args: { source: "앱" } } }]),
   });
-  expect(routed).toEqual({ key: "search_customers", params: { source: "앱" } });
+  expect(routed).toEqual({ kind: "call", key: "search_customers", params: { source: "앱" } });
 });
 
-test("routeAssistantTool: 텍스트만(도구 불필요 판단) → null", async () => {
-  const routed = await routeAssistantTool("안녕", target, { fetchImpl: fakeFetch([{ text: "도구 없이 답변" }]) });
+test("routeAssistantTool: 텍스트만(도구 불필요 판단) → {kind: none} — 범위 밖 안내 문구 분기 신호", async () => {
+  const routed = await routeAssistantTool("오늘 날씨?", target, { fetchImpl: fakeFetch([{ text: "해당 없음" }]) });
+  expect(routed).toEqual({ kind: "none" });
+});
+
+test("routeAssistantTool: 빈 parts(이상 응답) → null — 실패는 범위 밖 단정 없이 NO_HITS 폴백", async () => {
+  const routed = await routeAssistantTool("q", target, { fetchImpl: fakeFetch([]) });
   expect(routed).toBeNull();
 });
 
@@ -33,7 +38,7 @@ test("routeAssistantTool: args 누락 → 빈 params", async () => {
   const routed = await routeAssistantTool("오늘 할 일", target, {
     fetchImpl: fakeFetch([{ functionCall: { name: "today_actions" } }]),
   });
-  expect(routed).toEqual({ key: "today_actions", params: {} });
+  expect(routed).toEqual({ kind: "call", key: "today_actions", params: {} });
 });
 
 test("routeAssistantTool: 업스트림 실패 → null(라우팅 실패는 NO_HITS 폴백 — 500으로 전파하지 않음)", async () => {
