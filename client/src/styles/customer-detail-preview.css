@@ -161,9 +161,6 @@ body.kim-detail-overlay-open .customer-detail-drawer {
   border-color: rgba(var(--brand-rgb), 0.34);
 }
 
-.kim-document-composer {
-  border-top-color: rgba(var(--brand-rgb), 0.12);
-}
 
 /* ── 앱카드 4섹션 미리보기(2026-07-04 리디자인, 디자인 4장 대조 반영) — 신규 app-card-* 문법.
    구 .kim-app-card 계열 룰은 dead(제거는 follow-up, 시각 회귀 0 원칙). ── */
