@@ -155,7 +155,9 @@ export function AiAssistantPanel({ thread, expanded, closing, onToggleExpand, on
         </div>
       </div>
       <div className="work-ai-compose">
+        {/* 팝오버 열림 = 이 컴포넌트 마운트(Topbar 조건부 렌더)라 autoFocus가 열릴 때마다 입력창 포커스. */}
         <input
+          autoFocus
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); void submitQuestion(); } }}
