@@ -25,7 +25,8 @@ export const SYSTEM_PROMPT = [
 export const TOOL_SYSTEM_PROMPT = [
   "당신은 자동차 CRM 상담사를 돕는 한국어 업무 어시스턴트입니다.",
   "아래에 제공된 리포트 조회 결과를 사용해 질문에 답하세요. 결과에 없는 내용은 추측하지 마세요.",
-  "답변은 간결한 한국어로, 목록은 항목별로 정리하세요.",
+  // "빠짐없이"는 실측 대응(2026-07-07): 계약완료 7건 조회에 모델이 5명만 나열 — 요약하며 항목을 떨어뜨림.
+  "답변은 간결한 한국어로, 목록은 조회 결과의 항목을 빠짐없이 나열하세요.",
   "조회 결과가 '조회 결과 없음'이면 해당하는 고객/항목이 없다고 답하세요.",
 ].join("\n");
 
@@ -36,6 +37,13 @@ export const TOOL_SYSTEM_PROMPT = [
 // NO_HITS 고정 문구로 도망갔다(근거가 있으니 오답) — 없음을 명시하고 지난 일정을 언급하게 지시.
 export function withTodayContext(prompt: string, now: Date = new Date()): string {
   return `${prompt}\n오늘은 ${kstDateLabel(now)}입니다. 근거의 날짜는 이 날짜 기준으로 과거/미래(예: 다음 일정)를 판단하세요. 다가올 일정을 묻는 질문에 미래 일정 근거가 없으면 예정된 일정이 없다고 답하고, 지난 일정 근거가 있으면 함께 언급하세요.`;
+}
+
+// 현재 로그인 사용자 컨텍스트 — 질문의 1인칭("나/내/제")을 해석할 기준(양 경로 공통, withTodayContext와
+// 짝). 도구 쪽 대응물은 current_user 리포트·search_customers의 mine 필터 — 프롬프트 주입만으로는 근거
+// 0건 고정 답변 경로(생성 미호출)를 못 바꾸므로 이 라인은 생성이 도는 경우의 맥락 보강이 역할이다.
+export function withCurrentUserContext(prompt: string, userLabel: string): string {
+  return `${prompt}\n현재 로그인 사용자는 ${userLabel}입니다. 질문의 '나/내/제'는 이 사용자를 뜻합니다.`;
 }
 
 // 검색된 청크를 번호 매긴 근거 블록으로.

@@ -15,13 +15,14 @@ import {
   updateAssistantMessageContent,
   type AssistantMessageRow,
 } from "../db/queries/assistant-messages";
+import { getStaffName } from "../db/queries/staff";
 import { embedTexts } from "../lib/gemini-embed";
 import { generateAnswer, generateAnswerStream } from "../lib/gemini-generate";
 import { resolveCustomerScope } from "../lib/assistant-scope";
 import { resolveGeminiTargetFromRequest, type GeminiTarget } from "../lib/gemini-target";
-import { ASSISTANT_TOOL_KEYS } from "../lib/assistant-tools";
+import { ASSISTANT_TOOL_KEYS, CRM_ROLE_LABELS } from "../lib/assistant-tools";
 import { routeAssistantTool } from "../lib/assistant-tool-router";
-import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, OUT_OF_SCOPE_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withTodayContext } from "../lib/assistant-prompt";
+import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, OUT_OF_SCOPE_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withCurrentUserContext, withTodayContext } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
 import { createSseLiveness } from "../lib/sse-liveness";
 import type { AuthVariables } from "../middleware/auth";
@@ -52,6 +53,7 @@ export type AssistantDeps = {
   searchEmbeddings: typeof searchEmbeddings;
   runAssistantTool: typeof runAssistantTool;
   routeAssistantTool: typeof routeAssistantTool;
+  getStaffName: typeof getStaffName;
   generateAnswer: typeof generateAnswer;
   generateAnswerStream: typeof generateAnswerStream;
   getCustomerMetaByIds: typeof getCustomerMetaByIds;
@@ -66,6 +68,7 @@ export const assistantDeps: AssistantDeps = {
   searchEmbeddings,
   runAssistantTool,
   routeAssistantTool,
+  getStaffName,
   generateAnswer,
   generateAnswerStream,
   getCustomerMetaByIds,
@@ -102,15 +105,15 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
 
   const staffUserId = c.var.user.id;
   try {
-    // 히스토리 로드는 임베딩→검색 체인과 독립 — 병렬로 시작해 원격 DB 왕복 1회분 지연을 없앤다.
+    // 히스토리·사용자 표시명 로드는 임베딩→검색 체인과 독립 — 병렬로 시작해 원격 DB 왕복 지연을 없앤다.
     // tool(빠른 질문 버튼 결정론) 지정 시 임베딩 검색 대신 리포트 쿼리를 같은 슬롯에서 병렬 실행.
     const scope = resolveCustomerScope(c.var.user);
     const toolKey = c.req.valid("json").tool;
-    const [history, retrieval] = await Promise.all([
+    const [history, retrieval, staffName] = await Promise.all([
       assistantDeps.listRecentMessages(staffUserId, HISTORY_LIMIT, c.var.db)
         .then((rows) => rows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))),
       toolKey
-        ? assistantDeps.runAssistantTool(toolKey, {}, scope, c.var.db)
+        ? assistantDeps.runAssistantTool(toolKey, {}, scope, c.var.user, c.var.db)
             .then((tool) => ({ hits: [] as Awaited<ReturnType<typeof searchEmbeddings>>, tool }))
         : assistantDeps.embedTexts([question], target, "RETRIEVAL_QUERY")
             .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db))
@@ -123,6 +126,7 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
               }
               return { hits: kept, tool: null };
             }),
+      assistantDeps.getStaffName(staffUserId, c.var.db),
     ]);
     let { tool } = retrieval;
     const { hits } = retrieval;
@@ -135,7 +139,7 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
       const routed = await assistantDeps.routeAssistantTool(question, target, { history });
       if (routed?.kind === "call") {
         console.log(`[assistant] 도구 라우팅: ${routed.key}`, JSON.stringify(routed.params));
-        tool = await assistantDeps.runAssistantTool(routed.key, routed.params, scope, c.var.db);
+        tool = await assistantDeps.runAssistantTool(routed.key, routed.params, scope, c.var.user, c.var.db);
       } else if (routed?.kind === "none") {
         console.log("[assistant] 도구 라우팅: 해당 없음(범위 밖 판단 — 안내 문구)");
         outOfScope = true;
@@ -158,8 +162,10 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
           sourceType: h.sourceType, snippet: h.content.slice(0, 120),
         }));
 
-    // 오늘 날짜(KST) 컨텍스트 — 일정 청크 등 절대 날짜 근거의 과거/미래 판단 기준(양 경로 공통).
-    const systemPrompt = withTodayContext(tool ? TOOL_SYSTEM_PROMPT : SYSTEM_PROMPT);
+    // 오늘 날짜(KST)·현재 사용자 컨텍스트 — 절대 날짜 근거의 과거/미래 판단 기준 + 1인칭("나/내") 해석
+    // 기준(양 경로 공통). 표시명 미상(profiles 없음)이어도 역할 라벨은 항상 실린다.
+    const userLabel = `${staffName ?? "이름 미상"}(${CRM_ROLE_LABELS[c.var.user.role] ?? c.var.user.role})`;
+    const systemPrompt = withCurrentUserContext(withTodayContext(tool ? TOOL_SYSTEM_PROMPT : SYSTEM_PROMPT), userLabel);
     // promptChunks 0건일 때의 고정 답변 — 범위 밖 판단(라우터 none)만 안내 문구, 그 외는 기존 NO_HITS.
     const emptyAnswer = outOfScope ? OUT_OF_SCOPE_ANSWER : NO_HITS_ANSWER;
 
