@@ -1,15 +1,24 @@
 // 발송 payload 서버 조립기 — 발송 시 앱카드 "라벨 완성본"을 public.advisor_quotes.payload로 스냅샷한다.
 // 앱은 재계산·재포맷 없이 그대로 렌더한다(발송본 고정 — 계약: ref/2026-07-05-app-advisor-quotes-handoff.md 2절).
 //
-// ⚠️ 라벨 파리티 tripwire: 아래 라벨 로직·문구·포맷은 클라 buildAppCardModel(client/src/lib/app-card.ts)에서
-// 복사한 재현본이다. 파리티 테스트(client/src/lib/app-card-payload-parity.test.ts)가 드리프트를 잡는다 —
-// doc-types 파리티 가드와 같은 원칙. 카드 라벨/필드 변경 시 갱신 대상 3곳:
+// ⚠️ 라벨 파리티 tripwire: 라벨 헬퍼는 클라와 물리 공유(client/src/lib/app-card-labels.ts — 2026-07-07,
+// 구 "클라 재현 복사본" ~150줄 해소). 조립기 자체는 클라 buildAppCardModel과 2벌이라 파리티 테스트
+// (client/src/lib/app-card-payload-parity.test.ts)가 출력 드리프트를 계속 잡는다. 카드 라벨/필드 변경 시
+// 갱신 대상 3곳:
 //   ① 이 서버 조립기 — payload 스냅샷 생산
 //   ② 인계문 payload 계약표 ref/2026-07-05-app-advisor-quotes-handoff.md 2절 — Flutter가 소비하는 계약 SSOT
 //   ③ Flutter 앱(mr-cha-app) 렌더 위젯 — payload 소비자
 //
-// 순수 모듈: drizzle/클라 import 금지(입력은 DB 행 모양의 구조적 타입), Node/bun 전용 API 금지.
+// 순수 모듈: drizzle import 금지(입력은 DB 행 모양의 구조적 타입), Node/bun 전용 API 금지. 클라 import는
+// **부작용 0 순수 모듈만** 허용(app-card-labels·quote-pricing — AGENTS.md 경계 규칙. http/supabase 체인 금지).
 // vitest(클라 테스트)가 상대경로로 import해 클라 조립기와 파리티 비교한다.
+
+import { CALC_PENDING, NO_SOURCE, acquisitionTaxModeLabelOf, downPaymentRowLabelOf, formatTerm, mileageLabelOf, moneyLabelOf, moneyModeLabel, numOr, splitService, vehicleTitleOf } from "../../client/src/lib/app-card-labels";
+import { formatMoney } from "../../client/src/lib/quote-pricing";
+
+// 업무 AI 견적 청크 빌더(assistant-corpus)가 재수출로 소비하던 순수 헬퍼 — 공유 모듈로 이동 후에도
+// 기존 import 경로 호환을 위해 re-export(소비처: assistant-corpus·자체 테스트).
+export { formatMoney, formatTerm, numOr, vehicleTitleOf };
 
 // crm.quotes 행 모양(조립에 필요한 필드만 — drizzle numeric 컬럼은 string|null, jsonb는 unknown).
 export type AdvisorPayloadQuoteRow = {
@@ -97,7 +106,7 @@ export type AdvisorQuotePayload = {
   hasScenario: boolean;
   lenderLabel: string;
   downPaymentLabel: string;
-  // 행 라벨 자체가 값 — 할부면 "선납금", 아니면 "선수금"(도메인 규칙, 클라 SSOT 재현)
+  // 행 라벨 자체가 값 — 할부면 "선납금", 아니면 "선수금"(도메인 규칙 — downPaymentRowLabelOf 물리 공유)
   downPaymentRowLabel: string;
   carTaxLabel: string;
   subsidyLabel: string;
@@ -112,75 +121,16 @@ export type AdvisorQuotePayload = {
   quoteCodeLabel: string;
 };
 
-// ── 클라 재현 상수·헬퍼(app-card.ts / quote-pricing.ts / quote-items.ts / customers.ts 복사본) ──
-
-const CALC_PENDING = "계산 후 안내";
-const NO_SOURCE = "—";
-const TAX_MODE_LABELS: Record<string, string> = {
-  normal: "일반", hybrid: "하이브리드 감면", electric: "전기차 감면", manual: "직접 입력",
-};
-
-// 클라 quote-pricing.ts formatMoney 재현
-export function formatMoney(value: number): string {
-  return Math.round(value)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
-// 클라 quote-items.ts formatTerm 재현
-export function formatTerm(termMonths: number | null): string {
-  return termMonths != null ? `${termMonths}개월` : "조건 미정";
-}
-
-export function numOr(raw: string | null | undefined): number | null {
-  if (raw == null || raw === "") return null;
-  const n = Number(raw);
-  return Number.isNaN(n) ? null : n;
-}
+// ── 서버 전용 헬퍼(공유 모듈 대상 아님) ──────────────────────────────────────
 
 // 클라 수정 프리필(useQuoteWorkbench openEditQuote)의 Number(dq.x ?? 0) 변환 재현 — null/빈 문자열은 0.
 function toNum(raw: string | null): number {
   return Number(raw ?? 0);
 }
 
-function moneyLabelOf(raw: string | null | undefined, fallback: string): string {
-  const n = numOr(raw);
-  return n == null ? fallback : `${formatMoney(n)}원`;
-}
-
-// 모델+트림 표시명. 카탈로그 트림명이 모델명을 접두로 포함하는 경우(BMW 등) 중복 없이 트림명만 쓴다.
-export function vehicleTitleOf(modelName: string | null, trimName: string | null): string {
-  const model = modelName?.trim() ?? "";
-  const trim = trimName?.trim() ?? "";
-  if (!model && !trim) return "차량 미선택";
-  if (!model) return trim;
-  if (!trim) return model;
-  return trim.startsWith(model) ? trim : `${model} ${trim}`;
-}
-
-// mode+value 병기 포맷. percent 금액 환산 기준 = finalVehiclePrice(0이면 %만).
-// percentFirst: 보증금/선수금 "(20%) 28,560,000원" ↔ 잔존가치 "82,824,000원 (58%)" 어순.
-function moneyModeLabel(
-  mode: string | null | undefined,
-  value: string | null | undefined,
-  finalVehiclePrice: number,
-  opts: { noneLabel: string; percentFirst: boolean },
-): string {
-  if (mode == null || mode === "none") return opts.noneLabel;
-  if (mode === "max") return "최대";
-  if (mode === "percent") {
-    const v = numOr(value);
-    if (v == null) return opts.noneLabel;
-    if (!finalVehiclePrice) return `${v}%`;
-    const amount = `${formatMoney(Math.round(finalVehiclePrice * v / 100))}원`;
-    return opts.percentFirst ? `(${v}%) ${amount}` : `${amount} (${v}%)`;
-  }
-  const n = numOr(value);
-  return n == null ? opts.noneLabel : `${formatMoney(n)}원`;
-}
-
 // 푸터 발송시각 — 클라 formatActivity("YY/MM/DD HH:mm") 재현. 단 클라는 브라우저 로컬(KST) 기준이고
 // 서버 런타임(CF Workers)은 UTC라 로컬 타임존을 쓰면 9시간 어긋난다 → KST(+09:00, 한국은 DST 없음) 고정 환산.
+// 타임존 semantics가 달라 클라(stampLabelOf = formatActivity 폴백)와 공유하지 않는다(공유 모듈 주석 참조).
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 export function stampLabelOf(iso: string): string {
   const t = new Date(iso).getTime();
@@ -188,20 +138,6 @@ export function stampLabelOf(iso: string): string {
   const d = new Date(t + KST_OFFSET_MS);
   const p = (n: number) => String(n).padStart(2, "0");
   return `${String(d.getUTCFullYear()).slice(2)}/${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
-}
-
-// "20,000km / 년" → "연 20,000km"(디자인 표기). "/" 앞부분에 "연 " 접두, 빈 head면 원문 유지.
-function mileageLabelOf(raw: string | null | undefined): string {
-  if (!raw) return "연 20,000km";
-  const head = raw.split("/")[0]?.trim();
-  return head ? `연 ${head}` : raw;
-}
-
-// "썬팅: 후퍼옵틱 …" → {label: "썬팅", value: "후퍼옵틱 …"}. 콜론 없으면 label 없이 전체.
-function splitService(raw: string): { label: string; value: string } {
-  const idx = raw.indexOf(":");
-  if (idx === -1) return { label: "", value: raw.trim() };
-  return { label: raw.slice(0, idx).trim(), value: raw.slice(idx + 1).trim() };
 }
 
 // jsonb 배열([{...}])에서 string 필드만 추출 — DB jsonb는 unknown이라 좁혀서 읽는다.
@@ -315,7 +251,7 @@ export function buildAdvisorQuotePayload(
     optionTotalLabel: formatMoney(optionTotal),
     finalVehiclePriceLabel: formatMoney(finalVehiclePrice),
     acquisitionTaxLabel: formatMoney(acquisitionTax),
-    acquisitionTaxModeLabel: TAX_MODE_LABELS[q.acquisitionTaxMode ?? "normal"] ?? TAX_MODE_LABELS.normal,
+    acquisitionTaxModeLabel: acquisitionTaxModeLabelOf(q.acquisitionTaxMode),
     bondLabel: formatMoney(bond),
     deliveryFeeLabel: formatMoney(delivery),
     incidentalLabel: formatMoney(incidental),
@@ -324,7 +260,7 @@ export function buildAdvisorQuotePayload(
     hasScenario: sc != null,
     lenderLabel: sc?.lender ?? "금융사 미정",
     downPaymentLabel: sc ? moneyModeLabel(sc.downPaymentMode, sc.downPaymentValue, finalVehiclePrice, { noneLabel: "없음", percentFirst: true }) : "없음",
-    downPaymentRowLabel: purchaseMethod === "할부" ? "선납금" : "선수금",
+    downPaymentRowLabel: downPaymentRowLabelOf(purchaseMethod),
     carTaxLabel: sc?.carTaxIncluded === true ? "포함" : "불포함",
     subsidyLabel: sc?.subsidyApplicable === true ? moneyLabelOf(sc.subsidyAmount, NO_SOURCE) : "해당 없음",
     rateLabel: rate != null ? `${rate}%` : NO_SOURCE,
