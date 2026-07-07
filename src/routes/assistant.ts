@@ -22,6 +22,7 @@ import { resolveCustomerScope } from "../lib/assistant-scope";
 import { resolveGeminiTargetFromRequest, type GeminiTarget } from "../lib/gemini-target";
 import { ASSISTANT_TOOL_KEYS, CRM_ROLE_LABELS } from "../lib/assistant-tools";
 import { routeAssistantTool } from "../lib/assistant-tool-router";
+import { stripChunkCustomerPrefix } from "../lib/assistant-corpus";
 import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, OUT_OF_SCOPE_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withCurrentUserContext, withTodayContext } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
 import { createSseLiveness } from "../lib/sse-liveness";
@@ -148,19 +149,19 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
     // 도구 결과는 근거 블록 1청크로 — 0건도 "조회 결과 없음"으로 실어 NO_HITS(고정 답변)가 아니라
     // 모델이 "해당 없음"을 정리하게 한다(리포트 질문에 "데이터를 못 찾았다"는 오답).
+    // content의 "고객 {이름} " 접두는 표시 라벨(customerName)과 중복이라 벗긴다(재임베딩 불필요 — 표시 시점만).
     const promptChunks = tool
       ? [{ customerName: tool.label, customerStatus: "리포트", content: tool.lines.length ? tool.lines.join("\n") : "조회 결과 없음" }]
-      : hits.map((h) => ({
-          customerName: metaById.get(h.customerId)?.name ?? "고객",
-          customerStatus: metaById.get(h.customerId)?.status ?? "",
-          content: h.content,
-        }));
+      : hits.map((h) => {
+          const name = metaById.get(h.customerId)?.name ?? "고객";
+          return { customerName: name, customerStatus: metaById.get(h.customerId)?.status ?? "", content: stripChunkCustomerPrefix(h.content, name) };
+        });
     const sources = tool
       ? [{ customerId: "", customerName: "리포트", sourceType: "tool", snippet: `${tool.label} — ${tool.lines.length}건 조회` }]
-      : hits.map((h) => ({
-          customerId: h.customerId, customerName: metaById.get(h.customerId)?.name ?? "고객",
-          sourceType: h.sourceType, snippet: h.content.slice(0, 120),
-        }));
+      : hits.map((h) => {
+          const name = metaById.get(h.customerId)?.name ?? "고객";
+          return { customerId: h.customerId, customerName: name, sourceType: h.sourceType, snippet: stripChunkCustomerPrefix(h.content, name).slice(0, 120) };
+        });
 
     // 오늘 날짜(KST)·현재 사용자 컨텍스트 — 절대 날짜 근거의 과거/미래 판단 기준 + 1인칭("나/내") 해석
     // 기준(양 경로 공통). 표시명 미상(profiles 없음)이어도 역할 라벨은 항상 실린다.
