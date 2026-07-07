@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, regionFromResidence, sanitizeQuoteGuidance } from "./quote-guidance";
+import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, QUOTE_GUIDANCE_OPTIONS, regionFromResidence, sanitizeQuoteGuidance } from "./quote-guidance";
 
 describe("normalizeQuoteGuidance", () => {
   it("legacy keyPoint(단일 문자열)를 keyPoints 배열로 변환한다", () => {
@@ -29,14 +29,32 @@ describe("sanitizeQuoteGuidance", () => {
   });
 });
 
+describe("customerRegion 옵션", () => {
+  it("거주지 regionOptions(전국 17개 시·도)에서 파생한다 — 도 단위 포함", () => {
+    const options = QUOTE_GUIDANCE_OPTIONS.customerRegion;
+    // 앞뒤 센티널
+    expect(options[0]).toBe("확인 필요");
+    expect(options.at(-1)).toBe("기타");
+    // 이전엔 빠져 있던 도 단위/광역시가 전부 포함된다
+    for (const region of ["울산광역시", "강원도", "충북", "충남(세종)", "경북", "경남", "전북", "전남", "제주"]) {
+      expect(options).toContain(region);
+    }
+  });
+});
+
 describe("regionFromResidence", () => {
-  it("거주지 문자열에서 지역 옵션을 파생한다", () => {
-    expect(regionFromResidence("인천광역시")).toBe("인천");
-    expect(regionFromResidence("서울특별시 강남구")).toBe("서울");
-    expect(regionFromResidence("경기도 성남시")).toBe("경기");
+  it("거주지 시·도 정식명을 그대로 파생한다(거주지 어휘와 일치)", () => {
+    expect(regionFromResidence("인천광역시")).toBe("인천광역시");
+    expect(regionFromResidence("서울특별시 강남구")).toBe("서울특별시");
+    expect(regionFromResidence("경기도 · 성남시")).toBe("경기도");
+  });
+  it("이제 전국 도 단위도 파생된다(전북/전남/울산 등)", () => {
+    expect(regionFromResidence("전북 · 전주시")).toBe("전북");
+    expect(regionFromResidence("전남 · 목포시")).toBe("전남");
+    expect(regionFromResidence("울산광역시")).toBe("울산광역시");
   });
   it("옵션에 없는 지역은 기타", () => {
-    expect(regionFromResidence("울산광역시")).toBe("기타");
+    expect(regionFromResidence("해외")).toBe("기타");
   });
   it("미입력/placeholder는 확인 필요", () => {
     expect(regionFromResidence(null)).toBe("확인 필요");

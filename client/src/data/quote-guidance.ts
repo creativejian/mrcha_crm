@@ -1,3 +1,15 @@
+import { regionOptions } from "@/lib/status-fields";
+
+// 견적 "고객 지역" 선택지 = 거주지 편집(regionOptions)의 시·도 목록을 단일 소스로 파생한다.
+// 두 화면(거주지 수정·견적 고객 지역)의 어휘를 일치시켜 ①전국 17개 시·도를 자동 지원하고
+// ②regionFromResidence의 파생 매칭이 거주지와 같은 어휘로 정확히 맞아떨어지게 한다.
+// 라벨은 regionOptions 키 그대로(정식명/축약 혼재) — 앱카드에 그 값이 표시된다.
+const CUSTOMER_REGION_OPTIONS: readonly string[] = [
+  "확인 필요",
+  ...Object.keys(regionOptions).filter((region) => region !== "확인 필요"),
+  "기타",
+];
+
 export type QuoteGuidance = {
   deliveryComment: string;
   stockNotice: string;
@@ -17,7 +29,7 @@ export const QUOTE_GUIDANCE_OPTIONS = {
   ],
   stockNotice: ["재고 확인 필요", "즉시 출고 가능", "배정 대기", "주문 필요"],
   expectedDelivery: ["확인 후 안내", "1주일 이내", "2주 이내", "1개월 이내", "1개월 이상"],
-  customerRegion: ["확인 필요", "서울", "인천", "경기", "부산", "대구", "광주", "대전", "기타"],
+  customerRegion: CUSTOMER_REGION_OPTIONS,
   keyPoint: [
     "잔존가치 최대 조건으로 월 납입금을 낮춘 조건입니다.",
     "초기 부담을 낮추는 조건입니다.",
@@ -61,9 +73,10 @@ export function normalizeQuoteGuidance(
   };
 }
 
-// 고객 거주지(crm.customers.residence, 예: "인천광역시") → 카드 고객 지역 옵션 파생.
+// 고객 거주지(crm.customers.residence, 예: "인천광역시 · 남동구") → 카드 고객 지역 옵션 파생.
 // 미입력/placeholder는 "확인 필요"(임의 지역을 확정 표기하지 않는다 — 잘못된 정보 발송 방지),
-// 옵션 밖 실지역(울산 등)은 "기타". 신규 워크벤치 기본값 시드용 — 저장된 guidance는 불변.
+// 전국 17개 시·도(CUSTOMER_REGION_OPTIONS)를 포함하므로 매칭되면 그 시·도 정식명을 그대로 반환하고,
+// 옵션 밖 실지역(해외 등)만 "기타". 신규 워크벤치 기본값 시드용 — 저장된 guidance는 불변.
 export function regionFromResidence(residence: string | null | undefined): string {
   const raw = residence?.trim() ?? "";
   if (!raw || raw === "확인 필요" || raw === "미정") return "확인 필요";
