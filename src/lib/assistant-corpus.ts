@@ -34,6 +34,14 @@ export function buildChunkContent(row: CorpusRow): string {
   return `고객 ${row.customerName} ${LABEL[row.sourceType]}: ${row.text}`;
 }
 
+// buildChunkContent의 "고객 {이름} " 접두를 근거 표시용으로 벗긴다 — 근거 목록/프롬프트는 고객명을
+// 별도 라벨로 이미 붙이므로("김지안 · …") 접두를 그대로 두면 "김지안 · 고객 김지안 견적:"처럼 중복된다.
+// 임베딩 content 자체는 불변(검색 컨텍스트 유지) — 표시 시점에만 벗겨 재임베딩이 필요 없다.
+export function stripChunkCustomerPrefix(content: string, customerName: string): string {
+  const prefix = `고객 ${customerName} `;
+  return content.startsWith(prefix) ? content.slice(prefix.length) : content;
+}
+
 // content 스냅샷 해시(재임베딩 skip 판단용).
 export function contentHash(content: string): string {
   return createHash("sha256").update(content).digest("hex");

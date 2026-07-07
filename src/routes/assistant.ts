@@ -22,6 +22,7 @@ import { resolveCustomerScope } from "../lib/assistant-scope";
 import { resolveGeminiTargetFromRequest, type GeminiTarget } from "../lib/gemini-target";
 import { ASSISTANT_TOOL_KEYS, CRM_ROLE_LABELS } from "../lib/assistant-tools";
 import { routeAssistantTool } from "../lib/assistant-tool-router";
+import { stripChunkCustomerPrefix } from "../lib/assistant-corpus";
 import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, OUT_OF_SCOPE_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withCurrentUserContext, withTodayContext } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
 import { createSseLiveness } from "../lib/sse-liveness";
@@ -130,17 +131,18 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     ]);
     let { tool } = retrieval;
     const { hits } = retrieval;
-    // PR2 자유 질문 라우팅 — RAG 근거 0건(기존 NO_HITS 지점)에서만 1차 판단 호출. 근거가 잡히는
-    // 질문은 라우팅 자체가 없어(RAG 우선) 오라우팅이 구조적으로 불가(골든 가드). 판정 3갈래는
-    // 라우터(RoutedToolDecision) 주석 참조 — none(도구 불필요 = 범위 밖 판단)만 안내 문구로 구분하고,
-    // 실패(null)는 범위 밖 단정 없이 기존 NO_HITS 폴백.
+    // 자유 질문 라우팅 — 근거 유무와 무관하게 먼저 판단한다(2026-07-07 이사님 결정, 구 "근거 0건에서만"에서
+    // 확장). "김지안 견적 몇 개"처럼 집계/목록 질문은 RAG 근거가 잡혀도(hits>0) top-k 나열론 개수를 정확히
+    // 세지 못해 환각하므로, 라우터가 도구로 판단하면(call) 근거를 대체해 도구 결과로 답한다. 서술형·잡담은
+    // 라우터가 none/null이라 기존 RAG 경로(hits)를 그대로 탄다 — 오라우팅 방지는 라우터 프롬프트+골든 테스트가
+    // 잠근다. none(도구 불필요=범위 밖)은 근거도 0건일 때만 안내 문구(근거가 있으면 RAG로 답할 수 있으므로).
     let outOfScope = false;
-    if (!tool && hits.length === 0) {
+    if (!tool) {
       const routed = await assistantDeps.routeAssistantTool(question, target, { history });
       if (routed?.kind === "call") {
         console.log(`[assistant] 도구 라우팅: ${routed.key}`, JSON.stringify(routed.params));
         tool = await assistantDeps.runAssistantTool(routed.key, routed.params, scope, c.var.user, c.var.db);
-      } else if (routed?.kind === "none") {
+      } else if (routed?.kind === "none" && hits.length === 0) {
         console.log("[assistant] 도구 라우팅: 해당 없음(범위 밖 판단 — 안내 문구)");
         outOfScope = true;
       }
@@ -148,19 +150,19 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
     // 도구 결과는 근거 블록 1청크로 — 0건도 "조회 결과 없음"으로 실어 NO_HITS(고정 답변)가 아니라
     // 모델이 "해당 없음"을 정리하게 한다(리포트 질문에 "데이터를 못 찾았다"는 오답).
+    // content의 "고객 {이름} " 접두는 표시 라벨(customerName)과 중복이라 벗긴다(재임베딩 불필요 — 표시 시점만).
     const promptChunks = tool
       ? [{ customerName: tool.label, customerStatus: "리포트", content: tool.lines.length ? tool.lines.join("\n") : "조회 결과 없음" }]
-      : hits.map((h) => ({
-          customerName: metaById.get(h.customerId)?.name ?? "고객",
-          customerStatus: metaById.get(h.customerId)?.status ?? "",
-          content: h.content,
-        }));
+      : hits.map((h) => {
+          const name = metaById.get(h.customerId)?.name ?? "고객";
+          return { customerName: name, customerStatus: metaById.get(h.customerId)?.status ?? "", content: stripChunkCustomerPrefix(h.content, name) };
+        });
     const sources = tool
       ? [{ customerId: "", customerName: "리포트", sourceType: "tool", snippet: `${tool.label} — ${tool.lines.length}건 조회` }]
-      : hits.map((h) => ({
-          customerId: h.customerId, customerName: metaById.get(h.customerId)?.name ?? "고객",
-          sourceType: h.sourceType, snippet: h.content.slice(0, 120),
-        }));
+      : hits.map((h) => {
+          const name = metaById.get(h.customerId)?.name ?? "고객";
+          return { customerId: h.customerId, customerName: name, sourceType: h.sourceType, snippet: stripChunkCustomerPrefix(h.content, name).slice(0, 120) };
+        });
 
     // 오늘 날짜(KST)·현재 사용자 컨텍스트 — 절대 날짜 근거의 과거/미래 판단 기준 + 1인칭("나/내") 해석
     // 기준(양 경로 공통). 표시명 미상(profiles 없음)이어도 역할 라벨은 항상 실린다.

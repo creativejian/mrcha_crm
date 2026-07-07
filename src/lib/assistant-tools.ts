@@ -6,7 +6,7 @@
 // 도구 정의는 07-06 이사님 컨펌 완료(①quote_ready 의도대로 ②delivery_risk: 계약완료="출고 준비·정산
 // 준비" 개념 — 출고/정산 화면 구현 후 데이터 기반으로 교체 ③chance=상담사 수동 입력값). 스펙 참조.
 
-export const ASSISTANT_TOOL_KEYS = ["today_actions", "chance_ranking", "stale_customers", "quote_ready", "delivery_risk", "search_customers", "current_user"] as const;
+export const ASSISTANT_TOOL_KEYS = ["today_actions", "chance_ranking", "stale_customers", "quote_ready", "delivery_risk", "search_customers", "current_user", "customer_quotes"] as const;
 export type AssistantToolKey = (typeof ASSISTANT_TOOL_KEYS)[number];
 
 // 근거 표시(sources)와 프롬프트 블록 헤더에 쓰는 한글 라벨.
@@ -18,6 +18,7 @@ export const ASSISTANT_TOOL_LABELS: Record<AssistantToolKey, string> = {
   delivery_risk: "출고/정산 리스크",
   search_customers: "고객 검색",
   current_user: "내 정보",
+  customer_quotes: "고객 견적 목록",
 };
 
 // CRM 역할 한글 라벨 — /ask 프롬프트 사용자 컨텍스트·current_user 리포트가 공유. 어휘 = auth CRM_ROLES
@@ -59,6 +60,15 @@ const TOOL_DECLARATION_DEFS: Record<AssistantToolKey, ToolDeclarationDef> = {
     },
   },
   current_user: { description: "현재 로그인한 사용자(나)가 누구인지 조회한다 — 이름·역할·담당 고객 수. '난 누구야?', '내 계정/역할 뭐야?' 류 질문." },
+  customer_quotes: {
+    description: "특정 고객이 작성/발송한 견적 목록을 조회한다 — 견적 코드·차종·발송 상태(작성중/발송완료/고객 열람). '○○ 견적 몇 개야', '무슨 견적 있어', '어떤 차종으로 견적 넣었어', '발송한 견적' 류 질문. 견적의 개수·차종·상태를 물으면 반드시 이 함수를 쓴다(고객 검색 아님).",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "견적을 조회할 고객 이름 부분 일치" },
+      },
+    },
+  },
 };
 // 배열은 KEYS 순서로 파생 — 기존 리터럴 배열과 요청 payload byte-동일.
 export const ASSISTANT_TOOL_DECLARATIONS = ASSISTANT_TOOL_KEYS.map((name) => ({ name, ...TOOL_DECLARATION_DEFS[name] }));

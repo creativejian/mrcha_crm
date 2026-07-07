@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 
-import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildQuoteRequestChunkText, buildScheduleChunkText, contentHash, type CorpusRow, type CustomerProfileChunkCustomer, type DocumentChunkDocument, type QuoteChunkQuote, type QuoteChunkScenario, type QuoteRequestChunkRequest, type ScheduleChunkSchedule } from "./assistant-corpus";
+import { buildChunkContent, stripChunkCustomerPrefix, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildQuoteChunkText, buildQuoteRequestChunkText, buildScheduleChunkText, contentHash, type CorpusRow, type CustomerProfileChunkCustomer, type DocumentChunkDocument, type QuoteChunkQuote, type QuoteChunkScenario, type QuoteRequestChunkRequest, type ScheduleChunkSchedule } from "./assistant-corpus";
 import { dateLabelOf, kstDateLabel } from "./kst-date";
 
 test("buildChunkContent: 소스타입별 라벨 + 고객명 + 본문", () => {
@@ -11,6 +11,13 @@ test("buildChunkContent: 소스타입별 라벨 + 고객명 + 본문", () => {
 test("buildChunkContent: need_review_note 라벨", () => {
   const row: CorpusRow = { sourceType: "need_review_note", sourceId: "c1", customerId: "c1", customerName: "박서연", text: "보증금 30% 검토" };
   expect(buildChunkContent(row)).toBe("고객 박서연 심사메모: 보증금 30% 검토");
+});
+
+test("stripChunkCustomerPrefix: '고객 {이름} ' 접두 제거(타입 라벨은 유지)", () => {
+  expect(stripChunkCustomerPrefix("고객 김지안 견적: QT-2607-0005 · BMW", "김지안")).toBe("견적: QT-2607-0005 · BMW");
+  expect(stripChunkCustomerPrefix("고객 김지안 프로필: 거주지 서울", "김지안")).toBe("프로필: 거주지 서울");
+  // 이름 불일치(표시 폴백 '고객' 등)면 원문 유지 — 잘못 벗기지 않는다.
+  expect(stripChunkCustomerPrefix("고객 김지안 견적: X", "고객")).toBe("고객 김지안 견적: X");
 });
 
 test("contentHash: 같은 문자열 같은 해시, 다르면 다름", () => {
