@@ -1129,7 +1129,8 @@ export function useQuoteWorkbench({
     setSourceQuoteRequestId(null);
     resetWorkbenchVehicle();
     resetWorkbenchPricing();
-    setGuidance(normalizeQuoteGuidance(dq?.guidance) ?? DEFAULT_QUOTE_GUIDANCE);
+    // 고객 지역은 저장본을 따르지 않고 항상 거주지에서 재파생 — 입력 UI를 없애 거주지가 단일 소스(발송 시 payload에 이 값이 박제).
+    setGuidance({ ...(normalizeQuoteGuidance(dq?.guidance) ?? DEFAULT_QUOTE_GUIDANCE), customerRegion: regionFromResidence(detail.residence) });
     setSolutionWorkbenchPurchaseMethod(normalizeQuotePurchaseMethod(quote.financeType));
     setSolutionWorkbenchEntryMode(quote.source === "solution" ? "solution" : quote.source === "original" ? "original" : "manual");
     setSolutionWorkbenchModeMenu(null);

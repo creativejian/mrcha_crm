@@ -49,9 +49,16 @@ const editTargetWithDiscounts = {
   ],
 };
 
+// 저장 guidance에 옛 고객 지역("확인 필요")이 박힌 견적 — 수정 진입 시 거주지 파생으로 덮이는지 검증.
+const editStaleRegionQuote = {
+  ...editTargetQuote,
+  id: "q-edit-3",
+  guidance: { deliveryComment: "", stockNotice: "", expectedDelivery: "", customerRegion: "확인 필요", keyPoints: [], recommendReason: "", services: [] },
+};
+
 const detail = {
-  residence: "서울 강남구",
-  quotes: [editTargetQuote, editTargetWithDiscounts],
+  residence: "인천광역시 · 남동구",
+  quotes: [editTargetQuote, editTargetWithDiscounts, editStaleRegionQuote],
 } as unknown as CustomerDetailData;
 const customer = { customerId: "CU-TEST-0001", name: "테스트" } as Customer;
 
@@ -124,6 +131,14 @@ describe("useQuoteWorkbench — 오픈/리셋 경로의 카드 UI 상태 잔상 
     act(() => result.current.handlers.resetQuoteWorkbench());
     expectCardUiCleared(result);
     expect(result.current.guidance).toEqual({ ...DEFAULT_QUOTE_GUIDANCE, customerRegion: regionFromResidence(detail.residence) });
+  });
+
+  it("openEditQuote(수정 진입)가 저장된 고객 지역을 무시하고 거주지에서 재파생한다", () => {
+    const { result } = setup();
+    act(() => result.current.openEditQuote(editStaleRegionQuote as unknown as QuoteItem));
+    // 저장본 customerRegion은 "확인 필요"지만 거주지(인천광역시 · 남동구, 구/시까지)로 덮인다.
+    expect(result.current.guidance.customerRegion).toBe("인천광역시 남동구");
+    expect(result.current.guidance.customerRegion).toBe(regionFromResidence(detail.residence));
   });
 
   it("openWorkbenchForQuoteRequest(승격)가 잔상을 청소한 뒤 시드 모드만 남긴다", async () => {

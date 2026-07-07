@@ -30,13 +30,14 @@ describe("sanitizeQuoteGuidance", () => {
 });
 
 describe("regionFromResidence", () => {
-  it("거주지 문자열에서 지역 옵션을 파생한다", () => {
-    expect(regionFromResidence("인천광역시")).toBe("인천");
-    expect(regionFromResidence("서울특별시 강남구")).toBe("서울");
-    expect(regionFromResidence("경기도 성남시")).toBe("경기");
+  it("거주지를 구/시까지 그대로 반환하고 구분자 ·는 공백으로 정리한다", () => {
+    expect(regionFromResidence("인천광역시 · 남동구")).toBe("인천광역시 남동구");
+    expect(regionFromResidence("경기도 · 성남시")).toBe("경기도 성남시");
+    expect(regionFromResidence("전북 · 전주시")).toBe("전북 전주시");
   });
-  it("옵션에 없는 지역은 기타", () => {
-    expect(regionFromResidence("울산광역시")).toBe("기타");
+  it("시·도만 있으면 그대로 반환한다", () => {
+    expect(regionFromResidence("인천광역시")).toBe("인천광역시");
+    expect(regionFromResidence("울산광역시")).toBe("울산광역시");
   });
   it("미입력/placeholder는 확인 필요", () => {
     expect(regionFromResidence(null)).toBe("확인 필요");
