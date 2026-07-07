@@ -1,3 +1,4 @@
+import { dedupedModelTrim, formatTerm } from "./app-card-labels";
 import { formatActivity } from "./customers";
 import { normalizeQuoteGuidance, type QuoteGuidance } from "@/data/quote-guidance";
 
@@ -160,15 +161,10 @@ function pickPrimaryScenario(q: CustomerDetailQuote): CustomerDetailScenario | n
   return [...q.scenarios].sort((a, b) => (a.scenarioNo ?? 0) - (b.scenarioNo ?? 0))[0];
 }
 
-// 카탈로그 트림명이 모델명을 접두로 포함하는 경우(BMW 등) 중복 제거 — 카드·견적함·워크벤치 공통 표시 규칙.
-// 둘 다 없으면 빈 문자열(폴백 문구는 호출부 소관 — 앱카드 "차량 미선택", 견적함 quoteCode 등).
-export function dedupedModelTrim(modelName?: string | null, trimName?: string | null): string {
-  const model = modelName?.trim() ?? "";
-  const trim = trimName?.trim() ?? "";
-  if (!model) return trim;
-  if (!trim) return model;
-  return trim.startsWith(model) ? trim : `${model} ${trim}`;
-}
+// dedupedModelTrim·downPaymentRowLabelOf·formatTerm은 서버 발송 조립기와 물리 공유하는 순수 모듈
+// (app-card-labels.ts — 이 파일은 customers→http 체인이 있어 서버가 직접 import 불가)로 이동.
+// 기존 클라 소비처 호환용 re-export(배치 라벨 공유 2026-07-07).
+export { dedupedModelTrim, downPaymentRowLabelOf, formatTerm } from "./app-card-labels";
 
 // 분리 렌더용(모델·트림을 각자 칸에 표시): 트림에서 모델명 접두를 걷어낸 나머지("" 가능 — 호출부가 숨김).
 export function trimWithoutModelPrefix(modelName?: string | null, trimName?: string | null): string {
@@ -176,16 +172,6 @@ export function trimWithoutModelPrefix(modelName?: string | null, trimName?: str
   const trim = trimName?.trim() ?? "";
   if (!trim) return "";
   return model && trim.startsWith(model) ? trim.slice(model.length).trim() : trim;
-}
-
-// 구매방식 종속 초기비용 행 라벨(이사님 도메인 규칙 표): 할부=선납금(금액만), 리스/렌트=선수금.
-// 앱카드 모델(app-card.ts)·견적함 요약 칩(QuoteList)이 공유 — 서버 조립기 복제본은 파리티 설계상 별도.
-export function downPaymentRowLabelOf(purchaseMethod?: string | null): "선납금" | "선수금" {
-  return purchaseMethod === "할부" ? "선납금" : "선수금";
-}
-
-export function formatTerm(termMonths: number | null): string {
-  return termMonths != null ? `${termMonths}개월` : "조건 미정";
 }
 
 export function formatMonthly(raw: string | null): string | undefined {

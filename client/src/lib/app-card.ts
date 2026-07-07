@@ -1,7 +1,20 @@
 import type { QuoteGuidance } from "@/data/quote-guidance";
+import {
+  CALC_PENDING,
+  NO_SOURCE,
+  acquisitionTaxModeLabelOf,
+  formatTerm,
+  mileageLabelOf,
+  moneyLabelOf,
+  moneyModeLabel,
+  numOr,
+  splitService,
+  vehicleTitleOf,
+  downPaymentRowLabelOf,
+} from "./app-card-labels";
 import { formatActivity } from "./customers";
 import type { ScenarioInput } from "./customer-quotes";
-import { dedupedModelTrim, downPaymentRowLabelOf, formatTerm, validLabelFromUntil } from "./quote-items";
+import { validLabelFromUntil } from "./quote-items";
 import { formatMoney } from "./quote-pricing";
 
 // 미리보기 카드 조립 입력. 워크벤치 state에서 추출한 스냅샷(순수 변환을 위해 원시값만 받는다).
@@ -92,49 +105,8 @@ export type AppCardModel = {
   quoteCodeLabel: string;
 };
 
-// 계산엔진 미연결 필드는 가짜 숫자 대신 정직한 안내 텍스트로 표시한다.
-const CALC_PENDING = "계산 후 안내";
-const NO_SOURCE = "—";
-const TAX_MODE_LABELS: Record<AppCardModelInput["acquisitionTaxMode"], string> = {
-  normal: "일반", hybrid: "하이브리드 감면", electric: "전기차 감면", manual: "직접 입력",
-};
-
-function numOr(raw: string | null | undefined): number | null {
-  if (raw == null || raw === "") return null;
-  const n = Number(raw);
-  return Number.isNaN(n) ? null : n;
-}
-
-function moneyLabelOf(raw: string | null | undefined, fallback: string): string {
-  const n = numOr(raw);
-  return n == null ? fallback : `${formatMoney(n)}원`;
-}
-
-// 모델+트림 표시명 — 중복 제거 규칙은 quote-items.dedupedModelTrim SSOT(견적함/워크벤치와 공유).
-function vehicleTitleOf(modelName: string | null, trimName: string | null): string {
-  return dedupedModelTrim(modelName, trimName) || "차량 미선택";
-}
-
-// mode+value 병기 포맷. percent 금액 환산 기준 = finalVehiclePrice(0이면 %만).
-// percentFirst: 보증금/선수금 "(20%) 28,560,000원" ↔ 잔존가치 "82,824,000원 (58%)" 어순.
-function moneyModeLabel(
-  mode: string | null | undefined,
-  value: string | null | undefined,
-  finalVehiclePrice: number,
-  opts: { noneLabel: string; percentFirst: boolean },
-): string {
-  if (mode == null || mode === "none") return opts.noneLabel;
-  if (mode === "max") return "최대";
-  if (mode === "percent") {
-    const v = numOr(value);
-    if (v == null) return opts.noneLabel;
-    if (!finalVehiclePrice) return `${v}%`;
-    const amount = `${formatMoney(Math.round(finalVehiclePrice * v / 100))}원`;
-    return opts.percentFirst ? `(${v}%) ${amount}` : `${amount} (${v}%)`;
-  }
-  const n = numOr(value);
-  return n == null ? opts.noneLabel : `${formatMoney(n)}원`;
-}
+// 공용 라벨 상수·포맷터(CALC_PENDING/moneyModeLabel 등)는 app-card-labels(서버 발송 조립기와 물리 공유)로
+// 이동 — 아래에는 클라 전용(부작용 체인·타임존 semantics 상이) 헬퍼만 남긴다.
 
 // 발송 전(valid_until 없음/무효)엔 갭ⓐ 정책 안내, 발송 후엔 견적함 목록과 동일 계산(validLabelFromUntil SSOT).
 function ddayLabelOf(validUntilIso: string | null, now: number): string {
@@ -142,22 +114,9 @@ function ddayLabelOf(validUntilIso: string | null, now: number): string {
 }
 
 // 푸터 발송시각 — 견적함 표시와 동일 포맷(formatActivity SSOT, "YY/MM/DD HH:mm"). 발송 전엔 프리뷰 표기.
+// 서버 조립기의 stampLabelOf(KST 고정 환산)와 타임존 semantics가 달라 공유 제외(브라우저 로컬 = 사용자 KST).
 function stampLabelOf(iso: string | null): string {
   return formatActivity(iso) || "발송 전 미리보기";
-}
-
-// "20,000km / 년" → "연 20,000km"(디자인 표기). "/" 앞부분에 "연 " 접두, 빈 head면 원문 유지.
-function mileageLabelOf(raw: string | null | undefined): string {
-  if (!raw) return "연 20,000km";
-  const head = raw.split("/")[0]?.trim();
-  return head ? `연 ${head}` : raw;
-}
-
-// "썬팅: 후퍼옵틱 …" → {label: "썬팅", value: "후퍼옵틱 …"}. 콜론 없으면 label 없이 전체.
-function splitService(raw: string): { label: string; value: string } {
-  const idx = raw.indexOf(":");
-  if (idx === -1) return { label: "", value: raw.trim() };
-  return { label: raw.slice(0, idx).trim(), value: raw.slice(idx + 1).trim() };
 }
 
 export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
@@ -205,7 +164,7 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     optionTotalLabel: formatMoney(input.optionTotal),
     finalVehiclePriceLabel: formatMoney(fvp),
     acquisitionTaxLabel: formatMoney(input.acquisitionTax),
-    acquisitionTaxModeLabel: TAX_MODE_LABELS[input.acquisitionTaxMode],
+    acquisitionTaxModeLabel: acquisitionTaxModeLabelOf(input.acquisitionTaxMode),
     bondLabel: formatMoney(input.bond),
     deliveryFeeLabel: formatMoney(input.delivery),
     incidentalLabel: formatMoney(input.incidental),
