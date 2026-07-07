@@ -56,6 +56,8 @@ const searchCustomersParams = z.object({
   mine: z.boolean().optional(),
 });
 
+const customerQuotesParams = z.object({ name: z.string().optional() });
+
 // params: 자유 질문 라우팅(PR2)의 모델 인자 — 버튼 결정론 경로(PR1)는 빈 객체를 넘긴다.
 // user: 현재 로그인 사용자(JWT) — current_user 리포트·mine 필터의 "나" 해석 기준(scope와 별개 식별자).
 export async function runAssistantTool(key: AssistantToolKey, params: Record<string, unknown>, scope: CustomerScope, user: AuthedUser, ex: Executor = getDefaultDb()): Promise<AssistantToolResult> {
@@ -182,6 +184,35 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       const role = profile?.role ?? user.role;
       const line = `${profile?.name?.trim() || "이름 미상"} — 역할 ${CRM_ROLE_LABELS[role] ?? role}(${role}) · 담당 고객 ${assigned?.n ?? 0}명`;
       return { label, lines: [line] };
+    }
+
+    // 특정 고객의 견적 목록(코드·차종·발송 상태) — crm.quotes 직접 조회. 견적 개수/차종 질문에
+    // search_customers(견적 미조회)로 답하던 모델 환각(존재하지 않는 코드·차종)의 근본 해법.
+    // quotes에 brand_name/model_name/trim_name 라벨 컬럼이 상주해 catalog 조인 불요.
+    case "customer_quotes": {
+      const parsed = customerQuotesParams.safeParse(params);
+      const f = parsed.success ? parsed.data : {};
+      const conds: SQL[] = [];
+      const sCond = scopeCond(scope);
+      if (sCond) conds.push(sCond);
+      if (f.name) conds.push(ilike(customers.name, `%${f.name}%`));
+      const rows = await ex
+        .select({
+          name: customers.name, code: quotes.quoteCode,
+          brand: quotes.brandName, model: quotes.modelName, trim: quotes.trimName,
+          appStatus: quotes.appStatus, viewedAt: quotes.viewedAt, createdAt: quotes.createdAt,
+        })
+        .from(quotes)
+        .innerJoin(customers, eq(customers.id, quotes.customerId))
+        .where(conds.length ? and(...conds) : undefined)
+        .orderBy(quotes.createdAt);
+      const lines = rows.map((r) => {
+        const car = [r.brand, r.model, r.trim].filter(Boolean).join(" ") || "차종 미정";
+        const state = r.appStatus === "sent" ? (r.viewedAt ? "발송완료·고객 열람" : "발송완료") : "작성중";
+        return `${r.name} · ${r.code} · ${car} · ${state}`;
+      });
+      const filterLabel = f.name ? `이름 ${f.name}` : "전체";
+      return { label: `${label}(${filterLabel})`, lines: capReportLines(lines) };
     }
   }
 }
