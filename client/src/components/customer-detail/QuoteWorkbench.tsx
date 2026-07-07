@@ -117,7 +117,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
   } = workbench.handlers;
 
   // controlled select Safari 병행 바인딩 규칙(실측 배경 포함)은 lib/select-bind.ts 참조.
-  const bindGuidanceSelect = (field: "deliveryComment" | "stockNotice" | "expectedDelivery" | "customerRegion") =>
+  const bindGuidanceSelect = (field: "deliveryComment" | "stockNotice" | "expectedDelivery") =>
     bindSelect(guidance[field], (v) => setGuidance((g) => ({ ...g, [field]: v })));
 
   if (!isQuoteSolutionWorkbenchOpen) return null;
@@ -505,12 +505,6 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                         <span>예상 출고 기간</span>
                         <select {...bindGuidanceSelect("expectedDelivery")}>
                           {QUOTE_GUIDANCE_OPTIONS.expectedDelivery.map((o) => <option key={o}>{o}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        <span>고객 지역</span>
-                        <select {...bindGuidanceSelect("customerRegion")}>
-                          {QUOTE_GUIDANCE_OPTIONS.customerRegion.map((o) => <option key={o}>{o}</option>)}
                         </select>
                       </label>
                       <div className="wide guidance-list" role="group" aria-label="핵심포인트 목록">
