@@ -21,7 +21,7 @@ import { resolveCustomerScope } from "../lib/assistant-scope";
 import { resolveGeminiTargetFromRequest, type GeminiTarget } from "../lib/gemini-target";
 import { ASSISTANT_TOOL_KEYS } from "../lib/assistant-tools";
 import { routeAssistantTool } from "../lib/assistant-tool-router";
-import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withTodayContext } from "../lib/assistant-prompt";
+import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, OUT_OF_SCOPE_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withTodayContext } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
 import { createSseLiveness } from "../lib/sse-liveness";
 import type { AuthVariables } from "../middleware/auth";
@@ -127,13 +127,18 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     let { tool } = retrieval;
     const { hits } = retrieval;
     // PR2 자유 질문 라우팅 — RAG 근거 0건(기존 NO_HITS 지점)에서만 1차 판단 호출. 근거가 잡히는
-    // 질문은 라우팅 자체가 없어(RAG 우선) 오라우팅이 구조적으로 불가(골든 가드). 라우팅 실패/도구
-    // 불필요 판단은 null → 기존 NO_HITS 경로 폴백.
+    // 질문은 라우팅 자체가 없어(RAG 우선) 오라우팅이 구조적으로 불가(골든 가드). 판정 3갈래는
+    // 라우터(RoutedToolDecision) 주석 참조 — none(도구 불필요 = 범위 밖 판단)만 안내 문구로 구분하고,
+    // 실패(null)는 범위 밖 단정 없이 기존 NO_HITS 폴백.
+    let outOfScope = false;
     if (!tool && hits.length === 0) {
       const routed = await assistantDeps.routeAssistantTool(question, target, { history });
-      if (routed) {
+      if (routed?.kind === "call") {
         console.log(`[assistant] 도구 라우팅: ${routed.key}`, JSON.stringify(routed.params));
         tool = await assistantDeps.runAssistantTool(routed.key, routed.params, scope, c.var.db);
+      } else if (routed?.kind === "none") {
+        console.log("[assistant] 도구 라우팅: 해당 없음(범위 밖 판단 — 안내 문구)");
+        outOfScope = true;
       }
     }
     const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
@@ -155,15 +160,17 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
 
     // 오늘 날짜(KST) 컨텍스트 — 일정 청크 등 절대 날짜 근거의 과거/미래 판단 기준(양 경로 공통).
     const systemPrompt = withTodayContext(tool ? TOOL_SYSTEM_PROMPT : SYSTEM_PROMPT);
+    // promptChunks 0건일 때의 고정 답변 — 범위 밖 판단(라우터 none)만 안내 문구, 그 외는 기존 NO_HITS.
+    const emptyAnswer = outOfScope ? OUT_OF_SCOPE_ANSWER : NO_HITS_ANSWER;
 
     if (c.req.valid("json").stream === true) {
       // await 필수: 선저장(insertAssistantMessages) 실패를 이 try/catch가 잡으려면 rejection이
       // 이 스코프 안에서 throw로 전환돼야 한다(그냥 return하면 catch를 건너뛰고 app.onError로 샌다).
-      return await streamAsk(c, { question, staffUserId, target, history, promptChunks, sources, systemPrompt });
+      return await streamAsk(c, { question, staffUserId, target, history, promptChunks, sources, systemPrompt, emptyAnswer });
     }
 
     const answer = promptChunks.length === 0
-      ? NO_HITS_ANSWER
+      ? emptyAnswer
       : await assistantDeps.generateAnswer(systemPrompt, buildUserPrompt(question, buildContextBlock(promptChunks)), target, { history });
 
     const saved = await insertTurn(staffUserId, question, { content: answer, sources }, c.var.db);
@@ -200,6 +207,7 @@ type StreamAskArgs = {
   promptChunks: { customerName: string; customerStatus: string; content: string }[];
   sources: unknown;
   systemPrompt: string; // RAG(SYSTEM_PROMPT) vs 도구 리포트(TOOL_SYSTEM_PROMPT) — 호출부가 선택
+  emptyAnswer: string; // promptChunks 0건일 때의 고정 답변(NO_HITS vs 범위 밖 안내) — 호출부가 선택
 };
 
 const HEARTBEAT_MS = 5_000; // 죽은 클라 감지 주기 — CF에서 쓰기 성공/실패가 유일하게 신뢰 가능한 채널
@@ -245,7 +253,7 @@ async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> 
 
       try {
         if (args.promptChunks.length === 0) {
-          fullText = NO_HITS_ANSWER;
+          fullText = args.emptyAnswer;
           await raceDead(sse.writeSSE({ event: "text", data: JSON.stringify({ chunk: fullText }) }));
         } else {
           const gen = assistantDeps.generateAnswerStream(
