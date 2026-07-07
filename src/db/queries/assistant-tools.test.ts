@@ -1,5 +1,5 @@
 import { test, expect, beforeAll, afterAll } from "bun:test";
-import { eq, isNotNull } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { ASSISTANT_TOOL_KEYS } from "../../lib/assistant-tools";
 import { getDefaultDb } from "../client";
@@ -82,11 +82,16 @@ test("search_customers: mine=true → 현재 사용자(user.id)가 담당인 고
 
 // current_user("난 누구야?", 2026-07-07) — 본인 정보 리포트(이름·역할·담당 고객 수).
 test("current_user: 실 profile이면 이름·역할, 담당 고객 수 병기 — 미상 프로필은 이름 미상 폴백", async () => {
-  const [p] = await db.select({ id: profiles.id, name: profiles.fullName, role: profiles.role }).from(profiles).where(isNotNull(profiles.fullName)).limit(1);
+  // btrim 필터 + trim 단언 — 실 master의 이름에 선/후행 공백이 있어도 안 깨진다(리포트는 trim된 이름).
+  const [p] = await db
+    .select({ id: profiles.id, name: profiles.fullName, role: profiles.role })
+    .from(profiles)
+    .where(sql`btrim(coalesce(${profiles.fullName}, '')) <> ''`)
+    .limit(1);
   expect(p).toBeDefined(); // master에 이름 있는 계정 상존(자메스관리자 등)
   const known = await runAssistantTool("current_user", {}, "all", { id: p.id, role: p.role ?? "admin" }, db);
   expect(known.lines).toHaveLength(1);
-  expect(known.lines[0]).toContain(p.name!);
+  expect(known.lines[0]).toContain(p.name!.trim());
   expect(known.lines[0]).toContain("담당 고객");
 
   const unknown = await runAssistantTool("current_user", {}, "all", { id: crypto.randomUUID(), role: "staff" }, db);

@@ -524,7 +524,7 @@ test("POST /ask 시스템 프롬프트에 현재 사용자 컨텍스트(이름·
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
   await askJson(app, token, { question: "김민준 근황" });
-  expect(sys).toContain("현재 로그인 사용자는 테스트직원(관리자)입니다");
+  expect(sys).toContain("현재 로그인 사용자는 테스트직원(최고관리자)입니다"); // 라벨 = 클라 UI(data/roles.ts) 어휘
 });
 
 // 역할 scope(이사님 요구 07-06): staff 토큰이면 검색·도구 모두 {advisorId: 본인 sub}로 좁혀진다.

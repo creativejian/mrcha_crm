@@ -20,9 +20,10 @@ export const ASSISTANT_TOOL_LABELS: Record<AssistantToolKey, string> = {
   current_user: "내 정보",
 };
 
-// CRM 역할 한글 라벨 — /ask 프롬프트 사용자 컨텍스트·current_user 리포트가 공유(어휘 = auth CRM_ROLES).
+// CRM 역할 한글 라벨 — /ask 프롬프트 사용자 컨텍스트·current_user 리포트가 공유. 어휘 = auth CRM_ROLES
+// (키 집합은 파리티 테스트가 잠금 — Set이라 union 타입 파생 불가), 한글 값 = 클라 UI(data/roles.ts)와 일치.
 export const CRM_ROLE_LABELS: Record<string, string> = {
-  admin: "관리자",
+  admin: "최고관리자",
   manager: "팀장",
   staff: "상담사",
   dealer: "딜러",
