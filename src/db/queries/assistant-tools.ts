@@ -1,11 +1,13 @@
 import { and, eq, ilike, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
-import { ASSISTANT_TOOL_LABELS, type AssistantToolKey, type AssistantToolResult } from "../../lib/assistant-tools";
+import { ASSISTANT_TOOL_LABELS, CRM_ROLE_LABELS, type AssistantToolKey, type AssistantToolResult } from "../../lib/assistant-tools";
+import type { AuthedUser } from "../../auth/verify";
 import type { CustomerScope } from "../../lib/assistant-scope";
 import { kstDateOf } from "../../lib/kst-date";
 import { STALE_THRESHOLDS, staffActivityAt } from "./activity";
 import { getDefaultDb, type Executor } from "../client";
+import { profiles } from "../public-app";
 import { customers, customerSchedules, customerTasks, quotes } from "../schema";
 
 // 업무 AI 도구 실행기 — 전부 read-only 화이트리스트 쿼리(자유 SQL 금지, 스펙 확정 방향 2).
@@ -44,15 +46,19 @@ function capReportLines(lines: string[]): string[] {
 }
 
 // search_customers 파라미터(라우터가 모델 args를 그대로 넘김 — zod로 좁힌다. 미지 키는 무시).
+// mine = 질문 의도("내 담당") 필터 — 권한 경계(scope)와 별개: staff는 scope가 이미 본인 담당으로 강제하고,
+// admin/manager(scope="all")에서 1인칭 질문의 실제 의미를 만든다.
 const searchCustomersParams = z.object({
   name: z.string().optional(),
   statusGroup: z.string().optional(),
   purchaseMethod: z.string().optional(),
   source: z.string().optional(),
+  mine: z.boolean().optional(),
 });
 
 // params: 자유 질문 라우팅(PR2)의 모델 인자 — 버튼 결정론 경로(PR1)는 빈 객체를 넘긴다.
-export async function runAssistantTool(key: AssistantToolKey, params: Record<string, unknown>, scope: CustomerScope, ex: Executor = getDefaultDb()): Promise<AssistantToolResult> {
+// user: 현재 로그인 사용자(JWT) — current_user 리포트·mine 필터의 "나" 해석 기준(scope와 별개 식별자).
+export async function runAssistantTool(key: AssistantToolKey, params: Record<string, unknown>, scope: CustomerScope, user: AuthedUser, ex: Executor = getDefaultDb()): Promise<AssistantToolResult> {
   const label = ASSISTANT_TOOL_LABELS[key];
   switch (key) {
     // 미완료 할일(기한 급함/오늘) + 오늘 일정(KST) — "오늘 내가 먼저 처리할 일".
@@ -148,6 +154,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       const conds: SQL[] = [];
       const sCond = scopeCond(scope);
       if (sCond) conds.push(sCond);
+      if (f.mine) conds.push(eq(customers.advisorId, user.id)); // 질문 의도 필터 — scope(권한)와 별개
       if (f.name) conds.push(ilike(customers.name, `%${f.name}%`));
       if (f.statusGroup) conds.push(eq(customers.statusGroup, f.statusGroup));
       if (f.purchaseMethod) conds.push(ilike(customers.needMethod, `%${f.purchaseMethod}%`));
@@ -158,12 +165,23 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         .where(conds.length ? and(...conds) : undefined)
         .limit(30);
       const filterLabel = [
-        f.name && `이름 ${f.name}`, f.statusGroup && `진행 ${f.statusGroup}`,
+        f.mine && "내 담당", f.name && `이름 ${f.name}`, f.statusGroup && `진행 ${f.statusGroup}`,
         f.purchaseMethod && `구매방식 ${f.purchaseMethod}`, f.source && `상담경로 ${f.source}`,
       ].filter(Boolean).join(" · ") || "전체";
       const lines = rows.map((r) =>
         `${r.name} — 상담경로 ${r.source ?? "미입력"} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}${r.needMethod ? ` · 구매방식 ${r.needMethod}` : ""}`);
       return { label: `${label}(${filterLabel})`, lines };
+    }
+
+    // 현재 로그인 사용자 리포트("난 누구야?") — 본인 정보라 scope 무관(고객 데이터는 담당 수 집계뿐).
+    case "current_user": {
+      const [[profile], [assigned]] = await Promise.all([
+        ex.select({ name: profiles.fullName, role: profiles.role }).from(profiles).where(eq(profiles.id, user.id)),
+        ex.select({ n: sql<number>`count(*)::int` }).from(customers).where(eq(customers.advisorId, user.id)),
+      ]);
+      const role = profile?.role ?? user.role;
+      const line = `${profile?.name?.trim() || "이름 미상"} — 역할 ${CRM_ROLE_LABELS[role] ?? role}(${role}) · 담당 고객 ${assigned?.n ?? 0}명`;
+      return { label, lines: [line] };
     }
   }
 }

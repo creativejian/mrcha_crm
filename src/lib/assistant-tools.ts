@@ -6,7 +6,7 @@
 // 도구 정의는 07-06 이사님 컨펌 완료(①quote_ready 의도대로 ②delivery_risk: 계약완료="출고 준비·정산
 // 준비" 개념 — 출고/정산 화면 구현 후 데이터 기반으로 교체 ③chance=상담사 수동 입력값). 스펙 참조.
 
-export const ASSISTANT_TOOL_KEYS = ["today_actions", "chance_ranking", "stale_customers", "quote_ready", "delivery_risk", "search_customers"] as const;
+export const ASSISTANT_TOOL_KEYS = ["today_actions", "chance_ranking", "stale_customers", "quote_ready", "delivery_risk", "search_customers", "current_user"] as const;
 export type AssistantToolKey = (typeof ASSISTANT_TOOL_KEYS)[number];
 
 // 근거 표시(sources)와 프롬프트 블록 헤더에 쓰는 한글 라벨.
@@ -17,6 +17,15 @@ export const ASSISTANT_TOOL_LABELS: Record<AssistantToolKey, string> = {
   quote_ready: "오늘 견적 보낼 고객",
   delivery_risk: "출고/정산 리스크",
   search_customers: "고객 검색",
+  current_user: "내 정보",
+};
+
+// CRM 역할 한글 라벨 — /ask 프롬프트 사용자 컨텍스트·current_user 리포트가 공유(어휘 = auth CRM_ROLES).
+export const CRM_ROLE_LABELS: Record<string, string> = {
+  admin: "관리자",
+  manager: "팀장",
+  staff: "상담사",
+  dealer: "딜러",
 };
 
 // 실행기 반환: 사람이 읽는 행 텍스트 목록 — Gemini에 근거 블록으로 실리고, 행 수는 sources 요약에 쓰인다.
@@ -36,7 +45,7 @@ const TOOL_DECLARATION_DEFS: Record<AssistantToolKey, ToolDeclarationDef> = {
   quote_ready: { description: "견적을 보내야 할 고객(진행 상태가 견적 단계이거나 작성 중 견적 보유) 목록을 조회한다." },
   delivery_risk: { description: "계약완료 단계인데 최근 활동이 없어 출고/정산 확인이 필요한 고객 목록을 조회한다." },
   search_customers: {
-    description: "조건으로 고객을 검색해 목록을 조회한다. 이름·진행 상태·구매방식·상담경로(유입 경로) 필터를 조합할 수 있다.",
+    description: "조건으로 고객을 검색해 목록을 조회한다. 이름·진행 상태·구매방식·상담경로(유입 경로)·내 담당 여부 필터를 조합할 수 있다.",
     parameters: {
       type: "object",
       properties: {
@@ -44,9 +53,11 @@ const TOOL_DECLARATION_DEFS: Record<AssistantToolKey, ToolDeclarationDef> = {
         statusGroup: { type: "string", description: "진행 상태 1차: 신규/상담중/견적/차량체크/심사서류/관리중/상담완료/계약완료/불발" },
         purchaseMethod: { type: "string", description: "구매방식 부분 일치: 운용리스/장기렌트/할부/금융리스/일시불 등" },
         source: { type: "string", description: "상담경로(유입 경로) 부분 일치: 예 '앱'(앱 견적요청·앱 상담원 연결 포함), '유튜브', '카카오'" },
+        mine: { type: "boolean", description: "'내/제 담당', '내가 계약한'처럼 1인칭으로 물으면 true — 현재 로그인 사용자가 담당자인 고객으로 좁힌다" },
       },
     },
   },
+  current_user: { description: "현재 로그인한 사용자(나)가 누구인지 조회한다 — 이름·역할·담당 고객 수. '난 누구야?', '내 계정/역할 뭐야?' 류 질문." },
 };
 // 배열은 KEYS 순서로 파생 — 기존 리터럴 배열과 요청 payload byte-동일.
 export const ASSISTANT_TOOL_DECLARATIONS = ASSISTANT_TOOL_KEYS.map((name) => ({ name, ...TOOL_DECLARATION_DEFS[name] }));
