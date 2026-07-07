@@ -136,8 +136,8 @@ describe("useQuoteWorkbench — 오픈/리셋 경로의 카드 UI 상태 잔상 
   it("openEditQuote(수정 진입)가 저장된 고객 지역을 무시하고 거주지에서 재파생한다", () => {
     const { result } = setup();
     act(() => result.current.openEditQuote(editStaleRegionQuote as unknown as QuoteItem));
-    // 저장본 customerRegion은 "확인 필요"지만 거주지(인천광역시 · 남동구)에서 파생된 값으로 덮인다.
-    expect(result.current.guidance.customerRegion).toBe("인천광역시");
+    // 저장본 customerRegion은 "확인 필요"지만 거주지(인천광역시 · 남동구, 구/시까지)로 덮인다.
+    expect(result.current.guidance.customerRegion).toBe("인천광역시 남동구");
     expect(result.current.guidance.customerRegion).toBe(regionFromResidence(detail.residence));
   });
 
