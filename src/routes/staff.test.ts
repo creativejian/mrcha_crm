@@ -1,7 +1,11 @@
 import { test, expect } from "bun:test";
+import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
+import { getDefaultDb } from "../db/client";
+import { setLiveReceiving } from "../db/queries/staff-settings";
+import { staffSettings } from "../db/schema";
 import { ADVISOR_ROLES } from "./staff";
 
 test("GET /api/staff 무토큰 → 401", async () => {
@@ -26,4 +30,29 @@ test("GET /api/staff → 배정 후보 역할 profiles만(id·name·role, 이름
   // 순서 결정성(서버 orderBy fullName, id) — DB 컬레이션에 결합되지 않게 재조회 동일성으로 잠근다.
   const res2 = await app.request("/api/staff", { headers: { Authorization: `Bearer ${token}` } });
   expect(await res2.json()).toEqual(rows);
+});
+
+test("GET /api/staff → liveReceiving 포함(설정 없으면 true, Off 계정은 false) — 실 DB", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+
+  const first = (await (await app.request("/api/staff", { headers: { Authorization: `Bearer ${token}` } })).json()) as { id: string; liveReceiving: boolean }[];
+  expect(first.length).toBeGreaterThan(0);
+  for (const r of first) expect(typeof r.liveReceiving).toBe("boolean");
+
+  // 첫 후보를 Off로 만들고 반영 확인 → 원복. 원복 정확성을 위해 기존 행 존재/원값을 직접 확인.
+  const target = first[0].id;
+  const db = getDefaultDb();
+  const [existing] = await db
+    .select({ v: staffSettings.liveReceiving })
+    .from(staffSettings)
+    .where(eq(staffSettings.staffUserId, target));
+  try {
+    await setLiveReceiving(target, false, db);
+    const after = (await (await app.request("/api/staff", { headers: { Authorization: `Bearer ${token}` } })).json()) as { id: string; liveReceiving: boolean }[];
+    expect(after.find((r) => r.id === target)?.liveReceiving).toBe(false);
+  } finally {
+    if (existing) await setLiveReceiving(target, existing.v, db); // 원값 복원
+    else await db.delete(staffSettings).where(eq(staffSettings.staffUserId, target)); // 이 테스트가 만든 행 제거
+  }
 });
