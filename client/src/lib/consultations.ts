@@ -1,7 +1,7 @@
 // 앱 상담신청(public.consultations) → CRM 고객 통합. 견적요청(quote-requests.ts fetchCustomerQuoteRequestsCached) 패턴 미러.
 // 고객 상세 니즈 영역의 읽기 전용 문의 카드 목록 전용 — link/create-customer 승격 흐름은 서버(consultations.ts 라우트)만 다룬다.
 import { formatActivity } from "./customers";
-import { getJson } from "./http";
+import { getJson, sendJson } from "./http";
 
 // 백엔드 GET /api/customers/:id/consultations 응답 1행(ConsultationRow, camelCase).
 export type AppConsultationRow = {
@@ -59,7 +59,12 @@ export function fetchCustomerConsultationsCached(customerId: string, force = fal
   return p;
 }
 
-// 캐시 버림(대칭용, 외부 무효화 경로용으로 노출 — 현재 호출부 없음: 상담신청은 읽기 전용이라 CRM 쓰기 경로가 없다).
+// 캐시 버림(dismissConsultation 성공 후 그 고객 캐시 무효화용).
 export function invalidateCustomerConsultations(customerId: string): void {
   cache.delete(customerId);
+}
+
+// CRM 전용 삭제 — 백엔드가 dismissal만 기록(public.consultations는 어떤 경로로도 변경하지 않는다).
+export async function dismissConsultation(consultationId: string): Promise<void> {
+  await sendJson(`/api/consultations/${consultationId}`, "DELETE");
 }

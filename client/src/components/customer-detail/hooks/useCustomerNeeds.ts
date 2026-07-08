@@ -1,6 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction, type SyntheticEvent } from "react";
 
-import { fetchCustomerConsultationsCached, type AppConsultation } from "@/lib/consultations";
+import { dismissConsultation, fetchCustomerConsultationsCached, invalidateCustomerConsultations, type AppConsultation } from "@/lib/consultations";
 import { type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { fetchCustomerQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 
@@ -70,6 +70,19 @@ export function useCustomerNeeds({
     void fetchCustomerQuoteRequestsCached(detail.id, true).then(setAppRequests).catch(() => undefined);
   }
 
+  // CRM 전용 삭제(카드 숨김) — public.consultations는 불변, crm.consultation_dismissals에만 기록된다.
+  // 낙관적 제거 + 실패 시 롤백(견적요청 link/create-customer의 낙관 패턴과 동형).
+  function handleDismissConsultation(consultationId: string) {
+    const prev = consultations;
+    setConsultations((cur) => cur?.filter((x) => x.id !== consultationId) ?? cur);
+    invalidateCustomerConsultations(detail.id);
+    onToast("상담신청을 CRM에서 삭제했습니다.");
+    void dismissConsultation(consultationId).catch(() => {
+      setConsultations(prev);
+      onToast("상담신청 삭제에 실패했습니다.");
+    });
+  }
+
   function saveNeeds(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -98,6 +111,7 @@ export function useCustomerNeeds({
     reloadAppRequests,
     handlers: {
       saveNeeds,
+      dismissConsultation: handleDismissConsultation,
     },
   };
 }

@@ -1,4 +1,4 @@
-import { CarFront, MessageSquareText } from "lucide-react";
+import { CarFront, MessageSquareText, X } from "lucide-react";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { type CustomerDetailData } from "@/lib/customers";
@@ -25,7 +25,7 @@ type NeedsDashboardProps = {
 
 export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, openWorkbenchForQuoteRequest, onViewQuote, needsHook }: NeedsDashboardProps) {
   const { needs, appRequests, consultations, handlers } = needsHook;
-  const { saveNeeds } = handlers;
+  const { saveNeeds, dismissConsultation } = handlers;
 
   function renderNeedsEditor() {
     return (
@@ -71,76 +71,91 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
           <div className="kim-needs-app">
             {/* 카드 목록만 상한 높이 스크롤(overscroll-contain으로 부모 드로어 스크롤 격리) */}
             <div className="kim-needs-request-scroll">
-              {appRequests === null ? (
-                <p className="kim-needs-request-status">앱 견적요청 불러오는 중…</p>
-              ) : appRequests.length === 0 ? (
-                <p className="kim-needs-request-status">앱 견적요청이 없습니다.</p>
-              ) : (
-                appRequests.map((req) => {
-                  // "견적 작성"/"추가 작성" 공용 핸들러 — 토스트 문구·에러 처리 1벌(한쪽만 고치는 드리프트 방지).
-                  const createQuote = () => { void openWorkbenchForQuoteRequest(req.id).catch(() => onToast("견적요청 정보를 불러오지 못했습니다.")); };
-                  return (
-                  <div className="kim-needs-floating-card kim-needs-request-card" key={req.id}>
-                    <div className="kim-needs-card-main">
-                      <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
-                      <div className="kim-needs-card-copy">
-                        <h3>{req.vehicleLabel}</h3>
-                        <p>{req.paymentLabel} · 옵션 {req.optionLabel}</p>
-                        <span>{req.periodLabel} · {req.depositLabel}</span>
-                      </div>
-                      <div className="kim-needs-request-actions">
-                        {req.promotedQuoteCount > 0 ? (
-                          <span className="kim-needs-request-badge">견적 {req.promotedQuoteCount}건</span>
-                        ) : null}
-                        {req.promotedQuoteIds.length > 0 ? (
-                          // 승격 견적 있음: 기본 액션은 중복 작성 방지를 위해 "견적 보기"(최신 승격 견적), "추가 작성"은 보조 액션으로 낮춤.
-                          // 가로 한 줄(보조 왼쪽·기본 오른쪽 끝) — 배지+버튼 2줄 유지로 카드 높이 증가 방지.
-                          <div className="kim-needs-request-button-row">
-                            <button className="kim-needs-request-create-secondary" onClick={createQuote} type="button">
-                              추가 작성
-                            </button>
-                            <button
-                              className="kim-needs-request-create"
-                              onClick={() => onViewQuote(req.id, req.promotedQuoteIds[0])}
-                              type="button"
-                            >
-                              견적 보기
-                            </button>
+              {(() => {
+                const requestCards = appRequests ?? [];
+                const consultCards = consultations ?? [];
+                const nothingYet = requestCards.length === 0 && consultCards.length === 0;
+                if ((appRequests === null || consultations === null) && nothingYet) {
+                  return <p className="kim-needs-request-status">앱 견적요청·상담신청 불러오는 중…</p>;
+                }
+                if (nothingYet) {
+                  return <p className="kim-needs-request-status">앱 견적요청·상담신청이 없습니다.</p>;
+                }
+                return (
+                  <>
+                    {requestCards.map((req) => {
+                      // "견적 작성"/"추가 작성" 공용 핸들러 — 토스트 문구·에러 처리 1벌(한쪽만 고치는 드리프트 방지).
+                      const createQuote = () => { void openWorkbenchForQuoteRequest(req.id).catch(() => onToast("견적요청 정보를 불러오지 못했습니다.")); };
+                      return (
+                      <div className="kim-needs-floating-card kim-needs-request-card" key={req.id}>
+                        <div className="kim-needs-card-main">
+                          <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
+                          <div className="kim-needs-card-copy">
+                            <h3>{req.vehicleLabel}</h3>
+                            <p>{req.paymentLabel} · 옵션 {req.optionLabel}</p>
+                            <span>{req.periodLabel} · {req.depositLabel}</span>
                           </div>
-                        ) : (
-                          <button className="kim-needs-request-create" onClick={createQuote} type="button">
-                            견적 작성
-                          </button>
-                        )}
+                          <div className="kim-needs-request-actions">
+                            {req.promotedQuoteCount > 0 ? (
+                              <span className="kim-needs-request-badge">견적 {req.promotedQuoteCount}건</span>
+                            ) : null}
+                            {req.promotedQuoteIds.length > 0 ? (
+                              // 승격 견적 있음: 기본 액션은 중복 작성 방지를 위해 "견적 보기"(최신 승격 견적), "추가 작성"은 보조 액션으로 낮춤.
+                              // 가로 한 줄(보조 왼쪽·기본 오른쪽 끝) — 배지+버튼 2줄 유지로 카드 높이 증가 방지.
+                              <div className="kim-needs-request-button-row">
+                                <button className="kim-needs-request-create-secondary" onClick={createQuote} type="button">
+                                  추가 작성
+                                </button>
+                                <button
+                                  className="kim-needs-request-create"
+                                  onClick={() => onViewQuote(req.id, req.promotedQuoteIds[0])}
+                                  type="button"
+                                >
+                                  견적 보기
+                                </button>
+                              </div>
+                            ) : (
+                              <button className="kim-needs-request-create" onClick={createQuote} type="button">
+                                견적 작성
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                    })}
+                    {/* 앱 상담신청 문의 카드(읽기 전용, 건별) — 견적요청 카드와 같은 스크롤 스택에 공존. 원본 문의 보존(편집 없음),
+                        CRM에서만 삭제 가능(public.consultations 불가침 — dismissConsultation은 crm.consultation_dismissals에만 기록). */}
+                    {consultCards.map((c) => (
+                      <div className="kim-needs-floating-card kim-needs-consultation-card" key={c.id}>
+                        <button
+                          className="kim-needs-consultation-delete"
+                          type="button"
+                          aria-label="상담신청 삭제 (CRM에서만, 앱에는 유지)"
+                          title="CRM에서만 삭제 (앱 원본은 유지)"
+                          onClick={() => dismissConsultation(c.id)}
+                        >
+                          <X size={13} strokeWidth={2.6} />
+                        </button>
+                        <div className="kim-needs-card-main">
+                          <span className="kim-needs-car-icon" aria-hidden="true"><MessageSquareText size={22} strokeWidth={2.1} /></span>
+                          <div className="kim-needs-card-copy">
+                            <h3>{c.carModel?.trim() || "상담 문의"}</h3>
+                            <p>상담신청 · {c.dateLabel}</p>
+                          </div>
+                        </div>
+                        {c.notes?.trim() ? (
+                          <div className="kim-needs-card-memo">
+                            <span>문의사항</span>
+                            <p>{c.notes}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </>
                 );
-                })
-              )}
+              })()}
             </div>
-            {/* 앱 상담신청 문의 카드(읽기 전용, 건별) — 견적요청 카드와 공존. 원본 문의 보존(편집 없음). 없으면 미표시. */}
-            {consultations && consultations.length > 0 ? (
-              <div className="kim-needs-consultation-list">
-                {consultations.map((c) => (
-                  <div className="kim-needs-floating-card kim-needs-consultation-card" key={c.id}>
-                    <div className="kim-needs-card-main">
-                      <span className="kim-needs-car-icon" aria-hidden="true"><MessageSquareText size={22} strokeWidth={2.1} /></span>
-                      <div className="kim-needs-card-copy">
-                        <h3>{c.carModel?.trim() || "상담 문의"}</h3>
-                        <p>상담신청 · {c.dateLabel}</p>
-                      </div>
-                    </div>
-                    {c.notes?.trim() ? (
-                      <div className="kim-needs-card-memo">
-                        <span>문의사항</span>
-                        <p>{c.notes}</p>
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            ) : null}
             {/* 문의사항·관심 색상은 고객 단위(요청별 아님). 값 있을 때만 노출(스크롤 영역 밖 고정). */}
             {needs.memo.trim() || (needs.colors.trim() && needs.colors !== NEEDS_COLOR_PLACEHOLDER) ? (
               <div className="kim-needs-customer-meta">
