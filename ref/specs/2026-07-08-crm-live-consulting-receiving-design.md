@@ -14,7 +14,7 @@ CRM Topbar 계정 설정의 **실시간 상담 수신 On/Off 토글**(`liveConsu
 
 1. **의미론 = 상담사(로그인 사용자) 개인별 수신 상태.** 현재 토글 문구("On 상태에서는 관리자가 상담 배정을 시작합니다")가 이를 뒷받침. `canManageLiveConsulting = !dealer`(상담사·팀장·관리자 각자 자기 토글).
 2. **저장소 = `crm` 스키마 자체(신설 `crm.staff_settings`).** 이 상태는 **CRM 콘솔 내부용**으로만 쓰며 앱(Flutter)은 읽지 않는다 → `public.profiles` 컬럼 추가(앱 마이그레이션 협의 필요)를 배제하고 crm 단독 저장. 상담사 개인 설정을 담을 crm 테이블이 현재 없어 신설한다.
-3. **읽기/쓰기 경로 = CRM 백엔드 API.** crm 스키마는 프론트 supabase-js로 접근하지 않는다(이 프로젝트의 확립된 패턴 — 프론트 supabase-js 직결은 chat 도메인의 public 테이블만). 자기 수신 상태는 신규 `GET/PUT /api/me/live-consulting`.
+3. **읽기/쓰기 경로 = CRM 백엔드 API.** crm 스키마는 프론트 supabase-js로 접근하지 않는다(이 프로젝트의 확립된 패턴 — 프론트 supabase-js 직결은 chat 도메인의 public 테이블만). 자기 수신 상태는 신규 `GET/PATCH /api/me/live-consulting`.
 4. **배정 필터 = 백엔드 통합(경로 A).** 실시간 상담 배정 select를 supabase-js 직결 `fetchStaffOptions` → 백엔드 `GET /api/staff` 기반으로 전환한다. `GET /api/staff` 응답에 `liveReceiving`를 추가하고, 실시간 상담 배정만 Off 제외한다. `fetchStaffOptions`(supabase-js)와 `GET /api/staff`(백엔드)는 사실상 중복 경로였으므로 이 통합이 중복 제거 = 단순화도 겸한다.
 5. **배정 알림 훅(슬라이스 1)은 수정 불필요.** Off면 배정 후보에서 빠져 배정 자체가 안 되므로 알림이 자연 억제된다. 트리거/훅은 수신 상태를 몰라도 된다.
 
@@ -37,7 +37,7 @@ crm.staff_settings
 
 - **`GET /api/me/live-consulting`** → `{ receiving: boolean }`
   - `c.var.user.id`(본인 — `AuthedUser.id`, JWT sub 기반)로 `staff_settings` 조회. 행 없으면 `{ receiving: true }`(기본값).
-- **`PUT /api/me/live-consulting`** body `{ receiving: boolean }`(zod) → upsert 후 `{ receiving }`.
+- **`PATCH /api/me/live-consulting`** body `{ receiving: boolean }`(zod) → upsert 후 `{ receiving }`. (`http.ts`의 쓰기 헬퍼 `sendJson`이 POST/PATCH/DELETE만 지원 — PUT 없음. PATCH가 이 저장소의 쓰기 관례.)
   - self만 접근하므로 역할 scope 무관. auth 미들웨어만 통과하면 됨.
 - `/api/me/*`에 `auth` + `dbMiddleware` 배선(app.ts).
 
@@ -52,7 +52,7 @@ crm.staff_settings
 ### 5.1 Topbar (`client/src/components/Topbar.tsx`)
 
 - 마운트 시(딜러 제외) `GET /api/me/live-consulting`로 `liveConsulting` 초기값 로드.
-- 확인 다이얼로그 확정(`setLiveConsulting(...)` 지점)에서 `PUT` 호출 — **낙관적 반영 + 실패 시 이전 상태 롤백 + 토스트**.
+- 확인 다이얼로그 확정(`setLiveConsulting(...)` 지점)에서 `PATCH` 호출 — **낙관적 반영 + 실패 시 이전 상태 롤백**. Topbar에 `onToast` prop이 없어 롤백은 **조용히**(수신 토글은 재시도 가능한 보조 동작 — `staff.ts` 배정 주석과 동일 정신). 마운트 로드는 유저가 토글한 뒤 늦게 resolve해도 유저 선택을 덮어쓰지 않도록 `touchedRef` 가드.
 - **GET 실패 fallback = 수신 중(true).** 기존 동작과 동일해 회귀 0. 배정은 관리자 수동이라 "로드 실패 시 전원 배정 불가(false)"는 과하다.
 
 ### 5.2 실시간 상담 배정 경로 통합
@@ -74,8 +74,8 @@ crm.staff_settings
 ## 7. 검증
 
 - `bun run typecheck` 0 · `bun run lint` 0.
-- `bun run test:server`: 신규 `GET/PUT /api/me/live-consulting`(무토큰 401·기본 true·upsert 왕복), `GET /api/staff` `liveReceiving`(설정 없는 계정 true·Off 계정 false).
-- `bun run test:unit`: Topbar 초기 로드/저장 낙관·롤백, 배정 select 필터(Off 제외·assignedName 전체 해석).
+- `bun run test:server`: 신규 `GET/PATCH /api/me/live-consulting`(무토큰 401·기본 true·upsert 왕복), `GET /api/staff` `liveReceiving`(설정 없는 계정 true·Off 계정 false).
+- `bun run test:unit`: live-consulting lib(fetch/save). **Topbar·ChatSessionHeader는 거대·통합 컴포넌트라 유닛 대신 브라우저 스모크로 검증**(프로젝트 관례 — "거대 페이지 컴포넌트는 수동/스크린샷") — Topbar 로드/롤백, 배정 select 필터(Off 제외·assignedName 전체 해석)는 아래 스모크로.
 - `bun run build`.
 - 마이그레이션 `psql "$DATABASE_URL"` 실측(테이블 생성·upsert).
 - 브라우저 스모크(magiclink): 토글 Off 저장 → 재로그인 복원, 실시간 상담 콘솔에서 Off 상담사 배정 후보 제외, 이미 배정된 Off 상담사 이름 유지. 스모크로 만든 staff_settings 행은 원복.
