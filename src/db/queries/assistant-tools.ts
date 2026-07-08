@@ -1,4 +1,4 @@
-import { and, eq, ilike, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, eq, ilike, inArray, isNotNull, notExists, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { ASSISTANT_TOOL_LABELS, CRM_ROLE_LABELS, type AssistantToolKey, type AssistantToolResult } from "../../lib/assistant-tools";
@@ -7,8 +7,8 @@ import type { CustomerScope } from "../../lib/assistant-scope";
 import { kstDateOf } from "../../lib/kst-date";
 import { STALE_THRESHOLDS, staffActivityAt } from "./activity";
 import { getDefaultDb, type Executor } from "../client";
-import { profiles } from "../public-app";
-import { customers, customerSchedules, customerTasks, quotes } from "../schema";
+import { consultationRequests, profiles } from "../public-app";
+import { consultationDismissals, customers, customerSchedules, customerTasks, quotes } from "../schema";
 
 // 업무 AI 도구 실행기 — 전부 read-only 화이트리스트 쿼리(자유 SQL 금지, 스펙 확정 방향 2).
 // scope(역할 scope, 이사님 요구 07-06): admin/manager=전체, staff=본인 담당(customers.advisor_id) —
@@ -57,6 +57,7 @@ const searchCustomersParams = z.object({
 });
 
 const customerQuotesParams = z.object({ name: z.string().optional() });
+const customerConsultationsParams = z.object({ name: z.string().optional() });
 
 // params: 자유 질문 라우팅(PR2)의 모델 인자 — 버튼 결정론 경로(PR1)는 빈 객체를 넘긴다.
 // user: 현재 로그인 사용자(JWT) — current_user 리포트·mine 필터의 "나" 해석 기준(scope와 별개 식별자).
@@ -210,6 +211,41 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         const car = [r.brand, r.model, r.trim].filter(Boolean).join(" ") || "차종 미정";
         const state = r.appStatus === "sent" ? (r.viewedAt ? "발송완료·고객 열람" : "발송완료") : "작성중";
         return `${r.name} · ${r.code} · ${car} · ${state}`;
+      });
+      const filterLabel = f.name ? `이름 ${f.name}` : "전체";
+      return { label: `${label}(${filterLabel})`, lines: capReportLines(lines) };
+    }
+
+    // 특정 고객의 앱 상담신청 목록(관심 차종·문의 내용·신청일) — public.consultations를 CRM 고객(app_user_id)에
+    // 연결해 조회하고 CRM에서 숨긴(dismissed) 건은 제외한다. 고객명 상담 질문에 search_customers/customer_quotes로
+    // 답하던 오라우팅(상담 데이터 미조회 → "상담신청 안 했다" 오답)의 해법. 미연결(승격 전) 상담은 CRM 고객이
+    // 없어 조회되지 않는다(인박스 승격 후 노출).
+    case "customer_consultations": {
+      const parsed = customerConsultationsParams.safeParse(params);
+      const f = parsed.success ? parsed.data : {};
+      const conds: SQL[] = [
+        notExists(
+          ex.select({ id: consultationDismissals.consultationId })
+            .from(consultationDismissals)
+            .where(eq(consultationDismissals.consultationId, consultationRequests.id)),
+        ),
+      ];
+      const sCond = scopeCond(scope);
+      if (sCond) conds.push(sCond);
+      if (f.name) conds.push(ilike(customers.name, `%${f.name}%`));
+      const rows = await ex
+        .select({
+          name: customers.name, carModel: consultationRequests.carModel,
+          notes: consultationRequests.notes, createdAt: consultationRequests.createdAt,
+        })
+        .from(consultationRequests)
+        .innerJoin(customers, eq(customers.appUserId, consultationRequests.userId))
+        .where(and(...conds))
+        .orderBy(consultationRequests.createdAt);
+      const lines = rows.map((r) => {
+        const car = r.carModel?.trim() || "관심 차종 미지정";
+        const note = r.notes?.trim() || "문의 내용 없음";
+        return `${r.name} · ${kstDateOf(new Date(r.createdAt))} · ${car} · 문의: ${note}`;
       });
       const filterLabel = f.name ? `이름 ${f.name}` : "전체";
       return { label: `${label}(${filterLabel})`, lines: capReportLines(lines) };
