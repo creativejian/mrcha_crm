@@ -73,12 +73,15 @@ export async function updateCustomer(
   return row ?? null;
 }
 
-// 현재 담당자 이름만 조회(배정 PATCH의 assigned_at 스탬프 판정용). 없는 고객은 null.
+// 현재 담당자 이름 + 고객명 조회(배정 PATCH의 assigned_at 스탬프 판정 + 배정 알림 body용). 없는 고객은 null.
 export async function getCustomerAdvisorName(
   id: string,
   executor: Executor = getDefaultDb(),
-): Promise<{ advisorName: string | null } | null> {
-  const [row] = await executor.select({ advisorName: customers.advisorName }).from(customers).where(eq(customers.id, id));
+): Promise<{ advisorName: string | null; name: string } | null> {
+  const [row] = await executor
+    .select({ advisorName: customers.advisorName, name: customers.name })
+    .from(customers)
+    .where(eq(customers.id, id));
   return row ?? null;
 }
 
