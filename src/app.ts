@@ -6,6 +6,7 @@ import { dbMiddleware } from "./middleware/db";
 import { assistant } from "./routes/assistant";
 import { catalog } from "./routes/catalog";
 import { customers } from "./routes/customers";
+import { me } from "./routes/me";
 import { quoteRequests } from "./routes/quote-requests";
 import { staff } from "./routes/staff";
 import { vehicles } from "./routes/vehicles";
@@ -38,6 +39,8 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.use("/api/assistant/*", dbMiddleware);
   app.use("/api/staff/*", auth);
   app.use("/api/staff/*", dbMiddleware);
+  app.use("/api/me/*", auth);
+  app.use("/api/me/*", dbMiddleware);
 
   app.route("/api/vehicles", vehicles);
   app.route("/api/catalog", catalog);
@@ -45,6 +48,7 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.route("/api/quote-requests", quoteRequests);
   app.route("/api/assistant", assistant);
   app.route("/api/staff", staff);
+  app.route("/api/me", me);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));
   // 처리되지 않은 에러는 CF 실시간 로그로 진단할 수 있게 console.error로 남기되,
