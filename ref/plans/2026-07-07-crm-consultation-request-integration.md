@@ -12,15 +12,24 @@
 
 ---
 
-## Open Questions (앱 계약으로 닫아야 코드 확정 — ⓒ 협의 항목)
+## Open Questions → 확정 (2026-07-08 앱폴더/DB 실측으로 닫음)
 
-1. **승격 시 이름/전화번호 소스**: `consultations.customer_name`/`phone_number`(폼 입력) vs `profiles.full_name`/`phone_number`(로그인 계정).
-   - 견적요청은 `profiles` 참조(`createCustomerFromRequest:343-344`). 상담신청은 폼에 직접 입력받으므로 **폼 값이 더 정확할 수 있음**.
-   - **가정(잠정):** 로그인화(ⓑ) 후 `user_id`=실유저이면 `profiles` 우선, 폼 값은 폴백. 앱 계약에서 확정.
-2. **`car_model`(관심모델) 채워짐 여부**: 현재 앱 알림 "관심 모델 미지정"이 많음. 카드에서 차종 없이 문의사항만 표시할지(→ Task 6에서 값 있을 때만 헤더 노출로 방어).
-3. **`status` 전이**: 승격 후 `consultations.status`를 `pending`→`completed`로 전이할지(견적요청은 `quote_requests.status` 전이 있음). public write 권한 = 앱 관할 → 계약 필요. **미확정 시 status 미변경(read만)로 시작.**
-4. **중복 유입**: 같은 유저가 견적요청+상담신청 둘 다 → `app_user_id` dedupe로 한 고객에 병합(견적요청 `existing` 반환 로직과 동일). `source`는 최초 유입 고정(덮지 않음).
-5. **인박스 표시 위치**: 상담신청 인박스를 견적요청 인박스와 통합할지 별도 탭으로 둘지(Task 8, UX 결정).
+> 착수 시 브리프 "★상담신청 통합" 실측으로 확정. 선행 3조건 ⓐ(번호 강제 배포+상담신청 폼 phone 자체 확보)·ⓑ(book_consultation Edge가 항상 인증 user_id 삽입)·ⓒ(DDL 계약 = 실측 컬럼 일치) 전부 충족.
+
+1. **승격 시 이름/전화번호 소스 = 폼 우선(확정).** book_consultation Edge가 상담 폼의 `customer_name`/`phone_number`를 그대로 저장하고(`phone_number` **NOT NULL** + CHECK `^010[0-9]{8}$`), profiles는 11명 중 9명 phone 공란 → **폼 값이 진실 소스**. 코드 `req.phoneNumber || profile?.phoneNumber`는 이미 폼 우선이라 정합(플랜 서술의 'profiles 우선'만 정정). `phone_number` NOT NULL이라 승격 고객 phone은 항상 채워짐 = 상담신청 통합의 핵심 가치(빈 CRM 연락처를 채우는 경로).
+2. **`car_model` = 값 있을 때만 노출(확정).** nullable·대체로 공란 → Task 6 카드에서 값 있을 때만 헤더 노출로 방어.
+3. **`status` = read-only 시작(확정).** 승격 후 consultations.status 미변경(CRM은 public read만, DDL 불가침). RLS에 'Staff can update consultation status' 정책이 상존해 추후 전이 가능하나 이번 슬라이스는 read only.
+4. **중복 유입 = app_user_id dedupe·source 최초 고정(확정).** 같은 유저가 견적요청+상담신청 둘 다 → 기존 고객 반환(source 안 덮음).
+5. **인박스 표시 위치 = UX 구현 시 결정(Task 8 보류).** 견적요청 인박스와 통합 탭 vs 별도는 UX 판단 — 이번 슬라이스는 Task 1~6(통합 본체)+Task 7(임베딩) 우선, Task 8은 별도.
+
+## 2026-07-08 실측 — 코드 정정 (미러 placeholder → 실제 경로/스키마)
+
+아래 태스크 코드 블록은 견적요청 미러 placeholder다. 착수 실측으로 다음을 정정해 구현한다(subagent 프롬프트는 정정본 반영):
+
+- **`public.consultations` 실측 스키마**(psql 확인): `id uuid NOT NULL default uuid_generate_v7()`, `user_id uuid **NULL**`(⚠️ nullable — 플랜 notNull 가정 정정 → 승격 함수에 null userId guard 필요), `customer_name text **NOT NULL**`, `phone_number text **NOT NULL**`, `car_model text NULL`, `notes text NULL`, `status text NULL default 'pending'`, `created_at timestamptz NOT NULL`. → **Task 1 drizzle**: customer_name/phone_number `.notNull()`, user_id nullable, created_at `mode:"string"`(quoteRequests·advisorQuotes 관례 일치).
+- **import 경로 정정**: `nextCustomerCode`는 `src/db/queries/quote-requests.ts`에 export됨(플랜의 `./business-code` 오류) → consultations.ts는 `./quote-requests`에서 import. `ConflictError`는 `../../lib/errors`(플랜의 `../../errors` 오류).
+- **라우트 마운트 = `src/app.ts`**(플랜의 `src/index.ts` 오류): quote-requests 곁에 `app.use("/api/consultations/*", auth)` + `app.use("/api/consultations/*", dbMiddleware)` + `app.route("/api/consultations", consultations)` 3줄.
+- **Task 6 per-customer 라우트**: `listConsultationsByUser(appUserId, ex)`(status 필터 없이 그 유저 전부) 쿼리 추가 + `src/routes/customers.ts`에 `GET /:id/consultations`(기존 `/:id/quote-requests` 미러 — `getCustomerAppUserId` 사용) 추가. 클라 `fetchCustomerConsultations`는 `/api/customers/:id/consultations` 소비.
 
 ---
 
