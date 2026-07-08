@@ -280,6 +280,12 @@
   color: #9a5a05;
 }
 
+/* 견적요청 카드는 3번째 grid 컬럼(auto, 액션 버튼)이 우측 공간을 예약하지만 상담신청 카드는 그 컬럼이 없어
+   copy 영역이 카드 끝까지 늘어난다 — 절대배치 삭제 버튼과 긴 차종명 제목이 겹치지 않게 우측 여백을 예약. */
+.kim-needs-consultation-card .kim-needs-card-main {
+  padding-right: 34px;
+}
+
 /* CRM 전용 삭제 버튼 — public.consultations는 불변, crm.consultation_dismissals에만 기록되는 숨김이다.
    카드 우상단에 조용히 얹고 hover/focus에서만 앰버 톤으로 또렷해진다(문의 카드 톤과 통일). */
 .kim-needs-consultation-delete {
