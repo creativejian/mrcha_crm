@@ -1,10 +1,9 @@
 // 고객 관리 테이블 행의 셀 컴포넌트 모음.
 // CustomerManagementPage.renderRow가 이 셀들을 조립한다.
 // 셀별 props는 각 셀이 의존하는 상태/핸들러/ref와 1:1로 대응한다.
-import { Check, Eraser, FileText, MessageSquare, Pencil, RefreshCcw, X } from "lucide-react";
+import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups } from "@/data/customers";
-import type { RoleTab } from "@/data/roles";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 
 function stopTableControlPointer(event: ReactPointerEvent<HTMLElement>) {
@@ -357,15 +356,11 @@ export function CustomerChanceCell({
 export function CustomerOperationCell({
   customer,
   showAdvisorColumn,
-  roleTab,
   operationResponseValue,
-  onChangeAdvisor,
 }: {
   customer: Customer;
   showAdvisorColumn: boolean;
-  roleTab: RoleTab;
   operationResponseValue: string;
-  onChangeAdvisor: (customerNo: number) => void;
 }) {
   return (
     <td className="operation-cell">
@@ -392,21 +387,6 @@ export function CustomerOperationCell({
             <span className="operation-response-main">{operationResponseValue}</span>
           </div>
         </div>
-        {showAdvisorColumn ? (
-          <button
-            aria-label={roleTab === "최고관리자" ? `${customer.name} 접수·담당 변경` : `${customer.name} 담당자 변경`}
-            className="next-action-edit-pill operation-change-pill"
-            onClick={(event) => {
-              event.stopPropagation();
-              onChangeAdvisor(customer.no);
-            }}
-            onPointerDown={stopTableControlPointer}
-            title={roleTab === "최고관리자" ? "접수·담당 변경" : "담당자 변경"}
-            type="button"
-          >
-            <RefreshCcw size={10} strokeWidth={2.6} />
-          </button>
-        ) : null}
       </div>
     </td>
   );

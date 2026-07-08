@@ -231,9 +231,8 @@ th {
 
 .operation-stack {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  column-gap: 8px;
   justify-content: start;
   min-width: 0;
   width: 100%;
@@ -338,12 +337,6 @@ th {
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.operation-change-pill {
-  align-self: center;
-  justify-self: end;
-  margin-right: 10px;
 }
 
 .text-block-cell {

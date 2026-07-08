@@ -425,23 +425,6 @@ export function CustomerManagementPage({
     }));
   }
 
-  function changeCustomerAdvisor(customerNo: number) {
-    // 디렉토리 이름 순환(구 ADVISOR_NAMES 목업 대체). 여전히 프론트 상태만 — 영속 배정은 상세
-    // 편집기(advisorId 동봉)가 담당, 이 버튼의 영속화는 별도 UX 결정 후.
-    if (!staffNames.length) return;
-    updateCustomers((current) => current.map((customer) => {
-      if (customer.no !== customerNo) return customer;
-      const currentIndex = staffNames.findIndex((name) => name === customer.advisor);
-      const nextAdvisor = staffNames[(currentIndex + 1 + staffNames.length) % staffNames.length];
-      return { ...customer, advisor: nextAdvisor, assignedAt: "방금 전" };
-    }));
-    markFinalUpdate(customerNo, "담당", "담당자 변경");
-    setOpenStagePicker(null);
-    setOpenChanceFor(null);
-    setOpenExtraFor(null);
-    setOpenFinalUpdateFor(null);
-  }
-
   function toggleFinalUpdatePopover(event: MouseEvent<HTMLButtonElement>, customerNo: number) {
     event.stopPropagation();
     setOpenStagePicker(null);
@@ -633,7 +616,7 @@ export function CustomerManagementPage({
         textareaRef={nextActionTextareaRef}
       />
     );
-    const operationCell = <CustomerOperationCell customer={customer} onChangeAdvisor={changeCustomerAdvisor} operationResponseValue={operationResponseValue} roleTab={roleTab} showAdvisorColumn={showAdvisorColumn} />;
+    const operationCell = <CustomerOperationCell customer={customer} operationResponseValue={operationResponseValue} showAdvisorColumn={showAdvisorColumn} />;
     const finalUpdateCell = <CustomerFinalUpdateCell customer={customer} finalUpdatePopoverRef={finalUpdatePopoverRef} onToggle={toggleFinalUpdatePopover} openFinalUpdateFor={openFinalUpdateFor} updateInfo={updateInfo} updateStatus={updateStatus} />;
     const actions = <CustomerActionsCell customer={customer} onHintHover={() => setOpenFinalUpdateFor(null)} />;
 
