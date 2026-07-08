@@ -1,5 +1,5 @@
 import { CarFront, MessageSquareText, X } from "lucide-react";
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { type CustomerDetailData } from "@/lib/customers";
 
@@ -26,6 +26,9 @@ type NeedsDashboardProps = {
 export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, openWorkbenchForQuoteRequest, onViewQuote, needsHook }: NeedsDashboardProps) {
   const { needs, appRequests, consultations, handlers } = needsHook;
   const { saveNeeds, dismissConsultation } = handlers;
+  // 상담신청 카드 삭제는 되돌리는 UI가 없어(재조회해도 dismissed 제외) 오클릭 방지용 인라인 확인 —
+  // X 한 번은 "삭제/취소" 확인 상태로만 전환, 실제 삭제는 "삭제"를 한 번 더 눌러야 실행.
+  const [confirmingConsultId, setConfirmingConsultId] = useState<string | null>(null);
 
   function renderNeedsEditor() {
     return (
@@ -128,15 +131,36 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                         CRM에서만 삭제 가능(public.consultations 불가침 — dismissConsultation은 crm.consultation_dismissals에만 기록). */}
                     {consultCards.map((c) => (
                       <div className="kim-needs-floating-card kim-needs-consultation-card" key={c.id}>
-                        <button
-                          className="kim-needs-consultation-delete"
-                          type="button"
-                          aria-label="상담신청 삭제 (CRM에서만, 앱에는 유지)"
-                          title="CRM에서만 삭제 (앱 원본은 유지)"
-                          onClick={() => dismissConsultation(c.id)}
-                        >
-                          <X size={13} strokeWidth={2.6} />
-                        </button>
+                        <div className="kim-needs-consultation-actions">
+                          {confirmingConsultId === c.id ? (
+                            <>
+                              <button
+                                className="kim-needs-consultation-confirm"
+                                type="button"
+                                onClick={() => { setConfirmingConsultId(null); dismissConsultation(c.id); }}
+                              >
+                                삭제
+                              </button>
+                              <button
+                                className="kim-needs-consultation-cancel"
+                                type="button"
+                                onClick={() => setConfirmingConsultId(null)}
+                              >
+                                취소
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              className="kim-needs-consultation-delete"
+                              type="button"
+                              aria-label="상담신청 삭제 (CRM에서만, 앱에는 유지)"
+                              title="CRM에서만 삭제 (앱 원본은 유지)"
+                              onClick={() => setConfirmingConsultId(c.id)}
+                            >
+                              <X size={13} strokeWidth={2.6} />
+                            </button>
+                          )}
+                        </div>
                         <div className="kim-needs-card-main">
                           <span className="kim-needs-car-icon" aria-hidden="true"><MessageSquareText size={22} strokeWidth={2.1} /></span>
                           <div className="kim-needs-card-copy">
