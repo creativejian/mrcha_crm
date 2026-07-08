@@ -5,7 +5,7 @@ import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
 import { consultationRequests, profiles } from "../db/public-app";
-import { customers } from "../db/schema";
+import { consultationDismissals, customers } from "../db/schema";
 
 const db = getDefaultDb();
 
@@ -153,4 +153,46 @@ test("GET /api/customers/:id/consultations → 없는 고객 id는 404", async (
     headers: { Authorization: `Bearer ${token}` },
   });
   expect(res.status).toBe(404);
+});
+
+test("DELETE /api/consultations/:id → 200, CRM 뷰에서 숨겨지지만 public.consultations는 불변", async () => {
+  // dismissed_by는 uuid 컬럼 — makeTestAuth 기본 sub("test-user")는 uuid가 아니라 insert가 실패하므로
+  // 실 uuid sub를 명시 주입한다(me.test.ts/customers.push.test.ts와 동일 관례).
+  const { token, keyResolver, issuer } = await makeTestAuth("admin", crypto.randomUUID());
+  const app = createApp({ keyResolver, issuer });
+  const userId = await anyUnlinkedProfileId();
+  const customerId = await insertCustomer({ appUserId: userId });
+  const consultationId = await insertConsultation({ userId, notes: "삭제 테스트 원본" });
+  try {
+    const res = await app.request(`/api/consultations/${consultationId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { id: string };
+    expect(body.id).toBe(consultationId);
+
+    // CRM 고객 상세 카드 목록에서 사라져야 한다.
+    const listRes = await app.request(`/api/customers/${customerId}/consultations`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const listBody = (await listRes.json()) as Array<{ id: string }>;
+    expect(listBody.map((r) => r.id)).not.toContain(consultationId);
+
+    // 핵심 불변조건: public.consultations 원본 행은 절대 삭제/변경되지 않는다.
+    const [row] = await db.select().from(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    expect(row).toBeDefined();
+    expect(row?.notes).toBe("삭제 테스트 원본");
+  } finally {
+    await db.delete(consultationDismissals).where(eq(consultationDismissals.consultationId, consultationId));
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    await db.delete(customers).where(eq(customers.id, customerId));
+  }
+});
+
+test("DELETE /api/consultations/:id 무토큰 → 401", async () => {
+  const { keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await app.request("/api/consultations/00000000-0000-0000-0000-000000000000", { method: "DELETE" });
+  expect(res.status).toBe(401);
 });

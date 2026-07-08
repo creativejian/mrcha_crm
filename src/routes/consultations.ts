@@ -3,12 +3,18 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { createCustomerFromConsultation, linkConsultationToCustomer, listConsultations } from "../db/queries/consultations";
+import {
+  createCustomerFromConsultation,
+  dismissConsultation,
+  linkConsultationToCustomer,
+  listConsultations,
+} from "../db/queries/consultations";
 import { scheduleEmbedOnWrite } from "../lib/embed-on-write";
+import type { AuthVariables } from "../middleware/auth";
 import type { DbVariables } from "../middleware/db";
 import { run } from "./shared";
 
-export const consultations = new Hono<{ Variables: DbVariables }>();
+export const consultations = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
 const idParam = z.object({ id: z.uuid() });
 
@@ -39,4 +45,9 @@ consultations.post("/:id/create-customer", zValidator("param", idParam), (c) =>
     if (row) scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: row.id });
     return row;
   }, "요청을 찾을 수 없습니다."),
+);
+
+// CRM 전용 삭제 — 카드를 CRM 뷰에서만 숨긴다(public.consultations 불변). dismissal 기록만.
+consultations.delete("/:id", zValidator("param", idParam), (c) =>
+  run(c, () => dismissConsultation(c.req.valid("param").id, c.var.user.id, c.var.db)),
 );

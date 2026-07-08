@@ -183,6 +183,13 @@
       "when": 1783493485588,
       "tag": "0025_steep_rhino",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783496622837,
+      "tag": "0026_stormy_husk",
+      "breakpoints": true
     }
   ]
 }

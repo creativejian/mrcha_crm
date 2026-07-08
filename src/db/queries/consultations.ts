@@ -1,14 +1,14 @@
 // 앱 상담신청(public.consultations) → CRM 고객 통합. 견적요청(quote-requests.ts) 패턴 재사용 —
 // 차이점: userId nullable(비로그인 상담신청 경로가 스키마상 존재), phoneNumber는 폼 자체가 NOT NULL로
 // 항상 확보(통합의 핵심 가치 = 빈 CRM 연락처를 채우는 경로). status는 read-only로 시작(전이는 미구현).
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, notInArray } from "drizzle-orm";
 
 import { ConflictError } from "../../lib/errors";
 import { APP_CONSULTATION_SOURCE } from "../../../client/src/data/customers";
 import { nextCustomerCode } from "./quote-requests";
 import { getDefaultDb, type Executor } from "../client";
 import { consultationRequests, profiles } from "../public-app";
-import { customers } from "../schema";
+import { consultationDismissals, customers } from "../schema";
 
 export type ConsultationRow = {
   id: string;
@@ -33,16 +33,26 @@ const consultationBaseSelect = {
   createdAt: consultationRequests.createdAt,
 } as const;
 
-// 인박스: 미처리(pending) 상담신청 전체(최신순).
+// CRM 전용 숨김(dismissConsultation) 처리된 상담신청 id 서브쿼리 — public.consultations는 절대
+// 건드리지 않고 CRM 조회 결과에서만 제외한다.
+function notDismissed(ex: Executor) {
+  return notInArray(
+    consultationRequests.id,
+    ex.select({ id: consultationDismissals.consultationId }).from(consultationDismissals),
+  );
+}
+
+// 인박스: 미처리(pending) 상담신청 전체(최신순). CRM에서 숨김 처리한 건은 제외.
 export async function listConsultations(ex: Executor = getDefaultDb()): Promise<ConsultationRow[]> {
   return ex
     .select(consultationBaseSelect)
     .from(consultationRequests)
-    .where(eq(consultationRequests.status, "pending"))
+    .where(and(eq(consultationRequests.status, "pending"), notDismissed(ex)))
     .orderBy(desc(consultationRequests.createdAt));
 }
 
 // 고객 상세 카드: 그 앱 유저의 상담신청 전부(상태 무관, 최신순). 읽기전용 문의 카드 목록용.
+// CRM에서 숨김 처리한 건은 제외.
 export async function listConsultationsByUser(
   appUserId: string,
   ex: Executor = getDefaultDb(),
@@ -50,7 +60,7 @@ export async function listConsultationsByUser(
   return ex
     .select(consultationBaseSelect)
     .from(consultationRequests)
-    .where(eq(consultationRequests.userId, appUserId))
+    .where(and(eq(consultationRequests.userId, appUserId), notDismissed(ex)))
     .orderBy(desc(consultationRequests.createdAt));
 }
 
@@ -141,4 +151,14 @@ export async function linkConsultationToCustomer(
     .where(eq(customers.id, customerId))
     .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
   return row ? { ...row, appUserId: req.userId } : null;
+}
+
+// CRM 전용 숨김 — public.consultations는 절대 건드리지 않고 dismissal만 기록(idempotent).
+export async function dismissConsultation(
+  consultationId: string,
+  dismissedBy: string | null,
+  ex: Executor = getDefaultDb(),
+): Promise<{ id: string }> {
+  await ex.insert(consultationDismissals).values({ consultationId, dismissedBy }).onConflictDoNothing();
+  return { id: consultationId };
 }

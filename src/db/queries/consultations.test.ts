@@ -4,9 +4,10 @@ import { eq } from "drizzle-orm";
 import { ConflictError } from "../../lib/errors";
 import { getDefaultDb } from "../client";
 import { consultationRequests, profiles } from "../public-app";
-import { customers } from "../schema";
+import { consultationDismissals, customers } from "../schema";
 import {
   createCustomerFromConsultation,
+  dismissConsultation,
   linkConsultationToCustomer,
   listConsultations,
   listConsultationsByUser,
@@ -209,5 +210,56 @@ test("linkConsultationToCustomer: app_user_id 중복이면 ConflictError", async
     await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
     await db.delete(customers).where(eq(customers.id, alreadyLinkedCustomerId));
     await db.delete(customers).where(eq(customers.id, otherCustomerId));
+  }
+});
+
+test("dismissConsultation: 숨긴 상담신청은 listConsultations/listConsultationsByUser에서 제외되고, 나머지는 그대로 노출된다", async () => {
+  const userId = await anyProfileId();
+  const idDismissed = await insertConsultation({ userId, status: "pending" });
+  const idKept = await insertConsultation({ userId, status: "pending" });
+  try {
+    const result = await dismissConsultation(idDismissed, userId, db);
+    expect(result).toEqual({ id: idDismissed });
+
+    const inbox = await listConsultations(db);
+    expect(inbox.map((r) => r.id)).not.toContain(idDismissed);
+    expect(inbox.map((r) => r.id)).toContain(idKept);
+
+    const byUser = await listConsultationsByUser(userId, db);
+    expect(byUser.map((r) => r.id)).not.toContain(idDismissed);
+    expect(byUser.map((r) => r.id)).toContain(idKept);
+  } finally {
+    await db.delete(consultationDismissals).where(eq(consultationDismissals.consultationId, idDismissed));
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, idDismissed));
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, idKept));
+  }
+});
+
+test("dismissConsultation: idempotent — 두 번 호출해도 에러 없이 계속 숨겨진다", async () => {
+  const id = await insertConsultation({ status: "pending" });
+  try {
+    await dismissConsultation(id, null, db);
+    await expect(dismissConsultation(id, null, db)).resolves.toEqual({ id });
+
+    const inbox = await listConsultations(db);
+    expect(inbox.map((r) => r.id)).not.toContain(id);
+  } finally {
+    await db.delete(consultationDismissals).where(eq(consultationDismissals.consultationId, id));
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, id));
+  }
+});
+
+test("dismissConsultation: public.consultations 행 자체는 절대 삭제/변경되지 않는다(핵심 불변조건)", async () => {
+  const id = await insertConsultation({ status: "pending", notes: "원본 노트 불변 확인" });
+  try {
+    await dismissConsultation(id, null, db);
+
+    const [row] = await db.select().from(consultationRequests).where(eq(consultationRequests.id, id));
+    expect(row).toBeDefined();
+    expect(row?.notes).toBe("원본 노트 불변 확인");
+    expect(row?.status).toBe("pending");
+  } finally {
+    await db.delete(consultationDismissals).where(eq(consultationDismissals.consultationId, id));
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, id));
   }
 });

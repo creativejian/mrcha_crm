@@ -316,3 +316,12 @@ export const staffSettings = crm.table("staff_settings", {
   liveReceiving: boolean("live_receiving").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// 앱 상담신청(public.consultations) CRM 전용 숨김 기록. public.consultations는 앱 소유·불가침이라
+// CRM은 그 테이블에 절대 DELETE/UPDATE하지 않는다 — "삭제"는 이 dismissal insert로 CRM 뷰에서만 숨긴다.
+// consultation_id는 public.consultations.id를 가리키는 loose id(FK 보류 관례, public 불가침이라 FK 자체도 안 건다).
+export const consultationDismissals = crm.table("consultation_dismissals", {
+  consultationId: uuid("consultation_id").primaryKey(),
+  dismissedBy: uuid("dismissed_by"), // → public.profiles.id(숨긴 상담사, 감사용, loose id)
+  dismissedAt: timestamp("dismissed_at", { withTimezone: true }).defaultNow().notNull(),
+});
