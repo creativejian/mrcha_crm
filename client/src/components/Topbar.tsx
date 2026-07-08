@@ -4,6 +4,7 @@ import { useAssistantThread } from "@/components/ai/useAssistantThread";
 import { initialCustomers, type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
 import { signOut } from "@/lib/auth";
+import { fetchLiveConsulting, saveLiveConsulting } from "@/lib/live-consulting";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
@@ -137,6 +138,12 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
     if (roleTab !== "딜러" || workAiOpen) void ensureAiHistory();
   }, [roleTab, workAiOpen, ensureAiHistory]);
   const [liveConsulting, setLiveConsulting] = useState(true);
+  // 실시간 상담 수신 상태는 crm.staff_settings 영속(SSOT) — 마운트 시 로드(딜러 제외).
+  // 로드 실패 시 기본 true(수신 중) 유지 — 기존 동작과 동일해 회귀 0.
+  useEffect(() => {
+    if (roleTab === "딜러") return;
+    fetchLiveConsulting().then(setLiveConsulting).catch(() => undefined);
+  }, [roleTab]);
   // 실패한 아바타 URL을 저장한다. URL이 바뀌면(재로그인/사용자 전환) 자동으로 다시 시도한다
   // — 단순 boolean이면 한 번 onError 후 멀쩡한 새 아바타도 계속 기본 아이콘으로 표시된다.
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
@@ -562,7 +569,13 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
             <div className="confirm-icon"><SettingSolidIcon name="chat" /></div>
             <h2>{confirmMode === "on" ? "실시간 상담을 켤까요?" : "실시간 상담을 끌까요?"}</h2>
             <div className="confirm-copy">{confirmMode === "on" ? <><p>On 상태에서는 관리자가 상담 배정을 시작합니다.</p><p>잠시 자리를 비우거나 상담을 받을 수 없을 때는 꼭 Off 상태로 바꿔주세요.</p></> : <><p>Off 상태에서는 앱에서 들어오는 상담 요청이 배정되지 않을 수 있습니다.</p><p>잠시 자리를 비우거나 상담을 받을 수 없을 때만 꺼주세요.</p></>}</div>
-            <div className="confirm-actions"><button className="btn cancel" onClick={() => setConfirmMode(null)} type="button">취소</button><button className={`btn ${confirmMode === "on" ? "success" : "danger"}`} onClick={() => { setLiveConsulting(confirmMode === "on"); setConfirmMode(null); }} type="button">{confirmMode === "on" ? "실시간 상담 켜기" : "실시간 상담 끄기"}</button></div>
+            <div className="confirm-actions"><button className="btn cancel" onClick={() => setConfirmMode(null)} type="button">취소</button><button className={`btn ${confirmMode === "on" ? "success" : "danger"}`} onClick={() => {
+                const next = confirmMode === "on";
+                const prev = liveConsulting;
+                setLiveConsulting(next);        // 낙관적 반영
+                setConfirmMode(null);
+                void saveLiveConsulting(next).catch(() => setLiveConsulting(prev)); // 실패 시 롤백(조용히)
+              }} type="button">{confirmMode === "on" ? "실시간 상담 켜기" : "실시간 상담 끄기"}</button></div>
           </div>
         </div>
       )}
