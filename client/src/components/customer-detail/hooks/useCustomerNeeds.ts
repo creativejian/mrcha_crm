@@ -1,5 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction, type SyntheticEvent } from "react";
 
+import { fetchCustomerConsultationsCached, type AppConsultation } from "@/lib/consultations";
 import { type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { fetchCustomerQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 
@@ -31,6 +32,8 @@ export function useCustomerNeeds({
   }));
   // 앱 유입 고객(detail.appUserId)이면 그 고객의 앱 견적요청 카드 목록. 수기 고객은 null → 기존 단일 need 카드.
   const [appRequests, setAppRequests] = useState<AppQuoteRequest[] | null>(null);
+  // 앱 유입 고객이면 그 고객의 앱 상담신청 문의 카드 목록(읽기 전용, 건별). 수기 고객은 null.
+  const [consultations, setConsultations] = useState<AppConsultation[] | null>(null);
 
   // detail.appUserId 있으면 그 고객 요청 fetch(카드 목록). 없으면 null 유지(폴백 단일 카드).
   useEffect(() => {
@@ -43,6 +46,20 @@ export function useCustomerNeeds({
     void fetchCustomerQuoteRequestsCached(detail.id)
       .then((r) => { if (!cancelled) setAppRequests(r); })
       .catch(() => { if (!cancelled) setAppRequests([]); });
+    return () => { cancelled = true; };
+  }, [detail.appUserId, detail.id]);
+
+  // 상담신청은 읽기 전용(CRM 액션으로 변하지 않음) — reload 함수 없이 TTL+재마운트로 신선도 확보.
+  useEffect(() => {
+    if (!detail.appUserId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 앱 고객 아니면 상담신청 카드 비움(외부 값 동기화)
+      setConsultations(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchCustomerConsultationsCached(detail.id)
+      .then((r) => { if (!cancelled) setConsultations(r); })
+      .catch(() => { if (!cancelled) setConsultations([]); });
     return () => { cancelled = true; };
   }, [detail.appUserId, detail.id]);
 
@@ -77,6 +94,7 @@ export function useCustomerNeeds({
   return {
     needs,
     appRequests,
+    consultations,
     reloadAppRequests,
     handlers: {
       saveNeeds,

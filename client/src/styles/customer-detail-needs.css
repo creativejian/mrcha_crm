@@ -260,6 +260,30 @@
   background: #f7f6ff;
 }
 
+/* 앱 상담신청 문의 카드 목록 — kim-needs-request-scroll(견적요청) 아래, kim-needs-customer-meta 위에 고정 배치.
+   견적요청 카드와 동일한 좌우 여백(12px)·세로 gap(10px)으로 리듬을 맞춘다. */
+.kim-needs-consultation-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+/* 견적요청 카드와의 시각 구분: 상담문의 톤(앰버 계열) 좌측 강조선 + 아이콘 tint만 다르게. 카드 형태는 유지. */
+.kim-needs-consultation-card {
+  position: relative;
+  box-shadow: inset 3px 0 0 rgba(180, 83, 9, 0.45), 0 10px 24px rgba(15, 23, 42, 0.07), 0 1px 1px rgba(15, 23, 42, 0.04);
+}
+
+.kim-needs-consultation-card:hover {
+  box-shadow: inset 3px 0 0 rgba(180, 83, 9, 0.45), 0 10px 24px rgba(15, 23, 42, 0.08), 0 0 0 3px rgba(180, 83, 9, 0.08);
+}
+
+.kim-needs-consultation-card .kim-needs-car-icon {
+  border-color: rgba(180, 83, 9, 0.28);
+  background: #fef3e6;
+  color: #9a5a05;
+}
+
 .kim-needs-customer-meta {
   margin: 0 12px 12px;
   border: 1px solid #dededb;

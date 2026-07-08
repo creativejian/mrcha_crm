@@ -1,4 +1,4 @@
-import { CarFront } from "lucide-react";
+import { CarFront, MessageSquareText } from "lucide-react";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { type CustomerDetailData } from "@/lib/customers";
@@ -24,7 +24,7 @@ type NeedsDashboardProps = {
 };
 
 export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, openWorkbenchForQuoteRequest, onViewQuote, needsHook }: NeedsDashboardProps) {
-  const { needs, appRequests, handlers } = needsHook;
+  const { needs, appRequests, consultations, handlers } = needsHook;
   const { saveNeeds } = handlers;
 
   function renderNeedsEditor() {
@@ -119,6 +119,28 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                 })
               )}
             </div>
+            {/* 앱 상담신청 문의 카드(읽기 전용, 건별) — 견적요청 카드와 공존. 원본 문의 보존(편집 없음). 없으면 미표시. */}
+            {consultations && consultations.length > 0 ? (
+              <div className="kim-needs-consultation-list">
+                {consultations.map((c) => (
+                  <div className="kim-needs-floating-card kim-needs-consultation-card" key={c.id}>
+                    <div className="kim-needs-card-main">
+                      <span className="kim-needs-car-icon" aria-hidden="true"><MessageSquareText size={22} strokeWidth={2.1} /></span>
+                      <div className="kim-needs-card-copy">
+                        <h3>{c.carModel?.trim() || "상담 문의"}</h3>
+                        <p>상담신청 · {c.dateLabel}</p>
+                      </div>
+                    </div>
+                    {c.notes?.trim() ? (
+                      <div className="kim-needs-card-memo">
+                        <span>문의사항</span>
+                        <p>{c.notes}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {/* 문의사항·관심 색상은 고객 단위(요청별 아님). 값 있을 때만 노출(스크롤 영역 밖 고정). */}
             {needs.memo.trim() || (needs.colors.trim() && needs.colors !== NEEDS_COLOR_PLACEHOLDER) ? (
               <div className="kim-needs-customer-meta">
