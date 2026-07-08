@@ -138,11 +138,15 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
     if (roleTab !== "딜러" || workAiOpen) void ensureAiHistory();
   }, [roleTab, workAiOpen, ensureAiHistory]);
   const [liveConsulting, setLiveConsulting] = useState(true);
+  const liveConsultingTouchedRef = useRef(false);
   // 실시간 상담 수신 상태는 crm.staff_settings 영속(SSOT) — 마운트 시 로드(딜러 제외).
   // 로드 실패 시 기본 true(수신 중) 유지 — 기존 동작과 동일해 회귀 0.
+  // touched 가드: 로드가 in-flight인 사이 유저가 토글하면 서버 값이 유저 선택을 덮어쓰지 않게 한다.
   useEffect(() => {
     if (roleTab === "딜러") return;
-    fetchLiveConsulting().then(setLiveConsulting).catch(() => undefined);
+    fetchLiveConsulting()
+      .then((v) => { if (!liveConsultingTouchedRef.current) setLiveConsulting(v); })
+      .catch(() => undefined);
   }, [roleTab]);
   // 실패한 아바타 URL을 저장한다. URL이 바뀌면(재로그인/사용자 전환) 자동으로 다시 시도한다
   // — 단순 boolean이면 한 번 onError 후 멀쩡한 새 아바타도 계속 기본 아이콘으로 표시된다.
@@ -572,6 +576,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
             <div className="confirm-actions"><button className="btn cancel" onClick={() => setConfirmMode(null)} type="button">취소</button><button className={`btn ${confirmMode === "on" ? "success" : "danger"}`} onClick={() => {
                 const next = confirmMode === "on";
                 const prev = liveConsulting;
+                liveConsultingTouchedRef.current = true; // 유저가 명시적으로 바꿈 → 로더가 덮어쓰지 않게
                 setLiveConsulting(next);        // 낙관적 반영
                 setConfirmMode(null);
                 void saveLiveConsulting(next).catch(() => setLiveConsulting(prev)); // 실패 시 롤백(조용히)
