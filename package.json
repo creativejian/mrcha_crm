@@ -15,7 +15,7 @@
     "format:check": "prettier --check package.json tsconfig.json \"*.config.{js,ts}\" \".ladle/config.mjs\" \"test/**/*.ts\" \"tools/**/*.ts\" \"client/src/**/*.test.tsx\" \"client/src/**/*.stories.tsx\"",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
-    "test:server": "EMBED_ON_WRITE=off bun test --env-file=.env.local",
+    "test:server": "EMBED_ON_WRITE=off PUSH_NOTIFY=off bun test --env-file=.env.local",
     "knip": "knip --no-config-hints",
     "screenshot:crm": "playwright test tools/crm-screenshot.spec.ts --project=chromium",
     "visual:crm": "playwright test tools/crm-visual.spec.ts --project=chromium",
