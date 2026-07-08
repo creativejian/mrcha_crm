@@ -7,7 +7,7 @@ mock.module("../lib/storage", () => ({
   createSignedUrl: async (_env: unknown, path: string) => `https://example.test/${path}`,
 }));
 
-import { test, expect, afterAll } from "bun:test";
+import { test, expect } from "bun:test";
 import { eq, isNull } from "drizzle-orm";
 
 import { createApp } from "../app";
@@ -16,17 +16,7 @@ import { getDefaultDb } from "../db/client";
 import { createQuote } from "../db/queries/customer-quotes";
 import { advisorQuotes, quoteRequests as quoteRequestsTable } from "../db/public-app";
 import { customerDocuments, customers, quotes, quoteScenarios } from "../db/schema";
-import { pushNotifyDeps } from "../lib/push-notify";
 import { customerWriteSchema } from "./customers";
-
-// 이 스위트의 배정 PATCH(advisorName+advisorId 동봉)는 저장 성공 후 send-push를 발동한다.
-// 배정 알림 검증은 customers.push.test.ts 담당이라 여기선 실 prod Edge Function 호출만 막으면 된다
-// (embed-on-write를 EMBED_ON_WRITE=off로 막는 것과 같은 원칙 — 테스트가 외부 서비스에 실호출 금지).
-// 파일 스코프 no-op이라 배정을 유발하는 테스트가 늘어도 자동 커버, afterAll에서 원본 복원.
-const ORIGINAL_PUSH_FETCH = pushNotifyDeps.fetchImpl;
-pushNotifyDeps.fetchImpl = (async () =>
-  new Response(JSON.stringify({ message: "no tokens", sent: 0 }), { status: 200 })) as unknown as typeof fetch;
-afterAll(() => { pushNotifyDeps.fetchImpl = ORIGINAL_PUSH_FETCH; });
 
 test("GET /api/customers → 200, 배열", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");

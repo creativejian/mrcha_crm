@@ -5,6 +5,18 @@
 // 테스트 주입점(embedOnWriteDeps 패턴 — mock.module 대신 전역 누출 없는 필드 교체).
 export const pushNotifyDeps = { fetchImpl: fetch };
 
+// 배정 알림 발송 게이트(embed-on-write의 EMBED_ON_WRITE 3규칙과 동일 원칙). 기본값으로 안전:
+// 테스트가 실 prod send-push에 실호출하는 사고(embed의 실 Gemini 호출+master 오염류) 구조적 방지.
+// ①명시 off는 항상 off ②NODE_ENV=test는 기본 off(명시 on만 허용 — 발송 검증 테스트가 여는 스위치)
+// ③그 외(로컬 dev·prod)는 on.
+export function assignmentPushEnabled(c: { env: unknown }): boolean {
+  const env = (c.env ?? {}) as { PUSH_NOTIFY?: string };
+  const flag = (env.PUSH_NOTIFY ?? process.env.PUSH_NOTIFY)?.trim().toLowerCase();
+  if (flag === "off") return false;
+  if (flag !== "on" && process.env.NODE_ENV === "test") return false;
+  return true;
+}
+
 export async function sendAssignmentPush(
   c: { env: unknown },
   msg: { userId: string; title: string; body: string },

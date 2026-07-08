@@ -15,7 +15,7 @@ import { validateLookupValue, validateStatusSelection } from "../lib/lookup-vali
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
-import { sendAssignmentPush } from "../lib/push-notify";
+import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
 import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
 import { run } from "./shared";
@@ -138,8 +138,9 @@ customers.patch(
           scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: id });
         }
         // 배정 알림(저장 성공 후, 응답 비차단). self·advisorId 부재는 위 분기에서 이미 걸러짐.
-        // holdWork가 실패를 흡수하고 sendAssignmentPush 자체도 throw 안 하지만, 이중으로 안전.
-        if (assignPush) {
+        // assignmentPushEnabled = 테스트 게이트(NODE_ENV=test 기본 off — 실 prod send-push 실호출 방지,
+        // embed-on-write 대칭). holdWork가 실패를 흡수하고 sendAssignmentPush 자체도 throw 안 하지만, 이중으로 안전.
+        if (assignPush && assignmentPushEnabled(c)) {
           holdWork(c, sendAssignmentPush(c, {
             userId: assignPush.userId,
             title: "담당 고객으로 배정되었습니다",

@@ -1,4 +1,4 @@
-import { test, expect, afterEach } from "bun:test";
+import { test, expect, afterEach, beforeAll, afterAll } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
@@ -6,6 +6,15 @@ import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
 import { customers } from "../db/schema";
 import { pushNotifyDeps } from "../lib/push-notify";
+
+// 이 스위트는 배정 알림 발송을 실제로 검증하므로 게이트를 명시적으로 연다(NODE_ENV=test 기본 off를 override).
+// 게이트를 열어도 아래 fetchImpl mock이 실 prod send-push 대신 가로챈다 — 실호출 없이 발송 경로만 검증.
+const ORIGINAL_PUSH_NOTIFY = process.env.PUSH_NOTIFY;
+beforeAll(() => { process.env.PUSH_NOTIFY = "on"; });
+afterAll(() => {
+  if (ORIGINAL_PUSH_NOTIFY === undefined) delete process.env.PUSH_NOTIFY;
+  else process.env.PUSH_NOTIFY = ORIGINAL_PUSH_NOTIFY;
+});
 
 const ORIGINAL_FETCH = pushNotifyDeps.fetchImpl;
 const createdCustomerIds: string[] = [];
