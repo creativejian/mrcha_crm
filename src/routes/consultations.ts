@@ -23,7 +23,8 @@ consultations.get("/", (c) => run(c, () => listConsultations(c.var.db)));
 
 // 매칭된 기존 고객에 연결(app_user_id set + 빈 연락처 보강). app_user_id 중복이면 run()이 409로 매핑.
 // 견적요청 link와 달리 재임베딩을 스케줄하지 않는다 — 연결이 세팅하는 필드(app_user_id·phone)는
-// customer_profile 청크 구성 필드가 아니다(상담신청 문의 자체의 임베딩은 후속 Task 범위).
+// customer_profile 청크 구성 필드가 아니다(상담신청 문의 자체는 임베딩/RAG가 아니라 업무 AI
+// customer_consultations 도구가 crm.consultation_dismissals를 제외하고 직접 조회해 답한다).
 consultations.post(
   "/:id/link",
   zValidator("param", idParam),
@@ -40,7 +41,8 @@ consultations.post(
 consultations.post("/:id/create-customer", zValidator("param", idParam), (c) =>
   run(c, async () => {
     // 트랜잭션 커밋 후 스케줄 — 승격 INSERT가 프로필 청크 구성 필드(needModel/source)를 시드하므로
-    // customer_profile 재임베딩(고객 PATCH 훅과 동일 불변). 상담신청 문의 임베딩(consultation_request)은 후속 Task 7.
+    // customer_profile 재임베딩(고객 PATCH 훅과 동일 불변). 상담신청 문의 자체는 임베딩 대상이 아니다
+    // (customer_consultations 도구가 public.consultations를 직접 조회 — RAG 코퍼스 미적재).
     const row = await c.var.db.transaction((tx) => createCustomerFromConsultation(c.req.valid("param").id, tx));
     if (row) scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: row.id });
     return row;

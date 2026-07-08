@@ -6,7 +6,7 @@
 // 도구 정의는 07-06 이사님 컨펌 완료(①quote_ready 의도대로 ②delivery_risk: 계약완료="출고 준비·정산
 // 준비" 개념 — 출고/정산 화면 구현 후 데이터 기반으로 교체 ③chance=상담사 수동 입력값). 스펙 참조.
 
-export const ASSISTANT_TOOL_KEYS = ["today_actions", "chance_ranking", "stale_customers", "quote_ready", "delivery_risk", "search_customers", "current_user", "customer_quotes"] as const;
+export const ASSISTANT_TOOL_KEYS = ["today_actions", "chance_ranking", "stale_customers", "quote_ready", "delivery_risk", "search_customers", "current_user", "customer_quotes", "customer_consultations"] as const;
 export type AssistantToolKey = (typeof ASSISTANT_TOOL_KEYS)[number];
 
 // 근거 표시(sources)와 프롬프트 블록 헤더에 쓰는 한글 라벨.
@@ -19,6 +19,7 @@ export const ASSISTANT_TOOL_LABELS: Record<AssistantToolKey, string> = {
   search_customers: "고객 검색",
   current_user: "내 정보",
   customer_quotes: "고객 견적 목록",
+  customer_consultations: "고객 상담신청 목록",
 };
 
 // CRM 역할 한글 라벨 — /ask 프롬프트 사용자 컨텍스트·current_user 리포트가 공유. 어휘 = auth CRM_ROLES
@@ -66,6 +67,15 @@ const TOOL_DECLARATION_DEFS: Record<AssistantToolKey, ToolDeclarationDef> = {
       type: "object",
       properties: {
         name: { type: "string", description: "견적을 조회할 고객 이름 부분 일치" },
+      },
+    },
+  },
+  customer_consultations: {
+    description: "특정 고객이 앱으로 신청한 상담신청 목록을 조회한다 — 관심 차종·문의 내용(notes)·신청일. '○○ 상담 문의 뭐였어', '무슨 상담 신청했어', '상담으로 뭐 물어봤어', '상담 내용 알려줘' 류 질문. 상담신청의 문의 내용·관심 차종을 물으면 반드시 이 함수를 쓴다(고객 검색·견적 조회 아님).",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "상담신청을 조회할 고객 이름 부분 일치" },
       },
     },
   },
