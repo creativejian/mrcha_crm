@@ -261,16 +261,25 @@
 }
 
 /* 앱 상담신청 문의 카드 목록 — kim-needs-request-scroll(견적요청) 아래, kim-needs-customer-meta 위에 고정 배치.
-   견적요청 카드와 동일한 좌우 여백(12px)·세로 gap(10px)으로 리듬을 맞춘다. */
+   견적요청 카드와 동일한 좌우 여백(12px)·세로 gap(10px)으로 리듬을 맞춘다.
+   건수가 많은 고객(과도기 데이터=예약자 단일계정 45건 실측)이 드로어를 무한정 늘리지 않도록 request-scroll처럼
+   max-height 스크롤로 bound한다. grid-auto-rows:max-content로 카드 원래 높이 유지(찌부러짐 방지). */
 .kim-needs-consultation-list {
   display: grid;
+  grid-auto-rows: max-content;
   gap: 10px;
   padding: 0 12px 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
-/* 견적요청 카드와의 시각 구분: 상담문의 톤(앰버 계열) 좌측 강조선 + 아이콘 tint만 다르게. 카드 형태는 유지. */
+/* 견적요청 카드와의 시각 구분: 상담문의 톤(앰버 계열) 좌측 강조선 + 아이콘 tint만 다르게. 카드 형태는 유지.
+   max-height:none — kim-needs-request-card와 동일하게, 상속된 floating-card max-height가 bounded 리스트 안에서
+   긴 문의사항 카드를 클리핑하지 않도록 해제. */
 .kim-needs-consultation-card {
   position: relative;
+  max-height: none;
   box-shadow: inset 3px 0 0 rgba(180, 83, 9, 0.45), 0 10px 24px rgba(15, 23, 42, 0.07), 0 1px 1px rgba(15, 23, 42, 0.04);
 }
 
