@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { CHAT_MODE_LABELS } from "@/data/chat";
-import { assignSession, returnSessionToAi, takeOverSession, type ChatSession, type StaffOption } from "@/lib/chat";
+import { assignSession, returnSessionToAi, takeOverSession, type ChatSession } from "@/lib/chat";
 import { useActionSelect } from "@/lib/select-bind";
+import type { StaffEntry } from "@/lib/staff";
 
 type ChatSessionHeaderProps = {
   session: ChatSession;
   staffId: string | null;
-  staffOptions: StaffOption[];
+  staffOptions: StaffEntry[];
   onChanged: () => void; // 세션 reload
   onToast: (message: string) => void;
 };
@@ -21,6 +22,8 @@ export function ChatSessionHeader({ session, staffId, staffOptions, onChanged, o
     });
   });
   const assignedName = staffOptions.find((option) => option.id === session.assignedStaffId)?.name ?? null;
+  // 배정 후보는 수신 On 상담사만(Off는 자리 비움 → 새 배정 불가). 이름 해석은 위 전체 목록에서.
+  const assignable = staffOptions.filter((option) => option.liveReceiving);
   const isMineHuman = session.mode === "human" && staffId !== null && session.assignedStaffId === staffId;
 
   async function run(action: () => Promise<void>) {
@@ -48,11 +51,11 @@ export function ChatSessionHeader({ session, staffId, staffOptions, onChanged, o
             <select
               aria-label="상담원 배정"
               className="chat-assign-select"
-              disabled={busy || staffOptions.length === 0}
+              disabled={busy || assignable.length === 0}
               {...assignBind}
             >
               <option value="">배정…</option>
-              {staffOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+              {assignable.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
             </select>
             <button
               className="btn primary"

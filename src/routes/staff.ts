@@ -1,7 +1,8 @@
 import { Hono } from "hono";
-import { asc, inArray } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 
 import { profiles } from "../db/public-app";
+import { staffSettings } from "../db/schema";
 import type { AuthVariables } from "../middleware/auth";
 import type { DbVariables } from "../middleware/db";
 
@@ -17,8 +18,15 @@ export const staff = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
 staff.get("/", async (c) => {
   const rows = await c.var.db
-    .select({ id: profiles.id, name: profiles.fullName, role: profiles.role })
+    .select({
+      id: profiles.id,
+      name: profiles.fullName,
+      role: profiles.role,
+      // 실시간 상담 수신 상태 — 설정 없는 계정은 기본 On(true). 실시간 상담 배정 select만 소비(고객 담당자 배정은 무시).
+      liveReceiving: sql<boolean>`coalesce(${staffSettings.liveReceiving}, true)`,
+    })
     .from(profiles)
+    .leftJoin(staffSettings, eq(staffSettings.staffUserId, profiles.id))
     .where(inArray(profiles.role, [...ADVISOR_ROLES]))
     // 이름순 고정(id 타이브레이커) — ORDER BY 없는 SELECT는 heap 순서라 배정 편집기의 staff[0]
     // 기본 선택과 필터 옵션 순서가 세션 간 비결정이 된다.

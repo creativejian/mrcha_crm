@@ -7,8 +7,8 @@ vi.mock("./http", () => ({ getJson: vi.fn() }));
 const getJsonMock = vi.mocked(getJson);
 
 const ROWS = [
-  { id: "11111111-1111-1111-1111-111111111111", name: "김지안", role: "admin" },
-  { id: "22222222-2222-2222-2222-222222222222", name: "강현준", role: "manager" },
+  { id: "11111111-1111-1111-1111-111111111111", name: "김지안", role: "admin", liveReceiving: true },
+  { id: "22222222-2222-2222-2222-222222222222", name: "강현준", role: "manager", liveReceiving: false },
 ];
 
 afterEach(() => {

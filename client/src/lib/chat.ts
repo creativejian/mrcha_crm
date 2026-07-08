@@ -187,21 +187,6 @@ export async function getStaffId(): Promise<string> {
   return sub;
 }
 
-export type StaffOption = { id: string; name: string };
-
-// 배정 드롭다운용. profiles RLS "viewable by self or staff"라 staff 계정은 전체 조회 가능(실측).
-export async function fetchStaffOptions(): Promise<StaffOption[]> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .in("role", ["staff", "manager", "admin"]);
-  if (error) throw error;
-  return ((data ?? []) as { id: string; full_name: string | null }[]).map((row) => ({
-    id: row.id,
-    name: row.full_name ?? "이름 없음",
-  }));
-}
-
 // 앱 insertSystemMessage 미러: staff_id 없음 + 실패는 삼킨다(상태 전이를 무르지 않음 —
 // supabase_chat_repository.dart:255-271 try/catch와 동일. 실패 시 안내줄만 누락되고 Realtime 세션 상태가 진실).
 async function insertSystemMessage(userId: string, sessionId: string, message: string): Promise<void> {

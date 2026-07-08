@@ -4,8 +4,9 @@ import { getJson } from "./http";
 
 // 직원 디렉토리(GET /api/staff — profiles CRM 역할). 담당자 배정 select의 후보 목록으로,
 // 배정 저장이 advisorId(uuid)를 동봉해야 역할 scope(staff=본인 담당)가 성립한다(#176).
-// 세션 내 캐시: 직원 목록은 세션 중 사실상 불변이라 TTL 없이 1회 fetch + inflight dedupe.
-export type StaffEntry = { id: string; name: string; role: string };
+// 세션 내 캐시: 이름/역할은 세션 중 불변이라 TTL 없이 1회 fetch + inflight dedupe.
+// liveReceiving(수신 On/Off)은 가변이지만 배정 콘솔 실시간성 요구가 낮아 캐시 stale 허용(재진입 시 최신).
+export type StaffEntry = { id: string; name: string; role: string; liveReceiving: boolean };
 
 let cache: StaffEntry[] | null = null;
 let inflight: Promise<StaffEntry[]> | null = null;

@@ -308,3 +308,11 @@ export const assistantMessages = crm.table("assistant_messages", {
   sources: jsonb("sources"), // assistant RAG 근거 [{customerId,customerName,sourceType,snippet}], user는 null
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [check("assistant_messages_role_check", inListCheck(t.role, ASSISTANT_ROLES))]);
+
+// 상담사 개인 설정 — 실시간 상담 수신 On/Off(배정 드롭다운 필터·Topbar 토글의 영속 소스).
+// staff_user_id=JWT sub(profiles.id), loose id(public FK 보류 관례). CRM 내부용(앱 미소비).
+export const staffSettings = crm.table("staff_settings", {
+  staffUserId: uuid("staff_user_id").primaryKey(),
+  liveReceiving: boolean("live_receiving").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

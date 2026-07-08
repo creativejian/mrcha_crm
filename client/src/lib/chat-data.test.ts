@@ -58,7 +58,6 @@ import {
   assignSession,
   fetchChatMessages,
   fetchChatSessions,
-  fetchStaffOptions,
   getStaffId,
   returnSessionToAi,
   sendStaffMessage,
@@ -182,13 +181,7 @@ describe("assignSession", () => {
   });
 });
 
-describe("fetchStaffOptions / getStaffId", () => {
-  it("staff/manager/admin 프로필을 옵션으로 매핑한다", async () => {
-    const q = enqueue("profiles", { data: [{ id: "p1", full_name: "지안", role: "admin" }], error: null });
-    const opts = await fetchStaffOptions();
-    expect(q.calls.find((c) => c.method === "in")?.args).toEqual(["role", ["staff", "manager", "admin"]]);
-    expect(opts).toEqual([{ id: "p1", name: "지안" }]);
-  });
+describe("getStaffId", () => {
   it("getStaffId는 JWT claims sub를 반환한다", async () => {
     expect(await getStaffId()).toBe("staff-1");
   });
