@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Customer } from "@/data/customers";
 import { CHAT_QUEUE_TABS, CHAT_TAB_LABELS, type ChatQueueTab } from "@/data/chat";
-import { fetchStaffOptions, getStaffId, type StaffOption } from "@/lib/chat";
+import { getStaffId } from "@/lib/chat";
+import { fetchStaffDirectory, type StaffEntry } from "@/lib/staff";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { useChatThread } from "@/hooks/useChatThread";
 import { ChatQueue } from "@/components/chat/ChatQueue";
@@ -23,11 +24,11 @@ export function ChatPage({ customers, onOpenCustomer, onToast, onRead }: ChatPag
   const [tab, setTab] = useState<ChatQueueTab>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
-  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [staffOptions, setStaffOptions] = useState<StaffEntry[]>([]);
 
   useEffect(() => {
     getStaffId().then(setStaffId).catch(() => setStaffId(null));
-    fetchStaffOptions().then(setStaffOptions).catch(() => setStaffOptions([]));
+    fetchStaffDirectory().then(setStaffOptions).catch(() => setStaffOptions([]));
   }, []);
 
   const visible = tab === "all" ? sessions : sessions.filter((session) => session.mode === tab);
