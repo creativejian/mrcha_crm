@@ -58,6 +58,21 @@ export const advisorQuotes = pgTable("advisor_quotes", {
     .default(sql`timezone('utc', now())`),
 });
 
+// 앱 상담신청(폼 문의) — 견적요청과 달리 phoneNumber를 폼에서 직접 받아 NOT NULL(전화번호 항상 확보).
+// userId는 nullable(비로그인 상담신청 가능 경로가 스키마상 존재) — 통합(승격/연결)은 userId 있는 행만 대상.
+// ⚠️ 물리 테이블명은 "consultations"이지만, export 식별자는 `consultationRequests`로 둔다 — src/db/schema.ts에
+// 동명(crm.consultations, "CRM 상담 이력/타임라인")이 이미 있어 같은 파일에서 두 개를 import하면 이름이 충돌한다.
+export const consultationRequests = pgTable("consultations", {
+  id: uuid().primaryKey(),
+  userId: uuid("user_id"),
+  customerName: text("customer_name").notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  carModel: text("car_model"),
+  notes: text("notes"),
+  status: text(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
 export const profiles = pgTable("profiles", {
   id: uuid().primaryKey(),
   email: text(),

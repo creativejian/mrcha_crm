@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { getCustomer, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
+import { listConsultationsByUser } from "../db/queries/consultations";
 import { listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import {
   addMemo, updateMemo, deleteMemo,
@@ -71,6 +72,19 @@ customers.get("/:id/quote-requests", zValidator("param", z.object({ id: z.uuid()
       const found = await getCustomerAppUserId(c.req.valid("param").id, c.var.db);
       if (!found) return null; // 고객 없음 → 404
       return found.appUserId ? listQuoteRequestsByUser(found.appUserId, c.var.db) : [];
+    },
+    "고객을 찾을 수 없습니다.",
+  ),
+);
+
+// 고객 상세: 그 고객(app_user_id)의 앱 상담신청 목록. 수기 고객은 빈 배열.
+customers.get("/:id/consultations", zValidator("param", z.object({ id: z.uuid() })), (c) =>
+  run(
+    c,
+    async () => {
+      const found = await getCustomerAppUserId(c.req.valid("param").id, c.var.db);
+      if (!found) return null; // 고객 없음 → 404
+      return found.appUserId ? listConsultationsByUser(found.appUserId, c.var.db) : [];
     },
     "고객을 찾을 수 없습니다.",
   ),

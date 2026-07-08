@@ -5,6 +5,7 @@ import { createAuthMiddleware } from "./middleware/auth";
 import { dbMiddleware } from "./middleware/db";
 import { assistant } from "./routes/assistant";
 import { catalog } from "./routes/catalog";
+import { consultations } from "./routes/consultations";
 import { customers } from "./routes/customers";
 import { me } from "./routes/me";
 import { quoteRequests } from "./routes/quote-requests";
@@ -35,6 +36,8 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.use("/api/customers/*", dbMiddleware);
   app.use("/api/quote-requests/*", auth);
   app.use("/api/quote-requests/*", dbMiddleware);
+  app.use("/api/consultations/*", auth);
+  app.use("/api/consultations/*", dbMiddleware);
   app.use("/api/assistant/*", auth);
   app.use("/api/assistant/*", dbMiddleware);
   app.use("/api/staff/*", auth);
@@ -46,6 +49,7 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.route("/api/catalog", catalog);
   app.route("/api/customers", customers);
   app.route("/api/quote-requests", quoteRequests);
+  app.route("/api/consultations", consultations);
   app.route("/api/assistant", assistant);
   app.route("/api/staff", staff);
   app.route("/api/me", me);

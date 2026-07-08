@@ -260,6 +260,108 @@
   background: #f7f6ff;
 }
 
+/* 앱 상담신청 문의 카드 — 견적요청 카드와 같은 kim-needs-request-scroll 스택 안에 함께 쌓인다(별도 리스트 아님).
+   견적요청 카드와의 시각 구분: 상담문의 톤(앰버 계열) 좌측 강조선 + 아이콘 tint만 다르게. 카드 형태는 유지.
+   max-height:none — kim-needs-request-card와 동일하게, 상속된 floating-card max-height가 스크롤 스택 안에서
+   긴 문의사항 카드를 클리핑하지 않도록 해제. */
+.kim-needs-consultation-card {
+  position: relative;
+  max-height: none;
+  box-shadow: inset 3px 0 0 rgba(180, 83, 9, 0.45), 0 10px 24px rgba(15, 23, 42, 0.07), 0 1px 1px rgba(15, 23, 42, 0.04);
+}
+
+.kim-needs-consultation-card:hover {
+  box-shadow: inset 3px 0 0 rgba(180, 83, 9, 0.45), 0 10px 24px rgba(15, 23, 42, 0.08), 0 0 0 3px rgba(180, 83, 9, 0.08);
+}
+
+.kim-needs-consultation-card .kim-needs-car-icon {
+  border-color: rgba(180, 83, 9, 0.28);
+  background: #fef3e6;
+  color: #9a5a05;
+}
+
+/* 견적요청 카드는 3번째 grid 컬럼(auto, 액션 버튼)이 우측 공간을 예약하지만 상담신청 카드는 그 컬럼이 없어
+   copy 영역이 카드 끝까지 늘어난다 — 절대배치 삭제 버튼과 긴 차종명 제목이 겹치지 않게 우측 여백을 예약. */
+.kim-needs-consultation-card .kim-needs-card-main {
+  padding-right: 34px;
+}
+
+/* 삭제/확인 액션 — 카드 우상단. 기본은 X 하나, 확인 상태면 "삭제/취소" 2개(인라인 confirm — 오클릭 방지). */
+.kim-needs-consultation-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* CRM 전용 삭제 버튼 — public.consultations는 불변, crm.consultation_dismissals에만 기록되는 숨김이다.
+   카드 우상단에 조용히 얹고 hover/focus에서만 앰버 톤으로 또렷해진다(문의 카드 톤과 통일). */
+.kim-needs-consultation-delete {
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: #b0806a;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-needs-consultation-delete:hover,
+.kim-needs-consultation-delete:focus-visible {
+  border-color: rgba(180, 83, 9, 0.28);
+  background: #fdece0;
+  color: #9a5a05;
+  outline: none;
+}
+
+/* 인라인 확인 — "삭제"(앰버 solid=실행) + "취소"(중립). 카드 앰버 톤과 통일. */
+.kim-needs-consultation-confirm,
+.kim-needs-consultation-cancel {
+  height: 22px;
+  border-radius: 6px;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.14s ease, border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.kim-needs-consultation-confirm {
+  border: 1px solid rgba(154, 90, 5, 0.5);
+  background: #9a5a05;
+  color: #fff;
+}
+
+.kim-needs-consultation-confirm:hover,
+.kim-needs-consultation-confirm:focus-visible {
+  filter: brightness(1.08);
+  outline: none;
+}
+
+.kim-needs-consultation-cancel {
+  border: 1px solid #dededb;
+  background: #fff;
+  color: #5f6872;
+  font-weight: 700;
+}
+
+.kim-needs-consultation-cancel:hover,
+.kim-needs-consultation-cancel:focus-visible {
+  border-color: rgba(180, 83, 9, 0.3);
+  color: #9a5a05;
+  outline: none;
+}
+
 .kim-needs-customer-meta {
   margin: 0 12px 12px;
   border: 1px solid #dededb;

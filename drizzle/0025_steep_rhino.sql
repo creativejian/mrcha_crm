@@ -1,0 +1,2 @@
+ALTER TABLE "crm"."customers" DROP CONSTRAINT "customers_source_check";--> statement-breakpoint
+ALTER TABLE "crm"."customers" ADD CONSTRAINT "customers_source_check" CHECK ("crm"."customers"."source" IS NULL OR "crm"."customers"."source" IN ('앱 견적요청', '앱 상담신청', '앱 AI상담', '앱 상담원 연결', '디엘(상담)', '디엘(견적서)', '대표전화', '카카오', '소개', '추천', '재구매', '유튜브', '검색', '기타'));
