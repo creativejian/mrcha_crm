@@ -1,0 +1,144 @@
+// 앱 상담신청(public.consultations) → CRM 고객 통합. 견적요청(quote-requests.ts) 패턴 재사용 —
+// 차이점: userId nullable(비로그인 상담신청 경로가 스키마상 존재), phoneNumber는 폼 자체가 NOT NULL로
+// 항상 확보(통합의 핵심 가치 = 빈 CRM 연락처를 채우는 경로). status는 read-only로 시작(전이는 미구현).
+import { and, desc, eq, ne } from "drizzle-orm";
+
+import { ConflictError } from "../../lib/errors";
+import { APP_CONSULTATION_SOURCE } from "../../../client/src/data/customers";
+import { nextCustomerCode } from "./quote-requests";
+import { getDefaultDb, type Executor } from "../client";
+import { consultationRequests, profiles } from "../public-app";
+import { customers } from "../schema";
+
+export type ConsultationRow = {
+  id: string;
+  userId: string | null;
+  customerName: string;
+  phoneNumber: string;
+  carModel: string | null;
+  notes: string | null;
+  status: string | null;
+  createdAt: string;
+};
+
+// rows 조회 공통 select 컬럼. where만 호출부에서 더한다(quote-requests.ts 패턴).
+const consultationBaseSelect = {
+  id: consultationRequests.id,
+  userId: consultationRequests.userId,
+  customerName: consultationRequests.customerName,
+  phoneNumber: consultationRequests.phoneNumber,
+  carModel: consultationRequests.carModel,
+  notes: consultationRequests.notes,
+  status: consultationRequests.status,
+  createdAt: consultationRequests.createdAt,
+} as const;
+
+// 인박스: 미처리(pending) 상담신청 전체(최신순).
+export async function listConsultations(ex: Executor = getDefaultDb()): Promise<ConsultationRow[]> {
+  return ex
+    .select(consultationBaseSelect)
+    .from(consultationRequests)
+    .where(eq(consultationRequests.status, "pending"))
+    .orderBy(desc(consultationRequests.createdAt));
+}
+
+// 고객 상세 카드: 그 앱 유저의 상담신청 전부(상태 무관, 최신순). 읽기전용 문의 카드 목록용.
+export async function listConsultationsByUser(
+  appUserId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<ConsultationRow[]> {
+  return ex
+    .select(consultationBaseSelect)
+    .from(consultationRequests)
+    .where(eq(consultationRequests.userId, appUserId))
+    .orderBy(desc(consultationRequests.createdAt));
+}
+
+// 승격/연결 시점 임베딩 훅용 — 그 유저의 상담신청 id 전부(요청 청크와 동일하게 고객 연결이 생겨야 적재 가능).
+export async function listConsultationIdsByUser(appUserId: string, ex: Executor = getDefaultDb()): Promise<string[]> {
+  const rows = await ex
+    .select({ id: consultationRequests.id })
+    .from(consultationRequests)
+    .where(eq(consultationRequests.userId, appUserId));
+  return rows.map((r) => r.id);
+}
+
+// profiles + 상담신청 데이터로 신규 customers INSERT(app_user_id 연결). 같은 user로 이미 고객 있으면
+// 기존 반환(중복 방지, source 안 덮음 — 최초 유입 source 유지). userId 없는(비로그인) 상담신청은 통합 불가(null).
+// 라우트가 transaction으로 감싸 호출(ex=tx) — 채번+insert 원자성.
+export async function createCustomerFromConsultation(
+  consultationId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<{ id: string; customerCode: string; name: string; appUserId: string } | null> {
+  const [req] = await ex
+    .select({
+      userId: consultationRequests.userId,
+      customerName: consultationRequests.customerName,
+      phoneNumber: consultationRequests.phoneNumber,
+      carModel: consultationRequests.carModel,
+      createdAt: consultationRequests.createdAt,
+    })
+    .from(consultationRequests)
+    .where(eq(consultationRequests.id, consultationId));
+  if (!req || !req.userId) return null;
+
+  const [existing] = await ex
+    .select({ id: customers.id, customerCode: customers.customerCode, name: customers.name })
+    .from(customers)
+    .where(eq(customers.appUserId, req.userId));
+  if (existing) return { ...existing, appUserId: req.userId };
+
+  const [profile] = await ex
+    .select({ fullName: profiles.fullName, phoneNumber: profiles.phoneNumber })
+    .from(profiles)
+    .where(eq(profiles.id, req.userId));
+
+  const customerCode = await nextCustomerCode(ex);
+  const [row] = await ex
+    .insert(customers)
+    .values({
+      customerCode,
+      // 폼 우선(OpenQ1 확정) — book_consultation Edge가 폼값을 저장하고, phone_number는 NOT NULL이라
+      // 항상 채워진다. profile 폴백은 폼 값이 빈 문자열인 방어적 케이스만 대비.
+      name: req.customerName.trim() || profile?.fullName || "이름미상",
+      phone: req.phoneNumber.trim() || profile?.phoneNumber || null,
+      appUserId: req.userId,
+      needModel: req.carModel ?? null,
+      source: APP_CONSULTATION_SOURCE,
+      statusGroup: "신규",
+      status: "상담접수",
+      receivedAt: new Date(req.createdAt),
+    })
+    .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
+  return row ? { ...row, appUserId: req.userId } : null;
+}
+
+// 상담신청의 user_id를 대상 고객 app_user_id에 set + 빈 연락처 보강. 요청/고객 없으면 null.
+// app_user_id 중복이면 ConflictError(→409, quote-requests.linkRequestToCustomer와 대칭 fail-closed).
+export async function linkConsultationToCustomer(
+  consultationId: string,
+  customerId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<{ id: string; customerCode: string; name: string; appUserId: string } | null> {
+  const [req] = await ex
+    .select({ userId: consultationRequests.userId, phoneNumber: consultationRequests.phoneNumber })
+    .from(consultationRequests)
+    .where(eq(consultationRequests.id, consultationId));
+  if (!req || !req.userId) return null;
+
+  const [linked] = await ex
+    .select({ customerCode: customers.customerCode, name: customers.name })
+    .from(customers)
+    .where(and(eq(customers.appUserId, req.userId), ne(customers.id, customerId)));
+  if (linked) throw new ConflictError(`이 앱 계정은 이미 ${linked.name}(${linked.customerCode}) 고객에 연결돼 있습니다.`);
+
+  const [target] = await ex.select({ phone: customers.phone }).from(customers).where(eq(customers.id, customerId));
+  if (!target) return null;
+
+  const [row] = await ex
+    .update(customers)
+    .set({ appUserId: req.userId, phone: target.phone?.trim() || req.phoneNumber, updatedAt: new Date() })
+    .where(eq(customers.id, customerId))
+    .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
+  return row ? { ...row, appUserId: req.userId } : null;
+}

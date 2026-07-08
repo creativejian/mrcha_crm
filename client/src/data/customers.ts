@@ -71,7 +71,17 @@ export const DOC_TYPE_OPTIONS: readonly string[] = [
 // 닫힌 집합(customers_source_check) 원소임이 구조적으로 보장된다 — 어휘 개명(0015 '앱 견적비교' 전례) 시
 // 여기 한 곳 수정. 단 업무 AI 코퍼스 근거 라벨(assistant-corpus LABEL)은 별개 문자열(재임베딩 결합 금지).
 export const APP_QUOTE_REQUEST_SOURCE = "앱 견적요청";
-export const SOURCE_AUTOMATIC_OPTIONS: readonly string[] = [APP_QUOTE_REQUEST_SOURCE, "앱 AI상담", "앱 상담원 연결", "디엘(상담)", "디엘(견적서)"];
+// 앱 상담신청(public.consultations) 승격 고객의 source 값. 견적요청과 같은 이유로 named const —
+// 서버 승격 INSERT(db/queries/consultations)와 닫힌 집합(customers_source_check) 원소임이 구조적으로 보장.
+export const APP_CONSULTATION_SOURCE = "앱 상담신청";
+export const SOURCE_AUTOMATIC_OPTIONS: readonly string[] = [
+  APP_QUOTE_REQUEST_SOURCE,
+  APP_CONSULTATION_SOURCE,
+  "앱 AI상담",
+  "앱 상담원 연결",
+  "디엘(상담)",
+  "디엘(견적서)",
+];
 export const SOURCE_MANUAL_OPTIONS: readonly string[] = ["대표전화", "카카오", "소개", "추천", "재구매", "유튜브", "검색", "기타"];
 export const SOURCE_OPTIONS: readonly string[] = [...SOURCE_AUTOMATIC_OPTIONS, ...SOURCE_MANUAL_OPTIONS];
 export const SOURCE_LEGACY_AUTOMATIC_OPTIONS: readonly string[] = ["디엘홈페이지"];
