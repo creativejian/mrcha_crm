@@ -15,10 +15,12 @@ import { validateLookupValue, validateStatusSelection } from "../lib/lookup-vali
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
-import type { DbVariables } from "../middleware/db";
+import { sendAssignmentPush } from "../lib/push-notify";
+import type { AuthVariables } from "../middleware/auth";
+import { holdWork, type DbVariables } from "../middleware/db";
 import { run } from "./shared";
 
-export const customers = new Hono<{ Variables: DbVariables }>();
+export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
 // 쓰기 가능 컬럼(전부 optional·문자열 nullable). 값 enum 검증 없음(추후 사이클).
 export const customerWriteSchema = z.object({
@@ -99,13 +101,22 @@ customers.patch(
     // 담당자가 실제로 바뀔 때만 스탬프 — 동일 담당자 재저장(팀만 변경 등)에 assigned_at을 리셋하면
     // 목록 '배정 후 N분' SLA가 왜곡된다. 해제(null)면 배정시각도 함께 비운다(미배정+배정시각 모순 방지).
     let finalPatch: CustomerWritePatch = patch;
+    // 배정 알림 대상(저장 성공 후 발송). null이면 알림 없음. 저장 로직과 무관 — 알림에만 쓰인다.
+    let assignPush: { userId: string; body: string } | null = null;
     if (patch.advisorName !== undefined) {
       if (patch.advisorName === null) {
         finalPatch = { ...patch, assignedAt: null };
       } else {
         const current = await getCustomerAdvisorName(c.req.valid("param").id, c.var.db);
         if (!current) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
-        if (current.advisorName !== patch.advisorName) finalPatch = { ...patch, assignedAt: new Date() };
+        if (current.advisorName !== patch.advisorName) {
+          finalPatch = { ...patch, assignedAt: new Date() };
+          // 담당자 실제 변경 → 배정 알림 후보(스펙 §5.2). 발송 조건: advisorId NOT NULL(대상 user_id 확보) +
+          // 배정 실행자 ≠ 대상(자기 배정은 저장은 되되 알림 skip). advisorName만 오고 id 없으면 대상 불명 → skip.
+          if (patch.advisorId && patch.advisorId !== c.var.user.id) {
+            assignPush = { userId: patch.advisorId, body: current.name };
+          }
+        }
       }
       // 담당자 변경인데 advisorId가 안 오면 id를 비운다 — 이름만 갈리고 구 id가 남는 스테일
       // (타 상담사 scope에 남의 고객이 잡히는 사고) 방지. 해제(null)도 같은 규칙으로 id 동반 해제.
@@ -125,6 +136,15 @@ customers.patch(
         // (buildCustomerProfileChunkText)와 정렬. 값이 실제로 안 바뀐 no-op PATCH는 content_hash skip이 흡수.
         if (CUSTOMER_PROFILE_EMBED_KEYS.some((k) => patch[k] !== undefined)) {
           scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: id });
+        }
+        // 배정 알림(저장 성공 후, 응답 비차단). self·advisorId 부재는 위 분기에서 이미 걸러짐.
+        // holdWork가 실패를 흡수하고 sendAssignmentPush 자체도 throw 안 하지만, 이중으로 안전.
+        if (assignPush) {
+          holdWork(c, sendAssignmentPush(c, {
+            userId: assignPush.userId,
+            title: "담당 고객으로 배정되었습니다",
+            body: assignPush.body,
+          }));
         }
       }
       return row;
