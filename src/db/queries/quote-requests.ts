@@ -284,6 +284,14 @@ export async function linkRequestToCustomer(
     .from(customers)
     .where(and(eq(customers.appUserId, req.userId), ne(customers.id, customerId)));
   if (linked) throw new ConflictError(`이 앱 계정은 이미 ${linked.name}(${linked.customerCode}) 고객에 연결돼 있습니다.`);
+  // 역방향(고객 → 앱계정) 재연결 차단 — 위 가드는 정방향만 본다. 전화 매칭 후보는 이미 다른 앱 계정에
+  // 연결된 고객도 노출하므로(matchType="phone"), 가드가 없으면 "연결" 한 번에 그 고객의 app_user_id가
+  // 조용히 교체되고 원래 계정의 요청·상담이 매칭을 잃는다. 같은 계정 재연결은 멱등이라 통과.
+  const [target] = await ex.select({ appUserId: customers.appUserId }).from(customers).where(eq(customers.id, customerId));
+  if (!target) return null;
+  if (target.appUserId && target.appUserId !== req.userId) {
+    throw new ConflictError("이 고객은 이미 다른 앱 계정에 연결돼 있습니다.");
+  }
   const [row] = await ex
     .update(customers)
     .set({ appUserId: req.userId, updatedAt: new Date() })

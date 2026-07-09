@@ -217,6 +217,39 @@ test("linkConsultationToCustomer: app_user_id 중복이면 ConflictError", async
   }
 });
 
+// 역방향(고객 → 앱계정) 재연결 차단(0709 감사). 기존 409 가드는 "들어오는 userId가 다른 고객에 이미
+// 붙었나"만 봐서, 대상 고객이 **다른** 앱 계정에 연결돼 있어도 조용히 덮어썼다. 그러면 원래 붙어 있던
+// 앱 계정은 고아가 되고 그 유저의 견적요청/상담신청이 매칭을 잃는다(crm.customers.app_user_id에 UNIQUE
+// 제약도 없어 DB가 막지 않는다 — 실측).
+test("linkConsultationToCustomer: 대상 고객이 이미 다른 앱 계정에 연결돼 있으면 ConflictError(덮어쓰기 금지)", async () => {
+  const incomingUser = await anyUnlinkedProfileId();
+  const occupyingUser = crypto.randomUUID(); // customers.app_user_id는 loose id(FK 없음)
+  const customerId = await insertCustomer({ appUserId: occupyingUser, name: "이미 다른 앱계정 연결됨" });
+  const consultationId = await insertConsultation({ userId: incomingUser });
+  try {
+    await expect(linkConsultationToCustomer(consultationId, customerId, db)).rejects.toThrow(ConflictError);
+    const [c] = await db.select({ appUserId: customers.appUserId }).from(customers).where(eq(customers.id, customerId));
+    expect(c.appUserId).toBe(occupyingUser); // 기존 연결 보존
+  } finally {
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    await db.delete(customers).where(eq(customers.id, customerId));
+  }
+});
+
+// 같은 앱 계정으로의 재연결은 멱등이라 허용(가드는 "다른 계정"만 막는다).
+test("linkConsultationToCustomer: 같은 앱 계정으로 다시 연결하면 그대로 성공(멱등)", async () => {
+  const userId = await anyUnlinkedProfileId();
+  const customerId = await insertCustomer({ appUserId: userId, name: "같은 계정 재연결" });
+  const consultationId = await insertConsultation({ userId });
+  try {
+    const row = await linkConsultationToCustomer(consultationId, customerId, db);
+    expect(row?.id).toBe(customerId);
+  } finally {
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    await db.delete(customers).where(eq(customers.id, customerId));
+  }
+});
+
 test("dismissConsultation: 숨긴 상담신청은 listConsultations/listConsultationsByUser에서 제외되고, 나머지는 그대로 노출된다", async () => {
   const userId = await anyProfileId();
   const idDismissed = await insertConsultation({ userId, status: "pending" });
