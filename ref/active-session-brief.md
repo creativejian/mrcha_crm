@@ -16,15 +16,15 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 
 ## Current Focus
 
-- **⏳ send-push 인증 헤더 도입 — CRM 몫 대기(2026-07-09, 앱 팀 협조 요청·fail-open 합의)**: 앱의 `send-push` Edge Function이 `verify_jwt=false`+내부 인증 0이라 URL·user_id만 알면 임의 푸시 주입 가능. 앱이 `X-Push-Secret` 공유 시크릿 검사를 도입하는데, **CRM이 그 함수를 직접 부르는 유일한 지점**이 `src/lib/push-notify.ts:31`(소비처 = `routes/customers.ts:158` 고객 담당자 배정 PATCH)이라 헤더를 붙여야 한다. (견적 발송 알림은 `on_advisor_quote_sent` 트리거 경유 = **CRM 코드 0줄**, 손댈 것 없음. CRM 배정 알림 ≠ 앱 `notify_chat_session_assigned` — 고객 담당자 배정 vs 채팅 세션 배정, **중복 아님**.)
+- **⏳ send-push 인증 헤더 — 코드 완료(PR #201 f111f83), CF secret 등록만 대기(2026-07-09)**: 앱의 `send-push` Edge Function이 `verify_jwt=false`+내부 인증 0이라 URL·user_id만 알면 임의 푸시 주입 가능. 앱이 `X-Push-Secret` 공유 시크릿 검사를 도입하는데, **CRM이 그 함수를 직접 부르는 유일한 지점**이 `src/lib/push-notify.ts:31`(소비처 = `routes/customers.ts:158` 고객 담당자 배정 PATCH)이라 헤더를 붙여야 한다. (견적 발송 알림은 `on_advisor_quote_sent` 트리거 경유 = **CRM 코드 0줄**, 손댈 것 없음. CRM 배정 알림 ≠ 앱 `notify_chat_session_assigned` — 고객 담당자 배정 vs 채팅 세션 배정, **중복 아님**.)
   **무중단 3단 배포 — 순서 엄수**: ①앱 = soft 검증 배포(헤더 없으면 warn 후 통과) + 앱 트리거 3개 헤더 부착 → **CRM 영향 0** ②**CRM = 아래 작업** → 앱이 "헤더 없는 호출 0건" 확인 ③앱 = 401 강제 전환 + Sentry warning. **②완료 확인 없이는 ③으로 안 넘어간다**(앱 팀 확약).
   **CRM 작업 순서**:
-  1. (**시크릿 없이 지금 가능** — 없으면 현행과 동일 동작이라 위험 0) `push-notify.ts` = `env.SEND_PUSH_SECRET ?? process.env.SEND_PUSH_SECRET` 읽어 **조건부 헤더** `X-Push-Secret`(fail-open — 미설정 시 헤더 생략 + `console.warn`. 배포 순서가 어긋나도 배정 알림이 안 끊긴다. CRM은 발신 측이라 fail-closed의 보안 이득 0, 반대로 알림이 조용히 사라지는 게 더 나쁘다 — 앱 팀 동의).
-  2. `push-notify.ts` = **`res.status === 401`을 다른 실패와 분리해 눈에 띄게 로깅**(앱 팀 요청). 3단계 전환 후 시크릿 누락이 조용히 묻히면 이번 알림 오염과 같은 종류의 실패(실패해도 조용)가 된다. 앱은 Sentry warning, CRM은 tail 로그 — 어느 한쪽만 봐도 잡히게 이중.
-  3. `push-notify.test.ts` = 헤더 유/무 2케이스 + 401 구분 로그 테스트.
-  4. `.env.example`에 `SEND_PUSH_SECRET=` 자리 추가(값 없이).
-  5. (**시크릿 수령 후**) CF Pages **Production** secret 등록(`GEMINI_API_KEY` 선례 — 대시보드 encrypt) + `.env.local`에도 추가.
-  6. prod 배포 후 실기 배정 1건 → CF tail로 401 없음 확인 → **앱 팀에 "2단계 완료" 통보**.
+  1. ~~조건부 헤더~~ **✅ 완료(PR #201 squash f111f83)**: `push-notify.ts`가 `env.SEND_PUSH_SECRET ?? process.env.SEND_PUSH_SECRET`을 읽어 **조건부 헤더** `X-Push-Secret`(fail-open — 미설정 시 헤더 생략 + `console.warn`. 배포 순서가 어긋나도 배정 알림이 안 끊긴다. CRM은 발신 측이라 fail-closed의 보안 이득 0, 반대로 알림이 조용히 사라지는 게 더 나쁘다 — 앱 팀 동의).
+  2. ~~401 구분 로깅~~ **✅ 완료**: `res.status === 401` → `[push] AUTH_FAILED(401)` 토큰(tail grep용). 다른 실패(네트워크·5xx)와 분리. 3단계 전환 후 시크릿 누락이 조용히 묻히면 이번 알림 오염과 같은 부류(실패해도 조용)가 된다. 앱은 Sentry warning, CRM은 이 로그 — 이중 감시.
+  3. ~~테스트~~ **✅ 완료**: `push-notify.test.ts` 4종(헤더 동봉 / 미설정 시 생략+호출 진행=fail-open 계약 잠금 / 401 구분 / 401 외 기존 문구 유지). server 393 pass.
+  4. ~~`.env.example`~~ **✅ 완료**(`SEND_PUSH_SECRET=` 자리, 값 없음 + 로컬 dev 실푸시 주의).
+  5. **⏳ 대기(시크릿 수령 후 — 유슨생/이사님 계정 작업)**: CF Pages **Production** secret 등록(Workers & Pages → mrcha-crm → Settings → Environment variables → Production, **Encrypt 필수**. `GEMINI_API_KEY` 선례. **Preview 환경엔 넣지 말 것** — PR 프리뷰가 실 푸시를 쏜다). secret 추가는 기존 배포에 자동 반영 안 됨 → `배포 관리 → Retry deployment` 또는 새 커밋 push. `.env.local` 추가는 선택(넣으면 로컬 배정도 실 푸시).
+  6. **⏳ 대기**: prod 배포 후 담당자 배정 1건 → CF tail에 `AUTH_FAILED` 없음 확인(**`device_tokens` 0행이라 send-push는 `{sent:0}` 200 반환 — 실기기 없이 인증 통과만 검증 가능**) → **앱 팀에 "2단계 완료" 통보** → 앱 3단계.
   **🔒 시크릿 값은 커밋·PR·이슈·메신저·브리프 어디에도 남기지 않는다.** `.env.local`(gitignore `.gitignore:10`)과 CF Pages secret에만. **주의**: `.env.local`에 넣으면 **로컬 dev 배정도 실 푸시가 나간다** — `PUSH_NOTIFY` 게이트는 `NODE_ENV=test`만 기본 off라 로컬 dev(on)는 실호출한다(현행도 동일). 로컬에서 배정 만질 땐 `PUSH_NOTIFY=off`.
   (앱 몫 별건: `notify-admin`·`check-vonage-balance`도 `verify_jwt=false`지만 트리거·cron 전용이라 앱 팀이 CRM 협조 없이 잠근다.)
 - **🔴 운영 알림 오염 사고 → 해소(2026-07-09, PR #199 squash 3766de2 + PR #200)**: **로컬 `bun run test:server` 1회가 운영 디스코드 알림·FCM 푸시 42건을 실제로 발송**하고 있었다(앱 팀 제보). 원인 = `DATABASE_URL`이 공유 master라 `public.consultations`(`on_consultation_created`)·`public.advisor_quotes`(`on_advisor_quote_sent`)에 픽스처 INSERT하면 `net.http_post`→Edge Function이 나간다(테스트가 행을 지워도 트리거는 이미 발화). **`PUSH_NOTIFY=off`는 무력** — CRM 앱 코드(`push-notify.ts`) 게이트일 뿐 Postgres 트리거는 프로세스 env를 못 본다. CI 아님(workflow 없음) = 로컬 수동 실행마다 재발. **해법** = 앱 팀 트리거 가드(`20260709103000_skip_notify_guard.sql`: `current_setting('app.skip_notify',true)='on' AND session_user='postgres'` → RETURN NEW) + CRM은 **`withNotifyGuard(db, (tx) => …)`**(`src/test-utils/notify-gate.ts` = `db.transaction` + `set_config('app.skip_notify','on',true)`)로 픽스처를 감싼다. INSERT/UPDATE는 그대로, 알림만 스킵.
