@@ -67,6 +67,7 @@ Default handoff behavior:
   - **Constant-ize mock/data**: values used in calc or reused (price/option/discount, etc.) go in named consts, not inline literals. Shared ones live in `client/src/data/`.
   - **Tests**: pure calc/util logic is unit-tested first (TDD). Large page components may rely on manual/screenshot verification.
   - **Verify data meanings**: don't assume DB column/enum/type semantics (e.g. `trim_options.type` basic/tuning) — check real samples via `psql "$DATABASE_URL"` before designing. (`basic` was wrongly assumed "free base spec" and broke option selection.)
+- **⚠️ Workers에서 `fetch`는 반드시 plain call(2026-07-09 prod 실버그)**: `deps.fetchImpl(url, init)`처럼 **객체 메서드로 호출**하면 `this=deps`가 되고, CF Workers의 global `fetch`는 `this`가 globalThis/undefined가 아니면 `TypeError: Illegal invocation`으로 던진다. 호출 전 **지역 변수로 뽑아** 부를 것(`const fetchImpl = deps.fetchImpl; await fetchImpl(...)` — ESM strict라 this=undefined). `gemini-post.ts:14`(`const fetchImpl = opts.fetchImpl ?? fetch`)가 안전한 형태. **로컬 bun의 fetch는 this를 안 따져 유닛·로컬 dev로 재현되지 않는다**(prod 전용 실패). `push-notify.ts`가 이걸 밟아 **#193 이후 배정 알림이 prod에서 한 번도 안 나갔고**, `try/catch` best-effort가 예외를 삼켜 두 달 가까이 조용했다(PR #202). 새 `deps` 객체에 `fetch`를 담을 땐 호출부를 반드시 plain call로.
 - **⚠️ 운영 알림 트리거 테이블(2026-07-09 사고 → 해소)**: `DATABASE_URL`이 공유 master라 아래 4테이블에 INSERT/UPDATE하면 `net.http_post` → Edge Function → **운영 디스코드 알림·FCM 푸시가 실제로 나간다**(테스트가 행을 지워도 트리거는 이미 발화). 로컬 `test:server` 1회가 42건을 냈다. `test:server`의 `PUSH_NOTIFY=off`는 CRM 앱 코드 경로만 막고 **DB 트리거는 못 막는다**(트리거는 프로세스 env를 못 본다).
   | 함수 | 테이블 | 나가는 것 |
   |---|---|---|
