@@ -1,4 +1,4 @@
-import { and, eq, ilike, inArray, isNotNull, notExists, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, notExists, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { ASSISTANT_TOOL_LABELS, CRM_ROLE_LABELS, type AssistantToolKey, type AssistantToolResult } from "../../lib/assistant-tools";
@@ -37,12 +37,14 @@ function staleBucket(days: number): string | null {
 }
 
 // 리포트 행 상한 — 도구 결과는 근거 1청크로 Gemini 프롬프트에 통째 실리므로(assistant.ts) 무상한이면
-// 고객 수에 비례해 토큰이 무한 성장한다(chance 20·search 30 상한과 대칭). days desc 정렬이라 잘려도
-// 최악 케이스가 보존되고, 잘림은 '외 N명' 행으로 총량을 모델에 알린다.
+// 행 수에 비례해 토큰이 무한 성장한다(chance 20·search 30 상한과 대칭). 잘림은 '외 N{unit}' 행으로 총량을
+// 모델에 알린다. **호출부는 반드시 중요도 desc로 정렬해 넘긴다** — slice가 뒤를 버리므로 앞이 보존된다
+// (고객 리포트=무활동 days desc, 견적·상담=최신 createdAt desc). unit은 행의 단위: 행이 사람이면 "명",
+// 한 고객의 견적/상담이면 "건"(0709 감사 — 상담 44건을 "외 14명"으로 오표기하던 것).
 const REPORT_ROW_LIMIT = 30;
-function capReportLines(lines: string[]): string[] {
+export function capReportLines(lines: string[], unit: "명" | "건"): string[] {
   if (lines.length <= REPORT_ROW_LIMIT) return lines;
-  return [...lines.slice(0, REPORT_ROW_LIMIT), `외 ${lines.length - REPORT_ROW_LIMIT}명 — 상위 ${REPORT_ROW_LIMIT}명만 표시`];
+  return [...lines.slice(0, REPORT_ROW_LIMIT), `외 ${lines.length - REPORT_ROW_LIMIT}${unit} — 상위 ${REPORT_ROW_LIMIT}${unit}만 표시`];
 }
 
 // search_customers 파라미터(라우터가 모델 args를 그대로 넘김 — zod로 좁힌다. 미지 키는 무시).
@@ -110,7 +112,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         .filter((r): r is typeof r & { days: number } => r.days != null && staleBucket(r.days) != null)
         .sort((a, b) => b.days - a.days)
         .map((r) => `${r.name} — ${r.days}일 무활동 (${staleBucket(r.days)}) · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`);
-      return { label, lines: capReportLines(lines) };
+      return { label, lines: capReportLines(lines, "명") };
     }
 
     // 진행 상태 "견적" 단계 고객 ∪ 작성 중(draft) 견적 보유 고객 — 사유 병기(이사님 컨펌 07-06: 의도대로).
@@ -146,7 +148,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         .filter((r): r is typeof r & { days: number } => r.days != null && r.days >= STALE_THRESHOLDS.review)
         .sort((a, b) => b.days - a.days)
         .map((r) => `${r.name} — 계약완료 단계(${r.status ?? "세부 미입력"}) · ${r.days}일 무활동`);
-      return { label, lines: capReportLines(lines) };
+      return { label, lines: capReportLines(lines, "명") };
     }
 
     // 조건 검색(PR2 자유 질문 라우팅 전용): 이름/진행 상태/구매방식/상담경로 필터 조합 — 부분 일치는
@@ -206,14 +208,14 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         .from(quotes)
         .innerJoin(customers, eq(customers.id, quotes.customerId))
         .where(conds.length ? and(...conds) : undefined)
-        .orderBy(quotes.createdAt);
+        .orderBy(desc(quotes.createdAt)); // 최신 우선 — capReportLines가 뒤를 버린다
       const lines = rows.map((r) => {
         const car = [r.brand, r.model, r.trim].filter(Boolean).join(" ") || "차종 미정";
         const state = r.appStatus === "sent" ? (r.viewedAt ? "발송완료·고객 열람" : "발송완료") : "작성중";
         return `${r.name} · ${r.code} · ${car} · ${state}`;
       });
       const filterLabel = f.name ? `이름 ${f.name}` : "전체";
-      return { label: `${label}(${filterLabel})`, lines: capReportLines(lines) };
+      return { label: `${label}(${filterLabel})`, lines: capReportLines(lines, "건") };
     }
 
     // 특정 고객의 앱 상담신청 목록(관심 차종·문의 내용·신청일) — public.consultations를 CRM 고객(app_user_id)에
@@ -241,14 +243,14 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         .from(consultationRequests)
         .innerJoin(customers, eq(customers.appUserId, consultationRequests.userId))
         .where(and(...conds))
-        .orderBy(consultationRequests.createdAt);
+        .orderBy(desc(consultationRequests.createdAt)); // 최신 우선 — 실 master에 44건 고객 상존(상한 30 초과)
       const lines = rows.map((r) => {
         const car = r.carModel?.trim() || "관심 차종 미지정";
         const note = r.notes?.trim() || "문의 내용 없음";
         return `${r.name} · ${kstDateOf(new Date(r.createdAt))} · ${car} · 문의: ${note}`;
       });
       const filterLabel = f.name ? `이름 ${f.name}` : "전체";
-      return { label: `${label}(${filterLabel})`, lines: capReportLines(lines) };
+      return { label: `${label}(${filterLabel})`, lines: capReportLines(lines, "건") };
     }
   }
 }
