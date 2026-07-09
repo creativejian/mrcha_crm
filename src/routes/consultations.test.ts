@@ -1,6 +1,7 @@
-import { test, expect } from "bun:test";
+import { expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
+import { withNotifyGuard } from "../test-utils/notify-gate";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
@@ -20,11 +21,13 @@ async function anyUnlinkedProfileId(): Promise<string> {
   return free.id;
 }
 
+// 라우트는 consultations를 읽기만 한다(숨김은 crm.consultation_dismissals) — 픽스처 INSERT만
+// 알림 트리거를 깨우므로 withNotifyGuard 트랜잭션 안에서 넣는다.
 async function insertConsultation(
   overrides: Partial<typeof consultationRequests.$inferInsert> = {},
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await db.insert(consultationRequests).values({
+  await withNotifyGuard(db, (tx) => tx.insert(consultationRequests).values({
     id,
     userId: null,
     customerName: `라우트테스트-${id.slice(0, 8)}`,
@@ -34,7 +37,7 @@ async function insertConsultation(
     status: "pending",
     createdAt: new Date().toISOString(),
     ...overrides,
-  });
+  }));
   return id;
 }
 

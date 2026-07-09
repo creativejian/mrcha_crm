@@ -1,4 +1,6 @@
-import { test, expect } from "bun:test";
+import { expect, test } from "bun:test";
+
+import { withNotifyGuard } from "../../test-utils/notify-gate";
 import { eq } from "drizzle-orm";
 
 import { ConflictError } from "../../lib/errors";
@@ -35,11 +37,13 @@ async function anyUnlinkedProfileId(): Promise<string> {
 }
 
 // 상담신청 픽스처 insert. id는 매 테스트 randomUUID로 충돌 방지(공유 master DB).
+// public.consultations INSERT는 on_consultation_created 트리거가 운영 디스코드 알림을 낸다 —
+// withNotifyGuard 트랜잭션(app.skip_notify) 안에서만 넣는다(src/test-utils/notify-gate.ts).
 async function insertConsultation(
   overrides: Partial<typeof consultationRequests.$inferInsert> = {},
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await db.insert(consultationRequests).values({
+  await withNotifyGuard(db, (tx) => tx.insert(consultationRequests).values({
     id,
     userId: null,
     customerName: `상담테스트-${id.slice(0, 8)}`,
@@ -49,7 +53,7 @@ async function insertConsultation(
     status: "pending",
     createdAt: new Date().toISOString(),
     ...overrides,
-  });
+  }));
   return id;
 }
 

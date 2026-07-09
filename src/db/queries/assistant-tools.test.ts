@@ -1,6 +1,7 @@
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 
+import { withNotifyGuard } from "../../test-utils/notify-gate";
 import { ASSISTANT_TOOL_KEYS } from "../../lib/assistant-tools";
 import { getDefaultDb } from "../client";
 import { consultationRequests, profiles } from "../public-app";
@@ -39,17 +40,20 @@ beforeAll(async () => {
     { customerId: CUST, quoteCode: `QT-AITOOL-${SUFFIX}-2`, brandName: "기아", modelName: "쏘렌토", trimName: "노블레스", appStatus: "draft" },
   ]);
   // customer_consultations 검증용 상담신청 2건 — 유지 1건 + 숨김 처리 1건(dismissed 제외 확인).
-  const [keep] = await db.insert(consultationRequests).values({
-    id: crypto.randomUUID(), userId: CONSULT_USER, customerName: "도구테스트", phoneNumber: "01000000000",
-    carModel: `BMW X5 ${SUFFIX}`, notes: `리스 상담 원함 ${SUFFIX}`, status: "pending", createdAt: new Date().toISOString(),
-  }).returning({ id: consultationRequests.id });
-  CONSULT_KEEP = keep.id;
-  const [dismiss] = await db.insert(consultationRequests).values({
-    id: crypto.randomUUID(), userId: CONSULT_USER, customerName: "도구테스트", phoneNumber: "01000000000",
-    carModel: `벤츠 GLE ${SUFFIX}`, notes: `숨김 대상 상담 ${SUFFIX}`, status: "pending", createdAt: new Date().toISOString(),
-  }).returning({ id: consultationRequests.id });
-  CONSULT_DISMISS = dismiss.id;
-  await db.insert(consultationDismissals).values({ consultationId: CONSULT_DISMISS, dismissedBy: null });
+  // public.consultations INSERT는 on_consultation_created 트리거 → 운영 디스코드 알림을 낸다.
+  await withNotifyGuard(db, async (tx) => {
+    const [keep] = await tx.insert(consultationRequests).values({
+      id: crypto.randomUUID(), userId: CONSULT_USER, customerName: "도구테스트", phoneNumber: "01000000000",
+      carModel: `BMW X5 ${SUFFIX}`, notes: `리스 상담 원함 ${SUFFIX}`, status: "pending", createdAt: new Date().toISOString(),
+    }).returning({ id: consultationRequests.id });
+    CONSULT_KEEP = keep.id;
+    const [dismiss] = await tx.insert(consultationRequests).values({
+      id: crypto.randomUUID(), userId: CONSULT_USER, customerName: "도구테스트", phoneNumber: "01000000000",
+      carModel: `벤츠 GLE ${SUFFIX}`, notes: `숨김 대상 상담 ${SUFFIX}`, status: "pending", createdAt: new Date().toISOString(),
+    }).returning({ id: consultationRequests.id });
+    CONSULT_DISMISS = dismiss.id;
+    await tx.insert(consultationDismissals).values({ consultationId: CONSULT_DISMISS, dismissedBy: null });
+  });
 });
 
 afterAll(async () => {
