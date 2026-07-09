@@ -133,12 +133,11 @@ export function useQuoteWorkbench({
       setGuidance(seedGuidance());
       // 앱 견적요청 조건(기간·보증금/선수금 유형·비율/금액) → 카드1 시드(도메인 규칙: quote-request-seed.ts).
       const seed = seedScenarioCardFromRequest(detail);
+      // 모드는 아래 setCardUi(cardUiFromSeed)가 담당 — 카드는 표시 금액만 시드한다.
       setManualQuoteCards([
         {
           ...emptyQuoteConditionCards[0],
-          depositMode: seed.depositMode ?? "none",
           depositValue: seed.depositValue ?? "0",
-          downPaymentMode: seed.downPaymentMode ?? "none",
           downPaymentValue: seed.downPaymentValue ?? "0",
         },
         emptyQuoteConditionCards[1],
@@ -350,11 +349,9 @@ export function useQuoteWorkbench({
         ...base,
         lender: sc.lender || "미선택",
         monthlyPayment: sc.monthlyPayment ? formatMoney(Number(sc.monthlyPayment)) : "0",
-        depositMode: sc.depositMode,
+        // 모드는 cardUi(setCardUi ← cardUiMapFromScenarios)가 갖는다. 여기선 표시 금액 포맷에만 쓴다.
         depositValue: sc.depositMode === "percent" ? sc.depositValue : (sc.depositValue ? formatMoney(Number(sc.depositValue)) : "0"),
-        downPaymentMode: sc.downPaymentMode,
         downPaymentValue: sc.downPaymentMode === "percent" ? sc.downPaymentValue : (sc.downPaymentValue ? formatMoney(Number(sc.downPaymentValue)) : "0"),
-        residualMode: sc.residualMode,
         residualValue: sc.residualMode === "max" ? "-" : (sc.residualMode === "percent" ? sc.residualValue : (sc.residualValue ? formatMoney(Number(sc.residualValue)) : "0")),
         subsidyAmount: sc.subsidyAmount && Number(sc.subsidyAmount) > 0 ? formatMoney(Number(sc.subsidyAmount)) : "0",
         totalReturn: sc.totalReturnCost ? formatMoney(Number(sc.totalReturnCost)) : "0",

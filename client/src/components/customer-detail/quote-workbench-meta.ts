@@ -91,13 +91,15 @@ export function cardUiFromSeed(seed: ScenarioCardSeed): CardUiState {
   };
 }
 
+// 비교카드의 표시 데이터(금액 문자열은 uncontrolled input의 defaultValue).
+// 모드(보증금/선수금/잔존가치)는 여기 두지 않는다 — CardUiState가 단일 소스.
 export type ManualCard = {
   id: string; title: string; round: string; copyLabel: string;
   lender: string; monthlyPayment: string;
   totalReturn: string; totalTakeover: string; dueAtDelivery: string; interestRate: string;
-  depositMode: ManualDepositMode; depositValue: string;
-  downPaymentMode: ManualDepositMode; downPaymentValue: string;
-  residualMode: ManualResidualMode; residualValue: string;
+  depositValue: string;
+  downPaymentValue: string;
+  residualValue: string;
   subsidyAmount: string;
 };
 export const discountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
@@ -196,11 +198,8 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     totalTakeover: "0",
     dueAtDelivery: "0",
     interestRate: "0",
-    depositMode: "none" as ManualDepositMode,
     depositValue: "0",
-    downPaymentMode: "none" as ManualDepositMode,
     downPaymentValue: "0",
-    residualMode: "max" as ManualResidualMode,
     residualValue: "-",
     subsidyAmount: "0",
   },
@@ -215,11 +214,8 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     totalTakeover: "0",
     dueAtDelivery: "0",
     interestRate: "0",
-    depositMode: "none" as ManualDepositMode,
     depositValue: "0",
-    downPaymentMode: "none" as ManualDepositMode,
     downPaymentValue: "0",
-    residualMode: "max" as ManualResidualMode,
     residualValue: "-",
     subsidyAmount: "0",
   },
@@ -234,11 +230,8 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     totalTakeover: "0",
     dueAtDelivery: "0",
     interestRate: "0",
-    depositMode: "none" as ManualDepositMode,
     depositValue: "0",
-    downPaymentMode: "none" as ManualDepositMode,
     downPaymentValue: "0",
-    residualMode: "max" as ManualResidualMode,
     residualValue: "-",
     subsidyAmount: "0",
   },
