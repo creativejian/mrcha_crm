@@ -6,7 +6,7 @@ import { ASSISTANT_TOOL_KEYS } from "../../lib/assistant-tools";
 import { getDefaultDb } from "../client";
 import { consultationRequests, profiles } from "../public-app";
 import { consultationDismissals, customers, customerTasks, quotes } from "../schema";
-import { capReportLines, runAssistantTool } from "./assistant-tools";
+import { capReportLines, daysSince, runAssistantTool } from "./assistant-tools";
 
 const db = getDefaultDb();
 let CUST = "";
@@ -104,6 +104,18 @@ test("quote_ready: 진행 상태 견적 단계 고객이 사유와 함께 잡힌
 test("stale_customers: 방금 만든 고객(활동 0일)은 미포함", async () => {
   const r = await runAssistantTool("stale_customers", {}, "all", USER, db);
   expect(r.lines.some((l) => l.includes("도구테스트"))).toBe(false);
+});
+
+// 무활동 일수는 KST 달력일 차(0709 감사) — floor(경과/24h)면 목록 배지(달력일)와 경계에서 갈려
+// 같은 고객이 목록 '확인필요'인데 stale_customers 리포트엔 안 뜨는 화면 내 모순이 난다.
+test("daysSince: KST 달력일 차 — 경과 6일 23시간은 7일(경과 24h 개수 아님)", () => {
+  const now = new Date("2026-01-08T12:00:00+09:00");
+  expect(daysSince(new Date("2026-01-01T13:00:00+09:00"), now)).toBe(7);
+  expect(daysSince("2026-01-07T23:59:00+09:00", now)).toBe(1); // 자정 넘김 = 1일
+  expect(daysSince(new Date("2026-01-08T09:00:00+09:00"), now)).toBe(0);
+  expect(daysSince(new Date("2026-01-09T09:00:00+09:00"), now)).toBe(0); // 미래 활동은 0으로 클램프
+  expect(daysSince(null, now)).toBeNull();
+  expect(daysSince("파싱불가", now)).toBeNull();
 });
 
 test("search_customers: 상담경로 부분 일치('앱') + 이름 필터, 미지 파라미터 무시", async () => {

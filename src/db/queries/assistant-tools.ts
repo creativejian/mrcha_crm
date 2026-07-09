@@ -4,7 +4,7 @@ import { z } from "zod";
 import { ASSISTANT_TOOL_LABELS, CRM_ROLE_LABELS, type AssistantToolKey, type AssistantToolResult } from "../../lib/assistant-tools";
 import type { AuthedUser } from "../../auth/verify";
 import type { CustomerScope } from "../../lib/assistant-scope";
-import { kstDateOf } from "../../lib/kst-date";
+import { kstDateOf, kstDayDiff } from "../../lib/kst-date";
 import { STALE_THRESHOLDS, staffActivityAt } from "./activity";
 import { getDefaultDb, type Executor } from "../client";
 import { consultationRequests, profiles } from "../public-app";
@@ -20,11 +20,13 @@ function scopeCond(scope: CustomerScope): SQL | undefined {
   return scope === "all" ? undefined : eq(customers.advisorId, scope.advisorId);
 }
 
-function daysSince(at: Date | string | null): number | null {
+// 무활동 일수 = KST 달력일 차(kstDayDiff). 클라 목록 배지(manage-status.deriveFinalUpdateInfo)와 같은
+// 지표여야 임계(STALE_THRESHOLDS)가 같은 뜻을 갖는다 — 계산법 드리프트는 manage-status-parity가 잡는다.
+export function daysSince(at: Date | string | null, now: Date = new Date()): number | null {
   if (!at) return null;
-  const t = new Date(at).getTime();
-  if (Number.isNaN(t)) return null;
-  return Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.max(0, kstDayDiff(d, now));
 }
 
 // 관리 상태 버킷 — 임계는 activity.ts STALE_THRESHOLDS(클라 파리티 잠금), 활동 시각은 staffActivityAt
