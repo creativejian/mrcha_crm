@@ -16,16 +16,23 @@ import { nowMs, formatKoreanShortTime } from "@/lib/detail-utils";
 
 import { purchaseFieldScaffold } from "../purchase-meta";
 import {
+  cardIdOfScenarioNo,
+  cardUiFromSeed,
+  cardUiMapFromScenarios,
+  cardUiOf,
   createQuoteCode,
+  effectiveMileageValue,
   emptyQuoteConditionCards,
   emptyQuotePricing,
   discountLineWon,
   initialQuotePricingResult,
+  MILEAGE_BASIC_VALUE,
   quotePurchaseMethodOptions,
   normalizeQuotePurchaseMethod,
   primaryQuotePurchaseMethod,
   restoreDiscountLines,
   type AcquisitionTaxMode,
+  type CardUiState,
   type DiscountLine,
   type DiscountUnit,
   type EditPrefill,
@@ -77,15 +84,10 @@ export function useQuoteWorkbench({
   const [isQuoteDraftSaved, setIsQuoteDraftSaved] = useState(false);
   const [isQuoteDraftDirty, setIsQuoteDraftDirty] = useState(false);
   const [savedManualQuoteConditionIds, setSavedManualQuoteConditionIds] = useState<string[]>([]);
-  const [manualTermMonths, setManualTermMonths] = useState<Record<string, number>>({});
   const [manualQuoteCards, setManualQuoteCards] = useState<ManualCard[]>(() => [...emptyQuoteConditionCards]);
-  const [manualDepositModes, setManualDepositModes] = useState<Record<string, ManualDepositMode>>({});
-  const [manualDownPaymentModes, setManualDownPaymentModes] = useState<Record<string, ManualDepositMode>>({});
-  const [manualResidualModes, setManualResidualModes] = useState<Record<string, ManualResidualMode>>({});
-  const [manualMileageModes, setManualMileageModes] = useState<Record<string, ManualMileageMode>>({});
-  const [manualMileageValues, setManualMileageValues] = useState<Record<string, string>>({});
-  const [manualCarTaxIncluded, setManualCarTaxIncluded] = useState<Record<string, boolean>>({});
-  const [manualSubsidyApplicable, setManualSubsidyApplicable] = useState<Record<string, boolean>>({});
+  // 비교카드 UI 상태(카드 id → CardUiState). 통합 전 속성별 Record 8벌 — 카드 하나를 다루는 모든
+  // 동작이 8곳을 건드려야 했고 키 누락을 컴파일러가 못 잡았다(#163 저장 payload 오염).
+  const [cardUi, setCardUi] = useState<Record<string, CardUiState>>({});
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   // 신규 작성완료 후 "이후 UPDATE 대상 id". editingQuoteId(=비교카드 key·prefill)를 안 건드려야 카드 리마운트(입력 리셋)를 막는다.
   const persistedQuoteIdRef = useRef<string | null>(null);
@@ -131,21 +133,18 @@ export function useQuoteWorkbench({
       setGuidance(seedGuidance());
       // 앱 견적요청 조건(기간·보증금/선수금 유형·비율/금액) → 카드1 시드(도메인 규칙: quote-request-seed.ts).
       const seed = seedScenarioCardFromRequest(detail);
+      // 모드는 아래 setCardUi(cardUiFromSeed)가 담당 — 카드는 표시 금액만 시드한다.
       setManualQuoteCards([
         {
           ...emptyQuoteConditionCards[0],
-          depositMode: seed.depositMode ?? "none",
           depositValue: seed.depositValue ?? "0",
-          downPaymentMode: seed.downPaymentMode ?? "none",
           downPaymentValue: seed.downPaymentValue ?? "0",
         },
         emptyQuoteConditionCards[1],
         emptyQuoteConditionCards[2],
       ]);
       clearCardUiState(); // 이전 세션 잔상(잔존가치/약정거리 모드·할인 행·취득세 등) 청소 후 시드만 얹는다
-      if (seed.termMonths != null) setManualTermMonths({ "manual-condition-1": seed.termMonths });
-      if (seed.depositMode) setManualDepositModes({ "manual-condition-1": seed.depositMode });
-      if (seed.downPaymentMode) setManualDownPaymentModes({ "manual-condition-1": seed.downPaymentMode });
+      setCardUi({ [emptyQuoteConditionCards[0].id]: cardUiFromSeed(seed) });
       setSavedManualQuoteConditionIds([]);
       setRecognizedQuoteFile(null);
       setSolutionWorkbenchEntryMode("manual");
@@ -222,7 +221,7 @@ export function useQuoteWorkbench({
     validUntilIso: persistedQuote?.validUntil ?? null,
     nowMs: nowMs(),
   });
-  const workbenchFirstTermMonths = manualQuoteCards[0] ? (manualTermMonths[manualQuoteCards[0].id] ?? 60) : 60;
+  const workbenchFirstTermMonths = manualQuoteCards[0] ? cardUiOf(cardUi, manualQuoteCards[0].id).termMonths : 60;
 
   function jeffMoneyInputFromTarget(target: EventTarget | null) {
     if (!(target instanceof HTMLInputElement) || !target.closest(".kim-jeff-money-input")) return null;
@@ -350,11 +349,9 @@ export function useQuoteWorkbench({
         ...base,
         lender: sc.lender || "미선택",
         monthlyPayment: sc.monthlyPayment ? formatMoney(Number(sc.monthlyPayment)) : "0",
-        depositMode: sc.depositMode,
+        // 모드는 cardUi(setCardUi ← cardUiMapFromScenarios)가 갖는다. 여기선 표시 금액 포맷에만 쓴다.
         depositValue: sc.depositMode === "percent" ? sc.depositValue : (sc.depositValue ? formatMoney(Number(sc.depositValue)) : "0"),
-        downPaymentMode: sc.downPaymentMode,
         downPaymentValue: sc.downPaymentMode === "percent" ? sc.downPaymentValue : (sc.downPaymentValue ? formatMoney(Number(sc.downPaymentValue)) : "0"),
-        residualMode: sc.residualMode,
         residualValue: sc.residualMode === "max" ? "-" : (sc.residualMode === "percent" ? sc.residualValue : (sc.residualValue ? formatMoney(Number(sc.residualValue)) : "0")),
         subsidyAmount: sc.subsidyAmount && Number(sc.subsidyAmount) > 0 ? formatMoney(Number(sc.subsidyAmount)) : "0",
         totalReturn: sc.totalReturnCost ? formatMoney(Number(sc.totalReturnCost)) : "0",
@@ -525,18 +522,11 @@ export function useQuoteWorkbench({
     setPricing(computePricing(emptyQuotePricing));
   }
 
-  // 워크벤치 열기/승격/초기화 시 카드 UI 상태 잔상 제거 — 모드 Record·할인 행·취득세 모드는
+  // 워크벤치 열기/승격/초기화 시 카드 UI 상태 잔상 제거 — 카드 모드·할인 행·취득세 모드는
   // extractWorkbenchScenarios/persist가 읽어 화면 잔상이 아니라 저장까지 오염되므로 가격과 함께 반드시 청소한다.
-  // (수정 진입은 시나리오에서 전량 재구성하므로 Record는 복원 setter가 대체 — discountLines/취득세만 별도 처리.)
+  // (수정 진입은 시나리오에서 전량 재구성하므로 cardUi는 복원 setter가 대체 — discountLines/취득세만 별도 처리.)
   function clearCardUiState() {
-    setManualTermMonths({});
-    setManualDepositModes({});
-    setManualDownPaymentModes({});
-    setManualResidualModes({});
-    setManualMileageModes({});
-    setManualMileageValues({});
-    setManualCarTaxIncluded({});
-    setManualSubsidyApplicable({});
+    setCardUi({});
     setDiscountLines([]);
     setAcquisitionTaxMode("normal");
     setPrimaryDiscountUnit("amount");
@@ -607,45 +597,43 @@ export function useQuoteWorkbench({
     return editEntryTrimIdRef.current; // live quotes 대신 진입 스냅샷 — optimistic trimId 갱신에 흔들리지 않음
   }
 
-  function setManualDepositMode(conditionId: string, mode: ManualDepositMode) {
-    setManualDepositModes((prev) => ({ ...prev, [conditionId]: mode }));
+  // 카드 UI 상태 부분 갱신 — 없던 카드는 기본값에서 시작(cardUiOf). 모든 카드 setter의 유일 진입점.
+  function patchCardUi(conditionId: string, patch: Partial<CardUiState>) {
+    setCardUi((prev) => ({ ...prev, [conditionId]: { ...cardUiOf(prev, conditionId), ...patch } }));
     markQuoteDraftChanged();
+  }
+
+  function setManualDepositMode(conditionId: string, mode: ManualDepositMode) {
+    patchCardUi(conditionId, { depositMode: mode });
   }
 
   function setManualDownPaymentMode(conditionId: string, mode: ManualDepositMode) {
-    setManualDownPaymentModes((prev) => ({ ...prev, [conditionId]: mode }));
-    markQuoteDraftChanged();
+    patchCardUi(conditionId, { downPaymentMode: mode });
   }
 
   function setManualResidualMode(conditionId: string, mode: ManualResidualMode) {
-    setManualResidualModes((prev) => ({ ...prev, [conditionId]: mode }));
-    markQuoteDraftChanged();
+    patchCardUi(conditionId, { residualMode: mode });
   }
 
+  // 기본 모드로 되돌리면 표시값도 고정값으로 리셋(통합 전 setManualMileageValues 동반 호출과 동일).
   function setManualMileageMode(conditionId: string, mode: ManualMileageMode) {
-    setManualMileageModes((prev) => ({ ...prev, [conditionId]: mode }));
-    if (mode === "basic") setManualMileageValues((prev) => ({ ...prev, [conditionId]: "20,000km / 년" }));
-    markQuoteDraftChanged();
+    patchCardUi(conditionId, mode === "basic" ? { mileageMode: mode, mileageValue: MILEAGE_BASIC_VALUE } : { mileageMode: mode });
   }
 
   function setManualMileageValue(conditionId: string, value: string) {
-    setManualMileageValues((prev) => ({ ...prev, [conditionId]: value }));
-    markQuoteDraftChanged();
+    patchCardUi(conditionId, { mileageValue: value });
   }
 
   function setManualTermMonthsFor(conditionId: string, months: number) {
-    setManualTermMonths((current) => ({ ...current, [conditionId]: months }));
-    markQuoteDraftChanged();
+    patchCardUi(conditionId, { termMonths: months });
   }
 
   function setManualCarTaxFor(conditionId: string, included: boolean) {
-    setManualCarTaxIncluded((current) => ({ ...current, [conditionId]: included }));
-    markQuoteDraftChanged();
+    patchCardUi(conditionId, { carTaxIncluded: included });
   }
 
   function setManualSubsidyFor(conditionId: string, applicable: boolean) {
-    setManualSubsidyApplicable((current) => ({ ...current, [conditionId]: applicable }));
-    markQuoteDraftChanged();
+    patchCardUi(conditionId, { subsidyApplicable: applicable });
   }
 
   function validateQuoteDetailDraft() {
@@ -735,29 +723,25 @@ export function useQuoteWorkbench({
       const monthlyPayment = parseMonthlyPayment(fieldVal("monthly") ?? "");
       const isFilled = savedManualQuoteConditionIds.includes(condId) || lender !== null || (monthlyPayment !== null && Number(monthlyPayment) > 0);
       if (!isFilled) continue; // 빈 슬롯 제외(저장도 채워짐도 아님)
-      const depositMode = manualDepositModes[condId] ?? card.depositMode ?? null;
-      const downPaymentMode = manualDownPaymentModes[condId] ?? card.downPaymentMode ?? null;
-      const residualMode = manualResidualModes[condId] ?? card.residualMode ?? null;
-      const mileageMode = manualMileageModes[condId] ?? "basic";
-      const mileageValue = mileageMode === "basic" ? "20,000km / 년" : (manualMileageValues[condId] ?? "20,000km / 년");
+      const ui = cardUiOf(cardUi, condId);
       scenarios.push({
         scenarioNo: Number(card.round ?? 1),
         isSaved: true,
         purchaseMethod: solutionWorkbenchPurchaseMethod,
-        termMonths: manualTermMonths[condId] ?? 60,
+        termMonths: ui.termMonths,
         lender,
         monthlyPayment,
-        depositMode,
-        depositValue: depositMode === "none" ? null : parseMonthlyPayment(fieldVal("deposit") ?? ""),
-        downPaymentMode,
-        downPaymentValue: downPaymentMode === "none" ? null : parseMonthlyPayment(fieldVal("downPayment") ?? ""),
-        residualMode,
-        residualValue: residualMode === "max" ? null : parseMonthlyPayment(fieldVal("residual") ?? ""),
-        mileageMode,
-        mileageValue,
-        carTaxIncluded: manualCarTaxIncluded[condId] ?? false,
-        subsidyApplicable: manualSubsidyApplicable[condId] ?? false,
-        subsidyAmount: (manualSubsidyApplicable[condId] ?? false) ? nz(parseMonthlyPayment(fieldVal("subsidy") ?? "")) : null,
+        depositMode: ui.depositMode,
+        depositValue: ui.depositMode === "none" ? null : parseMonthlyPayment(fieldVal("deposit") ?? ""),
+        downPaymentMode: ui.downPaymentMode,
+        downPaymentValue: ui.downPaymentMode === "none" ? null : parseMonthlyPayment(fieldVal("downPayment") ?? ""),
+        residualMode: ui.residualMode,
+        residualValue: ui.residualMode === "max" ? null : parseMonthlyPayment(fieldVal("residual") ?? ""),
+        mileageMode: ui.mileageMode,
+        mileageValue: effectiveMileageValue(ui),
+        carTaxIncluded: ui.carTaxIncluded,
+        subsidyApplicable: ui.subsidyApplicable,
+        subsidyAmount: ui.subsidyApplicable ? nz(parseMonthlyPayment(fieldVal("subsidy") ?? "")) : null,
         totalReturnCost: nz(parseMonthlyPayment(fieldVal("totalReturn") ?? "")),
         totalTakeoverCost: nz(parseMonthlyPayment(fieldVal("totalTakeover") ?? "")),
         dueAtDelivery: nz(parseMonthlyPayment(fieldVal("dueAtDelivery") ?? "")),
@@ -785,7 +769,7 @@ export function useQuoteWorkbench({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 비교카드 state 변경 시 대표 시나리오 재추출(의도된 동기화 effect)
     setCardScenario(extractWorkbenchScenarios()[0] ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 아래 dep 변경 시점에만 재추출(extract가 읽는 DOM/내부 state는 그 시점 최신; 함수/객체 dep 추가 시 매 렌더 실행)
-  }, [savedManualQuoteConditionIds, manualQuoteCards, manualTermMonths, manualDepositModes, manualDownPaymentModes, manualResidualModes, manualMileageModes, manualMileageValues, manualCarTaxIncluded, manualSubsidyApplicable, solutionWorkbenchPurchaseMethod]);
+  }, [savedManualQuoteConditionIds, manualQuoteCards, cardUi, solutionWorkbenchPurchaseMethod]);
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
   // 신규는 첫 INSERT 후 반환 id를 editingQuoteId로 세팅 → 이후 UPDATE(중복 INSERT 방지).
@@ -1111,15 +1095,8 @@ export function useQuoteWorkbench({
     } : null);
     // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
     setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...emptyQuoteConditionCards]);
-    setSavedManualQuoteConditionIds(editScenarios.map((s) => `manual-condition-${s.scenarioNo}`));
-    setManualDepositModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.depositMode])));
-    setManualDownPaymentModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.downPaymentMode])));
-    setManualResidualModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.residualMode])));
-    setManualMileageModes(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageMode])));
-    setManualMileageValues(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.mileageValue])));
-    setManualTermMonths(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.termMonths])));
-    setManualCarTaxIncluded(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.carTaxIncluded])));
-    setManualSubsidyApplicable(Object.fromEntries(editScenarios.map((s) => [`manual-condition-${s.scenarioNo}`, s.subsidyApplicable])));
+    setSavedManualQuoteConditionIds(editScenarios.map((s) => cardIdOfScenarioNo(s.scenarioNo)));
+    setCardUi(cardUiMapFromScenarios(editScenarios));
     // 취득세 모드는 견적 저장본에서 복원(미복원 시 이전 세션 잔상이 persist payload에 실려 수정 저장을 오염).
     setAcquisitionTaxMode((dq?.acquisitionTaxMode as AcquisitionTaxMode) ?? "normal");
     setDiscountLines(restoredDiscount.lines); // 저장본 복원(없으면 빈 행 — 다른 견적 잔상도 함께 청소)
@@ -1165,15 +1142,8 @@ export function useQuoteWorkbench({
     isQuoteDraftSaved,
     isQuoteDraftDirty,
     savedManualQuoteConditionIds,
-    manualTermMonths,
     manualQuoteCards,
-    manualDepositModes,
-    manualDownPaymentModes,
-    manualResidualModes,
-    manualMileageModes,
-    manualMileageValues,
-    manualCarTaxIncluded,
-    manualSubsidyApplicable,
+    cardUi,
     editingQuoteId,
     guidance,
     quoteRequestPrefill,

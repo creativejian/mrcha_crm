@@ -9,6 +9,7 @@ import type { QuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, regionFromResidence } from "@/data/quote-guidance";
 import { fetchQuoteRequestDetail } from "@/lib/quote-requests";
 
+import { DEFAULT_CARD_UI } from "../quote-workbench-meta";
 import { useQuoteWorkbench } from "./useQuoteWorkbench";
 import type { useQuoteList } from "./useQuoteList";
 
@@ -93,7 +94,7 @@ function setup() {
   );
 }
 
-// 이전 세션(수정 진입 등)이 남긴 카드 UI 상태를 주입한다 — 모드 Record·할인 행·취득세 모드.
+// 이전 세션(수정 진입 등)이 남긴 카드 UI 상태를 주입한다 — 카드 모드·할인 행·취득세 모드.
 function injectResidue(result: ReturnType<typeof setup>["result"]) {
   act(() => {
     result.current.handlers.setManualDepositMode("manual-condition-1", "percent");
@@ -106,12 +107,9 @@ function injectResidue(result: ReturnType<typeof setup>["result"]) {
   });
 }
 
+// 카드 UI 상태가 비면 모든 카드가 DEFAULT_CARD_UI로 폴백한다(cardUiOf) — 통합 전 "Record 8벌 전부 {}"와 동치.
 function expectCardUiCleared(result: ReturnType<typeof setup>["result"]) {
-  expect(result.current.manualDepositModes).toEqual({});
-  expect(result.current.manualDownPaymentModes).toEqual({});
-  expect(result.current.manualResidualModes).toEqual({});
-  expect(result.current.manualMileageModes).toEqual({});
-  expect(result.current.manualMileageValues).toEqual({});
+  expect(result.current.cardUi).toEqual({});
   expect(result.current.discountLines).toEqual([]);
   expect(result.current.acquisitionTaxMode).toBe("normal");
 }
@@ -155,10 +153,8 @@ describe("useQuoteWorkbench — 오픈/리셋 경로의 카드 UI 상태 잔상 
     injectResidue(result);
     await act(async () => result.current.openWorkbenchForQuoteRequest("req-1"));
     // 시드가 세팅하는 보증금 %만 남고, 나머지 잔상(잔존가치/약정거리/할인/취득세)은 청소돼야 한다.
-    expect(result.current.manualDepositModes).toEqual({ "manual-condition-1": "percent" });
-    expect(result.current.manualResidualModes).toEqual({});
-    expect(result.current.manualMileageModes).toEqual({});
-    expect(result.current.manualMileageValues).toEqual({});
+    // 기간 60은 시드값이자 기본값이라 DEFAULT_CARD_UI와 같다.
+    expect(result.current.cardUi).toEqual({ "manual-condition-1": { ...DEFAULT_CARD_UI, depositMode: "percent" } });
     expect(result.current.discountLines).toEqual([]);
     expect(result.current.acquisitionTaxMode).toBe("normal");
   });
@@ -186,6 +182,7 @@ describe("useQuoteWorkbench — 오픈/리셋 경로의 카드 UI 상태 잔상 
     );
     expect(result.current.acquisitionTaxMode).toBe("hybrid");
     expect(result.current.discountLines).toEqual([]); // discount_lines 없는 견적 = 빈 복원(잔상 청소 겸)
+    expect(result.current.cardUi).toEqual({}); // 시나리오 없는 견적 = 빈 복원(카드 모드 잔상도 함께 청소)
   });
 
   it("openEditQuote(수정 진입)가 저장된 할인 구성 내역을 복원한다 — 잔상이 아니라 저장본이 남는다", () => {

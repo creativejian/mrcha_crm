@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { discountLineWon, restoreDiscountLines } from "./quote-workbench-meta";
+import { type ScenarioCardSeed } from "@/lib/quote-request-seed";
+
+import {
+  cardIdOfScenarioNo,
+  cardUiFromScenario,
+  cardUiFromSeed,
+  cardUiMapFromScenarios,
+  cardUiOf,
+  DEFAULT_CARD_UI,
+  discountLineWon,
+  effectiveMileageValue,
+  MILEAGE_BASIC_VALUE,
+  restoreDiscountLines,
+  type CardUiState,
+  type EditScenario,
+} from "./quote-workbench-meta";
 
 // 수정 진입 시 할인 구성 내역(discount_lines) 복원 — 행 state 재구성 + 기본 할인 분리 산술.
 // 기본 할인은 별도 저장하지 않으므로 finalDiscount(총액) − Σ추가 행 환산액으로 역산한다.
@@ -61,5 +76,134 @@ describe("discountLineWon", () => {
   });
   it("basis 0이면 percent 환산 0 (빈 가격 입력 방어)", () => {
     expect(discountLineWon("percent", 10, 0)).toBe(0);
+  });
+});
+
+// 카드 UI 상태 기본값 — 통합 전 8개 Record의 읽기 폴백(?? 60 / ?? "none" / ?? "max" / ?? "basic" / ?? false)과
+// 빈 카드(emptyQuoteConditionCards)의 모드 값이 동일함을 잠근다. 이 값이 바뀌면 저장 payload가 바뀐다.
+describe("DEFAULT_CARD_UI", () => {
+  it("통합 전 읽기 폴백과 동일한 기본값을 갖는다", () => {
+    expect(DEFAULT_CARD_UI).toEqual({
+      termMonths: 60,
+      depositMode: "none",
+      downPaymentMode: "none",
+      residualMode: "max",
+      mileageMode: "basic",
+      mileageValue: "20,000km / 년",
+      carTaxIncluded: false,
+      subsidyApplicable: false,
+    });
+  });
+
+  it("약정거리 기본 문자열은 MILEAGE_BASIC_VALUE 상수와 같다", () => {
+    expect(DEFAULT_CARD_UI.mileageValue).toBe(MILEAGE_BASIC_VALUE);
+  });
+});
+
+describe("cardUiOf", () => {
+  it("맵에 카드가 없으면 기본값을 돌려준다", () => {
+    expect(cardUiOf({}, "manual-condition-2")).toEqual(DEFAULT_CARD_UI);
+  });
+
+  it("맵에 카드가 있으면 그 값을 그대로 돌려준다", () => {
+    const ui: CardUiState = { ...DEFAULT_CARD_UI, termMonths: 36, carTaxIncluded: true };
+    expect(cardUiOf({ "manual-condition-1": ui }, "manual-condition-1")).toBe(ui);
+  });
+});
+
+describe("effectiveMileageValue", () => {
+  it("basic 모드면 저장된 값과 무관하게 기본 주행거리를 쓴다", () => {
+    const ui: CardUiState = { ...DEFAULT_CARD_UI, mileageMode: "basic", mileageValue: "40,000km / 년" };
+    expect(effectiveMileageValue(ui)).toBe("20,000km / 년");
+  });
+
+  it("custom 모드면 저장된 값을 쓴다", () => {
+    const ui: CardUiState = { ...DEFAULT_CARD_UI, mileageMode: "custom", mileageValue: "40,000km / 년" };
+    expect(effectiveMileageValue(ui)).toBe("40,000km / 년");
+  });
+});
+
+// 테스트 픽스처 — EditScenario 전 필드. CardUiState가 읽는 8필드 외에는 복원 대상이 아니다.
+function scenarioFixture(over: Partial<EditScenario> = {}): EditScenario {
+  return {
+    scenarioNo: 1,
+    lender: "우리금융캐피탈",
+    monthlyPayment: "1,200,000",
+    termMonths: 36,
+    depositMode: "percent",
+    depositValue: "10",
+    downPaymentMode: "amount",
+    downPaymentValue: "3,000,000",
+    residualMode: "amount",
+    residualValue: "40,000,000",
+    mileageMode: "custom",
+    mileageValue: "30,000km / 년",
+    carTaxIncluded: true,
+    subsidyApplicable: true,
+    subsidyAmount: "1,000,000",
+    totalReturnCost: "10,000,000",
+    totalTakeoverCost: "20,000,000",
+    dueAtDelivery: "5,000,000",
+    interestRate: "5.3",
+    ...over,
+  };
+}
+
+describe("cardIdOfScenarioNo", () => {
+  it("시나리오 번호를 카드 id로 바꾼다", () => {
+    expect(cardIdOfScenarioNo(1)).toBe("manual-condition-1");
+    expect(cardIdOfScenarioNo(3)).toBe("manual-condition-3");
+  });
+});
+
+describe("cardUiFromScenario", () => {
+  it("저장된 시나리오의 8필드를 카드 UI 상태로 복원한다", () => {
+    expect(cardUiFromScenario(scenarioFixture())).toEqual({
+      termMonths: 36,
+      depositMode: "percent",
+      downPaymentMode: "amount",
+      residualMode: "amount",
+      mileageMode: "custom",
+      mileageValue: "30,000km / 년",
+      carTaxIncluded: true,
+      subsidyApplicable: true,
+    });
+  });
+});
+
+describe("cardUiMapFromScenarios", () => {
+  it("시나리오 번호를 카드 id로 매핑한 맵을 만든다", () => {
+    const map = cardUiMapFromScenarios([
+      scenarioFixture({ scenarioNo: 1, termMonths: 36 }),
+      scenarioFixture({ scenarioNo: 3, termMonths: 48 }),
+    ]);
+    expect(Object.keys(map)).toEqual(["manual-condition-1", "manual-condition-3"]);
+    expect(map["manual-condition-1"].termMonths).toBe(36);
+    expect(map["manual-condition-3"].termMonths).toBe(48);
+  });
+
+  it("시나리오가 없으면 빈 맵(모든 카드가 기본값으로 폴백)", () => {
+    expect(cardUiMapFromScenarios([])).toEqual({});
+  });
+});
+
+// 앱 견적요청 승격(카드1 시드). 시드 없는 필드는 DEFAULT_CARD_UI를 유지해야
+// 통합 전(= Record에 키를 안 넣어 읽기 폴백을 타던) 동작과 같다.
+describe("cardUiFromSeed", () => {
+  const emptySeed: ScenarioCardSeed = {
+    termMonths: null, depositMode: null, depositValue: null, downPaymentMode: null, downPaymentValue: null,
+  };
+
+  it("빈 시드면 전부 기본값", () => {
+    expect(cardUiFromSeed(emptySeed)).toEqual(DEFAULT_CARD_UI);
+  });
+
+  it("기간만 있으면 기간만 덮어쓴다", () => {
+    expect(cardUiFromSeed({ ...emptySeed, termMonths: 48 })).toEqual({ ...DEFAULT_CARD_UI, termMonths: 48 });
+  });
+
+  it("보증금·선수금 모드를 덮어쓴다(값 문자열은 카드 표시값이라 여기 없음)", () => {
+    expect(cardUiFromSeed({ ...emptySeed, depositMode: "percent", depositValue: "10", downPaymentMode: "amount", downPaymentValue: "3,000,000" }))
+      .toEqual({ ...DEFAULT_CARD_UI, depositMode: "percent", downPaymentMode: "amount" });
   });
 });
