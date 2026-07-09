@@ -8,6 +8,10 @@ mock.module("../lib/storage", () => ({
 }));
 
 import { test, expect } from "bun:test";
+
+// appStatus="sent" PATCH는 발송 훅이 public.advisor_quotes를 upsert한다 → on_advisor_quote_sent 트리거가
+// 운영 FCM 푸시를 낸다. 그 두 테스트만 게이트한다. src/test-utils/notify-gate.ts 참조.
+import { notifyTriggerTest } from "../test-utils/notify-gate";
 import { eq, isNull } from "drizzle-orm";
 
 import { createApp } from "../app";
@@ -372,7 +376,7 @@ test("견적 쓰기: PATCH appStatus=viewed → 400 (어휘 축소, 배치 E —
   expect(res.status).toBe(400); // zod 게이트 — 대상 존재 여부(404) 이전에 어휘에서 거부, writer 재유입 방지
 });
 
-test("견적 쓰기: PATCH 헤더+대표시나리오 → getCustomer 반영", async () => {
+notifyTriggerTest("견적 쓰기: PATCH 헤더+대표시나리오 → getCustomer 반영", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
   const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -895,7 +899,7 @@ test("견적 시나리오 확장 필드(앱카드): 금리·총비용·자동차
   }
 });
 
-test("견적 발송(갭ⓐ): PATCH appStatus=sent → valid_until = sent_at + 7일 자동 스탬프", async () => {
+notifyTriggerTest("견적 발송(갭ⓐ): PATCH appStatus=sent → valid_until = sent_at + 7일 자동 스탬프", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
   const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };

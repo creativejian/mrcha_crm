@@ -1,4 +1,7 @@
-import { test, expect } from "bun:test";
+import { expect } from "bun:test";
+
+// 알림 트리거(운영 디스코드·FCM) 테이블에 쓰므로 기본 skip — src/test-utils/notify-gate.ts 참조.
+import { notifyTriggerTest as test } from "../../test-utils/notify-gate";
 import { eq, isNotNull } from "drizzle-orm";
 
 import { getDefaultDb } from "../client";
