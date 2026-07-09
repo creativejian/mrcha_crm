@@ -1,8 +1,9 @@
-import { expect } from "bun:test";
-
-// 알림 트리거(운영 디스코드·FCM) 테이블에 쓰므로 기본 skip — src/test-utils/notify-gate.ts 참조.
-import { notifyTriggerTest as test } from "../../test-utils/notify-gate";
+import { expect, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
+
+// public.advisor_quotes는 AFTER INSERT OR UPDATE 트리거(on_advisor_quote_sent)가 고객 FCM 푸시를
+// 낸다 — 모든 쓰기를 withNotifyGuard 트랜잭션(app.skip_notify) 안에서 한다.
+import { withNotifyGuard } from "../../test-utils/notify-gate";
 
 import { getDefaultDb } from "../client";
 import { advisorQuotes, profiles, quoteRequests } from "../public-app";
@@ -49,7 +50,7 @@ test("upsertAdvisorQuote: 신규 insert — 모든 컬럼 왕복, viewed_at null
   const userId = await anyProfileId();
   const crmQuoteId = crypto.randomUUID();
   try {
-    await upsertAdvisorQuote(makeUpsert(userId, crmQuoteId), db);
+    await withNotifyGuard(db, (tx) => upsertAdvisorQuote(makeUpsert(userId, crmQuoteId), tx));
     const [row] = await db.select().from(advisorQuotes).where(eq(advisorQuotes.crmQuoteId, crmQuoteId));
     expect(row).toBeDefined();
     expect(row.id).toBeString();
@@ -73,14 +74,14 @@ test("upsertAdvisorQuote: 같은 crm_quote_id 재-upsert — 전체 교체 + vie
   const userId = await anyProfileId();
   const crmQuoteId = crypto.randomUUID();
   try {
-    await upsertAdvisorQuote(makeUpsert(userId, crmQuoteId), db);
+    await withNotifyGuard(db, (tx) => upsertAdvisorQuote(makeUpsert(userId, crmQuoteId), tx));
     // 앱 사용자가 열람한 상태를 재현(재발송 전 viewed_at 세팅).
-    await db
+    await withNotifyGuard(db, (tx) => tx
       .update(advisorQuotes)
       .set({ viewedAt: "2026-07-06T00:00:00.000Z" })
-      .where(eq(advisorQuotes.crmQuoteId, crmQuoteId));
+      .where(eq(advisorQuotes.crmQuoteId, crmQuoteId)));
 
-    await upsertAdvisorQuote(
+    await withNotifyGuard(db, (tx) => upsertAdvisorQuote(
       makeUpsert(userId, crmQuoteId, {
         revision: 2,
         payload: { schemaVersion: 1, marker: "resent" },
@@ -88,8 +89,8 @@ test("upsertAdvisorQuote: 같은 crm_quote_id 재-upsert — 전체 교체 + vie
         sentAt: "2026-07-07T00:00:00.000Z",
         validUntil: null,
       }),
-      db,
-    );
+      tx,
+    ));
 
     const rows = await db.select().from(advisorQuotes).where(eq(advisorQuotes.crmQuoteId, crmQuoteId));
     expect(rows).toHaveLength(1); // conflict update지 신규 행 추가가 아님
@@ -109,7 +110,7 @@ test("deleteAdvisorQuoteByCrmQuoteId: 행 소멸 + 없는 id 재호출 no-op", a
   const userId = await anyProfileId();
   const crmQuoteId = crypto.randomUUID();
   try {
-    await upsertAdvisorQuote(makeUpsert(userId, crmQuoteId), db);
+    await withNotifyGuard(db, (tx) => upsertAdvisorQuote(makeUpsert(userId, crmQuoteId), tx));
     await deleteAdvisorQuoteByCrmQuoteId(crmQuoteId, db);
     const rows = await db.select().from(advisorQuotes).where(eq(advisorQuotes.crmQuoteId, crmQuoteId));
     expect(rows).toHaveLength(0);
@@ -152,12 +153,12 @@ test("listAdvisorViewedAt: crmQuoteId→viewed_at Map(없는 id 미포함), 빈 
   const idViewed = crypto.randomUUID();
   const idUnviewed = crypto.randomUUID();
   try {
-    await upsertAdvisorQuote(makeUpsert(userId, idViewed, { quoteCode: "QT-TEST-0002" }), db);
-    await upsertAdvisorQuote(makeUpsert(userId, idUnviewed, { quoteCode: "QT-TEST-0003" }), db);
-    await db
+    await withNotifyGuard(db, (tx) => upsertAdvisorQuote(makeUpsert(userId, idViewed, { quoteCode: "QT-TEST-0002" }), tx));
+    await withNotifyGuard(db, (tx) => upsertAdvisorQuote(makeUpsert(userId, idUnviewed, { quoteCode: "QT-TEST-0003" }), tx));
+    await withNotifyGuard(db, (tx) => tx
       .update(advisorQuotes)
       .set({ viewedAt: "2026-07-06T12:00:00.000Z" })
-      .where(eq(advisorQuotes.crmQuoteId, idViewed));
+      .where(eq(advisorQuotes.crmQuoteId, idViewed)));
 
     const map = await listAdvisorViewedAt([idViewed, idUnviewed, crypto.randomUUID()], db);
     expect(map.size).toBe(2); // 행 없는 id는 미포함

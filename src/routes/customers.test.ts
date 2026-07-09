@@ -10,7 +10,9 @@ mock.module("../lib/storage", () => ({
 import { test, expect } from "bun:test";
 
 // appStatus="sent" PATCH는 발송 훅이 public.advisor_quotes를 upsert한다 → on_advisor_quote_sent 트리거가
-// 운영 FCM 푸시를 낸다. 그 두 테스트만 게이트한다. src/test-utils/notify-gate.ts 참조.
+// 운영 FCM 푸시를 낸다. 여기는 app.request() 경유라 dbMiddleware가 별도 커넥션을 열어 테스트
+// 트랜잭션을 공유하지 못한다 → withNotifyGuard(SET LOCAL)가 닿지 않아 두 테스트만 게이트로 남긴다.
+// (프로덕션 코드에 GUC 주입은 별도 작업 — src/test-utils/notify-gate.ts 참조.)
 import { notifyTriggerTest } from "../test-utils/notify-gate";
 import { eq, isNull } from "drizzle-orm";
 
