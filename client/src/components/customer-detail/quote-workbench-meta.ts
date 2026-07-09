@@ -5,6 +5,7 @@ import { PURCHASE_METHOD_OPTIONS, type PurchaseMethod } from "@/data/customers";
 import { type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { type QuoteGuidance } from "@/data/quote-guidance";
 import { computePricing, formatMoney, type PricingInputs } from "@/lib/quote-pricing";
+import { type ScenarioCardSeed } from "@/lib/quote-request-seed";
 
 export type DiscountUnit = "amount" | "percent";
 export type DiscountLine = { id: string; label: string; amount: string; unit: DiscountUnit };
@@ -41,6 +42,55 @@ export function restoreDiscountLines(
 export type ManualDepositMode = "none" | "amount" | "percent";
 export type ManualResidualMode = "max" | "amount" | "percent";
 export type ManualMileageMode = "basic" | "custom";
+
+// 약정거리 "기본" 모드의 고정 표시값 — 화면·추출·복원이 공유하는 유일 리터럴.
+export const MILEAGE_BASIC_VALUE = "20,000km / 년";
+
+// 비교카드 한 장의 UI 상태. 통합 전에는 속성별 Record 8벌로 흩어져 있었고, 키 누락이
+// 읽는 쪽 폴백(?? 60 등)에 조용히 흡수돼 저장 payload를 오염시켰다(#163). 카드 = 객체 1개가 SSOT.
+export type CardUiState = {
+  termMonths: number;
+  depositMode: ManualDepositMode;
+  downPaymentMode: ManualDepositMode;
+  residualMode: ManualResidualMode;
+  mileageMode: ManualMileageMode;
+  mileageValue: string;
+  carTaxIncluded: boolean;
+  subsidyApplicable: boolean;
+};
+
+// 통합 전 8개 Record의 읽기 폴백과 동일한 값(테스트로 잠금). 변경 = 저장 payload 변경.
+export const DEFAULT_CARD_UI: CardUiState = {
+  termMonths: 60,
+  depositMode: "none",
+  downPaymentMode: "none",
+  residualMode: "max",
+  mileageMode: "basic",
+  mileageValue: MILEAGE_BASIC_VALUE,
+  carTaxIncluded: false,
+  subsidyApplicable: false,
+};
+
+export function cardUiOf(map: Record<string, CardUiState>, conditionId: string): CardUiState {
+  return map[conditionId] ?? DEFAULT_CARD_UI;
+}
+
+// basic 모드는 저장된 mileageValue를 무시하고 고정값을 쓴다(추출·렌더 공통 규칙).
+export function effectiveMileageValue(ui: CardUiState): string {
+  return ui.mileageMode === "basic" ? MILEAGE_BASIC_VALUE : ui.mileageValue;
+}
+
+// 앱 견적요청 승격 → 카드1 UI 상태. 시드가 없는 필드는 기본값 유지(통합 전 "Record에 키를 안 넣던" 동작과 동일).
+// 금액 문자열(depositValue/downPaymentValue)은 카드의 표시 초기값(uncontrolled defaultValue)이라 여기 없다.
+export function cardUiFromSeed(seed: ScenarioCardSeed): CardUiState {
+  return {
+    ...DEFAULT_CARD_UI,
+    ...(seed.termMonths != null ? { termMonths: seed.termMonths } : {}),
+    ...(seed.depositMode ? { depositMode: seed.depositMode } : {}),
+    ...(seed.downPaymentMode ? { downPaymentMode: seed.downPaymentMode } : {}),
+  };
+}
+
 export type ManualCard = {
   id: string; title: string; round: string; copyLabel: string;
   lender: string; monthlyPayment: string;
@@ -86,6 +136,29 @@ export type EditScenario = {
   dueAtDelivery: string;
   interestRate: string;
 };
+
+// 비교카드 id 규약 — 시나리오 번호(scenario_no)와 1:1. 복원·저장 양쪽이 이 함수를 쓴다.
+export function cardIdOfScenarioNo(scenarioNo: number): string {
+  return `manual-condition-${scenarioNo}`;
+}
+
+export function cardUiFromScenario(s: EditScenario): CardUiState {
+  return {
+    termMonths: s.termMonths,
+    depositMode: s.depositMode,
+    downPaymentMode: s.downPaymentMode,
+    residualMode: s.residualMode,
+    mileageMode: s.mileageMode,
+    mileageValue: s.mileageValue,
+    carTaxIncluded: s.carTaxIncluded,
+    subsidyApplicable: s.subsidyApplicable,
+  };
+}
+
+export function cardUiMapFromScenarios(scenarios: EditScenario[]): Record<string, CardUiState> {
+  return Object.fromEntries(scenarios.map((s) => [cardIdOfScenarioNo(s.scenarioNo), cardUiFromScenario(s)]));
+}
+
 export type EditPrefill = {
   optionIds: number[];
   exteriorColorId: number | null;
