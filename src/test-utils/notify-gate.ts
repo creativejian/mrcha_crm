@@ -36,6 +36,12 @@ import type { Db, Executor } from "../db/client";
 // 라우트 테스트(`app.request()`)는 dbMiddleware가 별도 커넥션을 열어 이 트랜잭션을 공유하지 못한다.
 // 그래서 라우트 테스트는 알림 테이블을 건드리지 않도록 짠다 — 발송 훅은 고객에 app_user_id가 있을
 // 때만 돌므로(`customer-quotes.ts:214`), app_user_id 없는 전용 고객을 시드하면 훅 자체가 안 탄다.
+//
+// ⚠️ 그 대가로 포기한 커버리지: 라우트 → updateQuote → syncAdvisorQuoteOnSend 로 이어지는 **통합
+// 경로 전체는 어떤 테스트도 타지 않는다**. 라우트가 customerId를 잘못 넘기거나 트랜잭션 경계가
+// 어긋나는 회귀는 잡히지 않는다. 조각별로는 검증되지만(valid_until 스탬프=updateQuote,
+// advisor_quotes upsert=customer-quotes.send.test.ts) "이미 커버된다"고 믿고 이 경로를 건드리지 말 것.
+// app.request()가 별도 커넥션을 여는 한 안전한 테스트 방법이 없어 의도적으로 감수한 구간이다.
 export async function withNotifyGuard<T>(db: Db, fn: (tx: Executor) => Promise<T>): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.skip_notify', 'on', true)`);
