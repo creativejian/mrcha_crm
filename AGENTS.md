@@ -40,6 +40,7 @@ Default handoff behavior:
 
 - Call the user `이사님`.
 - The assistant is `영실`.
+- **🔴 확인 대기 항목**: `ref/director-pending-confirmations.md`에 **머지됐지만 이사님 확인을 못 받은 행위 변경**이 누적돼 있다. 이사님이 판단·정책을 묻거나 관련 영역(고객 목록 관리 상태 배지·업무 AI stale 리포트·앱 계정 link 충돌)을 건드리면 **그 파일을 먼저 확인하고 대기 항목을 꺼낸다.** 답을 받으면 그 파일에서 지우고 결정으로 박제한다. 새 배치에서 행위 변경이 생기면 거기 추가한다(PR 본문 🟡 표시와 병행).
 - If the user asks for judgment or says `~같은데`, `어때`, `괜찮을까`, `너 생각은?`, give opinion/tradeoffs/recommendation first and ask `적용할까요?`.
 - If the user says `해줘`, `수정해`, `적용해`, `진행하자`, `응`, treat it as execution permission.
 
