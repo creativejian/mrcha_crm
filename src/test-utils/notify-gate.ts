@@ -1,4 +1,3 @@
-import { test } from "bun:test";
 import { sql } from "drizzle-orm";
 
 import type { Db, Executor } from "../db/client";
@@ -30,24 +29,22 @@ import type { Db, Executor } from "../db/client";
 //     커스텀 GUC엔 권한 검사가 없어서 진짜 알림이 묻히는 것을 막기 위한 조건이다.
 //
 // `application_name` 방식은 불가능하다 — Supavisor pooler가 값을 자기 이름으로 덮어쓴다(실측).
+// 세션 레벨 `SET`(is_local 없이)도 쓰지 않는다 — transaction pooler(6543)는 백엔드를 다른 커넥션에
+// 재사용하므로, GUC가 남은 백엔드를 다른 `postgres` 커넥션(dev 서버·백필)이 잡으면 **진짜 알림이
+// 조용히 묻힌다**. 트랜잭션 스코프(SET LOCAL)만 안전하다.
 //
 // 라우트 테스트(`app.request()`)는 dbMiddleware가 별도 커넥션을 열어 이 트랜잭션을 공유하지 못한다.
-// 그 경로는 여전히 알림이 나가므로 `notifyTriggerTest`로 skip한다.
+// 그래서 라우트 테스트는 알림 테이블을 건드리지 않도록 짠다 — 발송 훅은 고객에 app_user_id가 있을
+// 때만 돌므로(`customer-quotes.ts:214`), app_user_id 없는 전용 고객을 시드하면 훅 자체가 안 탄다.
+//
+// ⚠️ 그 대가로 포기한 커버리지: 라우트 → updateQuote → syncAdvisorQuoteOnSend 로 이어지는 **통합
+// 경로 전체는 어떤 테스트도 타지 않는다**. 라우트가 customerId를 잘못 넘기거나 트랜잭션 경계가
+// 어긋나는 회귀는 잡히지 않는다. 조각별로는 검증되지만(valid_until 스탬프=updateQuote,
+// advisor_quotes upsert=customer-quotes.send.test.ts) "이미 커버된다"고 믿고 이 경로를 건드리지 말 것.
+// app.request()가 별도 커넥션을 여는 한 안전한 테스트 방법이 없어 의도적으로 감수한 구간이다.
 export async function withNotifyGuard<T>(db: Db, fn: (tx: Executor) => Promise<T>): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.skip_notify', 'on', true)`);
     return fn(tx);
   });
 }
-
-// 프로덕션 라우트 경로를 태워서 알림 테이블에 쓰는 테스트(= 트랜잭션을 공유할 수 없는 것)만 남는 게이트.
-// `NOTIFY_TRIGGER_TESTS=on`(= `bun run test:server:notify`)으로만 실행되며, 켜면 실제 알림이 나간다.
-export const notifyTriggerTestsEnabled = process.env.NOTIFY_TRIGGER_TESTS === "on";
-
-if (notifyTriggerTestsEnabled) {
-  console.warn(
-    "\n⚠️  NOTIFY_TRIGGER_TESTS=on — 라우트 경유 쓰기는 트랜잭션 가드 밖이라 실제 알림/푸시가 발송됩니다.\n",
-  );
-}
-
-export const notifyTriggerTest = notifyTriggerTestsEnabled ? test : test.skip;

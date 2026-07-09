@@ -9,11 +9,18 @@ mock.module("../lib/storage", () => ({
 
 import { test, expect } from "bun:test";
 
-// appStatus="sent" PATCH는 발송 훅이 public.advisor_quotes를 upsert한다 → on_advisor_quote_sent 트리거가
-// 운영 FCM 푸시를 낸다. 여기는 app.request() 경유라 dbMiddleware가 별도 커넥션을 열어 테스트
-// 트랜잭션을 공유하지 못한다 → withNotifyGuard(SET LOCAL)가 닿지 않아 두 테스트만 게이트로 남긴다.
-// (프로덕션 코드에 GUC 주입은 별도 작업 — src/test-utils/notify-gate.ts 참조.)
-import { notifyTriggerTest } from "../test-utils/notify-gate";
+// 발송 훅(updateQuote → public.advisor_quotes upsert)은 고객에 app_user_id가 있을 때만 돈다
+// (customer-quotes.ts:214 `if (!appUserId) return`). 라우트 테스트는 app_user_id 없는 전용 고객을
+// 써서 훅 자체를 태우지 않는다 → on_advisor_quote_sent 트리거가 발화하지 않아 운영 FCM 푸시가 없다.
+// (advisor_quotes upsert 경로의 검증은 db/queries/customer-quotes.send.test.ts가 withNotifyGuard로 담당.)
+async function seedLocalCustomer(): Promise<string> {
+  const [c] = await getDefaultDb()
+    .insert(customers)
+    .values({ customerCode: `CU-ROUTE-${crypto.randomUUID().slice(0, 8)}`, name: "라우트테스트고객" })
+    .returning({ id: customers.id });
+  return c.id;
+}
+
 import { eq, isNull } from "drizzle-orm";
 
 import { createApp } from "../app";
@@ -378,12 +385,11 @@ test("견적 쓰기: PATCH appStatus=viewed → 400 (어휘 축소, 배치 E —
   expect(res.status).toBe(400); // zod 게이트 — 대상 존재 여부(404) 이전에 어휘에서 거부, writer 재유입 방지
 });
 
-notifyTriggerTest("견적 쓰기: PATCH 헤더+대표시나리오 → getCustomer 반영", async () => {
+test("견적 쓰기: PATCH 헤더+대표시나리오 → getCustomer 반영", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
   const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
-  const cid = list[0].id;
+  const cid = await seedLocalCustomer(); // app_user_id 없음 → 발송 훅 미발동(운영 FCM 푸시 없음)
   const quoteId = await seedThrowawayQuote(cid);
   try {
     const patched = await app.request(`/api/customers/${cid}/quotes/${quoteId}`, {
@@ -410,10 +416,10 @@ notifyTriggerTest("견적 쓰기: PATCH 헤더+대표시나리오 → getCustome
     expect(q.scenarios[0].lender).toBe("우리금융캐피탈");
   } finally {
     // 공유 master DB라 어떤 결과든 정리(scenarios는 ON DELETE CASCADE).
-    // sent PATCH는 발송 훅이 advisor_quotes까지 쓴다(고객이 앱 연결일 때) — quotes 직접 삭제는
-    // 회수 경로(deleteQuote)를 안 타므로 여기서 함께 회수해야 고아 카드가 안 남는다.
+    // 전용 고객(app_user_id 없음)이라 발송 훅이 advisor_quotes를 쓰지 않지만, 방어적으로 회수한다.
     await getDefaultDb().delete(advisorQuotes).where(eq(advisorQuotes.crmQuoteId, quoteId));
     await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+    await getDefaultDb().delete(customers).where(eq(customers.id, cid));
   }
 });
 
@@ -901,12 +907,13 @@ test("견적 시나리오 확장 필드(앱카드): 금리·총비용·자동차
   }
 });
 
-notifyTriggerTest("견적 발송(갭ⓐ): PATCH appStatus=sent → valid_until = sent_at + 7일 자동 스탬프", async () => {
+// valid_until 스탬프는 updateQuote(customer-quotes.ts:113)가 한다 — 라우트가 그 경로를 태우는지만 본다.
+// 전용 고객(app_user_id 없음)이라 발송 훅은 미발동(advisor_quotes upsert 검증은 send.test.ts 몫).
+test("견적 발송(갭ⓐ): PATCH appStatus=sent → valid_until = sent_at + 7일 자동 스탬프", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
   const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
-  const cid = list[0].id;
+  const cid = await seedLocalCustomer();
   let quoteId: string | null = null;
   try {
     const created = await app.request(`/api/customers/${cid}/quotes`, {
@@ -927,10 +934,11 @@ notifyTriggerTest("견적 발송(갭ⓐ): PATCH appStatus=sent → valid_until =
     expect(gapDays).toBeCloseTo(7, 5);
   } finally {
     if (quoteId) {
-      // sent PATCH의 발송 훅이 advisor_quotes를 쓴다(앱 연결 고객) — quotes 직접 삭제 전에 함께 회수.
+      // 전용 고객이라 발송 훅 미발동이지만, 방어적으로 회수한다.
       await getDefaultDb().delete(advisorQuotes).where(eq(advisorQuotes.crmQuoteId, quoteId));
       await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
     }
+    await getDefaultDb().delete(customers).where(eq(customers.id, cid));
   }
 });
 
