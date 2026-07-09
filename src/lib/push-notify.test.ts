@@ -102,6 +102,26 @@ test("sendAssignmentPush: 401은 AUTH_FAILED 토큰으로 구분 로깅", async 
   expect(lines[0]).toContain("U-1");
 });
 
+// 🔴 prod 실버그(2026-07-09, CF tail 실측): `pushNotifyDeps.fetchImpl(...)`는 **메서드 호출**이라
+// this=pushNotifyDeps가 되고, Workers의 global fetch는 this가 globalThis(또는 undefined)가 아니면
+// `TypeError: Illegal invocation`으로 죽는다. sendAssignmentPush의 try/catch가 그걸 삼켜서
+// #193 머지 이후 prod 배정 알림이 한 번도 나가지 않았다(로컬 bun의 fetch는 this를 안 따져 미검출).
+// 호출 전에 지역 변수로 뽑아 plain call하면 this=undefined(ESM strict)라 안전하다 — gemini-post.ts와 동일 패턴.
+test("sendAssignmentPush: fetch를 plain call로 호출한다(this 미바인딩 — Workers Illegal invocation 방지)", async () => {
+  let called = false;
+  let hadThis = true; // 초기값은 실패 방향 — 호출이 아예 없으면 아래 단언이 걸린다
+  pushNotifyDeps.fetchImpl = function (this: unknown) {
+    called = true;
+    hadThis = this !== undefined; // 메서드 호출이면 this=pushNotifyDeps → Workers에서 Illegal invocation
+    return Promise.resolve(new Response("{}", { status: 200 }));
+  } as unknown as typeof fetch;
+
+  await sendAssignmentPush({ env: { SUPABASE_URL: "https://proj.test" } }, { userId: "U-1", title: "t", body: "b" });
+
+  expect(called).toBe(true);
+  expect(hadThis).toBe(false);
+});
+
 test("sendAssignmentPush: 401 외 실패는 기존 문구 유지(AUTH_FAILED 아님)", async () => {
   captureHeaders(500);
   const { lines, restore } = captureErrors();

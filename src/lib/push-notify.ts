@@ -37,7 +37,13 @@ export async function sendAssignmentPush(
     // 보안 이득이 없고, 알림이 조용히 사라지는 쪽이 더 나쁘다. 3단계(401 강제) 후 누락은 아래 로그로 드러난다.
     const secret = env.SEND_PUSH_SECRET ?? process.env.SEND_PUSH_SECRET;
     if (!secret) console.warn("[push] SEND_PUSH_SECRET 미설정 — 헤더 없이 호출(앱 401 전환 후 발송 실패)");
-    const res = await pushNotifyDeps.fetchImpl(`${base}/functions/v1/send-push`, {
+    // ⚠️ 반드시 지역 변수로 뽑아 plain call한다. `pushNotifyDeps.fetchImpl(...)`는 메서드 호출이라
+    // this=pushNotifyDeps가 되고, Workers의 global fetch는 this가 globalThis/undefined가 아니면
+    // `TypeError: Illegal invocation`으로 죽는다(2026-07-09 prod tail 실측 — 아래 catch가 삼켜서
+    // #193 이후 배정 알림이 한 번도 나가지 않았다. 로컬 bun의 fetch는 this를 안 따져 미검출).
+    // gemini-post.ts:14 `const fetchImpl = opts.fetchImpl ?? fetch`가 같은 이유로 안전한 형태다.
+    const fetchImpl = pushNotifyDeps.fetchImpl;
+    const res = await fetchImpl(`${base}/functions/v1/send-push`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
