@@ -51,6 +51,9 @@ test("linkRequestToCustomer: 고객 app_user_id에 요청 user_id를 set (tx 롤
     db.transaction(async (tx) => {
       // 같은 앱 계정이 이미 다른 고객에 연결돼 있으면 가드가 막으므로 기존 연결 해제(롤백됨).
       await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, req.userId));
+      // 대상 고객이 이미 **다른** 앱 계정에 연결돼 있어도 역방향 가드가 막는다 — limit(1)이 뽑는 실
+      // master 첫 고객은 연결돼 있어(실측) 미연결 상태를 명시적으로 만든다(anyUnlinkedProfileId와 같은 사유).
+      await tx.update(customers).set({ appUserId: null }).where(eq(customers.id, cust.id));
       const linked = await linkRequestToCustomer(req.id, cust.id, tx);
       expect(linked?.id).toBe(cust.id);
       const [c] = await tx.select({ appUserId: customers.appUserId }).from(customers).where(eq(customers.id, cust.id));
@@ -95,10 +98,32 @@ test("linkRequestToCustomer: 같은 앱 계정이 이미 다른 고객에 연결
   await expect(
     db.transaction(async (tx) => {
       await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, req.userId));
+      // 두 고객 모두 미연결로 초기화 — 역방향 가드가 아니라 **정방향** 가드(app_user_id 중복)를 검증한다.
+      await tx.update(customers).set({ appUserId: null }).where(inArray(customers.id, [two[0].id, two[1].id]));
       const linked = await linkRequestToCustomer(req.id, two[0].id, tx);
       expect(linked?.id).toBe(two[0].id);
       // 두 번째 고객으로 재연결 시도 — app_user_id 중복 고객 생성 경로를 fail-closed로 차단.
       await expect(linkRequestToCustomer(req.id, two[1].id, tx)).rejects.toThrow(ConflictError);
+      throw new Error("ROLLBACK"); // 부작용 롤백 — 실 DB에 변경 안 남김
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});
+
+// 역방향(고객 → 앱계정) 재연결 차단(0709 감사). 전화 매칭 후보는 이미 다른 앱 계정에 연결된 고객도
+// 그대로 노출하므로(matchType="phone"), 가드가 없으면 인박스 "연결" 클릭 한 번에 그 고객의
+// app_user_id가 조용히 교체되고 원래 앱 계정이 고아가 된다.
+test("linkRequestToCustomer: 대상 고객이 이미 다른 앱 계정에 연결 → ConflictError (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  const [req] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
+  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+  const occupyingUser = crypto.randomUUID(); // loose id — app_user_id에 FK 없음
+  await expect(
+    db.transaction(async (tx) => {
+      await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, req.userId));
+      await tx.update(customers).set({ appUserId: occupyingUser }).where(eq(customers.id, cust.id));
+      await expect(linkRequestToCustomer(req.id, cust.id, tx)).rejects.toThrow(ConflictError);
+      const [c] = await tx.select({ appUserId: customers.appUserId }).from(customers).where(eq(customers.id, cust.id));
+      expect(c.appUserId).toBe(occupyingUser); // 기존 연결 보존
       throw new Error("ROLLBACK"); // 부작용 롤백 — 실 DB에 변경 안 남김
     }),
   ).rejects.toThrow("ROLLBACK");

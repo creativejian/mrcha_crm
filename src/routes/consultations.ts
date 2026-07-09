@@ -1,6 +1,7 @@
 // 앱 상담신청(public.consultations) → CRM 고객 통합 라우트. 견적요청(quote-requests.ts) 패턴 미러.
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 
 import {
@@ -10,6 +11,7 @@ import {
   listConsultations,
 } from "../db/queries/consultations";
 import { scheduleEmbedOnWrite } from "../lib/embed-on-write";
+import { promotionEmbedJobs } from "../lib/promotion-embeds";
 import type { AuthVariables } from "../middleware/auth";
 import type { DbVariables } from "../middleware/db";
 import { run } from "./shared";
@@ -18,13 +20,23 @@ export const consultations = new Hono<{ Variables: AuthVariables & DbVariables }
 
 const idParam = z.object({ id: z.uuid() });
 
+// 승격/연결 시점 임베딩 훅 — job 목록은 promotion-embeds SSOT(견적요청 라우트와 공유).
+async function schedulePromotionEmbeds(
+  c: Context<{ Variables: AuthVariables & DbVariables }>,
+  opts: { appUserId: string; customerId?: string },
+): Promise<void> {
+  for (const job of await promotionEmbedJobs(opts, c.var.db)) scheduleEmbedOnWrite(c, job);
+}
+
 // 인박스: pending 상담신청 목록.
 consultations.get("/", (c) => run(c, () => listConsultations(c.var.db)));
 
 // 매칭된 기존 고객에 연결(app_user_id set + 빈 연락처 보강). app_user_id 중복이면 run()이 409로 매핑.
-// 견적요청 link와 달리 재임베딩을 스케줄하지 않는다 — 연결이 세팅하는 필드(app_user_id·phone)는
-// customer_profile 청크 구성 필드가 아니다(상담신청 문의 자체는 임베딩/RAG가 아니라 업무 AI
-// customer_consultations 도구가 crm.consultation_dismissals를 제외하고 직접 조회해 답한다).
+// customer_profile은 재임베딩하지 않는다 — 연결이 세팅하는 필드(app_user_id·phone)는 그 청크의 구성
+// 필드가 아니다(상담신청 문의 자체도 임베딩/RAG가 아니라 업무 AI customer_consultations 도구가
+// crm.consultation_dismissals를 제외하고 직접 조회해 답한다). 다만 **그 유저의 앱 견적요청**은 이 연결이
+// 생겨야 비로소 적재 가능해지므로 quote_request 청크를 스케줄한다(견적요청 link와 동일 — 0709 감사에서
+// 이 훅 누락이 발견됐다: 상담 경로로 승격된 유저의 견적요청이 백필 전까지 코퍼스에 없었다).
 consultations.post(
   "/:id/link",
   zValidator("param", idParam),
@@ -32,7 +44,11 @@ consultations.post(
   (c) =>
     run(
       c,
-      () => linkConsultationToCustomer(c.req.valid("param").id, c.req.valid("json").customerId, c.var.db),
+      async () => {
+        const row = await linkConsultationToCustomer(c.req.valid("param").id, c.req.valid("json").customerId, c.var.db);
+        if (row) await schedulePromotionEmbeds(c, { appUserId: row.appUserId });
+        return row;
+      },
       "요청 또는 고객을 찾을 수 없습니다.",
     ),
 );
@@ -41,10 +57,9 @@ consultations.post(
 consultations.post("/:id/create-customer", zValidator("param", idParam), (c) =>
   run(c, async () => {
     // 트랜잭션 커밋 후 스케줄 — 승격 INSERT가 프로필 청크 구성 필드(needModel/source)를 시드하므로
-    // customer_profile 재임베딩(고객 PATCH 훅과 동일 불변). 상담신청 문의 자체는 임베딩 대상이 아니다
-    // (customer_consultations 도구가 public.consultations를 직접 조회 — RAG 코퍼스 미적재).
+    // customer_profile 재임베딩(고객 PATCH 훅과 동일 불변) + 그 유저의 앱 견적요청 청크(연결 성립).
     const row = await c.var.db.transaction((tx) => createCustomerFromConsultation(c.req.valid("param").id, tx));
-    if (row) scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: row.id });
+    if (row) await schedulePromotionEmbeds(c, { appUserId: row.appUserId, customerId: row.id });
     return row;
   }, "요청을 찾을 수 없습니다."),
 );

@@ -142,8 +142,14 @@ export async function linkConsultationToCustomer(
     .where(and(eq(customers.appUserId, req.userId), ne(customers.id, customerId)));
   if (linked) throw new ConflictError(`이 앱 계정은 이미 ${linked.name}(${linked.customerCode}) 고객에 연결돼 있습니다.`);
 
-  const [target] = await ex.select({ phone: customers.phone }).from(customers).where(eq(customers.id, customerId));
+  const [target] = await ex.select({ phone: customers.phone, appUserId: customers.appUserId }).from(customers).where(eq(customers.id, customerId));
   if (!target) return null;
+  // 역방향(고객 → 앱계정) 재연결 차단 — 위 가드는 "들어오는 userId가 다른 고객에 붙었나"만 본다.
+  // 대상 고객이 이미 다른 앱 계정에 연결돼 있으면 덮어쓰기가 그 계정을 고아로 만든다(app_user_id에
+  // UNIQUE 제약이 없어 DB도 안 막는다). 같은 계정 재연결은 멱등이라 통과. quote-requests와 대칭.
+  if (target.appUserId && target.appUserId !== req.userId) {
+    throw new ConflictError("이 고객은 이미 다른 앱 계정에 연결돼 있습니다.");
+  }
 
   const [row] = await ex
     .update(customers)
