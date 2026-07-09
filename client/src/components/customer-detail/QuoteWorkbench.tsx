@@ -11,7 +11,9 @@ import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker } from "@/components/VehiclePicker";
 
 import {
+  cardUiOf,
   discountLabelOptions,
+  effectiveMileageValue,
   manualMileageOptions,
   emptyQuotePricing,
   quotePurchaseMethodOptions,
@@ -36,15 +38,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     isQuoteDraftSaved,
     isQuoteDraftDirty,
     savedManualQuoteConditionIds,
-    manualTermMonths,
     manualQuoteCards,
-    manualDepositModes,
-    manualDownPaymentModes,
-    manualResidualModes,
-    manualMileageModes,
-    manualMileageValues,
-    manualCarTaxIncluded,
-    manualSubsidyApplicable,
+    cardUi,
     editingQuoteId,
     guidance,
     quoteRequestPrefill,
@@ -426,13 +421,14 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                 <div className="kim-manual-compare-grid">
                   {manualQuoteCards.map((condition) => {
                     const isConditionSaved = savedManualQuoteConditionIds.includes(condition.id);
-                    const depositMode = manualDepositModes[condition.id] ?? condition.depositMode;
-                    const downPaymentMode = manualDownPaymentModes[condition.id] ?? condition.downPaymentMode;
-                    const residualMode = manualResidualModes[condition.id] ?? condition.residualMode;
-                    const mileageMode = manualMileageModes[condition.id] ?? "basic";
-                    const mileageValue = mileageMode === "basic" ? "20,000km / 년" : manualMileageValues[condition.id] ?? "20,000km / 년";
-                    const carTaxOn = manualCarTaxIncluded[condition.id] ?? false;
-                    const subsidyOn = manualSubsidyApplicable[condition.id] ?? false;
+                    const ui = cardUiOf(cardUi, condition.id);
+                    const depositMode = ui.depositMode;
+                    const downPaymentMode = ui.downPaymentMode;
+                    const residualMode = ui.residualMode;
+                    const mileageMode = ui.mileageMode;
+                    const mileageValue = effectiveMileageValue(ui);
+                    const carTaxOn = ui.carTaxIncluded;
+                    const subsidyOn = ui.subsidyApplicable;
 
                     return (
                       <section className={`kim-manual-compare-card${isConditionSaved ? " is-saved" : ""}`} data-scenario-card={condition.id} key={`${editingQuoteId ?? "new"}-${condition.id}`}>
@@ -447,7 +443,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                         </header>
                         <div className="kim-manual-compare-body">
                           <label className="select-value"><span>금융사</span><select data-sc-field="lender" defaultValue={condition.lender} disabled={isConditionSaved}><option>미선택</option><option>우리금융캐피탈</option><option>iM캐피탈</option><option>하나캐피탈</option></select></label>
-                          <label><span>기간</span><div className="kim-jeff-segment wide">{[12, 24, 36, 48, 60].map((m) => { const cur = manualTermMonths[condition.id] ?? 60; return <button key={m} className={cur === m ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualTermMonthsFor(condition.id, m)} type="button">{m}개월</button>; })}</div></label>
+                          <label><span>기간</span><div className="kim-jeff-segment wide">{[12, 24, 36, 48, 60].map((m) => <button key={m} className={ui.termMonths === m ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualTermMonthsFor(condition.id, m)} type="button">{m}개월</button>)}</div></label>
                           <label><span>보증금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={depositMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "none")} type="button">없음</button><button className={depositMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "amount")} type="button">금액</button><button className={depositMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${depositMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="deposit" data-discount-unit={depositMode === "percent" ? "percent" : "amount"} defaultValue={condition.depositValue} disabled={isConditionSaved} readOnly={depositMode === "none"} /><em>{depositMode === "percent" ? "%" : "원"}</em></div></div></label>
                           {/* 선수금/선납금 라벨 SSOT = appCardModel.downPaymentRowLabel(구매방식 종속 도메인 규칙 — app-card.ts) */}
                           <label><span>{appCardModel.downPaymentRowLabel}</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={downPaymentMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "none")} type="button">없음</button><button className={downPaymentMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "amount")} type="button">금액</button><button className={downPaymentMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${downPaymentMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="downPayment" data-discount-unit={downPaymentMode === "percent" ? "percent" : "amount"} defaultValue={condition.downPaymentValue} disabled={isConditionSaved} readOnly={downPaymentMode === "none"} /><em>{downPaymentMode === "percent" ? "%" : "원"}</em></div></div></label>
