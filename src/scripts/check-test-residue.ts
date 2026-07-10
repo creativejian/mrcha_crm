@@ -1,0 +1,47 @@
+// 테스트 픽스처 잔재 검사·정리 (2026-07-10).
+//
+//   bun run check:residue              잔재가 있으면 목록 출력 후 exit 1
+//   bun run check:residue -- --clean   crm 스키마의 잔재를 실제로 삭제
+//
+// 검사 자체는 `src/test-utils/fixture-residue.test.ts`가 매 `test:server`마다 돌린다.
+// 이 스크립트는 **정리**와 **아무 때나 확인**을 위한 것이다.
+//
+// ⚠️ `--clean`은 crm 스키마만 지운다. `public.advisor_quotes` 고아 카드는 **보고만** 한다 —
+// 앱 소유 스키마의 행을 스크립트가 자동 삭제하지 않는다(고객 삭제 슬라이스의 소유권 경계와 동일).
+import { sql } from "drizzle-orm";
+
+import { getDefaultDb } from "../db/client";
+import {
+  CUSTOMER_CODE_REGEX, QUOTE_CODE_REGEX, formatResidue, residueCount, scanFixtureResidue,
+} from "../test-utils/fixture-residue";
+
+const db = getDefaultDb();
+const clean = process.argv.includes("--clean");
+
+const residue = await scanFixtureResidue(db);
+if (residueCount(residue) === 0) {
+  console.log("[residue] 테스트 픽스처 잔재 없음 ✅");
+  process.exit(0);
+}
+
+console.error(`\n[residue] ⚠️ 공유 master에 테스트 잔재가 남아 있습니다 (${residueCount(residue)}건)\n`);
+console.error(formatResidue(residue).replace(/^/gm, "  "));
+
+if (!clean) {
+  console.error(`\n  정리: bun run check:residue -- --clean   (crm 스키마만 지웁니다)`);
+  if (residue.orphanAppCards > 0) {
+    console.error(`  고아 앱 카드는 자동 삭제하지 않습니다 — public은 앱 소유입니다. 수동 확인 후 처리하세요.`);
+  }
+  process.exit(1);
+}
+
+// crm.quotes → customers FK는 NO ACTION이라 견적을 먼저 지운다. 자식 5종과 임베딩은 CASCADE.
+await db.transaction(async (tx) => {
+  await tx.execute(sql`delete from crm.quotes where quote_code ~ ${QUOTE_CODE_REGEX}`);
+  await tx.execute(sql`delete from crm.quotes where customer_id in (select id from crm.customers where customer_code ~ ${CUSTOMER_CODE_REGEX})`);
+  await tx.execute(sql`delete from crm.customers where customer_code ~ ${CUSTOMER_CODE_REGEX}`);
+  await tx.execute(sql`delete from crm.customer_deletions where customer_code ~ ${CUSTOMER_CODE_REGEX}`);
+});
+console.error(`\n[residue] crm 스키마 잔재를 삭제했습니다.`);
+if (residue.orphanAppCards > 0) console.error(`  고아 앱 카드 ${residue.orphanAppCards}건은 그대로 두었습니다(앱 소유).`);
+process.exit(1); // 정리했어도 "잔재가 있었다"는 사실은 실패로 알린다

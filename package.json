@@ -16,6 +16,7 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:server": "EMBED_ON_WRITE=off PUSH_NOTIFY=off bun test --env-file=.env.local",
+    "check:residue": "bun run --env-file=.env.local src/scripts/check-test-residue.ts",
     "knip": "knip --no-config-hints",
     "screenshot:crm": "playwright test tools/crm-screenshot.spec.ts --project=chromium",
     "visual:crm": "playwright test tools/crm-visual.spec.ts --project=chromium",
