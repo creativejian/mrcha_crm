@@ -18,6 +18,12 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 
 ## Current Focus
 
+- **✅ 테스트 픽스처 잔재 tripwire(2026-07-10, PR #214 squash `4e43398`)**: `DATABASE_URL`이 공유 master라 테스트가 진짜 고객·견적 행을 만든다. 정상 종료하면 `afterAll`이 지우지만 **실행이 끊기면 남는다** — `CU-EMBRT-…/배선테스트`가 07-09에 남아 이사님 고객 목록에 유령으로 떴고 **사람 눈이 발견**했다(어떤 테스트도 못 잡았다).
+  - **2겹**: ①`src/test-utils/fixture-codes.test.ts` — 실 DB 테스트(`getDefaultDb` 참조)의 `CU-`/`QT-`/`PUSH-` 코드 리터럴이 registry(`fixture-codes.ts`, 접두사 12+3종)에 있는지. **드리프트하면 ②가 그 행을 못 본다** ②`src/test-utils/fixture-residue.test.ts` — 매 `test:server`마다 실 DB 잔재(픽스처 고객·견적 + 고아 임베딩 + **고아 앱 카드**) 조회. `bun test`는 파일 순차 실행 + `afterAll`이 다음 파일 전에 끝나므로 **run 시작 시점에 이미 있던 잔재는 순서 무관하게 잡힌다**(우리가 당한 실패 모드가 정확히 그것).
+  - 정리 = `bun run check:residue -- --clean` — **crm 스키마만**. `public.advisor_quotes` 고아 카드는 **보고만** 한다(앱 소유 — 고객 삭제 슬라이스의 소유권 경계와 동일).
+  - **가드가 스스로 잡아낸 것**: ⓐ`QT-EMBSRC-`는 **변수(`QUOTE_CODE`)로 조립**돼 `quoteCode:` 앞뒤 방식으로는 안 잡혔다 → 값의 모양으로 뽑아 발견. **가드 없었으면 이 접두사 잔재는 영구 미검출** ⓑ`PUSH-TEST-`는 `CU-` 규칙 이탈(`CU-%TEST%` 패턴이었으면 놓침) ⓒ순수 유닛의 인메모리 객체 오검출 → `getDefaultDb` 참조를 판별자로 ⓓ실채번 단언 `/^CU-\d{4}-\d{4}$/`를 코드로 오인 → 접두사 뒤 영숫자 1자 이상 요구 ⓔ**주석 속 코드를 위반으로 잡았다**(규칙을 설명하는 문장이 위반이 되면 아무도 안 쓴다 — `profiles-write-guard`가 같은 이유로 `stripComments`를 쓰는데 빼먹었다).
+  - 검증: typecheck0·lint0·knip clean·server **459**(+12)·unit 498·build. **변이 3종 실관찰**(미등록 접두사 추가/registry 제거/변수 조립 접두사 제거 → 각각 정확히 검출) + **`--clean` 실증**(잔재 심기→exit 1→정리→0건, 실고객 22명 불변). 규칙 SSOT = `AGENTS.md`.
+
 - **✅ 고객 하드 삭제 신설(2026-07-10, PR #212 squash `ac0d049`, prod 반영 확인)**: 이사님 실기 지적 "삭제해도 리로딩하면 되살아난다" — **버그가 아니라 미구현**이었다(`deleteSelected`가 프론트 배열만 필터, `DELETE /api/customers/:id` 라우트 부재). spec `ref/specs/2026-07-10-crm-customer-delete-design.md`.
   - **결정(이사님)**: ①**하드 삭제**(소프트 삭제 기각 — `불발` 상태·`보류/이탈` 화면이 이미 "감추기" 담당. 축이 둘이면 드리프트) ②**앱 카드 있으면 409 거부**(회수 ❌) ③앱 계정 연결 고객도 삭제 가능(`profiles` 불가침) ④감사 기록 ⑤**admin 전용 403 fail-closed** ⑥다건 = 건별 독립 트랜잭션 + 실패 목록.
   - **🔑 원칙 정정**: "앱 카드 불멸"이 아니다 — 견적함에서 발송 견적을 지우면 **지금도** 앱 카드가 사라진다(`deleteQuote`→`deleteAdvisorQuoteByCrmQuoteId`, #159 결정 7). 진짜 원칙은 **"고객 삭제가 앱 카드를 조용히 연쇄 삭제하지 않는다"**. 견적 삭제 = 의도한 행동의 직접 결과(유지) / 고객 삭제 = 모르는 부작용(차단). 지우려면 **견적함에서 견적 삭제(카드 회수) → 고객 삭제** 2단계. 편의 경로(한 번에 회수) **기각** — 되돌릴 수 없는 조작에 편의 경로를 미리 뚫지 않는다.
