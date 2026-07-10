@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { deleteCustomersBulk } from "./customer-bulk-delete";
+import { deleteCustomersBulk, formatDeleteTargetNames } from "./customer-bulk-delete";
 
 // 다건 삭제는 **건별 독립 트랜잭션**이다(2026-07-10 이사님 결정).
 // 20명 중 1명이 막혔다고 19명을 되돌리는 건 실무에서 더 나쁘다.
@@ -55,5 +55,31 @@ describe("deleteCustomersBulk", () => {
     const res = await deleteCustomersBulk([], deleteOne);
     expect(deleteOne).not.toHaveBeenCalled();
     expect(res).toEqual({ deletedIds: [], failed: [] });
+  });
+});
+
+// 확인창은 **누구를 지우는지** 보여줘야 한다. 선택은 페이지·필터를 넘어 유지되므로,
+// "고객 5명 삭제"만 뜨면 화면에 안 보이는 고객이 섞여 있어도 알 수 없다.
+// 되돌릴 수 없는 조작에서 대상이 안 보이는 건 위험하다.
+describe("formatDeleteTargetNames", () => {
+  it("1명은 이름 그대로", () => {
+    expect(formatDeleteTargetNames(["제임스"])).toBe("제임스");
+  });
+
+  it("5명까지는 전부 나열", () => {
+    expect(formatDeleteTargetNames(["가", "나", "다", "라", "마"])).toBe("가, 나, 다, 라, 마");
+  });
+
+  it("6명부터는 앞 5명 + 외 N명", () => {
+    expect(formatDeleteTargetNames(["가", "나", "다", "라", "마", "바"])).toBe("가, 나, 다, 라, 마 외 1명");
+    expect(formatDeleteTargetNames(["가", "나", "다", "라", "마", "바", "사"])).toBe("가, 나, 다, 라, 마 외 2명");
+  });
+
+  it("빈 이름은 '이름 없음'으로 대체한다(빈 문자열이 구분자만 남기지 않게)", () => {
+    expect(formatDeleteTargetNames(["제임스", "  "])).toBe("제임스, 이름 없음");
+  });
+
+  it("선택 0명이면 빈 문자열", () => {
+    expect(formatDeleteTargetNames([])).toBe("");
   });
 });

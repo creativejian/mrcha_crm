@@ -6,7 +6,7 @@ import { prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
-import { deleteCustomersBulk } from "@/lib/customer-bulk-delete";
+import { deleteCustomersBulk, formatDeleteTargetNames } from "@/lib/customer-bulk-delete";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -128,6 +128,9 @@ export function CustomerManagementPage({
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
   const customers = controlledCustomers ?? internalCustomers;
   const chanceOverrides = controlledChanceOverrides ?? internalChanceOverrides;
+  // 삭제 확인창과 deleteSelected가 같은 대상 집합을 본다. selected는 페이지·필터를 넘어 유지되므로
+  // "지금 화면에 보이는 행"이 아니라 이 집합이 실제 삭제 대상이다.
+  const selectedCustomers = customers.filter((customer) => selected.includes(customer.no));
 
   function updateCustomers(next: Customer[] | ((current: Customer[]) => Customer[])) {
     const nextCustomers = typeof next === "function" ? next(customers) : next;
@@ -451,7 +454,7 @@ export function CustomerManagementPage({
   // (기존 구현은 프론트 배열에서만 지워 리로딩하면 되살아났다 — API 호출 자체가 없었다.)
   async function deleteSelected() {
     if (deleting) return;
-    const targets = customers.filter((customer) => selected.includes(customer.no)).map((customer) => ({ id: customer.id, name: customer.name }));
+    const targets = selectedCustomers.map((customer) => ({ id: customer.id, name: customer.name }));
     setDeleting(true);
     const { deletedIds, failed } = await deleteCustomersBulk(targets);
     setDeleting(false);
@@ -871,6 +874,8 @@ export function CustomerManagementPage({
                   {confirmingDelete && selected.length > 0 ? (
                     <div aria-label="고객 삭제 확인" className="bulk-delete-confirm" role="dialog">
                       <strong>고객 {selected.length}명 삭제</strong>
+                      {/* 선택은 페이지·필터를 넘어 유지된다 — 화면에 안 보이는 대상도 여기서 드러난다. */}
+                      <p className="bulk-delete-targets">{formatDeleteTargetNames(selectedCustomers.map((customer) => customer.name))}</p>
                       <p>
                         메모·할일·일정·서류·견적이 함께 사라지며, 되돌릴 수 없습니다.
                         앱으로 발송한 견적이 있는 고객은 삭제되지 않습니다 — 견적함에서 먼저 회수하세요.

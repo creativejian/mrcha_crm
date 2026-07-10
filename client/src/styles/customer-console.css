@@ -885,3 +885,13 @@
   color: #7f858c;
   cursor: pointer;
 }
+
+/* 삭제 대상 이름 — 되돌릴 수 없는 조작이라 "무엇을" 지우는지 경고문보다 먼저 읽혀야 한다. */
+.customer-console-headbar .bulk-delete-confirm p.bulk-delete-targets {
+  margin: 4px 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #b42318;
+  word-break: keep-all;
+}
