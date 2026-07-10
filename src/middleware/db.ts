@@ -61,6 +61,23 @@ export function endAfterHold(hold: Promise<unknown> | undefined, end: () => Prom
   return hold ? Promise.resolve(hold).then(() => undefined, () => undefined).then(end) : end();
 }
 
+// 테스트 전용 db 주입 seam. 라우트가 자기 트랜잭션(`c.var.db.transaction()`)을 여는 탓에, 알림 트리거
+// 가드(SET LOCAL)를 그 트랜잭션에 태우려면 라우트가 집는 db 자체를 바꾸는 수밖에 없다.
+// `setTestDb(guardedDb(getDefaultDb()))` — 자세한 계약은 `src/test-utils/notify-gate.ts`.
+//
+// ⚠️ 게이트 두 겹을 반드시 유지할 것: fallback(`!connStr`) 브랜치 + `NODE_ENV === "test"`.
+// 로컬 dev도 `!connStr` 브랜치를 타므로, NODE_ENV 게이트가 없으면 남아 있는 오버라이드가 로컬 dev의
+// 진짜 알림을 조용히 죽인다(이 구역 사고 2건이 전부 "조용한 실패"였다 — #199 오염 · #202 무발송).
+// prod(HYPERDRIVE 경로)는 이 seam을 아예 읽지 않는다.
+let testDbOverride: Db | null = null;
+export function setTestDb(db: Db | null): void {
+  testDbOverride = db;
+}
+function fallbackDb(): Db {
+  if (testDbOverride && process.env.NODE_ENV === "test") return testDbOverride;
+  return getDefaultDb();
+}
+
 // CF Pages Functions(Workers): c.env.HYPERDRIVE.connectionString이 있으면 Hyperdrive 경유.
 // Workers는 요청 간 DB 소켓을 재사용할 수 없으므로(재사용 시 "Worker hung" 발생) 요청마다
 // 새 client를 만들고 응답 후 waitUntil(endAfterHold(...))로 닫는다. Hyperdrive가 origin 연결을
@@ -69,7 +86,7 @@ export function endAfterHold(hold: Promise<unknown> | undefined, end: () => Prom
 export const dbMiddleware: MiddlewareHandler<{ Variables: DbVariables }> = async (c, next) => {
   const connStr = (c.env as { HYPERDRIVE?: { connectionString: string } } | undefined)?.HYPERDRIVE?.connectionString;
   if (!connStr) {
-    c.set("db", getDefaultDb());
+    c.set("db", fallbackDb());
     await next();
     return;
   }
