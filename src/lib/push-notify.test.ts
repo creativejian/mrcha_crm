@@ -22,6 +22,55 @@ test("sendAssignmentPush: send-push URL로 {user_id,title,body} POST", async () 
   expect(calls[0].body).toEqual({ user_id: "U-1", title: "담당 고객으로 배정되었습니다", body: "홍길동" });
 });
 
+// 콘솔 캡처 — 이 구역의 두 사고(#199 오염·#202 두 달 무발송)가 전부 "실패가 조용해서 늦게 발견"이었다.
+// 로그가 관측 수단이므로 로그 자체를 테스트한다.
+async function captureConsole(fn: () => Promise<void>): Promise<{ logs: string[]; warns: string[] }> {
+  const logs: string[] = [];
+  const warns: string[] = [];
+  const [origLog, origWarn] = [console.log, console.warn];
+  console.log = (...a: unknown[]) => { logs.push(a.map(String).join(" ")); };
+  console.warn = (...a: unknown[]) => { warns.push(a.map(String).join(" ")); };
+  try { await fn(); } finally { console.log = origLog; console.warn = origWarn; }
+  return { logs, warns };
+}
+
+// 앱 send-push는 device_tokens가 0개면 {message:"no tokens", sent:0}을 **200**으로 반환한다
+// (앱 소스 supabase/functions/send-push/index.ts 확인). 즉 "아무도 못 받음"과 "N대 전달"이
+// CRM 쪽에서 똑같이 200이다 — tail을 grep한 사람이 "알림 나간다"고 오판한다.
+test("sendAssignmentPush: sent=0(대상 토큰 없음)은 성공 로그가 아니라 경고로 구분한다", async () => {
+  pushNotifyDeps.fetchImpl = (async () =>
+    new Response(JSON.stringify({ message: "no tokens", sent: 0 }), { status: 200 })) as unknown as typeof fetch;
+
+  const { logs, warns } = await captureConsole(() =>
+    sendAssignmentPush({ env: { SUPABASE_URL: "https://proj.test" } }, { userId: "U-1", title: "t", body: "b" }),
+  );
+
+  expect(warns.some((l) => l.includes("sent=0"))).toBe(true);
+  expect(logs.some((l) => l.includes("배정 알림 →"))).toBe(false); // 성공 로그로 새면 안 된다
+});
+
+test("sendAssignmentPush: sent>0이면 성공 로그에 전달 대수를 남긴다", async () => {
+  pushNotifyDeps.fetchImpl = (async () =>
+    new Response(JSON.stringify({ message: "ok", sent: 3, cleaned: 1 }), { status: 200 })) as unknown as typeof fetch;
+
+  const { logs } = await captureConsole(() =>
+    sendAssignmentPush({ env: { SUPABASE_URL: "https://proj.test" } }, { userId: "U-1", title: "t", body: "b" }),
+  );
+
+  expect(logs.some((l) => l.includes("배정 알림 →") && l.includes("sent=3"))).toBe(true);
+});
+
+// 바디 파싱 실패가 발송 계약(best-effort·throw 없음)을 깨면 안 된다.
+test("sendAssignmentPush: 응답 바디가 JSON이 아니어도 throw 없이 성공 로그를 남긴다", async () => {
+  pushNotifyDeps.fetchImpl = (async () => new Response("not json", { status: 200 })) as unknown as typeof fetch;
+
+  const { logs } = await captureConsole(() =>
+    sendAssignmentPush({ env: { SUPABASE_URL: "https://proj.test" } }, { userId: "U-1", title: "t", body: "b" }),
+  );
+
+  expect(logs.some((l) => l.includes("배정 알림 →"))).toBe(true);
+});
+
 test("sendAssignmentPush: fetch 예외를 흡수(throw 안 함)", async () => {
   pushNotifyDeps.fetchImpl = (async () => { throw new Error("network down"); }) as unknown as typeof fetch;
   await sendAssignmentPush({ env: { SUPABASE_URL: "https://proj.test" } }, { userId: "U-1", title: "t", body: "b" });

@@ -434,6 +434,27 @@ test("POST /ask stream:true 선저장(insert) 실패 → SSE 아닌 기존 catch
 
 // ── PR2: 자유 질문 도구 라우팅(RAG 우선·근거 0건 폴백) ─────────────────────────────
 
+// #192의 "라우팅 우선" 게이트 이후 근거가 있어도(hits>0) 라우터가 call을 내면 도구 결과를 쓴다.
+// 그 경로에서 promptChunks·sources는 둘 다 tool 분기라 근거 고객 메타(metaById)를 쓰지 않는다 —
+// 조회하면 결과를 버리는 원격 DB 왕복이다(버튼 경로는 hits=[]라 빈 배열 단축이 흡수한다).
+test("POST /ask 라우팅 도구 경로: 근거가 있어도 getCustomerMetaByIds를 호출하지 않는다", async () => {
+  let metaCalls = 0;
+  ragFakes({ inserted: [] }, {
+    // ragFakes 기본 searchEmbeddings가 근거 1건을 낸다 — hits>0 상태에서 라우팅되는 실경로 재현.
+    routeAssistantTool: async () => ({ kind: "call" as const, key: "customer_quotes" as const, params: { name: "김지안" } }),
+    runAssistantTool: async () => ({ label: "고객 견적(이름 김지안)", lines: ["김지안 · QT-2607-0005 · BMW 520i · 발송완료"] }),
+    getCustomerMetaByIds: async () => { metaCalls += 1; return new Map(); },
+    generateAnswer: async () => "김지안 고객의 견적은 2건입니다",
+  });
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await askJson(app, token, { question: "김지안 견적 몇 개야" });
+
+  expect(res.status).toBe(200);
+  expect(metaCalls).toBe(0);
+});
+
 test("POST /ask 근거 0건 + 라우팅 성공 → 도구 실행(params 전달)·NO_HITS 아님", async () => {
   let toolCall: unknown = null; // 클로저 대입이라 좁힘 없이 unknown으로 두고 toEqual로 전체 비교
   ragFakes({ inserted: [] }, {
