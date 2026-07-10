@@ -268,3 +268,11 @@ export async function updateCustomer(id: string, patch: CustomerWritePatch): Pro
   await sendVoid(`/api/customers/${id}`, "PATCH", patch);
   invalidateCustomerDetail(id);
 }
+
+// 고객 하드 삭제(admin 전용, 되돌릴 수 없음). spec: ref/specs/2026-07-10-crm-customer-delete-design.md
+// 서버가 진짜 게이트다 — 403(권한)·409(앱에 발송한 견적 있음)·404를 그대로 한글 메시지로 던진다(httpError).
+// 낙관적 제거 금지: 호출부는 **성공한 건만** 목록에서 뺀다.
+export async function deleteCustomer(id: string): Promise<void> {
+  await sendVoid(`/api/customers/${id}`, "DELETE");
+  invalidateCustomerDetail(id);
+}

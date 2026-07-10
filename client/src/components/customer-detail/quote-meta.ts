@@ -41,9 +41,13 @@ export function quoteDeleteConfirmTitle(quote: QuoteItem) {
   return "발송 전 견적 삭제";
 }
 
+// ⚠️ 되돌릴 수 없는 조작을 막는 유일한 안전장치다. 발송된 견적을 지우면 deleteQuote 훅이
+// public.advisor_quotes 행을 회수해 고객의 앱 견적함에서도 카드가 사라진다(발송 파이프라인 결정 7).
+// 회수된 카드는 복구 경로가 없고, 재발송하면 새 카드가 생겨 열람 여부·발송 시각을 잃는다.
+// 문구는 quote-meta.test.ts가 잠근다 — "고객 앱"·"되돌릴 수 없"·"새 견적"이 빠지면 실패한다.
 export function quoteDeleteConfirmMessage(quote: QuoteItem) {
   if (quote.appStatus === "sent") {
-    return "고객 앱 견적함에 있는 견적도 함께 삭제됩니다.";
+    return "고객 앱 견적함에서도 사라지며, 되돌릴 수 없습니다. 다시 보내려면 새 견적을 발송해야 합니다.";
   }
   return "아직 고객 앱에 보내지 않은 견적입니다. 이 견적을 삭제합니다.";
 }

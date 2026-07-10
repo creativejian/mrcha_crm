@@ -325,3 +325,18 @@ export const consultationDismissals = crm.table("consultation_dismissals", {
   dismissedBy: uuid("dismissed_by"), // → public.profiles.id(숨긴 상담사, 감사용, loose id)
   dismissedAt: timestamp("dismissed_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// 고객 하드 삭제 감사 기록(2026-07-10). 되돌릴 수 없는 조작이라 최소한 "누가·언제·무엇을"은 남긴다.
+// customer_id에 FK를 걸지 않는다 — 참조 대상이 바로 그 삭제된 행이다.
+// 스냅샷(jsonb 전체 복원)은 의도적으로 두지 않는다: 복원은 앱 인박스 재승격으로 충분하고,
+// 개인정보 파기 요구가 오면 스냅샷 자체가 파기 대상으로 남는다.
+export const customerDeletions = crm.table("customer_deletions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull(), // 삭제된 고객의 원 id (FK 없음 — 대상이 사라진다)
+  customerCode: text("customer_code").notNull(),
+  name: text("name").notNull(),
+  appUserId: uuid("app_user_id"), // 앱 연결 고객이었나 (loose id)
+  quoteCount: integer("quote_count").notNull().default(0), // 함께 사라진 견적 수(전부 미발송 — 발송분은 409로 막힌다)
+  deletedBy: uuid("deleted_by").notNull(), // JWT sub (loose id, public FK 보류 관례)
+  deletedAt: timestamp("deleted_at", { withTimezone: true }).defaultNow().notNull(),
+});
