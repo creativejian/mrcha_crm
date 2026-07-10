@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
 
-import { findPhoneDuplicate, sanitizePhoneDigits } from "./customer-create";
+import { findPhoneDuplicate, fullPhoneFromLocal, sanitizePhoneDigits } from "./customer-create";
 
 describe("sanitizePhoneDigits", () => {
   it("하이픈·공백·문자를 걷어내고 숫자만 남긴다", () => {
     expect(sanitizePhoneDigits("010-9588-0812")).toBe("01095880812");
     expect(sanitizePhoneDigits(" 010 9588 0812 ")).toBe("01095880812");
     expect(sanitizePhoneDigits("")).toBe("");
+  });
+});
+
+describe("fullPhoneFromLocal", () => {
+  it("뒤 8자리(하이픈 표시값)에 010을 붙여 DB 저장형 11자리를 만든다", () => {
+    expect(fullPhoneFromLocal("9588-0812")).toBe("01095880812");
+    expect(fullPhoneFromLocal("95880812")).toBe("01095880812");
+  });
+
+  it("숫자가 없으면 null — 연락처 미입력 등록 허용", () => {
+    expect(fullPhoneFromLocal("")).toBeNull();
+    expect(fullPhoneFromLocal("-")).toBeNull();
   });
 });
 

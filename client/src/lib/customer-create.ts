@@ -5,6 +5,13 @@ export function sanitizePhoneDigits(raw: string): string {
   return raw.replace(/\D/g, "");
 }
 
+// 010 고정 prefix + 뒤 8자리 입력(상세 연락처 수정 팝오버와 같은 규칙 — useCustomerWorkflow의
+// `010${digits}` 저장 규칙 미러)을 DB 저장형 11자리로 조립한다. 숫자가 없으면 null(미입력 허용).
+export function fullPhoneFromLocal(local: string): string | null {
+  const digits = sanitizePhoneDigits(local);
+  return digits ? `010${digits}` : null;
+}
+
 // 연락처 중복 소프트 경고 — 목록(이미 클라에 전체 로드)에서 같은 번호 첫 고객을 찾는다.
 // 등록을 막지 않는다(가족 공유 번호·법인 대표번호 등 실무 예외 — spec 확정 결정 3).
 // 숫자 10자리 미만은 null: 타이핑 중 접두 일치로 조기 경고가 뜨는 것 방지.

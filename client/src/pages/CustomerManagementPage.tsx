@@ -2,7 +2,8 @@ import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-r
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import { badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
-import { findPhoneDuplicate, sanitizePhoneDigits } from "@/lib/customer-create";
+import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
+import { formatLocalPhone } from "@/lib/detail-utils";
 import { createCustomer, prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
@@ -484,7 +485,8 @@ export function CustomerManagementPage({
   }
 
   // 연락처 중복 소프트 경고 — 등록을 막지 않는다(가족 공유 번호 등 실무 예외).
-  const createDuplicate = creatingOpen ? findPhoneDuplicate(customers, createPhone) : null;
+  // createPhone은 뒤 8자리 표시값(상세 연락처 수정과 동일 문법) — 비교는 010 조립 후 전체 번호로.
+  const createDuplicate = creatingOpen ? findPhoneDuplicate(customers, fullPhoneFromLocal(createPhone) ?? "") : null;
 
   // 닫기 경로(성공 제출·취소·헤드바 토글) 공통 리셋 — 초안이 남으면 다음 열람 때 이전 이름/번호가 그대로 보인다.
   function resetCreateForm() {
@@ -506,7 +508,7 @@ export function CustomerManagementPage({
     try {
       const { customerCode } = await createCustomer({
         name,
-        phone: sanitizePhoneDigits(createPhone) || null,
+        phone: fullPhoneFromLocal(createPhone),
         source: createSource,
       });
       setCreatingOpen(false);
@@ -969,7 +971,19 @@ export function CustomerManagementPage({
                       </label>
                       <label>
                         <span>연락처</span>
-                        <input onChange={(event) => setCreatePhone(event.target.value)} placeholder="010-0000-0000" type="text" value={createPhone} />
+                        {/* 상세 연락처 수정 팝오버와 같은 문법 — 010 고정 prefix + 뒤 8자리(4-4 자동 하이픈, formatLocalPhone SSOT). */}
+                        <div className="kim-phone-input">
+                          <span aria-hidden="true" className="kim-phone-prefix">010</span>
+                          <input
+                            autoComplete="tel"
+                            inputMode="numeric"
+                            maxLength={9}
+                            onChange={(event) => setCreatePhone(formatLocalPhone(event.target.value))}
+                            placeholder="0000-0000"
+                            type="tel"
+                            value={createPhone}
+                          />
+                        </div>
                       </label>
                       <label>
                         <span>유입 경로</span>

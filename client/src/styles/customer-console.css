@@ -998,3 +998,9 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* 연락처 = 상세 연락처 수정과 같은 kim-phone-* 문법(010 고정 prefix). 팝오버 스케일(12px/6px)만 맞춘다. */
+.customer-console-headbar .customer-create-form .kim-phone-prefix {
+  border-radius: 6px;
+  font-size: 12px;
+}
