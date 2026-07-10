@@ -61,7 +61,16 @@ export async function sendAssignmentPush(
       }
       return;
     }
-    console.log(`[push] 배정 알림 → user=${msg.userId} "${msg.title}"`);
+    // 200이어도 대상 기기 토큰이 0이면 아무도 못 받는다 — 앱 send-push가 `{message:"no tokens", sent:0}`을
+    // 200으로 반환한다(앱 소스 확인). 성공 로그만 보고 "알림이 나갔다"고 오판하지 않도록 sent를 함께 남기고,
+    // sent=0은 warn으로 분리한다. 이 구역의 두 사고(#199 오염·#202 두 달 무발송)가 모두 "실패가 조용해서
+    // 늦게 발견"이었다. 바디 파싱 실패는 무시한다(best-effort 계약 — 발송 동작은 이미 끝났다).
+    const sent = await res.json().then((b) => (b as { sent?: number }).sent).catch(() => undefined);
+    if (sent === 0) {
+      console.warn(`[push] 배정 알림 대상 기기 없음(sent=0) user=${msg.userId} — device_tokens 미등록`);
+    } else {
+      console.log(`[push] 배정 알림 → user=${msg.userId} "${msg.title}" sent=${sent ?? "?"}`);
+    }
   } catch (e) {
     console.error(`[push] 배정 알림 예외 user=${msg.userId}:`, e);
   }

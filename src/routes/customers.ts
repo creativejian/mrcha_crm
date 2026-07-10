@@ -23,6 +23,15 @@ import { run } from "./shared";
 
 export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
+// Storage 보상 삭제 — 실패해도 요청 흐름은 계속한다(고아 객체는 수동 정리 대상). 다만 조용히 삼키면
+// 고아 누적이 관측 불가능해지므로 동일 토큰으로 로그해 tail에서 한 번에 grep되게 한다. 같은 실패가
+// 8개 콜사이트에서 셋으로 갈린 문구(또는 무로그)로 처리되던 것을 1벌화했다.
+function removeOrphanObject(env: StorageEnv, path: string): Promise<void> {
+  return removeObject(env, path).catch((err: unknown) => {
+    console.error(`Storage remove 실패(고아 객체) path=${path}:`, err);
+  });
+}
+
 // 쓰기 가능 컬럼(전부 optional·문자열 nullable). 값 enum 검증 없음(추후 사이클).
 export const customerWriteSchema = z.object({
   phone: z.string().nullable().optional(),
@@ -416,13 +425,13 @@ customers.post("/:id/quotes/:childId/original", zValidator("param", childParam),
   try {
     const result = await setQuoteFile(p.id, p.childId, { fileName: file.name, fileSize: file.size, fileMime: file.type || null, filePath: path }, c.var.db);
     if (!result) {
-      await removeObject(env, path).catch(() => undefined); // 견적 없음 → 업로드 객체 보상 삭제
+      await removeOrphanObject(env, path); // 견적 없음 → 업로드 객체 보상 삭제
       return c.json({ error: "견적을 찾을 수 없습니다." }, 404);
     }
-    if (result.previousFilePath) await removeObject(env, result.previousFilePath).catch(() => undefined); // 교체 시 이전 객체 삭제
+    if (result.previousFilePath) await removeOrphanObject(env, result.previousFilePath); // 교체 시 이전 객체 삭제
     return c.json({ fileName: file.name, fileSize: file.size, fileMime: file.type || null }, 201);
   } catch (e) {
-    await removeObject(env, path).catch(() => undefined);
+    await removeOrphanObject(env, path);
     throw e;
   }
 });
@@ -432,7 +441,7 @@ customers.delete("/:id/quotes/:childId/original", zValidator("param", childParam
   const result = await clearQuoteFile(p.id, p.childId, c.var.db);
   if (!result) return c.json({ error: "견적을 찾을 수 없습니다." }, 404);
   const env = c.env as StorageEnv;
-  if (result.previousFilePath) await removeObject(env, result.previousFilePath).catch((err) => console.error("Storage remove 실패(고아 객체):", err));
+  if (result.previousFilePath) await removeOrphanObject(env, result.previousFilePath);
   return c.json({ id: p.childId });
 });
 
@@ -485,8 +494,8 @@ customers.post("/:id/documents", zValidator("param", idParam), async (c) => {
     scheduleEmbedOnWrite(c, { sourceType: "customer_documents", sourceId: customerId });
     return c.json({ id: row.id, docType, fileName: file.name, fileSize: file.size, fileMime: file.type || null, sortOrder, createdAt: row.createdAt }, 201);
   } catch (e) {
-    await removeObject(env, path).catch(() => undefined); // 보상 삭제
-    if (thumbPath) await removeObject(env, thumbPath).catch(() => undefined);
+    await removeOrphanObject(env, path); // 보상 삭제
+    if (thumbPath) await removeOrphanObject(env, thumbPath);
     throw e;
   }
 });
@@ -515,8 +524,8 @@ customers.delete("/:id/documents/:childId", zValidator("param", childParam), asy
   const row = await deleteDocument(p.id, p.childId, c.var.db);
   if (!row) return c.json({ error: "서류를 찾을 수 없습니다." }, 404);
   const env = c.env as StorageEnv;
-  if (row.filePath) await removeObject(env, row.filePath).catch((err) => console.error("Storage remove 실패(고아 객체):", err));
-  if (row.thumbPath) await removeObject(env, row.thumbPath).catch((err) => console.error("Storage thumb remove 실패(고아 객체):", err));
+  if (row.filePath) await removeOrphanObject(env, row.filePath);
+  if (row.thumbPath) await removeOrphanObject(env, row.thumbPath);
   // aggregate 청크라 행별 타입과 달리 동기 삭제가 아니라 재임베딩 — 남은 목록으로 갱신하고,
   // 마지막 서류 삭제(빈 텍스트)는 runEmbedJob이 임베딩 행을 지운다.
   scheduleEmbedOnWrite(c, { sourceType: "customer_documents", sourceId: p.id });

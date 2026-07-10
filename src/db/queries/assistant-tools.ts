@@ -60,8 +60,26 @@ const searchCustomersParams = z.object({
   mine: z.boolean().optional(),
 });
 
-const customerQuotesParams = z.object({ name: z.string().optional() });
-const customerConsultationsParams = z.object({ name: z.string().optional() });
+// 고객 1명의 하위 레코드를 조회하는 도구(customer_quotes·customer_consultations)의 공통 파라미터·조립.
+// 세 번째 유사 도구가 붙을 때 또 복제되지 않도록 뼈대만 공유한다 — 쿼리 본문(조인·select·라인 매핑)은
+// 도구마다 이질적이라 각자 유지한다.
+const nameFilterParams = z.object({ name: z.string().optional() });
+
+function nameFilter(params: Record<string, unknown>): { name?: string } {
+  const parsed = nameFilterParams.safeParse(params);
+  return parsed.success ? parsed.data : {};
+}
+
+// scope(권한) + 이름 부분일치를 합친 조건. extra는 도구 고유 조건(예: dismissed 제외).
+function nameFilterConds(scope: CustomerScope, f: { name?: string }, extra: SQL[] = []): SQL[] {
+  const conds = [...extra];
+  const sCond = scopeCond(scope);
+  if (sCond) conds.push(sCond);
+  if (f.name) conds.push(ilike(customers.name, `%${f.name}%`));
+  return conds;
+}
+
+const nameFilterLabel = (f: { name?: string }): string => (f.name ? `이름 ${f.name}` : "전체");
 
 // params: 자유 질문 라우팅(PR2)의 모델 인자 — 버튼 결정론 경로(PR1)는 빈 객체를 넘긴다.
 // user: 현재 로그인 사용자(JWT) — current_user 리포트·mine 필터의 "나" 해석 기준(scope와 별개 식별자).
@@ -195,12 +213,8 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     // search_customers(견적 미조회)로 답하던 모델 환각(존재하지 않는 코드·차종)의 근본 해법.
     // quotes에 brand_name/model_name/trim_name 라벨 컬럼이 상주해 catalog 조인 불요.
     case "customer_quotes": {
-      const parsed = customerQuotesParams.safeParse(params);
-      const f = parsed.success ? parsed.data : {};
-      const conds: SQL[] = [];
-      const sCond = scopeCond(scope);
-      if (sCond) conds.push(sCond);
-      if (f.name) conds.push(ilike(customers.name, `%${f.name}%`));
+      const f = nameFilter(params);
+      const conds = nameFilterConds(scope, f);
       const rows = await ex
         .select({
           name: customers.name, code: quotes.quoteCode,
@@ -216,8 +230,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         const state = r.appStatus === "sent" ? (r.viewedAt ? "발송완료·고객 열람" : "발송완료") : "작성중";
         return `${r.name} · ${r.code} · ${car} · ${state}`;
       });
-      const filterLabel = f.name ? `이름 ${f.name}` : "전체";
-      return { label: `${label}(${filterLabel})`, lines: capReportLines(lines, "건") };
+      return { label: `${label}(${nameFilterLabel(f)})`, lines: capReportLines(lines, "건") };
     }
 
     // 특정 고객의 앱 상담신청 목록(관심 차종·문의 내용·신청일) — public.consultations를 CRM 고객(app_user_id)에
@@ -225,18 +238,14 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     // 답하던 오라우팅(상담 데이터 미조회 → "상담신청 안 했다" 오답)의 해법. 미연결(승격 전) 상담은 CRM 고객이
     // 없어 조회되지 않는다(인박스 승격 후 노출).
     case "customer_consultations": {
-      const parsed = customerConsultationsParams.safeParse(params);
-      const f = parsed.success ? parsed.data : {};
-      const conds: SQL[] = [
-        notExists(
-          ex.select({ id: consultationDismissals.consultationId })
-            .from(consultationDismissals)
-            .where(eq(consultationDismissals.consultationId, consultationRequests.id)),
-        ),
-      ];
-      const sCond = scopeCond(scope);
-      if (sCond) conds.push(sCond);
-      if (f.name) conds.push(ilike(customers.name, `%${f.name}%`));
+      const f = nameFilter(params);
+      // CRM에서 숨긴(dismissed) 상담신청 제외 — 이 도구 고유 조건.
+      const notDismissed = notExists(
+        ex.select({ id: consultationDismissals.consultationId })
+          .from(consultationDismissals)
+          .where(eq(consultationDismissals.consultationId, consultationRequests.id)),
+      );
+      const conds = nameFilterConds(scope, f, [notDismissed]);
       const rows = await ex
         .select({
           name: customers.name, carModel: consultationRequests.carModel,
@@ -251,8 +260,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         const note = r.notes?.trim() || "문의 내용 없음";
         return `${r.name} · ${kstDateOf(new Date(r.createdAt))} · ${car} · 문의: ${note}`;
       });
-      const filterLabel = f.name ? `이름 ${f.name}` : "전체";
-      return { label: `${label}(${filterLabel})`, lines: capReportLines(lines, "건") };
+      return { label: `${label}(${nameFilterLabel(f)})`, lines: capReportLines(lines, "건") };
     }
   }
 }

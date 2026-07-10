@@ -4,7 +4,7 @@ import { streamSSE } from "hono/streaming";
 import type { Context } from "hono";
 import { z } from "zod";
 
-import { getCustomerMetaByIds } from "../db/queries/embeddings-meta";
+import { getCustomerMetaByIds, type CustomerMeta } from "../db/queries/embeddings-meta";
 import { searchEmbeddings } from "../db/queries/embeddings";
 import { runAssistantTool } from "../db/queries/assistant-tools";
 import {
@@ -147,7 +147,12 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
         outOfScope = true;
       }
     }
-    const metaById = await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
+    // 도구 결과를 쓰는 경로는 아래 promptChunks·sources가 둘 다 tool 분기라 metaById를 소비하지 않는다.
+    // 라우팅 도구 경로는 hits>0일 수 있어(#192 라우팅 우선 게이트) 가드 없이 조회하면 결과를 버리는
+    // 원격 왕복이 된다. 버튼 경로는 hits=[]라 getCustomerMetaByIds의 빈 배열 단축이 이미 흡수한다.
+    const metaById = tool
+      ? new Map<string, CustomerMeta>()
+      : await assistantDeps.getCustomerMetaByIds([...new Set(hits.map((h) => h.customerId))], c.var.db);
     // 도구 결과는 근거 블록 1청크로 — 0건도 "조회 결과 없음"으로 실어 NO_HITS(고정 답변)가 아니라
     // 모델이 "해당 없음"을 정리하게 한다(리포트 질문에 "데이터를 못 찾았다"는 오답).
     // content의 "고객 {이름} " 접두는 표시 라벨(customerName)과 중복이라 벗긴다(재임베딩 불필요 — 표시 시점만).
