@@ -110,24 +110,36 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     // tool(빠른 질문 버튼 결정론) 지정 시 임베딩 검색 대신 리포트 쿼리를 같은 슬롯에서 병렬 실행.
     const scope = resolveCustomerScope(c.var.user);
     const toolKey = c.req.valid("json").tool;
-    const [history, retrieval, staffName] = await Promise.all([
-      assistantDeps.listRecentMessages(staffUserId, HISTORY_LIMIT, c.var.db)
-        .then((rows) => rows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))),
-      toolKey
-        ? assistantDeps.runAssistantTool(toolKey, {}, scope, c.var.user, c.var.db)
-            .then((tool) => ({ hits: [] as Awaited<ReturnType<typeof searchEmbeddings>>, tool }))
-        : assistantDeps.embedTexts([question], target, "RETRIEVAL_QUERY")
-            .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db))
-            .then((all) => {
-              const kept = all.filter((h) => h.similarity >= SIMILARITY_THRESHOLD);
-              // 임계값 튜닝용 관측 로그(tail) — 컷 최고점이 임계값에 자주 근접하면 재조정 신호.
-              if (kept.length < all.length) {
-                const cutTop = Math.max(...all.filter((h) => h.similarity < SIMILARITY_THRESHOLD).map((h) => h.similarity));
-                console.log(`[assistant] 근거 임계값 필터 ${all.length}→${kept.length} (컷 최고 ${cutTop.toFixed(4)})`);
-              }
-              return { hits: kept, tool: null };
-            }),
+    const historyPromise = assistantDeps.listRecentMessages(staffUserId, HISTORY_LIMIT, c.var.db)
+      .then((rows) => rows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
+    const retrievalPromise = toolKey
+      ? assistantDeps.runAssistantTool(toolKey, {}, scope, c.var.user, c.var.db)
+          .then((tool) => ({ hits: [] as Awaited<ReturnType<typeof searchEmbeddings>>, tool }))
+      : assistantDeps.embedTexts([question], target, "RETRIEVAL_QUERY")
+          .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db))
+          .then((all) => {
+            const kept = all.filter((h) => h.similarity >= SIMILARITY_THRESHOLD);
+            // 임계값 튜닝용 관측 로그(tail) — 컷 최고점이 임계값에 자주 근접하면 재조정 신호.
+            if (kept.length < all.length) {
+              const cutTop = Math.max(...all.filter((h) => h.similarity < SIMILARITY_THRESHOLD).map((h) => h.similarity));
+              console.log(`[assistant] 근거 임계값 필터 ${all.length}→${kept.length} (컷 최고 ${cutTop.toFixed(4)})`);
+            }
+            return { hits: kept, tool: null };
+          });
+    // 자유 질문 라우팅도 같은 슬롯에서 겹친다 — 라우터는 question+history만 쓰고 hits에 의존하지 않는다.
+    // Gemini 왕복 수·비용은 그대로다(줄지 않는다). 줄어드는 건 벽시계뿐: 직렬 (임베딩+검색)+라우팅이
+    // max(임베딩+검색, 히스토리+라우팅)로 겹쳐 자유 질문 TTFB가 앞당겨진다(스트리밍 경로의 임계경로).
+    // · tool(빠른 질문 버튼)이 의도를 확정했으면 라우터를 아예 호출하지 않는다(현행 계약).
+    // · 검색이 먼저 실패하면 이 라우팅 응답은 버려진다 — 실패 경로에서 라우팅 1회를 더 쓰는 대가로,
+    //   500 계약은 불변이다(routeAssistantTool은 자체 catch로 null만 반환해 Promise.all을 reject시키지 않는다).
+    const routedPromise = toolKey
+      ? Promise.resolve(null)
+      : historyPromise.then((history) => assistantDeps.routeAssistantTool(question, target, { history }));
+    const [history, retrieval, staffName, routed] = await Promise.all([
+      historyPromise,
+      retrievalPromise,
       assistantDeps.getStaffName(staffUserId, c.var.db),
+      routedPromise,
     ]);
     let { tool } = retrieval;
     const { hits } = retrieval;
@@ -138,9 +150,9 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     // 잠근다. none(도구 불필요=범위 밖)은 근거도 0건일 때만 안내 문구(근거가 있으면 RAG로 답할 수 있으므로).
     let outOfScope = false;
     if (!tool) {
-      const routed = await assistantDeps.routeAssistantTool(question, target, { history });
       if (routed?.kind === "call") {
         console.log(`[assistant] 도구 라우팅: ${routed.key}`, JSON.stringify(routed.params));
+        // 도구 실행만은 라우터 결과에 의존하므로 병렬 슬롯에 넣을 수 없다(골든이 순서를 잠근다).
         tool = await assistantDeps.runAssistantTool(routed.key, routed.params, scope, c.var.user, c.var.db);
       } else if (routed?.kind === "none" && hits.length === 0) {
         console.log("[assistant] 도구 라우팅: 해당 없음(범위 밖 판단 — 안내 문구)");

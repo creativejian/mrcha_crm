@@ -668,3 +668,26 @@ test("골든: 임베딩 실패는 500 — 라우터가 call을 내도 도구를 
   expect(res.status).toBe(500);
   expect(runCalls).toBe(0); // 검색 실패 요청이 도구 결과로 살아나면 안 된다
 });
+
+// 이 PR의 유일한 행위 주장 — 라우터가 임베딩→검색 완료를 기다리지 않는다.
+// (왕복 수·비용은 그대로다. 겹치는 건 벽시계뿐.)
+test("라우터는 임베딩→검색 완료 전에 시작한다(지연 겹침)", async () => {
+  const events: string[] = [];
+  ragFakes({ inserted: [] }, {
+    embedTexts: async (texts: string[]) => {
+      events.push("embed:start");
+      await new Promise((r) => setTimeout(r, 30));
+      events.push("embed:end");
+      return texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
+    },
+    searchEmbeddings: async () => { events.push("search:end"); return []; },
+    routeAssistantTool: async () => { events.push("route:start"); return null; },
+  });
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  await askJson(app, token, { question: "자유 질문" });
+
+  expect(events).toContain("route:start");
+  // 직렬이면 route:start가 search:end 뒤에 온다. 병렬이면 embed가 끝나기도 전에 시작한다.
+  expect(events.indexOf("route:start")).toBeLessThan(events.indexOf("embed:end"));
+});
