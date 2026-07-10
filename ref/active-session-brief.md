@@ -1,6 +1,6 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-09 (**세션 0709-total-refactoring: 0709 리팩토링 배치 3 전량 소진·머지(#203~#210). 정합성 3(#203~#205) → 정리 3(#206~#208) → **잔여 2건 완료(PR G #209 `guardedDb` 커버리지 복원 · PR H #210 라우터 병렬화 실측 -510ms)**. 감사 SSOT = `ref/plans/2026-07-09-crm-refactor-batch-3.md`. 다음 = 이사님 확인 2건 / 계산엔진 / FCM 실기기 e2e.**)
+Last updated: 2026-07-10 (**세션 0710: ①앱 팀 `profiles` 권한 축소 대응 — 교차검증·스모크 통과, INSERT 정책 구멍 제보→앱 수정 확인. `profiles` 쓰기 금지 tripwire(#211). ②CRM 전용 publishable 키 교체·prod 반영. ③**고객 하드 삭제 신설(#212)** — admin 전용·앱 카드 409 가드·감사 기록. 다음 = 이사님 확인 4건 / 계산엔진 / FCM 실기기 e2e.**)
 
 이전: 2026-07-09 (**세션 0709-next-step: ①카드 UI 상태 CardUiState 통합 완료·머지(PR #198 squash b6088ad) — 계산엔진 선행 정지작업 소진 ②🔴운영 알림 오염 사고 해소(PR #199 squash 3766de2) — test:server가 운영 디스코드/FCM 42건 발송하던 것을 `withNotifyGuard` 트랜잭션으로 차단.**)
 
@@ -17,6 +17,25 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 5. Do not read planning source files unless the task touches strategy, roadmap, AI policy, architecture, or quote engine decisions.
 
 ## Current Focus
+
+- **✅ 고객 하드 삭제 신설(2026-07-10, PR #212 squash `ac0d049`, prod 반영 확인)**: 이사님 실기 지적 "삭제해도 리로딩하면 되살아난다" — **버그가 아니라 미구현**이었다(`deleteSelected`가 프론트 배열만 필터, `DELETE /api/customers/:id` 라우트 부재). spec `ref/specs/2026-07-10-crm-customer-delete-design.md`.
+  - **결정(이사님)**: ①**하드 삭제**(소프트 삭제 기각 — `불발` 상태·`보류/이탈` 화면이 이미 "감추기" 담당. 축이 둘이면 드리프트) ②**앱 카드 있으면 409 거부**(회수 ❌) ③앱 계정 연결 고객도 삭제 가능(`profiles` 불가침) ④감사 기록 ⑤**admin 전용 403 fail-closed** ⑥다건 = 건별 독립 트랜잭션 + 실패 목록.
+  - **🔑 원칙 정정**: "앱 카드 불멸"이 아니다 — 견적함에서 발송 견적을 지우면 **지금도** 앱 카드가 사라진다(`deleteQuote`→`deleteAdvisorQuoteByCrmQuoteId`, #159 결정 7). 진짜 원칙은 **"고객 삭제가 앱 카드를 조용히 연쇄 삭제하지 않는다"**. 견적 삭제 = 의도한 행동의 직접 결과(유지) / 고객 삭제 = 모르는 부작용(차단). 지우려면 **견적함에서 견적 삭제(카드 회수) → 고객 삭제** 2단계. 편의 경로(한 번에 회수) **기각** — 되돌릴 수 없는 조작에 편의 경로를 미리 뚫지 않는다.
+  - **소유권 경계 = "스키마"가 아니라 "저작자"**: `public`이 `crm.customers`를 참조하는 FK **0개**(실측) → 앱 데이터는 우리 코드가 결정할 때만 건드려진다. **CRM이 쓴 것만 CRM이 거둔다** — `profiles`·`quote_requests` 행·`consultations`·`chat_sessions`는 한 줄도 안 건드림.
+  - **순서 2개가 load-bearing**: ⓐ**가드는 트랜잭션 안**(밖이면 통과~삭제 사이 다른 세션 발송이 유령 카드 생성) ⓑ**Storage는 커밋 후**(롤백 불가 — 커밋 전에 지우면 트랜잭션 실패 시 DB 행은 살고 파일만 증발). 견적은 일괄 DELETE가 아니라 `deleteQuote()` 견적당 호출(해체 SSOT, 불변식 의존 회피).
+  - **임베딩은 손댈 것 0** — `crm.embeddings.customer_id` 전 행 non-null(실측) → CASCADE만으로 업무 AI가 그 고객을 완전히 잊는다(테스트로 잠금).
+  - **함께 고친 기존 결함 2**: ①**견적 삭제가 Storage를 안 지웠다**(서류 삭제는 지움 — 비대칭). `crm.quotes.file_path` 고아 누적 중이었음(실측 1건). 회귀 2종+변이 검증 ②**견적 삭제 확인 문구를 잠그는 테스트 0건**(되돌릴 수 없는 조작의 유일한 안전장치인데 무방비) → `quote-meta.test.ts` 신설 + 문구 보강(이사님 승인): "고객 앱 견적함에서도 사라지며, **되돌릴 수 없습니다.** 다시 보내려면 새 견적을 발송해야 합니다."
+  - 마이그 **0027** `crm.customer_deletions`(감사 — 스냅샷 없음: 복원은 인박스 재승격, 개인정보 파기 시 스냅샷이 파기 대상). `src/db/queries/customer-delete.ts`(순환 import 회피 경계). 클라 `deleteCustomersBulk`(순수, 유닛 6종)+확인창+admin만 렌더+**성공한 건만** 목록 제거.
+  - 검증: typecheck0·lint0·knip clean·server **447**(+9)·unit **493**(+15)·build + **격리 스택 스모크 2종**(유령 행 `배선테스트`(테스트 픽스처 잔재) 삭제→200→리로딩 후에도 소멸 / 앱 카드 보유 고객→409+화면 사유+행 생존). 공유 master 알림 0·고아 카드 0·잔재 0. **prod 반영 실측**(번들에 새 문구, 무토큰 DELETE 401).
+  - **follow-up**: `담당자 변경`·`고객 등록` 버튼 여전히 목업 · **테스트 픽스처 잔재 tripwire**(`CU-EMBRT-`·`CU-ROUTE-`·`CU-SEND-`·`CU-RSEND-`) 별도 슬라이스 · `requireRole` 게이트 다른 파괴적 라우트로 확산.
+
+- **✅ 앱 `public.profiles` 권한 축소 대응 완료(2026-07-10)**: 앱이 휴대폰 인증 우회(authenticated가 `phone_verified_at` 직접 UPDATE) 차단 → `REVOKE UPDATE ON public.profiles FROM anon, authenticated`. **CRM 영향 0**(서버는 `postgres` 롤, 브라우저는 SELECT만).
+  - **우리가 되돌려준 것 3**: ①앱이 지목한 스모크 대상 2곳은 **서버 drizzle(postgres 롤)**이라 REVOKE 무관 — 실제 노출면은 `client/src/lib/chat.ts:143` 실시간 상담 콘솔 **하나** ②**역할 승격 방어가 트리거 한 겹**: `custom_access_token_hook`이 `profiles.role`→JWT `user_role`, 그게 **CRM의 유일한 인증 게이트**(`auth/verify.ts`). `prevent_profile_role_change`의 탈출구 GUC에 역할 검사 부재 → 앱이 `current_user='postgres'` 조건 추가(+SECURITY INVOKER 전환)로 수정 ③`consultations.ts:105`는 폼 우선 — 무비판 신뢰 경로는 `quote-requests.ts:351-352` 하나.
+  - **🔴 우리가 발견한 실구멍(앱 수정 완료)**: 트리거가 **BEFORE UPDATE 전용**인데 `authenticated`가 `INSERT(role)` 보유 + INSERT 정책에 role 제약 없음 → 프로필 행이 없는 유저의 다음 로그인에서 조작 클라이언트가 `role:'admin'` 삽입 가능(앱 `ensureProfileExists`가 그 상태를 상정·6곳 호출). **롤백 트랜잭션으로 실증**(`role_after_insert = admin`). 앱이 `WITH CHECK (auth.uid()=id AND role='customer')` 적용 → **재검증 완료**: 공격 3종(UPDATE+GUC / upsert / 순수 INSERT) 전부 차단, 정상 경로 4종(복구 INSERT·기본값·아바타 UPDATE·admin의 role 변경) 보존.
+  - **CRM 몫**: `profiles` 쓰기 금지 tripwire(**PR #211** `8446e31`) — `src/db/profiles-write-guard.test.ts`가 drizzle·supabase-js·원시 SQL 3경로 스캔. "위반 0건"만 단언하면 정규식이 고장나도 통과하므로 **탐지기 자체도 테스트**(잡을 것 3·흘려보낼 것 4·글롭이 실제로 훑었는지). 실 저장소에 위반을 심어 검출 실관찰. `AGENTS.md`에 계약 2건 박제(profiles read 전용 · **채팅 system 문구가 앱과 `startsWith` 결합** — `handoff_system_messages.dart:20-21`, 한 글자만 바꿔도 앱 상태 복원이 조용히 깨짐).
+  - **브라우저 스모크 통과**(magiclink admin): `chat_sessions` 11행·`profiles` embed 조인 11행·큐 7건·REST 4xx/5xx 0·supabase 쓰기 0. **첫 스크립트는 셀렉터가 틀려 `1 passed`인데 아무것도 검증 안 했다** — PostgREST 응답 본문을 직접 뜯는 방식으로 교체(embed가 죽으면 고객명이 `"고객"`으로 조용히 폴백).
+  - **✅ CRM 전용 publishable 키 교체(`22bf260`+`4154f38`, prod 반영)**: 앱과 공유하던 기본 키 → `crm_project` 전용 키. `.env.production` 하나가 CF Pages **Production·Preview 둘 다** 지배(빌드 명령 하나·mode override 없음). **⚠️ 사고**: 키 교체 커밋 본문에 *"[마커]를 붙이면 배포가 스킵된다"*고 **경고하면서 그 토큰을 글자로 적어** CF가 스킵 → prod이 8분간 옛 키 서빙. 빈 커밋으로 복구. **GitHub check-runs/deployments는 비어 있다** — 배포 확인은 `bunx wrangler pages deployment list --project-name mrcha-crm`(스킵은 `Status: Idle`).
+  - **앱 잔여**: `profiles.username` DROP(사전 공유 예정) → 우리는 `src/db/public-app.ts:79` 한 줄 제거. 채팅 문구→메타 필드 신호 전환은 나중 합의.
 
 - **🔴 이사님 확인 대기 4건 — `ref/director-pending-confirmations.md`**: 머지됐지만 확인 못 받은 **행위 변경**이 배치마다 쌓이고 있다. ①link 충돌 409 vs "기존 고객으로 유도" UX(**0706 #179에서 올렸다가 답 못 받은 채 0709 #205에서 같은 축 재등장**) ②AI stale 리포트 고객 집합 경계 변화(#204) ③목록 배지가 견적 활동 인정(#180) ④재문의·수동 오버라이드를 AI 도구가 모름(미착수). **이사님과 얘기할 자리가 생기면 그 파일을 통째로 꺼낼 것.** 새 배치의 행위 변경도 거기 추가한다.
 - **✅ 0709 리팩토링 배치 3 — 정합성 파트 완료·머지(2026-07-09, PR #203 `0a8a813` · #204 `b857501` · #205 `a145b90`)**: 배치 2(#179~#184) 이후 미감사 구간 **#185~#202**(66파일 +2743/-730)를 **5앵글 병렬 감사**(업무AI·알림/푸시·서버쿼리/라우트·클라·크로스커팅) → 후보 27건 → **6개 적대 검증관이 전건 반박 시도**(CONFIRMED/ADJUSTED/REFUTED). 유슨생 지시로 **상+중 정합성 5건만 착수**, 나머지는 plan에 박제. **감사·검증·기각 SSOT = `ref/plans/2026-07-09-crm-refactor-batch-3.md`**(다음 배치 착수 시 이것부터 읽는다).
