@@ -23,10 +23,6 @@
   width: clamp(140px, 9.3vw, 220px);
 }
 
-.customer-table .col-source {
-  width: clamp(120px, 7.4vw, 145px);
-}
-
 .customer-table .col-operation {
   width: clamp(230px, 12.2vw, 264px);
 }
@@ -117,109 +113,6 @@ th {
   overflow: visible;
 }
 
-.source-cell {
-  vertical-align: middle;
-}
-
-.source-route,
-.source-received-at {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.source-route {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  min-width: 0;
-  color: #171b20;
-  font-size: 13.5px;
-  font-weight: 800;
-  letter-spacing: 0;
-  line-height: 1.25;
-}
-
-.source-route-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.source-entry-type {
-  flex: 0 0 auto;
-  margin-left: 6px;
-  transform: translateY(-0.5px);
-  color: #adb2b8;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-.source-received-at {
-  margin-top: 4px;
-  color: #8a8a88;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.35;
-}
-
-.advisor-cell {
-  padding-right: 8px;
-  vertical-align: middle;
-}
-
-.advisor-display {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.advisor-copy {
-  min-width: 0;
-}
-
-.advisor-name {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  overflow: hidden;
-  color: #171b20;
-  font-size: 13.5px;
-  font-weight: 800;
-  letter-spacing: 0;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.advisor-team {
-  margin-left: 6px;
-  transform: translateY(-0.5px);
-  color: #adb2b8;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-.advisor-assigned-at {
-  display: block;
-  margin-top: 4px;
-  overflow: hidden;
-  color: #8a8a88;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .operation-cell {
   padding-left: 18px;
   vertical-align: middle;
@@ -293,17 +186,6 @@ th {
   overflow: hidden;
   min-width: 0;
   text-overflow: ellipsis;
-}
-
-.operation-sub {
-  flex: 0 0 auto;
-  margin-left: 6px;
-  transform: translateY(-0.5px);
-  color: #adb2b8;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
 }
 
 .operation-line-time {
@@ -519,7 +401,6 @@ th {
   box-shadow: inset 2px 0 0 rgba(var(--brand-rgb), 0.88), inset 0 2px 0 rgba(var(--brand-rgb), 0.88), inset 0 -2px 0 rgba(var(--brand-rgb), 0.88);
 }
 
-.customer-table tr:has(.stage-status-popover),
 .customer-table tr:has(.stage-two-step-popover),
 .customer-table tr:has(.chance-status-popover) {
   position: relative;
@@ -611,8 +492,7 @@ th input:focus-visible {
 }
 
 .customer-meta,
-.vehicle-trim,
-.stage-meta {
+.vehicle-trim {
   display: block;
   margin-top: 4px;
   color: #7f858c;
@@ -625,8 +505,7 @@ th input:focus-visible {
 }
 
 .customer-phone,
-.vehicle-method,
-.stage-signal {
+.vehicle-method {
   display: block;
   margin-top: 3px;
   color: #7a8087;
@@ -722,7 +601,6 @@ th input:focus-visible {
   font-weight: 850;
 }
 
-.stage-control:has(.stage-status-popover),
 .chance-control:has(.chance-status-popover) {
   z-index: 90;
 }
@@ -760,15 +638,6 @@ th input:focus-visible {
 
 .chance-status-button {
   min-width: 52px;
-}
-
-.stage-meta {
-  margin-top: 1px;
-  transform: translateY(-1px);
-}
-
-.stage-signal {
-  transform: translateY(-1px);
 }
 
 .stage-cell-two-step-preview {
@@ -890,10 +759,6 @@ th input:focus-visible {
 }
 
 .stage-two-step-popover::before {
-  display: none;
-}
-
-.stage-two-step-popover-title {
   display: none;
 }
 
@@ -1023,7 +888,7 @@ th input:focus-visible {
   box-shadow: 0 2px 2px rgba(15, 23, 42, 0.1), 0 6px 12px rgba(15, 23, 42, 0.12), 0 0 0 2px rgba(var(--brand-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
-.stage-status-popover,
+/* 아래 .chance-status-popover 블록이 대부분을 덮지만 position:absolute는 여기서만 온다 — 병합 금지. */
 .chance-status-popover {
   position: absolute;
   left: -8px;
@@ -1058,7 +923,6 @@ th input:focus-visible {
   animation: none;
 }
 
-.stage-status-popover::before,
 .chance-status-popover::before {
   position: absolute;
   top: -6px;
@@ -1170,62 +1034,6 @@ th input:focus-visible {
     opacity: 1;
     transform: translate(0, -50%) scale(1);
   }
-}
-
-.stage-status-group + .stage-status-group {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid #f0f1f2;
-}
-
-.stage-status-group-label {
-  margin-bottom: 4px;
-  padding: 0 4px;
-  color: #8a929a;
-  font-size: 10.5px;
-  font-weight: 760;
-  line-height: 1.25;
-}
-
-.stage-status-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.stage-status-option {
-  min-width: 0;
-  min-height: 26px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  padding: 0 7px;
-  background: transparent;
-  color: #31383f;
-  font-size: 11px;
-  font-weight: 680;
-  line-height: 1;
-  text-align: left;
-}
-
-.stage-status-option span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stage-status-option:hover {
-  background: #f4f4f3;
-  color: #111;
-}
-
-.stage-status-option.active {
-  border-color: rgba(var(--brand-rgb), 0.18);
-  background: rgba(var(--brand-rgb), 0.08);
-  color: var(--brand);
 }
 
 .customer-name {
@@ -1580,45 +1388,6 @@ th input:focus-visible {
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.chance-pill {
-  min-width: 48px;
-  height: 23px;
-  border: 1px solid #e3e3e0;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-  color: #60676d;
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.chance-pill.높음 {
-  border-color: rgba(var(--brand-rgb), 0.18);
-  background: rgba(var(--brand-rgb), 0.08);
-  color: var(--brand);
-}
-
-.chance-pill.확정 {
-  border-color: rgba(21, 128, 61, 0.16);
-  background: #e7f7ed;
-  color: #15803d;
-}
-
-.chance-pill.보류 {
-  border-color: rgba(183, 121, 31, 0.18);
-  background: #fff4d8;
-  color: #98610e;
-}
-
-.chance-pill.낮음 {
-  border-color: rgba(180, 35, 24, 0.14);
-  background: #fff1ef;
-  color: #b42318;
 }
 
 .badge.yellow {
