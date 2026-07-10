@@ -895,3 +895,106 @@
   color: #b42318;
   word-break: keep-all;
 }
+
+/* 고객 수기 등록 팝오버 — 삭제 확인창(.bulk-delete-confirm)과 같은 문법.
+   .customer-create-wrap이 position:relative 기준, 폼은 absolute로 헤드바 높이를 밀지 않는다. */
+.customer-console-headbar .customer-create-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.customer-console-headbar .customer-create-form {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 300px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.14);
+  padding: 12px 13px;
+  text-align: left;
+}
+
+.customer-console-headbar .customer-create-form strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #1f2933;
+}
+
+.customer-console-headbar .customer-create-form > p {
+  margin: 5px 0 10px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #5f6872;
+}
+
+.customer-console-headbar .customer-create-form label {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  color: #5f6872;
+}
+
+.customer-console-headbar .customer-create-form input,
+.customer-console-headbar .customer-create-form select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  font-size: 12px;
+  color: #1f2933;
+}
+
+.customer-console-headbar .customer-create-form input:focus,
+.customer-console-headbar .customer-create-form select:focus {
+  outline: none;
+  border-color: rgba(var(--brand-rgb), 0.34);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
+}
+
+/* 중복은 경고(amber) — 등록을 막지 않는다. 에러(red)와 시각적으로 구분한다. */
+.customer-console-headbar .customer-create-form p.customer-create-duplicate {
+  margin: 2px 0 8px;
+  color: #b45309;
+}
+
+.customer-console-headbar .customer-create-form p.customer-create-error {
+  margin: 2px 0 8px;
+  color: #b42318;
+}
+
+.customer-console-headbar .customer-create-form > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.customer-console-headbar .customer-create-form button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: #4f5a64;
+  cursor: pointer;
+}
+
+.customer-console-headbar .customer-create-form button.primary-action {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.customer-console-headbar .customer-create-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
