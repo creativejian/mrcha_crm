@@ -801,3 +801,87 @@
   gap: 14px;
   align-items: start;
 }
+
+/* 고객 삭제 확인 — 되돌릴 수 없는 조작이라 버튼 바로 아래에서 한 번 더 묻는다(견적 삭제 인라인 확인과 같은 문법).
+   .bulk-delete-wrap이 position:relative 기준이 되고, 확인창/안내는 absolute로 헤드바 높이를 밀지 않는다. */
+.customer-console-headbar .bulk-delete-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.customer-console-headbar .bulk-delete-confirm,
+.customer-console-headbar .bulk-delete-notice {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 320px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.14);
+  padding: 12px 13px;
+  text-align: left;
+}
+
+.customer-console-headbar .bulk-delete-confirm strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #1f2933;
+}
+
+.customer-console-headbar .bulk-delete-confirm p {
+  margin: 5px 0 10px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #5f6872;
+}
+
+.customer-console-headbar .bulk-delete-confirm > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.customer-console-headbar .bulk-delete-confirm button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: #4f5a64;
+  cursor: pointer;
+}
+
+.customer-console-headbar .bulk-delete-confirm button.danger {
+  border-color: #f04438;
+  background: #f04438;
+  color: #fff;
+}
+
+.customer-console-headbar .bulk-delete-confirm button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 실패 안내 — 409(앱 발송 견적)·403 같은 서버 사유를 그대로 보여준다. 자동으로 사라지지 않는다. */
+.customer-console-headbar .bulk-delete-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #b42318;
+}
+
+.customer-console-headbar .bulk-delete-notice button {
+  flex: none;
+  border: 0;
+  background: none;
+  font-size: 11.5px;
+  color: #7f858c;
+  cursor: pointer;
+}

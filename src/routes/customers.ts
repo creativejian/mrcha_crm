@@ -12,6 +12,7 @@ import {
 } from "../db/queries/customer-children";
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
+import { deleteCustomer, quoteStoragePath } from "../db/queries/customer-delete";
 import { validateLookupValue, validateStatusSelection } from "../lib/lookup-validate";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
@@ -72,6 +73,28 @@ customers.get("/", async (c) => c.json(await listCustomers(c.var.db)));
 
 customers.get("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) =>
   run(c, () => getCustomer(c.req.valid("param").id, c.var.db), "고객을 찾을 수 없습니다."));
+
+// ── 고객 하드 삭제(admin 전용) ─────────────────────────────────────
+// spec: ref/specs/2026-07-10-crm-customer-delete-design.md
+//
+// ⚠️ 서버가 진짜 게이트다. 인증 미들웨어는 CRM_ROLES(staff·manager·admin·dealer) 중 하나면 통과시키므로,
+// 프론트에서 버튼을 숨기는 것만으로는 curl 한 번에 뚫린다(오늘 앱 팀의 profiles 사고가 정확히 그 모양 —
+// 권한은 넓고 가드는 얇았다). 되돌릴 수 없고 앱 사용자 화면까지 바꾸는 조작이므로 fail-closed.
+//
+// Storage 삭제는 커밋 "후"다. 롤백되지 않기 때문 — 커밋 전에 지우면 트랜잭션 실패 시 DB 행은
+// 살아 있는데 파일만 증발한다(복구 불가). 커밋 후 실패하면 아무도 조회할 수 없는 고아 바이트가 남을 뿐이다.
+// (idParam은 이 아래에서 선언된다 — 모듈 평가 시점 TDZ를 피해 이웃 라우트처럼 인라인 스키마를 쓴다.)
+customers.delete("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) => {
+  if (c.var.user.role !== "admin") return c.json({ error: "권한이 없습니다." }, 403);
+  const id = c.req.valid("param").id;
+  return run(c, async () => {
+    const result = await c.var.db.transaction((tx) => deleteCustomer(id, c.var.user.id, tx));
+    if (!result) return null; // → 404
+    const env = c.env as StorageEnv;
+    for (const path of result.storagePaths) await removeOrphanObject(env, path);
+    return { id: result.id };
+  }, "고객을 찾을 수 없습니다.");
+});
 
 // 고객 상세 니즈 영역: 그 고객(app_user_id)의 앱 견적요청 목록. 수기 고객(app_user 없음)은 빈 배열.
 customers.get("/:id/quote-requests", zValidator("param", z.object({ id: z.uuid() })), (c) =>
@@ -402,8 +425,13 @@ customers.delete("/:id/quotes/:childId", zValidator("param", childParam), (c) =>
   // 트랜잭션: 견적 삭제와 advisor_quotes 회수(발송 파이프라인 스펙 결정 7)가 함께 성공/실패해야
   // 앱에 회수 실패한 유령 카드가 남지 않는다.
   return run(c, async () => {
+    // 업로드된 견적 원본(Storage)의 경로를 삭제 전에 확보한다 — 행이 사라지면 알 수 없다.
+    // 서류 삭제는 원본·썸네일을 지우는데 견적 삭제만 안 지워 고아 객체가 쌓이고 있었다(2026-07-10 발견).
+    const orphan = await quoteStoragePath(p.id, p.childId, c.var.db);
     const row = await c.var.db.transaction((tx) => deleteQuote(p.id, p.childId, tx));
-    if (row) await cleanupEmbeddingOnDelete("quote", p.childId, c.var.db);
+    if (!row) return null;
+    await cleanupEmbeddingOnDelete("quote", p.childId, c.var.db);
+    if (orphan) await removeOrphanObject(c.env as StorageEnv, orphan); // 커밋 후(롤백 불가)
     return row;
   }, "견적을 찾을 수 없습니다.");
 });

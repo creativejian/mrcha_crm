@@ -6,6 +6,7 @@ import { prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
+import { deleteCustomersBulk } from "@/lib/customer-bulk-delete";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -120,6 +121,11 @@ export function CustomerManagementPage({
   const tableColumns = visibleTableItems(tableColumnsByMode[mode], showAdvisorColumn);
   const [openDraftFilter, setOpenDraftFilter] = useState<DraftFilterKey | null>(null);
   const [openPageSize, setOpenPageSize] = useState(false);
+  // 고객 삭제 — admin만. 서버가 진짜 게이트이고(403 fail-closed) 여기 숨김은 UX 보조다.
+  const canDeleteCustomers = roleTab === "최고관리자";
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
   const customers = controlledCustomers ?? internalCustomers;
   const chanceOverrides = controlledChanceOverrides ?? internalChanceOverrides;
 
@@ -440,9 +446,26 @@ export function CustomerManagementPage({
       : current.filter((id) => !pageIds.includes(id)));
   }
 
-  function deleteSelected() {
-    updateCustomers((current) => current.filter((customer) => !selected.includes(customer.no)));
-    setSelected([]);
+  // 고객 하드 삭제(admin 전용). spec: ref/specs/2026-07-10-crm-customer-delete-design.md
+  // 되돌릴 수 없으므로 ①확인 단계를 거치고 ②서버가 성공을 확인한 건만 목록에서 뺀다.
+  // (기존 구현은 프론트 배열에서만 지워 리로딩하면 되살아났다 — API 호출 자체가 없었다.)
+  async function deleteSelected() {
+    if (deleting) return;
+    const targets = customers.filter((customer) => selected.includes(customer.no)).map((customer) => ({ id: customer.id, name: customer.name }));
+    setDeleting(true);
+    const { deletedIds, failed } = await deleteCustomersBulk(targets);
+    setDeleting(false);
+    setConfirmingDelete(false);
+
+    const removed = new Set(deletedIds);
+    const survives = (customer: Customer) => !customer.id || !removed.has(customer.id);
+    updateCustomers((current) => current.filter(survives));
+    setSelected((current) => current.filter((no) => customers.some((customer) => customer.no === no && survives(customer))));
+    setDeleteNotice(
+      failed.length
+        ? `${failed.length}명 삭제 실패 — ${failed.map((f) => `${f.name}: ${f.reason}`).join(" / ")}`
+        : null,
+    );
   }
 
   function toggleCustomerSelected(customerNo: number, checked: boolean) {
@@ -834,10 +857,40 @@ export function CustomerManagementPage({
                 <RefreshCcw aria-hidden="true" size={12} strokeWidth={2.25} />
                 <span>담당자 변경</span>
               </button>
-              <button className="btn bulk-delete-btn" disabled={selected.length === 0} onClick={deleteSelected} type="button">
-                <Minus aria-hidden="true" size={14} strokeWidth={2.6} />
-                <span>{selected.length ? `${selected.length}명 고객 삭제` : "고객 삭제"}</span>
-              </button>
+              {canDeleteCustomers ? (
+                <div className="bulk-delete-wrap">
+                  <button
+                    className="btn bulk-delete-btn"
+                    disabled={selected.length === 0 || deleting}
+                    onClick={() => { setDeleteNotice(null); setConfirmingDelete((open) => !open); }}
+                    type="button"
+                  >
+                    <Minus aria-hidden="true" size={14} strokeWidth={2.6} />
+                    <span>{selected.length ? `${selected.length}명 고객 삭제` : "고객 삭제"}</span>
+                  </button>
+                  {confirmingDelete && selected.length > 0 ? (
+                    <div aria-label="고객 삭제 확인" className="bulk-delete-confirm" role="dialog">
+                      <strong>고객 {selected.length}명 삭제</strong>
+                      <p>
+                        메모·할일·일정·서류·견적이 함께 사라지며, 되돌릴 수 없습니다.
+                        앱으로 발송한 견적이 있는 고객은 삭제되지 않습니다 — 견적함에서 먼저 회수하세요.
+                      </p>
+                      <div>
+                        <button disabled={deleting} onClick={() => setConfirmingDelete(false)} type="button">취소</button>
+                        <button className="danger" disabled={deleting} onClick={deleteSelected} type="button">
+                          {deleting ? "삭제 중…" : "삭제"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {deleteNotice ? (
+                    <div className="bulk-delete-notice" role="status">
+                      <span>{deleteNotice}</span>
+                      <button onClick={() => setDeleteNotice(null)} type="button">닫기</button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <button className="btn primary-register-btn" type="button">
                 <Plus aria-hidden="true" size={14} strokeWidth={2.4} />
                 <span>고객 등록</span>
