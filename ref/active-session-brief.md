@@ -1,6 +1,8 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-10 (**세션 0710: ①앱 팀 `profiles` 권한 축소 대응(교차검증·INSERT 구멍 제보→앱 수정 확인)·`profiles` 쓰기 금지 tripwire(#211) ②CRM 전용 publishable 키 교체·prod 반영 ③**고객 하드 삭제 신설(#212·#213)** — admin 전용·앱 카드 409 가드·감사 기록·확인창 대상 이름 ④테스트 픽스처 잔재 tripwire(#214). **▶ 다음 = 고객 목록 헤드바의 빈 버튼 2개(`고객 등록` / 일괄 `담당자 변경`) — 아래 착수 노트.**)
+Last updated: 2026-07-10 (**세션 0710-2(유슨생): 고객 수기 등록 신설 — `POST /api/customers` + 헤드바 `[+ 고객 등록]` 폼 팝오버 실동작(브랜치 `feat/crm-customer-create`, PR 대기). ▶ 남은 목업 = 일괄 `담당자 변경` 하나 — 아래 착수 노트.**)
+
+이전: 2026-07-10 (**세션 0710: ①앱 팀 `profiles` 권한 축소 대응(교차검증·INSERT 구멍 제보→앱 수정 확인)·`profiles` 쓰기 금지 tripwire(#211) ②CRM 전용 publishable 키 교체·prod 반영 ③**고객 하드 삭제 신설(#212·#213)** — admin 전용·앱 카드 409 가드·감사 기록·확인창 대상 이름 ④테스트 픽스처 잔재 tripwire(#214).)
 
 이전: 2026-07-09 (**세션 0709-next-step: ①카드 UI 상태 CardUiState 통합 완료·머지(PR #198 squash b6088ad) — 계산엔진 선행 정지작업 소진 ②🔴운영 알림 오염 사고 해소(PR #199 squash 3766de2) — test:server가 운영 디스코드/FCM 42건 발송하던 것을 `withNotifyGuard` 트랜잭션으로 차단.**)
 
@@ -18,7 +20,13 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 
 ## Current Focus
 
-- **▶ 다음 착수(2026-07-10 세션 종료 시점, 이사님 선택 대기)**: 고객 목록 **헤드바 오른쪽 액션 3개** 중 둘이 아직 **`onClick`조차 없는 빈 버튼**이다. `[🔄 담당자 변경] [− 고객 삭제] [+ 고객 등록]` — 가운데만 오늘 구현됨(#212).
+- **✅ 고객 수기 등록 신설(2026-07-10 세션 0710-2, 브랜치 `feat/crm-customer-create` PR 대기)**: 헤드바 `[+ 고객 등록]` 목업 → 실동작. spec `ref/specs/2026-07-10-crm-customer-create-design.md` · plan `ref/plans/2026-07-10-crm-customer-create.md`(8태스크 subagent-driven, 태스크별 spec/quality 2단계 리뷰 + 최종 통합 리뷰).
+  - **결정(유슨생)**: ①최소 폼(이름 필수·연락처·유입 경로) → 저장 즉시 **새 고객 상세 드로어 자동 오픈**(드로어는 URL single source라 `navigate(?customer=code)` + 리로드 도착만으로 열림 — 새 상태 0) ②**등록자 본인 자동 배정**(advisorId+advisorName+assignedAt 동반, `getStaffName` 실패 시 미배정 fail-open — staff scope가 advisor_id 매칭이라 미배정이면 등록자 AI 조회에서 빠짐) ③연락처 중복 **소프트 경고**(등록 차단 아님 — 가족 공유 번호 예외, 클라 목록 비교라 서버 왕복 0) ④dealer 403 fail-closed ⑤**source는 수동 어휘만**(`SOURCE_MANUAL_OPTIONS` — 자동 어휘를 수기 등록이 쓰면 앱 유입 통계 오염) ⑥승격 쿼리와 코드 비공유(입력 해석이 전부 달라 과추상화 기각).
+  - **잔재 tripwire 확장 동반**: 이 라우트 테스트는 **실채번**(CU-YYMM-####) 고객을 만들어 접두사 registry가 못 잡는다 → `TEST_CUSTOMER_NAMES = ["수기등록테스트"]`(이름 registry) + `customerResidueWhere()`(scan·--clean 공유, 괄호 가드·빈 배열 가드). **새 실채번 픽스처는 이름을 이 registry에 등록**할 것.
+  - 검증: typecheck 0·lint 0·unit **503**(+5)·server **467**(+7? 실측 460→467)·build + **격리 스택 브라우저 스모크**(등록→CU-2607-0001 실채번→드로어 자동 오픈→psql 시드·자동배정 대조→중복 경고(박서연 실번호)→빈 이름 인라인 에러→새로고침 영속→UI 삭제 원복→감사 행 정리→잔재 0).
+  - **follow-up(PR 본문)**: 이름 픽스처 드리프트 가드 부재(코드 접두사 계약 스캔과 비대칭) · 실패 토스트 1800ms(리로드 실패 안내치고 짧음) · 등록/삭제 팝오버 동시 오픈 가능(기존 패턴 확장) · 등록 직후 드로어 오픈 전 짧은 공백(스모크에선 미체감).
+
+- **▶ 다음 착수(이사님 선택 대기)**: 고객 목록 **헤드바 오른쪽 액션 3개** 중 남은 목업은 **일괄 `담당자 변경` 하나**. `[🔄 담당자 변경] [− 고객 삭제] [+ 고객 등록]` — 삭제 #212, 등록은 이 세션(위 ✅).
   - **⚠️ 이름 혼동 주의(이 세션에서 실제로 혼선이 났다)**: "담당자"가 붙은 UI가 셋인데 전부 다른 것이다.
     | UI | 위치 | 상태 |
     |---|---|---|
@@ -26,8 +34,7 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
     | **일괄** 담당자 변경 | 목록 헤드바 초록 버튼 | **목업** — `onClick` 없음(`CustomerManagementPage.tsx:859`, `disabled={selected.length===0}`만 있어 활성화돼 *보인다*) |
     | **개별** 담당자 배정 | **고객 상세** 팝오버 | **동작함**(#177) — `saveAdvisorField`→`savePatch`→`PATCH /api/customers/:id`, `advisorId`(uuid) 동봉·낙관 갱신·롤백 |
   - **정정**: 브리프 #177 항목의 follow-up에 적힌 *"목록 순환 배정 버튼은 여전히 프론트 목업"*은 **낡았다** — 그 행별 순환 버튼(`operation-change-pill`)은 이미 제거돼 코드에 없다(실측 0건). 지금 목업인 것은 **헤드바 일괄 버튼**뿐.
-  - **`고객 등록`**(`CustomerManagementPage.tsx:899`): `onClick` 없음. **서버 `POST /api/customers` 라우트 자체가 없다**(실측). 채번 `nextCustomerCode`는 이미 있다(`db/queries/quote-requests.ts:258`).
-  - **유슨생 의견(이사님 판단 필요)**: **`고객 등록`을 먼저** 권한다. 지금 CRM에서 고객을 **만들 방법이 아예 없다** — 앱 유입(견적요청·상담신청 승격)으로만 생긴다. 전화·소개로 들어온 고객을 상담사가 직접 넣을 수 없다. 반면 일괄 담당자 변경은 고객 상세의 개별 배정이 잘 되므로 없어도 일이 막히지 않는다. **다만 상담사들이 실제로 수기 고객을 어떻게 넣고 있는지 확인하면 그게 답이다.**
+  - ~~`고객 등록`: `onClick` 없음·서버 라우트 부재~~ → **✅ 해소(세션 0710-2, 위 ✅ 항목)**.
   - 참고: 일괄 담당자 변경은 서버 일괄 라우트가 없다(개별 `PATCH`만). 건별 순차 호출 + 실패 목록 반환은 `client/src/lib/customer-bulk-delete.ts` 패턴 재사용 가능.
 
 - **✅ 테스트 픽스처 잔재 tripwire(2026-07-10, PR #214 squash `4e43398`)**: `DATABASE_URL`이 공유 master라 테스트가 진짜 고객·견적 행을 만든다. 정상 종료하면 `afterAll`이 지우지만 **실행이 끊기면 남는다** — `CU-EMBRT-…/배선테스트`가 07-09에 남아 이사님 고객 목록에 유령으로 떴고 **사람 눈이 발견**했다(어떤 테스트도 못 잡았다).
