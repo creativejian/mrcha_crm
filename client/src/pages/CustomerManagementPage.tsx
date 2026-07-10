@@ -486,6 +486,14 @@ export function CustomerManagementPage({
   // 연락처 중복 소프트 경고 — 등록을 막지 않는다(가족 공유 번호 등 실무 예외).
   const createDuplicate = creatingOpen ? findPhoneDuplicate(customers, createPhone) : null;
 
+  // 닫기 경로(성공 제출·취소·헤드바 토글) 공통 리셋 — 초안이 남으면 다음 열람 때 이전 이름/번호가 그대로 보인다.
+  function resetCreateForm() {
+    setCreateName("");
+    setCreatePhone("");
+    setCreateSource(SOURCE_MANUAL_OPTIONS[0]);
+    setCreateError(null);
+  }
+
   async function submitCreateCustomer() {
     if (createSubmitting) return;
     const name = createName.trim();
@@ -502,9 +510,7 @@ export function CustomerManagementPage({
         source: createSource,
       });
       setCreatingOpen(false);
-      setCreateName("");
-      setCreatePhone("");
-      setCreateSource(SOURCE_MANUAL_OPTIONS[0]);
+      resetCreateForm();
       onCustomerCreated?.(customerCode);
     } catch (e) {
       // 서버 한글 사유(403 권한 / 400 어휘)를 그대로 노출한다(httpError가 body.error를 싣는다).
@@ -943,7 +949,11 @@ export function CustomerManagementPage({
                 <div className="customer-create-wrap">
                   <button
                     className="btn primary-register-btn"
-                    onClick={() => { setCreateError(null); setCreatingOpen((open) => !open); }}
+                    disabled={createSubmitting}
+                    onClick={() => {
+                      if (creatingOpen) resetCreateForm();
+                      setCreatingOpen((open) => !open);
+                    }}
                     type="button"
                   >
                     <Plus aria-hidden="true" size={14} strokeWidth={2.4} />
@@ -974,7 +984,7 @@ export function CustomerManagementPage({
                       ) : null}
                       {createError ? <p className="customer-create-error" role="alert">{createError}</p> : null}
                       <div>
-                        <button disabled={createSubmitting} onClick={() => setCreatingOpen(false)} type="button">취소</button>
+                        <button disabled={createSubmitting} onClick={() => { resetCreateForm(); setCreatingOpen(false); }} type="button">취소</button>
                         <button className="primary-action" disabled={createSubmitting} onClick={submitCreateCustomer} type="button">
                           {createSubmitting ? "등록 중…" : "등록"}
                         </button>
