@@ -228,30 +228,6 @@ export function chanceOptionClass(value: ChanceOption, active: boolean) {
   return ["chance-status-option", toneByChance[value], active ? "active" : ""].filter(Boolean).join(" ");
 }
 
-export function stageSignal(customer: Customer) {
-  const signalsByStatus: Record<string, string> = {
-    신규: "상담 배정",
-    상담중: "방식 확정",
-    관리중: "조건 재확인",
-    상담완료: "조건 대기",
-    견적준비중: "견적 작성",
-    차량체크중: "재고 확인",
-    견적발송: "응답 대기",
-    심사서류안내: "서류 대기",
-    계약완료: "출고 준비",
-    계약취소: "재컨택 후보",
-    출고예정: "출고 확인",
-    출고완료: customer.settlementStatus ? "정산 확인" : "완료 관리",
-    "부재(1차 부재중)": "2차 예정",
-    "부재(카톡인사)": "2차 예정",
-    "부재(미응답)": "마지막 재컨택",
-    재컨택완료: "조건 재확인",
-    미정: "시점 보류",
-    불발: "이탈 기록",
-  };
-
-  return signalsByStatus[customer.status] ?? (customer.priority === "긴급" ? "우선 처리" : "후속 확인");
-}
 
 export function finalUpdateStatus(info: FinalUpdateInfo): FinalUpdateStatus {
   if (info.customerRecontacted) return { className: "recontact", label: "재문의" };

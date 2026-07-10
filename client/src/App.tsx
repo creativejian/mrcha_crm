@@ -3,7 +3,8 @@ import { ChevronRight } from "lucide-react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta, customerStatusGroups } from "@/data/customers";
+import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta } from "@/data/customers";
+import { statusGroupByStatus } from "@/lib/customer-table";
 import { fetchCustomers, updateCustomer, type CustomerWritePatch } from "@/lib/customers";
 import { fetchAppQuoteRequests } from "@/lib/quote-requests";
 import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
@@ -78,10 +79,6 @@ const financeModeMeta: Record<FinanceMode, [string, string]> = {
   expense: ["재무 관리 · 지출 관리", "광고비, 출고 비용, 운영비처럼 차선생 운영 지출을 분류합니다."],
   payroll: ["재무 관리 · 급여 관리", "구성원별 급여, 성과급, 지급 기준을 관리합니다."],
 };
-
-const statusGroupByStatus = Object.fromEntries(
-  Object.entries(customerStatusGroups).flatMap(([group, values]) => values.map((value) => [value, group])),
-);
 
 export function App() {
   const location = useLocation();

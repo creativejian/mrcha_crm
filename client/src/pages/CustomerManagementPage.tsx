@@ -209,7 +209,7 @@ export function CustomerManagementPage({
   }, [openPageSize]);
 
   function isTableControlTarget(target: EventTarget | null) {
-    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .advisor-change-pill"));
+    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control"));
   }
 
   useEffect(() => {
