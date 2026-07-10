@@ -117,8 +117,8 @@ export function App() {
 
   // 고객 목록 로드/재로드. 마운트 시 1회 + 인박스(S2)에서 신규 고객 생성 후 재호출해 stale 방지.
   // App은 최상위라 사실상 unmount되지 않음(로그아웃 시에만) → setState-after-unmount race는 무시 가능.
-  const reloadCustomers = useCallback(() => {
-    fetchCustomers()
+  const reloadCustomers = useCallback((): Promise<boolean> => {
+    return fetchCustomers()
       .then((list) => {
         setCustomers(list);
         setChanceOverrides(
@@ -126,10 +126,12 @@ export function App() {
         );
         setCustomersError(false);
         setCustomersLoaded(true);
+        return true;
       })
       .catch(() => {
         setCustomersError(true);
         setCustomersLoaded(true);
+        return false;
       });
   }, []);
 
@@ -218,13 +220,16 @@ export function App() {
     showToast(`${customer.name} 고객 상세 패널을 열었습니다.`);
   }
 
-  // 수기 등록 직후: 목록을 서버에서 다시 받고 드로어 URL로 이동한다.
+  // 수기 등록 직후: 드로어 URL로 이동하고 목록을 서버에서 다시 받는다.
   // 드로어는 URL이 single source(/customers?customer=code)라 목록이 도착하는 순간 자동으로 열린다
   // (isDrawerOpen이 selectedCustomer 발견 시점에 성립 — 새 상태 0, 기존 메커니즘 그대로).
   function handleCustomerCreated(customerCode: string) {
-    reloadCustomers();
-    navigate(`/customers?customer=${encodeURIComponent(customerCode)}`);
+    navigate(`/customers?customer=${encodeURIComponent(customerCode)}`, { replace: isDrawerOpen });
     showToast("고객이 등록되었습니다.");
+    // 리로드 실패 = 등록은 됐는데 드로어가 조용히 안 열리는 상태 — 실패를 등록 맥락으로 알린다.
+    void reloadCustomers().then((ok) => {
+      if (!ok) showToast("등록은 완료됐지만 목록을 불러오지 못했습니다. 새로고침해 주세요.");
+    });
   }
 
   function openCustomerDetailFullScreen() {
