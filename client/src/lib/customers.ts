@@ -1,5 +1,5 @@
 import type { Customer } from "@/data/customers";
-import { getJson, sendVoid } from "./http";
+import { getJson, sendJson, sendVoid } from "./http";
 import type { CustomerDetailQuote } from "./quote-items";
 
 // 백엔드 listCustomers 응답 1행(camelCase, null 가능). 상세는 추가 자식 필드 포함.
@@ -275,4 +275,12 @@ export async function updateCustomer(id: string, patch: CustomerWritePatch): Pro
 export async function deleteCustomer(id: string): Promise<void> {
   await sendVoid(`/api/customers/${id}`, "DELETE");
   invalidateCustomerDetail(id);
+}
+
+export type CustomerCreateInput = { name: string; phone: string | null; source: string | null };
+
+// 고객 수기 등록 — 채번·시드·등록자 자동 배정은 전부 서버가 처리한다.
+// 반환에서 customerCode만 소비한다(등록 직후 드로어 URL 이동용 — 드로어는 URL이 single source).
+export async function createCustomer(input: CustomerCreateInput): Promise<{ customerCode: string }> {
+  return sendJson<{ customerCode: string }>("/api/customers", "POST", input);
 }
