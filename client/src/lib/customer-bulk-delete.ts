@@ -13,6 +13,18 @@ export type BulkDeleteResult = {
 //
 // 반환된 deletedIds만 목록에서 제거할 것. 낙관적 제거(먼저 지우고 실패하면 되돌리기)는 금지 —
 // 되돌릴 수 없는 조작이라 "지워진 것처럼 보였는데 살아 있음"이 최악의 상태다(리로딩하면 되살아나는 현행 버그).
+const NAME_PREVIEW_LIMIT = 5;
+
+// 삭제 확인창에 "누구를 지우는지" 보여준다. 선택(selected)은 페이지·필터를 넘어 유지되므로
+// "고객 5명 삭제"만 뜨면 화면에 안 보이는 고객이 섞여 있어도 알 수 없다.
+// 되돌릴 수 없는 조작에서 대상이 안 보이는 건 위험하다.
+export function formatDeleteTargetNames(names: readonly string[]): string {
+  if (names.length === 0) return "";
+  const labels = names.map((name) => name.trim() || "이름 없음");
+  if (labels.length <= NAME_PREVIEW_LIMIT) return labels.join(", ");
+  return `${labels.slice(0, NAME_PREVIEW_LIMIT).join(", ")} 외 ${labels.length - NAME_PREVIEW_LIMIT}명`;
+}
+
 export async function deleteCustomersBulk(
   targets: readonly BulkDeleteTarget[],
   deleteOne: (id: string) => Promise<void> = deleteCustomer,
