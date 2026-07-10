@@ -15,7 +15,7 @@ export const QUOTE_CODE_REGEX = prefixRegex(TEST_QUOTE_CODE_PREFIXES);
 // 코드가 CU-YYMM-####라 접두사로 못 잡는다 — 이름이 잡는다. scan과 check-test-residue --clean이 공유.
 export function customerResidueWhere() {
   const names = sql.join(TEST_CUSTOMER_NAMES.map((n) => sql`${n}`), sql`, `);
-  return sql`customer_code ~ ${CUSTOMER_CODE_REGEX} or name in (${names})`;
+  return sql`(customer_code ~ ${CUSTOMER_CODE_REGEX} or name in (${names}))`;
 }
 
 export type FixtureResidue = {
