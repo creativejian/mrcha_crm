@@ -1,25 +1,20 @@
 {
   "entry": [
     "src/app.ts",
-    "src/local-dev.ts",
     "functions/[[path]].ts",
-    "client/src/main.tsx",
     "client/src/**/*.stories.tsx",
     "tools/**/*.ts",
     "*.config.ts",
-    "drizzle.config.ts"
+    "drizzle.config.catalog.ts",
+    "src/scripts/**/*.ts"
   ],
   "project": ["**/*.{ts,tsx,js,mjs}"],
-  "ignore": ["build/**", "client/src/components/ui/**", "client/src/lib/utils.ts"],
+  "ignore": ["client/src/components/ui/**", "supabase/functions/**"],
   "ignoreDependencies": [
     "@base-ui/react",
-    "@hono/zod-validator",
     "class-variance-authority",
-    "clsx",
-    "tailwind-merge",
     "tailwindcss",
     "tw-animate-css",
-    "zod",
     "wrangler"
   ]
 }

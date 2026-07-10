@@ -220,10 +220,6 @@ th {
   white-space: nowrap;
 }
 
-.advisor-change-pill {
-  align-self: center;
-}
-
 .operation-cell {
   padding-left: 18px;
   vertical-align: middle;

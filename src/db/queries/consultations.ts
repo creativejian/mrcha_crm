@@ -64,15 +64,6 @@ export async function listConsultationsByUser(
     .orderBy(desc(consultationRequests.createdAt));
 }
 
-// 승격/연결 시점 임베딩 훅용 — 그 유저의 상담신청 id 전부(요청 청크와 동일하게 고객 연결이 생겨야 적재 가능).
-export async function listConsultationIdsByUser(appUserId: string, ex: Executor = getDefaultDb()): Promise<string[]> {
-  const rows = await ex
-    .select({ id: consultationRequests.id })
-    .from(consultationRequests)
-    .where(eq(consultationRequests.userId, appUserId));
-  return rows.map((r) => r.id);
-}
-
 // profiles + 상담신청 데이터로 신규 customers INSERT(app_user_id 연결). 같은 user로 이미 고객 있으면
 // 기존 반환(중복 방지, source 안 덮음 — 최초 유입 source 유지). userId 없는(비로그인) 상담신청은 통합 불가(null).
 // 라우트가 transaction으로 감싸 호출(ex=tx) — 채번+insert 원자성.

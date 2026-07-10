@@ -6,12 +6,17 @@ import { customers, embeddings } from "../schema";
 import { upsertEmbedding, searchEmbeddings, getEmbeddingHash, deleteEmbeddingBySource } from "./embeddings";
 
 const db = getDefaultDb();
-const MEMO_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+// customer_code는 UNIQUE — 고정 코드면 afterAll이 못 돈 실행(프로세스 kill 등) 뒤 잔존 행 때문에
+// 다음 실행의 beforeAll INSERT가 unique 위반으로 죽어 파일 전체가 setup에서 실패한다. 랜덤 서픽스로
+// 재실행 트랩을 없앤다(공유 master 실 DB 픽스처 규약 — assistant-tools.test.ts와 동일).
+// MEMO_ID·SRC는 customer FK cascade로 함께 정리되지만 병렬 실행 충돌을 피하려 함께 랜덤화한다.
+const SUFFIX = crypto.randomUUID().slice(0, 8);
+const MEMO_ID = crypto.randomUUID();
 const vec = (seed: number) => Array.from({ length: 3072 }, (_, i) => (i === 0 ? seed : 0.001));
 let CUST = "";
 
 beforeAll(async () => {
-  const [row] = await db.insert(customers).values({ customerCode: "CU-EMBTEST-9990", name: "임베딩테스트" }).returning({ id: customers.id });
+  const [row] = await db.insert(customers).values({ customerCode: `CU-EMBTEST-${SUFFIX}`, name: "임베딩테스트" }).returning({ id: customers.id });
   CUST = row.id;
 });
 afterAll(async () => {
@@ -46,7 +51,7 @@ test("searchEmbeddings: scope={advisorId}면 담당 고객 청크만 — 남의 
 });
 
 test("getEmbeddingHash: 있는 행은 해시, 없는 행은 null", async () => {
-  const SRC = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+  const SRC = crypto.randomUUID();
   await upsertEmbedding(
     { sourceType: "memo", sourceId: SRC, customerId: CUST, content: "해시 조회 테스트", contentHash: "hash-v1", embedding: vec(3) },
     db,
