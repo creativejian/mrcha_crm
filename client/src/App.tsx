@@ -218,6 +218,15 @@ export function App() {
     showToast(`${customer.name} 고객 상세 패널을 열었습니다.`);
   }
 
+  // 수기 등록 직후: 목록을 서버에서 다시 받고 드로어 URL로 이동한다.
+  // 드로어는 URL이 single source(/customers?customer=code)라 목록이 도착하는 순간 자동으로 열린다
+  // (isDrawerOpen이 selectedCustomer 발견 시점에 성립 — 새 상태 0, 기존 메커니즘 그대로).
+  function handleCustomerCreated(customerCode: string) {
+    reloadCustomers();
+    navigate(`/customers?customer=${encodeURIComponent(customerCode)}`);
+    showToast("고객이 등록되었습니다.");
+  }
+
   function openCustomerDetailFullScreen() {
     setCustomerDetailEditorOpen(false);
     if (selectedCode) navigate(`/customer-detail/${encodeURIComponent(selectedCode)}`);
@@ -316,6 +325,7 @@ export function App() {
               mode={customerMode}
               roleTab={roleTab}
               onChanceOverridesChange={setChanceOverrides}
+              onCustomerCreated={handleCustomerCreated}
               onCustomersChange={setCustomers}
               onOpenCustomer={openCustomerDetailPanel}
               onWorkflowChange={updateCustomerWorkflow}
