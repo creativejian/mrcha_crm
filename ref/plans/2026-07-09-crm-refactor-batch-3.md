@@ -109,53 +109,48 @@ Last updated: 2026-07-09 (유슨생 세션 `0709-total-refactoring`)
 
 ---
 
-## 🔜 다음 세션 착수 노트 (유슨생 결정: 둘 다 진행, guardedDb 먼저)
+## PR G — `guardedDb`로 발송 통합 경로 커버리지 복원 (#209 `50b5444`)
 
-> compact로 세션 컨텍스트가 날아가도 바로 착수할 수 있도록 제약·함정·검증 방법을 여기 박제한다.
-> **읽는 순서**: 이 노트 → 해당 파일 → TDD(RED 실관찰) → PR.
+**틀린 근거를 바로잡았다.** `notify-gate.ts`의 "`app.request()`는 dbMiddleware가 별도 커넥션이라 SET LOCAL이 닿지 않는다"는 인과 서술은 **사실이 아니었다**. 테스트 환경엔 `c.env.HYPERDRIVE`가 없어 `dbMiddleware`의 `!connStr` 브랜치가 타고, 라우트도 테스트도 **같은 `getDefaultDb()` 싱글톤**을 쓴다. 진짜 봉쇄는 커넥션이 아니라 *라우트가 자기 `c.var.db.transaction()`을 여는데 거기에 SET LOCAL을 주입할 seam이 없다*는 것이었다. 주석도 함께 정정.
 
-### PR G — `guardedDb`로 포기 커버리지 복원 (먼저)
+- `guardedDb(db)`(`test-utils/notify-gate.ts`) — Proxy로 `transaction()`만 가로채 콜백 첫 문장에서 `set_config('app.skip_notify','on',true)`. 메서드는 원본에 `bind`(drizzle이 `this.session`/`this.dialect`를 읽는다 — private 필드 없음을 실측 확인).
+- `setTestDb(db)`(`middleware/db.ts`) — fallback(`!connStr`) 브랜치 **+ `NODE_ENV==='test'`**에서만 읽는 주입 seam. **⚠️ 로컬 dev도 `!connStr`을 탄다** — NODE_ENV 게이트가 없으면 로컬 dev 실알림이 조용히 죽는다(회귀 테스트로 잠금). prod(`HYPERDRIVE`)는 seam을 아예 읽지 않는다.
+- `routes/customers.send.test.ts` 4종: 발송→advisor_quotes 커밋 / 견적요청 completed 전이 / DELETE 카드 회수 + open 복원 / 앱 미연결 스킵.
 
-**왜 지금 하나**: 라우트 → `updateQuote` → `syncAdvisorQuoteOnSend`(`db/queries/customer-quotes.ts`) 통합 경로는 **어떤 테스트도 타지 않는다**. 인시던트가 두 번 난 구역(#199 오염 · #202 무발송)인데, 그 상태를 정당화하던 근거가 **틀렸다**.
+**안전 근거는 합성이다** — ①guardedDb가 GUC를 켠다(`notify-gate.test.ts`, 대조군: 맨 db는 안 켜진다) ②setTestDb가 라우트 `c.var.db`를 바꾼다(`db.test.ts` identity 프로브). 그래서 통합 테스트는 업무 동작만 단언한다.
 
-**틀린 근거(수정 대상)**: `src/test-utils/notify-gate.ts:36` 부근의 "`app.request()`가 별도 커넥션이라 SET LOCAL이 안 닿는다"는 **인과 서술이 사실이 아니다**. 테스트에선 `c.env`에 `HYPERDRIVE`가 없어 `src/middleware/db.ts`의 `!connStr` 브랜치가 타고, 라우트도 테스트도 **같은 `getDefaultDb()` 싱글톤**을 쓴다. 진짜 봉쇄는 라우트가 **자기 `c.var.db.transaction()`**(`src/routes/customers.ts`, appStatus PATCH)을 여는데 바깥에서 그 트랜잭션에 `set_config`를 주입할 seam이 없다는 것이다. → 이 주석도 함께 정정할 것.
+**실측**: 트리거 `on_advisor_quote_sent` 활성(`tgenabled=O`) · `notify_advisor_quote`에 가드 존재 · `advisor_quotes` INSERT 발생(행 단언 통과) · **그럼에도 `net._http_response` 증가분 0** · `net.http_request_queue` 0 · 테스트 잔재 0행.
 
-**설계**:
-1. `src/test-utils/notify-gate.ts`에 `guardedDb(db)` 데코레이터 — 감싼 db가 여는 **모든 `.transaction(cb)` 콜백 첫 문장**에서 `set_config('app.skip_notify','on',true)` 실행. `withNotifyGuard`와 같은 SET LOCAL(트랜잭션 스코프) 패턴이라 "세션 레벨 SET 금지" 함정에 안 걸린다.
-2. 테스트 전용 db 주입 seam. **`dbMiddleware`의 `!connStr` 브랜치 + `process.env.NODE_ENV === "test"`에서만** 적용 → prod(`HYPERDRIVE` 경로)는 코드가 한 줄도 안 바뀐다.
-   - ⚠️ **로컬 dev도 `!connStr`이다.** 반드시 `NODE_ENV==='test'` 게이트를 함께 걸 것 — 안 그러면 로컬 dev의 진짜 알림이 조용히 죽는다.
-   - 관례 부합: `createApp(authOpts?)`(`src/app.ts`)가 이미 테스트 주입 seam이고, `assistantDeps`/`pushNotifyDeps`/`embedOnWriteDeps` 모듈 dep 주입도 확립돼 있다.
-3. 테스트: `app_user_id` 있는 고객 시드(`customer-quotes.send.test.ts`의 `anyProfileId` 재사용) → `app.request()` PATCH `{appStatus:"sent"}` → `advisor_quotes` 행 + `quote_requests` completed 전이 검증.
+**커버 한계**: 데코레이터는 `db.transaction()` 경로만 커버한다. autocommit 단발 쿼리엔 SET LOCAL이 안 걸리므로 알림 테이블에 그렇게 쓰는 테스트는 여전히 `withNotifyGuard`가 필요하다.
 
-**미해결(구현 시 실측 필요)**: drizzle `PgDatabase.transaction`을 어떻게 감쌀지(Proxy vs 래퍼 객체), 중첩 트랜잭션(savepoint)에서 첫 문장 삽입 위치.
-**검증 방법**(실 DB 실행은 구현 후):
-- 데코레이트한 db로 `db.transaction(async (tx) => { … })` 안에서 `SELECT current_setting('app.skip_notify', true)` → `'on'` 확인
-- `net._http_response` 증가분 **0** 대조(#199에서 쓴 방식과 동일)
+## PR H — 자유 질문 라우터 병렬화 (#210 `c31d112`)
 
-**커버 한계(명시할 것)**: 데코레이터는 `c.var.db.transaction()`을 타는 경로만 커버한다. autocommit 경로엔 SET LOCAL이 안 걸린다. 문제의 발송 경로는 트랜잭션이라 커버된다.
+라우터는 `question`+`history`만 쓰고 hits에 의존하지 않는데, `Promise.all([history, embed→search, staffName])` **완주 후** 순차 실행되고 있었다. 같은 슬롯으로 이동.
 
-### PR H — 자유 질문 라우터 병렬화 (그다음)
+**프레이밍**: Gemini 왕복 수·비용은 **그대로**. 줄어드는 건 벽시계뿐 — `(임베딩+검색)+라우팅` → `max(임베딩+검색, 히스토리+라우팅)`.
 
-**현상**: `src/routes/assistant.ts` — `!toolKey`(자유 질문)면 `Promise.all([history, embed→search→filter, staffName])`가 **완주한 뒤** `routeAssistantTool(question, target, {history})`(별도 Gemini 논스트림 호출)를 순차 실행한다. 라우터는 `question` + `opts.history`만 쓴다(`src/lib/assistant-tool-router.ts` — hits 비의존 **확인됨**).
+**실측(로컬, 실 Gemini·실 master)** — 라우터가 일관되게 ~510~540ms라 자유 질문마다 그만큼 사라진다:
 
-**정확한 프레이밍**(검증관 정정): "Gemini 왕복 1회 절감"이 **아니다**. 왕복 수·비용은 그대로고, 벽시계가 `max(embed+search, router)`로 겹칠 뿐이다. 이득은 자유 질문 TTFB(특히 스트리밍 경로 — 라우터가 `streamAsk` 앞 임계경로에 있다).
+| 질문 | embed | search | route | 직렬 | 병렬 | 절감 |
+|---|---:|---:|---:|---:|---:|---:|
+| 김지안 견적 몇 개야 | 770 | 214 | 507 | 1491ms | 984ms | **-507ms** |
+| 제임스 요즘 어떤 상태야 | 390 | 123 | 535 | 1048ms | 535ms | **-513ms** |
+| 앱으로 들어온 고객 누구야 | 500 | 36 | 536 | 1072ms | 536ms | **-536ms** |
 
-**보존해야 할 것**:
-- `toolKey`(빠른 질문 버튼) 있으면 라우터를 **아예 호출하지 않는다**(현행 동작). → 조건부 promise.
-- `outOfScope` 판정 = `routed?.kind === "none" && hits.length === 0`. 병렬이어도 둘 다 resolve 후 결합하면 동일.
-- **embed 실패 → 500 경로**: `routeAssistantTool`은 자체 try/catch로 `null`만 반환하므로 `Promise.all`에서 reject하지 않는다. embed의 reject가 그대로 500으로 간다(보존됨).
-- 라우터가 `call`을 내면 `runAssistantTool`은 **그 뒤에** 실행돼야 한다(라우터 결과 의존).
+**골든 먼저**(별도 커밋) — 기존 테스트는 최종값만 봐 호출 순서·부정 가드를 안 잠갔다: ①tool 지정 시 라우터 미호출 ②라우터는 멀티턴 history를 받는다 ③라우터 call → `runAssistantTool`은 그 뒤(결과 의존) ④임베딩 실패 → 500, 도구 미실행. **변이 검증 실관찰**: `history`를 `[]`로 바꾸면 ②가, `toolKey` 가드를 풀면 ①이 정확히 실패. 겹침 자체도 테스트로 잠갔고(구 코드 RED 실관찰 → GREEN).
 
-**테스트 상태**: `src/routes/assistant.test.ts`는 호출 **순서를 잠그지 않는다**(전부 최종값 검증). 병렬화 전에 **결합 순서를 잠그는 골든 테스트를 먼저 추가**할 것 — 그래야 리팩토링이 안전망 위에서 돈다.
+**의도한 행위 변화 1건**: 검색이 먼저 실패하면 이미 출발한 라우팅 응답이 버려진다(실패 경로에서 라우팅 1회 추가). `routeAssistantTool`은 자체 catch로 `null`만 반환해 `Promise.all`을 reject시키지 않으므로 **500 계약은 불변**.
+
+**통합 검증(main)**: typecheck 0 · lint 0 · knip clean · test:server **431** · test:unit **478** · build. `net._http_response` 증가분 0.
 
 ---
 
-## 남은 것 (미착수 — 판단 필요 / 저우선)
+## 남은 것 (미착수 — 저우선)
+
+> 라우터 병렬화·`guardedDb`는 **완료**(PR H·PR G — 위 참조).
 
 | 항목 | 위치 | 판정 |
 |---|---|---|
-| 라우터 병렬화 | `routes/assistant.ts:113-149` | ADJUSTED — **"왕복 1회 절감"이 아니라 "지연 겹침·비용 중립"**. 라우터는 hits 비의존(확인됨). 자유 질문 TTFB 이득이나 제어흐름 재구성 위험 중간. **착수 여부 판단 필요** |
-| `guardedDb` 데코레이터로 포기 커버리지 복원 | `notify-gate.ts:40-44` | CONFIRMED(기술적으로 성립). **`notify-gate.ts:36`의 "별도 커넥션" 인과 서술은 틀렸다** — 테스트에선 `HYPERDRIVE` 부재로 라우트도 `getDefaultDb()` 싱글톤. 진짜 봉쇄는 라우트가 자기 `.transaction()`(`customers.ts`)을 여는데 SET LOCAL 주입 seam이 없는 것. **prod 미들웨어에 `NODE_ENV==='test' && !connStr` 한정 seam이 필요 — 비용/이득 팀 판단** |
 | `createQuoteCode` `"2606"` | `quote-workbench-meta.ts:252` | ADJUSTED — DB 유입 **불가**(서버가 `nextQuoteCode`로 무조건 채번). 낙관 카드 일시 표시만, cosmetic |
 | knip 잔여 unused exports 5 + types 7 | | 저우선 — 파일 내부 사용(`export` 키워드만 불필요)·배럴 re-export(`formatTerm`)·타입 전용. 개별 판단 필요 |
 | dismiss 존재검증 없음 | `queries/consultations.ts` | 무해(멱등·dangling 행은 매칭 0). **현행 유지가 합리** |
