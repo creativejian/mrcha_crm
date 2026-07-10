@@ -594,3 +594,77 @@ test("POST /ask staff 토큰 → searchEmbeddings·runAssistantTool에 {advisorI
   await askJson(adminApp, admin.token, { question: "전체 근황" });
   expect(searchScope).toBe("all");
 });
+
+// ── 라우터 결합 골든(PR H 선행) ────────────────────────────────────────────
+// `/ask`의 자유 질문 경로는 history·retrieval·staffName을 병렬로 모은 뒤 라우터를 순차 호출한다.
+// 라우터를 그 병렬 슬롯으로 옮겨도 **결합 결과는 같아야 한다**. 기존 테스트는 최종값만 보고
+// 호출 순서·부정 가드를 잠그지 않아, 아래 4개가 리팩토링의 안전망이다.
+
+test("골든: tool(빠른 질문 버튼) 지정 시 라우터를 아예 호출하지 않는다", async () => {
+  let routeCalls = 0;
+  ragFakes({ inserted: [] }, {
+    embedTexts: async () => { throw new Error("도구 경로에서 임베딩이 호출되면 안 됨"); },
+    routeAssistantTool: async () => { routeCalls += 1; return null; },
+    runAssistantTool: async () => ({ label: "오늘 처리할 일", lines: ["김민준 — GLC 재고 확인"] }),
+    generateAnswer: async () => "정리했습니다",
+  });
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await askJson(app, token, { question: "오늘 할 일", tool: "today_actions" });
+  expect(res.status).toBe(200);
+  expect(routeCalls).toBe(0); // 버튼이 의도를 확정했으므로 라우팅 Gemini 왕복이 없어야 한다
+});
+
+test("골든: 라우터는 멀티턴 history를 받는다(대명사 후속 질의 판단 근거)", async () => {
+  let seenHistory: unknown = null;
+  assistantDeps.listRecentMessages = async () => [
+    { id: "m1", staffUserId: "s", role: "user", content: "이전질문", sources: null, createdAt: new Date(1) },
+    { id: "m2", staffUserId: "s", role: "assistant", content: "이전답변", sources: null, createdAt: new Date(2) },
+  ] as never;
+  ragFakes({ inserted: [] }, {
+    listRecentMessages: assistantDeps.listRecentMessages,
+    searchEmbeddings: async () => [],
+    routeAssistantTool: async (_q: string, _t: unknown, opts?: { history?: unknown }) => { seenHistory = opts?.history; return null; },
+  });
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  await askJson(app, token, { question: "그건 얼마야" });
+  // 병렬화해도 라우터가 빈 history를 보면 안 된다 — history 로드 완료 후 호출되어야 한다.
+  expect(seenHistory).toEqual([
+    { role: "user", content: "이전질문" },
+    { role: "assistant", content: "이전답변" },
+  ]);
+});
+
+test("골든: 라우터 call → runAssistantTool은 라우터가 resolve된 뒤에 실행된다", async () => {
+  const order: string[] = [];
+  ragFakes({ inserted: [] }, {
+    searchEmbeddings: async () => [],
+    routeAssistantTool: async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      order.push("route");
+      return { kind: "call" as const, key: "customer_quotes" as const, params: { name: "김지안" } };
+    },
+    runAssistantTool: async () => { order.push("run"); return { label: "고객 견적", lines: ["QT-0005"] }; },
+    generateAnswer: async () => "2건입니다",
+  });
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await askJson(app, token, { question: "김지안 견적 몇 개야" });
+  expect(res.status).toBe(200);
+  expect(order).toEqual(["route", "run"]); // 도구 실행은 라우터 결과 의존 — 병렬 슬롯에 들어가면 안 된다
+});
+
+test("골든: 임베딩 실패는 500 — 라우터가 call을 내도 도구를 실행하지 않는다", async () => {
+  let runCalls = 0;
+  ragFakes({ inserted: [] }, {
+    embedTexts: async () => { throw new Error("boom"); },
+    routeAssistantTool: async () => ({ kind: "call" as const, key: "customer_quotes" as const, params: {} }),
+    runAssistantTool: async () => { runCalls += 1; return { label: "x", lines: [] }; },
+  });
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await askJson(app, token, { question: "q" });
+  expect(res.status).toBe(500);
+  expect(runCalls).toBe(0); // 검색 실패 요청이 도구 결과로 살아나면 안 된다
+});
