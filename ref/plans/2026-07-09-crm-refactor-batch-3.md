@@ -83,25 +83,42 @@ Last updated: 2026-07-09 (유슨생 세션 `0709-total-refactoring`)
 
 ---
 
-## 다음 배치로 넘기는 것 (감사 완료·미착수)
+## ✅ 나머지 착수분 완료 (2026-07-09, PR #206 · #207 · #208)
+
+### PR D — dead code + 툴체인 위생 (#206 `7e245c1`)
+- dead export 3: `stageSignal` · `statusGroupByStatus`(App.tsx:82이 **글자 그대로 동일한 로직을 로컬 재정의**해 쓰고 있었다 → lib export를 import하도록 통합) · `listConsultationIdsByUser`(주석이 "임베딩 훅용"이라 오도 — 상담 RAG는 #196에서 폐기)
+- `.advisor-change-pill` 잔재(#197 정리 누락): CSS 룰 + `isTableControlTarget`의 `.closest()` 셀렉터 조각(항상 null 반환하던 no-op)
+- `knip.json`: entry에 `drizzle.config.catalog.ts`(`"*.config.ts"` 글롭이 `.catalog.ts`를 매치 못 함)·`src/scripts/**` 추가, `supabase/functions/**` ignore, knip이 스스로 지적한 stale 설정 정리 → **Unused files 0 · Configuration hints 0**
+- `.env.example`: `SUPABASE_URL`(없으면 인증 500)·`GEMINI_API_KEY`·`GEMINI_PROXY_URL` 추가. `CRM_BASE_URL`은 `playwright.config.ts:21`이 쓰므로 유지(용도 주석)
+- `embeddings.test.ts` 랜덤 서픽스(실 master 잔존 0 — 예방)
+
+### PR E — dead CSS 23클래스 (#207 `9bd6f29`)
+- **⚠️ 감사 표에 없던 함정 2개를 발견했다**:
+  1. `@keyframes stage-status-popover-in`은 **live**다 — 이름만 `stage-status-*`일 뿐 live 클래스 `.stage-two-step-popover`가 쓴다.
+  2. `.stage-status-popover, .chance-status-popover` 블록의 `position:absolute`는 아래 `.chance-status-popover` 블록이 재선언하지 않는다 → **블록 삭제 금지, 조각만 제거**.
+- 기계 검증 `tools/verify-dead-css.sh` 신설(재사용 가능). 단순 byte-diff 불가 — 결합 셀렉터에서 조각을 빼면 **minifier가 같은 셀렉터의 두 블록을 접는다**(계산값 동일). 그래서 ①제거 대상 0회 ②live 15종 등장 불변 + `:has()` 4종 보존 ③접힌 블록은 **계산값**으로 비교(`z-index:90`이 남아있지만 같은 블록 뒤의 `z-index:160`이 이긴다 — "존재 여부"가 아니라 "마지막에 이기는 값") ④keyframes 정의·사용 유지.
+- 선언 블록 2545→2515, 275,395→271,860 bytes. 시각 회귀 0.
+
+### PR F — 서버 소형 정비 (#208 `0463268`)
+- `sent:0` 로깅 분리(앱 `send-push/index.ts:39-41`이 `{message:"no tokens", sent:0}` **200** 반환 — "아무도 못 받음"과 "N대 전달"이 tail에서 구분 안 됐다). `sent=0`은 warn, 성공은 `sent=N` 병기. best-effort 계약 불변.
+- `metaById` 가드: 라우팅 도구 경로(hits>0)에서 결과를 버리는 원격 왕복 제거. 버튼 경로는 빈 배열 단축이 이미 흡수하고 있었다.
+- `customer_quotes`↔`customer_consultations` 미러 → `nameFilter{Params,Conds,Label}` 뼈대 공유(행위 무변경).
+- `removeOrphanObject` 헬퍼 1벌 — 같은 Storage 삭제 실패를 5곳이 무로그, 3곳이 서로 다른 문구로 처리하던 것 통일(단일 grep 토큰).
+
+**통합 검증**: typecheck 0 · lint 0 · knip clean · test:server **412** · test:unit **478** · build.
+
+---
+
+## 남은 것 (미착수 — 판단 필요 / 저우선)
 
 | 항목 | 위치 | 판정 |
 |---|---|---|
-| dead CSS 24클래스(~100줄) | `styles/customer-list.css` | CONFIRMED. **⚠️ `:619/633/1030/1065/526/729`는 live 클래스와 결합된 셀렉터 — 라인 통삭 시 목록 화면 시각 회귀. 조각 단위 수술 + 빌드 산출 CSS byte-diff 기계 검증 필수** |
-| `.advisor-change-pill` 잔재 | `customer-list.css:223` + `CustomerManagementPage.tsx:212`(`.closest()` 문자열) | CONFIRMED(#197 정리 누락) |
-| dead export 3 | `customer-table.ts:231`(`stageSignal`), `:27`(`statusGroupByStatus` — App.tsx:82이 동일 로직 로컬 재정의), `queries/consultations.ts:68`(`listConsultationIdsByUser`) | CONFIRMED. 마지막 건은 Task 8 예약분 여부 확인 |
-| knip.json entry 2 + Deno ignore | `knip.json` | CONFIRMED — 상시 오탐 9건이 진짜 dead를 가림. `src/scripts/**`, `drizzle.config.catalog.ts` 추가, `supabase/functions/**` ignore |
-| `.env.example` 2줄 | `SUPABASE_URL`(없으면 인증 500), `GEMINI_API_KEY` | CONFIRMED |
-| `sent:0`을 성공 로깅 | `push-notify.ts:46-64` | CONFIRMED(관측 공백, 버그 아님). 앱 소스로 계약 확정 — `send-push/index.ts:39-41`이 `{message:"no tokens", sent:0}` **200** 반환. 로그에 `sent` 병기 |
-| `capReportLines` 미러 보일러플레이트 | `assistant-tools.ts:59-60, 193-252` | CONFIRMED(저위험). `customer_quotes`↔`customer_consultations` 파라미터·필터라벨·조건조립 3벌 |
-| 라우터 병렬화 | `routes/assistant.ts:113-149` | ADJUSTED — **"왕복 1회 절감"이 아니라 "지연 겹침·비용 중립"**. 라우터는 hits 비의존 확인. TTFB 이득 |
-| `metaById` 가드 | `routes/assistant.ts:150` | ADJUSTED — 버튼 경로는 `ids.length===0` 단축이라 무해. **라우터-call 경로(hits>0)만** 실낭비 |
-| `embeddings.test.ts` 고정 픽스처 | `:14` `CU-EMBTEST-9990` | CONFIRMED(예방). 실 master 잔존 행 **0** — 지금 깨진 상태 아님 |
-| `guardedDb` 데코레이터로 포기 커버리지 복원 | `notify-gate.ts:40-44` | CONFIRMED(성립). **`notify-gate.ts:36`의 "별도 커넥션" 인과 서술은 틀렸다** — 테스트에선 `HYPERDRIVE` 부재로 라우트도 `getDefaultDb()` 싱글톤. 진짜 봉쇄는 라우트가 자기 `.transaction()`을 여는데 SET LOCAL 주입 seam이 없는 것. prod 미들웨어에 `NODE_ENV==='test' && !connStr` 한정 seam 필요 — **비용/이득 팀 판단** |
+| 라우터 병렬화 | `routes/assistant.ts:113-149` | ADJUSTED — **"왕복 1회 절감"이 아니라 "지연 겹침·비용 중립"**. 라우터는 hits 비의존(확인됨). 자유 질문 TTFB 이득이나 제어흐름 재구성 위험 중간. **착수 여부 판단 필요** |
+| `guardedDb` 데코레이터로 포기 커버리지 복원 | `notify-gate.ts:40-44` | CONFIRMED(기술적으로 성립). **`notify-gate.ts:36`의 "별도 커넥션" 인과 서술은 틀렸다** — 테스트에선 `HYPERDRIVE` 부재로 라우트도 `getDefaultDb()` 싱글톤. 진짜 봉쇄는 라우트가 자기 `.transaction()`(`customers.ts`)을 여는데 SET LOCAL 주입 seam이 없는 것. **prod 미들웨어에 `NODE_ENV==='test' && !connStr` 한정 seam이 필요 — 비용/이득 팀 판단** |
 | `createQuoteCode` `"2606"` | `quote-workbench-meta.ts:252` | ADJUSTED — DB 유입 **불가**(서버가 `nextQuoteCode`로 무조건 채번). 낙관 카드 일시 표시만, cosmetic |
-| dismiss 존재검증 없음 | `queries/consultations.ts:157-164` | 무해(멱등·dangling 행은 매칭 0). 현행 유지도 합리 |
-| `removeObject` 로그 불일치 | `routes/customers.ts:419,422,425,488,489` ↔ `:435,518,519` | 저우선(로그만) |
-| 게이트 3규칙 2벌 | `push-notify.ts:16-22` ↔ `embed-on-write.ts:69,76` | CONFIRMED 로직 **완전 동일**(미묘한 차이 0). **단 추출 비권장** — 각 사본이 사이트 특화 문서를 달고 있고, "조용한 실패" 2건을 겪은 구역에서 명시성이 실이익 |
+| knip 잔여 unused exports 5 + types 7 | | 저우선 — 파일 내부 사용(`export` 키워드만 불필요)·배럴 re-export(`formatTerm`)·타입 전용. 개별 판단 필요 |
+| dismiss 존재검증 없음 | `queries/consultations.ts` | 무해(멱등·dangling 행은 매칭 0). **현행 유지가 합리** |
+| 게이트 3규칙 2벌 | `push-notify.ts` ↔ `embed-on-write.ts` | CONFIRMED 로직 **완전 동일**(미묘한 차이 0). **단 추출 비권장** — 각 사본이 사이트 특화 문서를 달고 있고, "조용한 실패" 2건을 겪은 구역에서 명시성이 실이익 |
 
 ---
 
