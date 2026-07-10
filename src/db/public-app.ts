@@ -73,10 +73,16 @@ export const consultationRequests = pgTable("consultations", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
 });
 
+// ⚠️ read 전용 — CRM은 profiles에 절대 쓰지 않는다(2026-07-10 앱 팀과 합의한 계약).
+// 앱이 `REVOKE UPDATE ... FROM anon, authenticated`로 닫았지만 **CRM 서버는 postgres 롤이라 그 REVOKE의
+// 대상이 아니다** — DB가 우리를 막아주지 않는다. `profiles-write-guard.test.ts`가 기계로 잠근다.
+// 특히 `role`은 custom_access_token_hook이 JWT user_role claim으로 복사하고 그게 CRM의 유일한 인증
+// 게이트다(auth/verify.ts) — 위조되면 곧 CRM 관리자 접근이다. phone_verified_* 3종은 앱 Edge Function
+// (profile-authentication, admin key) 전용. 쓰기가 필요하면 앱 팀에 서버 경로를 요청한다.
 export const profiles = pgTable("profiles", {
   id: uuid().primaryKey(),
   email: text(),
-  username: text(),
+  username: text(), // 앱에서 DROP 검토 중(죽은 컬럼) — 제거되면 이 줄도 함께 삭제
   role: text(),
   fullName: text("full_name"),
   phoneNumber: text("phone_number"),
