@@ -3,6 +3,7 @@ import { asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { getDefaultDb, type Executor } from "../client";
 import { staffActivityAt } from "./activity";
 import { listAdvisorViewedAt } from "./advisor-quotes";
+import { nextCustomerCode } from "./quote-requests";
 import {
   consultations,
   customerDocuments,
@@ -71,6 +72,40 @@ export async function updateCustomer(
     .where(eq(customers.id, id))
     .returning({ id: customers.id });
   return row ?? null;
+}
+
+export type CustomerCreateInput = {
+  name: string;
+  phone?: string | null;
+  source?: string | null;
+  /** 등록자 자동 배정 — null이면 미배정 생성(라우트가 getStaffName 실패 시 null을 넘긴다). */
+  advisor?: { id: string; name: string } | null;
+};
+
+// 수기 등록 INSERT — 승격(createCustomerFromRequest/FromConsultation)과 시드 3필드(신규/상담접수/receivedAt)가
+// 같지만 코드는 공유하지 않는다(각 경로의 입력 해석이 전부 다름 — spec 확정 결정 4).
+// 라우트가 트랜잭션으로 감싸 호출한다(채번+INSERT 원자성 — 승격 라우트 동일).
+export async function createCustomerManual(
+  input: CustomerCreateInput,
+  ex: Executor = getDefaultDb(),
+): Promise<typeof customers.$inferSelect> {
+  const customerCode = await nextCustomerCode(ex);
+  const now = new Date();
+  const [row] = await ex
+    .insert(customers)
+    .values({
+      customerCode,
+      name: input.name,
+      phone: input.phone ?? null,
+      source: input.source ?? null,
+      statusGroup: "신규",
+      status: "상담접수",
+      receivedAt: now,
+      // 이름·id·배정시각 동반 세팅 — 이름만 갈리고 구 id가 남는 스테일(타 상담사 scope 오염) 방지 규칙.
+      ...(input.advisor ? { advisorId: input.advisor.id, advisorName: input.advisor.name, assignedAt: now } : {}),
+    })
+    .returning();
+  return row;
 }
 
 // 현재 담당자 이름 + 고객명 조회(배정 PATCH의 assigned_at 스탬프 판정 + 배정 알림 body용). 없는 고객은 null.

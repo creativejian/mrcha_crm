@@ -1,8 +1,10 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
 import { badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
-import { prefetchCustomerDetail } from "@/lib/customers";
+import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
+import { formatLocalPhone } from "@/lib/detail-utils";
+import { createCustomer, prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
@@ -20,6 +22,8 @@ type CustomerManagementPageProps = {
   onChanceOverridesChange?: (overrides: Record<number, CustomerChanceOption>) => void;
   onCustomersChange?: (customers: Customer[]) => void;
   onOpenCustomer?: (customer: Customer) => void;
+  // 수기 등록 성공 후 App이 목록 리로드 + 드로어 URL 이동을 처리한다(customerCode 전달).
+  onCustomerCreated?: (customerCode: string) => void;
   // 진행상태/계약가능성을 단일 소스(App.updateCustomerWorkflow)로 보내 DB 저장+상세 동기화한다.
   // App 라우트에선 항상 전달되고, 단독(stories/test)에선 미전달 → 내부 state 폴백.
   onWorkflowChange?: (
@@ -83,6 +87,7 @@ export function CustomerManagementPage({
   onChanceOverridesChange,
   onCustomersChange,
   onOpenCustomer,
+  onCustomerCreated,
   onWorkflowChange,
   roleTab = "최고관리자",
 }: CustomerManagementPageProps) {
@@ -126,6 +131,14 @@ export function CustomerManagementPage({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
+  // 고객 수기 등록 — dealer는 서버가 403으로 막는다(진짜 게이트). 여기 숨김은 UX 보조다.
+  const canCreateCustomers = roleTab !== "딜러";
+  const [creatingOpen, setCreatingOpen] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createPhone, setCreatePhone] = useState("");
+  const [createSource, setCreateSource] = useState<string>(SOURCE_MANUAL_OPTIONS[0]);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const customers = controlledCustomers ?? internalCustomers;
   const chanceOverrides = controlledChanceOverrides ?? internalChanceOverrides;
   // 삭제 확인창과 deleteSelected가 같은 대상 집합을 본다. selected는 페이지·필터를 넘어 유지되므로
@@ -469,6 +482,44 @@ export function CustomerManagementPage({
         ? `${failed.length}명 삭제 실패 — ${failed.map((f) => `${f.name}: ${f.reason}`).join(" / ")}`
         : null,
     );
+  }
+
+  // 연락처 중복 소프트 경고 — 등록을 막지 않는다(가족 공유 번호 등 실무 예외).
+  // createPhone은 뒤 8자리 표시값(상세 연락처 수정과 동일 문법) — 비교는 010 조립 후 전체 번호로.
+  const createDuplicate = creatingOpen ? findPhoneDuplicate(customers, fullPhoneFromLocal(createPhone) ?? "") : null;
+
+  // 닫기 경로(성공 제출·취소·헤드바 토글) 공통 리셋 — 초안이 남으면 다음 열람 때 이전 이름/번호가 그대로 보인다.
+  function resetCreateForm() {
+    setCreateName("");
+    setCreatePhone("");
+    setCreateSource(SOURCE_MANUAL_OPTIONS[0]);
+    setCreateError(null);
+  }
+
+  async function submitCreateCustomer() {
+    if (createSubmitting) return;
+    const name = createName.trim();
+    if (!name) {
+      setCreateError("이름을 입력하세요.");
+      return;
+    }
+    setCreateSubmitting(true);
+    setCreateError(null);
+    try {
+      const { customerCode } = await createCustomer({
+        name,
+        phone: fullPhoneFromLocal(createPhone),
+        source: createSource,
+      });
+      setCreatingOpen(false);
+      resetCreateForm();
+      onCustomerCreated?.(customerCode);
+    } catch (e) {
+      // 서버 한글 사유(403 권한 / 400 어휘)를 그대로 노출한다(httpError가 body.error를 싣는다).
+      setCreateError(e instanceof Error ? e.message : "등록에 실패했습니다.");
+    } finally {
+      setCreateSubmitting(false);
+    }
   }
 
   function toggleCustomerSelected(customerNo: number, checked: boolean) {
@@ -896,10 +947,66 @@ export function CustomerManagementPage({
                   ) : null}
                 </div>
               ) : null}
-              <button className="btn primary-register-btn" type="button">
-                <Plus aria-hidden="true" size={14} strokeWidth={2.4} />
-                <span>고객 등록</span>
-              </button>
+              {canCreateCustomers ? (
+                <div className="customer-create-wrap">
+                  <button
+                    className="btn primary-register-btn"
+                    disabled={createSubmitting}
+                    onClick={() => {
+                      if (creatingOpen) resetCreateForm();
+                      setCreatingOpen((open) => !open);
+                    }}
+                    type="button"
+                  >
+                    <Plus aria-hidden="true" size={14} strokeWidth={2.4} />
+                    <span>고객 등록</span>
+                  </button>
+                  {creatingOpen ? (
+                    <div aria-label="고객 등록" className="customer-create-form" role="dialog">
+                      <strong>고객 등록</strong>
+                      <p>이름만 필수입니다. 나머지 정보는 등록 직후 열리는 상세 화면에서 입력하세요.</p>
+                      <label>
+                        <span>이름 *</span>
+                        <input autoFocus onChange={(event) => setCreateName(event.target.value)} type="text" value={createName} />
+                      </label>
+                      <label>
+                        <span>연락처</span>
+                        {/* 상세 연락처 수정 팝오버와 같은 문법 — 010 고정 prefix + 뒤 8자리(4-4 자동 하이픈, formatLocalPhone SSOT). */}
+                        <div className="kim-phone-input">
+                          <span aria-hidden="true" className="kim-phone-prefix">010</span>
+                          <input
+                            autoComplete="tel"
+                            inputMode="numeric"
+                            maxLength={9}
+                            onChange={(event) => setCreatePhone(formatLocalPhone(event.target.value))}
+                            placeholder="0000-0000"
+                            type="tel"
+                            value={createPhone}
+                          />
+                        </div>
+                      </label>
+                      <label>
+                        <span>유입 경로</span>
+                        <select {...bindSelect(createSource, setCreateSource)}>
+                          {SOURCE_MANUAL_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </label>
+                      {createDuplicate ? (
+                        <p className="customer-create-duplicate" role="status">
+                          {createDuplicate.name}({createDuplicate.customerId}) 고객과 연락처가 같습니다.
+                        </p>
+                      ) : null}
+                      {createError ? <p className="customer-create-error" role="alert">{createError}</p> : null}
+                      <div>
+                        <button disabled={createSubmitting} onClick={() => { resetCreateForm(); setCreatingOpen(false); }} type="button">취소</button>
+                        <button className="primary-action" disabled={createSubmitting} onClick={submitCreateCustomer} type="button">
+                          {createSubmitting ? "등록 중…" : "등록"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

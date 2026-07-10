@@ -12,7 +12,7 @@ import { sql } from "drizzle-orm";
 
 import { getDefaultDb } from "../db/client";
 import {
-  CUSTOMER_CODE_REGEX, QUOTE_CODE_REGEX, formatResidue, residueCount, scanFixtureResidue,
+  CUSTOMER_CODE_REGEX, customerResidueWhere, formatResidue, QUOTE_CODE_REGEX, residueCount, scanFixtureResidue,
 } from "../test-utils/fixture-residue";
 
 const db = getDefaultDb();
@@ -36,10 +36,13 @@ if (!clean) {
 }
 
 // crm.quotes → customers FK는 NO ACTION이라 견적을 먼저 지운다. 자식 5종과 임베딩은 CASCADE.
+// customer_deletions는 두 조건으로 지운다: ①이름 잔재 고객의 감사 행(서브셀렉트 — customers delete보다
+// 먼저 와야 한다) ②코드 정규식(감사 행은 고객 행이 이미 없어도 남는다 — 기존 조건 유지).
 await db.transaction(async (tx) => {
   await tx.execute(sql`delete from crm.quotes where quote_code ~ ${QUOTE_CODE_REGEX}`);
-  await tx.execute(sql`delete from crm.quotes where customer_id in (select id from crm.customers where customer_code ~ ${CUSTOMER_CODE_REGEX})`);
-  await tx.execute(sql`delete from crm.customers where customer_code ~ ${CUSTOMER_CODE_REGEX}`);
+  await tx.execute(sql`delete from crm.quotes where customer_id in (select id from crm.customers where ${customerResidueWhere()})`);
+  await tx.execute(sql`delete from crm.customer_deletions where customer_code in (select customer_code from crm.customers where ${customerResidueWhere()})`);
+  await tx.execute(sql`delete from crm.customers where ${customerResidueWhere()}`);
   await tx.execute(sql`delete from crm.customer_deletions where customer_code ~ ${CUSTOMER_CODE_REGEX}`);
 });
 console.error(`\n[residue] crm 스키마 잔재를 삭제했습니다.`);

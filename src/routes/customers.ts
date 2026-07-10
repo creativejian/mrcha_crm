@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { getCustomer, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
+import { createCustomerManual, getCustomer, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
 import { listConsultationsByUser } from "../db/queries/consultations";
 import { listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import {
@@ -13,6 +13,7 @@ import {
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
 import { deleteCustomer, quoteStoragePath } from "../db/queries/customer-delete";
+import { getStaffName } from "../db/queries/staff";
 import { validateLookupValue, validateStatusSelection } from "../lib/lookup-validate";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
@@ -21,6 +22,7 @@ import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
 import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
 import { run } from "./shared";
+import { SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
 
 export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
@@ -61,6 +63,14 @@ export const customerWriteSchema = z.object({
   needReviewNote: z.string().nullable().optional(),
 });
 
+// 수기 등록 body — 최소 폼(이름·연락처·유입 경로)만. 나머지 필드는 등록 직후 상세 드로어에서
+// 기존 PATCH 경로로 입력한다(spec 확정 결정 1 — 폼 중복 제로).
+const customerCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  phone: z.string().nullable().optional(), // 클라가 숫자만 전송(DB 규칙). PATCH와 동일하게 서버 정규화 없음.
+  source: z.string().nullable().optional(),
+});
+
 // customer_profile 임베딩 청크를 구성하는 쓰기 가능 필드(buildCustomerProfileChunkText와 정렬).
 // needCompare는 청크에 포함되지만 아직 쓰기 스키마에 없어 제외(쓰기 경로가 생기면 추가).
 const CUSTOMER_PROFILE_EMBED_KEYS = [
@@ -70,6 +80,29 @@ const CUSTOMER_PROFILE_EMBED_KEYS = [
 ] as const satisfies readonly (keyof z.infer<typeof customerWriteSchema>)[];
 
 customers.get("/", async (c) => c.json(await listCustomers(c.var.db)));
+
+// ── 고객 수기 등록(전화·소개 유입 — 앱 승격 외 유일한 생성 경로) ────
+// spec: ref/specs/2026-07-10-crm-customer-create-design.md
+// dealer는 fail-closed — 역할 scope(resolveCustomerScope)에서 dealer가 아무것도 못 보는 것과 정합.
+// 서버가 진짜 게이트다(프론트 버튼 숨김은 UX 보조 — DELETE 라우트와 같은 원칙).
+customers.post("/", zValidator("json", customerCreateSchema), async (c) => {
+  if (c.var.user.role === "dealer") return c.json({ error: "권한이 없습니다." }, 403);
+  const body = c.req.valid("json");
+  // 수동 유입 어휘만 — 자동 어휘("앱 견적요청" 등)를 수기 등록이 쓰면 앱 유입 통계가 오염된다.
+  // (validateLookupValue("source")는 자동 어휘까지 포함한 전체 SOURCE_OPTIONS를 보므로 쓰지 않는다.)
+  if (body.source != null && !SOURCE_MANUAL_OPTIONS.includes(body.source)) {
+    return c.json({ error: "유입 경로가 올바르지 않습니다." }, 400);
+  }
+  // 등록자 본인 자동 배정 — 이름 해석 실패(프로필 없음·공란)면 미배정으로 생성(fail-open).
+  // 등록이 프로필 이름 부재로 막히는 게 더 나쁘다. 자기 배정이라 배정 알림 경로는 없다.
+  const staffName = await getStaffName(c.var.user.id, c.var.db);
+  const advisor = staffName ? { id: c.var.user.id, name: staffName } : null;
+  const row = await c.var.db.transaction((tx) => createCustomerManual({ ...body, advisor }, tx));
+  // 프로필 청크 재임베딩 — source·advisorName이 구성 필드(CUSTOMER_PROFILE_EMBED_KEYS).
+  // 트랜잭션 resolve(=커밋) 후 스케줄(견적 생성 라우트와 동일 — 훅의 fresh read가 커밋 전 구값을 보는 것 방지).
+  scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: row.id });
+  return c.json(row, 201);
+});
 
 customers.get("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) =>
   run(c, () => getCustomer(c.req.valid("param").id, c.var.db), "고객을 찾을 수 없습니다."));

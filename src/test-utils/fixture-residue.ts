@@ -6,10 +6,19 @@
 import { sql } from "drizzle-orm";
 
 import type { Db } from "../db/client";
-import { prefixRegex, TEST_CUSTOMER_CODE_PREFIXES, TEST_QUOTE_CODE_PREFIXES } from "./fixture-codes";
+import { prefixRegex, TEST_CUSTOMER_CODE_PREFIXES, TEST_CUSTOMER_NAMES, TEST_QUOTE_CODE_PREFIXES } from "./fixture-codes";
 
 export const CUSTOMER_CODE_REGEX = prefixRegex(TEST_CUSTOMER_CODE_PREFIXES);
 export const QUOTE_CODE_REGEX = prefixRegex(TEST_QUOTE_CODE_PREFIXES);
+
+// 고객 잔재 판정 — 코드 접두사 or 등록된 픽스처 이름. 실채번 픽스처(POST 라우트 테스트)는
+// 코드가 CU-YYMM-####라 접두사로 못 잡는다 — 이름이 잡는다. scan과 check-test-residue --clean이 공유.
+// 이름 registry가 비면 이름 절을 통째로 생략한다 — `name in ()`은 SQL 문법 오류라 스캔 전체가 죽는다.
+export function customerResidueWhere() {
+  if (TEST_CUSTOMER_NAMES.length === 0) return sql`customer_code ~ ${CUSTOMER_CODE_REGEX}`;
+  const names = sql.join(TEST_CUSTOMER_NAMES.map((n) => sql`${n}`), sql`, `);
+  return sql`(customer_code ~ ${CUSTOMER_CODE_REGEX} or name in (${names}))`;
+}
 
 export type FixtureResidue = {
   customers: { customerCode: string; name: string; createdAt: string }[];
@@ -29,7 +38,7 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
 
   const customers = await asRows<{ customer_code: string; name: string; created_at: string }>(sql`
     select customer_code, name, created_at::text from crm.customers
-    where customer_code ~ ${CUSTOMER_CODE_REGEX} order by created_at`);
+    where ${customerResidueWhere()} order by created_at`);
   const quotes = await asRows<{ quote_code: string }>(sql`
     select quote_code from crm.quotes where quote_code ~ ${QUOTE_CODE_REGEX} order by created_at`);
   const [emb] = await asRows<{ n: number }>(sql`

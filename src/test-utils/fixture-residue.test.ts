@@ -51,6 +51,28 @@ test("검사기: 잔재를 실제로 탐지한다(트랜잭션 롤백)", async (
   expect(residueCount(restored)).toBe(baseline);
 });
 
+test("검사기: 실채번 코드여도 등록된 픽스처 이름이면 잡는다(트랜잭션 롤백)", async () => {
+  const baseline = residueCount(await scanFixtureResidue(db));
+
+  await db
+    .transaction(async (tx) => {
+      // 코드는 어떤 registry 접두사와도 무관한 값 — 이름이 유일한 검출 경로임을 증명한다.
+      // (POST /api/customers 라우트 테스트가 만드는 실채번 픽스처가 정확히 이 모양이다.)
+      await tx.execute(sql`insert into crm.customers (customer_code, name) values ('RESIDUE-NAME-PROBE', '수기등록테스트')`);
+      const after = await scanFixtureResidue(tx as unknown as typeof db);
+      expect(after.customers.map((c) => c.name)).toContain("수기등록테스트");
+      expect(residueCount(after)).toBe(baseline + 1);
+      throw new Error("rollback"); // 심은 행을 남기지 않는다
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Error) || e.message !== "rollback") throw e;
+    });
+
+  const restored = await scanFixtureResidue(db);
+  expect(restored.customers.map((c) => c.name)).not.toContain("수기등록테스트");
+  expect(residueCount(restored)).toBe(baseline);
+});
+
 // "실채번 코드를 잔재로 오인하지 않는다"는 단언은 fixture-codes.test.ts에 있다.
 // 이 파일은 getDefaultDb를 쓰므로 registry 계약 스캔의 대상이고, 여기에 `CU-2606-0001` 같은
 // 실채번 리터럴을 적으면 **그 스캔이 자기 형제를 위반으로 잡는다**(실제로 그렇게 됐다).
