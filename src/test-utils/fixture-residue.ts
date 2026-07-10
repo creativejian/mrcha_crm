@@ -13,7 +13,9 @@ export const QUOTE_CODE_REGEX = prefixRegex(TEST_QUOTE_CODE_PREFIXES);
 
 // 고객 잔재 판정 — 코드 접두사 or 등록된 픽스처 이름. 실채번 픽스처(POST 라우트 테스트)는
 // 코드가 CU-YYMM-####라 접두사로 못 잡는다 — 이름이 잡는다. scan과 check-test-residue --clean이 공유.
+// 이름 registry가 비면 이름 절을 통째로 생략한다 — `name in ()`은 SQL 문법 오류라 스캔 전체가 죽는다.
 export function customerResidueWhere() {
+  if (TEST_CUSTOMER_NAMES.length === 0) return sql`customer_code ~ ${CUSTOMER_CODE_REGEX}`;
   const names = sql.join(TEST_CUSTOMER_NAMES.map((n) => sql`${n}`), sql`, `);
   return sql`(customer_code ~ ${CUSTOMER_CODE_REGEX} or name in (${names}))`;
 }

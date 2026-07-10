@@ -30,7 +30,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
 // 실채번 픽스처의 **이름** registry — 서버가 코드를 채번해 접두사를 제어할 수 없는 테스트용.
 // POST /api/customers 라우트 테스트(routes/customers.create.test.ts)가 첫 사례:
 // 코드가 CU-YYMM-####(실채번)라 위 접두사 registry로는 잔재를 못 잡는다. 이름이 잡는다.
-export const TEST_CUSTOMER_NAMES = ["수기등록테스트"] as const;
+export const TEST_CUSTOMER_NAMES: readonly string[] = ["수기등록테스트"];
 
 export const TEST_QUOTE_CODE_PREFIXES = [
   "QT-AITOOL-",     // db/queries/assistant-tools.test.ts
