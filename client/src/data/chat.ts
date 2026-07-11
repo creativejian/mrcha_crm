@@ -21,15 +21,16 @@ export const CHAT_TAB_LABELS: Record<ChatQueueTab, string> = {
   ai: CHAT_MODE_LABELS.ai,
 };
 
-// ⚠️ 앱과의 문자열 결합 — 한 글자도 바꾸지 말 것(2026-07-10 앱 코드 실측).
-// 앱은 CRM이 chat_messages에 넣은 이 문구를 **접두사 매칭**으로 읽어 상담 상태를 복원한다:
-//
-//   mr-cha-app/lib/core/constants/handoff_system_messages.dart:20-21
-//     text.startsWith('담당 상담사가 연결') || text.startsWith('상담사 연결이 종료')
-//
-// 즉 "담당 상담사가 **배정**되었습니다"처럼 다듬는 순간 앱의 상태 복원이 **예외 없이 조용히** 깨진다.
+// ⚠️ 앱과의 문자열 결합 — 한 글자도 바꾸지 말 것(2026-07-10 실측 → 2026-07-11 범위 정밀화).
+// 핸드오버 **상태**는 chat_sessions.mode 기반이라 문구와 무관하지만, 앱은 이 문구를
+// mr-cha-app handoff_system_messages.dart의 6개 함수(isExternalNotification /
+// isHandoffSeparator / isAppHiddenInactivityWarning / separatorDisplayText /
+// toastText / toastDuration)에서 startsWith/exact 매칭 키로 써서
+// **알림 dispatch·핸드오버 구분선·토스트 문구/지속시간**을 결정한다.
+// 즉 "담당 상담사가 **배정**되었습니다"처럼 다듬는 순간 그 UI들이 **예외 없이 조용히** 깨진다.
 // 리포지토리가 달라 타입도 테스트도 이 결합을 잡지 못한다. 문구를 바꿔야 하면 앱 팀에 먼저 알린다.
-// (앱 팀도 이 구조가 취약하다는 데 동의했고, 문구 대신 chat_messages 메타 필드로 신호를 주고받는
-//  쪽으로 옮기기로 했다 — 그때까지는 이 상수가 계약이다.)
+// (해소 진행 중: public.chat_messages.metadata jsonb 신설 합의 — 슬라이스 2에서 lib/chat.ts
+//  insertSystemMessage가 system_kind(handoff_takeover/handoff_return)를 부착하고 앱 6함수가
+//  flag-first로 전환한다. 그때까지는 이 상수가 계약이다.)
 export const CHAT_SYSTEM_MSG_TAKEOVER = "담당 상담사가 연결되었습니다.";
 export const CHAT_SYSTEM_MSG_RETURN = "상담사 연결이 종료되었습니다. 차선생이 대화를 이어갑니다.";
