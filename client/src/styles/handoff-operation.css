@@ -2,10 +2,11 @@
    진입 = 프로필 팝오버 "차선생 앱 설정 > 상담 운영"(최고관리자 전용).
    공용 .card/.panel-head/.panel-body/.btn/.input/.textarea 위에 페이지 고유 룰만 얹는다. */
 
+/* 폭 상한 없음(고객 목록과 같은 full-width 콘솔 문법). 우측 참조 컬럼은 유동 —
+   창을 줄이면 함께 줄고(바닥 380px), 울트라와이드에서 과대해지지 않게 640px 상한. */
 .handoff-op-layout {
-  max-width: 1400px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
+  grid-template-columns: minmax(0, 1fr) clamp(380px, 28vw, 640px);
   gap: 12px;
   align-items: start;
 }
@@ -21,7 +22,6 @@
 /* 좁은 화면 = 1열 복귀(폼 먼저 — 방문 목적 대부분이 설정 변경, 현재 상태는 ChatPage 배지로도 상시 노출) */
 @media (max-width: 1280px) {
   .handoff-op-layout {
-    max-width: 860px;
     grid-template-columns: minmax(0, 1fr);
   }
 }
