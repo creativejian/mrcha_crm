@@ -3,6 +3,7 @@ import type { JWTVerifyGetKey } from "jose";
 
 import { createAuthMiddleware } from "./middleware/auth";
 import { dbMiddleware } from "./middleware/db";
+import { dealerWriteGate } from "./middleware/role-gate";
 import { assistant } from "./routes/assistant";
 import { catalog } from "./routes/catalog";
 import { consultations } from "./routes/consultations";
@@ -26,24 +27,21 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
     }),
   );
 
-  // 보호 라우트: 카카오 로그인(Supabase JWT) + role 게이트, 이후 요청 컨텍스트 db 주입.
-  // auth → db 순서: 401(미인증)은 db 생성 없이 차단.
-  app.use("/api/vehicles/*", auth);
-  app.use("/api/vehicles/*", dbMiddleware);
-  app.use("/api/catalog/*", auth);
-  app.use("/api/catalog/*", dbMiddleware);
-  app.use("/api/customers/*", auth);
-  app.use("/api/customers/*", dbMiddleware);
-  app.use("/api/quote-requests/*", auth);
-  app.use("/api/quote-requests/*", dbMiddleware);
-  app.use("/api/consultations/*", auth);
-  app.use("/api/consultations/*", dbMiddleware);
-  app.use("/api/assistant/*", auth);
-  app.use("/api/assistant/*", dbMiddleware);
-  app.use("/api/staff/*", auth);
-  app.use("/api/staff/*", dbMiddleware);
-  app.use("/api/me/*", auth);
-  app.use("/api/me/*", dbMiddleware);
+  // 보호 라우트 공통 체인 — 순서가 규약: auth(401) → dealerWriteGate(403, dealer 쓰기 전면 차단)
+  // → db. 401/403은 db 생성 없이 차단된다. 딜러의 정당한 쓰기 개방은 role-gate.ts allowlist로.
+  const protect = (path: string) => {
+    app.use(path, auth);
+    app.use(path, dealerWriteGate);
+    app.use(path, dbMiddleware);
+  };
+  protect("/api/vehicles/*");
+  protect("/api/catalog/*");
+  protect("/api/customers/*");
+  protect("/api/quote-requests/*");
+  protect("/api/consultations/*");
+  protect("/api/assistant/*");
+  protect("/api/staff/*");
+  protect("/api/me/*");
 
   app.route("/api/vehicles", vehicles);
   app.route("/api/catalog", catalog);
