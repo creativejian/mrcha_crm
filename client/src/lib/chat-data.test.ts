@@ -141,6 +141,7 @@ describe("takeOverSession", () => {
     expect(sys.argOf("insert")).toEqual({
       user_id: "u1", session_id: "s1", message: CHAT_SYSTEM_MSG_TAKEOVER,
       is_user: false, sender_type: "system",
+      metadata: { system_kind: "handoff_takeover" },
     });
   });
   it("이미 다른 상담원이 인수했으면(update 0행) false, system 메시지 없음", async () => {
@@ -165,6 +166,7 @@ describe("returnSessionToAi", () => {
     expect(sys.argOf("insert")).toEqual({
       user_id: "u1", session_id: "s1", message: CHAT_SYSTEM_MSG_RETURN,
       is_user: false, sender_type: "system",
+      metadata: { system_kind: "handoff_return" },
     });
     expect(upd.argOf("update")).toEqual({ mode: "ai", assigned_staff_id: null, assigned_at: null });
   });
