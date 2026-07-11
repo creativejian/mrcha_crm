@@ -71,6 +71,7 @@ changeAdvisorBulk(
 
 - `changeAdvisorBulk` 완료 → 성공 ≥1건이면 `onCustomerListChanged?.()`(App `reloadCustomers` 배선,
   AppRequestsPage 선례) + **성공한 건만 선택 해제**(실패 건 선택 유지 — 재시도) + 팝오버 닫기.
+- 리로드 실패는 advisorNotice로 맥락화(#215 관례 — 전역 배너만으로는 변경 실패로 오인).
 - 실패 있으면 notice(`N명 변경 실패 — 이름: 사유 …`, 삭제의 `bulk-delete-notice` 문법 —
   자동으로 사라지지 않음). 전건 실패면 리로드 생략.
 - `updateCustomer`가 건별로 `invalidateCustomerDetail`을 이미 호출 — 상세 캐시 정합 공짜.

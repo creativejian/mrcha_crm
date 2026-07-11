@@ -26,7 +26,8 @@ type CustomerManagementPageProps = {
   // 수기 등록 성공 후 App이 목록 리로드 + 드로어 URL 이동을 처리한다(customerCode 전달).
   onCustomerCreated?: (customerCode: string) => void;
   // 일괄 담당자 변경 성공 후 App이 목록을 서버에서 리로드한다(assignedAt 등 서버 스탬프가 진실).
-  onCustomerListChanged?: () => void;
+  // 반환이 Promise<boolean>(App reloadCustomers)이면 실패를 advisorNotice로 맥락화한다(#215 관례).
+  onCustomerListChanged?: () => void | Promise<boolean>;
   // 진행상태/계약가능성을 단일 소스(App.updateCustomerWorkflow)로 보내 DB 저장+상세 동기화한다.
   // App 라우트에선 항상 전달되고, 단독(stories/test)에선 미전달 → 내부 state 폴백.
   onWorkflowChange?: (
@@ -559,7 +560,17 @@ export function CustomerManagementPage({
         return !customer?.id || !changed.has(customer.id);
       }));
       // 서버 리로드(assignedAt 등 서버 스탬프가 진실).
-      onCustomerListChanged?.();
+      const reload = onCustomerListChanged?.();
+      if (reload instanceof Promise) {
+        void reload.then((ok) => {
+          if (ok === false) {
+            // 변경은 저장됐는데 화면만 stale — 전역 배너는 이 작업과 무관해 보여 오인을 만든다.
+            setAdvisorNotice((current) => current
+              ? `${current} / 목록 갱신 실패 — 새로고침해 주세요.`
+              : "담당자 변경은 저장됐지만 목록을 불러오지 못했습니다. 새로고침해 주세요.");
+          }
+        });
+      }
     }
   }
 
