@@ -30,7 +30,9 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
 // 실채번 픽스처의 **이름** registry — 서버가 코드를 채번해 접두사를 제어할 수 없는 테스트용.
 // POST /api/customers 라우트 테스트(routes/customers.create.test.ts)가 첫 사례:
 // 코드가 CU-YYMM-####(실채번)라 위 접두사 registry로는 잔재를 못 잡는다. 이름이 잡는다.
-export const TEST_CUSTOMER_NAMES: readonly string[] = ["수기등록테스트"];
+// "게이트검증"(middleware/role-gate.test.ts)은 403 전제라 평소엔 행을 안 만들지만,
+// 게이트 변이/회귀 시 dealer POST가 실제 INSERT돼 잔재가 된다(2026-07-11 변이 검증 중 실발생).
+export const TEST_CUSTOMER_NAMES: readonly string[] = ["수기등록테스트", "게이트검증"];
 
 export const TEST_QUOTE_CODE_PREFIXES = [
   "QT-AITOOL-",     // db/queries/assistant-tools.test.ts

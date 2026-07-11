@@ -83,10 +83,9 @@ customers.get("/", async (c) => c.json(await listCustomers(c.var.db)));
 
 // ── 고객 수기 등록(전화·소개 유입 — 앱 승격 외 유일한 생성 경로) ────
 // spec: ref/specs/2026-07-10-crm-customer-create-design.md
-// dealer는 fail-closed — 역할 scope(resolveCustomerScope)에서 dealer가 아무것도 못 보는 것과 정합.
+// dealer 차단은 전역 dealerWriteGate(middleware/role-gate.ts)가 담당 — 구 인라인 게이트는 그리 이관.
 // 서버가 진짜 게이트다(프론트 버튼 숨김은 UX 보조 — DELETE 라우트와 같은 원칙).
 customers.post("/", zValidator("json", customerCreateSchema), async (c) => {
-  if (c.var.user.role === "dealer") return c.json({ error: "권한이 없습니다." }, 403);
   const body = c.req.valid("json");
   // 수동 유입 어휘만 — 자동 어휘("앱 견적요청" 등)를 수기 등록이 쓰면 앱 유입 통계가 오염된다.
   // (validateLookupValue("source")는 자동 어휘까지 포함한 전체 SOURCE_OPTIONS를 보므로 쓰지 않는다.)
