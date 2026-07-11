@@ -3,6 +3,8 @@
 // lib/presentation/providers/handoff_provider.dart. payload·문구·전이 순서를 임의로 바꾸지 말 것.
 import {
   CHAT_SESSION_MODES,
+  CHAT_SYSTEM_KIND_RETURN,
+  CHAT_SYSTEM_KIND_TAKEOVER,
   CHAT_SYSTEM_MSG_RETURN,
   CHAT_SYSTEM_MSG_TAKEOVER,
   type ChatSessionMode,
@@ -189,13 +191,20 @@ export async function getStaffId(): Promise<string> {
 
 // 앱 insertSystemMessage 미러: staff_id 없음 + 실패는 삼킨다(상태 전이를 무르지 않음 —
 // supabase_chat_repository.dart:255-271 try/catch와 동일. 실패 시 안내줄만 누락되고 Realtime 세션 상태가 진실).
-async function insertSystemMessage(userId: string, sessionId: string, message: string): Promise<void> {
+// systemKind = metadata.system_kind 구조화 신호(문구 매칭 대체, 앱은 kind 우선 + 과거 행 문구 폴백).
+async function insertSystemMessage(
+  userId: string,
+  sessionId: string,
+  message: string,
+  systemKind: string,
+): Promise<void> {
   const { error } = await supabase.from("chat_messages").insert({
     user_id: userId,
     session_id: sessionId,
     message,
     is_user: false,
     sender_type: "system",
+    metadata: { system_kind: systemKind },
   });
   if (error) console.error("system 메시지 기록 실패:", error);
 }
@@ -223,13 +232,13 @@ export async function takeOverSession(
     .select();
   if (error) throw error;
   if (!data || (data as unknown[]).length === 0) return false;
-  await insertSystemMessage(session.userId, session.id, CHAT_SYSTEM_MSG_TAKEOVER);
+  await insertSystemMessage(session.userId, session.id, CHAT_SYSTEM_MSG_TAKEOVER, CHAT_SYSTEM_KIND_TAKEOVER);
   return true;
 }
 
 // 앱 returnToAi 미러: system 메시지 먼저 → 세션 초기화(assigned 둘 다 null clear).
 export async function returnSessionToAi(session: { id: string; userId: string }): Promise<void> {
-  await insertSystemMessage(session.userId, session.id, CHAT_SYSTEM_MSG_RETURN);
+  await insertSystemMessage(session.userId, session.id, CHAT_SYSTEM_MSG_RETURN, CHAT_SYSTEM_KIND_RETURN);
   const { error } = await supabase
     .from("chat_sessions")
     .update({ mode: "ai", assigned_staff_id: null, assigned_at: null })
