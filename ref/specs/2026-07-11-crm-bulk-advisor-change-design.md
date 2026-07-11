@@ -19,7 +19,8 @@
    정합. 상담사/딜러 화면엔 담당 개념 자체가 숨겨져 있다. 서버는 개별 PATCH를 그대로 타므로
    **추가 게이트 없음** — 개별 배정과 동일 권한 의미(숨김은 UX 보조).
 4. **완료 후 서버 리로드**: 로컬 낙관 패치 대신 `reloadCustomers`(App) 재사용 —
-   `assignedAt` 등 서버 스탬프가 진실. 성공 ≥1건이면 리로드 + 선택 해제.
+   `assignedAt` 등 서버 스탬프가 진실. 성공 ≥1건이면 리로드 + **성공한 건만 선택 해제**
+   (실패 건 선택 유지 — 재시도, `deleteSelected`와 대칭).
 
 ## 서버가 이미 갖고 있는 것 (변경 0의 근거)
 
@@ -69,7 +70,7 @@ changeAdvisorBulk(
 ### 4. 완료 흐름
 
 - `changeAdvisorBulk` 완료 → 성공 ≥1건이면 `onCustomerListChanged?.()`(App `reloadCustomers` 배선,
-  AppRequestsPage 선례) + `setSelected([])` + 팝오버 닫기.
+  AppRequestsPage 선례) + **성공한 건만 선택 해제**(실패 건 선택 유지 — 재시도) + 팝오버 닫기.
 - 실패 있으면 notice(`N명 변경 실패 — 이름: 사유 …`, 삭제의 `bulk-delete-notice` 문법 —
   자동으로 사라지지 않음). 전건 실패면 리로드 생략.
 - `updateCustomer`가 건별로 `invalidateCustomerDetail`을 이미 호출 — 상세 캐시 정합 공짜.

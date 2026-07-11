@@ -551,9 +551,14 @@ export function CustomerManagementPage({
         ? `${failed.length}명 변경 실패 — ${failed.map((f) => `${f.name}: ${f.reason}`).join(" / ")}`
         : null,
     );
-    // 성공한 건이 있으면 서버 리로드(assignedAt 스탬프 반영) + 선택 해제.
     if (changedIds.length) {
-      setSelected([]);
+      const changed = new Set(changedIds);
+      // 성공한 건만 선택 해제 — 실패 행은 선택을 유지해 즉시 재시도할 수 있게 한다(deleteSelected와 대칭).
+      setSelected((current) => current.filter((no) => {
+        const customer = customers.find((c) => c.no === no);
+        return !customer?.id || !changed.has(customer.id);
+      }));
+      // 서버 리로드(assignedAt 등 서버 스탬프가 진실).
       onCustomerListChanged?.();
     }
   }
@@ -949,7 +954,7 @@ export function CustomerManagementPage({
                     aria-label="선택 고객 배정 변경"
                     className="btn advisor-change-btn"
                     disabled={selected.length === 0 || changingAdvisor}
-                    onClick={() => { setAdvisorNotice(null); setChangingAdvisorOpen((open) => !open); }}
+                    onClick={() => { setAdvisorNotice(null); if (changingAdvisorOpen) setAdvisorPick(""); setChangingAdvisorOpen((open) => !open); }}
                     type="button"
                   >
                     <RefreshCcw aria-hidden="true" size={12} strokeWidth={2.25} />
@@ -969,7 +974,7 @@ export function CustomerManagementPage({
                       </label>
                       <p>같은 담당자인 고객은 배정시각이 바뀌지 않고, 새 담당자에게는 고객당 1건씩 알림이 갑니다.</p>
                       <div>
-                        <button disabled={changingAdvisor} onClick={() => setChangingAdvisorOpen(false)} type="button">취소</button>
+                        <button disabled={changingAdvisor} onClick={() => { setAdvisorPick(""); setChangingAdvisorOpen(false); }} type="button">취소</button>
                         <button className="primary-action" disabled={changingAdvisor || !staffDirectory.length} onClick={submitAdvisorChange} type="button">
                           {changingAdvisor ? "변경 중…" : "변경"}
                         </button>
