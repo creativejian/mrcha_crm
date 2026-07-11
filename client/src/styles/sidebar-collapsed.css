@@ -76,18 +76,6 @@
   display: none;
 }
 
-.sidebar.collapsed .nav .nav-item.nav-parent-open:not(.active) {
-  background: transparent;
-  color: #5f6366;
-  font-weight: 500;
-  box-shadow: none;
-}
-
-.sidebar.collapsed .nav .nav-item.nav-parent-open:not(.active):hover {
-  background: #f3f3f2;
-  color: #222;
-}
-
 .sidebar.collapsed .nav-group:has(.sidebar-flyout)::after {
   content: "";
   position: absolute;

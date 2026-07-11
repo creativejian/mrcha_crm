@@ -93,6 +93,11 @@
   margin: auto 8px 0;
   max-height: 260px;
   overflow: hidden;
+  /* overflow:hidden인 flex 자식은 min-height가 0으로 계산돼, 메뉴가 100vh를 넘으면 사이드바
+     스크롤이 발동하기 전에 이 박스가 먼저 찌그러져 사라진다(0px 실측, 2026-07-11 실기 버그).
+     shrink를 막아 초과분이 사이드바 overflow-y: auto 스크롤로 가게 한다. 접힘 모드의
+     max-height: 0 숨김 transition과는 무관(max-height가 이긴다). */
+  flex-shrink: 0;
   transition: opacity 0.11s ease, transform 0.14s ease, max-height 0.16s ease, margin 0.16s ease, visibility 0.11s ease;
 }
 
@@ -263,16 +268,6 @@
 .nav .nav-item small {
   font-size: 11px;
   font-weight: 650;
-}
-
-.nav .nav-item.nav-parent-open {
-  background: #efefed;
-  color: #34383c;
-  font-weight: 520;
-}
-
-.nav .nav-item.nav-parent-open .nav-chevron {
-  color: #6f7780;
 }
 
 .nav .nav-item.active {
