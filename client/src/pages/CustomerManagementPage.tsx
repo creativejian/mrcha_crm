@@ -8,6 +8,7 @@ import { createCustomer, prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
+import { changeAdvisorBulk } from "@/lib/customer-bulk-advisor";
 import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-delete";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
@@ -24,6 +25,8 @@ type CustomerManagementPageProps = {
   onOpenCustomer?: (customer: Customer) => void;
   // 수기 등록 성공 후 App이 목록 리로드 + 드로어 URL 이동을 처리한다(customerCode 전달).
   onCustomerCreated?: (customerCode: string) => void;
+  // 일괄 담당자 변경 성공 후 App이 목록을 서버에서 리로드한다(assignedAt 등 서버 스탬프가 진실).
+  onCustomerListChanged?: () => void;
   // 진행상태/계약가능성을 단일 소스(App.updateCustomerWorkflow)로 보내 DB 저장+상세 동기화한다.
   // App 라우트에선 항상 전달되고, 단독(stories/test)에선 미전달 → 내부 state 폴백.
   onWorkflowChange?: (
@@ -88,12 +91,14 @@ export function CustomerManagementPage({
   onCustomersChange,
   onOpenCustomer,
   onCustomerCreated,
+  onCustomerListChanged,
   onWorkflowChange,
   roleTab = "최고관리자",
 }: CustomerManagementPageProps) {
   const [internalCustomers, setInternalCustomers] = useState(initialCustomers);
   // 담당자 후보/필터 = 직원 디렉토리(profiles CRM 역할) — ADVISOR_NAMES 목업 폐기(#176 후속).
-  const staffNames = useStaffDirectory().staff.map((s) => s.name);
+  const { staff: staffDirectory } = useStaffDirectory();
+  const staffNames = staffDirectory.map((s) => s.name);
   const [search, setSearch] = useState("");
   const [statusGroup, setStatusGroup] = useState("");
   const [status, setStatus] = useState("");
@@ -139,6 +144,12 @@ export function CustomerManagementPage({
   const [createSource, setCreateSource] = useState<string>(SOURCE_MANUAL_OPTIONS[0]);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // 일괄 담당자 변경 — 노출은 담당 컬럼 기준(관리자/팀장)과 정합. 서버는 개별 PATCH 그대로라
+  // 추가 게이트 없음(개별 배정과 동일 권한 의미 — 숨김은 UX 보조).
+  const [changingAdvisorOpen, setChangingAdvisorOpen] = useState(false);
+  const [advisorPick, setAdvisorPick] = useState("");
+  const [changingAdvisor, setChangingAdvisor] = useState(false);
+  const [advisorNotice, setAdvisorNotice] = useState<string | null>(null);
   const customers = controlledCustomers ?? internalCustomers;
   const chanceOverrides = controlledChanceOverrides ?? internalChanceOverrides;
   // 삭제 확인창과 deleteSelected가 같은 대상 집합을 본다. selected는 페이지·필터를 넘어 유지되므로
@@ -519,6 +530,31 @@ export function CustomerManagementPage({
       setCreateError(e instanceof Error ? e.message : "등록에 실패했습니다.");
     } finally {
       setCreateSubmitting(false);
+    }
+  }
+
+  // select 미조작 시 첫 직원이 기본값 — 디렉토리 미로드면 빈 문자열(버튼 disabled가 막는다).
+  const advisorPickId = advisorPick || (staffDirectory[0]?.id ?? "");
+
+  async function submitAdvisorChange() {
+    if (changingAdvisor) return;
+    const picked = staffDirectory.find((s) => s.id === advisorPickId);
+    if (!picked) return; // 디렉토리 미로드 — disabled가 막지만 이중 방어
+    const targets = selectedCustomers.map((customer) => ({ id: customer.id, name: customer.name }));
+    setChangingAdvisor(true);
+    const { changedIds, failed } = await changeAdvisorBulk(targets, { id: picked.id, name: picked.name });
+    setChangingAdvisor(false);
+    setChangingAdvisorOpen(false);
+    setAdvisorPick("");
+    setAdvisorNotice(
+      failed.length
+        ? `${failed.length}명 변경 실패 — ${failed.map((f) => `${f.name}: ${f.reason}`).join(" / ")}`
+        : null,
+    );
+    // 성공한 건이 있으면 서버 리로드(assignedAt 스탬프 반영) + 선택 해제.
+    if (changedIds.length) {
+      setSelected([]);
+      onCustomerListChanged?.();
     }
   }
 
@@ -907,10 +943,47 @@ export function CustomerManagementPage({
               )}
             </div>
             <div className="top-actions">
-              <button aria-label="선택 고객 배정 변경" className="btn advisor-change-btn" disabled={selected.length === 0} type="button">
-                <RefreshCcw aria-hidden="true" size={12} strokeWidth={2.25} />
-                <span>담당자 변경</span>
-              </button>
+              {showAdvisorColumn ? (
+                <div className="advisor-change-wrap">
+                  <button
+                    aria-label="선택 고객 배정 변경"
+                    className="btn advisor-change-btn"
+                    disabled={selected.length === 0 || changingAdvisor}
+                    onClick={() => { setAdvisorNotice(null); setChangingAdvisorOpen((open) => !open); }}
+                    type="button"
+                  >
+                    <RefreshCcw aria-hidden="true" size={12} strokeWidth={2.25} />
+                    <span>{selected.length ? `${selected.length}명 담당자 변경` : "담당자 변경"}</span>
+                  </button>
+                  {changingAdvisorOpen && selected.length > 0 ? (
+                    <div aria-label="담당자 일괄 변경" className="advisor-change-confirm" role="dialog">
+                      <strong>고객 {selected.length}명 담당자 변경</strong>
+                      <p className="advisor-change-targets">{formatBulkTargetNames(selectedCustomers.map((customer) => customer.name))}</p>
+                      <label>
+                        <span>담당자</span>
+                        <select disabled={!staffDirectory.length} {...bindSelect(advisorPickId, setAdvisorPick)}>
+                          {staffDirectory.length
+                            ? staffDirectory.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)
+                            : <option value="">직원 목록 불러오는 중…</option>}
+                        </select>
+                      </label>
+                      <p>같은 담당자인 고객은 배정시각이 바뀌지 않고, 새 담당자에게는 고객당 1건씩 알림이 갑니다.</p>
+                      <div>
+                        <button disabled={changingAdvisor} onClick={() => setChangingAdvisorOpen(false)} type="button">취소</button>
+                        <button className="primary-action" disabled={changingAdvisor || !staffDirectory.length} onClick={submitAdvisorChange} type="button">
+                          {changingAdvisor ? "변경 중…" : "변경"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {advisorNotice ? (
+                    <div className="advisor-change-notice" role="status">
+                      <span>{advisorNotice}</span>
+                      <button onClick={() => setAdvisorNotice(null)} type="button">닫기</button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {canDeleteCustomers ? (
                 <div className="bulk-delete-wrap">
                   <button

@@ -1004,3 +1004,122 @@
   border-radius: 6px;
   font-size: 12px;
 }
+
+/* 일괄 담당자 변경 팝오버 — 삭제 확인창(.bulk-delete-confirm)과 같은 문법.
+   삭제와 달리 되돌릴 수 있는 조작이라 대상 이름은 경고색이 아니라 중립색이다. */
+.customer-console-headbar .advisor-change-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.customer-console-headbar .advisor-change-confirm,
+.customer-console-headbar .advisor-change-notice {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 320px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.14);
+  padding: 12px 13px;
+  text-align: left;
+}
+
+.customer-console-headbar .advisor-change-confirm strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #1f2933;
+}
+
+.customer-console-headbar .advisor-change-confirm p {
+  margin: 5px 0 10px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #5f6872;
+}
+
+.customer-console-headbar .advisor-change-confirm p.advisor-change-targets {
+  margin: 4px 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #3f474f;
+  word-break: keep-all;
+}
+
+.customer-console-headbar .advisor-change-confirm label {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  color: #5f6872;
+}
+
+.customer-console-headbar .advisor-change-confirm select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  font-size: 12px;
+  color: #1f2933;
+}
+
+.customer-console-headbar .advisor-change-confirm select:focus {
+  outline: none;
+  border-color: rgba(var(--brand-rgb), 0.34);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
+}
+
+.customer-console-headbar .advisor-change-confirm > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.customer-console-headbar .advisor-change-confirm button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: #4f5a64;
+  cursor: pointer;
+}
+
+.customer-console-headbar .advisor-change-confirm button.primary-action {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.customer-console-headbar .advisor-change-confirm button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 실패 안내 — 건별 사유를 그대로 보여준다. 자동으로 사라지지 않는다(삭제 notice와 동일). */
+.customer-console-headbar .advisor-change-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #b42318;
+}
+
+.customer-console-headbar .advisor-change-notice button {
+  flex: none;
+  border: 0;
+  background: none;
+  font-size: 11.5px;
+  color: #7f858c;
+  cursor: pointer;
+}
