@@ -15,10 +15,9 @@ export type BulkDeleteResult = {
 // 되돌릴 수 없는 조작이라 "지워진 것처럼 보였는데 살아 있음"이 최악의 상태다(리로딩하면 되살아나는 현행 버그).
 const NAME_PREVIEW_LIMIT = 5;
 
-// 삭제 확인창에 "누구를 지우는지" 보여준다. 선택(selected)은 페이지·필터를 넘어 유지되므로
-// "고객 5명 삭제"만 뜨면 화면에 안 보이는 고객이 섞여 있어도 알 수 없다.
-// 되돌릴 수 없는 조작에서 대상이 안 보이는 건 위험하다.
-export function formatDeleteTargetNames(names: readonly string[]): string {
+// 확인창에 "누구를" 조작하는지 보여준다 — 일괄 삭제·일괄 배정 공용. 선택(selected)은
+// 페이지·필터를 넘어 유지되므로 "고객 5명"만 뜨면 화면에 안 보이는 대상이 섞여 있어도 알 수 없다.
+export function formatBulkTargetNames(names: readonly string[]): string {
   if (names.length === 0) return "";
   const labels = names.map((name) => name.trim() || "이름 없음");
   if (labels.length <= NAME_PREVIEW_LIMIT) return labels.join(", ");

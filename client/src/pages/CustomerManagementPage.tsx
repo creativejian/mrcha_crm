@@ -8,7 +8,7 @@ import { createCustomer, prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
-import { deleteCustomersBulk, formatDeleteTargetNames } from "@/lib/customer-bulk-delete";
+import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-delete";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -926,7 +926,7 @@ export function CustomerManagementPage({
                     <div aria-label="고객 삭제 확인" className="bulk-delete-confirm" role="dialog">
                       <strong>고객 {selected.length}명 삭제</strong>
                       {/* 선택은 페이지·필터를 넘어 유지된다 — 화면에 안 보이는 대상도 여기서 드러난다. */}
-                      <p className="bulk-delete-targets">{formatDeleteTargetNames(selectedCustomers.map((customer) => customer.name))}</p>
+                      <p className="bulk-delete-targets">{formatBulkTargetNames(selectedCustomers.map((customer) => customer.name))}</p>
                       <p>
                         메모·할일·일정·서류·견적이 함께 사라지며, 되돌릴 수 없습니다.
                         앱으로 발송한 견적이 있는 고객은 삭제되지 않습니다 — 견적함에서 먼저 회수하세요.
