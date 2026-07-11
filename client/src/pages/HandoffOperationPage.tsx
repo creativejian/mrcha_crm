@@ -164,31 +164,11 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
   const staffNameById = new Map(staff.map((entry) => [entry.id, entry.name]));
 
   return (
+    // 2열: 좌 = 편집 폼(모드→시간→문구→저장), 우 = 참조(현재 상태·이력) — 고객 상세 drawer의
+    // "좌 작업/우 참조" 문법. 저장·Realtime 변경 결과가 우측 상태 카드에서 스크롤 없이 보인다.
+    // 좁은 화면은 1열 복귀(폼 먼저 — 이 페이지 방문 목적이 대부분 설정 변경).
     <div className="handoff-op-layout">
-      <section className="card handoff-op-card">
-        <div className="panel-head">
-          <h2>현재 상태</h2>
-          {badge && <span className={`handoff-op-badge ${badge.tone}`}>{badge.label}</span>}
-        </div>
-        <div className="panel-body handoff-op-status">
-          {availability ? (
-            <>
-              <p className="handoff-op-status-line">
-                지금 고객 앱에서 상담사 연결이 <strong>{availability.available ? "가능합니다" : "불가능합니다"}</strong>.
-                <span className="handoff-op-dim"> 운영시간: {availability.scheduleDescription}</span>
-              </p>
-              {availability.nextOpenAt && (
-                <p className="handoff-op-status-line">다음 상담 가능 시각: <strong>{formatKst(availability.nextOpenAt)}</strong></p>
-              )}
-              {/* 고객이 앱 채팅에서 볼 실물 미리보기 — 앱이 이 message를 마크다운 렌더(softLineBreak)하므로 원문이 아니라 렌더본을 보여준다. */}
-              {availability.message && <blockquote className="handoff-op-quote"><MarkdownMessage content={withAppLineBreaks(availability.message)} /></blockquote>}
-            </>
-          ) : (
-            <p className="handoff-op-dim">판정 결과를 불러오는 중…</p>
-          )}
-        </div>
-      </section>
-
+      <div className="handoff-op-main">
       {remoteChanged && (
         <div className="notice-box handoff-op-remote">
           다른 관리자가 방금 설정을 변경했습니다. 아래 편집 중인 값은 유지됩니다 —
@@ -317,6 +297,32 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
           </div>
         </div>
       </section>
+      </div>
+
+      <aside className="handoff-op-side">
+      <section className="card handoff-op-card">
+        <div className="panel-head">
+          <h2>현재 상태</h2>
+          {badge && <span className={`handoff-op-badge ${badge.tone}`}>{badge.label}</span>}
+        </div>
+        <div className="panel-body handoff-op-status">
+          {availability ? (
+            <>
+              <p className="handoff-op-status-line">
+                지금 고객 앱에서 상담사 연결이 <strong>{availability.available ? "가능합니다" : "불가능합니다"}</strong>.
+                <span className="handoff-op-dim"> 운영시간: {availability.scheduleDescription}</span>
+              </p>
+              {availability.nextOpenAt && (
+                <p className="handoff-op-status-line">다음 상담 가능 시각: <strong>{formatKst(availability.nextOpenAt)}</strong></p>
+              )}
+              {/* 고객이 앱 채팅에서 볼 실물 미리보기 — 앱이 이 message를 마크다운 렌더(softLineBreak)하므로 원문이 아니라 렌더본을 보여준다. */}
+              {availability.message && <blockquote className="handoff-op-quote"><MarkdownMessage content={withAppLineBreaks(availability.message)} /></blockquote>}
+            </>
+          ) : (
+            <p className="handoff-op-dim">판정 결과를 불러오는 중…</p>
+          )}
+        </div>
+      </section>
 
       <section className="card handoff-op-card">
         <div className="panel-head"><h2>변경 이력</h2><span className="handoff-op-dim">최근 {audits.length}건</span></div>
@@ -337,6 +343,7 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
           )}
         </div>
       </section>
+      </aside>
     </div>
   );
 }

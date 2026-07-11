@@ -3,10 +3,27 @@
    공용 .card/.panel-head/.panel-body/.btn/.input/.textarea 위에 페이지 고유 룰만 얹는다. */
 
 .handoff-op-layout {
-  max-width: 860px;
+  max-width: 1400px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 12px;
+  align-items: start;
+}
+
+.handoff-op-main,
+.handoff-op-side {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* 좁은 화면 = 1열 복귀(폼 먼저 — 방문 목적 대부분이 설정 변경, 현재 상태는 ChatPage 배지로도 상시 노출) */
+@media (max-width: 1280px) {
+  .handoff-op-layout {
+    max-width: 860px;
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .handoff-op-loading {
