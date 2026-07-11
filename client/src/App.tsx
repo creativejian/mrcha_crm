@@ -331,6 +331,7 @@ export function App() {
               roleTab={roleTab}
               onChanceOverridesChange={setChanceOverrides}
               onCustomerCreated={handleCustomerCreated}
+              onCustomerListChanged={reloadCustomers}
               onCustomersChange={setCustomers}
               onOpenCustomer={openCustomerDetailPanel}
               onWorkflowChange={updateCustomerWorkflow}
