@@ -20,6 +20,7 @@ import { CustomerDetailPage } from "@/pages/CustomerDetailPage";
 import { CustomerManagementPage } from "@/pages/CustomerManagementPage";
 import { DeliveryPage } from "@/pages/DeliveryPage";
 import { FinancePage, type FinanceMode } from "@/pages/FinancePage";
+import { HandoffOperationPage } from "@/pages/HandoffOperationPage";
 import { InsightsPage } from "@/pages/InsightsPage";
 import { KnowledgeBasePage } from "@/pages/KnowledgeBasePage";
 import { MCMasterPage } from "@/pages/MCMasterPage";
@@ -28,7 +29,7 @@ import { PartnersPage } from "@/pages/PartnersPage";
 import { PipelinePage } from "@/pages/PipelinePage";
 import { QuotesPage } from "@/pages/QuotesPage";
 
-type ViewKey = "advisor-dashboard" | "dashboard-preview" | "admin-dashboard" | "chat" | "customers" | "app-requests" | "customer-detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance";
+type ViewKey = "advisor-dashboard" | "dashboard-preview" | "admin-dashboard" | "chat" | "customers" | "app-requests" | "customer-detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance" | "handoff-operation";
 
 const VIEW_TO_PATH: Record<ViewKey, string> = {
   "advisor-dashboard": "/",
@@ -48,6 +49,7 @@ const VIEW_TO_PATH: Record<ViewKey, string> = {
   "org-members": "/org-members",
   partners: "/partners",
   finance: "/finance",
+  "handoff-operation": "/handoff-operation",
 };
 const PATH_TO_VIEW: Record<string, ViewKey> = Object.fromEntries(
   Object.entries(VIEW_TO_PATH).map(([view, path]) => [path, view as ViewKey]),
@@ -71,6 +73,7 @@ const viewMeta: Record<ViewKey, [string, string]> = {
   "org-members": ["조직 / 구성원", "구성원, 조직, 권한, 배정 기준을 한 곳에서 관리하는 대표 전용 운영 화면입니다."],
   partners: ["딜러 / 거래처", "딜러, 금융사, 시공/탁송, 제휴처 등 외부 협력 네트워크를 관리합니다."],
   finance: ["재무 관리", "매출, 지출, 정산, 급여 기준을 연결해 차선생의 돈 흐름을 관리합니다."],
+  "handoff-operation": ["상담 운영 설정", "고객 앱 실시간 상담사 연결의 운영시간과 강제 ON/OFF, 안내 문구를 관리합니다."],
 };
 
 const financeModeMeta: Record<FinanceMode, [string, string]> = {
@@ -318,7 +321,7 @@ export function App() {
         <Route path="/" element={<AdvisorDashboardPage />} />
         <Route path="/dashboard-preview" element={<DashboardPreviewPage />} />
         <Route path="/admin-dashboard" element={isAdmin ? <AdminDashboardPage /> : <Navigate to="/" replace />} />
-        <Route path="/chat" element={<ChatPage customers={customers} onOpenCustomer={openCustomerDetailPanel} onToast={showToast} onRead={markChatRequestsRead} />} />
+        <Route path="/chat" element={<ChatPage customers={customers} roleTab={roleTab} onOpenCustomer={openCustomerDetailPanel} onToast={showToast} onRead={markChatRequestsRead} />} />
         <Route
           path="/customers"
           element={
@@ -372,6 +375,7 @@ export function App() {
         <Route path="/org-members" element={<OrgMembersPage />} />
         <Route path="/partners" element={<PartnersPage />} />
         <Route path="/finance" element={isAdmin ? <FinancePage mode={financeMode} /> : <Navigate to="/" replace />} />
+        <Route path="/handoff-operation" element={isAdmin ? <HandoffOperationPage onToast={showToast} /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );

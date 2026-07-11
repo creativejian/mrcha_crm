@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Customer } from "@/data/customers";
 import { CHAT_QUEUE_TABS, CHAT_TAB_LABELS, type ChatQueueTab } from "@/data/chat";
+import type { RoleTab } from "@/data/roles";
 import { getStaffId } from "@/lib/chat";
 import { fetchStaffDirectory, type StaffEntry } from "@/lib/staff";
 import { useChatSessions } from "@/hooks/useChatSessions";
@@ -10,15 +11,17 @@ import { ChatThread } from "@/components/chat/ChatThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatSessionHeader } from "@/components/chat/ChatSessionHeader";
 import { ChatCustomerPanel } from "@/components/chat/ChatCustomerPanel";
+import { HandoffStatusBadge } from "@/components/chat/HandoffStatusBadge";
 
 type ChatPageProps = {
   customers: Customer[];
+  roleTab: RoleTab;
   onOpenCustomer: (customer: Customer) => void;
   onToast: (message: string) => void;
   onRead: () => void; // Topbar pending 알림 읽음 처리
 };
 
-export function ChatPage({ customers, onOpenCustomer, onToast, onRead }: ChatPageProps) {
+export function ChatPage({ customers, roleTab, onOpenCustomer, onToast, onRead }: ChatPageProps) {
   useEffect(() => { onRead(); }, [onRead]);
   const { sessions, loading, reload } = useChatSessions(onToast);
   const [tab, setTab] = useState<ChatQueueTab>("all");
@@ -53,6 +56,7 @@ export function ChatPage({ customers, onOpenCustomer, onToast, onRead }: ChatPag
             {CHAT_TAB_LABELS[t]} {countOf(t)}
           </button>
         ))}
+        <HandoffStatusBadge canManage={roleTab === "최고관리자"} />
       </div>
       <div className="chat-layout">
         <ChatQueue activeId={active?.id ?? null} onSelect={setSelectedId} sessions={visible} unassignedCount={unassignedCount} />

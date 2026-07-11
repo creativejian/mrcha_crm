@@ -35,3 +35,26 @@ export const CHAT_SYSTEM_MSG_RETURN = "상담사 연결이 종료되었습니다
 // **이 값이 앱과의 계약이다** — 임의 변경 금지.
 export const CHAT_SYSTEM_KIND_TAKEOVER = "handoff_takeover";
 export const CHAT_SYSTEM_KIND_RETURN = "handoff_return";
+
+// 실시간 상담 전사 운영 모드 — public.human_handoff_settings.mode CHECK 값 미러(앱 이슈 #582,
+// 마이그 20260711170000). 상담사 개인 수신 On/Off(crm.staff_settings)와 다른 축이다.
+export const HANDOFF_MODES = ["automatic", "force_on", "force_off"] as const;
+export type HandoffMode = (typeof HANDOFF_MODES)[number];
+export const HANDOFF_MODE_LABELS: Record<HandoffMode, string> = {
+  automatic: "운영시간 적용",
+  force_on: "강제 ON",
+  force_off: "강제 OFF",
+};
+
+// schedule JSONB 키(계약: 정확히 7개·휴무일 null·"HH:MM"). 표시 순서는 월요일 시작.
+export const HANDOFF_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+export type HandoffDayKey = (typeof HANDOFF_DAY_KEYS)[number];
+export const HANDOFF_DAY_LABELS: Record<HandoffDayKey, string> = {
+  mon: "월",
+  tue: "화",
+  wed: "수",
+  thu: "목",
+  fri: "금",
+  sat: "토",
+  sun: "일",
+};

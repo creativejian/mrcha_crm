@@ -63,9 +63,13 @@ function AccountDefaultIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12.2a4.35 4.35 0 1 0 0-8.7 4.35 4.35 0 0 0 0 8.7Zm-7.6 7.3c.7-4.05 3.55-6.35 7.6-6.35s6.9 2.3 7.6 6.35H4.4Z" /></svg>;
 }
 
-function SettingSolidIcon({ name }: { name: "chat" | "insights" | "knowledge" | "mc-master" | "ai" | "org" | "partners" | "attendance" | "logout" }) {
+function SettingSolidIcon({ name }: { name: "chat" | "insights" | "knowledge" | "mc-master" | "ai" | "org" | "partners" | "attendance" | "logout" | "handoff-op" }) {
   if (name === "chat") {
     return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H8.5L4 20V4Zm4 4v2h9V8H8Zm0 4v2h7v-2H8Z" /></svg>;
+  }
+  if (name === "handoff-op") {
+    // 상담 운영(운영시간) — 도넛 원(반대 방향 subpath로 구멍) + 시계 바늘.
+    return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Z" /><path d="M12.75 7h-1.5v5.6l4.4 2.64.77-1.28-3.67-2.2V7Z" /></svg>;
   }
   if (name === "attendance") {
     return <svg className="setting-solid-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h2v3h6V2h2v3h3v17H4V5h3V2Zm11 8H6v10h12V10Zm-9 2h3v3H9v-3Zm5 0h3v3h-3v-3ZM9 16h3v2H9v-2Z" /></svg>;
@@ -555,6 +559,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                       <button className="settings-menu-row" onClick={() => navigateFromSettings("knowledge-base")} type="button"><span><SettingSolidIcon name="knowledge" />지식 베이스</span></button>
                       <button className="settings-menu-row" onClick={() => navigateFromSettings("insights")} type="button"><span><SettingSolidIcon name="insights" />인사이트</span></button>
                       <button className="settings-menu-row" onClick={() => navigateFromSettings("ai-settings")} type="button"><span><SettingSolidIcon name="ai" />AI 커스텀</span></button>
+                      <button className="settings-menu-row" onClick={() => navigateFromSettings("handoff-operation")} type="button"><span><SettingSolidIcon name="handoff-op" />상담 운영</span></button>
                     </div>
                   </>
                 )}
