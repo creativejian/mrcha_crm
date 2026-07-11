@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { auditSummary, availabilityBadge, parseWeekSchedule, scheduleDraftErrors, type WeekSchedule } from "./handoff-settings";
+import { auditSummary, availabilityBadge, parseWeekSchedule, scheduleDraftErrors, withAppLineBreaks, type WeekSchedule } from "./handoff-settings";
 
 // 운영 설정은 공유 master의 singleton 행이고 schedule은 jsonb다. DB CHECK + RPC가 형식을
 // 지키지만, 클라는 "그럼에도 이상한 값이 오면 휴무로 읽는" 방어 파싱을 유지한다 —
@@ -130,5 +130,17 @@ describe("auditSummary", () => {
 
   it("모드 값이 어휘 밖이어도 죽지 않는다(방어)", () => {
     expect(auditSummary({ ...base, mode: "legacy" }, { ...base, mode: "force_on" })).toBe("legacy → 강제 ON");
+  });
+});
+
+describe("withAppLineBreaks", () => {
+  // 앱 버블 = MarkdownBody(softLineBreak: true). 미리보기가 앱 실물과 같은 줄 수로 렌더되게
+  // 단일 \n만 hard break로 승격한다 — 문단 구분(\n\n)을 hard break 2개로 뭉개면 안 된다.
+  it("단일 개행을 hard break로 승격한다", () => {
+    expect(withAppLineBreaks("한 줄\n두 줄")).toBe("한 줄  \n두 줄");
+  });
+
+  it("문단 구분(\\n\\n)은 그대로 보존한다", () => {
+    expect(withAppLineBreaks("문단1 첫줄\n문단1 둘째줄\n\n문단2")).toBe("문단1 첫줄  \n문단1 둘째줄\n\n문단2");
   });
 });

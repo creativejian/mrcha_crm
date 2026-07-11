@@ -79,6 +79,16 @@ export function availabilityBadge(a: Pick<HandoffAvailability, "available" | "mo
   return { label: "운영시간 외 · 접수 중지", tone: "outside" };
 }
 
+// 앱 채팅 버블은 MarkdownBody(softLineBreak: true)로 단일 개행을 실제 줄바꿈으로 렌더한다
+// (chat_message_bubble.dart 실측). react-markdown 기본(CommonMark)은 단일 \n을 공백으로 접으므로,
+// 미리보기가 앱 실물과 같아지도록 단일 \n만 hard break("  \n")로 승격한다(문단 \n\n은 보존).
+export function withAppLineBreaks(markdown: string): string {
+  return markdown
+    .split("\n\n")
+    .map((paragraph) => paragraph.replace(/\n/g, "  \n"))
+    .join("\n\n");
+}
+
 // 감사 행의 old/new(설정 행 전체 스냅샷·snake_case) 차이를 이력 목록 한 줄 요약으로.
 export function auditSummary(oldValue: Record<string, unknown>, newValue: Record<string, unknown>): string {
   const modeLabel = (v: unknown) =>

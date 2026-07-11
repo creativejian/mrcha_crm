@@ -9,12 +9,14 @@ import {
   saveHandoffSettings,
   scheduleDraftErrors,
   subscribeHandoffSettings,
+  withAppLineBreaks,
   type HandoffAudit,
   type HandoffAvailability,
   type HandoffSettings,
   type WeekSchedule,
 } from "@/lib/handoff-settings";
 import { useStaffDirectory } from "@/lib/staff";
+import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 
 // 고객 앱 실시간 상담사 연결의 전사 운영 설정(앱 이슈 #582 CRM 몫).
 // 저장은 update_human_handoff_settings RPC 단일 경로(admin 검사+감사 기록 원자) —
@@ -178,7 +180,8 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
               {availability.nextOpenAt && (
                 <p className="handoff-op-status-line">다음 상담 가능 시각: <strong>{formatKst(availability.nextOpenAt)}</strong></p>
               )}
-              {availability.message && <blockquote className="handoff-op-quote">{availability.message}</blockquote>}
+              {/* 고객이 앱 채팅에서 볼 실물 미리보기 — 앱이 이 message를 마크다운 렌더(softLineBreak)하므로 원문이 아니라 렌더본을 보여준다. */}
+              {availability.message && <blockquote className="handoff-op-quote"><MarkdownMessage content={withAppLineBreaks(availability.message)} /></blockquote>}
             </>
           ) : (
             <p className="handoff-op-dim">판정 결과를 불러오는 중…</p>
@@ -286,6 +289,7 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
               value={draft.forceMessage}
             />
           </label>
+          <p className="handoff-op-help">여기서는 원문을 편집합니다 — <code>**굵게**</code> 같은 마크다운 서식은 고객 앱 채팅에서 적용되어 표시됩니다(위 현재 상태의 미리보기가 실제 표시 모습).</p>
         </div>
       </section>
 
