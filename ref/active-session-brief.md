@@ -1,6 +1,6 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-11 (**세션 0711-operation-time(유슨생): 실시간 상담 운영 설정 콘솔 — 앱 이슈 #582 CRM 2단계 완료(PR #218 squash `40d8786` 머지·prod 반영 실측). 앱 팀 Supabase 몫(설정 SSOT+RPC 3종) 같은 날 배포·실측 검증. 잔여 = 앱 3단계(RPC 전환·override 제거, 앱 팀 별도 진행) — 앱 팀에 "CRM 2단계 완료" 통보만 남음. ▶ 다음 미확정 — 계산엔진(이사님 브레인스토밍 선행)/FCM 실기기 e2e/`requireRole` 게이트 확산 등 기존 후보.**)
+Last updated: 2026-07-11 (**세션 0711-operation-time(유슨생) 후반: ①#582 3단 전부 완료(CRM #218·앱 #646 — 아래 항목) ②사이드바 버그 2건 픽스(`218deab` main 직접 — 하단 철학 박스 flex 찌그러짐·펼침 헤더 active 오인) ③dealer 쓰기 전면 차단(#220 squash `ec2583f` — 아래 항목). ▶ 다음 미확정 — 계산엔진(이사님 브레인스토밍 선행)/FCM 실기기 e2e/역할 매트릭스 2단계(이사님 확인 대기 추가)/화면 역할 scope.**)
 
 이전: 2026-07-11 (**세션 0711(유슨생): 일괄 담당자 변경 실동작 — 서버 변경 0·클라 오케스트레이션(#216 머지). 이로써 고객 목록 헤드바 액션 3개(담당자 변경·삭제 #212·등록 #215) 전량 실동작.**)
 
@@ -23,6 +23,11 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 5. Do not read planning source files unless the task touches strategy, roadmap, AI policy, architecture, or quote engine decisions.
 
 ## Current Focus
+
+- **✅ dealer 쓰기 전면 차단(2026-07-11, PR #220 squash `ec2583f`)**: 쓰기 라우트 29개 중 role 게이트 2곳뿐 — dealer가 API 직접 호출로 메모/할일/일정/견적/서류 삭제 등 수행 가능했다(UI 숨김은 UX 보조). **전역 `dealerWriteGate`**(`src/middleware/role-gate.ts`) = dealer+쓰기 메서드 403 fail-closed, 체인 규약 auth(401)→gate(403)→db(`app.ts` `protect()` 헬퍼). 구 인라인 dealer 게이트(고객 등록)는 전역으로 이관. dealer 읽기 불변.
+  - **🔑 allowlist 구조(이사님·유슨생 확정 요구)**: 미래 딜러의 정당한 쓰기 = **MC 마스터 트림 할인 입력(자사/제휴/타사)** — 라우트 신설 시 `DEALER_WRITE_ALLOWLIST`에 `{method, path: /^…$/}` 한 줄 등록으로 개방(앵커 정규식 강제, 테스트 잠금).
+  - **2단계(역할×라우트 매트릭스 — admin/staff 세분: 예. 견적 삭제를 누가?)는 범위 밖** — 실무 정책 결정이라 **이사님 확인 대기 목록에 추가**. 검증: server 474(+7)·unit 523·4종 + **변이 검증 실관찰**(게이트 제거 시 dealer 테스트 3종 정확 실패).
+  - **⚠️ 교훈 — 403 전제 픽스처도 게이트 회귀 시 행을 만든다**: 변이 실행 중 dealer POST가 실 고객("게이트검증") 생성 → 잔재 tripwire(#214)가 즉시 검출 → 이름 registry(`TEST_CUSTOMER_NAMES`) 등록+`--clean` 정리. 게이트 테스트 픽스처 이름도 registry 선등록이 원칙.
 
 - **✅ 실시간 상담 운영 설정 콘솔(2026-07-11 세션 0711-operation-time, PR #218 squash `40d8786` 머지·prod 반영 실측)**: 앱 이슈 dl-auto/mr-cha-app#582의 CRM 몫(2단계). 앱의 로컬 운영시간 하드코딩+임시 AUTO/ON/OFF를 Supabase SSOT+CRM 콘솔로 이전하는 3자 작업. spec `ref/specs/2026-07-11-crm-handoff-operation-settings-design.md`(계약 SSOT) · plan `ref/plans/2026-07-11-crm-handoff-operation-settings.md`.
   - **3단 전부 완료**: ①Supabase(앱 팀) ✅ 같은 날 배포(`public.human_handoff_settings` singleton+감사+RPC 3종+Realtime, 마이그 `20260711170000`) — CRM이 시드·REVOKE·RLS·토요일 판정까지 실측 검증 ②CRM 2단계 ✅ 이 PR ③앱 3단계 ✅ **배포 완료(2026-07-11 14:37 KST, 앱 PR #646)** — 판정 전부 서버 RPC 경유·로컬 override 제거. **🔴 이 시점부터 CRM 콘솔의 강제 OFF/스케줄 변경 = 실 고객 즉시 적용(운영 주의).** **⚠️ 단 수일간 force_off 실효성 100% 아님(앱 팀 고지 2026-07-11)**: Flutter 웹 서비스워커 캐시 특성상 구 번들 클라이언트는 재방문 사이클 전까지 **로컬 판정**을 계속 쓴다 — force_off를 걸어도 구 번들 사용자는 운영시간 내 pending 전이 가능. 자연 소멸(보통 수일). 부수: 구 번들이 만든 깨진 문구 행(`**"응"**`·system_kind 없음)이 간헐 생성될 수 있음 — 앱 #647(15:07 문구 교정 배포)이 새 번들에 반영됐고, 트리클은 앱 팀이 멱등 치환 + 다음 주 초 최종 sweep 마이그레이션으로 종결 예정. 16:13 트리클 행은 이사님 테스트 계정(98b58a1d 김지안 customer) 실측 — 실 고객 영향 0. 잔여 = 크로스 실기(CRM force_off ↔ 앱 채팅 force_message 표시) 1회 — **트리클 소멸 후가 정확**(구 번들 탭이면 로컬 문구가 나와 오판 위험), 운영시간 외 시간대가 적기.
