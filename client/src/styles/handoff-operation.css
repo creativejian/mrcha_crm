@@ -244,8 +244,15 @@
 
 .handoff-op-save-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.handoff-op-save-idle {
+  margin-right: auto;
+  font-size: 12px;
+  color: #9aa0a6;
 }
 
 .handoff-op-audits {

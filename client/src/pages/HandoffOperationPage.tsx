@@ -304,6 +304,8 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
           </label>
           {saveError && <p className="handoff-op-error" role="alert">{saveError}</p>}
           <div className="handoff-op-save-actions">
+            {/* 버튼만 죽어 있으면 고장처럼 읽힌다(#185 NO_HITS와 같은 부류) — 비활성 사유를 화면이 직접 말한다. */}
+            {!dirty && !saving && <span className="handoff-op-save-idle">변경된 설정이 없습니다 — 위에서 설정을 바꾸면 저장할 수 있어요.</span>}
             <button className="btn" disabled={!dirty || saving} onClick={() => { setDraft(draftFrom(settings)); setSaveError(null); }} type="button">되돌리기</button>
             <button className="btn primary" disabled={!dirty || saving} onClick={() => void handleSave()} type="button">
               {saving ? "저장 중…" : "설정 저장"}
