@@ -1,6 +1,8 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-11 (**세션 0711(유슨생): 일괄 담당자 변경 실동작 — 서버 변경 0·클라 오케스트레이션(브랜치 `feat/crm-bulk-advisor-change`, PR 대기). 이로써 고객 목록 헤드바 액션 3개(담당자 변경·삭제 #212·등록 #215) 전량 실동작. ▶ 다음 미확정 — 계산엔진(이사님 브레인스토밍 선행)/FCM 실기기 e2e/`requireRole` 게이트 확산 등 기존 후보.**)
+Last updated: 2026-07-11 (**세션 0711-operation-time(유슨생): 실시간 상담 운영 설정 콘솔 — 앱 이슈 #582 CRM 2단계 완료(PR #218 squash `40d8786` 머지·prod 반영 실측). 앱 팀 Supabase 몫(설정 SSOT+RPC 3종) 같은 날 배포·실측 검증. 잔여 = 앱 3단계(RPC 전환·override 제거, 앱 팀 별도 진행) — 앱 팀에 "CRM 2단계 완료" 통보만 남음. ▶ 다음 미확정 — 계산엔진(이사님 브레인스토밍 선행)/FCM 실기기 e2e/`requireRole` 게이트 확산 등 기존 후보.**)
+
+이전: 2026-07-11 (**세션 0711(유슨생): 일괄 담당자 변경 실동작 — 서버 변경 0·클라 오케스트레이션(#216 머지). 이로써 고객 목록 헤드바 액션 3개(담당자 변경·삭제 #212·등록 #215) 전량 실동작.**)
 
 이전: 2026-07-10 (**세션 0710-2(유슨생): 고객 수기 등록 신설 — `POST /api/customers` + 헤드바 `[+ 고객 등록]` 폼 팝오버 실동작(**#215 squash `4f0fff0` 머지·prod Active 확인**).**)
 
@@ -21,6 +23,14 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 5. Do not read planning source files unless the task touches strategy, roadmap, AI policy, architecture, or quote engine decisions.
 
 ## Current Focus
+
+- **✅ 실시간 상담 운영 설정 콘솔(2026-07-11 세션 0711-operation-time, PR #218 squash `40d8786` 머지·prod 반영 실측)**: 앱 이슈 dl-auto/mr-cha-app#582의 CRM 몫(2단계). 앱의 로컬 운영시간 하드코딩+임시 AUTO/ON/OFF를 Supabase SSOT+CRM 콘솔로 이전하는 3자 작업. spec `ref/specs/2026-07-11-crm-handoff-operation-settings-design.md`(계약 SSOT) · plan `ref/plans/2026-07-11-crm-handoff-operation-settings.md`.
+  - **3단 진행**: ①Supabase(앱 팀) ✅ 같은 날 배포(`public.human_handoff_settings` singleton+감사+RPC 3종+Realtime, 마이그 `20260711170000`) — CRM이 시드·REVOKE·RLS·토요일 판정까지 실측 검증 ②CRM 2단계 ✅ 이 PR ③앱 3단계 ⏳ 앱 팀 별도(`request_human_handoff` RPC 전환+override 제거). **앱 팀에 "CRM 2단계 완료" 통보 필요.**
+  - **구성**: `/handoff-operation` 설정 페이지(admin 3중 fail-closed — 메뉴 `isAdminRole` 그룹·라우트 finance 패턴·RPC 42501→403) = 현재 판정 카드·모드 3상태·요일 7행 운영시간·안내 문구 2종·변경 사유(필수)·감사 이력(변경자 이름 staff 디렉토리 해석). 진입 = 프로필 팝오버 **"차선생 앱 설정 > 상담 운영"(이사님 결정 위치)**. + ChatPage 탭 행 **운영 상태 배지**(Realtime+60s 재판정, admin 클릭 시 설정 페이지). **서버(src/) 변경 0** — 쓰기는 `update_human_handoff_settings` RPC 단일 경로(브라우저 supabase-js, admin 검사+UPDATE+감사 INSERT 서버 원자).
+  - **⚠️ 축 구분**: 팝오버 기존 On/Off(#194 `crm.staff_settings.live_receiving`)는 **상담사 개인 수신**, 이 설정은 **전사 운영 모드** — 다른 것. 물리 분리로 혼동 차단(기존 토글 불변).
+  - **⚠️ 스모크 주의(다음 세션)**: 앱 3단계 배포 **후**에는 force_off 저장이 실 고객 앱을 즉시 차단한다 — 모드를 만지는 스모크는 앱 전환 여부 확인 후 신속 원복(설정 스탬프 `updated_by`/`updated_at` psql 복원 + 스모크 감사 행 DELETE까지, 이번 세션 절차가 선례. 감사 테이블은 직접 INSERT 불가지만 postgres 롤 DELETE 가능).
+  - 검증: typecheck 0·lint 0·unit **523**(+14 TDD)·build + 격리 스택 브라우저 스모크(시드 표시→force_off 저장→psql·감사 대조→**psql UPDATE 4초 내 배지 Realtime 자동 갱신 실증**→원복·잔재 0 byte-exact). 유슨생 실기 지적 1건 반영: 설정 무변경 시 저장 버튼만 죽어 있어 고장처럼 읽힘 → "변경된 설정이 없습니다" 안내 표시(`8dfe483`).
+  - **follow-up(PR 본문)**: 공통 헤더 프로토타입 버튼 2개가 이 페이지에도 노출(전 페이지 공통 — 범위 밖) · 비admin 배지 실기(staff 실계정 필요) · 판정 카드 안내 문구는 마크다운 원문 표시(의도) · 공휴일/임시 휴무·timezone 편집은 이슈 "추후 확장".
 
 - **✅ 고객 수기 등록 신설(2026-07-10 세션 0710-2, 브랜치 `feat/crm-customer-create` PR 대기)**: 헤드바 `[+ 고객 등록]` 목업 → 실동작. spec `ref/specs/2026-07-10-crm-customer-create-design.md` · plan `ref/plans/2026-07-10-crm-customer-create.md`(8태스크 subagent-driven, 태스크별 spec/quality 2단계 리뷰 + 최종 통합 리뷰).
   - **결정(유슨생)**: ①최소 폼(이름 필수·연락처·유입 경로) → 저장 즉시 **새 고객 상세 드로어 자동 오픈**(드로어는 URL single source라 `navigate(?customer=code)` + 리로드 도착만으로 열림 — 새 상태 0) ②**등록자 본인 자동 배정**(advisorId+advisorName+assignedAt 동반, `getStaffName` 실패 시 미배정 fail-open — staff scope가 advisor_id 매칭이라 미배정이면 등록자 AI 조회에서 빠짐) ③연락처 중복 **소프트 경고**(등록 차단 아님 — 가족 공유 번호 예외, 클라 목록 비교라 서버 왕복 0) ④dealer 403 fail-closed ⑤**source는 수동 어휘만**(`SOURCE_MANUAL_OPTIONS` — 자동 어휘를 수기 등록이 쓰면 앱 유입 통계 오염) ⑥승격 쿼리와 코드 비공유(입력 해석이 전부 달라 과추상화 기각).
