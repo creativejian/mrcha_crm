@@ -88,11 +88,13 @@ test("loadAiHintSource: 앱 상담 문의 — dismissed 제외·공백 notes 제
     await db.update(customers).set({ appUserId: userId }).where(eq(customers.id, CUST));
     // ⚠️ public.consultations INSERT는 handle_new_consultation 트리거(운영 디스코드 알림) 발화 —
     // 반드시 withNotifyGuard 트랜잭션(app.skip_notify SET LOCAL) 안에서만 넣는다.
+    // createdAt은 원미래(2126) 고정 — 임의로 뽑은 실존 프로필에 이미 있는 live 상담이 픽스처보다
+    // 최신이면 정확 일치 단언이 깨진다(공유 master의 실 앱 유입에 시한부 의존 금지).
     await withNotifyGuard(db, (tx) => tx.insert(consultationRequests).values([
-      { ...base, id: A, notes: "이전 문의", createdAt: "2026-07-01T00:00:00.000Z" },
-      { ...base, id: B, notes: "최신 문의", createdAt: "2026-07-02T00:00:00.000Z" },
-      { ...base, id: C, notes: "무시될 문의", createdAt: "2026-07-03T00:00:00.000Z" },
-      { ...base, id: D, notes: "   ", createdAt: "2026-07-04T00:00:00.000Z" },
+      { ...base, id: A, notes: "이전 문의", createdAt: "2126-07-01T00:00:00.000Z" },
+      { ...base, id: B, notes: "최신 문의", createdAt: "2126-07-02T00:00:00.000Z" },
+      { ...base, id: C, notes: "무시될 문의", createdAt: "2126-07-03T00:00:00.000Z" },
+      { ...base, id: D, notes: "   ", createdAt: "2126-07-04T00:00:00.000Z" },
     ]));
     await db.insert(consultationDismissals).values({ consultationId: C, dismissedBy: null }); // crm 테이블 — 트리거 무관
 
