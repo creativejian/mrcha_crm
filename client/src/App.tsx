@@ -411,9 +411,6 @@ export function App() {
               </h1>
               <p>{desc}</p>
             </div>
-            {!isCustomerConsole && (
-              <div className="top-actions"><button className="btn" onClick={() => showToast("고객 상세의 상담 메모 영역으로 이동합니다.")} type="button">상담 메모</button><button className="btn primary" onClick={() => showToast("견적 송출 프로토타입: 고객 앱에 비교 견적이 전달된 것으로 표시합니다.")} type="button">앱으로 견적 송출</button></div>
-            )}
           </header>
         )}
         {customersError && <div className="notice-box error">고객 목록을 불러오지 못했습니다.</div>}
