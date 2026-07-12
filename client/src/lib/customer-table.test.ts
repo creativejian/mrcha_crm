@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Customer } from "@/data/customers";
-import { resolveChance } from "./customer-table";
+import { aiHintDisplay, aiHintPlainText, parseAiHintParts, resolveChance } from "./customer-table";
 
 // 계약 가능성 판정에 필요한 필드만 채운 최소 고객 팩토리(나머지는 표시값과 무관).
 function makeCustomer(overrides: Partial<Customer>): Customer {
@@ -60,5 +60,38 @@ describe("resolveChance", () => {
   it("불발 → '낮음'", () => {
     const customer = makeCustomer({ statusGroup: "불발", status: "불발", priority: "낮음" });
     expect(resolveChance(customer, undefined)).toBe("낮음");
+  });
+});
+
+describe("parseAiHintParts", () => {
+  it("빈/공백 값 → 빈 배열(버튼 숨김 신호)", () => {
+    expect(parseAiHintParts("")).toEqual([]);
+    expect(parseAiHintParts("   ")).toEqual([]);
+  });
+
+  it("마커 없는 평문 → 단일 파트(구 DB 값 하위호환)", () => {
+    expect(parseAiHintParts("초기비용 0원 선호")).toEqual([{ text: "초기비용 0원 선호" }]);
+  });
+
+  it("** 마커 → strong 파트 분해(선두·중간·연속)", () => {
+    expect(parseAiHintParts("**X3 · GLC**를 비교 중이며 **총비용**에 민감")).toEqual([
+      { text: "X3 · GLC", strong: true },
+      { text: "를 비교 중이며 " },
+      { text: "총비용", strong: true },
+      { text: "에 민감" },
+    ]);
+  });
+});
+
+describe("aiHintDisplay (목업 테이블 폐기 후)", () => {
+  it("목업 고객번호(CU-2605-0020)여도 aiSummary 기반으로만 파싱한다", () => {
+    const customer = makeCustomer({ customerId: "CU-2605-0020", aiSummary: "**실데이터** 힌트" });
+    expect(aiHintDisplay(customer).parts).toEqual([{ text: "실데이터", strong: true }, { text: " 힌트" }]);
+  });
+});
+
+describe("aiHintPlainText", () => {
+  it("마커 제거 평문(검색·레거시 셀용)", () => {
+    expect(aiHintPlainText(makeCustomer({ aiSummary: "**X3** 비교 중" }))).toBe("X3 비교 중");
   });
 });

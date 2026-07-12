@@ -61,29 +61,6 @@ const extraPurchaseMethodDisplayByCustomerId: Record<string, string[]> = {
   "CU-2605-0010": ["운용리스", "할부"],
 };
 
-const aiHintDisplayByCustomerId: Record<string, { parts: { text: string; strong?: boolean }[] }> = {
-  "CU-2605-0020": { parts: [{ text: "X3 · GLC", strong: true }, { text: "를 비교 중이며 " }, { text: "중도해지, 월 납입액, 총비용", strong: true }, { text: " 차이에 민감" }] },
-  "CU-2605-0019": { parts: [{ text: "초기비용 0원", strong: true }, { text: " 선호가 강하고 " }, { text: "보험 포함, 만기 인수", strong: true }, { text: "를 함께 확인 중" }] },
-  "CU-2605-0018": { parts: [{ text: "사업자 증빙", strong: true }, { text: "이 약해 " }, { text: "승인 금융사", strong: true }, { text: "를 먼저 좁혀야 함" }] },
-  "CU-2605-0017": { parts: [{ text: "계약 완료", strong: true }, { text: " 후 " }, { text: "시공 일정, 첫 출고 경험", strong: true }, { text: " 관리가 중요" }] },
-  "CU-2605-0016": { parts: [{ text: "법인 인수자, 보험 담보", strong: true }, { text: "를 출고 전 다시 확인해야 함" }] },
-  "CU-2605-0015": { parts: [{ text: "패밀리카", strong: true }, { text: " 목적이 뚜렷하고 " }, { text: "월 70만원 이하", strong: true }, { text: " 조건을 희망" }] },
-  "CU-2605-0014": { parts: [{ text: "첫 차 구매", strong: true }, { text: "라 " }, { text: "월 납입, 만기 인수", strong: true }, { text: " 이해가 결정에 중요" }] },
-  "CU-2605-0013": { parts: [{ text: "희망 조건", strong: true }, { text: "과 " }, { text: "금융 조건 차이", strong: true }, { text: "가 커 단기 가능성은 낮음" }] },
-  "CU-2605-0012": { parts: [{ text: "패밀리 SUV", strong: true }, { text: " 탐색 중이며 " }, { text: "렌트 · 리스", strong: true }, { text: " 차이 이해가 먼저 필요" }] },
-  "CU-2605-0011": { parts: [{ text: "수입 세단", strong: true }, { text: " 선호가 강하지만 " }, { text: "초기비용", strong: true }, { text: " 상한 재확인이 필요" }] },
-  "CU-2605-0010": { parts: [{ text: "빠른 출고", strong: true }, { text: " 선호가 강해 " }, { text: "재고 색상", strong: true }, { text: " 확인이 우선" }] },
-  "CU-2605-0009": { parts: [{ text: "계약 확정", strong: true }, { text: " 건으로 " }, { text: "출고 안내, 법인 서류", strong: true }, { text: "만 남음" }] },
-  "CU-2605-0008": { parts: [{ text: "가족 반대", strong: true }, { text: "로 취소되어 " }, { text: "재컨택 명분", strong: true }, { text: " 정리가 필요" }] },
-  "CU-2605-0007": { parts: [{ text: "출고 완료", strong: true }, { text: " 후 " }, { text: "정산 입금, 후기 요청", strong: true }, { text: " 타이밍 관리 필요" }] },
-  "CU-2605-0006": { parts: [{ text: "사업자 리스", strong: true }, { text: " 출고 완료, " }, { text: "정산 확인", strong: true }, { text: "만 남음" }] },
-  "CU-2605-0005": { parts: [{ text: "법인 렌트", strong: true }, { text: " 출고 후 " }, { text: "정산 자료, 증빙 파일", strong: true }, { text: " 확인 필요" }] },
-  "CU-2605-0004": { parts: [{ text: "다자녀 패밀리카", strong: true }, { text: " 문의 후 미응답, " }, { text: "마지막 재컨택", strong: true }, { text: " 전까지 보류" }] },
-  "CU-2605-0003": { parts: [{ text: "수입 세단", strong: true }, { text: " 선호는 명확하나 " }, { text: "배우자 결정", strong: true }, { text: " 영향이 큼" }] },
-  "CU-2605-0002": { parts: [{ text: "구매 의사", strong: true }, { text: "는 있으나 " }, { text: "시점, 예산", strong: true }, { text: "이 미정이라 우선순위 낮음" }] },
-  "CU-2605-0001": { parts: [{ text: "안전성, 브랜드 이미지", strong: true }, { text: "를 중시하며 " }, { text: "6월 조건", strong: true }, { text: " 대기 중" }] },
-};
-
 export function badgeClass(value: string, group?: string) {
   if (value === "완료" || group === "계약완료" || value === "출고완료" || value === "배정완료") return "badge green";
   if (value === "긴급" || group === "불발" || value === "계약취소" || value === "지속적부재" || value === "재고없음") return "badge red";
@@ -118,8 +95,31 @@ export function extraTooltipValue(values: string[]) {
   return values.join(", ");
 }
 
+// AI 힌트(ai_summary)는 서버 생성 문장 — 핵심어만 **…**로 감싼 인라인 마크다운 서브셋이 온다
+// (src/lib/ai-hint.ts sanitizeAiHint가 보증). 구 DB 값(마커 없음)은 단일 평문 파트로 하위호환.
+export function parseAiHintParts(text: string): { text: string; strong?: boolean }[] {
+  const trimmed = text?.trim() ?? "";
+  if (!trimmed) return [];
+  const parts: { text: string; strong?: boolean }[] = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let last = 0;
+  for (let m = re.exec(trimmed); m !== null; m = re.exec(trimmed)) {
+    if (m.index > last) parts.push({ text: trimmed.slice(last, m.index) });
+    parts.push({ text: m[1], strong: true });
+    last = m.index + m[0].length;
+  }
+  if (last < trimmed.length) parts.push({ text: trimmed.slice(last) });
+  return parts;
+}
+
+// 빈 배열 = 값 없음 — 소비처(CustomerActionsCell)가 버튼째 숨긴다(빈 보라 말풍선 방지).
 export function aiHintDisplay(customer: Customer) {
-  return aiHintDisplayByCustomerId[customer.customerId] ?? { parts: [{ text: customer.aiSummary }] };
+  return { parts: parseAiHintParts(customer.aiSummary) };
+}
+
+// 마커 제거 평문 — 목록 검색 문자열·레거시 all 모드 셀용(마커가 검색어 경계를 깨는 것 방지).
+export function aiHintPlainText(customer: Customer) {
+  return parseAiHintParts(customer.aiSummary).map((part) => part.text).join("");
 }
 
 function compactOperationDate(year: string, month: string, day: string, time: string) {
