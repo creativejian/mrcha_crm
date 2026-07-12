@@ -197,6 +197,13 @@
       "when": 1783669806549,
       "tag": "0027_tense_mathemanic",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1783816852797,
+      "tag": "0028_equal_swordsman",
+      "breakpoints": true
     }
   ]
 }

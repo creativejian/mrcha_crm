@@ -1,6 +1,8 @@
 # Mr. Cha CRM Active Session Brief
 
-Last updated: 2026-07-11 (**세션 0711-operation-time(유슨생) 후반: ①#582 3단 전부 완료(CRM #218·앱 #646 — 아래 항목) ②사이드바 버그 2건 픽스(`218deab` main 직접 — 하단 철학 박스 flex 찌그러짐·펼침 헤더 active 오인) ③dealer 쓰기 전면 차단(#220 squash `ec2583f` — 아래 항목). ▶ **다음 확정(새 세션) = AI 힌트 실데이터화** — 목업 하드코딩·빈 말풍선·미구현 `ai_summary` 컬럼을 실 생성으로(결정 3건 확정: 역설계 스펙·목업 교체·실변경 시 자동 갱신. 설계 노트 `ref/specs/2026-07-12-crm-ai-hint-datafication-design.md` — 여기부터 읽고 plan 작성). 그 외 대기 — 계산엔진(이사님 브레인스토밍 선행)/FCM 실기기 e2e/역할 매트릭스 2단계(이사님 확인 대기)/#582 크로스 실기(앱 sweep 후).**)
+Last updated: 2026-07-12 (**세션 0712-AI-hint(유슨생): AI 힌트 실데이터화 8태스크 전량 완료 — 브랜치 `feat/crm-ai-hint-datafication` push됨·PR 대기(아래 Current Focus 항목). 그 외 대기 — 계산엔진(이사님 브레인스토밍 선행)/FCM 실기기 e2e/역할 매트릭스 2단계(이사님 확인 대기)/#582 크로스 실기(앱 sweep 후).**)
+
+이전: 2026-07-11 (**세션 0711-operation-time(유슨생) 후반: ①#582 3단 전부 완료(CRM #218·앱 #646 — 아래 항목) ②사이드바 버그 2건 픽스(`218deab` main 직접 — 하단 철학 박스 flex 찌그러짐·펼침 헤더 active 오인) ③dealer 쓰기 전면 차단(#220 squash `ec2583f` — 아래 항목).**)
 
 이전: 2026-07-11 (**세션 0711(유슨생): 일괄 담당자 변경 실동작 — 서버 변경 0·클라 오케스트레이션(#216 머지). 이로써 고객 목록 헤드바 액션 3개(담당자 변경·삭제 #212·등록 #215) 전량 실동작.**)
 
@@ -23,6 +25,12 @@ Purpose: `CRM 이어가자`, `CRM 시작하자`, `영실아 이어가자` 이후
 5. Do not read planning source files unless the task touches strategy, roadmap, AI policy, architecture, or quote engine decisions.
 
 ## Current Focus
+
+- **✅ AI 힌트 실데이터화(2026-07-12 세션 0712-AI-hint, 브랜치 `feat/crm-ai-hint-datafication` push됨·PR 대기)**: 고객 목록 AI 힌트(hover 보라 말풍선)를 목업 하드코딩 20문장 → **실 데이터 기반 Gemini 생성값**(`crm.customers.ai_summary`)으로 교체 + 실변경 시 자동 재생성. spec `ref/specs/2026-07-12-crm-ai-hint-datafication-design.md` · plan `ref/plans/2026-07-12-crm-ai-hint-datafication.md`(**맨 위 ✅ 진행 상태 = 태스크·커밋·리뷰 상세 SSOT**). 8태스크 subagent-driven(태스크별 spec/품질 2단계 리뷰).
+  - **구성**: 마이그 0028(`ai_summary_source_hash` — 입력 재료 hash skip, **실 DB 적용됨**) · 순수 계층(`src/lib/ai-hint.ts` — 재료 조립·프롬프트(목업 역설계 few-shot)·sanitize) · 로더/라이터(`src/db/queries/ai-hint-sources.ts`) · 훅(`src/lib/ai-hint-on-write.ts` — embed-on-write 미러, 게이트 3규칙 **독립 env `AI_HINT_ON_WRITE`**, `test:server` 프리픽스 추가) · **라우트 배선 16곳**(고객 POST/PATCH·메모/할일/견적 CUD·승격 4·상담 dismiss — 리뷰가 찾은 재료 경로) · 클라(목업 테이블 폐기·`parseAiHintParts` 굵게 렌더·**값 없으면 버튼 숨김**=앱 고객 빈 말풍선 해소·검색/레거시 셀 평문화) · 백필(`src/scripts/backfill-ai-hints.ts`).
+  - **백필 실 실행 완료**: 22/22 generated — 1차 실측 톤 드리프트(명령형 종결 5건·굵게 3곳)를 프롬프트 강화로 교정 후 재생성(hash 클리어 → 전건 평서 압축형 47~77자). 멱등 증명(재실행 전건 unchanged). **일정·서류는 재료 의도적 제외**(재료↔트리거 정합 원칙 — 편입 시 훅 콜사이트 동반).
+  - 검증: typecheck/lint 0 · server **501** · unit **532** · build · knip main과 동일 + **격리 스택 브라우저 스모크 A~F 통과**(생성 문장 교체·빈 말풍선 해소·버튼 숨김·검색 매칭·실 Gemini 재생성 e2e — 메모 추가/삭제 후 hash 수렴 원문장 byte-exact 복원 실증, 원복·잔재 0).
+  - **🟡 이사님 사후 공유**: 목업 20문장(이사님 5/19 설계) → AI 생성 교체 — `ref/director-pending-confirmations.md` **항목 5**. follow-up(PR 본문): 김지안 굵게 3곳 수용(재료 키워드 3개·near-deterministic) · 앱 직접 쓰기(채팅·신규 견적요청)는 훅 없음=백필 보정(embed와 동일 한계) · 길이 초과(>90자) 관측 로그 기반 프롬프트 재조정.
 
 - **✅ dealer 쓰기 전면 차단(2026-07-11, PR #220 squash `ec2583f`)**: 쓰기 라우트 29개 중 role 게이트 2곳뿐 — dealer가 API 직접 호출로 메모/할일/일정/견적/서류 삭제 등 수행 가능했다(UI 숨김은 UX 보조). **전역 `dealerWriteGate`**(`src/middleware/role-gate.ts`) = dealer+쓰기 메서드 403 fail-closed, 체인 규약 auth(401)→gate(403)→db(`app.ts` `protect()` 헬퍼). 구 인라인 dealer 게이트(고객 등록)는 전역으로 이관. dealer 읽기 불변.
   - **🔑 allowlist 구조(이사님·유슨생 확정 요구)**: 미래 딜러의 정당한 쓰기 = **MC 마스터 트림 할인 입력(자사/제휴/타사)** — 라우트 신설 시 `DEALER_WRITE_ALLOWLIST`에 `{method, path: /^…$/}` 한 줄 등록으로 개방(앵커 정규식 강제, 테스트 잠금).

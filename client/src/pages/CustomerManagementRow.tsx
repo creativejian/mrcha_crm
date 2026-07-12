@@ -445,26 +445,28 @@ export function CustomerActionsCell({ customer, onHintHover }: { customer: Custo
   return (
     <td className="actions-cell">
       <span className="row-actions" onClick={(event) => event.stopPropagation()} onPointerDown={stopTableControlPointer}>
-        <span
-          className="ai-hint-wrap"
-          onFocus={onHintHover}
-          onMouseEnter={onHintHover}
-          onPointerEnter={onHintHover}
-        >
-          <button
-            aria-label="AI 힌트"
-            className="tiny-btn ai-hint-btn"
-            title="AI 힌트"
-            type="button"
+        {hint.parts.length > 0 && (
+          <span
+            className="ai-hint-wrap"
+            onFocus={onHintHover}
+            onMouseEnter={onHintHover}
+            onPointerEnter={onHintHover}
           >
-            <AiHintIcon />
-          </button>
-          <span className="ai-hint-tooltip">
-            {hint.parts.map((part, index) => (
-              part.strong ? <strong key={`${part.text}-${index}`}>{part.text}</strong> : <span key={`${part.text}-${index}`}>{part.text}</span>
-            ))}
+            <button
+              aria-label="AI 힌트"
+              className="tiny-btn ai-hint-btn"
+              title="AI 힌트"
+              type="button"
+            >
+              <AiHintIcon />
+            </button>
+            <span className="ai-hint-tooltip">
+              {hint.parts.map((part, index) => (
+                part.strong ? <strong key={`${part.text}-${index}`}>{part.text}</strong> : <span key={`${part.text}-${index}`}>{part.text}</span>
+              ))}
+            </span>
           </span>
-        </span>
+        )}
         <button className="tiny-btn" title="상담 열기" type="button"><MessageSquare size={15} /></button>
         <button className="tiny-btn" title="상세 문서" type="button"><FileText size={15} /></button>
       </span>

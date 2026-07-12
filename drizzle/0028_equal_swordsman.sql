@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."customers" ADD COLUMN "ai_summary_source_hash" text;

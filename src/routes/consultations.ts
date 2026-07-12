@@ -8,9 +8,11 @@ import {
   createCustomerFromConsultation,
   dismissConsultation,
   linkConsultationToCustomer,
+  linkedCustomerIdForConsultation,
   listConsultations,
 } from "../db/queries/consultations";
 import { scheduleEmbedOnWrite } from "../lib/embed-on-write";
+import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
 import { promotionEmbedJobs } from "../lib/promotion-embeds";
 import type { AuthVariables } from "../middleware/auth";
 import type { DbVariables } from "../middleware/db";
@@ -46,7 +48,10 @@ consultations.post(
       c,
       async () => {
         const row = await linkConsultationToCustomer(c.req.valid("param").id, c.req.valid("json").customerId, c.var.db);
-        if (row) await schedulePromotionEmbeds(c, { appUserId: row.appUserId });
+        if (row) {
+          await schedulePromotionEmbeds(c, { appUserId: row.appUserId });
+          scheduleAiHintRefresh(c, c.req.valid("json").customerId); // 연결로 앱 상담 문의가 재료에 들어온다
+        }
         return row;
       },
       "요청 또는 고객을 찾을 수 없습니다.",
@@ -59,12 +64,22 @@ consultations.post("/:id/create-customer", zValidator("param", idParam), (c) =>
     // 트랜잭션 커밋 후 스케줄 — 승격 INSERT가 프로필 청크 구성 필드(needModel/source)를 시드하므로
     // customer_profile 재임베딩(고객 PATCH 훅과 동일 불변) + 그 유저의 앱 견적요청 청크(연결 성립).
     const row = await c.var.db.transaction((tx) => createCustomerFromConsultation(c.req.valid("param").id, tx));
-    if (row) await schedulePromotionEmbeds(c, { appUserId: row.appUserId, customerId: row.id });
+    if (row) {
+      await schedulePromotionEmbeds(c, { appUserId: row.appUserId, customerId: row.id });
+      scheduleAiHintRefresh(c, row.id);
+    }
     return row;
   }, "요청을 찾을 수 없습니다."),
 );
 
 // CRM 전용 삭제 — 카드를 CRM 뷰에서만 숨긴다(public.consultations 불변). dismissal 기록만.
 consultations.delete("/:id", zValidator("param", idParam), (c) =>
-  run(c, () => dismissConsultation(c.req.valid("param").id, c.var.user.id, c.var.db)),
+  run(c, async () => {
+    const row = await dismissConsultation(c.req.valid("param").id, c.var.user.id, c.var.db);
+    // dismiss가 consultationNote 재료(dismissed 제외 최신 문의)를 바꾼다 — 상담 문의가 유일 재료였던
+    // 고객의 스테일 힌트 방지. 연결 고객 없는(미승격·비로그인) 유저면 재료를 가진 고객이 없어 생략.
+    const customerId = await linkedCustomerIdForConsultation(c.req.valid("param").id, c.var.db);
+    if (customerId) scheduleAiHintRefresh(c, customerId);
+    return row;
+  }),
 );

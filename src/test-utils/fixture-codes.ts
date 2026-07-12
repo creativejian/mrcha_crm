@@ -14,6 +14,7 @@
 
 export const TEST_CUSTOMER_CODE_PREFIXES = [
   "CU-ADVID-",      // routes/customers.test.ts — advisorId 배정 키
+  "CU-AIHINT-",     // db/queries/ai-hint-sources.test.ts · routes/customers.ai-hint.test.ts
   "CU-AITOOL-",     // db/queries/assistant-tools.test.ts
   "CU-CONSULT-",    // db/queries/consultations.test.ts (CU-CONSULT-RT- 도 여기 걸린다)
   "CU-DEL-",        // routes/customers.delete.test.ts
@@ -35,6 +36,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
 export const TEST_CUSTOMER_NAMES: readonly string[] = ["수기등록테스트", "게이트검증"];
 
 export const TEST_QUOTE_CODE_PREFIXES = [
+  "QT-AIHINT-",     // db/queries/ai-hint-sources.test.ts
   "QT-AITOOL-",     // db/queries/assistant-tools.test.ts
   "QT-EMBSRC-",     // db/queries/embed-sources.test.ts — 변수(QUOTE_CODE)로 조립해 눈에 잘 안 띈다
   "QT-TEST-",       // routes/customers.test.ts, db/queries/advisor-quotes.test.ts
