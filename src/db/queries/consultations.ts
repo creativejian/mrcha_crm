@@ -159,3 +159,17 @@ export async function dismissConsultation(
   await ex.insert(consultationDismissals).values({ consultationId, dismissedBy }).onConflictDoNothing();
   return { id: consultationId };
 }
+
+// dismiss 훅용: 그 상담신청 유저(user_id)에 연결된 CRM 고객 id. 미승격(연결 고객 없음)·비로그인
+// (userId null — NULL은 join 불성립) 상담신청은 null.
+export async function linkedCustomerIdForConsultation(
+  consultationId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<string | null> {
+  const [row] = await ex
+    .select({ customerId: customers.id })
+    .from(consultationRequests)
+    .innerJoin(customers, eq(customers.appUserId, consultationRequests.userId))
+    .where(eq(consultationRequests.id, consultationId));
+  return row?.customerId ?? null;
+}

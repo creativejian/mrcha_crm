@@ -8,6 +8,7 @@ import {
   createCustomerFromConsultation,
   dismissConsultation,
   linkConsultationToCustomer,
+  linkedCustomerIdForConsultation,
   listConsultations,
 } from "../db/queries/consultations";
 import { scheduleEmbedOnWrite } from "../lib/embed-on-write";
@@ -73,5 +74,12 @@ consultations.post("/:id/create-customer", zValidator("param", idParam), (c) =>
 
 // CRM 전용 삭제 — 카드를 CRM 뷰에서만 숨긴다(public.consultations 불변). dismissal 기록만.
 consultations.delete("/:id", zValidator("param", idParam), (c) =>
-  run(c, () => dismissConsultation(c.req.valid("param").id, c.var.user.id, c.var.db)),
+  run(c, async () => {
+    const row = await dismissConsultation(c.req.valid("param").id, c.var.user.id, c.var.db);
+    // dismiss가 consultationNote 재료(dismissed 제외 최신 문의)를 바꾼다 — 상담 문의가 유일 재료였던
+    // 고객의 스테일 힌트 방지. 연결 고객 없는(미승격·비로그인) 유저면 재료를 가진 고객이 없어 생략.
+    const customerId = await linkedCustomerIdForConsultation(c.req.valid("param").id, c.var.db);
+    if (customerId) scheduleAiHintRefresh(c, customerId);
+    return row;
+  }),
 );
