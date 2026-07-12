@@ -16,7 +16,7 @@
 
 - **Task 1 ✅** 스키마+마이그 0028 (`40f7e0e`) — spec/품질 리뷰 통과. **마이그는 실 DB 적용 완료**(회사에서 `db:migrate` 재실행해도 no-op).
 - **Task 2 ✅** 순수 계층 `src/lib/ai-hint.ts` (`1c37177`) — 리뷰 통과. Minor 관찰 2건은 후속(코드펜스 방어는 Task 7 백필 실측에서 판단).
-- **Task 3 ✅** 로더/라이터 (`15401fd` + 픽스 `9f8de1c`) — 구현·spec 리뷰 통과, 품질 리뷰 Important 1건(상담 분기 무커버리지) 픽스 반영(상담 실왕복 테스트 — withNotifyGuard·dismissed 제외·공백 notes 제외·최신 선택). **재리뷰 결과는 자택 세션에 도착 예정이었음** — 회사 세션은 `git show 9f8de1c` 확인 후 이상 없으면 Task 4 진행.
+- **Task 3 ✅** 로더/라이터 (`15401fd` + 픽스 `9f8de1c` + `063cf08`) — 구현·spec 리뷰 통과, 품질 리뷰 2라운드 전부 해소: ①상담 분기 무커버리지 → 실왕복 테스트(withNotifyGuard·dismissed 제외·공백 notes 제외·최신 선택 동시 증명) ②신규 테스트가 실존 프로필의 live 상담에 시한부 의존(정확 일치 단언) → 픽스처 createdAt 원미래화(2126)로 결정화. 리뷰어 Minor 메모: public.consultations 픽스처는 잔재 tripwire 스캔 범위 밖(기존 consultations.test.ts와 동일 노출 — 새 갭 아님).
   - 플랜 대비 확정 편차 2건(정당): ①task fixture `category`는 CHECK(체크/견적/안내/요청/내부/심사) 때문에 `"체크"/"견적"` 사용 ②`nonEmpty` 헬퍼는 backfill 스크립트 import 불가(모듈 로드 시 GEMINI_API_KEY throw)라 쿼리 계층에 로컬 재정의.
 - **Task 4~8 미착수.** 검증 스냅샷: server **485** pass·unit 523·typecheck/lint 0·잔재 0.
 - **재개 방법**: 이 플랜의 Task 4부터 subagent-driven(태스크별 구현 → spec 리뷰 → 품질 리뷰) 계속. 게이트 주의 — 서버 테스트는 반드시 `bun run test:server`.
