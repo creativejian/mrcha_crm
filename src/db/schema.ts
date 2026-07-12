@@ -81,6 +81,8 @@ export const customers = crm.table("customers", {
   // last_activity_at 컬럼은 drop(0017) — 관리 상태는 GREATEST 파생(queries/customers.ts staffActivityAt)이 대체.
   recontacted: boolean("recontacted").default(false).notNull(),
   aiSummary: text("ai_summary"),
+  // AI 힌트 입력 재료 hash(lib/ai-hint-on-write) — 재료 불변 재생성 skip. embed content_hash 사상 재사용.
+  aiSummarySourceHash: text("ai_summary_source_hash"),
   needModel: text("need_model"),
   needTrim: text("need_trim"),
   needMethod: text("need_method"),
