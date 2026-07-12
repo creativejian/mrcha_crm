@@ -12,14 +12,17 @@
 
 ---
 
-## 🔶 진행 상태 (2026-07-12 자택 세션 → 회사 세션 인수)
+## ✅ 진행 상태 (2026-07-12 — 8태스크 전량 완료·리뷰 해소, PR 대기)
 
-- **Task 1 ✅** 스키마+마이그 0028 (`40f7e0e`) — spec/품질 리뷰 통과. **마이그는 실 DB 적용 완료**(회사에서 `db:migrate` 재실행해도 no-op).
-- **Task 2 ✅** 순수 계층 `src/lib/ai-hint.ts` (`1c37177`) — 리뷰 통과. Minor 관찰 2건은 후속(코드펜스 방어는 Task 7 백필 실측에서 판단).
-- **Task 3 ✅** 로더/라이터 (`15401fd` + 픽스 `9f8de1c` + `063cf08`) — 구현·spec 리뷰 통과, 품질 리뷰 2라운드 전부 해소: ①상담 분기 무커버리지 → 실왕복 테스트(withNotifyGuard·dismissed 제외·공백 notes 제외·최신 선택 동시 증명) ②신규 테스트가 실존 프로필의 live 상담에 시한부 의존(정확 일치 단언) → 픽스처 createdAt 원미래화(2126)로 결정화. 리뷰어 Minor 메모: public.consultations 픽스처는 잔재 tripwire 스캔 범위 밖(기존 consultations.test.ts와 동일 노출 — 새 갭 아님).
-  - 플랜 대비 확정 편차 2건(정당): ①task fixture `category`는 CHECK(체크/견적/안내/요청/내부/심사) 때문에 `"체크"/"견적"` 사용 ②`nonEmpty` 헬퍼는 backfill 스크립트 import 불가(모듈 로드 시 GEMINI_API_KEY throw)라 쿼리 계층에 로컬 재정의.
-- **Task 4~8 미착수.** 검증 스냅샷: server **485** pass·unit 523·typecheck/lint 0·잔재 0.
-- **재개 방법**: 이 플랜의 Task 4부터 subagent-driven(태스크별 구현 → spec 리뷰 → 품질 리뷰) 계속. 게이트 주의 — 서버 테스트는 반드시 `bun run test:server`.
+- **Task 1 ✅** 스키마+마이그 0028 (`40f7e0e`) — spec/품질 리뷰 통과. **마이그는 실 DB 적용 완료**(`db:migrate` 재실행 no-op).
+- **Task 2 ✅** 순수 계층 `src/lib/ai-hint.ts` (`1c37177`) — 리뷰 통과. Minor 관찰(코드펜스 방어)은 백필 실측에서 미발현 — 수용.
+- **Task 3 ✅** 로더/라이터 (`15401fd` + `9f8de1c` + `063cf08`) — 품질 리뷰 2라운드 해소: ①상담 분기 실왕복 테스트(withNotifyGuard·dismissed 제외·공백 notes 제외·최신 선택) ②픽스처 createdAt 원미래화(2126 — 실존 프로필 live 상담의 시한부 의존 제거). 편차 2건 정당(task category CHECK 실측·nonEmpty 로컬 재정의).
+- **Task 4 ✅** 훅 (`832f6a9` + 게이트 테스트 `d26e2ab`) — Important(스케줄러/게이트 무커버리지 — 기본 off 가드가 master 오염 방지 유일 방어선) 픽스, **변이 검증 실관찰**(게이트 단순화 시 정확히 그 테스트 1개만 실패).
+- **Task 5 ✅** 라우트 배선 (`04ac16b` + `68ad1a7`) — 15곳 + 품질 리뷰가 찾은 **16번째**(상담 dismiss가 consultationNote 재료를 바꾸는 경로) 배선·`linkedCustomerIdForConsultation` 헬퍼 신설. 배선 통합 테스트 4종(hash skip·클리어·dismiss 재생성 실왕복).
+- **Task 6 ✅** 클라 (`97e2dad`) — 목업 테이블 폐기·`parseAiHintParts`·값 없으면 버튼 숨김·검색/레거시 셀 평문화.
+- **Task 7 ✅** 백필 (`51a60d6` + 프롬프트 튜닝 `b43e1a0`) — **실 실행 22/22 generated → 1차 실측 톤 드리프트(명령형 5건·굵게 3곳 2건) → 프롬프트 강화(평서 압축 종결 강제·굵게 최대 2곳) → hash 클리어 재생성 → 전건 평서형·47~77자** · 멱등 증명(재실행 전건 unchanged). 수용 잔여 1건: 김지안 굵게 3곳(재료에 진성 키워드 3개·near-deterministic — 표시 무해, 파서 하드 계약은 even-count뿐).
+- **Task 8 ✅** 정적 게이트(typecheck/lint 0·knip main과 byte-동일·server **501**·unit **532**·build) + **격리 스택 브라우저 스모크 A~F 전 통과**(목업→생성 문장 교체 실증·앱 고객 빈 말풍선 해소·NULL 버튼 숨김·검색 평문 매칭·실 Gemini 재생성 e2e — 메모 추가/삭제 후 **hash 수렴으로 원문장 byte-exact 복원 실증**·원복/잔재 0, 캡처 `screenshots/ai-hint-smoke-*.png`) + 최종 통합 리뷰.
+- 이사님 사후 공유 → `ref/director-pending-confirmations.md` **항목 5** 등재.
 
 ---
 
