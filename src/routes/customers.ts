@@ -17,6 +17,7 @@ import { getStaffName } from "../db/queries/staff";
 import { validateLookupValue, validateStatusSelection } from "../lib/lookup-validate";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
+import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
 import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
 import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
 import type { AuthVariables } from "../middleware/auth";
@@ -100,6 +101,7 @@ customers.post("/", zValidator("json", customerCreateSchema), async (c) => {
   // 프로필 청크 재임베딩 — source·advisorName이 구성 필드(CUSTOMER_PROFILE_EMBED_KEYS).
   // 트랜잭션 resolve(=커밋) 후 스케줄(견적 생성 라우트와 동일 — 훅의 fresh read가 커밋 전 구값을 보는 것 방지).
   scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: row.id });
+  scheduleAiHintRefresh(c, row.id);
   return c.json(row, 201);
 });
 
@@ -215,6 +217,7 @@ customers.patch(
         if (CUSTOMER_PROFILE_EMBED_KEYS.some((k) => patch[k] !== undefined)) {
           scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: id });
         }
+        scheduleAiHintRefresh(c, id); // 어떤 필드든 재료 후보 — 재료 불변은 hash skip이 흡수
         // 배정 알림(저장 성공 후, 응답 비차단). self·advisorId 부재는 위 분기에서 이미 걸러짐.
         // assignmentPushEnabled = 테스트 게이트(NODE_ENV=test 기본 off — 실 prod send-push 실호출 방지,
         // embed-on-write 대칭). holdWork가 실패를 흡수하고 sendAssignmentPush 자체도 throw 안 하지만, 이중으로 안전.
@@ -349,13 +352,17 @@ const quotePatchBody = z.object({
 customers.post("/:id/memos", zValidator("param", idParam), zValidator("json", memoBody), async (c) => {
   const row = await addMemo(c.req.valid("param").id, c.req.valid("json"), c.var.db);
   scheduleEmbedOnWrite(c, { sourceType: "memo", sourceId: row.id });
+  scheduleAiHintRefresh(c, c.req.valid("param").id);
   return c.json(row, 201);
 });
 customers.patch("/:id/memos/:childId", zValidator("param", childParam), zValidator("json", memoBody), (c) => {
   const p = c.req.valid("param");
   return run(c, async () => {
     const row = await updateMemo(p.id, p.childId, c.req.valid("json"), c.var.db);
-    if (row) scheduleEmbedOnWrite(c, { sourceType: "memo", sourceId: p.childId });
+    if (row) {
+      scheduleEmbedOnWrite(c, { sourceType: "memo", sourceId: p.childId });
+      scheduleAiHintRefresh(c, p.id);
+    }
     return row;
   }, "메모를 찾을 수 없습니다.");
 });
@@ -363,7 +370,10 @@ customers.delete("/:id/memos/:childId", zValidator("param", childParam), (c) => 
   const p = c.req.valid("param");
   return run(c, async () => {
     const row = await deleteMemo(p.id, p.childId, c.var.db);
-    if (row) await cleanupEmbeddingOnDelete("memo", p.childId, c.var.db); // 정리 정책 주석은 헬퍼 참조
+    if (row) {
+      await cleanupEmbeddingOnDelete("memo", p.childId, c.var.db); // 정리 정책 주석은 헬퍼 참조
+      scheduleAiHintRefresh(c, p.id);
+    }
     return row;
   }, "메모를 찾을 수 없습니다.");
 });
@@ -376,6 +386,7 @@ customers.post("/:id/tasks", zValidator("param", idParam), zValidator("json", ta
   }
   const row = await addTask(c.req.valid("param").id, body, c.var.db);
   scheduleEmbedOnWrite(c, { sourceType: "task", sourceId: row.id });
+  scheduleAiHintRefresh(c, c.req.valid("param").id);
   return c.json(row, 201);
 });
 customers.patch("/:id/tasks/:childId", zValidator("param", childParam), zValidator("json", taskBody), async (c) => {
@@ -387,7 +398,10 @@ customers.patch("/:id/tasks/:childId", zValidator("param", childParam), zValidat
   }
   return run(c, async () => {
     const row = await updateTask(p.id, p.childId, body, c.var.db);
-    if (row) scheduleEmbedOnWrite(c, { sourceType: "task", sourceId: p.childId });
+    if (row) {
+      scheduleEmbedOnWrite(c, { sourceType: "task", sourceId: p.childId });
+      scheduleAiHintRefresh(c, p.id);
+    }
     return row;
   }, "할 일을 찾을 수 없습니다.");
 });
@@ -395,7 +409,10 @@ customers.delete("/:id/tasks/:childId", zValidator("param", childParam), (c) => 
   const p = c.req.valid("param");
   return run(c, async () => {
     const row = await deleteTask(p.id, p.childId, c.var.db);
-    if (row) await cleanupEmbeddingOnDelete("task", p.childId, c.var.db);
+    if (row) {
+      await cleanupEmbeddingOnDelete("task", p.childId, c.var.db);
+      scheduleAiHintRefresh(c, p.id);
+    }
     return row;
   }, "할 일을 찾을 수 없습니다.");
 });
@@ -439,6 +456,7 @@ customers.post("/:id/quotes", zValidator("param", idParam), zValidator("json", q
   const row = await c.var.db.transaction((tx) => createQuote(id, body, tx));
   // 트랜잭션 resolve(=커밋) 후 스케줄 — 훅의 fresh read가 커밋 전 구값을 보는 것을 방지(스펙 함정).
   scheduleEmbedOnWrite(c, { sourceType: "quote", sourceId: row.id });
+  scheduleAiHintRefresh(c, id);
   return c.json(row, 201);
 });
 
@@ -448,7 +466,10 @@ customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValida
   const body = c.req.valid("json");
   return run(c, async () => {
     const row = await c.var.db.transaction((tx) => updateQuote(p.id, p.childId, body, tx));
-    if (row) scheduleEmbedOnWrite(c, { sourceType: "quote", sourceId: p.childId }); // 발송(appStatus sent) 포함 — 커밋 후
+    if (row) {
+      scheduleEmbedOnWrite(c, { sourceType: "quote", sourceId: p.childId }); // 발송(appStatus sent) 포함 — 커밋 후
+      scheduleAiHintRefresh(c, p.id);
+    }
     return row;
   }, "견적을 찾을 수 없습니다.");
 });
@@ -463,6 +484,7 @@ customers.delete("/:id/quotes/:childId", zValidator("param", childParam), (c) =>
     const row = await c.var.db.transaction((tx) => deleteQuote(p.id, p.childId, tx));
     if (!row) return null;
     await cleanupEmbeddingOnDelete("quote", p.childId, c.var.db);
+    scheduleAiHintRefresh(c, p.id); // 최신 견적이 삭제분에서 그 다음(또는 무)으로 바뀔 수 있음
     if (orphan) await removeOrphanObject(c.env as StorageEnv, orphan); // 커밋 후(롤백 불가)
     return row;
   }, "견적을 찾을 수 없습니다.");

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests } from "../db/queries/quote-requests";
 import { scheduleEmbedOnWrite } from "../lib/embed-on-write";
+import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
 import { promotionEmbedJobs } from "../lib/promotion-embeds";
 import type { DbVariables } from "../middleware/db";
 import { run } from "./shared";
@@ -38,7 +39,10 @@ quoteRequests.post(
       c,
       async () => {
         const row = await linkRequestToCustomer(c.req.valid("param").id, c.req.valid("json").customerId, c.var.db);
-        if (row) await schedulePromotionEmbeds(c, { appUserId: row.appUserId });
+        if (row) {
+          await schedulePromotionEmbeds(c, { appUserId: row.appUserId });
+          scheduleAiHintRefresh(c, c.req.valid("json").customerId); // 상담신청 link와 동일 배선(재료 무변경도 hash skip이 흡수)
+        }
         return row;
       },
       "요청 또는 고객을 찾을 수 없습니다.",
@@ -52,7 +56,10 @@ quoteRequests.post("/:id/create-customer", zValidator("param", idParam), (c) =>
     // 승격 INSERT는 프로필 청크 구성 필드(needModel/needTrim/needMethod/source)를 시드한다 — 고객 PATCH
     // 훅(CUSTOMER_PROFILE_EMBED_KEYS)과 동일 불변. 기존-고객 반환 경로는 hash skip이 no-op으로 흡수.
     const row = await c.var.db.transaction((tx) => createCustomerFromRequest(c.req.valid("param").id, tx));
-    if (row) await schedulePromotionEmbeds(c, { appUserId: row.appUserId, customerId: row.id });
+    if (row) {
+      await schedulePromotionEmbeds(c, { appUserId: row.appUserId, customerId: row.id });
+      scheduleAiHintRefresh(c, row.id);
+    }
     return row;
   }, "요청을 찾을 수 없습니다."),
 );
