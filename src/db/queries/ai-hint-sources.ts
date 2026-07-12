@@ -70,7 +70,7 @@ export async function loadAiHintSource(customerId: string, ex: Executor = getDef
             .where(eq(consultationDismissals.consultationId, consultationRequests.id)),
         ),
       ))
-      .orderBy(desc(consultationRequests.createdAt))
+      .orderBy(desc(consultationRequests.createdAt), desc(consultationRequests.id)) // id tiebreak — 메모/할일/견적과 일관
       .limit(1);
     consultationNote = latest?.notes ?? null;
   }
