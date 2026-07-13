@@ -1,26 +1,16 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import type { Context } from "hono";
 import { z } from "zod";
 
 import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests } from "../db/queries/quote-requests";
-import { scheduleEmbedOnWrite } from "../lib/embed-on-write";
 import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
-import { promotionEmbedJobs } from "../lib/promotion-embeds";
+import { schedulePromotionEmbeds } from "../lib/promotion-embeds";
 import type { DbVariables } from "../middleware/db";
 import { run } from "./shared";
 
 export const quoteRequests = new Hono<{ Variables: DbVariables }>();
 
 const idParam = z.object({ id: z.uuid() });
-
-// 승격/연결 시점 임베딩 훅 — job 목록은 promotion-embeds SSOT(상담신청 라우트와 공유).
-async function schedulePromotionEmbeds(
-  c: Context<{ Variables: DbVariables }>,
-  opts: { appUserId: string; customerId?: string },
-): Promise<void> {
-  for (const job of await promotionEmbedJobs(opts, c.var.db)) scheduleEmbedOnWrite(c, job);
-}
 
 quoteRequests.get("/", (c) => run(c, () => listQuoteRequests(c.var.db)));
 

@@ -18,8 +18,11 @@ export type CustomerDeleteResult = {
 
 // 반드시 트랜잭션 안에서 호출한다(라우트가 감싼다).
 //
-// 앱 카드 가드가 이 트랜잭션 안에 있는 이유: 밖에서 확인하면 가드 통과와 견적 삭제 사이에
-// 다른 세션이 발송해(advisor_quotes INSERT) 유령 카드가 생긴다. 같은 트랜잭션에서 읽고 지워야 닫힌다.
+// 앱 카드 가드의 경합 한계(0713 감사 정정): 가드는 잠금 없는 SELECT라 READ COMMITTED에서 트랜잭션
+// 배치만으로는 "가드 통과 ↔ 커밋" 사이 다른 세션의 발송 커밋을 막지 못한다. 유령 카드를 실제로 막는
+// 방벽은 ①발송 경로가 같은 트랜잭션에서 quotes 행 UPDATE를 선행해 아래 deleteQuote의 행 잠금과
+// 직렬화되고 ②새치기 카드는 deleteQuote의 카드 회수로 수렴한다는 것. 남는 실피해는 "카드 보유 고객이
+// 409 대신 조용히 삭제되며 카드가 회수되는" 정책 우회 창(ms)뿐 — admin 전용 드문 조작이라 수용.
 export async function deleteCustomer(
   customerId: string,
   deletedBy: string,

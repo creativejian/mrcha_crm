@@ -1,10 +1,10 @@
 // 앱 상담신청(public.consultations) → CRM 고객 통합. 견적요청(quote-requests.ts) 패턴 재사용 —
 // 차이점: userId nullable(비로그인 상담신청 경로가 스키마상 존재), phoneNumber는 폼 자체가 NOT NULL로
 // 항상 확보(통합의 핵심 가치 = 빈 CRM 연락처를 채우는 경로). status는 read-only로 시작(전이는 미구현).
-import { and, desc, eq, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, notInArray } from "drizzle-orm";
 
-import { ConflictError, LinkConflictError } from "../../lib/errors";
 import { APP_CONSULTATION_SOURCE } from "../../../client/src/data/customers";
+import { assertAppUserLinkable } from "./app-user-link";
 import { nextCustomerCode } from "./quote-requests";
 import { getDefaultDb, type Executor } from "../client";
 import { consultationRequests, profiles } from "../public-app";
@@ -127,21 +127,10 @@ export async function linkConsultationToCustomer(
     .where(eq(consultationRequests.id, consultationId));
   if (!req || !req.userId) return null;
 
-  // 정방향 충돌은 conflict 동봉(→ 클라 "그 고객으로 이동" 안내, 이사님 2026-07-13 ②) — quote-requests와 대칭.
-  const [linked] = await ex
-    .select({ customerCode: customers.customerCode, name: customers.name })
-    .from(customers)
-    .where(and(eq(customers.appUserId, req.userId), ne(customers.id, customerId)));
-  if (linked) throw new LinkConflictError(`이 앱 계정은 이미 ${linked.name}(${linked.customerCode}) 고객에 연결돼 있습니다.`, linked);
-
-  const [target] = await ex.select({ phone: customers.phone, appUserId: customers.appUserId }).from(customers).where(eq(customers.id, customerId));
+  // 정·역방향 연결 가드 SSOT(app-user-link) — 문구·conflict 동봉(이사님 2026-07-13 ②)까지
+  // 견적요청 link와 공유해 드리프트를 차단한다(0713 감사). 반환 target.phone은 빈 연락처 보강용.
+  const target = await assertAppUserLinkable(req.userId, customerId, ex);
   if (!target) return null;
-  // 역방향(고객 → 앱계정) 재연결 차단 — 위 가드는 "들어오는 userId가 다른 고객에 붙었나"만 본다.
-  // 대상 고객이 이미 다른 앱 계정에 연결돼 있으면 덮어쓰기가 그 계정을 고아로 만든다(app_user_id에
-  // UNIQUE 제약이 없어 DB도 안 막는다). 같은 계정 재연결은 멱등이라 통과. quote-requests와 대칭.
-  if (target.appUserId && target.appUserId !== req.userId) {
-    throw new ConflictError("이 고객은 이미 다른 앱 계정에 연결돼 있습니다.");
-  }
 
   const [row] = await ex
     .update(customers)

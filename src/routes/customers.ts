@@ -22,7 +22,7 @@ import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "..
 import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
 import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
-import { run } from "./shared";
+import { errorResponse, run } from "./shared";
 import { CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
 
 export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
@@ -99,12 +99,18 @@ customers.post("/", zValidator("json", customerCreateSchema), async (c) => {
   // 등록이 프로필 이름 부재로 막히는 게 더 나쁘다. 자기 배정이라 배정 알림 경로는 없다.
   const staffName = await getStaffName(c.var.user.id, c.var.db);
   const advisor = staffName ? { id: c.var.user.id, name: staffName } : null;
-  const row = await c.var.db.transaction((tx) => createCustomerManual({ ...body, advisor }, tx));
-  // 프로필 청크 재임베딩 — source·advisorName이 구성 필드(CUSTOMER_PROFILE_EMBED_KEYS).
-  // 트랜잭션 resolve(=커밋) 후 스케줄(견적 생성 라우트와 동일 — 훅의 fresh read가 커밋 전 구값을 보는 것 방지).
-  scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: row.id });
-  scheduleAiHintRefresh(c, row.id);
-  return c.json(row, 201);
+  try {
+    const row = await c.var.db.transaction((tx) => createCustomerManual({ ...body, advisor }, tx));
+    // 프로필 청크 재임베딩 — source·advisorName이 구성 필드(CUSTOMER_PROFILE_EMBED_KEYS).
+    // 트랜잭션 resolve(=커밋) 후 스케줄(견적 생성 라우트와 동일 — 훅의 fresh read가 커밋 전 구값을 보는 것 방지).
+    scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: row.id });
+    scheduleAiHintRefresh(c, row.id);
+    return c.json(row, 201);
+  } catch (e) {
+    // 채번 경합(동시 등록 → customer_code 23505 등)이 generic 500("Internal Server Error")으로
+    // 새던 것 교정(0713 감사) — run()과 같은 매핑으로 한글 사유를 싣는다(성공이 201이라 run() 미사용).
+    return errorResponse(c, e);
+  }
 });
 
 customers.get("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) =>
