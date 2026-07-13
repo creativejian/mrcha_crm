@@ -24,3 +24,17 @@ export const staffActivityAt = sql<Date | null>`greatest(
 // 관리 상태 버킷 임계(달력일) — 클라 customer-table.finalUpdateStatus(7/15/30)와 같은 어휘.
 // 드리프트는 클라 파리티 테스트(manage-status-parity.test.ts, 서버 모듈 테스트 전용 import)가 잡는다.
 export const STALE_THRESHOLDS = { review: 7, delayed: 15, abandoned: 30 } as const;
+
+// 수동 관리 상태(스누즈, 이사님 2026-07-13 ⑦-①) 유효 판정 — manage_status_at이 마지막 실활동
+// (staffActivityAt) **이후거나 동시**면 유효, 이후 실활동이 기록되면 만료(파생 복귀).
+// 동시 포함(>=)인 이유: PATCH가 manage_status_at과 updated_at을 같은 now로 찍는다(설정 직후 유효 계약,
+// queries/customers.updateCustomer). 클라 동치는 manage-status.effectiveManageStatus — 파리티 테스트가 잠근다.
+export function manualManageStatusActive(manageStatusAt: Date | string | null, activityAt: Date | string | null): boolean {
+  if (!manageStatusAt) return false;
+  const m = new Date(manageStatusAt).getTime();
+  if (Number.isNaN(m)) return false;
+  if (!activityAt) return true;
+  const a = new Date(activityAt).getTime();
+  if (Number.isNaN(a)) return true;
+  return m >= a;
+}

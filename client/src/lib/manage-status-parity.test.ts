@@ -39,3 +39,25 @@ test("서버 kstDayDiff ↔ 클라 deriveFinalUpdateInfo.days — KST 달력일 
     expect(kstDayDiff(new Date(atIso), now)).toBe(days);
   }
 });
+
+// 수동 관리 상태(스누즈, ⑦-①) 유효 판정 동치 — 서버 도구(stale_customers/delivery_risk)와 클라 배지가
+// 같은 경계(동시=유효 포함)를 봐야 "목록은 수동 정상인데 AI 리포트엔 장기방치" 모순이 재발하지 않는다.
+test("서버 manualManageStatusActive ↔ 클라 effectiveManageStatus — 스누즈 경계 동치", async () => {
+  const { manualManageStatusActive } = await import("../../../src/db/queries/activity");
+  const { effectiveManageStatus } = await import("./manage-status");
+  const cases: Array<[manageAt: string | null, activityAt: string | null, active: boolean]> = [
+    ["2026-07-01T10:00:00+09:00", "2026-07-01T10:00:00+09:00", true], // 동시(PATCH 동일 스탬프) = 유효
+    ["2026-07-01T10:00:00.001+09:00", "2026-07-01T10:00:00+09:00", true], // 1ms 이후 = 유효
+    ["2026-07-01T09:59:59.999+09:00", "2026-07-01T10:00:00+09:00", false], // 1ms 이전 = 만료
+    ["2026-07-01T10:00:00+09:00", null, true], // 활동 전 설정 = 유효
+    [null, "2026-07-01T10:00:00+09:00", false], // 스탬프 없음 = 무효
+  ];
+  for (const [manageAt, activityAt, active] of cases) {
+    expect(manualManageStatusActive(manageAt, activityAt)).toBe(active);
+    const client = effectiveManageStatus({
+      statusGroup: "견적", status: "견적상담중",
+      lastActivityAt: activityAt, manageStatus: manageAt ? "지연" : null, manageStatusAt: manageAt,
+    });
+    expect(client != null).toBe(active);
+  }
+});

@@ -1,7 +1,7 @@
 import { Check, History, MessageSquareText } from "lucide-react";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
-import { CHANCE_OPTIONS, customerStatusGroups, type Customer } from "@/data/customers";
+import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, customerStatusGroups, type Customer } from "@/data/customers";
 import { consultKindClass } from "@/lib/detail-utils";
 import { hasAppSourceQueue } from "@/lib/status-fields";
 
@@ -22,7 +22,7 @@ type StatusWorkflowProps = {
 };
 
 export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, workflow }: StatusWorkflowProps) {
-  const { statusValues, advisorId, stageGroup, stageStatus, chance, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
+  const { statusValues, advisorId, stageGroup, stageStatus, chance, manage, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
 
   function renderStatusEditor(key: StatusFieldKey) {
     return (
@@ -100,6 +100,30 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 수동 관리 상태(이사님 2026-07-13 ⑦-①) — 선택은 영속(스누즈: 다음 실활동 기록 시 자동 해제).
+    if (key === "manage") {
+      return (
+        <div className="kim-edit-popover compact" role="dialog" aria-label="관리 상태 수정">
+          <div className="kim-choice-list single">
+            {CUSTOMER_MANAGE_STATUSES.map((option) => {
+              const selected = option === manage;
+              return (
+                <button
+                  className={selected ? "active" : ""}
+                  key={option}
+                  onClick={() => handlers.selectManage(option)}
+                  type="button"
+                >
+                  <span>{option}</span>
+                  {selected && <Check size={13} strokeWidth={2.7} />}
+                </button>
+              );
+            })}
           </div>
         </div>
       );

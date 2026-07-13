@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { finalUpdateStatus } from "./customer-table";
-import { deriveFinalUpdateInfo, resolveUpdateBadge } from "./manage-status";
+import { deriveFinalUpdateInfo, effectiveManageStatus, resolveUpdateBadge } from "./manage-status";
 
 const NOW = new Date("2026-07-04T12:00:00+09:00");
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
@@ -78,5 +78,60 @@ describe("resolveUpdateBadge", () => {
     const { info, status } = resolveUpdateBadge({ ...source, statusGroup: "신규", status: "상담접수" }, { now: NOW });
     expect(info).toBeNull();
     expect(status).toBeNull();
+  });
+});
+
+// 수동 관리 상태 영속(이사님 2026-07-13 ⑦-①) — 스누즈 유효 판정과 배지 우선순위.
+// 서버 동치(activity.manualManageStatusActive)는 manage-status-parity.test.ts가 잠근다.
+describe("effectiveManageStatus (스누즈)", () => {
+  test("manage_status_at >= 활동시각이면 유효(동시 = PATCH 동일 스탬프 계약 포함)", () => {
+    const at = daysAgo(2);
+    expect(effectiveManageStatus({ ...base, lastActivityAt: at, manageStatus: "지연", manageStatusAt: at })).toBe("지연");
+    expect(effectiveManageStatus({ ...base, lastActivityAt: daysAgo(5), manageStatus: "정상", manageStatusAt: daysAgo(2) })).toBe("정상");
+  });
+
+  test("이후 실활동이 기록되면 만료(파생 복귀) — 활동시각 > manage_status_at", () => {
+    expect(effectiveManageStatus({ ...base, lastActivityAt: daysAgo(1), manageStatus: "정상", manageStatusAt: daysAgo(3) })).toBeNull();
+  });
+
+  test("값·스탬프 없으면 null(파싱 불가 스탬프 포함)", () => {
+    expect(effectiveManageStatus({ ...base, lastActivityAt: daysAgo(1) })).toBeNull();
+    expect(effectiveManageStatus({ ...base, lastActivityAt: daysAgo(1), manageStatus: "정상", manageStatusAt: null })).toBeNull();
+    expect(effectiveManageStatus({ ...base, lastActivityAt: daysAgo(1), manageStatus: "정상", manageStatusAt: "파싱불가" })).toBeNull();
+  });
+
+  test("활동시각이 없으면(활동 전 수동 설정) 유효", () => {
+    expect(effectiveManageStatus({ ...base, lastActivityAt: null, manageStatus: "확인필요", manageStatusAt: daysAgo(1) })).toBe("확인필요");
+  });
+});
+
+describe("resolveUpdateBadge — 서버 영속 수동 상태 반영", () => {
+  test("유효한 영속 수동 상태가 파생 버킷을 이긴다(리로드 후에도 배지 유지 = 영속화의 목적)", () => {
+    const at = daysAgo(10); // 파생이면 확인필요(10일)
+    const { status } = resolveUpdateBadge({ ...base, lastActivityAt: at, manageStatus: "정상", manageStatusAt: at }, { now: NOW });
+    expect(status?.label).toBe("정상");
+  });
+
+  test("만료된 영속 수동 상태는 무시 — 파생 버킷 복귀", () => {
+    const { status } = resolveUpdateBadge(
+      { ...base, lastActivityAt: daysAgo(10), manageStatus: "정상", manageStatusAt: daysAgo(20) },
+      { now: NOW },
+    );
+    expect(status?.label).toBe("확인필요");
+  });
+
+  test("로컬 낙관 override(방금 선택)가 영속값보다 우선", () => {
+    const at = daysAgo(10);
+    const { status } = resolveUpdateBadge(
+      { ...base, lastActivityAt: at, manageStatus: "정상", manageStatusAt: at },
+      { manageStatusOverride: "지연", now: NOW },
+    );
+    expect(status?.label).toBe("지연");
+  });
+
+  test("유효 영속 재문의 — recontacted 없이도 재문의 배지(전화 재문의 수동 마킹 경로)", () => {
+    const at = daysAgo(3);
+    const { status } = resolveUpdateBadge({ ...base, lastActivityAt: at, manageStatus: "재문의", manageStatusAt: at }, { now: NOW });
+    expect(status?.label).toBe("재문의");
   });
 });

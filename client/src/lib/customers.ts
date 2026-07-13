@@ -26,6 +26,8 @@ export type CustomerRow = {
   assignedAt: string | null;
   lastActivityAt: string | null;
   recontacted: boolean;
+  manageStatus: string | null;
+  manageStatusAt: string | null;
   latestTask: string | null;
 };
 
@@ -75,6 +77,8 @@ export function toCustomer(row: CustomerRow): Customer {
     aiSummary: row.aiSummary ?? "",
     lastActivityAt: row.lastActivityAt,
     recontacted: row.recontacted,
+    manageStatus: row.manageStatus,
+    manageStatusAt: row.manageStatusAt,
   };
 }
 
@@ -249,6 +253,8 @@ export type CustomerWritePatch = {
   advisorName?: string | null;
   advisorId?: string | null; // 이름과 함께 동봉 — 서버 정합 규칙이 이름만 오면 id를 비운다(#176)
   team?: string | null;
+  manageStatus?: string | null; // 수동 관리 상태(⑦-①) — 서버가 manage_status_at 스탬프를 동반 스누즈 저장
+
   needModel?: string | null;
   needTrim?: string | null;
   needColors?: string | null;

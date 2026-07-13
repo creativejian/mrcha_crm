@@ -23,7 +23,7 @@ import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
 import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
 import { run } from "./shared";
-import { SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
+import { CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
 
 export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
@@ -46,6 +46,8 @@ export const customerWriteSchema = z.object({
   statusGroup: z.string().nullable().optional(),
   status: z.string().nullable().optional(),
   chance: z.string().nullable().optional(),
+  // 수동 관리 상태(이사님 2026-07-13 ⑦-①) — 닫힌 어휘, null=클리어. manage_status_at 스탬프는 updateCustomer가 담당.
+  manageStatus: z.enum(CUSTOMER_MANAGE_STATUSES).nullable().optional(),
   advisorName: z.string().nullable().optional(),
   advisorId: z.uuid().nullable().optional(), // 담당자 profiles.id — 역할 scope(staff=본인 담당)의 매칭 키
   team: z.string().nullable().optional(),

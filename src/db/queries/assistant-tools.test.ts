@@ -1,5 +1,5 @@
 import { test, expect, beforeAll, afterAll } from "bun:test";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { withNotifyGuard } from "../../test-utils/notify-gate";
 import { ASSISTANT_TOOL_KEYS } from "../../lib/assistant-tools";
@@ -11,6 +11,7 @@ import { capReportLines, daysSince, runAssistantTool } from "./assistant-tools";
 const db = getDefaultDb();
 let CUST = "";
 let RECONTACT_CUST = ""; // 재문의 + 40일 무활동 + 계약완료 — stale_customers·delivery_risk 재문의 우선 검증
+let MANUAL_CUSTS: string[] = []; // 수동 관리 상태 3상태(유효 정상·유효 지연·만료) — 스누즈 검증(⑦-①)
 let TASK = "";
 let CONSULT_USER = ""; // 실존 profiles.id — public.consultations.user_id FK 때문에 임의 uuid 불가
 let CONSULT_OLD = ""; // 유지되는 상담신청(오래된 쪽 — 정렬 검증)
@@ -43,6 +44,16 @@ beforeAll(async () => {
     statusGroup: "계약완료", status: "배정완료", advisorId: OWNER, updatedAt: new Date(T0 - 40 * 86_400_000),
   }).returning({ id: customers.id });
   RECONTACT_CUST = rc.id;
+  // 수동 관리 상태(스누즈, ⑦-①) 3상태 — 전부 40일 무활동·계약완료(두 리포트 모두 도달).
+  // 유효 "정상": manage_status_at(now) > updated_at(40일 전) → 두 리포트에서 제외돼야 한다.
+  // 유효 "지연"(+recontacted): 수동이 재문의보다 우선 — 라벨 "지연(수동 지정)". 만료: manage_status_at(50일 전) <
+  // updated_at(40일 전) → 파생(장기방치) 복귀.
+  const manualRows = await db.insert(customers).values([
+    { customerCode: `CU-AITOOL-${crypto.randomUUID().slice(0, 8)}`, name: "수동정상도구테스트", statusGroup: "계약완료", status: "배정완료", updatedAt: new Date(T0 - 40 * 86_400_000), manageStatus: "정상", manageStatusAt: new Date(T0) },
+    { customerCode: `CU-AITOOL-${crypto.randomUUID().slice(0, 8)}`, name: "수동지연도구테스트", statusGroup: "계약완료", status: "배정완료", recontacted: true, updatedAt: new Date(T0 - 40 * 86_400_000), manageStatus: "지연", manageStatusAt: new Date(T0) },
+    { customerCode: `CU-AITOOL-${crypto.randomUUID().slice(0, 8)}`, name: "수동만료도구테스트", statusGroup: "계약완료", status: "배정완료", updatedAt: new Date(T0 - 40 * 86_400_000), manageStatus: "정상", manageStatusAt: new Date(T0 - 50 * 86_400_000) },
+  ]).returning({ id: customers.id });
+  MANUAL_CUSTS = manualRows.map((r) => r.id);
   const [t] = await db.insert(customerTasks).values({ customerId: CUST, body: "도구 스모크 할일", due: "오늘", done: false }).returning({ id: customerTasks.id });
   TASK = t.id;
   // customer_quotes 검증용 견적 2개 — 발송완료(BMW, 열람) + 작성중(쏘렌토). 코퍼스가 아니라 crm.quotes 직접 조회 도구라 임베딩 무관.
@@ -82,6 +93,7 @@ afterAll(async () => {
   await db.delete(customerTasks).where(eq(customerTasks.id, TASK));
   await db.delete(customers).where(eq(customers.id, CUST));
   await db.delete(customers).where(eq(customers.id, RECONTACT_CUST));
+  if (MANUAL_CUSTS.length) await db.delete(customers).where(inArray(customers.id, MANUAL_CUSTS));
 });
 
 test("runAssistantTool: 전 도구 throw 없이 {label, lines[]} 반환(실 DB 스모크)", async () => {
@@ -113,7 +125,8 @@ test("quote_ready: 진행 상태 견적 단계 고객이 사유와 함께 잡힌
 
 test("stale_customers: 방금 만든 고객(활동 0일)은 미포함", async () => {
   const r = await runAssistantTool("stale_customers", {}, "all", USER, db);
-  expect(r.lines.some((l) => l.includes("도구테스트") && !l.includes("재문의도구테스트"))).toBe(false);
+  // "도구테스트"는 다른 픽스처 이름(재문의·수동*도구테스트)의 부분 문자열 — 라인 시작(이름 자리)으로 정밀 매칭.
+  expect(r.lines.some((l) => l.startsWith("도구테스트 —"))).toBe(false);
 });
 
 // 재문의 고객은 stale 버킷 라벨 대신 "재문의"로 표기(이사님 2026-07-13 ① — 목록 배지와 통일).
@@ -132,6 +145,37 @@ test("delivery_risk: 재문의 고객은 재문의 병기(계약완료 무활동
   const line = r.lines.find((l) => l.includes("재문의도구테스트"));
   expect(line).toBeDefined();
   expect(line).toContain("재문의(고객이 먼저 다시 연락)");
+});
+
+// ── 수동 관리 상태(스누즈, 이사님 2026-07-13 ⑦-①) — 유효/우선순위/만료 3상태 ─────────────────
+test("stale_customers: 유효한 수동 '정상'은 리포트 제외(목록 배지 정상과 모순 방지)", async () => {
+  const r = await runAssistantTool("stale_customers", {}, "all", USER, db);
+  expect(r.lines.some((l) => l.includes("수동정상도구테스트"))).toBe(false);
+});
+
+test("stale_customers: 유효한 수동 상태가 재문의·버킷보다 우선 — '지연(수동 지정)' 표기", async () => {
+  const r = await runAssistantTool("stale_customers", {}, "all", USER, db);
+  const line = r.lines.find((l) => l.includes("수동지연도구테스트"));
+  expect(line).toBeDefined();
+  expect(line).toContain("지연(수동 지정)");
+  expect(line).not.toContain("장기방치"); // 버킷(40일)에 밀리지 않는다
+  expect(line).not.toContain("먼저 다시 연락"); // recontacted=true여도 수동이 우선(클라 override 우선 미러)
+});
+
+test("stale_customers: 만료된 수동 상태(manage_status_at < 활동)는 무시 — 파생(장기방치) 복귀", async () => {
+  const r = await runAssistantTool("stale_customers", {}, "all", USER, db);
+  const line = r.lines.find((l) => l.includes("수동만료도구테스트"));
+  expect(line).toBeDefined();
+  expect(line).toContain("장기방치");
+  expect(line).not.toContain("수동 지정");
+});
+
+test("delivery_risk: 유효 수동 '정상' 제외 + 유효 수동 '지연' 병기", async () => {
+  const r = await runAssistantTool("delivery_risk", {}, "all", USER, db);
+  expect(r.lines.some((l) => l.includes("수동정상도구테스트"))).toBe(false);
+  const delayed = r.lines.find((l) => l.includes("수동지연도구테스트"));
+  expect(delayed).toBeDefined();
+  expect(delayed).toContain("지연(수동 지정)");
 });
 
 // 무활동 일수는 KST 달력일 차(0709 감사) — floor(경과/24h)면 목록 배지(달력일)와 경계에서 갈려
