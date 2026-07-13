@@ -340,7 +340,7 @@
    정상 동작이라 제외. (.chat-messages·.work-ai-body는 개별 규칙에 이미 적용) */
 .notification-list,
 .global-search-results,
-.draft-filter-popover,
+.console-filter-popover,
 .kim-timeline-popover .kim-timeline-popover-body.is-scrollable,
 .kim-vehicle-picker-menu,
 .kim-option-picker-menu,

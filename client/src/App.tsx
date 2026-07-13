@@ -93,7 +93,7 @@ export function App() {
       : location.pathname.startsWith("/mc-master/")
         ? "mc-master"
         : "advisor-dashboard");
-  const [customerMode, setCustomerMode] = useState<CustomerMode>("allDraft");
+  const [customerMode, setCustomerMode] = useState<CustomerMode>("all");
   const [financeMode, setFinanceMode] = useState<FinanceMode>("stats");
   const [toast, setToast] = useState("작업이 반영되었습니다.");
   const [toastVisible, setToastVisible] = useState(false);
@@ -142,14 +142,14 @@ export function App() {
     reloadCustomers();
   }, [reloadCustomers]);
 
-  // allDraft 타이틀은 아래 헤더에서 breadcrumb 마크업으로 렌더되지만, 문자열 소스는 여기와 동일(customerModeMeta).
+  // 전체 보기(all) 타이틀은 아래 헤더에서 breadcrumb 마크업으로 렌더되지만, 문자열 소스는 여기와 동일(customerModeMeta).
   const [title, desc] = activeView === "customers"
     ? [`${CUSTOMERS_MENU_TITLE} · ${customerModeMeta[customerMode].title}`, customerModeMeta[customerMode].desc]
     : activeView === "finance"
       ? financeModeMeta[financeMode]
     : viewMeta[activeView];
-  const isCustomerLineDraft = activeView === "customers" && customerMode === "allDraft";
-  const isCustomerConsole = isCustomerLineDraft || activeView === "customer-detail";
+  const isCustomerListConsole = activeView === "customers" && customerMode === "all";
+  const isCustomerConsole = isCustomerListConsole || activeView === "customer-detail";
 
   // useCallback로 identity 고정 — onToast가 매 렌더 새 함수면 이를 deps에 둔 자식 effect가 계속 재실행돼,
   // 미리보기 이미지 로딩 플래그가 리셋되며 objectUrl 미리보기가 안 뜨던 버그가 있었다.
@@ -380,7 +380,7 @@ export function App() {
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} onCustomerModeChange={setCustomerMode} onFinanceModeChange={setFinanceMode} onViewChange={handleViewChange} />
-      <main className={`main ${isCustomerConsole ? "customer-line-draft" : ""}`}>
+      <main className={`main ${isCustomerConsole ? "customer-console-main" : ""}`}>
         <Topbar
           sidebarCollapsed={sidebarCollapsed}
           roleTab={roleTab}

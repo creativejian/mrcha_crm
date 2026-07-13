@@ -6,7 +6,7 @@ import { CustomerManagementPage } from "./CustomerManagementPage";
 
 describe("CustomerManagementPage", () => {
   it("renders the all-customer list with vehicle context right after the customer", () => {
-    render(<CustomerManagementPage mode="allDraft" />);
+    render(<CustomerManagementPage mode="all" />);
 
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
       "",
@@ -21,8 +21,8 @@ describe("CustomerManagementPage", () => {
     ]);
   });
 
-  it("renders the draft all-customer list with the same finished column rhythm", () => {
-    render(<CustomerManagementPage mode="allDraft" />);
+  it("renders the all-customer console list with the same finished column rhythm", () => {
+    render(<CustomerManagementPage mode="all" />);
 
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
       "",
@@ -38,17 +38,17 @@ describe("CustomerManagementPage", () => {
   });
 
   it("hides the advisor column for advisor and dealer roles", () => {
-    const { rerender } = render(<CustomerManagementPage mode="allDraft" roleTab="상담사" />);
+    const { rerender } = render(<CustomerManagementPage mode="all" roleTab="상담사" />);
 
     expect(screen.queryByRole("columnheader", { name: "담당" })).not.toBeInTheDocument();
 
-    rerender(<CustomerManagementPage mode="allDraft" roleTab="딜러" />);
+    rerender(<CustomerManagementPage mode="all" roleTab="딜러" />);
     expect(screen.queryByRole("columnheader", { name: "담당" })).not.toBeInTheDocument();
   });
 
   it("filters rows by search keyword", async () => {
     const user = userEvent.setup();
-    render(<CustomerManagementPage mode="allDraft" />);
+    render(<CustomerManagementPage mode="all" />);
 
     await user.type(screen.getByPlaceholderText("고객명, 연락처, 차종 검색"), "Maybach");
 
@@ -56,9 +56,9 @@ describe("CustomerManagementPage", () => {
     expect(screen.queryByText("박서연")).not.toBeInTheDocument();
   });
 
-  it("keeps draft filter controls visually active until they return to their default value", async () => {
+  it("keeps console filter controls visually active until they return to their default value", async () => {
     const user = userEvent.setup();
-    render(<CustomerManagementPage mode="allDraft" />);
+    render(<CustomerManagementPage mode="all" />);
 
     const primaryStatusFilter = screen.getByRole("button", { name: /진행 상태 · 1차/ });
     await user.click(primaryStatusFilter);
@@ -82,7 +82,7 @@ describe("CustomerManagementPage", () => {
 
   it("paginates the customer list with 15 rows by default and supports page size changes", async () => {
     const user = userEvent.setup();
-    render(<CustomerManagementPage mode="allDraft" />);
+    render(<CustomerManagementPage mode="all" />);
 
     expect(screen.getByText(initialCustomers[0].name)).toBeInTheDocument();
     expect(screen.queryByText(initialCustomers[15].name)).not.toBeInTheDocument();
@@ -99,7 +99,7 @@ describe("CustomerManagementPage", () => {
   it("opens a customer from row click while keeping row controls independent", async () => {
     const user = userEvent.setup();
     const onOpenCustomer = vi.fn();
-    render(<CustomerManagementPage mode="allDraft" onOpenCustomer={onOpenCustomer} />);
+    render(<CustomerManagementPage mode="all" onOpenCustomer={onOpenCustomer} />);
 
     await user.click(screen.getByText("김민준").closest("tr") as HTMLTableRowElement);
     expect(onOpenCustomer).toHaveBeenCalledWith(expect.objectContaining({ name: "김민준" }));
@@ -116,7 +116,7 @@ describe("CustomerManagementPage", () => {
   it("reopens a customer by row click after a popover was opened then closed (no stuck suppress ref)", async () => {
     const user = userEvent.setup();
     const onOpenCustomer = vi.fn();
-    render(<CustomerManagementPage mode="allDraft" onOpenCustomer={onOpenCustomer} />);
+    render(<CustomerManagementPage mode="all" onOpenCustomer={onOpenCustomer} />);
 
     const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
     // 1. 진행상태 버튼 클릭 → popover 열림
@@ -136,7 +136,7 @@ describe("CustomerManagementPage", () => {
   it("changes a two-step row stage without opening the customer", async () => {
     const user = userEvent.setup();
     const onOpenCustomer = vi.fn();
-    render(<CustomerManagementPage mode="allDraft" onOpenCustomer={onOpenCustomer} />);
+    render(<CustomerManagementPage mode="all" onOpenCustomer={onOpenCustomer} />);
 
     const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
     await user.click(within(row).getByRole("button", { name: "진행 1단계 변경: 견적" }));
@@ -157,7 +157,7 @@ describe("CustomerManagementPage", () => {
   it("closes the stage popover from outside click and Escape", async () => {
     const user = userEvent.setup();
     const onOpenCustomer = vi.fn();
-    render(<CustomerManagementPage mode="allDraft" onOpenCustomer={onOpenCustomer} />);
+    render(<CustomerManagementPage mode="all" onOpenCustomer={onOpenCustomer} />);
 
     const row = screen.getByText("최유진").closest("tr") as HTMLTableRowElement;
     await user.click(within(row).getByRole("button", { name: "진행 1단계 변경: 계약완료" }));
@@ -176,7 +176,7 @@ describe("CustomerManagementPage", () => {
 
   it("changes a row chance from the chance button", async () => {
     const user = userEvent.setup();
-    render(<CustomerManagementPage mode="allDraft" />);
+    render(<CustomerManagementPage mode="all" />);
 
     const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
     await user.click(within(row).getByRole("button", { name: "가능성 변경: 높음" }));
@@ -188,7 +188,7 @@ describe("CustomerManagementPage", () => {
 
   it("automatically confirms chance when the primary stage becomes contracted", async () => {
     const user = userEvent.setup();
-    render(<CustomerManagementPage mode="allDraft" />);
+    render(<CustomerManagementPage mode="all" />);
 
     const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
     expect(within(row).getByRole("button", { name: "가능성 변경: 높음" })).toBeInTheDocument();
@@ -202,7 +202,7 @@ describe("CustomerManagementPage", () => {
 
   it("blocks manual confirmed chance before the primary stage is contracted", async () => {
     const user = userEvent.setup();
-    render(<CustomerManagementPage mode="allDraft" />);
+    render(<CustomerManagementPage mode="all" />);
 
     const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
     await user.click(within(row).getByRole("button", { name: "가능성 변경: 높음" }));
@@ -215,7 +215,7 @@ describe("CustomerManagementPage", () => {
 
   it("switches directly between stage and chance popovers without swallowing the first click", async () => {
     const user = userEvent.setup();
-    render(<CustomerManagementPage mode="allDraft" />);
+    render(<CustomerManagementPage mode="all" />);
 
     const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
     await user.click(within(row).getByRole("button", { name: "진행 1단계 변경: 견적" }));
@@ -237,7 +237,7 @@ describe("CustomerManagementPage", () => {
   it("edits the next task inline with keyboard and mouse controls", async () => {
     const user = userEvent.setup();
     const onOpenCustomer = vi.fn();
-    render(<CustomerManagementPage mode="allDraft" onOpenCustomer={onOpenCustomer} />);
+    render(<CustomerManagementPage mode="all" onOpenCustomer={onOpenCustomer} />);
 
     const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
     await user.click(within(row).getByRole("button", { name: "김민준 상담 메모 수정" }));
@@ -280,7 +280,7 @@ describe("CustomerManagementPage", () => {
   it("closes the chance popover from an outside row click without opening the customer", async () => {
     const user = userEvent.setup();
     const onOpenCustomer = vi.fn();
-    render(<CustomerManagementPage mode="allDraft" onOpenCustomer={onOpenCustomer} />);
+    render(<CustomerManagementPage mode="all" onOpenCustomer={onOpenCustomer} />);
 
     const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
     await user.click(within(row).getByRole("button", { name: "가능성 변경: 높음" }));

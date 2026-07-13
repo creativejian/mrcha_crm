@@ -22,5 +22,5 @@ test("captures core CRM UI screens", async ({ page }) => {
   await page.screenshot({ fullPage: true, path: `${screenshotsDir}/customer-management-1280-right.png` });
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.screenshot({ fullPage: true, path: `${screenshotsDir}/customer-management-line-draft-1440.png` });
+  await page.screenshot({ fullPage: true, path: `${screenshotsDir}/customer-management-console-1440.png` });
 });

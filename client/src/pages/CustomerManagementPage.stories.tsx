@@ -5,7 +5,7 @@ export default {
   title: "CRM/Customer Management",
 };
 
-export const AllCustomers = () => <CustomerManagementPage mode="allDraft" />;
+export const AllCustomers = () => <CustomerManagementPage mode="all" />;
 
 export const ConsultingQueue = () => <CustomerManagementPage mode="consulting" />;
 
