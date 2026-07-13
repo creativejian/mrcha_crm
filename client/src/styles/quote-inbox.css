@@ -4,9 +4,19 @@
 .app-requests-head strong { font-size: 15px; font-weight: 700; }
 .app-requests-count { font-size: 12px; color: #7f858c; }
 .app-requests-empty { padding: 40px; text-align: center; color: #7f858c; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; }
-.app-requests-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+/* table-layout: fixed — 닫힌 어휘·고정 포맷 컬럼(요청일/요청자/구매방식/옵션/상태)은 고정 폭·줄바꿈
+   금지, 차량·조건·매칭이 잔여 폭을 균등 분배(2026-07-13 폴리시 — "운용리\스"류 꺾임 해소). */
+.app-requests-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
 .app-requests-table th { text-align: left; font-weight: 600; color: #5f6872; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .app-requests-table td { padding: 9px 10px; border-bottom: 1px solid #f0f0ee; vertical-align: top; }
+.app-req-col-date { width: 112px; }    /* "26/06/29 20:55" 고정 포맷 */
+.app-req-col-name { width: 90px; }
+.app-req-col-payment { width: 76px; }  /* 최장 어휘 "운용리스" + 여백 */
+.app-req-col-option { width: 52px; }
+.app-req-col-status { width: 60px; }
+.app-req-nowrap { white-space: nowrap; }
+/* 요청자는 열린 값(이름) — 고정 폭 + 말줄임, 전체는 title 툴팁으로. */
+.app-req-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app-req-date { white-space: nowrap; color: #5f6872; }
 /* 차량/조건 셀은 td를 flex로 만들지 않고(table-cell 유지) 내부 span만 block으로 쌓아
    다른 단일라인 컬럼과 vertical-align:top 기준을 동일하게(행 내 세로정렬 일치). */
@@ -29,14 +39,26 @@
 .app-req-action:hover { background: #f4f1ff; border-color: var(--brand); }
 .app-req-action:disabled { opacity: 0.5; cursor: default; }
 .app-req-action.link { color: #5f6872; text-decoration: none; }
-.app-req-promoted {
-  display: inline-block;
-  padding: 1px 7px;
+/* 승격 견적 수 — "견적 작성" 우상단 빨간 원형 카운트 배지(앱 알림 배지 문법 미러, 2026-07-13).
+   구 pill(.app-req-promoted "견적 N건")은 매칭 셀을 2단으로 밀어 폐기. 의미는 title/aria-label이 고정. */
+.app-req-action-quote { position: relative; }
+.app-req-quote-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--brand);
-  background: rgba(88, 54, 255, 0.1);
+  background: #e5484d;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff; /* 흰 바닥·버튼 테두리 위에서 또렷하게 분리 */
+  pointer-events: none; /* 배지가 링크 히트 영역을 가리지 않게 */
 }
 
 /* link 충돌 인라인 안내 — 차단 사유 + 충돌 고객으로 가는 경로(닫기 전까지 유지, 토스트보다 읽을 시간 확보) */

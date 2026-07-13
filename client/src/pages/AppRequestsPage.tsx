@@ -116,13 +116,15 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
         <table className="app-requests-table">
           <thead>
             <tr>
-              <th>요청일</th>
-              <th>요청자</th>
+              {/* 요청일/요청자/구매방식/옵션/상태 = 닫힌 어휘·고정 포맷 → 고정 폭(줄바꿈 금지, 2026-07-13 폴리시).
+                  차량·조건·매칭만 잔여 폭을 나눈다(table-layout: fixed). */}
+              <th className="app-req-col-date">요청일</th>
+              <th className="app-req-col-name">요청자</th>
               <th>차량</th>
-              <th>구매방식</th>
+              <th className="app-req-col-payment">구매방식</th>
               <th>조건</th>
-              <th>옵션</th>
-              <th>상태</th>
+              <th className="app-req-col-option">옵션</th>
+              <th className="app-req-col-status">상태</th>
               <th>매칭</th>
             </tr>
           </thead>
@@ -130,25 +132,22 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
             {rows.map((r) => (
               <tr key={r.id}>
                 <td className="app-req-date">{r.createdAt}</td>
-                <td>{r.requesterName}</td>
+                <td className="app-req-name" title={r.requesterName}>{r.requesterName}</td>
                 <td className="app-req-vehicle">
                   <span>{r.vehicleLabel}</span>
                   <span className="app-req-sub">{r.trimPriceLabel}</span>
                 </td>
-                <td>{r.paymentLabel}</td>
+                <td className="app-req-nowrap">{r.paymentLabel}</td>
                 <td className="app-req-terms">
                   <span>{r.periodLabel}</span>
                   <span className="app-req-sub">{r.depositLabel}</span>
                 </td>
-                <td>{r.optionLabel}</td>
-                <td>{r.statusLabel}</td>
+                <td className="app-req-nowrap">{r.optionLabel}</td>
+                <td className="app-req-nowrap">{r.statusLabel}</td>
                 <td className="app-req-match-cell">
                   {/* flex는 안쪽 div에 — td를 flex로 만들면 Safari에서 행 높이만큼 안 늘어나 세로정렬이 어긋남 */}
                   <div className="app-req-match-inner">
                     <span className={MATCH_CLASS[r.matchType]}>{r.matchLabel}</span>
-                    {r.promotedQuoteCount > 0 && (
-                      <span className="app-req-promoted">견적 {r.promotedQuoteCount}건</span>
-                    )}
                     {r.matchType === "none" && (
                       <button className="app-req-action" disabled={actingId === r.id} onClick={() => handleCreate(r)} type="button">신규 생성</button>
                     )}
@@ -157,7 +156,21 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
                     )}
                     {r.matchType === "app_user" && r.matchedCustomerCode && (
                       <>
-                        <Link className="app-req-action" to={`/customer-detail/${r.matchedCustomerCode}?quoteRequest=${r.id}`}>견적 작성</Link>
+                        {/* 승격 견적 수 = "견적 작성" 우상단 빨간 카운트 배지(구 "견적 N건" pill이 매칭 셀을
+                            2단으로 밀던 것 해소). 빨간 배지가 알림으로 오독되지 않게 title로 의미 고정.
+                            promoted는 승격(app_user 연결) 전제라 이 분기 밖에선 카운트가 생기지 않는다. */}
+                        <Link
+                          className="app-req-action app-req-action-quote"
+                          title={r.promotedQuoteCount > 0 ? `이 요청에서 작성한 견적 ${r.promotedQuoteCount}건` : undefined}
+                          to={`/customer-detail/${r.matchedCustomerCode}?quoteRequest=${r.id}`}
+                        >
+                          견적 작성
+                          {r.promotedQuoteCount > 0 && (
+                            <span aria-label={`이 요청에서 작성한 견적 ${r.promotedQuoteCount}건`} className="app-req-quote-count">
+                              {r.promotedQuoteCount > 9 ? "9+" : r.promotedQuoteCount}
+                            </span>
+                          )}
+                        </Link>
                         <Link className="app-req-action link" to={`/customer-detail/${r.matchedCustomerCode}`}>고객 보기</Link>
                       </>
                     )}
