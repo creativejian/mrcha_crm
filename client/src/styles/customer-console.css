@@ -114,7 +114,7 @@
   background-size: 14px 14px;
 }
 
-.customer-console-toolbar .draft-filter-button {
+.customer-console-toolbar .console-filter-button {
   border-style: solid;
   display: inline-flex;
   align-items: center;
@@ -125,20 +125,20 @@
   text-align: left;
 }
 
-.customer-console-toolbar .draft-filter-button span {
+.customer-console-toolbar .console-filter-button span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.draft-filter {
+.console-filter {
   position: relative;
   min-width: 0;
   width: 100%;
 }
 
-.draft-filter-chevron {
+.console-filter-chevron {
   flex: 0 0 auto;
   color: #9aa1a8;
 }
@@ -159,8 +159,8 @@
   color: #3f474f;
 }
 
-.customer-console-toolbar .draft-filter-button:hover .draft-filter-chevron,
-.customer-console-toolbar .draft-filter-button.filter-active .draft-filter-chevron {
+.customer-console-toolbar .console-filter-button:hover .console-filter-chevron,
+.customer-console-toolbar .console-filter-button.filter-active .console-filter-chevron {
   color: #7f858c;
 }
 
@@ -172,7 +172,7 @@
   color: #3f474f;
 }
 
-.draft-filter-popover {
+.console-filter-popover {
   position: absolute;
   top: calc(100% + 7px);
   left: 0;
@@ -189,7 +189,7 @@
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
 }
 
-.draft-filter-option {
+.console-filter-option {
   width: 100%;
   min-height: 28px;
   border: 0;
@@ -207,13 +207,13 @@
   text-align: left;
 }
 
-.draft-filter-option.default-option {
+.console-filter-option.default-option {
   position: relative;
   margin-bottom: 5px;
   font-weight: 620;
 }
 
-.draft-filter-option.default-option::after {
+.console-filter-option.default-option::after {
   position: absolute;
   left: 0;
   right: 0;
@@ -223,13 +223,13 @@
   content: "";
 }
 
-.draft-filter-option:hover,
-.draft-filter-option.active {
+.console-filter-option:hover,
+.console-filter-option.active {
   background: #f3f3f1;
   color: #30363b;
 }
 
-.draft-filter-check {
+.console-filter-check {
   flex: 0 0 auto;
   color: var(--brand);
 }

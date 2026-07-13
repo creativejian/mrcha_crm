@@ -1618,22 +1618,22 @@ th input:focus-visible {
   font-weight: 800;
 }
 
-.main.customer-line-draft {
+.main.customer-console-main {
   background: #fff;
 }
 
-.customer-line-draft .globalbar {
+.customer-console-main .globalbar {
   margin-bottom: 20px;
 }
 
-.customer-line-draft .page-heading-console {
+.customer-console-main .page-heading-console {
   margin-bottom: 0;
   padding: 0 0 20px;
   border-bottom: 0;
   background: #fff;
 }
 
-.customer-line-draft .page-heading-console .title h1 {
+.customer-console-main .page-heading-console .title h1 {
   font-size: 20px;
   font-weight: 600;
   letter-spacing: 0;
@@ -1649,7 +1649,7 @@ th input:focus-visible {
   color: #9aa1a8;
 }
 
-.customer-line-draft .page-heading-console .title p {
+.customer-console-main .page-heading-console .title p {
   margin-top: 3px;
   color: #788087;
   font-size: 13px;

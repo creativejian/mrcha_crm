@@ -1,4 +1,4 @@
-export type CustomerMode = "allDraft" | "consulting" | "contract" | "delivery" | "settlement" | "hold";
+export type CustomerMode = "all" | "consulting" | "contract" | "delivery" | "settlement" | "hold";
 export type CustomerChanceOption = "높음" | "중간" | "낮음" | "보류" | "확정";
 export type CustomerManageStatus = "정상" | "확인필요" | "재문의" | "지연" | "장기방치";
 
@@ -128,7 +128,7 @@ export const customerStatusGroups: Record<string, string[]> = {
 
 // 고객 관리 서브메뉴·헤더 타이틀/서브타이틀의 단일 소스. 키 순서 = 사이드바 서브메뉴 순서.
 export const customerModeMeta: Record<CustomerMode, { title: string; desc: string }> = {
-  allDraft: { title: "전체 보기", desc: "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다." },
+  all: { title: "전체 보기", desc: "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다." },
   consulting: { title: "상담 필요", desc: "계약 전 상담, 견적, 재응대가 필요한 고객 업무함입니다." },
   contract: { title: "계약 관리", desc: "심사, 계약 완료, 계약 취소 고객의 계약 실무를 관리합니다." },
   delivery: { title: "출고 관리", desc: "출고 예정과 출고 완료 전후의 안내 업무를 관리합니다." },

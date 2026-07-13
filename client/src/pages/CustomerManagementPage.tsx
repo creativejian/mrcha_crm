@@ -47,7 +47,7 @@ function modeFilter(mode: CustomerMode, customer: Customer) {
 }
 
 const headsByMode: Record<CustomerMode, string[]> = {
-  allDraft: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
+  all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
   consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "상담 메모", "담당", "관리"],
   contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "담당", "상담 메모", "관리"],
   delivery: ["선택", "고객", "차량", "출고 상태", "출고 업무", "담당", "관리"],
@@ -56,7 +56,7 @@ const headsByMode: Record<CustomerMode, string[]> = {
 };
 
 const tableColumnsByMode: Record<CustomerMode, string[]> = {
-  allDraft: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
+  all: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
   consulting: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
   contract: ["select", "customer", "type", "vehicle", "stage", "summary", "advisor", "action", "actions"],
   delivery: ["select", "customer", "vehicle", "stage", "summary", "advisor", "actions"],
@@ -66,7 +66,7 @@ const tableColumnsByMode: Record<CustomerMode, string[]> = {
 
 const pageSizeOptions = [15, 30, 50, 100] as const;
 type FinalUpdateFilterOption = CustomerManageStatus;
-type DraftFilterKey = "statusGroup" | "status" | "advisor" | "chance" | "finalUpdate";
+type ConsoleFilterKey = "statusGroup" | "status" | "advisor" | "chance" | "finalUpdate";
 
 function shouldShowAdvisorColumn(roleTab: RoleTab) {
   return roleTab === "최고관리자" || roleTab === "팀장";
@@ -121,14 +121,14 @@ export function CustomerManagementPage({
   const chancePopoverRef = useRef<HTMLDivElement>(null);
   const extraPopoverRef = useRef<HTMLButtonElement>(null);
   const finalUpdatePopoverRef = useRef<HTMLDivElement>(null);
-  const draftFilterRailRef = useRef<HTMLDivElement>(null);
+  const consoleFilterRailRef = useRef<HTMLDivElement>(null);
   const pageSizeControlRef = useRef<HTMLDivElement>(null);
   const chanceNoticeTimerRef = useRef<number | null>(null);
   const suppressOutsideClickRef = useRef(false);
   const showAdvisorColumn = shouldShowAdvisorColumn(roleTab);
   const tableHeads = visibleTableItems(headsByMode[mode], showAdvisorColumn);
   const tableColumns = visibleTableItems(tableColumnsByMode[mode], showAdvisorColumn);
-  const [openDraftFilter, setOpenDraftFilter] = useState<DraftFilterKey | null>(null);
+  const [openConsoleFilter, setOpenConsoleFilter] = useState<ConsoleFilterKey | null>(null);
   const [openPageSize, setOpenPageSize] = useState(false);
   // 고객 삭제 — admin만. 서버가 진짜 게이트이고(403 fail-closed) 여기 숨김은 UX 보조다.
   const canDeleteCustomers = roleTab === "최고관리자";
@@ -201,24 +201,24 @@ export function CustomerManagementPage({
   }, [effectivePage, totalPages]);
 
   useEffect(() => {
-    if (openDraftFilter === null) return;
+    if (openConsoleFilter === null) return;
 
-    function closeDraftFilter(event: PointerEvent) {
-      if (draftFilterRailRef.current?.contains(event.target as Node)) return;
-      setOpenDraftFilter(null);
+    function closeConsoleFilter(event: PointerEvent) {
+      if (consoleFilterRailRef.current?.contains(event.target as Node)) return;
+      setOpenConsoleFilter(null);
     }
 
-    function closeDraftFilterByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpenDraftFilter(null);
+    function closeConsoleFilterByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setOpenConsoleFilter(null);
     }
 
-    document.addEventListener("pointerdown", closeDraftFilter, true);
-    document.addEventListener("keydown", closeDraftFilterByKeyboard);
+    document.addEventListener("pointerdown", closeConsoleFilter, true);
+    document.addEventListener("keydown", closeConsoleFilterByKeyboard);
     return () => {
-      document.removeEventListener("pointerdown", closeDraftFilter, true);
-      document.removeEventListener("keydown", closeDraftFilterByKeyboard);
+      document.removeEventListener("pointerdown", closeConsoleFilter, true);
+      document.removeEventListener("keydown", closeConsoleFilterByKeyboard);
     };
-  }, [openDraftFilter]);
+  }, [openConsoleFilter]);
 
   useEffect(() => {
     if (!openPageSize) return;
@@ -747,7 +747,7 @@ export function CustomerManagementPage({
     const finalUpdateCell = <CustomerFinalUpdateCell customer={customer} finalUpdatePopoverRef={finalUpdatePopoverRef} onToggle={toggleFinalUpdatePopover} openFinalUpdateFor={openFinalUpdateFor} updateInfo={updateInfo} updateStatus={updateStatus} />;
     const actions = <CustomerActionsCell customer={customer} onHintHover={() => setOpenFinalUpdateFor(null)} />;
 
-    if (mode === "allDraft") {
+    if (mode === "all") {
       return (
         <tr key={customer.no} {...rowProps}>
           {check}
@@ -794,8 +794,8 @@ export function CustomerManagementPage({
     );
   }
 
-  const isLineDraft = mode === "allDraft";
-  const draftFilterOptions = {
+  const isConsole = mode === "all";
+  const consoleFilterOptions = {
     statusGroup: Object.keys(customerStatusGroups).map((group) => ({ value: group, label: group })),
     status: statuses.map((item) => ({ value: item, label: item })),
     advisor: staffNames.map((name) => ({ value: name, label: name })),
@@ -803,8 +803,8 @@ export function CustomerManagementPage({
     finalUpdate: CUSTOMER_MANAGE_STATUSES.map((option) => ({ value: option, label: option })),
   };
 
-  function renderDraftFilter(options: {
-    id: DraftFilterKey;
+  function renderConsoleFilter(options: {
+    id: ConsoleFilterKey;
     label: string;
     value: string;
     items: { value: string; label: string }[];
@@ -812,24 +812,24 @@ export function CustomerManagementPage({
     extraClassName?: string;
   }) {
     const active = Boolean(options.value);
-    const open = openDraftFilter === options.id;
+    const open = openConsoleFilter === options.id;
     const selectedLabel = options.items.find((item) => item.value === options.value)?.label ?? options.label;
     const allItems = [{ value: "", label: options.label }, ...options.items];
 
     return (
-      <div className="draft-filter">
+      <div className="console-filter">
         <button
           aria-expanded={open}
           aria-haspopup="listbox"
-          className={filterSelectClass(active, ["draft-filter-button", options.extraClassName].filter(Boolean).join(" "))}
-          onClick={() => setOpenDraftFilter((current) => current === options.id ? null : options.id)}
+          className={filterSelectClass(active, ["console-filter-button", options.extraClassName].filter(Boolean).join(" "))}
+          onClick={() => setOpenConsoleFilter((current) => current === options.id ? null : options.id)}
           type="button"
         >
           <span>{selectedLabel}</span>
-          <ChevronsUpDown aria-hidden="true" className="draft-filter-chevron" size={14} strokeWidth={2.1} />
+          <ChevronsUpDown aria-hidden="true" className="console-filter-chevron" size={14} strokeWidth={2.1} />
         </button>
         {open && (
-          <div aria-label={`${options.label} 선택`} className="draft-filter-popover" role="listbox">
+          <div aria-label={`${options.label} 선택`} className="console-filter-popover" role="listbox">
             {allItems.map((item) => {
               const selected = item.value === options.value;
               const isDefaultOption = item.value === "";
@@ -837,7 +837,7 @@ export function CustomerManagementPage({
                 <button
                   aria-selected={selected}
                   className={[
-                    "draft-filter-option",
+                    "console-filter-option",
                     selected ? "active" : "",
                     isDefaultOption ? "default-option" : "",
                   ].filter(Boolean).join(" ")}
@@ -845,13 +845,13 @@ export function CustomerManagementPage({
                   onClick={() => {
                     options.onChange(item.value);
                     setCurrentPage(1);
-                    setOpenDraftFilter(null);
+                    setOpenConsoleFilter(null);
                   }}
                   role="option"
                   type="button"
                 >
                   <span>{item.label}</span>
-                  {selected && <Check aria-hidden="true" className="draft-filter-check" size={14} strokeWidth={2.6} />}
+                  {selected && <Check aria-hidden="true" className="console-filter-check" size={14} strokeWidth={2.6} />}
                 </button>
               );
             })}
@@ -862,12 +862,12 @@ export function CustomerManagementPage({
   }
 
   return (
-    <section className={isLineDraft ? "customer-console-page" : undefined}>
-      <section className={isLineDraft ? "card customer-console-card" : "card"}>
-        <div className={isLineDraft ? "customer-console-control-rail" : undefined} ref={isLineDraft ? draftFilterRailRef : undefined}>
-          <div className={isLineDraft ? "toolbar customer-console-toolbar" : "toolbar"}>
-            {isLineDraft && <div className="total-count">전체 <strong className="num">{rows.length}</strong><span>명</span></div>}
-            {isLineDraft ? (
+    <section className={isConsole ? "customer-console-page" : undefined}>
+      <section className={isConsole ? "card customer-console-card" : "card"}>
+        <div className={isConsole ? "customer-console-control-rail" : undefined} ref={isConsole ? consoleFilterRailRef : undefined}>
+          <div className={isConsole ? "toolbar customer-console-toolbar" : "toolbar"}>
+            {isConsole && <div className="total-count">전체 <strong className="num">{rows.length}</strong><span>명</span></div>}
+            {isConsole ? (
               <label className="customer-console-search">
                 <Search aria-hidden="true" size={15} strokeWidth={2.4} />
                 <input onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
@@ -875,32 +875,32 @@ export function CustomerManagementPage({
             ) : (
               <input className="input" onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
             )}
-            {isLineDraft ? (
+            {isConsole ? (
               <>
-                {renderDraftFilter({
+                {renderConsoleFilter({
                   id: "advisor",
                   label: "담당자",
                   value: advisor,
-                  items: draftFilterOptions.advisor,
+                  items: consoleFilterOptions.advisor,
                   onChange: setAdvisor,
                   extraClassName: "filter-advisor",
                 })}
-                {renderDraftFilter({
+                {renderConsoleFilter({
                   id: "statusGroup",
                   label: "진행 상태 · 1차",
                   value: statusGroup,
-                  items: draftFilterOptions.statusGroup,
+                  items: consoleFilterOptions.statusGroup,
                   onChange: (value) => {
                     setStatusGroup(value);
                     setStatus("");
                   },
                   extraClassName: "filter-stage",
                 })}
-                {renderDraftFilter({
+                {renderConsoleFilter({
                   id: "status",
                   label: "진행 상태 · 2차",
                   value: status,
-                  items: draftFilterOptions.status,
+                  items: consoleFilterOptions.status,
                   onChange: setStatus,
                   extraClassName: "filter-stage",
                 })}
@@ -921,30 +921,30 @@ export function CustomerManagementPage({
                 </select>
               </>
             )}
-            {isLineDraft && (
+            {isConsole && (
               <div className="list-view-controls">
-                {renderDraftFilter({
+                {renderConsoleFilter({
                   id: "chance",
                   label: "계약 가능성",
                   value: chanceFilter,
-                  items: draftFilterOptions.chance,
+                  items: consoleFilterOptions.chance,
                   onChange: (value) => setChanceFilter(value as "" | ChanceOption),
                   extraClassName: "view-select filter-compact",
                 })}
-                {renderDraftFilter({
+                {renderConsoleFilter({
                   id: "finalUpdate",
                   label: "관리 상태",
                   value: finalUpdateFilter,
-                  items: draftFilterOptions.finalUpdate,
+                  items: consoleFilterOptions.finalUpdate,
                   onChange: (value) => setFinalUpdateFilter(value as "" | FinalUpdateFilterOption),
                   extraClassName: "view-select filter-compact",
                 })}
               </div>
             )}
           </div>
-          <div className={isLineDraft ? "list-headbar customer-console-headbar" : "list-headbar"}>
+          <div className={isConsole ? "list-headbar customer-console-headbar" : "list-headbar"}>
             <div className="list-head-left">
-              {!isLineDraft && (
+              {!isConsole && (
                 <>
                   <div className="total-count">TOTAL <strong className="num">{rows.length}</strong></div>
                   <div className="vertical-separator" />
@@ -1097,7 +1097,7 @@ export function CustomerManagementPage({
             </div>
           </div>
         </div>
-        <div className={isLineDraft ? "table-scroll customer-console-table-scroll" : "table-scroll"}>
+        <div className={isConsole ? "table-scroll customer-console-table-scroll" : "table-scroll"}>
           <table className={`customer-table mode-${mode}`}>
             <colgroup>
               {tableColumns.map((column, index) => <col className={`col-${column}`} key={`${column}-${index}`} />)}
@@ -1120,7 +1120,7 @@ export function CustomerManagementPage({
             <tbody>{paginatedRows.map(renderRow)}</tbody>
           </table>
         </div>
-        <div className={isLineDraft ? "pagination-bar customer-console-pagination" : "pagination-bar"}>
+        <div className={isConsole ? "pagination-bar customer-console-pagination" : "pagination-bar"}>
           <div className="pagination-summary">
             <span className="num">{rows.length === 0 ? 0 : pageStart + 1}-{pageEnd}</span>
             <span> / </span>
@@ -1172,29 +1172,29 @@ export function CustomerManagementPage({
               마지막
             </button>
           </div>
-          {isLineDraft ? (
+          {isConsole ? (
             <div className="page-size-control" ref={pageSizeControlRef}>
               <span>페이지당</span>
-              <div className="draft-filter page-size-filter">
+              <div className="console-filter page-size-filter">
                 <button
                   aria-expanded={openPageSize}
                   aria-haspopup="listbox"
-                  className={filterSelectClass(pageSize !== 15, "draft-filter-button page-size-select page-size-button")}
+                  className={filterSelectClass(pageSize !== 15, "console-filter-button page-size-select page-size-button")}
                   onClick={() => setOpenPageSize((current) => !current)}
                   type="button"
                 >
                   <span>{pageSize}</span>
-                  <ChevronsUpDown aria-hidden="true" className="draft-filter-chevron" size={14} strokeWidth={2.1} />
+                  <ChevronsUpDown aria-hidden="true" className="console-filter-chevron" size={14} strokeWidth={2.1} />
                 </button>
                 {openPageSize && (
-                  <div aria-label="페이지당 개수 선택" className="draft-filter-popover page-size-popover" role="listbox">
+                  <div aria-label="페이지당 개수 선택" className="console-filter-popover page-size-popover" role="listbox">
                     {pageSizeOptions.map((option) => {
                       const selected = option === pageSize;
                       return (
                         <button
                           aria-selected={selected}
                           className={[
-                            "draft-filter-option",
+                            "console-filter-option",
                             selected ? "active" : "",
                             option === 15 ? "default-option" : "",
                           ].filter(Boolean).join(" ")}
@@ -1208,7 +1208,7 @@ export function CustomerManagementPage({
                           type="button"
                         >
                           <span>{option}</span>
-                          {selected && <Check aria-hidden="true" className="draft-filter-check" size={14} strokeWidth={2.6} />}
+                          {selected && <Check aria-hidden="true" className="console-filter-check" size={14} strokeWidth={2.6} />}
                         </button>
                       );
                     })}

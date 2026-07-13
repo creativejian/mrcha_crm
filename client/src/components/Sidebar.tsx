@@ -160,7 +160,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
 
   function handleCustomersToggle() {
     if (collapsed) {
-      onCustomerModeChange("allDraft");
+      onCustomerModeChange("all");
       navigate("customers");
       return;
     }
@@ -169,7 +169,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
       return;
     }
     setCustomersOpen(true);
-    onCustomerModeChange("allDraft");
+    onCustomerModeChange("all");
     navigate("customers");
   }
 
