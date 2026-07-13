@@ -47,7 +47,6 @@ function modeFilter(mode: CustomerMode, customer: Customer) {
 }
 
 const headsByMode: Record<CustomerMode, string[]> = {
-  all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
   allDraft: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
   consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "상담 메모", "담당", "관리"],
   contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "담당", "상담 메모", "관리"],
@@ -57,7 +56,6 @@ const headsByMode: Record<CustomerMode, string[]> = {
 };
 
 const tableColumnsByMode: Record<CustomerMode, string[]> = {
-  all: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
   allDraft: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
   consulting: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
   contract: ["select", "customer", "type", "vehicle", "stage", "summary", "advisor", "action", "actions"],
@@ -749,7 +747,7 @@ export function CustomerManagementPage({
     const finalUpdateCell = <CustomerFinalUpdateCell customer={customer} finalUpdatePopoverRef={finalUpdatePopoverRef} onToggle={toggleFinalUpdatePopover} openFinalUpdateFor={openFinalUpdateFor} updateInfo={updateInfo} updateStatus={updateStatus} />;
     const actions = <CustomerActionsCell customer={customer} onHintHover={() => setOpenFinalUpdateFor(null)} />;
 
-    if (mode === "all" || mode === "allDraft") {
+    if (mode === "allDraft") {
       return (
         <tr key={customer.no} {...rowProps}>
           {check}

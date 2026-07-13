@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import mrchaLogoColor from "@/assets/mrcha-logo-color.svg";
-import type { CustomerMode } from "@/data/customers";
+import { customerModeMeta, type CustomerMode } from "@/data/customers";
 import type { FinanceMode } from "@/pages/FinancePage";
 import type { RoleTab } from "@/data/roles";
 import { prefetchAppQuoteRequests } from "@/lib/quote-requests";
@@ -87,14 +87,10 @@ function MenuIcon({ name }: { name: MenuIconName }) {
   return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.2 8 8 4h8l1.8 4H19a2 2 0 0 1 2 2v7h-2v2h-3v-2H8v2H5v-2H3v-7a2 2 0 0 1 2-2h1.2Zm2.7-2-1 2h8.2l-1-2H8.9ZM7 14.5A1.5 1.5 0 1 0 7 11.5a1.5 1.5 0 0 0 0 3Zm10 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" /></svg>;
 }
 
-const customerModes: Array<[CustomerMode, string]> = [
-  ["allDraft", "전체 보기"],
-  ["consulting", "상담 필요"],
-  ["contract", "계약 관리"],
-  ["delivery", "출고 관리"],
-  ["settlement", "출고 정산"],
-  ["hold", "보류 / 이탈"],
-];
+// 서브메뉴 라벨·순서는 customerModeMeta(단일 소스)에서 파생 — 헤더 타이틀과 드리프트 불가.
+const customerModes: Array<[CustomerMode, string]> = (Object.keys(customerModeMeta) as CustomerMode[]).map(
+  (mode) => [mode, customerModeMeta[mode].title],
+);
 
 const financeModes: Array<[FinanceMode, string]> = [
   ["stats", "통계"],

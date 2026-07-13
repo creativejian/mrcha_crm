@@ -55,12 +55,13 @@ const PATH_TO_VIEW: Record<string, ViewKey> = Object.fromEntries(
   Object.entries(VIEW_TO_PATH).map(([view, path]) => [path, view as ViewKey]),
 );
 
-const viewMeta: Record<ViewKey, [string, string]> = {
+// 공통 헤더(타이틀·서브타이틀)의 단일 소스. customers는 customerModeMeta, finance는 financeModeMeta가 담당해 여기 없다.
+const CUSTOMERS_MENU_TITLE = "고객 관리";
+const viewMeta: Record<Exclude<ViewKey, "customers" | "finance">, [string, string]> = {
   "advisor-dashboard": ["대시보드", "배정된 고객 중 오늘 처리할 업무, 우선순위, 내 실적을 한눈에 보는 상담사용 화면입니다."],
   "dashboard-preview": ["대시보드 · 공사중", "차선생 전체 운영 상태를 Supabase Overview처럼 한눈에 훑는 신규 대시보드 초안입니다."],
   "admin-dashboard": ["경영 리포트", "전체 운영, 상담 전환, 매출/지출, 직원 생산성 등 차선생의 주요 지표를 리포트 단위로 확인합니다."],
   chat: ["실시간 상담", "앱에서 상담원 연결을 요청한 고객을 접수하고, AI 상담 요약을 보며 실시간 상담으로 전환합니다."],
-  customers: ["고객 관리", "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다."],
   "app-requests": ["앱 견적요청", "앱에서 고객이 직접 만든 견적요청을 확인하고, 추후 고객·견적으로 연결합니다."],
   "customer-detail": ["고객 상세", "AI 요약, 상담 메모, 타임라인, 견적, 다음 액션을 한 화면에서 처리합니다."],
   pipeline: ["상담 파이프라인", "상담 진행 단계를 칸반 방식으로 관리하고 상태 변경 로그를 남기는 구조입니다."],
@@ -72,7 +73,6 @@ const viewMeta: Record<ViewKey, [string, string]> = {
   "mc-master": ["엠씨 마스터", "차선생 앱과 견적 솔루션에서 사용하는 브랜드, 모델, 트림, MC코드 기준 데이터를 관리합니다."],
   "org-members": ["조직 / 구성원", "구성원, 조직, 권한, 배정 기준을 한 곳에서 관리하는 대표 전용 운영 화면입니다."],
   partners: ["딜러 / 거래처", "딜러, 금융사, 시공/탁송, 제휴처 등 외부 협력 네트워크를 관리합니다."],
-  finance: ["재무 관리", "매출, 지출, 정산, 급여 기준을 연결해 차선생의 돈 흐름을 관리합니다."],
   "handoff-operation": ["상담 운영 설정", "고객 앱 실시간 상담사 연결의 운영시간과 강제 ON/OFF, 안내 문구를 관리합니다."],
 };
 
@@ -142,13 +142,9 @@ export function App() {
     reloadCustomers();
   }, [reloadCustomers]);
 
+  // allDraft 타이틀은 아래 헤더에서 breadcrumb 마크업으로 렌더되지만, 문자열 소스는 여기와 동일(customerModeMeta).
   const [title, desc] = activeView === "customers"
-    ? [
-      customerMode === "allDraft" ? "고객 관리 > 전체 보기" : `고객 관리 · ${customerModeMeta[customerMode].title}`,
-      customerModeMeta[customerMode].desc,
-    ]
-    : activeView === "customer-detail"
-      ? [`고객 관리 > 전체 보기 > ${selectedCustomer?.name ?? ""}`, `${selectedCustomer?.customerId ?? ""} 고객의 상담 기록, 상태, 견적 조건, 다음 액션을 한 화면에서 처리합니다.`]
+    ? [`${CUSTOMERS_MENU_TITLE} · ${customerModeMeta[customerMode].title}`, customerModeMeta[customerMode].desc]
     : activeView === "finance"
       ? financeModeMeta[financeMode]
     : viewMeta[activeView];
@@ -403,9 +399,9 @@ export function App() {
               <h1>
                 {isCustomerConsole ? (
                   <span className="customer-title-breadcrumb">
-                    <span>고객 관리</span>
+                    <span>{CUSTOMERS_MENU_TITLE}</span>
                     <ChevronRight aria-hidden="true" size={18} strokeWidth={2.2} />
-                    <span>전체 보기</span>
+                    <span>{customerModeMeta[customerMode].title}</span>
                   </span>
                 ) : title}
               </h1>
