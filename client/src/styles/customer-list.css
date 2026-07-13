@@ -1618,27 +1618,8 @@ th input:focus-visible {
   font-weight: 800;
 }
 
-.main.customer-console-main {
-  background: #fff;
-}
-
-.customer-console-main .globalbar {
-  margin-bottom: 20px;
-}
-
-.customer-console-main .page-heading-console {
-  margin-bottom: 0;
-  padding: 0 0 20px;
-  border-bottom: 0;
-  background: #fff;
-}
-
-.customer-console-main .page-heading-console .title h1 {
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: 0;
-}
-
+/* 구 고객 관리 전용 콘솔 변형(.customer-console-main/.page-heading-console)은 2026-07-13 ②
+   확산으로 기본 스타일(layout-sidebar.css .main / topbar.css .topbar)에 승격·소멸. breadcrumb만 잔존. */
 .customer-title-breadcrumb {
   display: inline-flex;
   align-items: center;
@@ -1647,11 +1628,4 @@ th input:focus-visible {
 
 .customer-title-breadcrumb svg {
   color: #9aa1a8;
-}
-
-.customer-console-main .page-heading-console .title p {
-  margin-top: 3px;
-  color: #788087;
-  font-size: 13px;
-  font-weight: 430;
 }
