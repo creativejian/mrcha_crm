@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "customers_app_user_id_unique" ON "crm"."customers" USING btree ("app_user_id") WHERE "crm"."customers"."app_user_id" IS NOT NULL;

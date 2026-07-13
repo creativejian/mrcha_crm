@@ -4,10 +4,11 @@ import { eq } from "drizzle-orm";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
-import { advisorQuotes, profiles, quoteRequests } from "../db/public-app";
+import { advisorQuotes, quoteRequests } from "../db/public-app";
 import { customers, quotes } from "../db/schema";
 import { setTestDb } from "../middleware/db";
 import { guardedDb } from "../test-utils/notify-gate";
+import { anyUnlinkedProfileId } from "../test-utils/profiles-fixture";
 
 // ── 라우트 → updateQuote → syncAdvisorQuoteOnSend 통합 경로 ─────────────────
 // 이 경로는 오랫동안 어떤 테스트도 타지 않았다. 발송 훅이 `public.advisor_quotes`에 쓰면
@@ -24,12 +25,6 @@ const db = getDefaultDb();
 beforeAll(() => setTestDb(guardedDb(db)));
 afterAll(() => setTestDb(null)); // 다른 테스트 파일로 새지 않게 반드시 원복
 
-// user_id FK(profiles) 때문에 실존 profile id 필요(읽기만) — send.test.ts 관례.
-async function anyProfileId(): Promise<string> {
-  const [row] = await db.select({ id: profiles.id }).from(profiles).limit(1);
-  if (!row) throw new Error("profiles가 비어 있어 테스트 불가(실 master DB 전제)");
-  return row.id;
-}
 
 async function seedAppLinkedCustomer(appUserId: string): Promise<string> {
   const [row] = await db
@@ -66,7 +61,7 @@ async function authedApp() {
 
 test("라우트 통합: POST 견적 → PATCH appStatus=sent → advisor_quotes 카드가 커밋된다", async () => {
   const { app, headers } = await authedApp();
-  const userId = await anyProfileId();
+  const userId = await anyUnlinkedProfileId();
   const ids: { quoteId?: string; customerId?: string } = {};
   try {
     ids.customerId = await seedAppLinkedCustomer(userId);
@@ -102,7 +97,7 @@ test("라우트 통합: POST 견적 → PATCH appStatus=sent → advisor_quotes 
 
 test("라우트 통합: 견적요청 연결 견적 발송 → quote_requests completed 전이", async () => {
   const { app, headers } = await authedApp();
-  const userId = await anyProfileId();
+  const userId = await anyUnlinkedProfileId();
   const ids: { quoteId?: string; customerId?: string; requestId?: string } = {};
   try {
     ids.requestId = crypto.randomUUID();
@@ -130,7 +125,7 @@ test("라우트 통합: 견적요청 연결 견적 발송 → quote_requests com
 
 test("라우트 통합: DELETE 견적 → 보낸 카드 회수 + 요청 open 복원(트랜잭션 경계)", async () => {
   const { app, headers } = await authedApp();
-  const userId = await anyProfileId();
+  const userId = await anyUnlinkedProfileId();
   const ids: { quoteId?: string; customerId?: string; requestId?: string } = {};
   try {
     ids.requestId = crypto.randomUUID();
