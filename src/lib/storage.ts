@@ -36,6 +36,16 @@ export async function removeObject(env: StorageEnv, path: string): Promise<void>
   if (error) throw new Error(`Storage 삭제 실패: ${error.message}`);
 }
 
+// 다건 삭제 1왕복 — supabase-js remove는 원래 배열 API다(removeObject는 단건 포장). 고객 하드 삭제처럼
+// 경로 수십 개를 지울 때 per-path 직렬 왕복(응답 지연 비례)을 피한다(0713 감사). 없는 경로는 무시된다.
+export async function removeObjects(env: StorageEnv, paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  const { error } = await client(env)
+    .storage.from(CUSTOMER_DOCS_BUCKET)
+    .remove(paths);
+  if (error) throw new Error(`Storage 삭제 실패: ${error.message}`);
+}
+
 // transform을 주면 이미지 변환(축소·재인코딩)된 미리보기 URL을 만든다 — 큰 원본 대신 가벼운 썸네일로 빠르게.
 export async function createSignedUrl(
   env: StorageEnv,
