@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { HttpError } from "@/lib/http";
 import { createCustomerFromRequest, fetchAppQuoteRequestsCached, linkRequestToCustomer, type AppQuoteRequest } from "@/lib/quote-requests";
 
 const MATCH_CLASS: Record<AppQuoteRequest["matchType"], string> = {
@@ -21,9 +22,12 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
+  // link 충돌 안내(이사님 2026-07-13 ②) — 차단은 서버가 유지, 여기선 사유 + "그 고객 보기" 경로를 보여준다.
+  const [linkConflict, setLinkConflict] = useState<{ requestId: string; message: string; customerCode: string; name: string } | null>(null);
 
   async function handleCreate(r: AppQuoteRequest) {
     setActingId(r.id);
+    setLinkConflict(null);
     try {
       const created = await createCustomerFromRequest(r.id);
       onToast(`${created.customerCode} ${created.name} 고객 생성`);
@@ -39,12 +43,19 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
   async function handleLink(r: AppQuoteRequest) {
     if (!r.matchedCustomerId) return;
     setActingId(r.id);
+    setLinkConflict(null);
     try {
       const linked = await linkRequestToCustomer(r.id, r.matchedCustomerId);
       onToast(`${linked.name} 고객에 연결했습니다`);
       setRows(await fetchAppQuoteRequestsCached(false));
-    } catch {
-      onToast("연결에 실패했습니다");
+    } catch (e) {
+      if (e instanceof HttpError && e.conflict) {
+        // 정방향 충돌 — 사유 + 충돌 고객으로 가는 경로를 행 안에 인라인 안내(토스트는 1.8초라 읽고 이동하기엔 짧다).
+        setLinkConflict({ requestId: r.id, message: e.message, ...e.conflict });
+      } else {
+        // 역방향 충돌 등 서버 한글 사유가 있으면 그대로, 네트워크류는 일반 문구.
+        onToast(e instanceof HttpError ? e.message : "연결에 실패했습니다");
+      }
     } finally {
       setActingId(null);
     }
@@ -147,6 +158,15 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
                       </>
                     )}
                   </div>
+                  {linkConflict?.requestId === r.id && (
+                    <div className="app-req-conflict" role="alert">
+                      <span>{linkConflict.message}</span>
+                      <div className="app-req-conflict-actions">
+                        <Link className="app-req-action link" to={`/customer-detail/${linkConflict.customerCode}`}>{linkConflict.name} 고객 보기</Link>
+                        <button className="app-req-action" onClick={() => setLinkConflict(null)} type="button">닫기</button>
+                      </div>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

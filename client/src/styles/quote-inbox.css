@@ -39,4 +39,21 @@
   background: rgba(88, 54, 255, 0.1);
 }
 
+/* link 충돌 인라인 안내 — 차단 사유 + 충돌 고객으로 가는 경로(닫기 전까지 유지, 토스트보다 읽을 시간 확보) */
+.app-req-conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(88, 54, 255, 0.28);
+  border-radius: 6px;
+  background: #f4f1ff;
+  font-size: 12px;
+  font-weight: 500;
+  color: #3d3564;
+  text-align: left;
+}
+.app-req-conflict-actions { display: flex; gap: 6px; }
+
 .work-ai-error { color: #c0392b; }
