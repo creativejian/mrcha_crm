@@ -27,7 +27,6 @@ import { useQuoteWorkbench } from "@/components/customer-detail/hooks/useQuoteWo
 type CustomerDetailPageProps = {
   customer: Customer;
   chanceOverride?: CustomerChanceOption;
-  manageStatusOverride?: CustomerManageStatus;
   onBack: () => void;
   onFullScreen?: () => void;
   onEditorOpenChange?: (open: boolean) => void;
@@ -62,7 +61,6 @@ function CustomerDetailContent({
   chanceOverride,
   customer,
   detail,
-  manageStatusOverride,
   onEditorOpenChange,
   onToast,
   onWorkflowChange,
@@ -72,7 +70,6 @@ function CustomerDetailContent({
   chanceOverride?: CustomerChanceOption;
   customer: Customer;
   detail: CustomerDetailData;
-  manageStatusOverride?: CustomerManageStatus;
   onEditorOpenChange?: CustomerDetailPageProps["onEditorOpenChange"];
   onToast: (message: string) => void;
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
@@ -122,7 +119,7 @@ function CustomerDetailContent({
   // 예정 일정 영역 — setOpenEditor(saveSchedule이 닫음)가 위에서 선언돼야 해서 여기서 호출.
   const schedules = useCustomerSchedules({ detail, customer, onToast, markRecentUpdate, onCloseFloatingEditor: () => setOpenEditor(null) });
   // 상태+워크플로우 영역. openEditor/setOpenEditor/toggleEditor/savePatch는 부모 소유 공유 인프라(니즈·구매조건도 사용)라 인자로 주입.
-  const workflow = useCustomerWorkflow({ detail, customer, chanceOverride, manageStatusOverride, onToast, onWorkflowChange, markRecentUpdate, openEditor, setOpenEditor, toggleEditor, savePatch });
+  const workflow = useCustomerWorkflow({ detail, customer, chanceOverride, onToast, onWorkflowChange, markRecentUpdate, openEditor, setOpenEditor, toggleEditor, savePatch });
   // 상세 구매조건 영역. openEditor/setOpenEditor/editorMatches/savePatch/markRecentUpdate/setPurchasePopoverFrame는 부모 소유 공유 인프라라 인자로 주입.
   const purchase = useCustomerPurchase({ detail, onToast, openEditor, setOpenEditor, editorMatches, savePatch, markRecentUpdate, setPurchasePopoverFrame });
   // 견적 워크벤치 영역(9b~9e). markRecentUpdate/quoteList/purchase.fields/needs.reloadAppRequests는 부모 보유 공유 인프라라 인자로 주입.
@@ -251,7 +248,6 @@ function CustomerDetailContent({
 export function CustomerDetailPage({
   chanceOverride,
   customer,
-  manageStatusOverride,
   onEditorOpenChange,
   onToast,
   onWorkflowChange,
@@ -294,7 +290,6 @@ export function CustomerDetailPage({
           detail={detail}
           chanceOverride={chanceOverride}
           customer={customer}
-          manageStatusOverride={manageStatusOverride}
           onEditorOpenChange={onEditorOpenChange}
           onToast={onToast}
           onWorkflowChange={onWorkflowChange}

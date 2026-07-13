@@ -56,15 +56,17 @@ export function deriveFinalUpdateInfo(
   };
 }
 
-// override 합성 규칙 SSOT — 목록 필터·행 렌더·상세 워크플로우 3곳이 공유(한쪽만 픽스되는 드리프트 방지).
-// finalUpdateOverride: "방금 전" 로컬 갱신 마킹(파생 대체), manageStatusOverride: 워크플로우 카드의 수동 상태(버킷 강제).
-// 우선순위: 로컬 낙관 override(방금 선택) > 서버 영속 수동 상태(스누즈 유효분, ⑦-①) > 파생(재문의→버킷).
+// 배지 합성 규칙 SSOT — 목록 필터·행 렌더·상세 워크플로우 3곳이 공유(한쪽만 픽스되는 드리프트 방지).
+// finalUpdateOverride: "방금 전" 로컬 갱신 마킹(파생 대체).
+// 수동 관리 상태는 row(manageStatus/manageStatusAt)가 단일 소스 — 낙관 반영도 App이 row를 직접 갱신한다
+// (구 manageStatusOverride 옵션은 삭제 경로가 없어 만료·리로드를 가리던 이중 소스라 폐기 — 0713 감사).
+// 우선순위: 유효 수동 상태(스누즈, ⑦-①) > 파생(재문의→버킷).
 export function resolveUpdateBadge(
   source: ManageStatusSource,
-  opts: { finalUpdateOverride?: FinalUpdateInfo | null; manageStatusOverride?: ManageStatusOption | null; now?: Date } = {},
+  opts: { finalUpdateOverride?: FinalUpdateInfo | null; now?: Date } = {},
 ): { info: FinalUpdateInfo | null; status: FinalUpdateStatus | null } {
   const info = opts.finalUpdateOverride ?? deriveFinalUpdateInfo(source, opts.now);
-  const manual = opts.manageStatusOverride ?? effectiveManageStatus(source);
+  const manual = effectiveManageStatus(source);
   const status = manual
     ? finalUpdateStatusFromManage(manual)
     : info ? finalUpdateStatus(info) : null;

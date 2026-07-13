@@ -69,8 +69,11 @@ describe("resolveUpdateBadge", () => {
     expect(status?.label).toBe("정상");
   });
 
-  test("manageStatusOverride는 info와 무관하게 status를 결정(워크플로우 수동 변경 우선)", () => {
-    const { status } = resolveUpdateBadge(source, { manageStatusOverride: "지연", now: NOW });
+  test("수동 관리 상태는 row 필드가 단일 소스 — 유효(동일 스탬프)면 info 버킷과 무관하게 status 결정", () => {
+    // 구 manageStatusOverride 옵션은 폐기(0713 — 삭제 경로가 없어 만료·리로드를 가리던 이중 소스).
+    // 낙관 반영도 App이 row의 manageStatus/manageStatusAt을 직접 갱신한다(applyWorkflowRowUpdate).
+    const at = source.lastActivityAt;
+    const { status } = resolveUpdateBadge({ ...source, manageStatus: "지연", manageStatusAt: at }, { now: NOW });
     expect(status?.label).toBe("지연");
   });
 
@@ -120,11 +123,10 @@ describe("resolveUpdateBadge — 서버 영속 수동 상태 반영", () => {
     expect(status?.label).toBe("확인필요");
   });
 
-  test("로컬 낙관 override(방금 선택)가 영속값보다 우선", () => {
-    const at = daysAgo(10);
+  test("낙관 반영(방금 선택)도 row 갱신으로 표현 — 새 값+동일 now 스탬프가 이전 영속값을 대체", () => {
     const { status } = resolveUpdateBadge(
-      { ...base, lastActivityAt: at, manageStatus: "정상", manageStatusAt: at },
-      { manageStatusOverride: "지연", now: NOW },
+      { ...base, lastActivityAt: daysAgo(0), manageStatus: "지연", manageStatusAt: daysAgo(0) },
+      { now: NOW },
     );
     expect(status?.label).toBe("지연");
   });

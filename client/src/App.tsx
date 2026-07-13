@@ -3,9 +3,10 @@ import { ChevronRight } from "lucide-react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerModeMeta } from "@/data/customers";
+import { type Customer, type CustomerChanceOption, type CustomerMode, customerModeMeta } from "@/data/customers";
 import { statusGroupByStatus } from "@/lib/customer-table";
-import { fetchCustomers, updateCustomer, type CustomerWritePatch } from "@/lib/customers";
+import { applyWorkflowRowUpdate, buildWorkflowPatch, type WorkflowNext } from "@/lib/customer-workflow";
+import { fetchCustomers, updateCustomer } from "@/lib/customers";
 import { fetchAppQuoteRequests } from "@/lib/quote-requests";
 import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
@@ -106,7 +107,6 @@ export function App() {
   const [customersError, setCustomersError] = useState(false);
   const [customersLoaded, setCustomersLoaded] = useState(false);
   const [chanceOverrides, setChanceOverrides] = useState<Record<number, CustomerChanceOption>>({});
-  const [manageStatusOverrides, setManageStatusOverrides] = useState<Record<number, CustomerManageStatus>>({});
   const [customerDetailEditorOpen, setCustomerDetailEditorOpen] = useState(false);
   // 선택 고객은 URL이 single source of truth: /customer-detail/:code 또는 /customers?customer=code.
   const selectedCode = customerCodeFromLocation(location.pathname, location.search);
@@ -246,7 +246,7 @@ export function App() {
     });
   }
 
-  function updateCustomerWorkflow(customerNo: number, next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus }) {
+  function updateCustomerWorkflow(customerNo: number, next: WorkflowNext) {
     const target = customers.find((customer) => customer.no === customerNo);
     const prevCustomers = customers;
     const prevChanceOverrides = chanceOverrides;
@@ -255,35 +255,27 @@ export function App() {
     const nextStageGroup = next.statusGroup ?? target?.statusGroup ?? statusGroupByStatus[next.status ?? ""] ?? "";
     const contracted = nextStageGroup === "계약완료";
 
-    if (next.statusGroup || next.status) {
-      setCustomers((current) => current.map((customer) => {
-        if (customer.no !== customerNo) return customer;
-        const statusGroup = next.statusGroup ?? customer.statusGroup;
-        const status = next.status ?? customer.status;
-        return { ...customer, statusGroup, status, date: "방금 전" };
-      }));
-      syncChanceWithStageGroup(customerNo, nextStageGroup);
-    }
+    // DB 저장 payload. manageStatus는 ⑦-①(2026-07-13)로 영속 — 서버가 manage_status_at을 함께 찍어
+    // "다음 실활동까지 유효"(스누즈)로 저장된다.
+    const patch = buildWorkflowPatch(next, { contracted, wasConfirmed: prevChanceOverrides[customerNo] === "확정" });
+    const willPatch = Boolean(target?.id) && Object.keys(patch).length > 0;
+
+    // 낙관 반영 — 수동 관리 상태는 row(manageStatus/manageStatusAt)에 직접 반영해 effectiveManageStatus가
+    // 단일 판정자(구 manageStatusOverrides 이중 소스는 삭제 경로가 없어 서버 만료를 F5까지 가리던 결함 — 0713 감사).
+    // PATCH가 나가면 서버가 updated_at을 bump하므로 lastActivityAt도 같은 now로 갱신(유효/만료 판정 서버 동치).
+    const nowIso = new Date().toISOString();
+    setCustomers((current) => current.map((customer) =>
+      customer.no === customerNo ? applyWorkflowRowUpdate(customer, next, { nowIso, willPatch }) : customer,
+    ));
+    if (next.statusGroup || next.status) syncChanceWithStageGroup(customerNo, nextStageGroup);
 
     if (next.chance) {
       setChanceOverrides((current) => ({ ...current, [customerNo]: contracted ? "확정" : next.chance as CustomerChanceOption }));
     }
 
-    if (next.manageStatus) {
-      setManageStatusOverrides((current) => ({ ...current, [customerNo]: next.manageStatus as CustomerManageStatus }));
-    }
-
-    // DB 저장. 계약완료=확정 규칙 반영(비확정 저장 차단). manageStatus는 ⑦-①(2026-07-13)로 영속 —
-    // 서버가 manage_status_at을 함께 찍어 "다음 실활동까지 유효"(스누즈)로 저장된다.
-    const patch: CustomerWritePatch = {};
-    if (next.statusGroup) patch.statusGroup = next.statusGroup;
-    if (next.status) patch.status = next.status;
-    if (next.manageStatus) patch.manageStatus = next.manageStatus;
-    if (contracted) patch.chance = "확정";
-    else if (next.statusGroup && prevChanceOverrides[customerNo] === "확정") patch.chance = null;
-    else if (next.chance) patch.chance = next.chance;
-    if (target?.id && Object.keys(patch).length > 0) {
+    if (target?.id && willPatch) {
       updateCustomer(target.id, patch).catch(() => {
+        // 실패 롤백 — 스냅샷 복원(관리 상태 포함: row가 단일 소스라 별도 override 복원이 필요 없다).
         setCustomers(prevCustomers);
         setChanceOverrides(prevChanceOverrides);
         showToast("저장에 실패했습니다");
@@ -327,7 +319,6 @@ export function App() {
               activeCustomerId={isDrawerOpen ? selectedCode : null}
               chanceOverrides={chanceOverrides}
               customers={customers}
-              manageStatusOverrides={manageStatusOverrides}
               mode={customerMode}
               roleTab={roleTab}
               onChanceOverridesChange={setChanceOverrides}
@@ -348,7 +339,6 @@ export function App() {
               <CustomerDetailPage
                 chanceOverride={chanceOverrides[selectedCustomer.no]}
                 customer={selectedCustomer}
-                manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
                 onBack={() => navigate("/customers")}
                 onToast={showToast}
                 onWorkflowChange={updateCustomerWorkflow}
@@ -421,7 +411,6 @@ export function App() {
             <CustomerDetailPage
               chanceOverride={chanceOverrides[selectedCustomer.no]}
               customer={selectedCustomer}
-              manageStatusOverride={manageStatusOverrides[selectedCustomer.no]}
               onBack={() => navigate("/customers")}
               onEditorOpenChange={setCustomerDetailEditorOpen}
               onFullScreen={openCustomerDetailFullScreen}
