@@ -10,6 +10,7 @@ import { capReportLines, daysSince, runAssistantTool } from "./assistant-tools";
 
 const db = getDefaultDb();
 let CUST = "";
+let RECONTACT_CUST = ""; // 재문의 + 40일 무활동 + 계약완료 — stale_customers·delivery_risk 재문의 우선 검증
 let TASK = "";
 let CONSULT_USER = ""; // 실존 profiles.id — public.consultations.user_id FK 때문에 임의 uuid 불가
 let CONSULT_OLD = ""; // 유지되는 상담신청(오래된 쪽 — 정렬 검증)
@@ -34,6 +35,14 @@ beforeAll(async () => {
     customerCode: `CU-AITOOL-${crypto.randomUUID().slice(0, 8)}`, name: "도구테스트", chance: "높음", statusGroup: "견적", status: "견적상담중", advisorId: OWNER, appUserId: CONSULT_USER,
   }).returning({ id: customers.id });
   CUST = c.id;
+  // 재문의 고객 — updated_at을 40일 전으로 고정(자식 행 없음 → staffActivityAt = updated_at).
+  // 목록 배지는 이 고객을 기간 무관 "재문의"로 표시한다(finalUpdateStatus recontacted 우선) —
+  // AI 리포트도 같은 라벨이어야 한다(이사님 2026-07-13 ①: 목록과 통일).
+  const [rc] = await db.insert(customers).values({
+    customerCode: `CU-AITOOL-${crypto.randomUUID().slice(0, 8)}`, name: "재문의도구테스트", recontacted: true,
+    statusGroup: "계약완료", status: "배정완료", advisorId: OWNER, updatedAt: new Date(T0 - 40 * 86_400_000),
+  }).returning({ id: customers.id });
+  RECONTACT_CUST = rc.id;
   const [t] = await db.insert(customerTasks).values({ customerId: CUST, body: "도구 스모크 할일", due: "오늘", done: false }).returning({ id: customerTasks.id });
   TASK = t.id;
   // customer_quotes 검증용 견적 2개 — 발송완료(BMW, 열람) + 작성중(쏘렌토). 코퍼스가 아니라 crm.quotes 직접 조회 도구라 임베딩 무관.
@@ -72,6 +81,7 @@ afterAll(async () => {
   await db.delete(quotes).where(eq(quotes.customerId, CUST)); // FK — 고객 삭제 전
   await db.delete(customerTasks).where(eq(customerTasks.id, TASK));
   await db.delete(customers).where(eq(customers.id, CUST));
+  await db.delete(customers).where(eq(customers.id, RECONTACT_CUST));
 });
 
 test("runAssistantTool: 전 도구 throw 없이 {label, lines[]} 반환(실 DB 스모크)", async () => {
@@ -103,7 +113,25 @@ test("quote_ready: 진행 상태 견적 단계 고객이 사유와 함께 잡힌
 
 test("stale_customers: 방금 만든 고객(활동 0일)은 미포함", async () => {
   const r = await runAssistantTool("stale_customers", {}, "all", USER, db);
-  expect(r.lines.some((l) => l.includes("도구테스트"))).toBe(false);
+  expect(r.lines.some((l) => l.includes("도구테스트") && !l.includes("재문의도구테스트"))).toBe(false);
+});
+
+// 재문의 고객은 stale 버킷 라벨 대신 "재문의"로 표기(이사님 2026-07-13 ① — 목록 배지와 통일).
+// 문제의 본질은 노출이 아니라 오표기: 40일 무활동 재문의 고객이 목록 "재문의" / AI "장기방치"로 모순됐다.
+test("stale_customers: 재문의 고객은 '장기방치' 대신 '재문의' 표기(무활동 일수는 유지)", async () => {
+  const r = await runAssistantTool("stale_customers", {}, "all", USER, db);
+  const line = r.lines.find((l) => l.includes("재문의도구테스트"));
+  expect(line).toBeDefined();
+  expect(line).toContain("재문의(고객이 먼저 다시 연락)");
+  expect(line).toContain("40일 무활동");
+  expect(line).not.toContain("장기방치");
+});
+
+test("delivery_risk: 재문의 고객은 재문의 병기(계약완료 무활동 리포트에서도 오표기 방지)", async () => {
+  const r = await runAssistantTool("delivery_risk", {}, "all", USER, db);
+  const line = r.lines.find((l) => l.includes("재문의도구테스트"));
+  expect(line).toBeDefined();
+  expect(line).toContain("재문의(고객이 먼저 다시 연락)");
 });
 
 // 무활동 일수는 KST 달력일 차(0709 감사) — floor(경과/24h)면 목록 배지(달력일)와 경계에서 갈려
