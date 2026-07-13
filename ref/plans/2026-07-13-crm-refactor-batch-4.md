@@ -1,10 +1,24 @@
 # 0713 리팩토링 배치 4 — 감사 결과 · 실행 계획
 
-Last updated: 2026-07-13 (유슨생 세션 `0713-fresh-start`)
+Last updated: 2026-07-13 (유슨생 세션 `0713-fresh-start` — **✅ 전량 이행 완료·6PR 머지(#229~#234)**)
 
 **범위**: 배치 3(#203~#210) 이후 머지된 **#211~#228 + main 직접 커밋**(`c31d112..HEAD`, 106파일, +13,339/-395).
 **방법**: 5앵글 병렬 감사(서버 라우트·게이트 / AI 힌트·업무 AI / 클라 로직·페이지 / CSS·스타일 / 크로스커팅·테스트 인프라) → 후보 ~30건 → 4개 적대 검증관이 전건 반박 시도 → **CONFIRMED 21 · ADJUSTED 7 · REFUTED 2**.
-**미착수 상태** — 착수 범위는 유슨생 지시 대기.
+
+## ✅ 이행 상태 (2026-07-13 전량 머지)
+
+| PR | 대상 절 | 비고 |
+|---|---|---|
+| #229 | 우선 1(클라 manage 수명 1-A/B/C + selectManage markRecentUpdate) | **이중 소스 제거**(override 상태 폐기 → row 낙관 갱신, `lib/customer-workflow.ts` 순수 코어 TDD 10). **격리 스택 브라우저 스모크 통과**: 수동 지정→동일 스탬프(t) 실측→실활동 직후 배지 즉시 파생 복귀(구 코드는 F5까지 잔존)→F5 일관→UI 삭제 원복·잔재 0 |
+| #230 | 우선 2(tripwire 사각 3곳·consultations report-only·2-C 전부) | 변이 검증 실관찰. 머지 당일 스모크 원복에서 **감사 잔재 스캔이 실전 첫 작동**(CU-2607-0001 감사 행 검출→`--clean`) |
+| #231 | 우선 3-B(partial unique index — 마이그 0030 실 DB 적용)·3-C(가드 SSOT)·K8·K9·픽스처 정비 | 🔴 보너스 발견: **drizzle 0.44+ 래핑으로 dbErrorMessage 매핑 전체(트림/FK/CHECK)가 원문 노출로 퇴화해 있던 잠복 결함** — collectErrorText(cause 체인)로 수정+종단 테스트 |
+| #232 | 우선 4(CSS 팝오버 3벌 공용화 + dead 6건) | 계산값 전수 증명(2,835키 불변) — `tools/verify-css-key-maps.sh` 신설 |
+| #233 | 소형 위생(Storage 배열 1왕복·등록 폼 Enter·K1·K2·L5·L6) | Storage는 Promise.all이 아니라 **배열 API 1왕복**이 정답(검증관 교정) |
+| #234 | 3-A(deleteSelected stale 클로저 race) | 서버 리로드 통일(create/advisor/delete 3벌 사후 처리 비대칭 해소) |
+
+- **🔵 이사님 확인**: B1(수동 상태의 AI 리포트 멤버십)은 `ref/director-pending-confirmations.md` **항목 8**로 이관(K10·K3 병기).
+- **미이행(의도적 스킵)**: loadAiHintSource 병렬화(백그라운드+Gemini 지배라 실익 미미 — 검증관 하향) · K7 onCustomerListChanged 타입 통일(실해 없음 — 실패는 전역 배너 폴백으로 표면화됨을 검증관이 확인).
+- 최종 main 통합 검증: typecheck 0 · lint 0 · unit 554 · server 518 · build · 잔재 0.
 
 ---
 
