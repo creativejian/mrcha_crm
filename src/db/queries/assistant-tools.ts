@@ -120,10 +120,13 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       return { label, lines: rows.map((r, i) => `${i + 1}위 ${r.name} — 계약 가능성 ${r.chance} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`) };
     }
 
-    // 최근 활동 7일+ 무활동 고객(버킷 병기) — 액션 전(신규·상담접수)은 제외(클라 관리 상태 규칙 미러).
+    // 최근 활동 7일+ 무활동 고객(버킷 병기) — 액션 전(신규·상담접수)은 제외(클라 관리 상태 규칙 미러,
+    // 유효 수동이 있어도 제외 — 목록 배지도 그 조건에서 공백이다).
     // 재문의(recontacted) 고객은 버킷 라벨 대신 "재문의" 표기 — 목록 배지(finalUpdateStatus의
     // recontacted 우선)와 통일(이사님 2026-07-13 ①). 무활동 일수·노출 자체는 유지(오표기만 교정).
-    // 유효한 수동 관리 상태(스누즈, ⑦-①)는 최우선 — 클라 배지의 override 우선과 동일. 수동 "정상"은
+    // 유효한 수동 관리 상태(스누즈, ⑦-①)는 라벨 최우선 + **멤버십도 일수 게이트 무관 포함**(항목 8 ① —
+    // 수동 지정 PATCH가 updated_at을 bump해 0일에서 시작하므로, 버킷만 보면 설정 직후 ~7일간 배지는
+    // "지연"인데 리포트에 없는 모순. 유슨생 선승인 2026-07-13·이사님 사후 확인). 수동 "정상"은
     // 목록 배지가 정상이므로 리포트에서 제외(배지-리포트 모순 방지).
     case "stale_customers": {
       const rows = await ex
@@ -133,7 +136,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       const lines = rows
         .filter((r) => !(r.statusGroup === "신규" && r.status === "상담접수"))
         .map((r) => ({ ...r, days: daysSince(r.at), manual: manualManageStatusActive(r.manageStatusAt, r.at) ? r.manageStatus : null }))
-        .filter((r): r is typeof r & { days: number } => r.days != null && staleBucket(r.days) != null)
+        .filter((r): r is typeof r & { days: number } => r.days != null && (staleBucket(r.days) != null || r.manual != null))
         .filter((r) => r.manual !== "정상")
         .sort((a, b) => b.days - a.days)
         .map((r) => {
@@ -175,7 +178,8 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         .where(and(eq(customers.statusGroup, "계약완료"), scopeCond(scope)));
       const lines = rows
         .map((r) => ({ ...r, days: daysSince(r.at), manual: manualManageStatusActive(r.manageStatusAt, r.at) ? r.manageStatus : null }))
-        .filter((r): r is typeof r & { days: number } => r.days != null && r.days >= STALE_THRESHOLDS.review)
+        // 유효 수동 비'정상'은 임계 미달이어도 포함(항목 8 ① — stale_customers와 동일 사유).
+        .filter((r): r is typeof r & { days: number } => r.days != null && (r.days >= STALE_THRESHOLDS.review || r.manual != null))
         // 유효 수동 "정상"은 목록 배지도 정상 — 리스크 리포트에서 제외(stale_customers와 동일 사유).
         .filter((r) => r.manual !== "정상")
         .sort((a, b) => b.days - a.days)
