@@ -18,7 +18,7 @@ import { validateLookupValue, validateStatusSelection } from "../lib/lookup-vali
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
 import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
-import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
+import { createSignedUrl, removeObject, removeObjects, uploadObject, type StorageEnv } from "../lib/storage";
 import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
 import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
@@ -33,6 +33,14 @@ export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
 function removeOrphanObject(env: StorageEnv, path: string): Promise<void> {
   return removeObject(env, path).catch((err: unknown) => {
     console.error(`Storage remove 실패(고아 객체) path=${path}:`, err);
+  });
+}
+
+// 다건판(고객 하드 삭제 — 서류 원본+썸네일+견적 원본이 수십 경로) — 배열 API 1왕복으로 응답 지연이
+// 경로 수에 비례하던 직렬 루프를 대체(0713 감사). 실패 시 per-path 동일 grep 토큰 로그는 유지.
+function removeOrphanObjects(env: StorageEnv, paths: string[]): Promise<void> {
+  return removeObjects(env, paths).catch((err: unknown) => {
+    for (const path of paths) console.error(`Storage remove 실패(고아 객체) path=${path}:`, err);
   });
 }
 
@@ -127,7 +135,7 @@ customers.delete("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) =>
     const result = await c.var.db.transaction((tx) => deleteCustomer(id, c.var.user.id, tx));
     if (!result) return null; // → 404
     const env = c.env as StorageEnv;
-    for (const path of result.storagePaths) await removeOrphanObject(env, path);
+    await removeOrphanObjects(env, result.storagePaths);
     return { id: result.id };
   }, "고객을 찾을 수 없습니다.");
 });

@@ -6,6 +6,8 @@ const removedPaths: string[] = [];
 mock.module("../lib/storage", () => ({
   uploadObject: async () => {},
   removeObject: async (_env: unknown, path: string) => { removedPaths.push(path); },
+  // 고객 하드 삭제는 배열 1왕복(removeObjects)을 쓴다(0713) — 단건과 같은 버킷에 수집해 단언 불변.
+  removeObjects: async (_env: unknown, paths: string[]) => { removedPaths.push(...paths); },
   createSignedUrl: async (_env: unknown, path: string) => `https://example.test/${path}`,
 }));
 

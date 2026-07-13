@@ -1049,7 +1049,13 @@ export function CustomerManagementPage({
                     <span>고객 등록</span>
                   </button>
                   {creatingOpen ? (
-                    <div aria-label="고객 등록" className="customer-create-form" role="dialog">
+                    /* form + onSubmit — 이름 input에서 Enter로 제출(상세 편집 팝오버 StatusWorkflow와 같은 문법, 0713 감사). */
+                    <form
+                      aria-label="고객 등록"
+                      className="customer-create-form"
+                      role="dialog"
+                      onSubmit={(event) => { event.preventDefault(); void submitCreateCustomer(); }}
+                    >
                       <strong>고객 등록</strong>
                       <p>이름만 필수입니다. 나머지 정보는 등록 직후 열리는 상세 화면에서 입력하세요.</p>
                       <label>
@@ -1086,11 +1092,11 @@ export function CustomerManagementPage({
                       {createError ? <p className="customer-create-error" role="alert">{createError}</p> : null}
                       <div>
                         <button disabled={createSubmitting} onClick={() => { resetCreateForm(); setCreatingOpen(false); }} type="button">취소</button>
-                        <button className="primary-action" disabled={createSubmitting} onClick={submitCreateCustomer} type="button">
+                        <button className="primary-action" disabled={createSubmitting} type="submit">
                           {createSubmitting ? "등록 중…" : "등록"}
                         </button>
                       </div>
-                    </div>
+                    </form>
                   ) : null}
                 </div>
               ) : null}

@@ -33,8 +33,9 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
       onToast(`${created.customerCode} ${created.name} 고객 생성`);
       onCustomerListChanged(); // App 고객 목록 갱신(신규 고객이 목록에 stale로 안 뜨던 버그 방지)
       setRows(await fetchAppQuoteRequestsCached(false));
-    } catch {
-      onToast("고객 생성에 실패했습니다");
+    } catch (e) {
+      // handleLink와 대칭(0713 감사) — 서버 한글 사유(404/403/채번 경합 등)가 있으면 그대로 표면화.
+      onToast(e instanceof HttpError ? e.message : "고객 생성에 실패했습니다");
     } finally {
       setActingId(null);
     }
@@ -47,6 +48,9 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
     try {
       const linked = await linkRequestToCustomer(r.id, r.matchedCustomerId);
       onToast(`${linked.name} 고객에 연결했습니다`);
+      // link도 crm.customers 실변경(appUserId·updatedAt) — create와 동일하게 목록 리로드(0713 감사:
+      // 미호출이면 ChatPage의 appUserId 고객 매칭·목록 최종 업데이트가 다음 리로드까지 stale).
+      onCustomerListChanged();
       setRows(await fetchAppQuoteRequestsCached(false));
     } catch (e) {
       if (e instanceof HttpError && e.conflict) {
