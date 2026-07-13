@@ -473,8 +473,10 @@ export function CustomerManagementPage({
   }
 
   // 고객 하드 삭제(admin 전용). spec: ref/specs/2026-07-10-crm-customer-delete-design.md
-  // 되돌릴 수 없으므로 ①확인 단계를 거치고 ②서버가 성공을 확인한 건만 목록에서 뺀다.
-  // (기존 구현은 프론트 배열에서만 지워 리로딩하면 되살아났다 — API 호출 자체가 없었다.)
+  // 되돌릴 수 없으므로 ①확인 단계를 거치고 ②서버가 성공을 확인한 건만 선택 해제한다.
+  // 목록 반영은 로컬 필터가 아니라 서버 리로드(0713 감사) — updateCustomers의 함수형 인자는 App 최신
+  // state가 아니라 클릭 시점 렌더 클로저(customers)를 받으므로, 삭제 진행(건별 순차, 수 초) 중 일어난
+  // 다른 행 변경이 전체 배열 교체로 화면에서 되돌아가는 race가 있었다. 등록·담당자 변경과 동일 문법.
   async function deleteSelected() {
     if (deleting) return;
     const targets = selectedCustomers.map((customer) => ({ id: customer.id, name: customer.name }));
@@ -483,15 +485,33 @@ export function CustomerManagementPage({
     setDeleting(false);
     setConfirmingDelete(false);
 
-    const removed = new Set(deletedIds);
-    const survives = (customer: Customer) => !customer.id || !removed.has(customer.id);
-    updateCustomers((current) => current.filter(survives));
-    setSelected((current) => current.filter((no) => customers.some((customer) => customer.no === no && survives(customer))));
     setDeleteNotice(
       failed.length
         ? `${failed.length}명 삭제 실패 — ${failed.map((f) => `${f.name}: ${f.reason}`).join(" / ")}`
         : null,
     );
+    if (deletedIds.length) {
+      const removed = new Set(deletedIds);
+      // 성공한 건만 선택 해제 — 실패 행은 선택을 유지해 즉시 재시도할 수 있게 한다(advisor 경로와 대칭).
+      setSelected((current) => current.filter((no) => {
+        const customer = customers.find((c) => c.no === no);
+        return !customer?.id || !removed.has(customer.id);
+      }));
+      const reload = onCustomerListChanged?.();
+      if (reload instanceof Promise) {
+        void reload.then((ok) => {
+          if (ok === false) {
+            // 삭제는 됐는데 화면만 stale — 전역 배너는 이 작업과 무관해 보여 오인을 만든다(#216 관례).
+            setDeleteNotice((current) => current
+              ? `${current} / 목록 갱신 실패 — 새로고침해 주세요.`
+              : "삭제는 완료됐지만 목록을 불러오지 못했습니다. 새로고침해 주세요.");
+          }
+        });
+      } else if (!onCustomerListChanged) {
+        // 단독(stories/test) 폴백 — 리로드 경로가 없을 때만 로컬 필터(단일 사용자 전제라 race 없음).
+        updateCustomers((current) => current.filter((customer) => !customer.id || !removed.has(customer.id)));
+      }
+    }
   }
 
   // 연락처 중복 소프트 경고 — 등록을 막지 않는다(가족 공유 번호 등 실무 예외).
