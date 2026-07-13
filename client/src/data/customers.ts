@@ -29,6 +29,8 @@ export type Customer = {
   aiSummary: string;
   lastActivityAt?: string | null; // 서버 파생 최근 담당자 활동(ISO) — 관리 상태 계산 입력
   recontacted?: boolean;
+  manageStatus?: string | null; // 수동 관리 상태(⑦-① 스누즈) — manageStatusAt >= lastActivityAt일 때만 유효
+  manageStatusAt?: string | null;
   settlementStatus?: string;
   fee?: string;
   cost?: string;

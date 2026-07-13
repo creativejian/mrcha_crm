@@ -153,12 +153,9 @@ export function useCustomerWorkflow({
     openStatusEditor({ kind: "status", key: "source" });
   }
 
+  // 관리 상태도 편집 가능(이사님 2026-07-13 ⑦-① — 구 "자동 반영됩니다" 토스트 차단 해제).
+  // 수동 선택은 서버에 영속되고 다음 실활동 기록 시 자동 해제(스누즈)된다.
   function openWorkflowEditor(key: WorkflowKey) {
-    if (key === "manage") {
-      setOpenEditor(null);
-      onToast("관리 상태는 상담 메모와 최근 업데이트 기준으로 자동 반영됩니다.");
-      return;
-    }
     toggleEditor({ kind: "workflow", key });
   }
 
@@ -287,6 +284,14 @@ export function useCustomerWorkflow({
     onToast("계약 가능성 수정 완료");
   }
 
+  // 수동 관리 상태(⑦-① 스누즈) — 저장은 App.updateCustomerWorkflow가 PATCH로 영속, 여기선 낙관 반영.
+  function selectManage(option: CustomerManageStatus) {
+    setManage(option);
+    onWorkflowChange?.(customer.no, { manageStatus: option });
+    setOpenEditor(null);
+    onToast("관리 상태 수정 완료 — 다음 활동 기록 시 자동 해제됩니다");
+  }
+
   return {
     statusValues,
     advisorId,
@@ -309,6 +314,7 @@ export function useCustomerWorkflow({
       selectStageGroup,
       selectStageStatus,
       selectChance,
+      selectManage,
     },
   };
 }

@@ -20,6 +20,7 @@ import { sql } from "drizzle-orm";
 
 import {
   CHANCE_OPTIONS,
+  CUSTOMER_MANAGE_STATUSES,
   SOURCE_OPTIONS,
   DOC_TYPE_OPTIONS,
   TASK_CATEGORY_OPTIONS,
@@ -80,6 +81,11 @@ export const customers = crm.table("customers", {
   receivedAt: timestamp("received_at", { withTimezone: true }),
   // last_activity_at 컬럼은 drop(0017) — 관리 상태는 GREATEST 파생(queries/customers.ts staffActivityAt)이 대체.
   recontacted: boolean("recontacted").default(false).notNull(),
+  // 수동 관리 상태(이사님 2026-07-13 ⑦-①): "다음 실활동까지 유효" 스누즈 — manage_status_at >= staffActivityAt
+  // 일 때만 유효(만료 = 파생 복귀). 유효성 판정은 저장이 아니라 읽기 계층(클라 manage-status·AI 도구) 책임.
+  // 수동 "재문의"도 이 컬럼(재문의 자동 감지용 recontacted boolean은 별개 — 타임스탬프가 없어 스누즈 불가).
+  manageStatus: text("manage_status"),
+  manageStatusAt: timestamp("manage_status_at", { withTimezone: true }),
   aiSummary: text("ai_summary"),
   // AI 힌트 입력 재료 hash(lib/ai-hint-on-write) — 재료 불변 재생성 skip. embed content_hash 사상 재사용.
   aiSummarySourceHash: text("ai_summary_source_hash"),
@@ -105,6 +111,7 @@ export const customers = crm.table("customers", {
   check("customers_chance_check", inListCheck(t.chance, CHANCE_OPTIONS)),
   check("customers_source_check", inListCheck(t.source, SOURCE_OPTIONS)),
   check("customers_customer_type_check", inListCheck(t.customerType, CUSTOMER_TYPE_OPTIONS)),
+  check("customers_manage_status_check", inListCheck(t.manageStatus, CUSTOMER_MANAGE_STATUSES)),
   check("customers_need_annual_mileage_check", inListCheck(t.needAnnualMileage, [...ANNUAL_MILEAGE_OPTIONS, PURCHASE_UNSET_SENTINEL])),
   check("customers_need_delivery_method_check", inListCheck(t.needDeliveryMethod, [...DELIVERY_METHOD_OPTIONS, PURCHASE_UNSET_SENTINEL])),
 ]);

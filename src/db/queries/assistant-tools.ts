@@ -5,7 +5,7 @@ import { ASSISTANT_TOOL_LABELS, CRM_ROLE_LABELS, type AssistantToolKey, type Ass
 import type { AuthedUser } from "../../auth/verify";
 import type { CustomerScope } from "../../lib/assistant-scope";
 import { kstDateOf, kstDayDiff } from "../../lib/kst-date";
-import { STALE_THRESHOLDS, staffActivityAt } from "./activity";
+import { manualManageStatusActive, STALE_THRESHOLDS, staffActivityAt } from "./activity";
 import { getDefaultDb, type Executor } from "../client";
 import { consultationRequests, profiles } from "../public-app";
 import { consultationDismissals, customers, customerSchedules, customerTasks, quotes } from "../schema";
@@ -123,18 +123,23 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     // 최근 활동 7일+ 무활동 고객(버킷 병기) — 액션 전(신규·상담접수)은 제외(클라 관리 상태 규칙 미러).
     // 재문의(recontacted) 고객은 버킷 라벨 대신 "재문의" 표기 — 목록 배지(finalUpdateStatus의
     // recontacted 우선)와 통일(이사님 2026-07-13 ①). 무활동 일수·노출 자체는 유지(오표기만 교정).
+    // 유효한 수동 관리 상태(스누즈, ⑦-①)는 최우선 — 클라 배지의 override 우선과 동일. 수동 "정상"은
+    // 목록 배지가 정상이므로 리포트에서 제외(배지-리포트 모순 방지).
     case "stale_customers": {
       const rows = await ex
-        .select({ name: customers.name, statusGroup: customers.statusGroup, status: customers.status, recontacted: customers.recontacted, at: staffActivityAt })
+        .select({ name: customers.name, statusGroup: customers.statusGroup, status: customers.status, recontacted: customers.recontacted, manageStatus: customers.manageStatus, manageStatusAt: customers.manageStatusAt, at: staffActivityAt })
         .from(customers)
         .where(scopeCond(scope));
       const lines = rows
         .filter((r) => !(r.statusGroup === "신규" && r.status === "상담접수"))
-        .map((r) => ({ ...r, days: daysSince(r.at) }))
+        .map((r) => ({ ...r, days: daysSince(r.at), manual: manualManageStatusActive(r.manageStatusAt, r.at) ? r.manageStatus : null }))
         .filter((r): r is typeof r & { days: number } => r.days != null && staleBucket(r.days) != null)
+        .filter((r) => r.manual !== "정상")
         .sort((a, b) => b.days - a.days)
         .map((r) => {
-          const badge = r.recontacted ? "재문의(고객이 먼저 다시 연락)" : staleBucket(r.days);
+          const badge = r.manual
+            ? r.manual === "재문의" ? "재문의(고객이 먼저 다시 연락)" : `${r.manual}(수동 지정)`
+            : r.recontacted ? "재문의(고객이 먼저 다시 연락)" : staleBucket(r.days);
           return `${r.name} — ${r.days}일 무활동 (${badge}) · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`;
         });
       return { label, lines: capReportLines(lines, "명") };
@@ -165,15 +170,22 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     // 단계는 '출고 준비 및 정산 준비' 개념 — 출고/정산 화면이 CRM에 구현되면 그 데이터 기반으로 쿼리 교체).
     case "delivery_risk": {
       const rows = await ex
-        .select({ name: customers.name, status: customers.status, recontacted: customers.recontacted, at: staffActivityAt })
+        .select({ name: customers.name, status: customers.status, recontacted: customers.recontacted, manageStatus: customers.manageStatus, manageStatusAt: customers.manageStatusAt, at: staffActivityAt })
         .from(customers)
         .where(and(eq(customers.statusGroup, "계약완료"), scopeCond(scope)));
       const lines = rows
-        .map((r) => ({ ...r, days: daysSince(r.at) }))
+        .map((r) => ({ ...r, days: daysSince(r.at), manual: manualManageStatusActive(r.manageStatusAt, r.at) ? r.manageStatus : null }))
         .filter((r): r is typeof r & { days: number } => r.days != null && r.days >= STALE_THRESHOLDS.review)
+        // 유효 수동 "정상"은 목록 배지도 정상 — 리스크 리포트에서 제외(stale_customers와 동일 사유).
+        .filter((r) => r.manual !== "정상")
         .sort((a, b) => b.days - a.days)
-        // 재문의 병기 — stale_customers와 동일 사유(목록 배지와 라벨 통일, 이사님 2026-07-13 ①).
-        .map((r) => `${r.name} — 계약완료 단계(${r.status ?? "세부 미입력"}) · ${r.days}일 무활동${r.recontacted ? " · 재문의(고객이 먼저 다시 연락)" : ""}`);
+        // 재문의·수동 상태 병기 — stale_customers와 동일 사유(목록 배지와 라벨 통일, 이사님 2026-07-13 ①·⑦-①).
+        .map((r) => {
+          const tag = r.manual
+            ? r.manual === "재문의" ? " · 재문의(고객이 먼저 다시 연락)" : ` · ${r.manual}(수동 지정)`
+            : r.recontacted ? " · 재문의(고객이 먼저 다시 연락)" : "";
+          return `${r.name} — 계약완료 단계(${r.status ?? "세부 미입력"}) · ${r.days}일 무활동${tag}`;
+        });
       return { label, lines: capReportLines(lines, "명") };
     }
 

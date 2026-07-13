@@ -24,6 +24,8 @@ const row: CustomerRow = {
   assignedAt: "2026-05-14T13:04:00+09:00",
   lastActivityAt: "2026-05-14T14:20:00+09:00",
   recontacted: false,
+  manageStatus: null,
+  manageStatusAt: null,
   latestTask: "GLC 재고 확인",
   chance: null,
 };

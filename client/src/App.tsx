@@ -273,10 +273,12 @@ export function App() {
       setManageStatusOverrides((current) => ({ ...current, [customerNo]: next.manageStatus as CustomerManageStatus }));
     }
 
-    // DB 저장(statusGroup/status/chance만 — manageStatus는 컬럼 없음). 계약완료=확정 규칙 반영(비확정 저장 차단).
+    // DB 저장. 계약완료=확정 규칙 반영(비확정 저장 차단). manageStatus는 ⑦-①(2026-07-13)로 영속 —
+    // 서버가 manage_status_at을 함께 찍어 "다음 실활동까지 유효"(스누즈)로 저장된다.
     const patch: CustomerWritePatch = {};
     if (next.statusGroup) patch.statusGroup = next.statusGroup;
     if (next.status) patch.status = next.status;
+    if (next.manageStatus) patch.manageStatus = next.manageStatus;
     if (contracted) patch.chance = "확정";
     else if (next.statusGroup && prevChanceOverrides[customerNo] === "확정") patch.chance = null;
     else if (next.chance) patch.chance = next.chance;

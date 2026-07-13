@@ -5,9 +5,25 @@ import { finalUpdateStatus, finalUpdateStatusFromManage, type FinalUpdateInfo, t
 export type ManageStatusSource = {
   lastActivityAt?: string | null;
   recontacted?: boolean;
+  manageStatus?: string | null; // 수동 관리 상태(⑦-① 스누즈) — 아래 effectiveManageStatus가 유효성 판정
+  manageStatusAt?: string | null;
   statusGroup: string;
   status: string;
 };
+
+// 수동 관리 상태(스누즈) 유효 판정 — manage_status_at이 마지막 실활동 이후거나 **동시**면 유효(설정
+// PATCH가 두 스탬프를 같은 now로 찍는다 — 서버 updateCustomer 계약), 이후 실활동이 기록되면 만료.
+// 서버 동치는 activity.manualManageStatusActive — 파리티 테스트(manage-status-parity)가 잠근다.
+export function effectiveManageStatus(source: ManageStatusSource): ManageStatusOption | null {
+  if (!source.manageStatus || !source.manageStatusAt) return null;
+  const m = new Date(source.manageStatusAt).getTime();
+  if (Number.isNaN(m)) return null;
+  if (source.lastActivityAt) {
+    const a = new Date(source.lastActivityAt).getTime();
+    if (!Number.isNaN(a) && m < a) return null;
+  }
+  return source.manageStatus as ManageStatusOption;
+}
 
 const MS_DAY = 86_400_000;
 const KST_OFFSET_MS = 9 * 3_600_000;
@@ -42,13 +58,15 @@ export function deriveFinalUpdateInfo(
 
 // override 합성 규칙 SSOT — 목록 필터·행 렌더·상세 워크플로우 3곳이 공유(한쪽만 픽스되는 드리프트 방지).
 // finalUpdateOverride: "방금 전" 로컬 갱신 마킹(파생 대체), manageStatusOverride: 워크플로우 카드의 수동 상태(버킷 강제).
+// 우선순위: 로컬 낙관 override(방금 선택) > 서버 영속 수동 상태(스누즈 유효분, ⑦-①) > 파생(재문의→버킷).
 export function resolveUpdateBadge(
   source: ManageStatusSource,
   opts: { finalUpdateOverride?: FinalUpdateInfo | null; manageStatusOverride?: ManageStatusOption | null; now?: Date } = {},
 ): { info: FinalUpdateInfo | null; status: FinalUpdateStatus | null } {
   const info = opts.finalUpdateOverride ?? deriveFinalUpdateInfo(source, opts.now);
-  const status = opts.manageStatusOverride
-    ? finalUpdateStatusFromManage(opts.manageStatusOverride)
+  const manual = opts.manageStatusOverride ?? effectiveManageStatus(source);
+  const status = manual
+    ? finalUpdateStatusFromManage(manual)
     : info ? finalUpdateStatus(info) : null;
   return { info, status };
 }

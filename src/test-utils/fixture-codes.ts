@@ -21,6 +21,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
   "CU-EMBRT-",      // routes/customers.embed.test.ts  ← 2026-07-09 유령 행의 출처
   "CU-EMBSRC-",     // db/queries/embed-sources.test.ts
   "CU-EMBTEST-",    // db/queries/embeddings.test.ts
+  "CU-MGST-",       // routes/customers.test.ts — 수동 관리 상태 영속(manage_status) 검증
   "CU-ROUTE-",      // routes/customers.test.ts
   "CU-RSEND-",      // routes/customers.send.test.ts
   "CU-SEND-",       // db/queries/customer-quotes.send.test.ts

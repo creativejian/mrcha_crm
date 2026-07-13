@@ -45,6 +45,7 @@ export type CustomerWritePatch = Partial<
     | "advisorId"
     | "team"
     | "assignedAt"
+    | "manageStatus"
     | "needModel"
     | "needTrim"
     | "needColors"
@@ -66,9 +67,14 @@ export async function updateCustomer(
   patch: CustomerWritePatch,
   executor: Executor = getDefaultDb(),
 ): Promise<{ id: string } | null> {
+  // 수동 관리 상태(스누즈)의 유효 규칙이 manage_status_at >= staffActivityAt(= updated_at 포함 GREATEST)라서,
+  // 스탬프를 updated_at과 **같은 now**로 찍어야 설정 직후에 유효하다(별도 new Date()면 ms 차이로 즉시 만료).
+  const now = new Date();
+  const manageStamp =
+    patch.manageStatus !== undefined ? { manageStatusAt: patch.manageStatus === null ? null : now } : {};
   const [row] = await executor
     .update(customers)
-    .set({ ...patch, updatedAt: new Date() })
+    .set({ ...patch, ...manageStamp, updatedAt: now })
     .where(eq(customers.id, id))
     .returning({ id: customers.id });
   return row ?? null;
