@@ -21,7 +21,8 @@ import { expect, test } from "bun:test";
 // 쓰기가 필요해지면 이 테스트를 우회하지 말고 **앱 팀에 서버 경로를 요청**한다(그쪽 확약).
 // 예외를 뚫어야 한다면 여기에 명시적으로 등록해 "언제 누가 왜 열었는지"가 커밋에 남게 한다.
 
-const SCAN_ROOTS = ["src", "client/src", "supabase/functions"];
+// functions/(CF Pages 엔트리)·scripts/(시드 등 수동 스크립트)도 postgres 롤 코드가 살 수 있는 루트다.
+const SCAN_ROOTS = ["src", "client/src", "supabase/functions", "functions", "scripts"];
 const SELF = "src/db/profiles-write-guard.test.ts";
 
 // 주석 안의 "profiles를 UPDATE 하지 않는다" 같은 설명문이 탐지에 걸리지 않게 먼저 걷어낸다.
@@ -32,8 +33,11 @@ function stripComments(src: string): string {
 
 // CRM이 DB에 쓰는 경로는 셋뿐이다 — drizzle(서버) · supabase-js(브라우저) · 원시 SQL.
 const RULES: { name: string; re: RegExp }[] = [
-  // drizzle: ex.insert(profiles) / db.update(profiles) / tx.delete(profiles)
-  { name: "drizzle", re: /\.(?:insert|update|delete)\(\s*profiles\s*[,)]/g },
+  // drizzle: ex.insert(profiles) / db.update(pub.profiles) / tx.delete(appProfiles)
+  // 네임스페이스 import(`pub.profiles`)와 별칭 import(`profiles as appProfiles`)를 다 잡도록
+  // "profiles로 끝나는 식별자(경로 포함)"를 본다. `customerProfiles` 같은 미래 crm 테이블이 생기면
+  // 오탐이 나겠지만, 그건 fail-closed 방향(예외는 여기 명시 등록) — 정규식을 좁혀 회피하지 말 것.
+  { name: "drizzle", re: /\.(?:insert|update|delete)\(\s*(?:\w+\.)*\w*[pP]rofiles\s*[,)]/g },
   // supabase-js: from("profiles") … .update({...}) — 사이에 다른 .from(이 끼면 다른 문장이다.
   { name: "supabase-js", re: /\.from\(\s*["'`]profiles["'`]\s*\)(?:(?!\.from\()[\s\S]){0,160}?\.(?:insert|update|delete|upsert)\(/g },
   // 원시 SQL: sql`update public.profiles set ...`
@@ -57,6 +61,13 @@ test("탐지기: drizzle profiles 쓰기 3종을 잡는다", () => {
   expect(findProfileWrites(`await tx.delete(profiles).where(eq(profiles.id, id))`)).toHaveLength(1);
 });
 
+test("탐지기: 네임스페이스·별칭 경유 drizzle 쓰기도 잡는다(0709 적대 검증이 확인한 사각)", () => {
+  // import * as pub from "../db/public-app" 뒤 pub.profiles
+  expect(findProfileWrites(`await db.update(pub.profiles).set({ role: "admin" })`)).toHaveLength(1);
+  // import { profiles as appProfiles } 뒤 appProfiles
+  expect(findProfileWrites(`await tx.insert(appProfiles).values({ id })`)).toHaveLength(1);
+});
+
 test("탐지기: supabase-js profiles 쓰기를 잡는다(줄바꿈 포함)", () => {
   expect(findProfileWrites(`supabase.from("profiles").update({ role: "admin" })`)).toHaveLength(1);
   expect(findProfileWrites(`const { error } = await supabase\n  .from("profiles")\n  .upsert({ id, full_name })`)).toHaveLength(1);
@@ -74,6 +85,9 @@ test("탐지기: 읽기는 흘려보낸다(profiles는 read 전용으로 계속 
   expect(findProfileWrites(`const S = "*, profiles!chat_sessions_user_id_fkey(full_name, email)";`)).toEqual([]);
   // 다른 테이블 쓰기는 무관.
   expect(findProfileWrites(`supabase.from("chat_messages").insert({ message })`)).toEqual([]);
+  // "profiles로 끝나지 않는" 식별자는 별칭 확장에도 걸리지 않는다.
+  expect(findProfileWrites(`await db.update(profilesView).set({ x: 1 })`)).toEqual([]);
+  expect(findProfileWrites(`await db.insert(quoteRequests).values({ id })`)).toEqual([]);
 });
 
 test("탐지기: 주석 속 설명문은 위반이 아니다", () => {

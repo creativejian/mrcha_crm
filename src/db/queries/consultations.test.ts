@@ -129,9 +129,12 @@ test("createCustomerFromConsultation: userId 없으면 null(통합 불가)", asy
 
 test("createCustomerFromConsultation: 신규 고객 생성 — source/phone/appUserId/needModel 왕복", async () => {
   const userId = await anyUnlinkedProfileId();
+  // 이름은 registry(TEST_CUSTOMER_NAMES) 등록값 — createCustomerFromConsultation이 이 이름으로
+  // **실채번**(CU-YYMM-####) 고객을 만들어 접두사 registry가 못 잡는다. 실행이 끊겨 남아도
+  // 잔재 스캔·--clean이 이름으로 잡게 한다(routes/customers.create.test.ts "수기등록테스트" 선례).
   const consultationId = await insertConsultation({
     userId,
-    customerName: "김상담",
+    customerName: "상담승격테스트",
     phoneNumber: "01099998888",
     carModel: "벤츠 GLE",
   });
@@ -143,7 +146,7 @@ test("createCustomerFromConsultation: 신규 고객 생성 — source/phone/appU
     expect(result?.appUserId).toBe(userId);
 
     const [row] = await db.select().from(customers).where(eq(customers.id, result!.id));
-    expect(row.name).toBe("김상담");
+    expect(row.name).toBe("상담승격테스트");
     expect(row.phone).toBe("01099998888");
     expect(row.appUserId).toBe(userId);
     expect(row.needModel).toBe("벤츠 GLE");

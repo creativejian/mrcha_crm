@@ -34,7 +34,27 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
 // 코드가 CU-YYMM-####(실채번)라 위 접두사 registry로는 잔재를 못 잡는다. 이름이 잡는다.
 // "게이트검증"(middleware/role-gate.test.ts)은 403 전제라 평소엔 행을 안 만들지만,
 // 게이트 변이/회귀 시 dealer POST가 실제 INSERT돼 잔재가 된다(2026-07-11 변이 검증 중 실발생).
-export const TEST_CUSTOMER_NAMES: readonly string[] = ["수기등록테스트", "게이트검증"];
+export const TEST_CUSTOMER_NAMES: readonly string[] = [
+  "수기등록테스트",   // routes/customers.create.test.ts — POST /api/customers 실채번
+  "게이트검증",       // middleware/role-gate.test.ts — 403 전제(게이트 회귀 시만 실 행)
+  "상담승격테스트",   // db/queries/consultations.test.ts — createCustomerFromConsultation 실채번 승격
+  "라우트승격테스트", // routes/consultations.test.ts — POST create-customer 실채번 승격
+  "승격배선테스트",   // routes/customers.embed.test.ts — 견적요청 승격이 실 profile 실명으로 만든 고객을 응답 직후 rename
+];
+
+// public.consultations 픽스처의 customer_name registry — 잔재 스캔 **report-only** 전용.
+// (public은 앱 소유 — `--clean`이 지우지 않는다. #214 고아 앱 카드와 동일 소유권 경계.)
+// 스캔은 접두사 매칭(prefixRegex)이라 동적 서픽스(`상담테스트-${uuid}`)도 잡는다.
+// 원미래(2126) 픽스처는 이름과 무관하게 `created_at > now()` 절이 한 겹 더 잡는다.
+export const TEST_CONSULTATION_NAMES: readonly string[] = [
+  "상담테스트-",       // db/queries/consultations.test.ts insertConsultation 기본값
+  "라우트테스트-",     // routes/consultations.test.ts insertConsultation 기본값
+  "상담승격테스트",    // db/queries/consultations.test.ts 승격 케이스(위 고객명 registry와 동일 값)
+  "라우트승격테스트",  // routes/consultations.test.ts 승격 케이스
+  "AI힌트상담-",       // db/queries/ai-hint-sources.test.ts (원미래 2126)
+  "AI힌트dismiss검증", // routes/customers.ai-hint.test.ts (원미래 2126)
+  "도구테스트",        // db/queries/assistant-tools.test.ts
+];
 
 export const TEST_QUOTE_CODE_PREFIXES = [
   "QT-AIHINT-",     // db/queries/ai-hint-sources.test.ts
