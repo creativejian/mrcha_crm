@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, like, ne, or } from "drizzle-orm";
 
 import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
-import { ConflictError } from "../../lib/errors";
+import { ConflictError, LinkConflictError } from "../../lib/errors";
 import { APP_QUOTE_REQUEST_SOURCE } from "../../../client/src/data/customers";
 import { PAYMENT_METHOD_LABEL } from "../../../client/src/data/quote-request-labels";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
@@ -276,14 +276,15 @@ export async function linkRequestToCustomer(
 ): Promise<{ id: string; customerCode: string; name: string; appUserId: string } | null> {
   const [req] = await ex.select({ userId: quoteRequests.userId }).from(quoteRequests).where(eq(quoteRequests.id, requestId));
   if (!req) return null;
-  // 같은 앱 계정이 이미 다른 고객에 연결돼 있으면 거절(ConflictError → 409) — app_user_id 중복 고객은
-  // 요청 청크의 고객 귀속(임베딩·staff scope)을 비결정으로 만든다. createCustomerFromRequest의 기존-고객
-  // dedupe와 대칭(fail-closed). "기존 연결 고객으로 유도" UX 대안은 이사님 판단 대기.
+  // 같은 앱 계정이 이미 다른 고객에 연결돼 있으면 거절(LinkConflictError → 409 + conflict 동봉) —
+  // app_user_id 중복 고객은 요청 청크의 고객 귀속(임베딩·staff scope)을 비결정으로 만든다.
+  // createCustomerFromRequest의 기존-고객 dedupe와 대칭(fail-closed). 차단은 유지하되 충돌 고객
+  // 식별을 동봉해 클라가 "그 고객으로 이동" 안내를 만든다(이사님 2026-07-13 ② 결정).
   const [linked] = await ex
     .select({ customerCode: customers.customerCode, name: customers.name })
     .from(customers)
     .where(and(eq(customers.appUserId, req.userId), ne(customers.id, customerId)));
-  if (linked) throw new ConflictError(`이 앱 계정은 이미 ${linked.name}(${linked.customerCode}) 고객에 연결돼 있습니다.`);
+  if (linked) throw new LinkConflictError(`이 앱 계정은 이미 ${linked.name}(${linked.customerCode}) 고객에 연결돼 있습니다.`, linked);
   // 역방향(고객 → 앱계정) 재연결 차단 — 위 가드는 정방향만 본다. 전화 매칭 후보는 이미 다른 앱 계정에
   // 연결된 고객도 노출하므로(matchType="phone"), 가드가 없으면 "연결" 한 번에 그 고객의 app_user_id가
   // 조용히 교체되고 원래 계정의 요청·상담이 매칭을 잃는다. 같은 계정 재연결은 멱등이라 통과.

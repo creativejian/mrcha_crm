@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { withNotifyGuard } from "../../test-utils/notify-gate";
 import { eq } from "drizzle-orm";
 
-import { ConflictError } from "../../lib/errors";
+import { ConflictError, LinkConflictError } from "../../lib/errors";
 import { getDefaultDb } from "../client";
 import { consultationRequests, profiles } from "../public-app";
 import { consultationDismissals, customers } from "../schema";
@@ -203,13 +203,20 @@ test("linkConsultationToCustomer: 기존 phone 있으면 보강하지 않고 유
   }
 });
 
-test("linkConsultationToCustomer: app_user_id 중복이면 ConflictError", async () => {
+test("linkConsultationToCustomer: app_user_id 중복이면 LinkConflictError + 충돌 고객 식별 동봉", async () => {
   const userId = await anyUnlinkedProfileId();
   const alreadyLinkedCustomerId = await insertCustomer({ appUserId: userId, source: "카카오", name: "이미연결됨" });
   const otherCustomerId = await insertCustomer({ source: "카카오", name: "다른고객" });
   const consultationId = await insertConsultation({ userId });
   try {
-    await expect(linkConsultationToCustomer(consultationId, otherCustomerId, db)).rejects.toThrow(ConflictError);
+    // 차단 유지 + 클라 "그 고객으로 이동" 안내용 충돌 고객 식별 동봉(이사님 2026-07-13 ② — quote-requests와 대칭).
+    const err = await linkConsultationToCustomer(consultationId, otherCustomerId, db).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LinkConflictError);
+    const [linkedRow] = await db
+      .select({ customerCode: customers.customerCode, name: customers.name })
+      .from(customers)
+      .where(eq(customers.id, alreadyLinkedCustomerId));
+    expect((err as LinkConflictError).conflict).toEqual({ customerCode: linkedRow.customerCode, name: linkedRow.name });
   } finally {
     await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
     await db.delete(customers).where(eq(customers.id, alreadyLinkedCustomerId));

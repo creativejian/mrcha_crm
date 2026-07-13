@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 
-import { ConflictError } from "../lib/errors";
+import { ConflictError, LinkConflictError } from "../lib/errors";
 
 // 트리거/제약 위반 등 DB 에러를 사용자 친화 한글 메시지로.
 function dbErrorMessage(e: unknown): string {
@@ -23,6 +23,7 @@ export async function run<T>(c: Context, work: () => Promise<T>, notFoundMsg?: s
     if (result == null && notFoundMsg) return c.json({ error: notFoundMsg }, 404);
     return c.json(result ?? null);
   } catch (e) {
+    if (e instanceof LinkConflictError) return c.json({ error: e.message, conflict: e.conflict }, 409);
     if (e instanceof ConflictError) return c.json({ error: e.message }, 409);
     return c.json({ error: dbErrorMessage(e) }, 500);
   }

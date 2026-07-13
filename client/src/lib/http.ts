@@ -1,9 +1,23 @@
 import { apiFetch } from "./api";
 
+// 서버 409 link 충돌이 동봉하는 충돌 상대 고객 식별(src/routes/shared.ts run()의 LinkConflictError 매핑과 계약).
+export type HttpConflictInfo = { customerCode: string; name: string };
+
+// 서버 에러 응답 — status와 구조화 conflict를 보존해 호출부가 메시지 파싱 없이 분기할 수 있게 한다.
+export class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly conflict?: HttpConflictInfo,
+  ) {
+    super(message);
+  }
+}
+
 // 프론트 lib 공용 HTTP 헬퍼. 에러 응답이면 서버 body.error(한글 메시지)를 우선 사용, 없으면 status.
-async function httpError(res: Response): Promise<Error> {
-  const body = (await res.json().catch(() => ({}))) as { error?: string };
-  return new Error(body.error ?? `요청 실패: ${res.status}`);
+async function httpError(res: Response): Promise<HttpError> {
+  const body = (await res.json().catch(() => ({}))) as { error?: string; conflict?: HttpConflictInfo };
+  return new HttpError(body.error ?? `요청 실패: ${res.status}`, res.status, body.conflict);
 }
 
 // GET → JSON. 실패 시 throw.

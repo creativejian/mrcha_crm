@@ -3,7 +3,7 @@
 // 항상 확보(통합의 핵심 가치 = 빈 CRM 연락처를 채우는 경로). status는 read-only로 시작(전이는 미구현).
 import { and, desc, eq, ne, notInArray } from "drizzle-orm";
 
-import { ConflictError } from "../../lib/errors";
+import { ConflictError, LinkConflictError } from "../../lib/errors";
 import { APP_CONSULTATION_SOURCE } from "../../../client/src/data/customers";
 import { nextCustomerCode } from "./quote-requests";
 import { getDefaultDb, type Executor } from "../client";
@@ -127,11 +127,12 @@ export async function linkConsultationToCustomer(
     .where(eq(consultationRequests.id, consultationId));
   if (!req || !req.userId) return null;
 
+  // 정방향 충돌은 conflict 동봉(→ 클라 "그 고객으로 이동" 안내, 이사님 2026-07-13 ②) — quote-requests와 대칭.
   const [linked] = await ex
     .select({ customerCode: customers.customerCode, name: customers.name })
     .from(customers)
     .where(and(eq(customers.appUserId, req.userId), ne(customers.id, customerId)));
-  if (linked) throw new ConflictError(`이 앱 계정은 이미 ${linked.name}(${linked.customerCode}) 고객에 연결돼 있습니다.`);
+  if (linked) throw new LinkConflictError(`이 앱 계정은 이미 ${linked.name}(${linked.customerCode}) 고객에 연결돼 있습니다.`, linked);
 
   const [target] = await ex.select({ phone: customers.phone, appUserId: customers.appUserId }).from(customers).where(eq(customers.id, customerId));
   if (!target) return null;
