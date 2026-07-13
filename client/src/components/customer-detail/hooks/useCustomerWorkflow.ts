@@ -48,10 +48,11 @@ export function buildTimelineRows(customer: Customer, consultations: CustomerDet
   ];
 }
 
-// 상세 관리 상태 = 목록과 동일 규칙. override(워크플로우 변경) 있으면 그것, 없으면 서버 파생
-// lastActivityAt 기반 계산, 파생 불가(신규·상담접수/활동 없음)면 ""(목록처럼 공백). 무조건 "정상" 폴백 금지.
-function resolveManageStatus(override: CustomerManageStatus | undefined, customer: Customer): CustomerManageStatus | "" {
-  const { status } = resolveUpdateBadge(customer, { manageStatusOverride: override });
+// 상세 관리 상태 = 목록과 동일 규칙(row가 단일 소스 — 낙관 반영도 App이 row의 manageStatus/manageStatusAt을
+// 직접 갱신한다, 0713 이중 소스 폐기). 유효 수동 상태 > 서버 파생 lastActivityAt 버킷, 파생 불가(신규·상담접수/
+// 활동 없음)면 ""(목록처럼 공백). 무조건 "정상" 폴백 금지.
+function resolveManageStatus(customer: Customer): CustomerManageStatus | "" {
+  const { status } = resolveUpdateBadge(customer);
   return (status?.label as CustomerManageStatus) ?? "";
 }
 
@@ -59,7 +60,6 @@ type UseCustomerWorkflowArgs = {
   detail: CustomerDetailData; // statusValues 초기값 매핑 소스
   customer: Customer;
   chanceOverride?: CustomerChanceOption;
-  manageStatusOverride?: CustomerManageStatus;
   onToast: (message: string) => void;
   onWorkflowChange?: WorkflowChange; // 부모 prop 그대로(목록·상세 진행상태/가능성 동기화)
   markRecentUpdate: (section: string) => void; // 부모 소유 — 콜백 주입
@@ -74,7 +74,6 @@ export function useCustomerWorkflow({
   detail,
   customer,
   chanceOverride,
-  manageStatusOverride,
   onToast,
   onWorkflowChange,
   markRecentUpdate,
@@ -96,7 +95,7 @@ export function useCustomerWorkflow({
   const [stageGroup, setStageGroup] = useState(customer.statusGroup);
   const [stageStatus, setStageStatus] = useState(customer.status);
   const [chance, setChance] = useState<CustomerChanceOption>(resolveChance(customer, chanceOverride));
-  const [manage, setManage] = useState<CustomerManageStatus | "">(() => resolveManageStatus(manageStatusOverride, customer));
+  const [manage, setManage] = useState<CustomerManageStatus | "">(() => resolveManageStatus(customer));
 
   const consultBodyRef = useRef<HTMLDivElement>(null);
   const timelineItems = buildTimelineRows(customer, detail.consultations);
@@ -113,9 +112,9 @@ export function useCustomerWorkflow({
   }, [chanceOverride, customer]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- manageStatusOverride 변경 시 관리 상태를 동기화하는 의도된 effect
-    setManage(resolveManageStatus(manageStatusOverride, customer));
-  }, [manageStatusOverride, customer]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- customer row(수동 관리 상태 단일 소스) 변경 시 관리 상태를 동기화하는 의도된 effect
+    setManage(resolveManageStatus(customer));
+  }, [customer]);
 
   useEffect(() => {
     const container = consultBodyRef.current;
@@ -289,6 +288,7 @@ export function useCustomerWorkflow({
     setManage(option);
     onWorkflowChange?.(customer.no, { manageStatus: option });
     setOpenEditor(null);
+    markRecentUpdate("관리 상태"); // 진행 상태·계약 가능성과 대칭(0713 감사 — 여기만 누락돼 헤더 라벨 무반응)
     onToast("관리 상태 수정 완료 — 다음 활동 기록 시 자동 해제됩니다");
   }
 

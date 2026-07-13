@@ -19,7 +19,6 @@ type CustomerManagementPageProps = {
   customers?: Customer[];
   mode: CustomerMode;
   chanceOverrides?: Record<number, CustomerChanceOption>;
-  manageStatusOverrides?: Record<number, CustomerManageStatus>;
   onChanceOverridesChange?: (overrides: Record<number, CustomerChanceOption>) => void;
   onCustomersChange?: (customers: Customer[]) => void;
   onOpenCustomer?: (customer: Customer) => void;
@@ -85,7 +84,6 @@ export function CustomerManagementPage({
   customers: controlledCustomers,
   mode,
   chanceOverrides: controlledChanceOverrides,
-  manageStatusOverrides = {},
   onChanceOverridesChange,
   onCustomersChange,
   onOpenCustomer,
@@ -175,7 +173,6 @@ export function CustomerManagementPage({
       const chance = resolveChance(customer, chanceOverrides[customer.no]);
       const updateStatus = resolveUpdateBadge(customer, {
         finalUpdateOverride: finalUpdateOverrides[customer.no],
-        manageStatusOverride: manageStatusOverrides[customer.no],
       }).status?.label ?? "";
       return modeFilter(mode, customer) &&
         (!keyword || searchable.includes(keyword)) &&
@@ -185,7 +182,7 @@ export function CustomerManagementPage({
         (!chanceFilter || chance === chanceFilter) &&
         (!finalUpdateFilter || updateStatus === finalUpdateFilter);
     });
-  }, [advisor, chanceFilter, chanceOverrides, customers, finalUpdateFilter, finalUpdateOverrides, manageStatusOverrides, mode, search, status, statusGroup]);
+  }, [advisor, chanceFilter, chanceOverrides, customers, finalUpdateFilter, finalUpdateOverrides, mode, search, status, statusGroup]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const effectivePage = Math.min(currentPage, totalPages);
@@ -725,7 +722,6 @@ export function CustomerManagementPage({
     const chance = resolveChance(customer, chanceOverrides[customer.no]);
     const { info: updateInfo, status: updateStatus } = resolveUpdateBadge(customer, {
       finalUpdateOverride: finalUpdateOverrides[customer.no],
-      manageStatusOverride: manageStatusOverrides[customer.no],
     });
     const operationResponseValue = showAdvisorColumn ? firstResponseDisplay(customer.assignedAt, updateInfo) : "담당 배정 후 표시";
     const twoStepPickerOpen = openStagePicker?.customerNo === customer.no ? openStagePicker.level : null;
