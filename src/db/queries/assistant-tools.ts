@@ -121,9 +121,11 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     }
 
     // 최근 활동 7일+ 무활동 고객(버킷 병기) — 액션 전(신규·상담접수)은 제외(클라 관리 상태 규칙 미러).
+    // 재문의(recontacted) 고객은 버킷 라벨 대신 "재문의" 표기 — 목록 배지(finalUpdateStatus의
+    // recontacted 우선)와 통일(이사님 2026-07-13 ①). 무활동 일수·노출 자체는 유지(오표기만 교정).
     case "stale_customers": {
       const rows = await ex
-        .select({ name: customers.name, statusGroup: customers.statusGroup, status: customers.status, at: staffActivityAt })
+        .select({ name: customers.name, statusGroup: customers.statusGroup, status: customers.status, recontacted: customers.recontacted, at: staffActivityAt })
         .from(customers)
         .where(scopeCond(scope));
       const lines = rows
@@ -131,7 +133,10 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         .map((r) => ({ ...r, days: daysSince(r.at) }))
         .filter((r): r is typeof r & { days: number } => r.days != null && staleBucket(r.days) != null)
         .sort((a, b) => b.days - a.days)
-        .map((r) => `${r.name} — ${r.days}일 무활동 (${staleBucket(r.days)}) · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`);
+        .map((r) => {
+          const badge = r.recontacted ? "재문의(고객이 먼저 다시 연락)" : staleBucket(r.days);
+          return `${r.name} — ${r.days}일 무활동 (${badge}) · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`;
+        });
       return { label, lines: capReportLines(lines, "명") };
     }
 
@@ -160,14 +165,15 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     // 단계는 '출고 준비 및 정산 준비' 개념 — 출고/정산 화면이 CRM에 구현되면 그 데이터 기반으로 쿼리 교체).
     case "delivery_risk": {
       const rows = await ex
-        .select({ name: customers.name, status: customers.status, at: staffActivityAt })
+        .select({ name: customers.name, status: customers.status, recontacted: customers.recontacted, at: staffActivityAt })
         .from(customers)
         .where(and(eq(customers.statusGroup, "계약완료"), scopeCond(scope)));
       const lines = rows
         .map((r) => ({ ...r, days: daysSince(r.at) }))
         .filter((r): r is typeof r & { days: number } => r.days != null && r.days >= STALE_THRESHOLDS.review)
         .sort((a, b) => b.days - a.days)
-        .map((r) => `${r.name} — 계약완료 단계(${r.status ?? "세부 미입력"}) · ${r.days}일 무활동`);
+        // 재문의 병기 — stale_customers와 동일 사유(목록 배지와 라벨 통일, 이사님 2026-07-13 ①).
+        .map((r) => `${r.name} — 계약완료 단계(${r.status ?? "세부 미입력"}) · ${r.days}일 무활동${r.recontacted ? " · 재문의(고객이 먼저 다시 연락)" : ""}`);
       return { label, lines: capReportLines(lines, "명") };
     }
 
