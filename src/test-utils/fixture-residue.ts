@@ -6,10 +6,13 @@
 import { sql } from "drizzle-orm";
 
 import type { Db } from "../db/client";
-import { prefixRegex, TEST_CUSTOMER_CODE_PREFIXES, TEST_CUSTOMER_NAMES, TEST_QUOTE_CODE_PREFIXES } from "./fixture-codes";
+import {
+  prefixRegex, TEST_CONSULTATION_NAMES, TEST_CUSTOMER_CODE_PREFIXES, TEST_CUSTOMER_NAMES, TEST_QUOTE_CODE_PREFIXES,
+} from "./fixture-codes";
 
 export const CUSTOMER_CODE_REGEX = prefixRegex(TEST_CUSTOMER_CODE_PREFIXES);
 export const QUOTE_CODE_REGEX = prefixRegex(TEST_QUOTE_CODE_PREFIXES);
+export const CONSULTATION_NAME_REGEX = prefixRegex(TEST_CONSULTATION_NAMES);
 
 // 고객 잔재 판정 — 코드 접두사 or 등록된 픽스처 이름. 실채번 픽스처(POST 라우트 테스트)는
 // 코드가 CU-YYMM-####라 접두사로 못 잡는다 — 이름이 잡는다. scan과 check-test-residue --clean이 공유.
@@ -27,10 +30,21 @@ export type FixtureResidue = {
   orphanEmbeddings: number;
   /** crm.quotes에 없는 public.advisor_quotes — **앱 화면의 유령 견적 카드**. */
   orphanAppCards: number;
+  /**
+   * public.consultations 픽스처 잔재(원미래 created_at 또는 registry 이름) — **report-only**.
+   * 앱 소유 스키마라 `--clean`이 지우지 않는다. 잔재는 고객 상세 문의 카드·업무 AI 도구·AI 힌트
+   * 재료를 점유하므로 수동 psql DELETE로 정리한다(DELETE는 알림 트리거 무관 — INSERT만 발화).
+   */
+  consultations: { id: string; customerName: string; createdAt: string }[];
+  /** crm.customer_deletions 감사 잔재 — 고객 행이 이미 없어도 남는다. `--clean`이 같은 술어로 지운다. */
+  deletionAudits: { customerCode: string; name: string }[];
 };
 
 export function residueCount(r: FixtureResidue): number {
-  return r.customers.length + r.quotes.length + r.orphanEmbeddings + r.orphanAppCards;
+  return (
+    r.customers.length + r.quotes.length + r.orphanEmbeddings + r.orphanAppCards +
+    r.consultations.length + r.deletionAudits.length
+  );
 }
 
 export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
@@ -47,12 +61,22 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
   const [cards] = await asRows<{ n: number }>(sql`
     select count(*)::int as n from public.advisor_quotes a
     where not exists (select 1 from crm.quotes q where q.id = a.crm_quote_id)`);
+  // 앱 소유 read-only 스캔 — 원미래(2126 픽스처) created_at 또는 registry 이름 접두사만 잔재로 본다.
+  const consultations = await asRows<{ id: string; customer_name: string; created_at: string }>(sql`
+    select id::text, customer_name, created_at::text from public.consultations
+    where created_at > now() or customer_name ~ ${CONSULTATION_NAME_REGEX} order by created_at`);
+  // 감사 행은 고객 행이 삭제된 뒤에도 남는다 — customer_deletions에 code·name이 스냅샷돼 있어
+  // customerResidueWhere()(코드 정규식 + 이름 registry)를 그대로 재사용한다(--clean과 동일 술어).
+  const deletionAudits = await asRows<{ customer_code: string; name: string }>(sql`
+    select customer_code, name from crm.customer_deletions where ${customerResidueWhere()} order by deleted_at`);
 
   return {
     customers: customers.map((c) => ({ customerCode: c.customer_code, name: c.name, createdAt: c.created_at })),
     quotes: quotes.map((q) => ({ quoteCode: q.quote_code })),
     orphanEmbeddings: Number(emb?.n ?? 0),
     orphanAppCards: Number(cards?.n ?? 0),
+    consultations: consultations.map((c) => ({ id: c.id, customerName: c.customer_name, createdAt: c.created_at })),
+    deletionAudits: deletionAudits.map((d) => ({ customerCode: d.customer_code, name: d.name })),
   };
 }
 
@@ -62,5 +86,9 @@ export function formatResidue(r: FixtureResidue): string {
   for (const q of r.quotes) lines.push(`견적 ${q.quoteCode}`);
   if (r.orphanEmbeddings > 0) lines.push(`고아 임베딩 ${r.orphanEmbeddings}건 (고객 없는 crm.embeddings)`);
   if (r.orphanAppCards > 0) lines.push(`고아 앱 카드 ${r.orphanAppCards}건 — 앱 화면의 유령 견적`);
+  for (const c of r.consultations) {
+    lines.push(`상담신청 ${c.customerName} · ${c.createdAt} — public 소유, --clean 미삭제(수동 psql DELETE)`);
+  }
+  for (const d of r.deletionAudits) lines.push(`삭제 감사 ${d.customerCode} · ${d.name} (crm.customer_deletions)`);
   return lines.join("\n");
 }

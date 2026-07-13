@@ -176,7 +176,7 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
         </div>
       )}
 
-      <section className="card handoff-op-card">
+      <section className="card">
         <div className="panel-head"><h2>운영 모드</h2></div>
         <div className="panel-body">
           <div className="handoff-op-modes" role="radiogroup" aria-label="운영 모드">
@@ -203,7 +203,7 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
         </div>
       </section>
 
-      <section className="card handoff-op-card">
+      <section className="card">
         <div className="panel-head"><h2>운영시간</h2><span className="handoff-op-dim">기준 Asia/Seoul (KST)</span></div>
         <div className="panel-body">
           <div className="handoff-op-days">
@@ -248,7 +248,7 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
         </div>
       </section>
 
-      <section className="card handoff-op-card">
+      <section className="card">
         <div className="panel-head"><h2>고객 안내 문구</h2></div>
         <div className="panel-body handoff-op-messages">
           <label className="handoff-op-field">
@@ -273,7 +273,7 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
         </div>
       </section>
 
-      <section className="card handoff-op-card">
+      <section className="card">
         <div className="panel-head"><h2>저장</h2></div>
         <div className="panel-body handoff-op-save">
           <label className="handoff-op-field">
@@ -300,7 +300,7 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
       </div>
 
       <aside className="handoff-op-side">
-      <section className="card handoff-op-card">
+      <section className="card">
         <div className="panel-head">
           <h2>현재 상태</h2>
           {badge && <span className={`handoff-op-badge ${badge.tone}`}>{badge.label}</span>}
@@ -324,7 +324,7 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
         </div>
       </section>
 
-      <section className="card handoff-op-card">
+      <section className="card">
         <div className="panel-head"><h2>변경 이력</h2><span className="handoff-op-dim">최근 {audits.length}건</span></div>
         <div className="panel-body">
           {audits.length === 0 ? (

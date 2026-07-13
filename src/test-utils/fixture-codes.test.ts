@@ -13,6 +13,13 @@ import { CUSTOMER_CODE_REGEX, QUOTE_CODE_REGEX } from "./fixture-residue";
 
 const SELF = "src/test-utils/fixture-codes.test.ts";
 
+// 계약 스캔에서 명시적으로 제외하는 정당한 리터럴 보유 파일. 여기 추가하려면 "왜 registry 밖
+// 코드 리터럴이 정당한지"를 주석으로 남길 것 — 픽스처 생성 파일은 절대 넣지 않는다.
+const EXCLUDED = new Set([
+  SELF, // 탐지기 자체 테스트가 코드 리터럴을 픽스처로 쓴다(DB에 안 남음)
+  "src/test-utils/fixture-codes.ts", // registry 자신 — 접두사 리터럴의 원본 정의
+]);
+
 // 실 master DB에 쓰는 테스트만 대상 — 순수 유닛 테스트의 인메모리 객체(예: app-card-payload.test.ts의
 // quoteCode "QT-2607-0001")는 DB에 남지 않으므로 registry와 무관하다. `getDefaultDb` 참조가 그 판별자다.
 function touchesRealDb(source: string): boolean {
@@ -92,15 +99,18 @@ test("prefixRegex: 정규식 메타문자를 이스케이프한다", () => {
 
 // ── 계약: 실 DB 테스트의 모든 픽스처 코드가 registry에 있다 ─────────
 
-test("계약: 실 DB 테스트가 쓰는 CU-/QT-/PUSH- 코드는 전부 registry에 등록돼 있다", async () => {
+// .test.ts만 훑으면 픽스처 생성이 비 .test.ts 시드 헬퍼로 옮겨갔을 때 미검출된다(텍스트 판정이라
+// import를 못 쫓는다) — src 전체 .ts를 훑는다. 판별자는 여전히 touchesRealDb(getDefaultDb)라
+// 순수 모듈은 대상 밖이고, 프로덕션 채번 템플릿(`CU-${yymm}-`)은 접두사 뒤 영숫자 요구로 안 잡힌다.
+test("계약: 실 DB를 만지는 src 소스가 쓰는 CU-/QT-/PUSH- 코드는 전부 registry에 등록돼 있다", async () => {
   const violations: string[] = [];
-  let dbTestFiles = 0;
-  for await (const rel of new Glob("**/*.test.ts").scan({ cwd: "src" })) {
+  let dbFiles = 0;
+  for await (const rel of new Glob("**/*.ts").scan({ cwd: "src" })) {
     const path = `src/${rel}`;
-    if (path === SELF) continue;
+    if (EXCLUDED.has(path)) continue;
     const source = await Bun.file(path).text();
     if (!touchesRealDb(source)) continue;
-    dbTestFiles += 1;
+    dbFiles += 1;
     for (const code of new Set(extractCodeLiterals(source))) {
       if (!isRegistered(code)) violations.push(`${path} — "${code}"`);
     }
@@ -108,7 +118,7 @@ test("계약: 실 DB 테스트가 쓰는 CU-/QT-/PUSH- 코드는 전부 registry
   // 실패했다면 새 픽스처 접두사가 등록 없이 들어왔다는 뜻이다.
   // registry(fixture-codes.ts)에 추가할 것. 정규식을 고쳐 회피하지 말 것.
   expect(violations).toEqual([]);
-  expect(dbTestFiles).toBeGreaterThan(15); // 빈 글롭·판별자 고장으로 통과하는 것 방지
+  expect(dbFiles).toBeGreaterThan(30); // 빈 글롭·판별자 고장으로 통과하는 것 방지(테스트+쿼리 모듈 합산)
 });
 
 test("registry: 접두사에 중복·공백이 없다", () => {

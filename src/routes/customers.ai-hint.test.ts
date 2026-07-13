@@ -4,10 +4,11 @@ import { eq } from "drizzle-orm";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
-import { consultationRequests, profiles } from "../db/public-app";
+import { consultationRequests } from "../db/public-app";
 import { consultationDismissals, customers } from "../db/schema";
 import { aiHintDeps } from "../lib/ai-hint-on-write";
 import { withNotifyGuard } from "../test-utils/notify-gate";
+import { anyUnlinkedProfileId } from "../test-utils/profiles-fixture";
 
 const db = getDefaultDb();
 const ORIGINAL_GENERATE = aiHintDeps.generateAnswer;
@@ -124,9 +125,10 @@ test("상담신청 dismiss(DELETE /api/consultations/:id) → consultationNote �
   const dAuth = await makeTestAuth("admin", crypto.randomUUID());
   const app = createApp({ keyResolver: dAuth.keyResolver, issuer: dAuth.issuer });
   const headers = { Authorization: `Bearer ${dAuth.token}`, "Content-Type": "application/json" };
-  // consultations.user_id는 profiles FK — 실존 profile id 필요(읽기만, 수정 금지 — anyProfileId 미러).
-  const [profile] = await db.select({ id: profiles.id }).from(profiles).limit(1);
-  if (!profile) throw new Error("profiles가 비어 있어 테스트 불가(실 master DB 전제)");
+  // consultations.user_id는 profiles FK — 실존 profile id 필요(읽기만, 수정 금지). limit(1) "아무
+  // profile"은 연결된 profile을 뽑으면 아래 appUserId 세팅이 실 고객과 중복돼 unique index(0030)에
+  // 걸린다 — 미연결 profile만 쓴다(0713 감사).
+  const profile = { id: await anyUnlinkedProfileId() };
   const consultationId = crypto.randomUUID();
   try {
     await db.update(customers).set({ appUserId: profile.id }).where(eq(customers.id, CUST));

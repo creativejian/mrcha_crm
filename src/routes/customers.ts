@@ -18,11 +18,11 @@ import { validateLookupValue, validateStatusSelection } from "../lib/lookup-vali
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
 import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
-import { createSignedUrl, removeObject, uploadObject, type StorageEnv } from "../lib/storage";
+import { createSignedUrl, removeObject, removeObjects, uploadObject, type StorageEnv } from "../lib/storage";
 import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
 import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
-import { run } from "./shared";
+import { errorResponse, run } from "./shared";
 import { CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
 
 export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
@@ -33,6 +33,14 @@ export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
 function removeOrphanObject(env: StorageEnv, path: string): Promise<void> {
   return removeObject(env, path).catch((err: unknown) => {
     console.error(`Storage remove 실패(고아 객체) path=${path}:`, err);
+  });
+}
+
+// 다건판(고객 하드 삭제 — 서류 원본+썸네일+견적 원본이 수십 경로) — 배열 API 1왕복으로 응답 지연이
+// 경로 수에 비례하던 직렬 루프를 대체(0713 감사). 실패 시 per-path 동일 grep 토큰 로그는 유지.
+function removeOrphanObjects(env: StorageEnv, paths: string[]): Promise<void> {
+  return removeObjects(env, paths).catch((err: unknown) => {
+    for (const path of paths) console.error(`Storage remove 실패(고아 객체) path=${path}:`, err);
   });
 }
 
@@ -99,12 +107,18 @@ customers.post("/", zValidator("json", customerCreateSchema), async (c) => {
   // 등록이 프로필 이름 부재로 막히는 게 더 나쁘다. 자기 배정이라 배정 알림 경로는 없다.
   const staffName = await getStaffName(c.var.user.id, c.var.db);
   const advisor = staffName ? { id: c.var.user.id, name: staffName } : null;
-  const row = await c.var.db.transaction((tx) => createCustomerManual({ ...body, advisor }, tx));
-  // 프로필 청크 재임베딩 — source·advisorName이 구성 필드(CUSTOMER_PROFILE_EMBED_KEYS).
-  // 트랜잭션 resolve(=커밋) 후 스케줄(견적 생성 라우트와 동일 — 훅의 fresh read가 커밋 전 구값을 보는 것 방지).
-  scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: row.id });
-  scheduleAiHintRefresh(c, row.id);
-  return c.json(row, 201);
+  try {
+    const row = await c.var.db.transaction((tx) => createCustomerManual({ ...body, advisor }, tx));
+    // 프로필 청크 재임베딩 — source·advisorName이 구성 필드(CUSTOMER_PROFILE_EMBED_KEYS).
+    // 트랜잭션 resolve(=커밋) 후 스케줄(견적 생성 라우트와 동일 — 훅의 fresh read가 커밋 전 구값을 보는 것 방지).
+    scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: row.id });
+    scheduleAiHintRefresh(c, row.id);
+    return c.json(row, 201);
+  } catch (e) {
+    // 채번 경합(동시 등록 → customer_code 23505 등)이 generic 500("Internal Server Error")으로
+    // 새던 것 교정(0713 감사) — run()과 같은 매핑으로 한글 사유를 싣는다(성공이 201이라 run() 미사용).
+    return errorResponse(c, e);
+  }
 });
 
 customers.get("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) =>
@@ -127,7 +141,7 @@ customers.delete("/:id", zValidator("param", z.object({ id: z.uuid() })), (c) =>
     const result = await c.var.db.transaction((tx) => deleteCustomer(id, c.var.user.id, tx));
     if (!result) return null; // → 404
     const env = c.env as StorageEnv;
-    for (const path of result.storagePaths) await removeOrphanObject(env, path);
+    await removeOrphanObjects(env, result.storagePaths);
     return { id: result.id };
   }, "고객을 찾을 수 없습니다.");
 });

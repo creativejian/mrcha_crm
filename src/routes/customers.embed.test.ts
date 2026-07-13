@@ -250,6 +250,10 @@ test("견적요청 승격(create-customer) → quote_request 임베딩(훅), 정
     });
     expect(res.status).toBe(200);
     createdCustomerId = ((await res.json()) as { id: string }).id;
+    // 승격은 **실 profile의 실명**으로 실채번(CU-YYMM-####) 고객을 만든다 — 접두사·이름 registry
+    // 어느 쪽으로도 못 잡는 잔재라, 확보 즉시 registry 등록 이름(TEST_CUSTOMER_NAMES)으로 교체해
+    // 무방비 창을 "테스트 전체"에서 "이 두 문장 사이"로 줄인다. 아래 임베딩 단언은 이름 비의존.
+    await db.update(customers).set({ name: "승격배선테스트" }).where(eq(customers.id, createdCustomerId));
 
     await until(async () => (await embeddingRow("quote_request", reqId)) != null);
     const row = await embeddingRow("quote_request", reqId);

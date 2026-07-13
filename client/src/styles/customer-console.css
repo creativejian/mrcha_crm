@@ -488,11 +488,6 @@
 .customer-console-headbar .primary-register-btn svg {
   flex: 0 0 auto;
   color: #fff;
-  transition: color 0.14s ease;
-}
-
-.customer-console-headbar .primary-register-btn:hover:not(:disabled) svg {
-  color: #fff;
 }
 
 @media (max-width: 1320px) {
@@ -809,209 +804,12 @@
   display: inline-flex;
 }
 
+/* 헤드바 팝오버 3종(삭제 확인 .bulk-delete-*·수기 등록 폼 .customer-create-form·담당자 일괄 변경 .advisor-change-*)의
+   공용 선언 — byte-identical 3벌 복제를 콤마 그룹 SSOT로 접었다(배치 4 감사).
+   변형은 각자 블록에 개별 유지: 등록 폼 width 300px(아래)·삭제 확정 버튼 danger(아래)·targets 이름 색(경고 vs 중립). */
 .customer-console-headbar .bulk-delete-confirm,
-.customer-console-headbar .bulk-delete-notice {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 40;
-  width: 320px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.14);
-  padding: 12px 13px;
-  text-align: left;
-}
-
-.customer-console-headbar .bulk-delete-confirm strong {
-  display: block;
-  font-size: 12.5px;
-  font-weight: 650;
-  color: #1f2933;
-}
-
-.customer-console-headbar .bulk-delete-confirm p {
-  margin: 5px 0 10px;
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: #5f6872;
-}
-
-.customer-console-headbar .bulk-delete-confirm > div {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.customer-console-headbar .bulk-delete-confirm button {
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid #dededb;
-  border-radius: 6px;
-  background: #fbfbfa;
-  font-size: 11.5px;
-  font-weight: 550;
-  color: #4f5a64;
-  cursor: pointer;
-}
-
-.customer-console-headbar .bulk-delete-confirm button.danger {
-  border-color: #f04438;
-  background: #f04438;
-  color: #fff;
-}
-
-.customer-console-headbar .bulk-delete-confirm button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-/* 실패 안내 — 409(앱 발송 견적)·403 같은 서버 사유를 그대로 보여준다. 자동으로 사라지지 않는다. */
-.customer-console-headbar .bulk-delete-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: #b42318;
-}
-
-.customer-console-headbar .bulk-delete-notice button {
-  flex: none;
-  border: 0;
-  background: none;
-  font-size: 11.5px;
-  color: #7f858c;
-  cursor: pointer;
-}
-
-/* 삭제 대상 이름 — 되돌릴 수 없는 조작이라 "무엇을" 지우는지 경고문보다 먼저 읽혀야 한다. */
-.customer-console-headbar .bulk-delete-confirm p.bulk-delete-targets {
-  margin: 4px 0 8px;
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 1.5;
-  color: #b42318;
-  word-break: keep-all;
-}
-
-/* 고객 수기 등록 팝오버 — 삭제 확인창(.bulk-delete-confirm)과 같은 문법.
-   .customer-create-wrap이 position:relative 기준, 폼은 absolute로 헤드바 높이를 밀지 않는다. */
-.customer-console-headbar .customer-create-wrap {
-  position: relative;
-  display: inline-flex;
-}
-
-.customer-console-headbar .customer-create-form {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 40;
-  width: 300px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.14);
-  padding: 12px 13px;
-  text-align: left;
-}
-
-.customer-console-headbar .customer-create-form strong {
-  display: block;
-  font-size: 12.5px;
-  font-weight: 650;
-  color: #1f2933;
-}
-
-.customer-console-headbar .customer-create-form > p {
-  margin: 5px 0 10px;
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: #5f6872;
-}
-
-.customer-console-headbar .customer-create-form label {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 11.5px;
-  color: #5f6872;
-}
-
-.customer-console-headbar .customer-create-form input,
-.customer-console-headbar .customer-create-form select {
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid #dededb;
-  border-radius: 6px;
-  background: #fbfbfa;
-  font-size: 12px;
-  color: #1f2933;
-}
-
-.customer-console-headbar .customer-create-form input:focus,
-.customer-console-headbar .customer-create-form select:focus {
-  outline: none;
-  border-color: rgba(var(--brand-rgb), 0.34);
-  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
-}
-
-/* 중복은 경고(amber) — 등록을 막지 않는다. 에러(red)와 시각적으로 구분한다. */
-.customer-console-headbar .customer-create-form p.customer-create-duplicate {
-  margin: 2px 0 8px;
-  color: #b45309;
-}
-
-.customer-console-headbar .customer-create-form p.customer-create-error {
-  margin: 2px 0 8px;
-  color: #b42318;
-}
-
-.customer-console-headbar .customer-create-form > div {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.customer-console-headbar .customer-create-form button {
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid #dededb;
-  border-radius: 6px;
-  background: #fbfbfa;
-  font-size: 11.5px;
-  font-weight: 550;
-  color: #4f5a64;
-  cursor: pointer;
-}
-
-.customer-console-headbar .customer-create-form button.primary-action {
-  border-color: var(--brand);
-  background: var(--brand);
-  color: #fff;
-}
-
-.customer-console-headbar .customer-create-form button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-/* 연락처 = 상세 연락처 수정과 같은 kim-phone-* 문법(010 고정 prefix). 팝오버 스케일(12px/6px)만 맞춘다. */
-.customer-console-headbar .customer-create-form .kim-phone-prefix {
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-/* 일괄 담당자 변경 팝오버 — 삭제 확인창(.bulk-delete-confirm)과 같은 문법.
-   삭제와 달리 되돌릴 수 있는 조작이라 대상 이름은 경고색이 아니라 중립색이다. */
-.customer-console-headbar .advisor-change-wrap {
-  position: relative;
-  display: inline-flex;
-}
-
+.customer-console-headbar .bulk-delete-notice,
+.customer-console-headbar .customer-create-form,
 .customer-console-headbar .advisor-change-confirm,
 .customer-console-headbar .advisor-change-notice {
   position: absolute;
@@ -1027,6 +825,8 @@
   text-align: left;
 }
 
+.customer-console-headbar .bulk-delete-confirm strong,
+.customer-console-headbar .customer-create-form strong,
 .customer-console-headbar .advisor-change-confirm strong {
   display: block;
   font-size: 12.5px;
@@ -1034,6 +834,9 @@
   color: #1f2933;
 }
 
+/* p는 결합자가 다르다(등록 폼만 자식 `> p`) — 콤마 그룹에서 각자 결합자를 보존한다. */
+.customer-console-headbar .bulk-delete-confirm p,
+.customer-console-headbar .customer-create-form > p,
 .customer-console-headbar .advisor-change-confirm p {
   margin: 5px 0 10px;
   font-size: 11.5px;
@@ -1041,47 +844,16 @@
   color: #5f6872;
 }
 
-.customer-console-headbar .advisor-change-confirm p.advisor-change-targets {
-  margin: 4px 0 8px;
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 1.5;
-  color: #3f474f;
-  word-break: keep-all;
-}
-
-.customer-console-headbar .advisor-change-confirm label {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 11.5px;
-  color: #5f6872;
-}
-
-.customer-console-headbar .advisor-change-confirm select {
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid #dededb;
-  border-radius: 6px;
-  background: #fbfbfa;
-  font-size: 12px;
-  color: #1f2933;
-}
-
-.customer-console-headbar .advisor-change-confirm select:focus {
-  outline: none;
-  border-color: rgba(var(--brand-rgb), 0.34);
-  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
-}
-
+.customer-console-headbar .bulk-delete-confirm > div,
+.customer-console-headbar .customer-create-form > div,
 .customer-console-headbar .advisor-change-confirm > div {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
 }
 
+.customer-console-headbar .bulk-delete-confirm button,
+.customer-console-headbar .customer-create-form button,
 .customer-console-headbar .advisor-change-confirm button {
   height: 26px;
   padding: 0 10px;
@@ -1094,18 +866,23 @@
   cursor: pointer;
 }
 
+.customer-console-headbar .bulk-delete-confirm button:disabled,
+.customer-console-headbar .customer-create-form button:disabled,
+.customer-console-headbar .advisor-change-confirm button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 확정 버튼 — 삭제는 danger(빨강) 변형이라 이 그룹 대상이 아니다(아래 개별 블록). */
+.customer-console-headbar .customer-create-form button.primary-action,
 .customer-console-headbar .advisor-change-confirm button.primary-action {
   border-color: var(--brand);
   background: var(--brand);
   color: #fff;
 }
 
-.customer-console-headbar .advisor-change-confirm button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-/* 실패 안내 — 건별 사유를 그대로 보여준다. 자동으로 사라지지 않는다(삭제 notice와 동일). */
+/* 실패 안내 — 건별 서버 사유(409 앱 발송 견적·403 등)를 그대로 보여준다. 자동으로 사라지지 않는다. */
+.customer-console-headbar .bulk-delete-notice,
 .customer-console-headbar .advisor-change-notice {
   display: flex;
   align-items: flex-start;
@@ -1115,6 +892,7 @@
   color: #b42318;
 }
 
+.customer-console-headbar .bulk-delete-notice button,
 .customer-console-headbar .advisor-change-notice button {
   flex: none;
   border: 0;
@@ -1122,4 +900,97 @@
   font-size: 11.5px;
   color: #7f858c;
   cursor: pointer;
+}
+
+.customer-console-headbar .customer-create-form label,
+.customer-console-headbar .advisor-change-confirm label {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  color: #5f6872;
+}
+
+.customer-console-headbar .customer-create-form input,
+.customer-console-headbar .customer-create-form select,
+.customer-console-headbar .advisor-change-confirm select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  font-size: 12px;
+  color: #1f2933;
+}
+
+.customer-console-headbar .customer-create-form input:focus,
+.customer-console-headbar .customer-create-form select:focus,
+.customer-console-headbar .advisor-change-confirm select:focus {
+  outline: none;
+  border-color: rgba(var(--brand-rgb), 0.34);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
+}
+
+/* 삭제 확정은 되돌릴 수 없는 조작이라 brand가 아니라 danger 빨강. */
+.customer-console-headbar .bulk-delete-confirm button.danger {
+  border-color: #f04438;
+  background: #f04438;
+  color: #fff;
+}
+
+/* 삭제 대상 이름 — 되돌릴 수 없는 조작이라 "무엇을" 지우는지 경고문보다 먼저 읽혀야 한다. */
+.customer-console-headbar .bulk-delete-confirm p.bulk-delete-targets {
+  margin: 4px 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #b42318;
+  word-break: keep-all;
+}
+
+/* 고객 수기 등록 팝오버 — 삭제 확인창(.bulk-delete-confirm)과 같은 문법(공용 그룹 위 참조).
+   .customer-create-wrap이 position:relative 기준, 폼은 absolute로 헤드바 높이를 밀지 않는다. */
+.customer-console-headbar .customer-create-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* 공용 그룹의 유일한 폭 변형 — 등록 폼만 300px(나머지 팝오버는 320px). */
+.customer-console-headbar .customer-create-form {
+  width: 300px;
+}
+
+/* 중복은 경고(amber) — 등록을 막지 않는다. 에러(red)와 시각적으로 구분한다. */
+.customer-console-headbar .customer-create-form p.customer-create-duplicate {
+  margin: 2px 0 8px;
+  color: #b45309;
+}
+
+.customer-console-headbar .customer-create-form p.customer-create-error {
+  margin: 2px 0 8px;
+  color: #b42318;
+}
+
+/* 연락처 = 상세 연락처 수정과 같은 kim-phone-* 문법(010 고정 prefix). 팝오버 스케일(12px/6px)만 맞춘다. */
+.customer-console-headbar .customer-create-form .kim-phone-prefix {
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* 일괄 담당자 변경 팝오버 — 삭제 확인창(.bulk-delete-confirm)과 같은 문법(공용 그룹 위 참조).
+   삭제와 달리 되돌릴 수 있는 조작이라 대상 이름은 경고색이 아니라 중립색이다. */
+.customer-console-headbar .advisor-change-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.customer-console-headbar .advisor-change-confirm p.advisor-change-targets {
+  margin: 4px 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #3f474f;
+  word-break: keep-all;
 }

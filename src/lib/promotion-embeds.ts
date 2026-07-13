@@ -1,6 +1,6 @@
 import type { Executor } from "../db/client";
 import { listQuoteRequestIdsByUser } from "../db/queries/quote-requests";
-import type { EmbedOnWriteJob } from "./embed-on-write";
+import { scheduleEmbedOnWrite, type EmbedOnWriteJob } from "./embed-on-write";
 
 // 앱 유저 승격(link · create-customer)이 만들어내는 임베딩 job 목록 — 견적요청·상담신청 라우트 공유 SSOT.
 //
@@ -23,4 +23,14 @@ export async function promotionEmbedJobs(
   const jobs: EmbedOnWriteJob[] = requestIds.map((id) => ({ sourceType: "quote_request", sourceId: id }));
   if (opts.customerId) jobs.push({ sourceType: "customer_profile", sourceId: opts.customerId });
   return jobs;
+}
+
+// 라우트 훅 — job 목록을 뽑아 전부 스케줄. 견적요청·상담신청 라우트가 공유한다(동일 6줄 래퍼가
+// 두 라우트에 복제돼 있던 것 통합, 0713 감사). 컨텍스트 타입은 scheduleEmbedOnWrite의 구조적
+// HookContext를 그대로 따른다 — hono Context가 Variables invariant라 교차 Variables 라우트 수용.
+export async function schedulePromotionEmbeds(
+  c: Parameters<typeof scheduleEmbedOnWrite>[0],
+  opts: { appUserId: string; customerId?: string },
+): Promise<void> {
+  for (const job of await promotionEmbedJobs(opts, c.var.db)) scheduleEmbedOnWrite(c, job);
 }

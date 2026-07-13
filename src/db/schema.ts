@@ -14,6 +14,7 @@ import {
   customType,
   index,
   unique,
+  uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -114,6 +115,9 @@ export const customers = crm.table("customers", {
   check("customers_manage_status_check", inListCheck(t.manageStatus, CUSTOMER_MANAGE_STATUSES)),
   check("customers_need_annual_mileage_check", inListCheck(t.needAnnualMileage, [...ANNUAL_MILEAGE_OPTIONS, PURCHASE_UNSET_SENTINEL])),
   check("customers_need_delivery_method_check", inListCheck(t.needDeliveryMethod, [...DELIVERY_METHOD_OPTIONS, PURCHASE_UNSET_SENTINEL])),
+  // 앱 유저 1 = CRM 고객 1의 DB 최후 방어선(0713 감사) — link/승격 가드는 autocommit SELECT라 동시
+  // 요청 경합(TOCTOU)을 못 막는다. 위반은 23505 → run() dbErrorMessage가 연결 충돌 문구로 매핑.
+  uniqueIndex("customers_app_user_id_unique").on(t.appUserId).where(sql`${t.appUserId} IS NOT NULL`),
 ]);
 
 // ── 고객 자식 테이블 (1:N) ────────────────────────────────────────────────────

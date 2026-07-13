@@ -51,9 +51,10 @@ type HookContext = Pick<Context, "executionCtx"> & {
 
 let gateSkipWarned = false;
 
-// 게이트 3규칙은 embed-on-write.ts와 **의도적 2벌**(0709 배치 3에서 공용 추출 기각 — 명시성이 실이익).
-// 규칙을 바꾸면 양쪽을 함께 고친다. env 키만 다르다(AI_HINT_ON_WRITE) — 힌트 프롬프트 이상 시
-// 코퍼스 임베딩을 죽이지 않고 힌트만 끄는 독립 킬스위치.
+// 게이트 3규칙은 **의도적 3벌**(embed-on-write.ts · push-notify.ts assignmentPushEnabled · 여기 —
+// 0709 배치 3에서 공용 추출 기각 — 명시성이 실이익. "2벌" 표기는 push-notify를 빠뜨린 과소 서술이라
+// 0713 정정). 규칙을 바꾸면 **세 곳**을 함께 고친다. env 키만 다르다(AI_HINT_ON_WRITE) — 힌트
+// 프롬프트 이상 시 코퍼스 임베딩을 죽이지 않고 힌트만 끄는 독립 킬스위치.
 // ①명시적 off 항상 off ②NODE_ENV=test는 기본 off·명시적 on만 ③그 외는 Gemini 키 있으면 on.
 export function scheduleAiHintRefresh(c: HookContext, customerId: string): void {
   try {
