@@ -528,23 +528,29 @@
   right: 8px;
 }
 
+/* 페이지 공통 헤딩 — 콘솔 문법(이사님 2026-07-13 ② 확정: 고객 관리 전용이던 콘솔 톤을 전 페이지 확산).
+   구 기본값(24px h1·14px p·margin-bottom 18px)은 이 확산으로 폐기. */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+  padding: 0 0 20px;
 }
 
 .title h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .title p {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 14px;
+  margin: 3px 0 0;
+  color: #788087;
+  font-size: 13px;
+  font-weight: 430;
 }
 
 .toolbar {

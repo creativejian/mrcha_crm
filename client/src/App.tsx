@@ -148,8 +148,8 @@ export function App() {
     : activeView === "finance"
       ? financeModeMeta[financeMode]
     : viewMeta[activeView];
+  // 콘솔 톤(작은 타이틀·흰 바닥)은 2026-07-13 ② 확정으로 전 페이지 기본 — breadcrumb 여부만 뷰별 분기.
   const isCustomerListConsole = activeView === "customers" && customerMode === "all";
-  const isCustomerConsole = isCustomerListConsole || activeView === "customer-detail";
 
   // useCallback로 identity 고정 — onToast가 매 렌더 새 함수면 이를 deps에 둔 자식 effect가 계속 재실행돼,
   // 미리보기 이미지 로딩 플래그가 리셋되며 objectUrl 미리보기가 안 뜨던 버그가 있었다.
@@ -380,7 +380,7 @@ export function App() {
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} onCustomerModeChange={setCustomerMode} onFinanceModeChange={setFinanceMode} onViewChange={handleViewChange} />
-      <main className={`main ${isCustomerConsole ? "customer-console-main" : ""}`}>
+      <main className="main">
         <Topbar
           sidebarCollapsed={sidebarCollapsed}
           roleTab={roleTab}
@@ -394,10 +394,10 @@ export function App() {
         />
         {/* customer-detail 전체화면은 CustomerDetailPage 자체 헤더가 있어 공통 헤더를 숨겨 중복을 막는다. */}
         {activeView !== "dashboard-preview" && activeView !== "customer-detail" && (
-          <header className={`topbar ${isCustomerConsole ? "page-heading-console" : ""}`}>
+          <header className="topbar">
             <div className="title">
               <h1>
-                {isCustomerConsole ? (
+                {isCustomerListConsole ? (
                   <span className="customer-title-breadcrumb">
                     <span>{CUSTOMERS_MENU_TITLE}</span>
                     <ChevronRight aria-hidden="true" size={18} strokeWidth={2.2} />
