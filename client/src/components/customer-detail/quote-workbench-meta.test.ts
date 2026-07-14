@@ -224,6 +224,14 @@ describe("solutionSnapshotsFromScenarios", () => {
     ]);
     expect(Object.keys(map)).toEqual(["manual-condition-3"]);
   });
+
+  it("solutionRaw만 null인 반쪽 행도 제외한다 — raw 없으면 residualDisplayFromSnapshot이 '-' 폴백해 재시드가 인수·금리를 소실시킨다", () => {
+    const map = solutionSnapshotsFromScenarios([
+      { ...snapshotRow, scenarioNo: 1, solutionRaw: null }, // lenderCode·calculatedAt은 있으나 raw 없음(4컬럼 비원자 드리프트)
+      { ...snapshotRow, scenarioNo: 2 },
+    ]);
+    expect(Object.keys(map)).toEqual(["manual-condition-2"]);
+  });
 });
 
 // 수정 재진입 max 잔가 재시드 — max 모드는 DB residualValue가 null(추출 규칙)이라 표시값이 "-"로 시드되는데,

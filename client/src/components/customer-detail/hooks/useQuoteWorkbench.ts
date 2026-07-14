@@ -13,7 +13,7 @@ import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quot
 import { seedScenarioCardFromRequest } from "@/lib/quote-request-seed";
 import { type VehicleSelection } from "@/components/VehiclePicker";
 import { buildAppCardModel, type AppCardModel } from "@/lib/app-card";
-import { computePricing, formatMoney, parseMoney, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
+import { computePricing, formatMoney, parseMoney, parsePercentInput, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";
 import { nowMs, formatKoreanShortTime } from "@/lib/detail-utils";
 
@@ -256,13 +256,6 @@ export function useQuoteWorkbench({
     input.value = value ? formatMoney(value) : "0";
   }
 
-  function parsePercent(value: string) {
-    const normalized = value.replace(/[^\d.]/g, "");
-    const [head = "", ...rest] = normalized.split(".");
-    const n = Number(rest.length ? `${head}.${rest.join("")}` : head);
-    return Number.isFinite(n) ? n : 0;
-  }
-
   function handleJeffMoneyInputFocus(event: ReactFocusEvent<HTMLDivElement>) {
     const target = jeffMoneyInputFromTarget(event.target);
     if (!target) return;
@@ -427,7 +420,7 @@ export function useQuoteWorkbench({
   function readDiscountLineSnapshots(root: HTMLElement | null): QuoteDiscountLine[] | null {
     const rows = discountLines.map((line) => {
       const raw = root?.querySelector<HTMLInputElement>(`input[data-discount-id="${line.id}"]`)?.value ?? line.amount;
-      return { label: line.label, amount: line.unit === "percent" ? parsePercent(raw) : parseMoney(raw), unit: line.unit };
+      return { label: line.label, amount: line.unit === "percent" ? parsePercentInput(raw) : parseMoney(raw), unit: line.unit };
     });
     return rows.length ? rows : null;
   }
@@ -440,7 +433,7 @@ export function useQuoteWorkbench({
     const basis = discountBasis(root);
     const total = discountInputs.reduce((sum, input) => {
       const unit: DiscountUnit = input.dataset.discountUnit === "percent" ? "percent" : "amount";
-      const value = unit === "percent" ? parsePercent(input.value) : parseMoney(input.value);
+      const value = unit === "percent" ? parsePercentInput(input.value) : parseMoney(input.value);
       return sum + discountLineWon(unit, value, basis);
     }, 0);
     const discountTotal = root.querySelector<HTMLInputElement>('input[data-pricing="discount"]');
@@ -458,7 +451,7 @@ export function useQuoteWorkbench({
 
   function convertDiscountInputUnit(input: HTMLInputElement, from: DiscountUnit, to: DiscountUnit, basis: number) {
     if (from === to) return;
-    const value = from === "percent" ? parsePercent(input.value) : parseMoney(input.value);
+    const value = from === "percent" ? parsePercentInput(input.value) : parseMoney(input.value);
     if (!value || !basis) {
       input.value = "0";
       return;
@@ -977,7 +970,7 @@ export function useQuoteWorkbench({
       const wonOfMode = (mode: ManualDepositMode, raw: string) => {
         if (mode === "none") return 0;
         if (mode === "percent") {
-          const pct = parsePercent(raw); // 비유한 입력은 parsePercent가 이미 0
+          const pct = parsePercentInput(raw); // 비유한 입력은 parsePercentInput이 이미 0
           return pct > 100 ? 0 : discountLineWon("percent", pct, basis);
         }
         return parseMoney(raw);
