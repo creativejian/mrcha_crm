@@ -186,7 +186,6 @@ function CustomerDetailContent({
         <CustomerDetailHeader now={recentUpdateNow} recentUpdate={recentUpdate} name={detail.name} customerCode={detail.customerCode} receivedLabel={formatActivity(detail.receivedAt)} />
         <StatusWorkflow
           customer={customer}
-          onToast={onToast}
           openEditor={openEditor}
           setOpenEditor={setOpenEditor}
           toggleEditor={toggleEditor}
