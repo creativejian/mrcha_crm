@@ -50,7 +50,11 @@ export function ChatPage({ customers, roleTab, onOpenCustomer, onToast, onRead }
   const visible = tab === "all" ? sessions : sessions.filter((session) => session.mode === tab);
   // 선택 세션은 탭 필터와 독립적으로 유지 — 인수(pending→human) 직후에도 보던 스레드를 지키고,
   // 미선택 상태에서만 현재 탭의 첫 세션으로 자동 선택한다.
-  const active = (selectedId ? sessions.find((s) => s.id === selectedId) : undefined) ?? deepLinkSession ?? visible[0] ?? null;
+  // 딥링크 미발견(deepLinkSession null)일 땐 첫 세션 폴백을 하지 않는다 — 엉뚱한 다른 고객
+  // 채팅이 열리면 "잘못 이동했다"로 읽힌다(실기 피드백). 빈 창 + 위 토스트가 정직한 상태.
+  const active = (selectedId ? sessions.find((s) => s.id === selectedId) : undefined)
+    ?? deepLinkSession
+    ?? (deepLinkUserId ? null : visible[0] ?? null);
   const thread = useChatThread(active?.userId ?? null, onToast);
   const matchedCustomer = useMemo(
     () => (active ? customers.find((customer) => customer.appUserId === active.userId) ?? null : null),
