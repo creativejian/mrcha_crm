@@ -130,4 +130,21 @@ describe("SolutionLenderRankingModal (개정 2 R4 — 제프 랭킹 UX 미러)",
       ),
     );
   });
+
+  it("2-D 카드 조건 소실(buildBaseArgs null) → 사유가 empty state에 표면화(무결과 위장 금지)", async () => {
+    // 프로브~마운트 레이스로 base가 null이면 전 금융사가 방어 분기로 doneCount만 소진 →
+    // 사유 없이 "조회 결과가 없습니다"로 위장되던 것을 fail-loud로 표면화(2-D).
+    const { container } = render(
+      <SolutionLenderRankingModal
+        condId="manual-condition-1"
+        purchaseMethod="장기렌트"
+        buildBaseArgs={() => null}
+        onPick={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".kim-solution-rank-empty")?.textContent).toContain("카드 조건을 읽지 못했습니다"),
+    );
+  });
 });

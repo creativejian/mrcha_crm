@@ -21,6 +21,7 @@ const VALID_BODY = {
 };
 
 const ORIGINAL_FETCH = solutionDeps.fetchImpl;
+const ORIGINAL_TIMEOUT = solutionDeps.timeoutMs;
 const SAVED_URL = process.env.PARTNER_QUOTE_API_URL;
 const SAVED_KEY = process.env.PARTNER_QUOTE_API_KEY;
 
@@ -37,11 +38,13 @@ beforeAll(async () => {
 // (push-notify.test.ts와 동일 패턴).
 afterEach(() => {
   solutionDeps.fetchImpl = ORIGINAL_FETCH;
+  solutionDeps.timeoutMs = ORIGINAL_TIMEOUT;
 });
 
 afterAll(() => {
   // 다른 테스트 파일과 함께 돌아가는 test:server 스위트에 env/deps 상태를 흘리지 않는다.
   solutionDeps.fetchImpl = ORIGINAL_FETCH;
+  solutionDeps.timeoutMs = ORIGINAL_TIMEOUT;
   if (SAVED_URL === undefined) delete process.env.PARTNER_QUOTE_API_URL;
   else process.env.PARTNER_QUOTE_API_URL = SAVED_URL;
   if (SAVED_KEY === undefined) delete process.env.PARTNER_QUOTE_API_KEY;
@@ -196,6 +199,28 @@ test("AbortError(타임아웃) → 504", async () => {
 
   const res = await post(VALID_BODY);
   expect(res.status).toBe(504);
+});
+
+// 바디 스톨: 헤더는 8초 안에 도착(status 200)했으나 바디 스트리밍 중 타임아웃 → upstream.json()이 abort로
+// reject. 저자가 주석(solution.ts:83-85)으로 경고한 분기 — .catch(() => null)로 뭉개면 504 대신 성공 둔갑.
+// (기존 AbortError 테스트는 fetch 자체가 던져 바깥 catch만 탄다 — 이 분기는 무테스트였다.)
+test("바디 스톨(헤더 도착 후 바디 정지) → 504", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
+  solutionDeps.timeoutMs = 5; // timer가 즉시 controller.abort()
+  solutionDeps.fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => ({
+    status: 200,
+    ok: true,
+    // 바디 읽기가 abort(타임아웃)에 반응해 reject하는 실제 fetch 바디 동작 모방
+    json: () => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () =>
+        reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
+    }),
+  })) as unknown as typeof fetch;
+
+  const res = await post(VALID_BODY);
+  expect(res.status).toBe(504);
+  const body = (await res.json()) as { error: string };
+  expect(body.error).toContain("시간 초과");
 });
 
 // 🔴 재발 방지: `solutionDeps.fetchImpl(...)`는 메서드 호출이라 this=solutionDeps가 되고,

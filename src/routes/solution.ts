@@ -40,10 +40,11 @@ const solutionCalcBody = z.object({
 const _parityCheck: SolutionQuoteInput = {} as z.infer<typeof solutionCalcBody>;
 void _parityCheck;
 
-// 테스트 주입 seam(embedOnWriteDeps·pushNotifyDeps와 동일 패턴 — mock.module 대신 전역 누출 없는 필드 교체).
-export const solutionDeps = { fetchImpl: fetch };
-
 const TIMEOUT_MS = 8000; // 앱 partner_quote.ts 미러(스펙 §파트너 계약)
+
+// 테스트 주입 seam(embedOnWriteDeps·pushNotifyDeps와 동일 패턴 — mock.module 대신 전역 누출 없는 필드 교체).
+// timeoutMs는 바디 스톨(헤더 도착 후 바디 정지 → 504) 분기를 테스트에서 즉시 발화시키기 위한 seam(기본값 불변).
+export const solutionDeps = { fetchImpl: fetch, timeoutMs: TIMEOUT_MS };
 
 export const solution = new Hono();
 
@@ -67,7 +68,7 @@ solution.post("/calculate", async (c) => {
   if (apiKey) headers["X-API-Key"] = apiKey; // 미설정 = 개발 무인증 단계(external 전환 시 필수)
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), solutionDeps.timeoutMs);
   const startedAt = Date.now();
   // ⚠️ 반드시 지역 변수로 뽑아 plain call. `solutionDeps.fetchImpl(...)`는 메서드 호출이라 this=solutionDeps가
   // 되고, CF Workers의 global fetch는 this가 globalThis/undefined가 아니면 Illegal invocation으로 죽는다
