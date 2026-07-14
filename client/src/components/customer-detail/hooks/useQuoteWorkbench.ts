@@ -756,6 +756,9 @@ export function useQuoteWorkbench({
     setSolutionLoadingId(condId);
     try {
       const raw = await requestSolutionQuote(built.input);
+      // 워크벤치 전환/닫힘 후 늦은 응답 가드 — 카드 key(`${editingQuoteId ?? "new"}-${condId}`) 리마운트 구조상
+      // detach가 완전한 판별자. 없으면 stale 스냅샷 병합 + dirty 마킹이 다음 견적 저장 payload를 오염(#163 잔상 부류).
+      if (!cardEl.isConnected) return;
       const parsed = parseSolutionQuoteResult(raw);
       if (!parsed) {
         onToast("계산 응답을 해석하지 못했습니다");

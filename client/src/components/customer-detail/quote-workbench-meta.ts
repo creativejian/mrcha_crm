@@ -171,15 +171,15 @@ type ScenarioSnapshotRow = Pick<
 // 수정 재진입 스냅샷 시드 — 시나리오 저장이 전체 교체(서버 insertScenarios delete→insert)라, 워크벤치가
 // 재조회 없이 재저장할 때 이 시드가 저장 payload에 스냅샷을 되실어 소실을 막는다(마이그 0031 계약).
 // 카드 대응 규칙은 cardUiMapFromScenarios와 동일(cardIdOfScenarioNo). lenderCode·calculatedAt 둘 다
-// 있어야 스냅샷 실존으로 본다(수기 시나리오·반쪽 행 제외). solutionCalculatedAt은 서버가 timestamptz를
-// ISO 문자열로 직렬화한 값 그대로 왕복(재변환 없음).
+// 있어야 스냅샷 실존으로 본다(수기 시나리오·반쪽 행 제외). solutionCalculatedAt·workbookVersion은
+// 저장본 값 그대로 왕복(재변환·기본값 승격 없음 — 구 행의 버전 null이 재저장에서 ""로 드리프트하면 안 된다).
 export function solutionSnapshotsFromScenarios(scenarios: ScenarioSnapshotRow[]): Record<string, SolutionSnapshot> {
   const entries: [string, SolutionSnapshot][] = [];
   for (const s of scenarios) {
     if (s.solutionLenderCode == null || s.solutionCalculatedAt == null) continue;
     entries.push([cardIdOfScenarioNo(s.scenarioNo ?? 1), {
       solutionLenderCode: s.solutionLenderCode,
-      solutionWorkbookVersion: s.solutionWorkbookVersion ?? "",
+      solutionWorkbookVersion: s.solutionWorkbookVersion,
       solutionCalculatedAt: s.solutionCalculatedAt,
       solutionRaw: s.solutionRaw,
     }]);

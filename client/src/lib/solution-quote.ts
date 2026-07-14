@@ -221,7 +221,7 @@ export function solutionDisplayRatePct(lenderCode: SolutionLenderCode, parsed: S
 // 시나리오 저장에 동봉하는 재현성 스냅샷(마이그 0031 — 스펙 결정 4·5).
 export type SolutionSnapshot = {
   solutionLenderCode: string;
-  solutionWorkbookVersion: string;
+  solutionWorkbookVersion: string | null; // 새 조회는 항상 string(parse 폴백 "") — null은 구 행(DB) 왕복 보존용
   solutionCalculatedAt: string; // ISO
   solutionRaw: unknown; // 파트너 응답 raw 통째(앱 partner_raw_response 선례)
 };

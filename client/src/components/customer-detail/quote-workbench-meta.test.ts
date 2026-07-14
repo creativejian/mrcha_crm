@@ -200,7 +200,7 @@ describe("solutionSnapshotsFromScenarios", () => {
     solutionRaw: { ok: true, quote: { monthlyPayment: 1_200_000 } },
   };
 
-  it("스냅샷 있는 시나리오를 카드 id로 매핑한다(workbookVersion null은 빈 문자열 방어)", () => {
+  it("스냅샷 있는 시나리오를 카드 id로 매핑한다(workbookVersion null은 null 그대로 왕복 — \"\" 드리프트 금지)", () => {
     const map = solutionSnapshotsFromScenarios([
       snapshotRow,
       { ...snapshotRow, scenarioNo: 3, solutionLenderCode: "mg-capital", solutionWorkbookVersion: null },
@@ -212,7 +212,7 @@ describe("solutionSnapshotsFromScenarios", () => {
       solutionCalculatedAt: "2026-07-14T02:00:00.000Z",
       solutionRaw: { ok: true, quote: { monthlyPayment: 1_200_000 } },
     });
-    expect(map["manual-condition-3"]).toMatchObject({ solutionLenderCode: "mg-capital", solutionWorkbookVersion: "" });
+    expect(map["manual-condition-3"]).toMatchObject({ solutionLenderCode: "mg-capital", solutionWorkbookVersion: null });
   });
 
   it("스냅샷 없는(수기) 시나리오는 제외한다 — lenderCode/calculatedAt 둘 다 있어야 스냅샷 실존", () => {
