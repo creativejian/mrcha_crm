@@ -6,7 +6,7 @@ import { type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } f
 import { type QuoteGuidance } from "@/data/quote-guidance";
 import { computePricing, formatMoney, type PricingInputs } from "@/lib/quote-pricing";
 import { type ScenarioCardSeed } from "@/lib/quote-request-seed";
-import { type SolutionSnapshot } from "@/lib/solution-quote";
+import { parseSolutionQuoteResult, type SolutionSnapshot } from "@/lib/solution-quote";
 
 export type DiscountUnit = "amount" | "percent";
 export type DiscountLine = { id: string; label: string; amount: string; unit: DiscountUnit };
@@ -185,6 +185,17 @@ export function solutionSnapshotsFromScenarios(scenarios: ScenarioSnapshotRow[])
     }]);
   }
   return Object.fromEntries(entries);
+}
+
+// 수정 재진입 max 잔가 재시드: max 모드는 DB residualValue가 null(추출 규칙)이라 카드 표시값이 "-"로
+// 시드되는데, 그대로 두면 재진입 직후 파생(residualAmountOf("max","-") → null)이 인수 총비용·금리를 "0"으로
+// 덮어 무재조회 재저장 시 이전 저장값이 조용히 소실된다(스냅샷 raw에는 실채택 잔가가 살아 있는 비대칭).
+// 스냅샷 raw에서 실채택 잔가를 조회 채움(queryCardSolution의 formatMoney)과 동일 포맷으로 복원 —
+// 스냅샷 시드의 "보존 담당" 계약(solutionSnapshotsFromScenarios)과 정합. 해석 불능이면 null(호출부 "-" 폴백).
+export function residualDisplayFromSnapshot(snapshot: SolutionSnapshot | undefined): string | null {
+  if (!snapshot) return null;
+  const parsed = parseSolutionQuoteResult(snapshot.solutionRaw);
+  return parsed ? formatMoney(parsed.residualAmount) : null;
 }
 
 export type EditPrefill = {

@@ -32,6 +32,7 @@ import {
   quotePurchaseMethodOptions,
   normalizeQuotePurchaseMethod,
   primaryQuotePurchaseMethod,
+  residualDisplayFromSnapshot,
   restoreDiscountLines,
   solutionSnapshotsFromScenarios,
   type AcquisitionTaxMode,
@@ -350,7 +351,8 @@ export function useQuoteWorkbench({
   }
 
   // 수정 진입 시 기존 시나리오(round)를 비교카드 골격에 덮어쓴다(빈 슬롯은 기본 mock).
-  function buildManualCardsFromScenarios(scenarios: EditScenario[]): ManualCard[] {
+  // snapshots = 그 견적의 솔루션 스냅샷 시드(solutionSnapshotsFromScenarios 결과) — max 잔가 표시값 복원용.
+  function buildManualCardsFromScenarios(scenarios: EditScenario[], snapshots: Record<string, SolutionSnapshot>): ManualCard[] {
     return emptyQuoteConditionCards.map((base) => {
       const sc = scenarios.find((s) => String(s.scenarioNo) === base.round);
       if (!sc) return base;
@@ -361,7 +363,11 @@ export function useQuoteWorkbench({
         // 모드는 cardUi(setCardUi ← cardUiMapFromScenarios)가 갖는다. 여기선 표시 금액 포맷에만 쓴다.
         depositValue: sc.depositMode === "percent" ? sc.depositValue : (sc.depositValue ? formatMoney(Number(sc.depositValue)) : "0"),
         downPaymentValue: sc.downPaymentMode === "percent" ? sc.downPaymentValue : (sc.downPaymentValue ? formatMoney(Number(sc.downPaymentValue)) : "0"),
-        residualValue: sc.residualMode === "max" ? "-" : (sc.residualMode === "percent" ? sc.residualValue : (sc.residualValue ? formatMoney(Number(sc.residualValue)) : "0")),
+        // max 모드는 DB residualValue가 null — 스냅샷 있으면 실채택 잔가 복원(재진입 직후 파생이 인수·금리를
+        // 보존 계산, 무재조회 재저장 소실 방지), 없으면(구 수기 견적) 기존 "-" placeholder 유지.
+        residualValue: sc.residualMode === "max"
+          ? (residualDisplayFromSnapshot(snapshots[cardIdOfScenarioNo(sc.scenarioNo)]) ?? "-")
+          : (sc.residualMode === "percent" ? sc.residualValue : (sc.residualValue ? formatMoney(Number(sc.residualValue)) : "0")),
         subsidyAmount: sc.subsidyAmount && Number(sc.subsidyAmount) > 0 ? formatMoney(Number(sc.subsidyAmount)) : "0",
         totalReturn: sc.totalReturnCost ? formatMoney(Number(sc.totalReturnCost)) : "0",
         totalTakeover: sc.totalTakeoverCost ? formatMoney(Number(sc.totalTakeoverCost)) : "0",
@@ -544,6 +550,7 @@ export function useQuoteWorkbench({
     setPrimaryDiscountUnit("amount");
     // 솔루션 스냅샷도 저장 payload에 실리는 값 — 이전 견적 스냅샷이 새 견적에 새는 잔상 방지(#163 부류).
     setSolutionSnapshots({});
+    setSolutionLenderPickerId(null); // 모달 열린 채 워크벤치가 닫힌 경우의 유령 모달 방어
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -696,6 +703,12 @@ export function useQuoteWorkbench({
 
     function closeQuoteSolutionWorkbenchByKeyboard(event: globalThis.KeyboardEvent) {
       if (event.key !== "Escape") return;
+      // 모달 스택 관례: 금융사 선택 모달이 열려 있으면 Esc는 모달만 닫는다(워크벤치 유지) —
+      // 분기 없이 워크벤치가 닫히면 pickerId가 남아 재오픈 시 유령 모달(#163 잔상 부류).
+      if (solutionLenderPickerId) {
+        setSolutionLenderPickerId(null);
+        return;
+      }
       if (solutionWorkbenchModeMenu) {
         setSolutionWorkbenchModeMenu(null);
         return;
@@ -716,7 +729,7 @@ export function useQuoteWorkbench({
       document.removeEventListener("keydown", closeQuoteSolutionWorkbenchByKeyboard);
       document.removeEventListener("pointerdown", closeQuoteSolutionWorkbenchMenu, true);
     };
-  }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu]);
+  }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu, solutionLenderPickerId]);
 
   // 비교카드 1장의 조건으로 파트너 계산(POST /api/solution/calculate) 호출 → 결과를 카드 uncontrolled
   // input에 직접 채운 뒤 handleManualCardFieldEdit()로 미리보기 갱신+dirty 마킹(수동 타이핑과 동일 경로).
@@ -1267,13 +1280,15 @@ export function useQuoteWorkbench({
       scenarios: editScenarios,
       guidance: normalizeQuoteGuidance(dq.guidance) ?? null,
     } : null);
-    // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
-    setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...emptyQuoteConditionCards]);
-    setSavedManualQuoteConditionIds(editScenarios.map((s) => cardIdOfScenarioNo(s.scenarioNo)));
-    setCardUi(cardUiMapFromScenarios(editScenarios));
     // 솔루션 스냅샷 시드 — 시나리오 저장이 전체 교체라, 재조회 없이 재저장해도 저장된 스냅샷이 보존되게
     // 저장본에서 카드 id 맵으로 복원(extractWorkbenchScenarios가 되실어 보낸다). 새 조회는 카드별로 덮어쓴다.
-    setSolutionSnapshots(solutionSnapshotsFromScenarios(dq?.scenarios ?? []));
+    // 카드 조립(max 잔가 표시값 복원)과 스냅샷 state가 같은 시드를 공유한다.
+    const seededSnapshots = solutionSnapshotsFromScenarios(dq?.scenarios ?? []);
+    // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
+    setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios, seededSnapshots) : [...emptyQuoteConditionCards]);
+    setSavedManualQuoteConditionIds(editScenarios.map((s) => cardIdOfScenarioNo(s.scenarioNo)));
+    setCardUi(cardUiMapFromScenarios(editScenarios));
+    setSolutionSnapshots(seededSnapshots);
     // 취득세 모드는 견적 저장본에서 복원(미복원 시 이전 세션 잔상이 persist payload에 실려 수정 저장을 오염).
     setAcquisitionTaxMode((dq?.acquisitionTaxMode as AcquisitionTaxMode) ?? "normal");
     setDiscountLines(restoredDiscount.lines); // 저장본 복원(없으면 빈 행 — 다른 견적 잔상도 함께 청소)
@@ -1288,6 +1303,7 @@ export function useQuoteWorkbench({
     setSolutionWorkbenchPurchaseMethod(normalizeQuotePurchaseMethod(quote.financeType));
     setSolutionWorkbenchEntryMode(quote.source === "solution" ? "solution" : quote.source === "original" ? "original" : "manual");
     setSolutionWorkbenchModeMenu(null);
+    setSolutionLenderPickerId(null); // clearCardUiState 미경유 경로 — 유령 모달 방어(#163 부류)
     setRecognizedQuoteFile(null);
     setIsQuoteSolutionWorkbenchOpen(true);
     quoteList.handlers.setOpenQuoteActionId(null);

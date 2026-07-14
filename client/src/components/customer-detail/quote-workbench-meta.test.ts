@@ -12,6 +12,7 @@ import {
   discountLineWon,
   effectiveMileageValue,
   MILEAGE_BASIC_VALUE,
+  residualDisplayFromSnapshot,
   restoreDiscountLines,
   solutionSnapshotsFromScenarios,
   type CardUiState,
@@ -222,6 +223,30 @@ describe("solutionSnapshotsFromScenarios", () => {
       { ...snapshotRow, scenarioNo: 3 },
     ]);
     expect(Object.keys(map)).toEqual(["manual-condition-3"]);
+  });
+});
+
+// 수정 재진입 max 잔가 재시드 — max 모드는 DB residualValue가 null(추출 규칙)이라 표시값이 "-"로 시드되는데,
+// 그대로 두면 재진입 직후 파생(residualAmountOf → null)이 인수 총비용·금리를 "0"으로 덮어 무재조회 재저장 시
+// 이전 저장값이 조용히 소실된다. 스냅샷 raw의 실채택 잔가로 표시값을 복원해 파생이 보존 계산되게 한다.
+describe("residualDisplayFromSnapshot", () => {
+  const snapshot = {
+    solutionLenderCode: "im-capital",
+    solutionWorkbookVersion: null,
+    solutionCalculatedAt: "2026-07-14T02:00:00.000Z",
+    solutionRaw: {
+      ok: true,
+      quote: { monthlyPayment: 1_234_567, rates: { annualRateDecimal: 0.0532 }, residual: { amount: 26_550_000 } },
+    },
+  };
+
+  it("스냅샷 raw의 실채택 잔가를 조회 채움과 동일 포맷(콤마)으로 돌려준다", () => {
+    expect(residualDisplayFromSnapshot(snapshot)).toBe("26,550,000");
+  });
+
+  it("스냅샷 부재·raw 해석 불능이면 null(호출부 '-' 폴백 유지)", () => {
+    expect(residualDisplayFromSnapshot(undefined)).toBeNull();
+    expect(residualDisplayFromSnapshot({ ...snapshot, solutionRaw: "garbage" })).toBeNull();
   });
 });
 
