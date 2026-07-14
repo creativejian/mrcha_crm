@@ -37,6 +37,7 @@ Last updated: 2026-07-14 (유슨생 세션 `0714-partner-refactoring` — 착수
 - `useQuoteWorkbench.ts:962-1003` `deriveAndFillCardResults`가 `for (const card of manualQuoteCards)`로 **저장 카드 게이트 없이 전체 순회**, 결과 4필드 DOM `.value`를 파생값으로 덮음(`:998-1001`). effect(`:1020-1025`, deps에 `manualQuoteCards`)에서 `openEditQuote` 재진입 시 발화. 재발송 시 `extractWorkbenchScenarios`가 덮인 DOM을 읽음.
 - 발현: solution 도입(오늘) 이전 견적(0704~0713, 결과 4필드 = 수기 입력, 특히 금리 = 표면금리)을 재진입하면 화면 금리가 실질 IRR로 점프하고, **재발송 시 저장 레코드의 `interestRate`/`totalReturn`/`totalTakeover`가 조용히 변경**.
 - 🔵 **제품 판단 필요**: 스펙 개정 1 R3이 "결과 4필드 = 읽기 전용 파생"을 확정 → 재파생이 의도된 정규화일 수 있으나, **레거시 견적 재발송 시 금리 의미가 표면→실질 IRR로 바뀌는 것**(고객에게 다른 숫자)은 명시적으로 다뤄지지 않음. 결정 후 게이트(저장 카드 제외) 또는 "재발송 = 재산정" 명시 + **회귀 테스트로 동작 잠금**.
+- **✅ 결정(유슨생 2026-07-14) = A안(저장 카드 게이트)**: `deriveAndFillCardResults`가 **저장된(조건 미편집) 카드는 재파생에서 제외**해 저장값 보존 — 레거시(QT-2606-0005, 수기 금리 11.3% — 실 DB 1건 실측)가 재진입/재발송해도 금리 불변. 조건을 실제 편집한 카드·신규만 파생. 회귀 테스트로 잠금.
 
 ### 2-B. 릴레이 바디 스톨 504 분기 무테스트 [중, 확신 높음 — 테스트갭]
 - `src/routes/solution.ts:88-96` — "헤더는 8초 내 도착, 바디 스트리밍 중 정지 → `upstream.json()`이 abort로 reject"(라인 91 `controller.signal.aborted` → 504) 경로가 어느 테스트로도 미실행. 기존 AbortError 테스트(`solution.test.ts:189`)는 `fetchImpl`이 직접 던져 바깥 catch(:116)만 탐. 저자가 주석(83-85)으로 경고한 회귀를 못 막음.
