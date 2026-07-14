@@ -37,6 +37,7 @@ export type Trim = {
   seatingCapacity: number | null;
   status: string;
   sortOrder: number | null;
+  mcCode: string | null;
 };
 
 export type TrimOption = { id: number; type: "basic" | "tuning"; name: string; price: number | null };
