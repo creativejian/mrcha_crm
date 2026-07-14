@@ -116,6 +116,13 @@ export const PURCHASE_UNSET_SENTINEL = "확인 필요";
 // 관리 상태(최종 업데이트) 옵션. CustomerManageStatus 유니온과 값이 1:1.
 export const CUSTOMER_MANAGE_STATUSES: readonly CustomerManageStatus[] = ["정상", "확인필요", "재문의", "지연", "장기방치"];
 
+// "아직 담당자 액션이 없는" 상태(1차 신규 + 2차 상담접수) — 목록 배지·필터·AI stale 리포트가 공통으로
+// 제외하는 게이트. 클라(manage-status.deriveFinalUpdateInfo)와 서버(assistant-tools stale_customers)가
+// 이 함수 1벌을 공유한다(리터럴 이중 정의 → 한쪽만 바뀌면 배지↔리포트가 조용히 드리프트하던 것 방지, 0714 배치5 3-A).
+export function isPreActionStatus(statusGroup: string | null | undefined, status: string | null | undefined): boolean {
+  return statusGroup === "신규" && status === "상담접수";
+}
+
 export const customerStatusGroups: Record<string, string[]> = {
   신규: ["상담접수", "1차부재중", "지속적부재", "연락해야함"],
   상담중: ["구매방식상담중", "차량상담중", "견적상담중"],

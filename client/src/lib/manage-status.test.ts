@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import { finalUpdateStatus } from "./customer-table";
+import { isPreActionStatus } from "@/data/customers";
+
 import { deriveFinalUpdateInfo, effectiveManageStatus, manualUpdateInfo, resolveUpdateBadge } from "./manage-status";
 
 const NOW = new Date("2026-07-04T12:00:00+09:00");
@@ -145,6 +147,17 @@ describe("resolveUpdateBadge — 서버 영속 수동 상태 반영", () => {
     );
     expect(status?.label).toBe("지연");
     expect(info).toBeNull();
+  });
+});
+
+// 3-A: 액션 전 상태 게이트 — 클라(deriveFinalUpdateInfo)와 서버(assistant-tools stale_customers)가 공유하는
+// 단일 함수(리터럴 이중 정의 제거). 여기서 계약을 명시 잠금해 한쪽만 바뀌는 드리프트를 막는다.
+describe("isPreActionStatus (액션 전 상태 게이트 SSOT)", () => {
+  test("신규·상담접수만 true", () => {
+    expect(isPreActionStatus("신규", "상담접수")).toBe(true);
+    expect(isPreActionStatus("신규", "1차부재중")).toBe(false);
+    expect(isPreActionStatus("상담중", "상담접수")).toBe(false);
+    expect(isPreActionStatus(null, null)).toBe(false); // 서버 nullable 컬럼 방어
   });
 });
 
