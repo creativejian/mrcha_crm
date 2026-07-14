@@ -1019,9 +1019,34 @@ PORT=8799 PUSH_NOTIFY=off EMBED_ON_WRITE=off AI_HINT_ON_WRITE=off \
 
 ---
 
+## Task 5R: 개정 1 이행 — 리스계산기 금리·파생 4필드 읽기 전용·금융사 모달 (TDD)
+
+> 스펙 "개정 1" 섹션이 계약 SSOT. Task 1~5 완료 후 유슨생 실기 피드백(2026-07-14)으로 추가된 개정 태스크.
+
+**Files:**
+- Create: `client/src/lib/lease-rate.ts` (+ `lease-rate.test.ts`) — RATE 솔버 이식 + 파생 조립(순수, TDD)
+- Modify: `client/src/lib/solution-quote.ts` — `CRM_EXTRA_LENDERS`(빈 배열) 신설·`solutionDisplayRatePct` 제거(+테스트 갱신)
+- Modify: `client/src/components/customer-detail/hooks/useQuoteWorkbench.ts` — 파생 배선·모달 상태·계산기 3분기
+- Modify: `client/src/components/customer-detail/QuoteWorkbench.tsx` — 4필드 readOnly·금융사 모달·select 옵션 구조
+
+- [ ] **Step 1: `lease-rate.ts` TDD** — 앱 `lease_calc.ts`의 `calculateRate`(Newton-Raphson secant) 원본 이식(출처 주석 필수) + `deriveCardResults(args)` 순수 함수(스펙 R3 산식 4종 + 잔존가치 금액 해석 3모드 + 파생 불능 공란 규칙). 테스트: 앱 검증 벡터(60·1,200,000·75,000,000·35,000,000·10,000,000 → 16.0840%) + 산식 3종 + 잔가 미정 시 인수·금리 공란 + 월납입 0 전부 공란.
+- [ ] **Step 2: 훅 파생 배선** — 카드 편집/조회 채움 후 파생 계산 → 4필드 DOM 쓰기(기존 setField 관례). `queryCardSolution`에서 제프 금리·확장 3필드 채움 제거(스냅샷 raw는 유지).
+- [ ] **Step 3: 계산기 3분기 + 모달** — 미선택→모달(파트너 목록, 구매방식별)→선택 즉시 계산 / 지원사→바로 계산 / 미지원사→경고 토스트. 모달은 워크벤치 기존 모달 문법 재사용.
+- [ ] **Step 4: UI** — 4필드 `readOnly`(수기 입력 불가) + select 옵션 = 파트너 목록 + `CRM_EXTRA_LENDERS` + 레거시 저장값.
+- [ ] **Step 5: 검증·커밋** — typecheck 0·lint 0·test:unit 전부 green.
+
+## Task 6 스모크 추가 시나리오(개정 1 반영)
+
+- 금융사 미선택 → 계산기 → 모달 → 선택 → 월납입 채움 + **금리가 리스계산기 실질 금리로 파생**되는지
+- 레거시 금융사(구 어휘 저장 견적) → 계산기 → 미취급 경고 + 카드 불변
+- 수기 모드에서 월납입 타이핑 → 4필드 자동 파생·읽기 전용 확인
+- 저장 → psql 시나리오 4컬럼 = 파생값 일치
+
 ## 남는 것(계획 밖 — 착수 금지, 기록만)
 
-- **제프 전달 목록**(스펙 §10): external calculate 신설·응답 확장 3필드·자동차세 의미·키 공유 고지·X-Request-ID 형식
+- **제프 전달 목록**(스펙 §10): external calculate 신설·자동차세 의미·키 공유 고지·X-Request-ID 형식
+  (~~응답 확장 3필드~~ — 개정 1로 불필요)
 - **키 등록**(유슨생): `EXTERNAL_API_KEY` 값을 `.env.local` + CF Pages Production secret(`SOLUTION_QUOTE_API_KEY`)에.
   등록 후 URL을 external로 교체(코드 불변)
-- **이사님 사후 공유**: 계산엔진 = 파트너 API 연동 확정 · 금융사 어휘 교체 · 총비용 3필드 제프 확장 대기
+- **이사님 사후 공유**: 계산엔진 = 파트너 API 연동 확정 · 금융사 어휘 교체 · **금리 의미론 = 리스계산기
+  실질 금리(개정 1)** · 파생 4필드 읽기 전용 전환
