@@ -80,7 +80,11 @@ export function SolutionLenderRankingModal({ condId, purchaseMethod, buildBaseAr
         .then((raw) => {
           if (cancelled) return;
           const parsed = parseSolutionQuoteResult(raw);
-          if (!parsed) return;
+          if (!parsed) {
+            // 응답 도착했으나 형태 이탈(파트너 스키마 드리프트) — 미취급과 구분되게 관측 로그를 남긴다.
+            console.warn(`[solution] 랭킹 응답 해석 실패 lender=${lender.code}`);
+            return;
+          }
           const entry = buildRankingEntry(lender.code, lender.label, parsed, raw, built.input.productType, built.input.leaseTermMonths);
           setEntries((prev) => ({ ...prev, [lender.code]: entry }));
         })

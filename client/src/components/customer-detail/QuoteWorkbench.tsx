@@ -599,6 +599,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
              오픈마다 새 마운트(조건부 렌더) — 병렬 배치가 마운트 1회 발화. 닫힘 경로(backdrop/X/취소/Esc 분기·
              잔상 리셋)는 개정 1 그대로. */
           <SolutionLenderRankingModal
+            key={solutionLenderPickerId} /* 카드 전환 시 강제 리마운트 보험 — "오픈 = fresh mount" 계약을 구조로 보장 */
             condId={solutionLenderPickerId}
             purchaseMethod={solutionWorkbenchPurchaseMethod}
             buildBaseArgs={buildCardSolutionBaseArgs}
