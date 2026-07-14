@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
@@ -31,6 +31,12 @@ beforeAll(async () => {
   const auth = await makeTestAuth("staff");
   app = createApp({ keyResolver: auth.keyResolver, issuer: auth.issuer });
   token = auth.token;
+});
+
+// 테스트 간 mock 격리 — afterAll만으로는 앞 테스트의 mock이 뒤 테스트로 상속돼 순서 의존이 생긴다
+// (push-notify.test.ts와 동일 패턴).
+afterEach(() => {
+  solutionDeps.fetchImpl = ORIGINAL_FETCH;
 });
 
 afterAll(() => {
@@ -106,6 +112,16 @@ test("성공 릴레이: 파트너 body 패스스루 + X-Request-ID(crm- 접두) 
   expect((calls[0].body as { lenderCode: string }).lenderCode).toBe("shinhan-card");
 });
 
+test("zod strip 계약: 스키마 밖 키는 파트너로 전달되지 않는다", async () => {
+  process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
+  const calls = captureRequests();
+
+  const res = await post({ ...VALID_BODY, extra: 1 });
+  expect(res.status).toBe(200);
+  expect(calls).toHaveLength(1);
+  expect(Object.keys(calls[0].body as Record<string, unknown>)).not.toContain("extra");
+});
+
 test("키 미설정이면 X-API-Key 생략(개발 무인증 단계) — 호출은 진행", async () => {
   process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
   delete process.env.SOLUTION_QUOTE_API_KEY;
@@ -134,6 +150,30 @@ test("파트너 5xx → 502", async () => {
 
   const res = await post(VALID_BODY);
   expect(res.status).toBe(502);
+});
+
+// 401/403 = 파트너 키 오설정(운영 문제) — 호출자 입력 잘못(400 패스스루)과 섞이면 조용히 묻힌다.
+// push-notify AUTH_FAILED 선례 미러(스펙 보강 — 리뷰 승인 편차).
+test("파트너 401 → 503 + 인증 실패 문구(AUTH_FAILED 구분)", async () => {
+  process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
+  solutionDeps.fetchImpl = (async () =>
+    new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 })) as unknown as typeof fetch;
+
+  const res = await post(VALID_BODY);
+  expect(res.status).toBe(503);
+  const body = (await res.json()) as { error: string };
+  expect(body.error).toContain("인증");
+});
+
+// 200인데 바디가 JSON이 아니면(프록시 HTML 등) 성공으로 둔갑시키지 않는다 — 클라 파서가 raw를 신뢰하는 전제.
+test("200 + non-JSON 바디 → 502(성공 둔갑 금지)", async () => {
+  process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
+  solutionDeps.fetchImpl = (async () => new Response("<html>proxy error</html>", { status: 200 })) as unknown as typeof fetch;
+
+  const res = await post(VALID_BODY);
+  expect(res.status).toBe(502);
+  const body = (await res.json()) as { error: string };
+  expect(body.error).toContain("해석");
 });
 
 test("네트워크 예외 → 502", async () => {

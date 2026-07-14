@@ -38,13 +38,15 @@ export function solutionLenderOptions(purchaseMethod: string): { code: SolutionL
 }
 
 // 파트너 ANNUAL_MILEAGES 미러. CRM 표시 문자열("20,000km / 년")과 왕복.
-const SOLUTION_MILEAGES = [10000, 15000, 20000, 25000, 30000, 35000, 40000] as const;
+// export — 서버 릴레이(src/routes/solution.ts)의 zod 게이트가 이 값에서 파생한다(손 복제 금지).
+export const SOLUTION_MILEAGES = [10000, 15000, 20000, 25000, 30000, 35000, 40000] as const;
 export function solutionMileageOf(mileageValue: string): number | null {
   const digits = Number(mileageValue.replace(/[^\d]/g, ""));
   return (SOLUTION_MILEAGES as readonly number[]).includes(digits) ? digits : null;
 }
 
-const LEASE_TERMS = [12, 24, 36, 48, 60] as const;
+// 파트너 지원 기간(개월). export — 서버 릴레이 zod 게이트가 이 값에서 파생한다(손 복제 금지).
+export const SOLUTION_LEASE_TERMS = [12, 24, 36, 48, 60] as const;
 
 // 파트너 CanonicalQuoteInput의 CRM 전송 서브셋(스펙 §계약).
 export type SolutionQuoteInput = {
@@ -101,7 +103,7 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
   if (!args.vehicle.brand || !args.vehicle.model) return { ok: false, reason: "차량을 먼저 선택해 주세요" };
   if (!args.vehicle.mcCode) return { ok: false, reason: "이 차량은 MC코드가 없어 솔루션 조회를 할 수 없습니다" };
 
-  if (!(LEASE_TERMS as readonly number[]).includes(args.termMonths))
+  if (!(SOLUTION_LEASE_TERMS as readonly number[]).includes(args.termMonths))
     return { ok: false, reason: "기간은 12·24·36·48·60개월만 지원합니다" };
 
   const mileage = solutionMileageOf(args.mileageValue);
