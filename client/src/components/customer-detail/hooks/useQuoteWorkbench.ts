@@ -908,9 +908,17 @@ export function useQuoteWorkbench({
       if (!cardEl) continue;
       const fieldVal = (f: string) => cardEl.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? "";
       const ui = cardUiOf(cardUi, card.id);
-      // 보증금/선수금 % 모드는 할인 전 차량가 기준 원 환산(discountLineWon 공유 산술 — 파생은 표시라 fail-soft 0).
-      const wonOfMode = (mode: ManualDepositMode, raw: string) =>
-        mode === "none" ? 0 : mode === "percent" ? discountLineWon("percent", parsePercent(raw), basis) : parseMoney(raw);
+      // 보증금/선수금 % 모드는 할인 전 차량가 기준 원 환산(discountLineWon 공유 산술). % 100 초과
+      // (콤마 오입력 "45,5"→455)는 0 처리 — 빌더 wonOf·residualAmountOf의 fail-loud 상한 미러.
+      // 파생 경로는 매 키스트로크 재계산이라 토스트 없이 오염(무음 부풀림·저장 영속)만 차단한다.
+      const wonOfMode = (mode: ManualDepositMode, raw: string) => {
+        if (mode === "none") return 0;
+        if (mode === "percent") {
+          const pct = parsePercent(raw); // 비유한 입력은 parsePercent가 이미 0
+          return pct > 100 ? 0 : discountLineWon("percent", pct, basis);
+        }
+        return parseMoney(raw);
+      };
       const derived = deriveCardResults({
         monthly: parseMoney(fieldVal("monthly")),
         termMonths: ui.termMonths,

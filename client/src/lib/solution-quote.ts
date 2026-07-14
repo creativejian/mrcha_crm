@@ -170,8 +170,8 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
   return { ok: true, input };
 }
 
-// 파트너 응답의 CRM 소비 형태. 확장 3필드(반납/인수/출고 전)는 제프 응답 확장 전 null —
-// CRM은 파생 조립하지 않는다(스펙 결정 3: 계산 권위 = 제프 한 곳).
+// 파트너 응답의 CRM 소비 형태. 확장 3필드(반납/인수/출고 전)·금리 필드는 raw 스냅샷 보존용 파싱
+// (개정 1 — 원 결정 3 폐기: 카드 결과 4필드 채움은 lease-rate.ts 파생이 담당, 제프 값은 카드에 안 실린다).
 export type SolutionQuoteParsed = {
   monthlyPayment: number;
   annualRatePct: number;
