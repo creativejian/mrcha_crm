@@ -872,6 +872,11 @@ export function useQuoteWorkbench({
         totalTakeoverCost: sc.totalTakeoverCost ?? null,
         dueAtDelivery: sc.dueAtDelivery ?? null,
         interestRate: sc.interestRate ?? null,
+        // 솔루션 조회 스냅샷(마이그 0031) — 낙관 표시에도 전달(서버 재페치 값과 동형 유지).
+        solutionLenderCode: sc.solutionLenderCode ?? null,
+        solutionWorkbookVersion: sc.solutionWorkbookVersion ?? null,
+        solutionCalculatedAt: sc.solutionCalculatedAt ?? null,
+        solutionRaw: sc.solutionRaw ?? null,
       }));
       // 대표 = scenario_no 최소(서버 insertScenarios 로직과 동일). 추출은 round1 우선이라 보통 [0].
       const primary = displayScenarios.reduce((m, s) => ((s.scenarioNo ?? 0) < (m.scenarioNo ?? 0) ? s : m), displayScenarios[0]);

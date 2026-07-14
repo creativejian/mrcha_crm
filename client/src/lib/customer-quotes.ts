@@ -146,6 +146,11 @@ export type ScenarioInput = {
   totalTakeoverCost?: string | null;
   dueAtDelivery?: string | null;
   interestRate?: string | null;
+  // 솔루션 조회 재현성 스냅샷(마이그 0031) — 수기 시나리오는 미전송. 서버 zod와 동형.
+  solutionLenderCode?: string | null;
+  solutionWorkbookVersion?: string | null;
+  solutionCalculatedAt?: string | null;
+  solutionRaw?: unknown;
 };
 
 // 새 견적 생성. 서버가 quote_code·id 부여 → 반환값으로 낙관 임시 항목을 교체한다. 성공 시 상세 캐시 무효화.

@@ -282,6 +282,12 @@ export const quoteScenarios = crm.table("quote_scenarios", {
   totalTakeoverCost: numeric("total_takeover_cost"),
   dueAtDelivery: numeric("due_at_delivery"),
   interestRate: numeric("interest_rate"),
+  // 솔루션 조회 재현성 스냅샷(스펙 결정 4·5) — 수기 시나리오는 전부 null.
+  // 요율이 매월 갱신되는 도메인이라 "어느 워크북 기준 계산인지"를 남긴다. raw는 앱 partner_raw_response 선례.
+  solutionLenderCode: text("solution_lender_code"),
+  solutionWorkbookVersion: text("solution_workbook_version"),
+  solutionCalculatedAt: timestamp("solution_calculated_at", { withTimezone: true }),
+  solutionRaw: jsonb("solution_raw"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [check("quote_scenarios_purchase_method_check", inListCheck(t.purchaseMethod, PURCHASE_METHOD_OPTIONS))]);

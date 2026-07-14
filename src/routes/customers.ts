@@ -279,6 +279,11 @@ const quoteScenarioBody = z.object({
   totalTakeoverCost: z.string().nullable().optional(),
   dueAtDelivery: z.string().nullable().optional(),
   interestRate: z.string().nullable().optional(),
+  // 솔루션 조회 스냅샷(마이그 0031) — 수기 시나리오는 미전송
+  solutionLenderCode: z.string().nullable().optional(),
+  solutionWorkbookVersion: z.string().nullable().optional(),
+  solutionCalculatedAt: z.iso.datetime().nullable().optional(),
+  solutionRaw: z.unknown().nullable().optional(),
 });
 const quoteGuidanceSchema = z.object({
   deliveryComment: z.string(),
