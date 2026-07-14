@@ -1,14 +1,15 @@
 /* 앱 견적요청 인박스(S1) */
-.app-requests-page { padding: 18px 20px; }
+/* 페이지 좌우 여백은 .main(22px 프레임)이 담당 — 자체 패딩을 더하면 콘솔 페이지와 폭이 어긋난다. */
 .app-requests-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
 .app-requests-head strong { font-size: 15px; font-weight: 700; }
 .app-requests-count { font-size: 12px; color: #7f858c; }
 .app-requests-empty { padding: 40px; text-align: center; color: #7f858c; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; }
-/* table-layout: fixed — 닫힌 어휘·고정 포맷 컬럼(요청일/요청자/구매방식/옵션/상태)은 고정 폭·줄바꿈
+/* 서피스·헤더/바디 톤은 공용 .console-table-scroll / .console-table(controls.css) 소비 —
+   여기엔 이 테이블 고유 규칙(컬럼 폭·상단 정렬)만 둔다.
+   table-layout: fixed — 닫힌 어휘·고정 포맷 컬럼(요청일/요청자/구매방식/옵션/상태)은 고정 폭·줄바꿈
    금지, 차량·조건·매칭이 잔여 폭을 균등 분배(2026-07-13 폴리시 — "운용리\스"류 꺾임 해소). */
-.app-requests-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-.app-requests-table th { text-align: left; font-weight: 600; color: #5f6872; padding: 8px 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); white-space: nowrap; }
-.app-requests-table td { padding: 9px 10px; border-bottom: 1px solid #f0f0ee; vertical-align: top; }
+.app-requests-table { table-layout: fixed; }
+.app-requests-table td { vertical-align: top; }
 .app-req-col-date { width: 112px; }    /* "26/06/29 20:55" 고정 포맷 */
 .app-req-col-name { width: 90px; }
 .app-req-col-payment { width: 76px; }  /* 최장 어휘 "운용리스" + 여백 */

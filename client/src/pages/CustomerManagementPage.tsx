@@ -1119,8 +1119,8 @@ export function CustomerManagementPage({
             </div>
           </div>
         </div>
-        <div className={isConsole ? "table-scroll customer-console-table-scroll" : "table-scroll"}>
-          <table className={`customer-table mode-${mode}`}>
+        <div className={isConsole ? "table-scroll console-table-scroll" : "table-scroll"}>
+          <table className={`customer-table mode-${mode}${isConsole ? " console-table" : ""}`}>
             <colgroup>
               {tableColumns.map((column, index) => <col className={`col-${column}`} key={`${column}-${index}`} />)}
             </colgroup>

@@ -113,7 +113,8 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
       ) : rows.length === 0 ? (
         <div className="app-requests-empty">앱에서 들어온 견적요청이 없습니다.</div>
       ) : (
-        <table className="app-requests-table">
+        <div className="table-scroll console-table-scroll">
+        <table className="app-requests-table console-table">
           <thead>
             <tr>
               {/* 요청일/요청자/구매방식/옵션/상태 = 닫힌 어휘·고정 포맷 → 고정 폭(줄바꿈 금지, 2026-07-13 폴리시).
@@ -189,6 +190,7 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

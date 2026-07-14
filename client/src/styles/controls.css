@@ -86,6 +86,31 @@
   overflow-x: auto;
 }
 
+/* 콘솔 테이블 공용 서피스 — 고객 관리 전체 보기 문법의 SSOT.
+   외곽선·radius·바닥은 래퍼(.console-table-scroll)가, 흰 헤더/연회색 바디 톤은
+   .console-table이 담당한다. 컬럼 폭·셀 정렬 같은 테이블 고유 규칙은 각자 파일에 둔다. */
+.console-table-scroll {
+  border: 1px solid #e5e5e2;
+  border-radius: 6px;
+  background: #f8f8f7;
+  overflow: hidden;
+}
+
+.console-table th {
+  border-bottom: 1px solid #e7e7e4;
+  background: #fff;
+  color: #626d76;
+}
+
+.console-table td {
+  border-bottom: 1px solid #e7e7e4;
+  background: #f8f8f7;
+}
+
+.console-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
