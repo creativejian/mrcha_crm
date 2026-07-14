@@ -741,7 +741,7 @@
 }
 
 .kim-solution-lender-dialog {
-  width: min(420px, calc(100vw - 72px));
+  /* width는 .is-ranking(항상 동반 — 유일 사용처 SolutionLenderRankingModal)이 520px로 재선언하므로 base는 dead(배치5 4-D). */
   max-height: calc(100vh - 72px);
   border-radius: 12px;
   overflow: hidden;
