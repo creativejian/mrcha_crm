@@ -7,7 +7,7 @@
 /* table-layout: fixed — 닫힌 어휘·고정 포맷 컬럼(요청일/요청자/구매방식/옵션/상태)은 고정 폭·줄바꿈
    금지, 차량·조건·매칭이 잔여 폭을 균등 분배(2026-07-13 폴리시 — "운용리\스"류 꺾임 해소). */
 .app-requests-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-.app-requests-table th { text-align: left; font-weight: 600; color: #5f6872; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.app-requests-table th { text-align: left; font-weight: 600; color: #5f6872; padding: 8px 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); white-space: nowrap; }
 .app-requests-table td { padding: 9px 10px; border-bottom: 1px solid #f0f0ee; vertical-align: top; }
 .app-req-col-date { width: 112px; }    /* "26/06/29 20:55" 고정 포맷 */
 .app-req-col-name { width: 90px; }
