@@ -69,6 +69,13 @@ export function SolutionLenderRankingModal({ condId, purchaseMethod, buildBaseAr
     // 마운트 1회 전 금융사 병렬 조회(모달 = 오픈마다 새 마운트 — solutionLenderPickerId 조건부 렌더).
     let cancelled = false;
     const base = buildBaseArgs(condId);
+    if (!base) {
+      // 프로브~마운트 레이스로 카드/가격이 소실되면 전 금융사가 방어 분기로 doneCount만 소진해 "조회 결과 없음"으로
+      // 위장된다(2-D) — fail-loud 사유를 세운다. set-state-in-effect 회피 위해 마이크로태스크(방어 분기와 동일 패턴).
+      void Promise.resolve().then(() => {
+        if (!cancelled) setFailureNote((prev) => prev ?? "카드 조건을 읽지 못했습니다. 창을 닫고 다시 시도해 주세요.");
+      });
+    }
     for (const lender of lenders) {
       const built = base ? buildSolutionQuoteInput({ ...base, lenderLabel: lender.label }) : null;
       if (!built || !built.ok) {

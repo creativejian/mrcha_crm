@@ -93,6 +93,10 @@ export function useQuoteWorkbench({
   // 비교카드 UI 상태(카드 id → CardUiState). 통합 전 속성별 Record 8벌 — 카드 하나를 다루는 모든
   // 동작이 8곳을 건드려야 했고 키 누락을 컴파일러가 못 잡았다(#163 저장 payload 오염).
   const [cardUi, setCardUi] = useState<Record<string, CardUiState>>({});
+  // in-flight 솔루션 조회(~1s)의 응답이 호출 시점 클로저가 아니라 응답 시점의 최신 모드를 읽도록 미러(2-C).
+  // 조회 중 잔가 모드를 max↔percent 바꾸면 applySolutionResult가 stale 모드로 residual을 세팅하던 레이스 차단.
+  const cardUiRef = useRef(cardUi);
+  cardUiRef.current = cardUi;
   // 솔루션 조회: 전역 1건 in-flight(연타·동시 조회 방지 — 자동 재계산 없는 명시 버튼이라 파트너 서버 보호)와
   // 카드별 재현성 스냅샷(저장 시 시나리오에 동봉 — 마이그 0031. 수정 재진입 시드가 전체 교체 저장에서 보존 담당).
   const [solutionLoadingId, setSolutionLoadingId] = useState<string | null>(null);
@@ -797,7 +801,7 @@ export function useQuoteWorkbench({
     setField("monthly", formatMoney(monthlyDisplay));
     // "최대" 모드 표시값 "-"(placeholder) → 실채택 잔가로 갱신(표시 전용 — extract는 max 모드 residualValue를 null 유지.
     // 인수 총비용·금리 파생의 잔가 입력이기도 하다 — residualAmountOf가 이 값을 읽는다).
-    if (cardUiOf(cardUi, condId).residualMode === "max") setField("residual", formatMoney(parsed.residualAmount));
+    if (cardUiOf(cardUiRef.current, condId).residualMode === "max") setField("residual", formatMoney(parsed.residualAmount));
     // 결과 4필드(반납/인수/출고 전/금리)는 제프 응답으로 채우지 않는다(개정 1 R3) — 아래
     // handleManualCardFieldEdit → deriveAndFillCardResults가 리스계산기 산식으로 파생해 채운다.
     // 제프 금리·확장 필드는 solutionRaw 스냅샷에만 보존.
@@ -960,6 +964,10 @@ export function useQuoteWorkbench({
     const derivedPricing = computePricing(inputs); // otherCost·acquisitionCost SSOT(quote-pricing)
     const basis = inputs.basePrice + inputs.optionPrice; // %→원 환산 기준 = 할인 전 차량가(솔루션 입력과 동일)
     for (const card of manualQuoteCards) {
+      // 저장된(조건 미편집) 카드는 결과 4필드를 재파생하지 않는다(배치 5 2-A) — solution 도입 이전 수기 견적의
+      // 저장값(표면금리 등)이 재진입만 해도 실질 IRR 파생값에 덮여 재발송 시 조용히 바뀌던 것을 차단.
+      // 수정 클릭(editManualQuoteCondition)이 saved에서 빼면 그 카드만 다시 파생된다.
+      if (savedManualQuoteConditionIds.includes(card.id)) continue;
       const cardEl = compareForm.querySelector<HTMLElement>(`[data-scenario-card="${card.id}"]`);
       if (!cardEl) continue;
       const fieldVal = (f: string) => cardEl.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? "";
