@@ -1,3 +1,5 @@
+import { isPreActionStatus } from "@/data/customers";
+
 import { finalUpdateStatus, finalUpdateStatusFromManage, type FinalUpdateInfo, type FinalUpdateStatus, type ManageStatusOption } from "./customer-table";
 
 // 목록 Customer·상세 훅이 구조적 타이핑으로 그대로 넘길 수 있는 최소 입력.
@@ -32,6 +34,18 @@ const KST_OFFSET_MS = 9 * 3_600_000;
 // 동치는 manage-status-parity.test.ts가 잠근다.
 const kstDayIndex = (d: Date) => Math.floor((d.getTime() + KST_OFFSET_MS) / MS_DAY);
 
+// 라벨(customer-table.operationDateValue가 파싱하는 "N월 N일 HH:mm" 계약 포맷)·days(KST 달력일)·atIso 조립 1벌.
+// deriveFinalUpdateInfo·manualUpdateInfo가 공유 — 파싱 계약 포맷 문자열이 이중 관리되던 것 해소(3-B).
+function buildFinalUpdateInfo(at: Date, action: string, now: Date): FinalUpdateInfo {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return {
+    action,
+    label: `${at.getMonth() + 1}월 ${at.getDate()}일 ${p(at.getHours())}:${p(at.getMinutes())}`,
+    atIso: at.toISOString(),
+    days: Math.max(0, kstDayIndex(now) - kstDayIndex(at)),
+  };
+}
+
 // mock initialFinalUpdateByCustomerId를 대체하는 실데이터 파생.
 // - 신규·상담접수(아직 담당자 액션 없음) → null(목록/상세 공백 규칙 유지)
 // - recontacted → customerRecontacted(버킷 판정은 finalUpdateStatus 소관 — 재문의 우선)
@@ -42,18 +56,11 @@ export function deriveFinalUpdateInfo(
   source: ManageStatusSource,
   now: Date = new Date()
 ): FinalUpdateInfo | null {
-  if (source.statusGroup === "신규" && source.status === "상담접수") return null;
+  if (isPreActionStatus(source.statusGroup, source.status)) return null;
   if (!source.lastActivityAt) return null;
   const at = new Date(source.lastActivityAt);
   if (Number.isNaN(at.getTime())) return null;
-  const p = (n: number) => String(n).padStart(2, "0");
-  return {
-    action: "최근 활동 업데이트",
-    label: `${at.getMonth() + 1}월 ${at.getDate()}일 ${p(at.getHours())}:${p(at.getMinutes())}`,
-    atIso: at.toISOString(),
-    days: Math.max(0, kstDayIndex(now) - kstDayIndex(at)),
-    customerRecontacted: source.recontacted || undefined,
-  };
+  return { ...buildFinalUpdateInfo(at, "최근 활동 업데이트", now), customerRecontacted: source.recontacted || undefined };
 }
 
 // 유효 수동 상태의 팝오버용 표시 정보 — 신규·상담접수(파생 info null)라도 수동 배지는 표시해야 하므로
@@ -67,13 +74,7 @@ export function manualUpdateInfo(
   if (!effectiveManageStatus(source) || !source.manageStatusAt) return null;
   const at = new Date(source.manageStatusAt);
   if (Number.isNaN(at.getTime())) return null;
-  const p = (n: number) => String(n).padStart(2, "0");
-  return {
-    action: "관리 상태 수동 지정",
-    label: `${at.getMonth() + 1}월 ${at.getDate()}일 ${p(at.getHours())}:${p(at.getMinutes())}`,
-    atIso: at.toISOString(),
-    days: Math.max(0, kstDayIndex(now) - kstDayIndex(at)),
-  };
+  return buildFinalUpdateInfo(at, "관리 상태 수동 지정", now);
 }
 
 // 배지 합성 규칙 SSOT — 목록 필터·행 렌더·상세 워크플로우 3곳이 공유(한쪽만 픽스되는 드리프트 방지).

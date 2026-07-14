@@ -9,6 +9,7 @@ import { manualManageStatusActive, STALE_THRESHOLDS, staffActivityAt } from "./a
 import { getDefaultDb, type Executor } from "../client";
 import { consultationRequests, profiles } from "../public-app";
 import { consultationDismissals, customers, customerSchedules, customerTasks, quotes } from "../schema";
+import { isPreActionStatus } from "../../../client/src/data/customers"; // 순수 leaf(부작용 0) — 액션 전 상태 게이트 클라 공유
 
 // 업무 AI 도구 실행기 — 전부 read-only 화이트리스트 쿼리(자유 SQL 금지, 스펙 확정 방향 2).
 // scope(역할 scope, 이사님 요구 07-06): admin/manager=전체, staff=본인 담당(customers.advisor_id) —
@@ -137,7 +138,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         .where(scopeCond(scope));
       const lines = rows
         .map((r) => ({ ...r, days: daysSince(r.at), manual: manualManageStatusActive(r.manageStatusAt, r.at) ? r.manageStatus : null }))
-        .filter((r) => r.manual != null || !(r.statusGroup === "신규" && r.status === "상담접수"))
+        .filter((r) => r.manual != null || !isPreActionStatus(r.statusGroup, r.status))
         .filter((r): r is typeof r & { days: number } => r.days != null && (staleBucket(r.days) != null || r.manual != null))
         .filter((r) => r.manual !== "정상")
         .sort((a, b) => b.days - a.days)
