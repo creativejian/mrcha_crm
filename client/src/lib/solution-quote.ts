@@ -44,7 +44,7 @@ export function solutionLenderOptions(purchaseMethod: string): { code: SolutionL
 // 파트너 ANNUAL_MILEAGES 미러. CRM 표시 문자열("20,000km / 년")과 왕복.
 // export — 서버 릴레이(src/routes/solution.ts)의 zod 게이트가 이 값에서 파생한다(손 복제 금지).
 export const SOLUTION_MILEAGES = [10000, 15000, 20000, 25000, 30000, 35000, 40000] as const;
-export function solutionMileageOf(mileageValue: string): number | null {
+function solutionMileageOf(mileageValue: string): number | null {
   const digits = Number(mileageValue.replace(/[^\d]/g, ""));
   return (SOLUTION_MILEAGES as readonly number[]).includes(digits) ? digits : null;
 }

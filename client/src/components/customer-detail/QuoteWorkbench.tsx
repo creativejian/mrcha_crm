@@ -280,7 +280,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
               <div className="kim-quote-workbench-action-group output">
                 <button
                   className="kim-quote-workbench-action muted"
-                  onClick={() => onToast("financial-dolim-solution 연결 전 임시 워크벤치입니다.")}
+                  onClick={() => onToast("솔루션 조회는 비교 카드의 계산기 버튼으로 실행합니다.")}
                   type="button"
                 >
                   <Calculator size={13} strokeWidth={2.2} />
