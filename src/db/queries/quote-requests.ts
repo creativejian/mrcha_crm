@@ -21,6 +21,13 @@ export type AppQuoteRequestRow = {
   rentalDeposit: number | null;
   trimPrice: number | null;
   status: string | null;
+  colorPreferenceMode: string | null;
+  exteriorColorId: number | null;
+  exteriorColorName: string | null;
+  exteriorColorHex: string | null;
+  interiorColorId: number | null;
+  interiorColorName: string | null;
+  interiorColorHex: string | null;
   brandName: string | null;
   modelName: string | null;
   trimName: string | null;
@@ -47,6 +54,13 @@ type QuoteRequestBaseRow = {
   rentalDeposit: number | null;
   trimPrice: number | null;
   status: string | null;
+  colorPreferenceMode: string | null;
+  exteriorColorId: number | null;
+  exteriorColorName: string | null;
+  exteriorColorHex: string | null;
+  interiorColorId: number | null;
+  interiorColorName: string | null;
+  interiorColorHex: string | null;
   requesterName: string | null;
   requesterPhone: string | null;
 };
@@ -152,6 +166,13 @@ async function buildAppQuoteRequestRows(
       rentalDeposit: r.rentalDeposit,
       trimPrice: r.trimPrice,
       status: r.status,
+      colorPreferenceMode: r.colorPreferenceMode,
+      exteriorColorId: r.exteriorColorId,
+      exteriorColorName: r.exteriorColorName,
+      exteriorColorHex: r.exteriorColorHex,
+      interiorColorId: r.interiorColorId,
+      interiorColorName: r.interiorColorName,
+      interiorColorHex: r.interiorColorHex,
       brandName: t?.brandName ?? null,
       modelName: t?.modelName ?? null,
       trimName: t?.trimName ?? null,
@@ -179,6 +200,13 @@ const quoteRequestBaseSelect = {
   rentalDeposit: quoteRequests.rentalDeposit,
   trimPrice: quoteRequests.trimPrice,
   status: quoteRequests.status,
+  colorPreferenceMode: quoteRequests.colorPreferenceMode,
+  exteriorColorId: quoteRequests.exteriorColorId,
+  exteriorColorName: quoteRequests.exteriorColorName,
+  exteriorColorHex: quoteRequests.exteriorColorHex,
+  interiorColorId: quoteRequests.interiorColorId,
+  interiorColorName: quoteRequests.interiorColorName,
+  interiorColorHex: quoteRequests.interiorColorHex,
   requesterName: profiles.fullName,
   requesterPhone: profiles.phoneNumber,
 } as const;
@@ -216,6 +244,9 @@ export type QuoteRequestDetail = {
   depositRatio: number | null;
   rentalDeposit: number | null;
   optionIds: number[];
+  // 승격 워크벤치 프리필용 컬러 id(selected일 때만 non-null — DB가 그 경우만 저장). 클라가 catalog에서 id 매칭.
+  exteriorColorId: number | null;
+  interiorColorId: number | null;
 };
 
 // prefill용 단건 조회. 요청 1행 + 옵션(trim_option_id) 배열. 없으면 null.
@@ -232,6 +263,8 @@ export async function getQuoteRequestDetail(
       depositType: quoteRequests.depositType,
       depositRatio: quoteRequests.depositRatio,
       rentalDeposit: quoteRequests.rentalDeposit,
+      exteriorColorId: quoteRequests.exteriorColorId,
+      interiorColorId: quoteRequests.interiorColorId,
     })
     .from(quoteRequests)
     .where(eq(quoteRequests.id, requestId));
@@ -250,6 +283,8 @@ export async function getQuoteRequestDetail(
     depositRatio: req.depositRatio,
     rentalDeposit: req.rentalDeposit,
     optionIds,
+    exteriorColorId: req.exteriorColorId,
+    interiorColorId: req.interiorColorId,
   };
 }
 

@@ -95,7 +95,7 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                           <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
                           <div className="kim-needs-card-copy">
                             <h3>{req.vehicleLabel}</h3>
-                            <p>{req.paymentLabel} · 옵션 {req.optionLabel}</p>
+                            <p>{req.paymentLabel} · 옵션 {req.optionLabel}{req.colorLabel ? ` · ${req.colorLabel}` : ""}</p>
                             <span>{req.periodLabel} · {req.depositLabel}</span>
                           </div>
                           <div className="kim-needs-request-actions">

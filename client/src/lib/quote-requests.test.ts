@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { depositLabelOf, fetchCustomerQuoteRequests, fetchQuoteRequestDetail, toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
+import { colorLabelOf, depositLabelOf, fetchCustomerQuoteRequests, fetchQuoteRequestDetail, toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
 
 // apiFetch(./api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
 vi.mock("./supabase", () => ({
@@ -24,6 +24,13 @@ const base: AppQuoteRequestRow = {
   rentalDeposit: 5598000,
   trimPrice: 186600000,
   status: "open",
+  colorPreferenceMode: null,
+  exteriorColorId: null,
+  exteriorColorName: null,
+  exteriorColorHex: null,
+  interiorColorId: null,
+  interiorColorName: null,
+  interiorColorHex: null,
   brandName: "기아",
   modelName: "쏘렌토",
   trimName: "26년형 노블레스",
@@ -55,6 +62,14 @@ describe("toAppQuoteRequest", () => {
     expect(toAppQuoteRequest({ ...base, status: "open" }).statusLabel).toBe("진행중");
     expect(toAppQuoteRequest({ ...base, status: "closed" }).statusLabel).toBe("마감");
     expect(toAppQuoteRequest({ ...base, status: "completed" }).statusLabel).toBe("완료");
+  });
+
+  it("colorLabel: mode 4종 + null 숨김", () => {
+    expect(toAppQuoteRequest({ ...base, colorPreferenceMode: "undecided" }).colorLabel).toBe("컬러 미정");
+    expect(toAppQuoteRequest({ ...base, colorPreferenceMode: "no_preference" }).colorLabel).toBe("컬러 무관");
+    expect(toAppQuoteRequest({ ...base, colorPreferenceMode: "selected" }).colorLabel).toBe("컬러 지정");
+    expect(toAppQuoteRequest({ ...base, colorPreferenceMode: "consultation" }).colorLabel).toBe("희망 컬러 있음");
+    expect(toAppQuoteRequest({ ...base, colorPreferenceMode: null }).colorLabel).toBeNull();
   });
 
   it("차량/기간/옵션/차량가 라벨", () => {
@@ -116,6 +131,21 @@ describe("depositLabelOf", () => {
   });
 });
 
+describe("colorLabelOf", () => {
+  it("4 mode 한글 라벨", () => {
+    expect(colorLabelOf("undecided")).toBe("컬러 미정");
+    expect(colorLabelOf("no_preference")).toBe("컬러 무관");
+    expect(colorLabelOf("selected")).toBe("컬러 지정");
+    expect(colorLabelOf("consultation")).toBe("희망 컬러 있음");
+  });
+  it("null(기존 행) → null (라벨 숨김)", () => {
+    expect(colorLabelOf(null)).toBeNull();
+  });
+  it("미지의 값 → null 방어", () => {
+    expect(colorLabelOf("unknown_mode")).toBeNull();
+  });
+});
+
 describe("fetchQuoteRequestDetail", () => {
   it("GET /api/quote-requests/:id 호출 + paymentMethod 한글 매핑", async () => {
     // apiFetch는 fetch(url, { headers }) 형태로 호출하므로 첫 인자(URL)만 검증한다.
@@ -131,6 +161,8 @@ describe("fetchQuoteRequestDetail", () => {
             depositType: "deposit",
             depositRatio: 20,
             rentalDeposit: 11800000,
+            exteriorColorId: 10,
+            interiorColorId: 20,
           }),
           { status: 200 },
         ),
@@ -145,6 +177,22 @@ describe("fetchQuoteRequestDetail", () => {
     expect(d.depositType).toBe("deposit");
     expect(d.depositRatio).toBe(20);
     expect(d.rentalDeposit).toBe(11800000);
+    expect(d.exteriorColorId).toBe(10);
+    expect(d.interiorColorId).toBe(20);
+  });
+
+  it("컬러 id 없는 응답(selected 아님) → null 프리필", async () => {
+    const spy = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ id: "r2", trimId: 100, paymentMethod: "lease", optionIds: [], period: 36, depositType: "deposit", depositRatio: 0, rentalDeposit: 0 }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", spy);
+    const d = await fetchQuoteRequestDetail("r2");
+    expect(d.exteriorColorId).toBeNull();
+    expect(d.interiorColorId).toBeNull();
   });
 });
 

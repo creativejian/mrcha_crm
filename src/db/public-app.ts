@@ -25,6 +25,15 @@ export const quoteRequests = pgTable("quote_requests", {
   // deposit_ratio는 0~100 정수 퍼센트라 number 캐스팅 정밀도 손실 없음(레포 numeric 기본=string 관례의 의도적 이탈 — 시드 계산이 숫자 소비)
   depositRatio: numeric("deposit_ratio", { mode: "number" }),
   trimPrice: bigint("trim_price", { mode: "number" }),
+  // 희망 컬러(2026-07-14 앱 추가). mode는 undecided/no_preference/selected/consultation(CHECK, 앱 소유).
+  // 컬러 6필드는 selected일 때만 채워진다(RPC 서버 CASE 방어). id는 catalog.colors.id 참조(FK 없음, 스냅샷 name/hex 동봉).
+  colorPreferenceMode: text("color_preference_mode"),
+  exteriorColorId: bigint("exterior_color_id", { mode: "number" }),
+  exteriorColorName: text("exterior_color_name"),
+  exteriorColorHex: text("exterior_color_hex"),
+  interiorColorId: bigint("interior_color_id", { mode: "number" }),
+  interiorColorName: text("interior_color_name"),
+  interiorColorHex: text("interior_color_hex"),
 });
 
 export const quoteRequestOptions = pgTable("quote_request_options", {

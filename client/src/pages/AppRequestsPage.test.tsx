@@ -28,6 +28,7 @@ const PHONE_MATCH_ROW: AppQuoteRequest = {
   depositLabel: "보증금 10%",
   trimPriceLabel: "3,500만원",
   optionLabel: "옵션 2개",
+  colorLabel: "컬러 지정",
   statusLabel: "접수",
   matchLabel: "전화 매칭",
   matchedCustomerId: "cust-1",
