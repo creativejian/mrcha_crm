@@ -5,6 +5,7 @@ import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react"
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups } from "@/data/customers";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
+import { manualUpdateInfo } from "@/lib/manage-status";
 
 function stopTableControlPointer(event: ReactPointerEvent<HTMLElement>) {
   event.stopPropagation();
@@ -407,9 +408,12 @@ export function CustomerFinalUpdateCell({
   updateStatus: FinalUpdateStatus | null;
   onToggle: (event: MouseEvent<HTMLButtonElement>, customerNo: number) => void;
 }) {
+  // 파생 info가 없어도(신규·상담접수) 유효 수동 상태 배지는 표시한다 — 관리 상태 필터·상세 드로어와
+  // 판정 일치(배치 4 B2 기각 번복 2026-07-14). 팝오버는 수동 지정 시각으로 폴백.
+  const displayInfo = updateInfo ?? (updateStatus ? manualUpdateInfo(customer) : null);
   return (
     <td className="final-update-cell">
-      {updateInfo && updateStatus ? (
+      {displayInfo && updateStatus ? (
         <div
           className={openFinalUpdateFor === customer.no ? "final-update-control pinned" : "final-update-control"}
           ref={openFinalUpdateFor === customer.no ? finalUpdatePopoverRef : undefined}
@@ -429,8 +433,8 @@ export function CustomerFinalUpdateCell({
             className="final-update-popover"
             role={openFinalUpdateFor === customer.no ? "status" : undefined}
           >
-            <span className="final-update-popover-date">{updateInfo.label}</span>
-            <span className="final-update-popover-action">{updateInfo.action}</span>
+            <span className="final-update-popover-date">{displayInfo.label}</span>
+            <span className="final-update-popover-action">{displayInfo.action}</span>
           </div>
         </div>
       ) : (

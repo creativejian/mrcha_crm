@@ -56,6 +56,26 @@ export function deriveFinalUpdateInfo(
   };
 }
 
+// 유효 수동 상태의 팝오버용 표시 정보 — 신규·상담접수(파생 info null)라도 수동 배지는 표시해야 하므로
+// (수동 지정 자체가 상담사 액션 — 배치 4 B2 기각 번복 2026-07-14) manageStatusAt으로 합성한다.
+// deriveFinalUpdateInfo에 합치지 않는 이유: 그 반환은 응답 SLA(firstResponseDisplay)의 입력이기도 한데
+// 수동 지정은 고객 응대가 아니다 — 응답 "대기 중"은 유지돼야 한다. 팝오버 폴백 전용.
+export function manualUpdateInfo(
+  source: ManageStatusSource,
+  now: Date = new Date()
+): FinalUpdateInfo | null {
+  if (!effectiveManageStatus(source) || !source.manageStatusAt) return null;
+  const at = new Date(source.manageStatusAt);
+  if (Number.isNaN(at.getTime())) return null;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return {
+    action: "관리 상태 수동 지정",
+    label: `${at.getMonth() + 1}월 ${at.getDate()}일 ${p(at.getHours())}:${p(at.getMinutes())}`,
+    atIso: at.toISOString(),
+    days: Math.max(0, kstDayIndex(now) - kstDayIndex(at)),
+  };
+}
+
 // 배지 합성 규칙 SSOT — 목록 필터·행 렌더·상세 워크플로우 3곳이 공유(한쪽만 픽스되는 드리프트 방지).
 // finalUpdateOverride: "방금 전" 로컬 갱신 마킹(파생 대체).
 // 수동 관리 상태는 row(manageStatus/manageStatusAt)가 단일 소스 — 낙관 반영도 App이 row를 직접 갱신한다
