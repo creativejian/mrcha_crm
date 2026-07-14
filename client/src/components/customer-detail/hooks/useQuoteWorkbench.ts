@@ -5,7 +5,8 @@ import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
 import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
-import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
+import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
+import { buildSolutionQuoteInput, parseSolutionQuoteResult, solutionDisplayRatePct, type SolutionSnapshot } from "@/lib/solution-quote";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { seedScenarioCardFromRequest } from "@/lib/quote-request-seed";
 import { type VehicleSelection } from "@/components/VehiclePicker";
@@ -31,6 +32,7 @@ import {
   normalizeQuotePurchaseMethod,
   primaryQuotePurchaseMethod,
   restoreDiscountLines,
+  solutionSnapshotsFromScenarios,
   type AcquisitionTaxMode,
   type CardUiState,
   type DiscountLine,
@@ -88,6 +90,10 @@ export function useQuoteWorkbench({
   // 비교카드 UI 상태(카드 id → CardUiState). 통합 전 속성별 Record 8벌 — 카드 하나를 다루는 모든
   // 동작이 8곳을 건드려야 했고 키 누락을 컴파일러가 못 잡았다(#163 저장 payload 오염).
   const [cardUi, setCardUi] = useState<Record<string, CardUiState>>({});
+  // 솔루션 조회: 전역 1건 in-flight(연타·동시 조회 방지 — 자동 재계산 없는 명시 버튼이라 파트너 서버 보호)와
+  // 카드별 재현성 스냅샷(저장 시 시나리오에 동봉 — 마이그 0031. 수정 재진입 시드가 전체 교체 저장에서 보존 담당).
+  const [solutionLoadingId, setSolutionLoadingId] = useState<string | null>(null);
+  const [solutionSnapshots, setSolutionSnapshots] = useState<Record<string, SolutionSnapshot>>({});
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   // 신규 작성완료 후 "이후 UPDATE 대상 id". editingQuoteId(=비교카드 key·prefill)를 안 건드려야 카드 리마운트(입력 리셋)를 막는다.
   const persistedQuoteIdRef = useRef<string | null>(null);
@@ -530,6 +536,8 @@ export function useQuoteWorkbench({
     setDiscountLines([]);
     setAcquisitionTaxMode("normal");
     setPrimaryDiscountUnit("amount");
+    // 솔루션 스냅샷도 저장 payload에 실리는 값 — 이전 견적 스냅샷이 새 견적에 새는 잔상 방지(#163 부류).
+    setSolutionSnapshots({});
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -704,6 +712,87 @@ export function useQuoteWorkbench({
     };
   }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu]);
 
+  // 비교카드 1장의 조건으로 파트너 계산(POST /api/solution/calculate) 호출 → 결과를 카드 uncontrolled
+  // input에 직접 채운 뒤 handleManualCardFieldEdit()로 미리보기 갱신+dirty 마킹(수동 타이핑과 동일 경로).
+  // in-flight는 카드 단위가 아니라 전역 1건 — 파트너 서버 보호(자동 재계산 없음, 명시 버튼 조회만).
+  async function queryCardSolution(condId: string) {
+    if (solutionLoadingId) return;
+    const compareForm = quoteDetailFormRef.current;
+    const cardEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
+    if (!cardEl) return;
+    const fieldVal = (f: string) => cardEl.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? "";
+    const ui = cardUiOf(cardUi, condId);
+    // 할인 전 차량가(base+option)·할인 총액은 가격패널(pricingPanelRef) uncontrolled input에서 읽는다
+    // (readPricingInputs 재사용 — 저장 추출과 동일 관례. 비교카드 폼(quoteDetailFormRef)에는 data-pricing이 없다).
+    const pricingRoot = pricingPanelRef.current;
+    const pricingNow = pricingRoot ? readPricingInputs(pricingRoot) : null;
+    const built = buildSolutionQuoteInput({
+      lenderLabel: fieldVal("lender") || null,
+      purchaseMethod: solutionWorkbenchPurchaseMethod,
+      termMonths: ui.termMonths,
+      depositMode: ui.depositMode,
+      depositRaw: fieldVal("deposit"),
+      downPaymentMode: ui.downPaymentMode,
+      downPaymentRaw: fieldVal("downPayment"),
+      residualMode: ui.residualMode,
+      residualRaw: fieldVal("residual"),
+      mileageValue: effectiveMileageValue(ui),
+      subsidyApplicable: ui.subsidyApplicable,
+      subsidyRaw: fieldVal("subsidy"),
+      vehicle: {
+        brand: workbenchVehicle?.brand?.name ?? null,
+        model: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
+        mcCode: workbenchVehicle?.trim?.mcCode ?? trimDetail?.mcCode ?? null,
+      },
+      pricing: {
+        baseAndOption: (pricingNow?.basePrice ?? 0) + (pricingNow?.optionPrice ?? 0),
+        discount: pricingNow?.discount ?? 0,
+      },
+    });
+    if (!built.ok) {
+      onToast(built.reason); // fail-loud 매핑 사유(미지원 금융사·MC코드 부재·% 상한 등)를 그대로 표면화
+      return;
+    }
+    setSolutionLoadingId(condId);
+    try {
+      const raw = await requestSolutionQuote(built.input);
+      const parsed = parseSolutionQuoteResult(raw);
+      if (!parsed) {
+        onToast("계산 응답을 해석하지 못했습니다");
+        return;
+      }
+      const setField = (f: string, v: string) => {
+        const el = cardEl.querySelector<HTMLInputElement>(`input[data-sc-field="${f}"]`);
+        if (el) el.value = v;
+      };
+      setField("monthly", formatMoney(parsed.monthlyPayment));
+      // 금리 칸은 data-discount-unit="percent"(콤마 포맷 우회)라 원문 숫자 문자열 그대로. 우리카드는 유효금리(lib 규칙).
+      setField("interestRate", String(solutionDisplayRatePct(built.input.lenderCode, parsed)));
+      // "최대" 모드 표시값 "-"(placeholder) → 실채택 잔가로 갱신(표시 전용 — extract는 max 모드 residualValue를 null 유지).
+      if (ui.residualMode === "max") setField("residual", formatMoney(parsed.residualAmount));
+      // 확장 3필드는 제프 응답 확장 전 null — 값이 온 것만 채운다(수기 입력 보존).
+      if (parsed.totalReturnCost != null) setField("totalReturn", formatMoney(parsed.totalReturnCost));
+      if (parsed.totalTakeoverCost != null) setField("totalTakeover", formatMoney(parsed.totalTakeoverCost));
+      if (parsed.dueAtDelivery != null) setField("dueAtDelivery", formatMoney(parsed.dueAtDelivery));
+      setSolutionSnapshots((prev) => ({
+        ...prev,
+        [condId]: {
+          solutionLenderCode: built.input.lenderCode,
+          solutionWorkbookVersion: parsed.workbookVersion,
+          solutionCalculatedAt: new Date().toISOString(),
+          solutionRaw: raw,
+        },
+      }));
+      if (parsed.warnings.length > 0) onToast(parsed.warnings.join(" · "));
+      handleManualCardFieldEdit();
+    } catch (e) {
+      // 서버 릴레이가 파트너 error 문구를 {error}로 매핑 → HttpError.message(한글)를 그대로 표면화.
+      onToast(e instanceof Error ? e.message : "계산에 실패했습니다");
+    } finally {
+      setSolutionLoadingId(null);
+    }
+  }
+
   // 비교카드 → 시나리오 추출. INSERT/UPDATE 공유. termMonths 포함(PR2c-2).
   // 화면에 보이는 모든 카드(manualQuoteCards) 중 "채워진 카드"만 추출한다 — "조건 저장" 클릭 여부와 무관.
   // 채워짐 = 저장된 카드(savedIds) OR 금융사 선택(미선택 아님) OR 월 납입금 입력(>0).
@@ -746,6 +835,9 @@ export function useQuoteWorkbench({
         totalTakeoverCost: nz(parseMonthlyPayment(fieldVal("totalTakeover") ?? "")),
         dueAtDelivery: nz(parseMonthlyPayment(fieldVal("dueAtDelivery") ?? "")),
         interestRate: parseInterestRate(fieldVal("interestRate") ?? ""),
+        // 솔루션 조회 스냅샷 동봉(조회한 카드만 키 존재) — 서버 시나리오 저장이 전체 교체(delete→insert)라
+        // 미동봉 재저장은 저장된 스냅샷을 null로 덮는다. 수정 재진입 시드(openEditQuote)와 한 쌍.
+        ...(solutionSnapshots[condId] ?? {}),
       });
     }
     return scenarios;
@@ -769,7 +861,7 @@ export function useQuoteWorkbench({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 비교카드 state 변경 시 대표 시나리오 재추출(의도된 동기화 effect)
     setCardScenario(extractWorkbenchScenarios()[0] ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 아래 dep 변경 시점에만 재추출(extract가 읽는 DOM/내부 state는 그 시점 최신; 함수/객체 dep 추가 시 매 렌더 실행)
-  }, [savedManualQuoteConditionIds, manualQuoteCards, cardUi, solutionWorkbenchPurchaseMethod]);
+  }, [savedManualQuoteConditionIds, manualQuoteCards, cardUi, solutionWorkbenchPurchaseMethod, solutionSnapshots]);
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
   // 신규는 첫 INSERT 후 반환 id를 editingQuoteId로 세팅 → 이후 UPDATE(중복 INSERT 방지).
@@ -1102,6 +1194,9 @@ export function useQuoteWorkbench({
     setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...emptyQuoteConditionCards]);
     setSavedManualQuoteConditionIds(editScenarios.map((s) => cardIdOfScenarioNo(s.scenarioNo)));
     setCardUi(cardUiMapFromScenarios(editScenarios));
+    // 솔루션 스냅샷 시드 — 시나리오 저장이 전체 교체라, 재조회 없이 재저장해도 저장된 스냅샷이 보존되게
+    // 저장본에서 카드 id 맵으로 복원(extractWorkbenchScenarios가 되실어 보낸다). 새 조회는 카드별로 덮어쓴다.
+    setSolutionSnapshots(solutionSnapshotsFromScenarios(dq?.scenarios ?? []));
     // 취득세 모드는 견적 저장본에서 복원(미복원 시 이전 세션 잔상이 persist payload에 실려 수정 저장을 오염).
     setAcquisitionTaxMode((dq?.acquisitionTaxMode as AcquisitionTaxMode) ?? "normal");
     setDiscountLines(restoredDiscount.lines); // 저장본 복원(없으면 빈 행 — 다른 견적 잔상도 함께 청소)
@@ -1149,6 +1244,7 @@ export function useQuoteWorkbench({
     savedManualQuoteConditionIds,
     manualQuoteCards,
     cardUi,
+    solutionLoadingId,
     editingQuoteId,
     guidance,
     quoteRequestPrefill,
@@ -1217,6 +1313,7 @@ export function useQuoteWorkbench({
       setManualTermMonthsFor,
       setManualCarTaxFor,
       setManualSubsidyFor,
+      queryCardSolution,
       // 저장/발송/초기화
       saveQuoteDetailDraft,
       saveQuoteFromWorkbench,

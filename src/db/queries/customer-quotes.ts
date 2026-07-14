@@ -346,6 +346,8 @@ export type QuoteCreateBody = {
 };
 
 // 시나리오 N건 insert + 대표(scenario_no 최소) id 반환. createQuote/updateQuote 공용.
+// ⚠️ 전체 교체 계약: updateQuote(scenarios)는 delete→insert라 솔루션 스냅샷(solution_*) 미동봉 재저장이
+//    저장된 스냅샷을 null로 덮는다 — 워크벤치 수정 재진입 시드(useQuoteWorkbench의 solutionSnapshotsFromScenarios)가 보존을 담당.
 async function insertScenarios(
   ex: Executor,
   quoteId: string,

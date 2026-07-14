@@ -2,10 +2,11 @@
 // 훅(useQuoteWorkbench)과 컴포넌트(QuoteWorkbench)가 공유한다.
 
 import { PURCHASE_METHOD_OPTIONS, type PurchaseMethod } from "@/data/customers";
-import { type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
+import { type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { type QuoteGuidance } from "@/data/quote-guidance";
 import { computePricing, formatMoney, type PricingInputs } from "@/lib/quote-pricing";
 import { type ScenarioCardSeed } from "@/lib/quote-request-seed";
+import { type SolutionSnapshot } from "@/lib/solution-quote";
 
 export type DiscountUnit = "amount" | "percent";
 export type DiscountLine = { id: string; label: string; amount: string; unit: DiscountUnit };
@@ -159,6 +160,31 @@ export function cardUiFromScenario(s: EditScenario): CardUiState {
 
 export function cardUiMapFromScenarios(scenarios: EditScenario[]): Record<string, CardUiState> {
   return Object.fromEntries(scenarios.map((s) => [cardIdOfScenarioNo(s.scenarioNo), cardUiFromScenario(s)]));
+}
+
+// 저장 시나리오 행에서 스냅샷 판독에 필요한 서브셋(CustomerDetailScenario 동형 — 서버 select() 전체 반환).
+type ScenarioSnapshotRow = Pick<
+  CustomerDetailScenario,
+  "scenarioNo" | "solutionLenderCode" | "solutionWorkbookVersion" | "solutionCalculatedAt" | "solutionRaw"
+>;
+
+// 수정 재진입 스냅샷 시드 — 시나리오 저장이 전체 교체(서버 insertScenarios delete→insert)라, 워크벤치가
+// 재조회 없이 재저장할 때 이 시드가 저장 payload에 스냅샷을 되실어 소실을 막는다(마이그 0031 계약).
+// 카드 대응 규칙은 cardUiMapFromScenarios와 동일(cardIdOfScenarioNo). lenderCode·calculatedAt 둘 다
+// 있어야 스냅샷 실존으로 본다(수기 시나리오·반쪽 행 제외). solutionCalculatedAt은 서버가 timestamptz를
+// ISO 문자열로 직렬화한 값 그대로 왕복(재변환 없음).
+export function solutionSnapshotsFromScenarios(scenarios: ScenarioSnapshotRow[]): Record<string, SolutionSnapshot> {
+  const entries: [string, SolutionSnapshot][] = [];
+  for (const s of scenarios) {
+    if (s.solutionLenderCode == null || s.solutionCalculatedAt == null) continue;
+    entries.push([cardIdOfScenarioNo(s.scenarioNo ?? 1), {
+      solutionLenderCode: s.solutionLenderCode,
+      solutionWorkbookVersion: s.solutionWorkbookVersion ?? "",
+      solutionCalculatedAt: s.solutionCalculatedAt,
+      solutionRaw: s.solutionRaw,
+    }]);
+  }
+  return Object.fromEntries(entries);
 }
 
 export type EditPrefill = {
