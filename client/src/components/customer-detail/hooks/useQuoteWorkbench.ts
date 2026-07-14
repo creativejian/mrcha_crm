@@ -107,7 +107,7 @@ export function useQuoteWorkbench({
   const seedGuidance = () => ({ ...DEFAULT_QUOTE_GUIDANCE, customerRegion: regionFromResidence(detail.residence) });
   const [editPrefill, setEditPrefill] = useState<EditPrefill | null>(null);
   // 앱 견적요청 승격(S3) prefill. editPrefill(수정·가격 포함)과 별개 — 차량/옵션만 채우고 가격은 catalog 계산.
-  const [quoteRequestPrefill, setQuoteRequestPrefill] = useState<{ trimId: number | null; optionIds: number[] } | null>(null);
+  const [quoteRequestPrefill, setQuoteRequestPrefill] = useState<{ trimId: number | null; optionIds: number[]; exteriorColorId: number | null; interiorColorId: number | null } | null>(null);
   const [sourceQuoteRequestId, setSourceQuoteRequestId] = useState<string | null>(null);
   const [recognizedQuoteFile, setRecognizedQuoteFile] = useState<RecognizedQuoteFile | null>(null);
   const [isQuoteWorkbenchOriginalDragActive, setIsQuoteWorkbenchOriginalDragActive] = useState(false);
@@ -161,8 +161,8 @@ export function useQuoteWorkbench({
       setSolutionWorkbenchEntryMode("manual");
       setSolutionWorkbenchModeMenu(null);
       setSolutionWorkbenchPurchaseMethod(primaryQuotePurchaseMethod(purchaseFields)); // 고객 기본값 먼저(+onClick과 동일)
-      // 견적요청 prefill 설정
-      setQuoteRequestPrefill({ trimId: detail.trimId, optionIds: detail.optionIds });
+      // 견적요청 prefill 설정 — 컬러 id는 selected일 때만 non-null(그 외 mode는 서버가 null로 저장). applyTrimToPricing이 소비.
+      setQuoteRequestPrefill({ trimId: detail.trimId, optionIds: detail.optionIds, exteriorColorId: detail.exteriorColorId, interiorColorId: detail.interiorColorId });
       setSourceQuoteRequestId(reqId);
       // purchaseMethod(한글)가 워크벤치 옵션 목록에 있으면 override, 없으면 위 고객 기본값 유지(stale 방지).
       if (detail.purchaseMethod && quotePurchaseMethodOptions.includes(detail.purchaseMethod as QuotePurchaseMethod)) {
@@ -564,8 +564,11 @@ export function useQuoteWorkbench({
       setTrimDetail(detail);
       setWorkbenchVehicle(selection);
       setSelectedWorkbenchOptionIds(prefill ? prefill.optionIds : (qrPrefill?.optionIds ?? []));
-      setExteriorColor(prefill ? detail.colors.find((c) => c.id === prefill.exteriorColorId) ?? null : null);
-      setInteriorColor(prefill ? detail.colors.find((c) => c.id === prefill.interiorColorId) ?? null : null);
+      // 컬러 프리필: 수정 재진입(editPrefill) 우선, 승격(qrPrefill) 폴백 — 옵션과 대칭. 승격은 selected일 때만 id가
+      // 있고(그 외 null), find가 못 찾으면 null이라 mode 분기 불필요. ColorPicker가 hexValue로 스와치를 렌더.
+      const colorFrom = prefill ?? qrPrefill;
+      setExteriorColor(colorFrom ? detail.colors.find((c) => c.id === colorFrom.exteriorColorId) ?? null : null);
+      setInteriorColor(colorFrom ? detail.colors.find((c) => c.id === colorFrom.interiorColorId) ?? null : null);
       const root = pricingPanelRef.current;
       if (!root) { setEditPrefill(null); return; }
       const setInput = (key: string, value: number) => {

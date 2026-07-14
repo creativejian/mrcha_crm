@@ -1,4 +1,4 @@
-import { DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "../data/quote-request-labels";
+import { COLOR_PREFERENCE_MODE_LABEL, DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "../data/quote-request-labels";
 import { formatActivity, invalidateCustomerDetail } from "./customers";
 import { getJson, sendJson } from "./http";
 import { formatPriceRangeKorean } from "./price-format";
@@ -16,6 +16,13 @@ export type AppQuoteRequestRow = {
   rentalDeposit: number | null;
   trimPrice: number | null;
   status: string | null;
+  colorPreferenceMode: string | null;
+  exteriorColorId: number | null;
+  exteriorColorName: string | null;
+  exteriorColorHex: string | null;
+  interiorColorId: number | null;
+  interiorColorName: string | null;
+  interiorColorHex: string | null;
   brandName: string | null;
   modelName: string | null;
   trimName: string | null;
@@ -47,6 +54,7 @@ export type AppQuoteRequest = {
   depositLabel: string;
   trimPriceLabel: string;
   optionLabel: string;
+  colorLabel: string | null; // null = 기존 행(mode 없음) → 카드 라벨 숨김
   statusLabel: string;
   matchLabel: string;
   matchedCustomerId: string | null;
@@ -74,6 +82,13 @@ export function depositLabelOf(row: Pick<AppQuoteRequestRow, "depositType" | "de
   return `${depositName}${ratioLabel}${amountLabel}`;
 }
 
+// 희망 컬러 상태 → 카드 라벨. mode null(기존 행)·미지의 값이면 null(라벨 숨김).
+// selected일 때 어느 컬러인지는 워크벤치 프리필에서 보여준다(카드는 상태 텍스트만 — 이사님 결정).
+export function colorLabelOf(mode: string | null): string | null {
+  if (!mode) return null;
+  return COLOR_PREFERENCE_MODE_LABEL[mode] ?? null;
+}
+
 export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
   const vehicleLabel =
     [row.brandName, row.modelName].filter(Boolean).join(" ") +
@@ -96,6 +111,7 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
     depositLabel: depositLabelOf(row),
     trimPriceLabel: moneyOrDash(row.trimPrice),
     optionLabel: row.optionCount > 0 ? `${row.optionCount}개` : "없음",
+    colorLabel: colorLabelOf(row.colorPreferenceMode),
     statusLabel: row.status ? (STATUS_LABEL[row.status] ?? row.status) : "—",
     matchLabel,
     matchedCustomerId: row.matchedCustomerId,
@@ -159,6 +175,10 @@ export type QuoteRequestPrefill = {
   depositType: string | null;
   depositRatio: number | null;
   rentalDeposit: number | null;
+  // 컬러 id는 selected일 때만 non-null(서버가 그 경우만 담는다). 워크벤치가 catalog detail.colors에서
+  // id로 TrimColor를 찾아 프리필하므로 name/hex는 프리필에 불필요.
+  exteriorColorId: number | null;
+  interiorColorId: number | null;
 };
 
 export async function fetchQuoteRequestDetail(id: string): Promise<QuoteRequestPrefill> {
@@ -171,6 +191,8 @@ export async function fetchQuoteRequestDetail(id: string): Promise<QuoteRequestP
     depositType: string | null;
     depositRatio: number | null;
     rentalDeposit: number | null;
+    exteriorColorId?: number | null;
+    interiorColorId?: number | null;
   }>(`/api/quote-requests/${id}`);
   return {
     id: d.id,
@@ -181,6 +203,8 @@ export async function fetchQuoteRequestDetail(id: string): Promise<QuoteRequestP
     depositType: d.depositType,
     depositRatio: d.depositRatio,
     rentalDeposit: d.rentalDeposit,
+    exteriorColorId: d.exteriorColorId ?? null,
+    interiorColorId: d.interiorColorId ?? null,
   };
 }
 

@@ -160,6 +160,44 @@ test("getQuoteRequestDetail: 없는 요청 → null", async () => {
   expect(detail).toBeNull();
 });
 
+// 컬러(2026-07-14): quote_requests는 앱 소유라 실 행은 아직 mode=null. selected 값 검증은 롤백 tx로
+// 임시 UPDATE 후 확인(quote_requests엔 알림 트리거 없음 — 부작용/알림 0). catalog.colors FK 없음(실측).
+test("listQuoteRequestsByUser: selected 행의 컬러 필드(mode·외장·내장)를 반환 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  const [req] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
+  await expect(
+    db.transaction(async (tx) => {
+      await tx.update(quoteRequestsTable)
+        .set({ colorPreferenceMode: "selected", exteriorColorId: 7011, exteriorColorName: "카본 블랙 메탈릭", exteriorColorHex: "#111111", interiorColorId: 7053, interiorColorName: "커피", interiorColorHex: "#3a2a1a" })
+        .where(eq(quoteRequestsTable.id, req.id));
+      const rows = await listQuoteRequestsByUser(req.userId, tx);
+      const row = rows.find((r) => r.id === req.id);
+      expect(row?.colorPreferenceMode).toBe("selected");
+      expect(row?.exteriorColorId).toBe(7011);
+      expect(row?.exteriorColorName).toBe("카본 블랙 메탈릭");
+      expect(row?.exteriorColorHex).toBe("#111111");
+      expect(row?.interiorColorId).toBe(7053);
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});
+
+test("getQuoteRequestDetail: selected 요청의 외장·내장 컬러 id 반환 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  const [req] = await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
+  await expect(
+    db.transaction(async (tx) => {
+      await tx.update(quoteRequestsTable)
+        .set({ colorPreferenceMode: "selected", exteriorColorId: 7011, interiorColorId: 7053 })
+        .where(eq(quoteRequestsTable.id, req.id));
+      const detail = await getQuoteRequestDetail(req.id, tx);
+      expect(detail!.exteriorColorId).toBe(7011);
+      expect(detail!.interiorColorId).toBe(7053);
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});
+
 test("GET /api/quote-requests/:id → 200 + detail 형태", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
