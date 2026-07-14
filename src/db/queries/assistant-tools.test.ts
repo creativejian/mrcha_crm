@@ -50,8 +50,9 @@ beforeAll(async () => {
   // updated_at(40일 전) → 파생(장기방치) 복귀.
   // "신선" 3종 = 설정 직후 창(항목 8 ①): updated_at = manage_status_at = T0(동일 스탬프 계약의 실제
   // 도달 상태) → 무활동 0일·버킷 미성립. 유효 수동 비'정상'은 일수 게이트 무관 리포트 포함(목록 배지와
-  // 멤버십 일치 — 유슨생 선승인 2026-07-13·이사님 사후 확인 대기, 확인 대기 항목 8). 신규·상담접수는
-  // 수동이 있어도 계속 제외(목록 배지도 그 조건에서 공백 — 미러, 배치 4 B2 기각 근거).
+  // 멤버십 일치 — 유슨생 선승인 2026-07-13·이사님 사후 확인 대기, 확인 대기 항목 8). 신규·상담접수도
+  // 유효 수동 비'정상'이면 포함(수동 지정 자체가 상담사 액션 — B2 기각 번복 2026-07-14, 유슨생 승인.
+  // 목록 배지·필터·드로어가 수동을 인정하므로 리포트만 빼면 배지↔리포트 모순).
   const manualRows = await db.insert(customers).values([
     { customerCode: `CU-AITOOL-${crypto.randomUUID().slice(0, 8)}`, name: "수동정상도구테스트", statusGroup: "계약완료", status: "배정완료", updatedAt: new Date(T0 - 40 * 86_400_000), manageStatus: "정상", manageStatusAt: new Date(T0) },
     { customerCode: `CU-AITOOL-${crypto.randomUUID().slice(0, 8)}`, name: "수동지연도구테스트", statusGroup: "계약완료", status: "배정완료", recontacted: true, updatedAt: new Date(T0 - 40 * 86_400_000), manageStatus: "지연", manageStatusAt: new Date(T0) },
@@ -201,9 +202,11 @@ test("stale_customers: 유효 수동 '정상' + 무활동 0일은 계속 제외(
   expect(r.lines.some((l) => l.includes("수동신선정상도구테스트"))).toBe(false);
 });
 
-test("stale_customers: 신규·상담접수는 유효 수동이 있어도 제외(목록 배지 공백 미러 — 배치 4 B2 기각 근거 유지)", async () => {
+test("stale_customers: 신규·상담접수도 유효 수동 비'정상'이면 포함(수동 지정 = 상담사 액션 — 배치 4 B2 기각 번복 2026-07-14, 목록 배지 표시와 미러)", async () => {
   const r = await runAssistantTool("stale_customers", {}, "all", USER, db);
-  expect(r.lines.some((l) => l.includes("수동신선신규도구테스트"))).toBe(false);
+  const line = r.lines.find((l) => l.includes("수동신선신규도구테스트"));
+  expect(line).toBeDefined();
+  expect(line).toContain("지연(수동 지정)");
 });
 
 test("delivery_risk: 유효 수동 '지연' + 무활동 0일(임계 미달)도 포함", async () => {

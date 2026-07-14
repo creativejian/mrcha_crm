@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { finalUpdateStatus } from "./customer-table";
-import { deriveFinalUpdateInfo, effectiveManageStatus, resolveUpdateBadge } from "./manage-status";
+import { deriveFinalUpdateInfo, effectiveManageStatus, manualUpdateInfo, resolveUpdateBadge } from "./manage-status";
 
 const NOW = new Date("2026-07-04T12:00:00+09:00");
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
@@ -135,5 +135,33 @@ describe("resolveUpdateBadge — 서버 영속 수동 상태 반영", () => {
     const at = daysAgo(3);
     const { status } = resolveUpdateBadge({ ...base, lastActivityAt: at, manageStatus: "재문의", manageStatusAt: at }, { now: NOW });
     expect(status?.label).toBe("재문의");
+  });
+
+  test("신규·상담접수 + 유효 수동 = status는 수동값, info는 null(파생 공백 유지 — 셀이 manualUpdateInfo로 폴백)", () => {
+    const at = daysAgo(0);
+    const { info, status } = resolveUpdateBadge(
+      { ...base, statusGroup: "신규", status: "상담접수", lastActivityAt: at, manageStatus: "지연", manageStatusAt: at },
+      { now: NOW },
+    );
+    expect(status?.label).toBe("지연");
+    expect(info).toBeNull();
+  });
+});
+
+describe("manualUpdateInfo — 수동 배지 팝오버 폴백(배치 4 B2 기각 번복 2026-07-14)", () => {
+  test("유효 수동이면 manageStatusAt 기반 info 합성 — 액션 '관리 상태 수동 지정'", () => {
+    const at = daysAgo(2);
+    const info = manualUpdateInfo({ ...base, statusGroup: "신규", status: "상담접수", lastActivityAt: at, manageStatus: "지연", manageStatusAt: at }, NOW)!;
+    expect(info.action).toBe("관리 상태 수동 지정");
+    expect(info.atIso).toBe(at);
+    expect(info.days).toBe(2);
+  });
+
+  test("만료 수동(실활동이 더 최신)은 null — 유효 판정을 effectiveManageStatus와 공유", () => {
+    expect(manualUpdateInfo({ ...base, lastActivityAt: daysAgo(1), manageStatus: "지연", manageStatusAt: daysAgo(5) }, NOW)).toBeNull();
+  });
+
+  test("수동 미설정은 null", () => {
+    expect(manualUpdateInfo({ ...base, lastActivityAt: daysAgo(1) }, NOW)).toBeNull();
   });
 });
