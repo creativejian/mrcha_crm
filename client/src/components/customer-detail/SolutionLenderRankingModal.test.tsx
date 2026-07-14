@@ -118,4 +118,16 @@ describe("SolutionLenderRankingModal (개정 2 R4 — 제프 랭킹 UX 미러)",
     await waitFor(() => expect(container.querySelector(".kim-solution-rank-empty")?.textContent).toBe("조회 결과가 없습니다"));
     expect(container.querySelector(".kim-solution-lender-foot p")?.textContent).toContain("수기 작성");
   });
+
+  it("전부 실패(에러성 — 미취급 아님) → 사유가 empty state에 표면화(무결과 위장 금지)", async () => {
+    // env 오설정(릴레이 503) 등이 "조회 결과가 없습니다"로 위장돼 실사용 혼란을 낸 실사례의 회귀 그물.
+    requestSolution.mockReset();
+    requestSolution.mockRejectedValue(new Error("솔루션 연결이 설정되지 않았습니다(PARTNER_QUOTE_API_URL 미설정)"));
+    const { container } = renderModal();
+    await waitFor(() =>
+      expect(container.querySelector(".kim-solution-rank-empty")?.textContent).toContain(
+        "조회에 실패했습니다 — 솔루션 연결이 설정되지 않았습니다",
+      ),
+    );
+  });
 });

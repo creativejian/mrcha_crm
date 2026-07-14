@@ -61,6 +61,9 @@ export function SolutionLenderRankingModal({ condId, purchaseMethod, buildBaseAr
   const [entries, setEntries] = useState<Record<string, SolutionRankingEntry>>({});
   const [doneCount, setDoneCount] = useState(0);
   const [sortType, setSortType] = useState<RankingSortType>("monthlyPayment");
+  // 에러성 실패(미취급 아님 — 릴레이 503/네트워크/스키마 이탈)의 첫 사유. 전사 실패가 "조회 결과 없음"으로
+  // 위장되지 않게 empty state에서 표면화한다(fail-loud — env 오설정이 무결과처럼 보였던 실사용 혼란 재발 방지).
+  const [failureNote, setFailureNote] = useState<string | null>(null);
 
   useEffect(() => {
     // 마운트 1회 전 금융사 병렬 조회(모달 = 오픈마다 새 마운트 — solutionLenderPickerId 조건부 렌더).
@@ -83,6 +86,7 @@ export function SolutionLenderRankingModal({ condId, purchaseMethod, buildBaseAr
           if (!parsed) {
             // 응답 도착했으나 형태 이탈(파트너 스키마 드리프트) — 미취급과 구분되게 관측 로그를 남긴다.
             console.warn(`[solution] 랭킹 응답 해석 실패 lender=${lender.code}`);
+            setFailureNote((prev) => prev ?? "계산 응답을 해석하지 못했습니다");
             return;
           }
           const entry = buildRankingEntry(lender.code, lender.label, parsed, raw, built.input.productType, built.input.leaseTermMonths);
@@ -93,7 +97,10 @@ export function SolutionLenderRankingModal({ condId, purchaseMethod, buildBaseAr
           // 미취급·실패 = 행에서 조용히 제외(개정 2 R4-5). 미취급 아닌 실패(네트워크·5xx)만 관측 로그 —
           // "전부 조용히 사라짐"이 장애인지 미취급인지 tail/콘솔에서 구분 가능하게.
           const msg = e instanceof Error ? e.message : String(e);
-          if (!isLenderNotAvailableMessage(msg)) console.warn(`[solution] 랭킹 조회 실패 lender=${lender.code}: ${msg}`);
+          if (!isLenderNotAvailableMessage(msg)) {
+            console.warn(`[solution] 랭킹 조회 실패 lender=${lender.code}: ${msg}`);
+            setFailureNote((prev) => prev ?? msg);
+          }
         })
         .finally(() => {
           if (!cancelled) setDoneCount((n) => n + 1);
@@ -152,7 +159,9 @@ export function SolutionLenderRankingModal({ condId, purchaseMethod, buildBaseAr
         </div>
         <div className="kim-solution-rank-list">
           {sorted.length === 0 && !isLoading ? (
-            <p className="kim-solution-rank-empty">조회 결과가 없습니다</p>
+            <p className="kim-solution-rank-empty">
+              {failureNote ? `조회에 실패했습니다 — ${failureNote}` : "조회 결과가 없습니다"}
+            </p>
           ) : (
             sorted.map((entry, idx) => {
               // stats는 collected 비어있지 않으면 non-null(sorted와 같은 집합) — 뱃지/차액은 집합 전체 대비.
