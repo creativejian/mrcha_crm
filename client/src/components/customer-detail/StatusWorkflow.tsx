@@ -1,5 +1,6 @@
 import { Check, History, MessageSquareText } from "lucide-react";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useNavigate } from "react-router";
 
 import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, customerStatusGroups, type Customer } from "@/data/customers";
 import { consultKindClass } from "@/lib/detail-utils";
@@ -12,7 +13,6 @@ import type { useCustomerWorkflow } from "./hooks/useCustomerWorkflow";
 
 type StatusWorkflowProps = {
   customer: Customer;
-  onToast: (message: string) => void;
   // 부모 소유 공유 인프라(니즈·구매조건도 사용) — props로 받는다.
   openEditor: OpenEditorState | null;
   setOpenEditor: Dispatch<SetStateAction<OpenEditorState | null>>;
@@ -21,8 +21,11 @@ type StatusWorkflowProps = {
   workflow: ReturnType<typeof useCustomerWorkflow>;
 };
 
-export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, workflow }: StatusWorkflowProps) {
+export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEditor, editorRef, workflow }: StatusWorkflowProps) {
   const { statusValues, advisorId, stageGroup, stageStatus, chance, manage, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
+  const navigate = useNavigate();
+  // 앱 채팅 이동은 앱 계정 연결(appUserId)이 전제 — source 어휘만 앱 계열이고 미연결이면 볼 채팅이 없다.
+  const appChatUserId = hasAppSourceQueue(statusValues.source) ? customer.appUserId ?? null : null;
 
   function renderStatusEditor(key: StatusFieldKey) {
     return (
@@ -204,14 +207,15 @@ export function StatusWorkflow({ customer, onToast, openEditor, setOpenEditor, t
                   <span>{field.label}</span>
                   <strong className={`has-inline-actions${isUnassignedStatus(field.key, statusValues[field.key]) ? " is-unassigned" : ""}`}>
                     {statusValues[field.key]}
-                    {hasAppSourceQueue(statusValues[field.key]) ? (
+                    {appChatUserId ? (
                     <button
-                      aria-label="앱 상담 큐 보기"
+                      aria-label="앱 채팅 상담 보기"
                       className="kim-app-queue-button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onToast("차선생 앱 상담 큐 패널 자리입니다.");
+                        navigate(`/chat?user=${encodeURIComponent(appChatUserId)}`);
                       }}
+                      title="앱 채팅 상담 보기"
                       type="button"
                     >
                       <MessageSquareText size={13} strokeWidth={2.4} />
