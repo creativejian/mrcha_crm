@@ -5,7 +5,6 @@ import {
   SOLUTION_LENDERS,
   buildSolutionQuoteInput,
   parseSolutionQuoteResult,
-  solutionDisplayRatePct,
   solutionLenderOptions,
   solutionProductTypeOf,
 } from "./solution-quote";
@@ -183,10 +182,5 @@ describe("parseSolutionQuoteResult", () => {
     ).toBeNull();
   });
 
-  test("금리 표시: 우리카드만 유효금리, 그 외 표면금리(제프 QuoteResultCard 규칙 미러)", () => {
-    const p = parseSolutionQuoteResult(RAW);
-    if (!p) throw new Error("parse 실패");
-    expect(solutionDisplayRatePct("woori-card", p)).toBeCloseTo(5.61);
-    expect(solutionDisplayRatePct("shinhan-card", p)).toBeCloseTo(5.32);
-  });
+  // (solutionDisplayRatePct 케이스는 개정 1로 제거 — 카드 금리는 lease-rate.ts 실질 금리 파생이 담당.)
 });

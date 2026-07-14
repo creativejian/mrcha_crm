@@ -91,12 +91,13 @@ function quoteListStub() {
 }
 
 function setup() {
-  return renderHook(
+  const onToast = vi.fn();
+  const hook = renderHook(
     () =>
       useQuoteWorkbench({
         detail,
         customer,
-        onToast: vi.fn(),
+        onToast,
         markRecentUpdate: vi.fn(),
         quoteList: quoteListStub(),
         purchaseFields: [{ label: "구매방식", value: "운용리스" }],
@@ -104,6 +105,7 @@ function setup() {
       }),
     { wrapper: ({ children }: { children: ReactNode }) => <MemoryRouter>{children}</MemoryRouter> },
   );
+  return Object.assign(hook, { onToast });
 }
 
 // 이전 세션(수정 진입 등)이 남긴 카드 UI 상태를 주입한다 — 카드 모드·할인 행·취득세 모드.
@@ -298,22 +300,62 @@ async function savedScenarios(result: ReturnType<typeof setup>["result"]) {
 }
 
 describe("useQuoteWorkbench — 솔루션 조회 결과 반영·늦은 응답 잔상 가드", () => {
-  it("조회 성공: 카드 input에 결과를 채우고 스냅샷이 저장 payload 시나리오에 동봉된다(가드 대조군)", async () => {
+  it("조회 성공: 월납입·잔가 채움 + 결과 4필드는 리스계산기 파생(개정 1 R3) + 스냅샷이 저장 payload에 동봉된다(가드 대조군)", async () => {
     const { result } = setup();
     const { pricingRoot, compareForm } = await setupSolutionDom(result);
     const card = buildCardDom("manual-condition-1", { lender: "iM캐피탈" });
     compareForm.append(card);
     requestSolution.mockResolvedValue(partnerResponse);
     await act(async () => { await result.current.handlers.queryCardSolution("manual-condition-1"); });
-    expect(card.querySelector<HTMLInputElement>('input[data-sc-field="monthly"]')!.value).toBe("1,234,567");
-    expect(card.querySelector<HTMLInputElement>('input[data-sc-field="interestRate"]')!.value).toBe("5.32");
+    const cardField = (f: string) => card.querySelector<HTMLInputElement>(`input[data-sc-field="${f}"]`)!.value;
+    expect(cardField("monthly")).toBe("1,234,567");
+    expect(cardField("residual")).toBe("20,000,000"); // 최대 모드 실채택 잔가(제프 응답) — 파생의 잔가 입력
+    // 결과 4필드 = 제프 응답이 아니라 파생값: 취득원가 50,000,000·기간 60·선수금/보증금 0·기타비용 0 기준.
+    expect(cardField("totalReturn")).toBe("74,074,020"); // 1,234,567×60 + 0
+    expect(cardField("totalTakeover")).toBe("94,074,020"); // + 잔가 20,000,000
+    expect(cardField("dueAtDelivery")).toBe("0"); // 보증금 0 + 선수금 0 + 기타비용 0
+    expect(cardField("interestRate")).toBe("23.16"); // RATE 역산 실질 금리(제프 표면금리 5.32와 다름 — 개정 1 의미론)
     const scenarios = await savedScenarios(result);
     expect(scenarios).toHaveLength(1);
     expect(scenarios[0]).toMatchObject({
       monthlyPayment: "1234567",
+      totalReturnCost: "74074020",
+      totalTakeoverCost: "94074020",
+      dueAtDelivery: null, // 파생 0 → nz()가 null 처리(가짜 0 영속 방지)
+      interestRate: "23.16",
       solutionLenderCode: "im-capital",
       solutionWorkbookVersion: "2026-07 v2",
     });
+    pricingRoot.remove();
+    compareForm.remove();
+  });
+
+  it("계산기 3분기(개정 1 R1): 미선택 → 모달 / 모달 선택 → 즉시 계산 / 미지원사 → 미취급 경고", async () => {
+    const { result, onToast } = setup();
+    const { pricingRoot, compareForm } = await setupSolutionDom(result);
+    const card = buildCardDom("manual-condition-1"); // lender 기본값 = 미선택
+    compareForm.append(card);
+    requestSolution.mockClear();
+    requestSolution.mockResolvedValue(partnerResponse);
+    // ① 미선택 → 지원 금융사 모달 오픈(계산 없음)
+    act(() => result.current.handlers.handleSolutionQueryClick("manual-condition-1"));
+    expect(result.current.solutionLenderPickerId).toBe("manual-condition-1");
+    expect(requestSolution).not.toHaveBeenCalled();
+    // ② 모달 선택 → 카드 select 값 세팅 + 모달 닫힘 + 즉시 계산(R1-1)
+    await act(async () => { result.current.handlers.pickSolutionLender("manual-condition-1", "iM캐피탈"); });
+    expect(card.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')!.value).toBe("iM캐피탈");
+    expect(result.current.solutionLenderPickerId).toBeNull();
+    expect(requestSolution).toHaveBeenCalledTimes(1);
+    // ③ 미지원사(레거시 저장 어휘) → 계산 없이 경고 토스트(R1-3, 카드 불변)
+    const select = card.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')!;
+    const legacy = document.createElement("option");
+    legacy.value = "우리금융캐피탈";
+    legacy.textContent = "우리금융캐피탈";
+    select.append(legacy);
+    select.value = "우리금융캐피탈";
+    act(() => result.current.handlers.handleSolutionQueryClick("manual-condition-1"));
+    expect(requestSolution).toHaveBeenCalledTimes(1); // 증가 없음
+    expect(onToast).toHaveBeenCalledWith("「우리금융캐피탈」은(는) 솔루션 미취급 금융사입니다 — 수기로 작성해 주세요");
     pricingRoot.remove();
     compareForm.remove();
   });

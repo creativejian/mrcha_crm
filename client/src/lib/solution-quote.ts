@@ -17,6 +17,10 @@ export const SOLUTION_LENDERS = [
 
 export type SolutionLenderCode = (typeof SOLUTION_LENDERS)[number]["code"];
 
+// CRM 소유 수기 전용 금융사(개정 1 R2 — 어휘 = 파트너 상위집합 구조). 여기 라벨을 한 줄 추가하면
+// 금융사 select에 노출되지만 계산기는 미취급 경고(R1-3)를 낸다 — 파트너 미지원사의 수기 견적용.
+export const CRM_EXTRA_LENDERS: readonly string[] = [];
+
 // 장기렌트 취급 3사 — 파트너 app.ts의 long_term_rental dispatch 게이트 미러.
 const RENTAL_LENDER_CODES: readonly SolutionLenderCode[] = ["mg-capital", "meritz-capital", "im-capital"];
 
@@ -213,10 +217,8 @@ export function parseSolutionQuoteResult(raw: unknown): SolutionQuoteParsed | nu
   };
 }
 
-// 금리 표시 선택 — 우리카드는 잔가보장수수료 lump-sum 때문에 유효금리가 메인(제프 QuoteResultCard.tsx:29 미러).
-export function solutionDisplayRatePct(lenderCode: SolutionLenderCode, parsed: SolutionQuoteParsed): number {
-  return lenderCode === "woori-card" ? parsed.effectiveAnnualRatePct : parsed.annualRatePct;
-}
+// (solutionDisplayRatePct — 우리카드 유효금리 표시 규칙 — 는 개정 1로 제거: 카드 금리는 제프 응답이 아니라
+// 리스계산기 실질 금리 파생(lease-rate.ts). 제프 금리 필드는 raw 스냅샷·파서에만 잔존.)
 
 // 시나리오 저장에 동봉하는 재현성 스냅샷(마이그 0031 — 스펙 결정 4·5).
 export type SolutionSnapshot = {
