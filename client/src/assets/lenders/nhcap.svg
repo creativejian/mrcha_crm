@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="농협캐피탈">
+  <!-- 농협 CI 심볼 (노랑) + 농협 워드마크 (초록) 벡터 재현 -->
+  <g fill="#F4B400">
+    <!-- 상단 두 갈래 (V 노치) -->
+    <path d="M39 44 L14 10 L34 28 L50 38 L66 28 L86 10 L61 44 Z"/>
+    <!-- 본체 링 (도넛) -->
+    <path fill-rule="evenodd" d="M50 33 A25 25 0 1 0 50.1 33 Z M50 49 A9 9 0 1 0 50.1 49 Z"/>
+  </g>
+  <text x="50" y="96" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif"
+        font-size="22" font-weight="800" fill="#21A038" text-anchor="middle">농협</text>
+</svg>

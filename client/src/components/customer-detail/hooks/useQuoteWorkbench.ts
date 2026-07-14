@@ -6,7 +6,8 @@ import { type CustomerDetailData } from "@/lib/customers";
 import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
-import { buildSolutionQuoteInput, parseSolutionQuoteResult, solutionLenderOptions, type SolutionSnapshot } from "@/lib/solution-quote";
+import { buildSolutionQuoteInput, parseSolutionQuoteResult, solutionLenderOptions, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
+import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solution-ranking";
 import { deriveCardResults, residualAmountOf } from "@/lib/lease-rate";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { seedScenarioCardFromRequest } from "@/lib/quote-request-seed";
@@ -731,43 +732,101 @@ export function useQuoteWorkbench({
     };
   }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu, solutionLenderPickerId]);
 
-  // 비교카드 1장의 조건으로 파트너 계산(POST /api/solution/calculate) 호출 → 결과를 카드 uncontrolled
-  // input에 직접 채운 뒤 handleManualCardFieldEdit()로 미리보기 갱신+dirty 마킹(수동 타이핑과 동일 경로).
-  // in-flight는 카드 단위가 아니라 전역 1건 — 파트너 서버 보호(자동 재계산 없음, 명시 버튼 조회만).
-  async function queryCardSolution(condId: string) {
-    if (solutionLoadingId) return;
+  // 카드 1장의 조건 스냅샷 → 파트너 입력 조립 인자(금융사 제외). 직접 계산(queryCardSolution)과
+  // 랭킹 모달 배치(SolutionLenderRankingModal — 금융사별 병렬, 개정 2 R4)가 같은 조립을 공유한다.
+  function buildCardSolutionArgs(condId: string): { cardEl: HTMLElement; base: Omit<BuildArgs, "lenderLabel"> } | null {
     const compareForm = quoteDetailFormRef.current;
     const cardEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
-    if (!cardEl) return;
+    if (!cardEl) return null;
     const fieldVal = (f: string) => cardEl.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? "";
     const ui = cardUiOf(cardUi, condId);
     // 할인 전 차량가(base+option)·할인 총액은 가격패널(pricingPanelRef) uncontrolled input에서 읽는다
     // (readPricingInputs 재사용 — 저장 추출과 동일 관례. 비교카드 폼(quoteDetailFormRef)에는 data-pricing이 없다).
     const pricingRoot = pricingPanelRef.current;
     const pricingNow = pricingRoot ? readPricingInputs(pricingRoot) : null;
-    const built = buildSolutionQuoteInput({
-      lenderLabel: fieldVal("lender") || null,
-      purchaseMethod: solutionWorkbenchPurchaseMethod,
-      termMonths: ui.termMonths,
-      depositMode: ui.depositMode,
-      depositRaw: fieldVal("deposit"),
-      downPaymentMode: ui.downPaymentMode,
-      downPaymentRaw: fieldVal("downPayment"),
-      residualMode: ui.residualMode,
-      residualRaw: fieldVal("residual"),
-      mileageValue: effectiveMileageValue(ui),
-      subsidyApplicable: ui.subsidyApplicable,
-      subsidyRaw: fieldVal("subsidy"),
-      vehicle: {
-        brand: workbenchVehicle?.brand?.name ?? null,
-        model: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
-        mcCode: workbenchVehicle?.trim?.mcCode ?? trimDetail?.mcCode ?? null,
+    return {
+      cardEl,
+      base: {
+        purchaseMethod: solutionWorkbenchPurchaseMethod,
+        termMonths: ui.termMonths,
+        depositMode: ui.depositMode,
+        depositRaw: fieldVal("deposit"),
+        downPaymentMode: ui.downPaymentMode,
+        downPaymentRaw: fieldVal("downPayment"),
+        residualMode: ui.residualMode,
+        residualRaw: fieldVal("residual"),
+        mileageValue: effectiveMileageValue(ui),
+        subsidyApplicable: ui.subsidyApplicable,
+        subsidyRaw: fieldVal("subsidy"),
+        vehicle: {
+          brand: workbenchVehicle?.brand?.name ?? null,
+          model: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
+          mcCode: workbenchVehicle?.trim?.mcCode ?? trimDetail?.mcCode ?? null,
+        },
+        pricing: {
+          baseAndOption: (pricingNow?.basePrice ?? 0) + (pricingNow?.optionPrice ?? 0),
+          discount: pricingNow?.discount ?? 0,
+        },
       },
-      pricing: {
-        baseAndOption: (pricingNow?.basePrice ?? 0) + (pricingNow?.optionPrice ?? 0),
-        discount: pricingNow?.discount ?? 0,
+    };
+  }
+
+  // 랭킹 모달용 조립 인자 — 컴포넌트에 카드 DOM은 노출하지 않는다(base만, 채움은 pickRankingEntry가 담당).
+  function buildCardSolutionBaseArgs(condId: string): Omit<BuildArgs, "lenderLabel"> | null {
+    return buildCardSolutionArgs(condId)?.base ?? null;
+  }
+
+  // 조회 결과를 카드에 채우는 단일 경로 — 직접 계산(queryCardSolution)·랭킹 모달 행 선택(pickRankingEntry) 공유.
+  // 월납입 = 표시 라운딩 값(개정 2 R4: 운용리스 100원 올림·렌트 raw — 모달 행과 카드 일치, 원값은 raw 스냅샷 보존).
+  function applySolutionResult(args: {
+    cardEl: HTMLElement;
+    condId: string;
+    lenderLabel: string;
+    lenderCode: SolutionLenderCode;
+    parsed: SolutionQuoteParsed;
+    raw: unknown;
+    monthlyDisplay: number;
+  }) {
+    const { cardEl, condId, lenderLabel, lenderCode, parsed, raw, monthlyDisplay } = args;
+    // 워크벤치 전환/닫힘 후 늦은 응답/지연 선택 가드 — 카드 key(`${editingQuoteId ?? "new"}-${condId}`) 리마운트
+    // 구조상 detach가 완전한 판별자. 없으면 stale 스냅샷 병합 + dirty 마킹이 다음 견적 저장 payload를 오염(#163 잔상 부류).
+    if (!cardEl.isConnected) return;
+    // 금융사 select 세팅(uncontrolled DOM) — 모달 선택 경로의 확정, 직접 계산 경로는 이미 그 값(멱등).
+    const lenderSelect = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]');
+    if (lenderSelect) lenderSelect.value = lenderLabel;
+    const setField = (f: string, v: string) => {
+      const el = cardEl.querySelector<HTMLInputElement>(`input[data-sc-field="${f}"]`);
+      if (el) el.value = v;
+    };
+    setField("monthly", formatMoney(monthlyDisplay));
+    // "최대" 모드 표시값 "-"(placeholder) → 실채택 잔가로 갱신(표시 전용 — extract는 max 모드 residualValue를 null 유지.
+    // 인수 총비용·금리 파생의 잔가 입력이기도 하다 — residualAmountOf가 이 값을 읽는다).
+    if (cardUiOf(cardUi, condId).residualMode === "max") setField("residual", formatMoney(parsed.residualAmount));
+    // 결과 4필드(반납/인수/출고 전/금리)는 제프 응답으로 채우지 않는다(개정 1 R3) — 아래
+    // handleManualCardFieldEdit → deriveAndFillCardResults가 리스계산기 산식으로 파생해 채운다.
+    // 제프 금리·확장 필드는 solutionRaw 스냅샷에만 보존.
+    setSolutionSnapshots((prev) => ({
+      ...prev,
+      [condId]: {
+        solutionLenderCode: lenderCode,
+        solutionWorkbookVersion: parsed.workbookVersion,
+        solutionCalculatedAt: new Date().toISOString(),
+        solutionRaw: raw,
       },
-    });
+    }));
+    if (parsed.warnings.length > 0) onToast(parsed.warnings.join(" · "));
+    handleManualCardFieldEdit();
+  }
+
+  // 비교카드 1장의 조건으로 파트너 계산(POST /api/solution/calculate) 직접 호출(금융사 선택된 카드).
+  // in-flight는 카드 단위가 아니라 전역 1건 — 파트너 서버 보호(자동 재계산 없음, 명시 버튼 조회만).
+  async function queryCardSolution(condId: string) {
+    if (solutionLoadingId) return;
+    const assembled = buildCardSolutionArgs(condId);
+    if (!assembled) return;
+    const { cardEl, base } = assembled;
+    const lenderLabel = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value ?? "";
+    const built = buildSolutionQuoteInput({ ...base, lenderLabel: lenderLabel || null });
     if (!built.ok) {
       onToast(built.reason); // fail-loud 매핑 사유(미지원 금융사·MC코드 부재·% 상한 등)를 그대로 표면화
       return;
@@ -775,36 +834,20 @@ export function useQuoteWorkbench({
     setSolutionLoadingId(condId);
     try {
       const raw = await requestSolutionQuote(built.input);
-      // 워크벤치 전환/닫힘 후 늦은 응답 가드 — 카드 key(`${editingQuoteId ?? "new"}-${condId}`) 리마운트 구조상
-      // detach가 완전한 판별자. 없으면 stale 스냅샷 병합 + dirty 마킹이 다음 견적 저장 payload를 오염(#163 잔상 부류).
-      if (!cardEl.isConnected) return;
       const parsed = parseSolutionQuoteResult(raw);
       if (!parsed) {
-        onToast("계산 응답을 해석하지 못했습니다");
+        if (cardEl.isConnected) onToast("계산 응답을 해석하지 못했습니다"); // detach 후 늦은 응답은 침묵(가드 관례)
         return;
       }
-      const setField = (f: string, v: string) => {
-        const el = cardEl.querySelector<HTMLInputElement>(`input[data-sc-field="${f}"]`);
-        if (el) el.value = v;
-      };
-      setField("monthly", formatMoney(parsed.monthlyPayment));
-      // "최대" 모드 표시값 "-"(placeholder) → 실채택 잔가로 갱신(표시 전용 — extract는 max 모드 residualValue를 null 유지.
-      // 인수 총비용·금리 파생의 잔가 입력이기도 하다 — residualAmountOf가 이 값을 읽는다).
-      if (ui.residualMode === "max") setField("residual", formatMoney(parsed.residualAmount));
-      // 결과 4필드(반납/인수/출고 전/금리)는 제프 응답으로 채우지 않는다(개정 1 R3) — 아래
-      // handleManualCardFieldEdit → deriveAndFillCardResults가 리스계산기 산식으로 파생해 채운다.
-      // 제프 금리·확장 필드는 solutionRaw 스냅샷에만 보존.
-      setSolutionSnapshots((prev) => ({
-        ...prev,
-        [condId]: {
-          solutionLenderCode: built.input.lenderCode,
-          solutionWorkbookVersion: parsed.workbookVersion,
-          solutionCalculatedAt: new Date().toISOString(),
-          solutionRaw: raw,
-        },
-      }));
-      if (parsed.warnings.length > 0) onToast(parsed.warnings.join(" · "));
-      handleManualCardFieldEdit();
+      applySolutionResult({
+        cardEl,
+        condId,
+        lenderLabel,
+        lenderCode: built.input.lenderCode,
+        parsed,
+        raw,
+        monthlyDisplay: solutionMonthlyDisplay(built.input.productType, parsed.monthlyPayment),
+      });
     } catch (e) {
       // 서버 릴레이가 파트너 error 문구를 {error}로 매핑 → HttpError.message(한글)를 그대로 표면화.
       onToast(e instanceof Error ? e.message : "계산에 실패했습니다");
@@ -813,13 +856,23 @@ export function useQuoteWorkbench({
     }
   }
 
-  // 계산기 버튼 3분기(개정 1 R1): ①금융사 미선택 → 지원 금융사 모달 ②파트너 지원사 → 즉시 계산
+  // 계산기 버튼 3분기(개정 1 R1·개정 2 R4): ①금융사 미선택 → 일괄 조회 랭킹 모달 ②파트너 지원사 → 즉시 계산
   // ③미지원사(레거시 저장값·CRM_EXTRA_LENDERS 등) → 계산 없이 경고(수기 몫 안내). 지원 판정은
   // select 옵션이 아니라 이 클릭 시점(R2 — 어휘가 파트너 상위집합이라 옵션 존재 ≠ 계산 가능).
   function handleSolutionQueryClick(condId: string) {
     const cardEl = quoteDetailFormRef.current?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
     const lender = cardEl?.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value ?? "";
     if (!lender || lender === "미선택") {
+      // 모달 오픈 전 사전 검증(금융사 외 공통 조건 — 차량/MC코드/가격/기간/약정거리): 전 금융사가 같은 사유로
+      // 실패할 모달 대신 기존 fail-loud 토스트. 프로브 금융사 = 지원 목록 1번(목록에서 뽑아 금융사 게이트는 항상 통과).
+      const options = solutionLenderOptions(solutionWorkbenchPurchaseMethod);
+      const assembled = buildCardSolutionArgs(condId);
+      if (!assembled || options.length === 0) return; // 미지원 구매방식은 버튼 disabled라 실도달 없음(방어)
+      const probe = buildSolutionQuoteInput({ ...assembled.base, lenderLabel: options[0].label });
+      if (!probe.ok) {
+        onToast(probe.reason);
+        return;
+      }
       setSolutionLenderPickerId(condId);
       return;
     }
@@ -830,16 +883,23 @@ export function useQuoteWorkbench({
     onToast(`「${lender}」은(는) 솔루션 미취급 금융사입니다 — 수기로 작성해 주세요`);
   }
 
-  // 모달에서 금융사 선택: 카드 select 값 세팅(uncontrolled DOM 직접 쓰기) → 미리보기 갱신+dirty →
-  // 모달 닫고 즉시 그 금융사로 계산(개정 1 R1-1 "선택 즉시 계산").
-  function pickSolutionLender(condId: string, lenderLabel: string) {
-    const select = quoteDetailFormRef.current?.querySelector<HTMLSelectElement>(
-      `[data-scenario-card="${condId}"] select[data-sc-field="lender"]`,
-    );
-    if (select) select.value = lenderLabel;
-    handleManualCardFieldEdit();
+  // 랭킹 모달 행 선택(개정 2 R4-3): 그 금융사 결과(entry.raw)로 카드 채움 + 스냅샷 → 모달 닫기.
+  // 재호출 없음 — 모달 배치가 이미 받아둔 응답을 그대로 영속(모달 행 표시값과 카드 채움 값 일치).
+  function pickRankingEntry(condId: string, entry: SolutionRankingEntry) {
     setSolutionLenderPickerId(null);
-    void queryCardSolution(condId);
+    const cardEl = quoteDetailFormRef.current?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
+    if (!cardEl) return;
+    const parsed = parseSolutionQuoteResult(entry.raw); // entry가 이 raw로 조립됐으므로 항상 해석 가능(방어 겸)
+    if (!parsed) return;
+    applySolutionResult({
+      cardEl,
+      condId,
+      lenderLabel: entry.label,
+      lenderCode: entry.lenderCode,
+      parsed,
+      raw: entry.raw,
+      monthlyDisplay: entry.monthlyDisplay,
+    });
   }
 
   // 비교카드 → 시나리오 추출. INSERT/UPDATE 공유. termMonths 포함(PR2c-2).
@@ -1417,7 +1477,8 @@ export function useQuoteWorkbench({
       setManualSubsidyFor,
       queryCardSolution,
       handleSolutionQueryClick,
-      pickSolutionLender,
+      buildCardSolutionBaseArgs,
+      pickRankingEntry,
       setSolutionLenderPickerId,
       // 저장/발송/초기화
       saveQuoteDetailDraft,

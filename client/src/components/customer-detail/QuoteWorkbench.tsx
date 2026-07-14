@@ -10,6 +10,7 @@ import { ColorPicker } from "@/components/ColorPicker";
 import { AppCardPreview } from "@/components/AppCardPreview";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker } from "@/components/VehiclePicker";
+import { SolutionLenderRankingModal } from "./SolutionLenderRankingModal";
 
 import {
   cardUiOf,
@@ -107,7 +108,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     setManualCarTaxFor,
     setManualSubsidyFor,
     handleSolutionQueryClick,
-    pickSolutionLender,
+    buildCardSolutionBaseArgs,
+    pickRankingEntry,
     setSolutionLenderPickerId,
     saveQuoteDetailDraft,
     saveQuoteFromWorkbench,
@@ -593,43 +595,16 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
           </div>
         ) : null}
         {solutionLenderPickerId ? (
-          /* 개정 1 R1-1: 금융사 미선택 상태에서 계산기 클릭 → 파트너 지원 금융사 선택 모달(선택 즉시 계산).
-             앱카드 미리보기 모달과 같은 문법(backdrop 클릭/X/취소로 닫힘 — Esc는 워크벤치 공통 규칙에 위임). */
-          <div
-            className="kim-solution-lender-modal"
-            onClick={() => setSolutionLenderPickerId(null)}
-            role="presentation"
-          >
-            <div
-              className="kim-solution-lender-dialog"
-              onClick={(event) => event.stopPropagation()}
-              role="dialog"
-              aria-label="솔루션 지원 금융사 선택"
-              aria-modal="true"
-            >
-              <header>
-                <div>
-                  <span>{solutionWorkbenchPurchaseMethod} 솔루션 조회</span>
-                  <strong>금융사를 선택하면 바로 계산합니다</strong>
-                </div>
-                <button aria-label="금융사 선택 닫기" onClick={() => setSolutionLenderPickerId(null)} type="button">
-                  <X size={18} strokeWidth={2.2} />
-                </button>
-              </header>
-              <div className="kim-solution-lender-grid">
-                {solutionLenders.map((l) => (
-                  <button key={l.code} onClick={() => pickSolutionLender(solutionLenderPickerId, l.label)} type="button">
-                    <Calculator size={13} strokeWidth={2.1} />
-                    {l.label}
-                  </button>
-                ))}
-              </div>
-              <footer className="kim-solution-lender-foot">
-                <p>목록에 없는 금융사는 수기 작성으로 진행해 주세요.</p>
-                <button onClick={() => setSolutionLenderPickerId(null)} type="button">취소</button>
-              </footer>
-            </div>
-          </div>
+          /* 개정 2 R4: 금융사 미선택 상태에서 계산기 클릭 → 지원 금융사 일괄 조회 랭킹 모달(행 선택 = 카드 채움).
+             오픈마다 새 마운트(조건부 렌더) — 병렬 배치가 마운트 1회 발화. 닫힘 경로(backdrop/X/취소/Esc 분기·
+             잔상 리셋)는 개정 1 그대로. */
+          <SolutionLenderRankingModal
+            condId={solutionLenderPickerId}
+            purchaseMethod={solutionWorkbenchPurchaseMethod}
+            buildBaseArgs={buildCardSolutionBaseArgs}
+            onPick={pickRankingEntry}
+            onClose={() => setSolutionLenderPickerId(null)}
+          />
         ) : null}
       </div>
     </div>

@@ -77,7 +77,8 @@ const parseWon = (raw: string): number => {
   return digits ? Number(digits) : 0;
 };
 
-type BuildArgs = {
+// export — 워크벤치 훅(직접 계산)·랭킹 모달(금융사별 병렬)이 lenderLabel 제외 조립(Omit)을 공유한다(개정 2).
+export type BuildArgs = {
   lenderLabel: string | null;
   purchaseMethod: string;
   termMonths: number;
