@@ -98,8 +98,8 @@
 - 기존 auth 체인(401→dealerWriteGate 403→db) 그대로 — dealer는 전역 게이트가 차단(fail-closed 수용,
   dealer는 견적 쓰기 자체가 차단된 역할)
 - zod: 파트너 계약 서브셋 검증(lenderCode enum·term enum·음수 금액 거부 등) — 실패 400
-- env `SOLUTION_QUOTE_API_URL` 미설정 → **503 + 명시 문구**(fail-loud — 조용한 실패 금지),
-  `SOLUTION_QUOTE_API_KEY` 설정 시에만 `X-API-Key` 부착(개발 무인증 단계 수용, fail-open 아님 —
+- env `PARTNER_QUOTE_API_URL` 미설정 → **503 + 명시 문구**(fail-loud — 조용한 실패 금지),
+  `PARTNER_QUOTE_API_KEY` 설정 시에만 `X-API-Key` 부착(개발 무인증 단계 수용, fail-open 아님 —
   URL이 스위치)
 - `X-Request-ID: crm-<uuid>` 생성·전달 + 응답 tail 로그(`[solution] calculate lender=… ok=… <ms>`)
 - 8초 타임아웃(AbortSignal — 앱 미러). ⚠️fetch는 지역 변수 plain call(Workers Illegal invocation 함정)
@@ -143,8 +143,8 @@
 
 ## 환경/전환
 
-- env: `SOLUTION_QUOTE_API_URL`(예: dev `https://mc.mrcha.app/api/quotes/calculate` → 제프 머지 후
-  `…/api/external/quotes/calculate`) + `SOLUTION_QUOTE_API_KEY`(optional — external 전환 시 필수)
+- env: `PARTNER_QUOTE_API_URL`(예: dev `https://mc.mrcha.app/api/quotes/calculate` → 제프 머지 후
+  `…/api/external/quotes/calculate`) + `PARTNER_QUOTE_API_KEY`(optional — external 전환 시 필수)
 - `.env.example`에 자리 추가(값 없음). CF Pages Production secret 등록은 유슨생(결정 7)
 - 전환 = env 교체만, 코드 불변(GEMINI_PROXY_URL 선례)
 

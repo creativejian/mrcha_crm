@@ -500,7 +500,7 @@ const VALID_BODY = {
 
 let token = "";
 const origFetch = solutionDeps.fetchImpl;
-const ENV_KEYS = ["SOLUTION_QUOTE_API_URL", "SOLUTION_QUOTE_API_KEY"] as const;
+const ENV_KEYS = ["PARTNER_QUOTE_API_URL", "PARTNER_QUOTE_API_KEY"] as const;
 const origEnv: Record<string, string | undefined> = {};
 
 beforeAll(async () => {
@@ -524,7 +524,7 @@ const post = (app: ReturnType<typeof buildApp>, body: unknown) =>
   });
 
 test("env 미설정 → 503 명시 에러(fail-loud)", async () => {
-  delete process.env.SOLUTION_QUOTE_API_URL;
+  delete process.env.PARTNER_QUOTE_API_URL;
   const app = buildAppWithTestAuth(); // 파일 내 헬퍼 — vehicles.test.ts 관례로 조립
   const res = await post(app, VALID_BODY);
   expect(res.status).toBe(503);
@@ -532,15 +532,15 @@ test("env 미설정 → 503 명시 에러(fail-loud)", async () => {
 });
 
 test("zod 위반(음수 금액·미지원 lenderCode) → 400", async () => {
-  process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
   const app = buildAppWithTestAuth();
   expect((await post(app, { ...VALID_BODY, depositAmount: -1 })).status).toBe(400);
   expect((await post(app, { ...VALID_BODY, lenderCode: "hana-capital" })).status).toBe(400);
 });
 
 test("성공 릴레이: 파트너 body 패스스루 + X-Request-ID(crm- 접두) + 키 설정 시 X-API-Key 부착", async () => {
-  process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
-  process.env.SOLUTION_QUOTE_API_KEY = "test-key-123";
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
+  process.env.PARTNER_QUOTE_API_KEY = "test-key-123";
   let captured: { url: string; headers: Record<string, string>; body: unknown } | null = null;
   solutionDeps.fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
     captured = {
@@ -561,8 +561,8 @@ test("성공 릴레이: 파트너 body 패스스루 + X-Request-ID(crm- 접두) 
 });
 
 test("키 미설정이면 X-API-Key 생략(개발 무인증 단계) — 호출은 진행", async () => {
-  process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
-  delete process.env.SOLUTION_QUOTE_API_KEY;
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
+  delete process.env.PARTNER_QUOTE_API_KEY;
   let headers: Record<string, string> = {};
   solutionDeps.fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
     headers = Object.fromEntries(new Headers(init?.headers).entries());
@@ -574,7 +574,7 @@ test("키 미설정이면 X-API-Key 생략(개발 무인증 단계) — 호출�
 });
 
 test("파트너 4xx(미취급) → 400 + error 문구 패스스루", async () => {
-  process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
   solutionDeps.fetchImpl = (async () =>
     new Response(JSON.stringify({ ok: false, error: "미취급 차종" }), { status: 400 })) as typeof fetch;
   const app = buildAppWithTestAuth();
@@ -584,7 +584,7 @@ test("파트너 4xx(미취급) → 400 + error 문구 패스스루", async () =>
 });
 
 test("네트워크 예외 → 502 / AbortError(타임아웃) → 504", async () => {
-  process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
   solutionDeps.fetchImpl = (async () => { throw new Error("connect refused"); }) as typeof fetch;
   let app = buildAppWithTestAuth();
   expect((await post(app, VALID_BODY)).status).toBe(502);
@@ -596,7 +596,7 @@ test("네트워크 예외 → 502 / AbortError(타임아웃) → 504", async () 
 });
 
 test("fetchImpl은 plain call로 호출된다(this 미결합 — Workers Illegal invocation 가드)", async () => {
-  process.env.SOLUTION_QUOTE_API_URL = "https://partner.test/calc";
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
   solutionDeps.fetchImpl = (async function (this: unknown) {
     expect(this).toBeUndefined(); // 메서드 호출이면 this=solutionDeps → 실패
     return new Response(JSON.stringify({ ok: true, quote: {} }), { status: 200 });
@@ -654,10 +654,10 @@ const TIMEOUT_MS = 8000; // 앱 partner_quote.ts 미러
 export const solution = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
 solution.post("/calculate", async (c) => {
-  const env = (c.env ?? {}) as { SOLUTION_QUOTE_API_URL?: string; SOLUTION_QUOTE_API_KEY?: string };
-  const url = env.SOLUTION_QUOTE_API_URL ?? process.env.SOLUTION_QUOTE_API_URL;
-  const apiKey = env.SOLUTION_QUOTE_API_KEY ?? process.env.SOLUTION_QUOTE_API_KEY;
-  if (!url) return c.json({ error: "솔루션 연결이 설정되지 않았습니다(SOLUTION_QUOTE_API_URL)" }, 503);
+  const env = (c.env ?? {}) as { PARTNER_QUOTE_API_URL?: string; PARTNER_QUOTE_API_KEY?: string };
+  const url = env.PARTNER_QUOTE_API_URL ?? process.env.PARTNER_QUOTE_API_URL;
+  const apiKey = env.PARTNER_QUOTE_API_KEY ?? process.env.PARTNER_QUOTE_API_KEY;
+  if (!url) return c.json({ error: "솔루션 연결이 설정되지 않았습니다(PARTNER_QUOTE_API_URL)" }, 503);
 
   let raw: unknown;
   try {
@@ -716,8 +716,8 @@ app.route("/api/solution", solution);
 ```bash
 # 솔루션 견적 계산(파트너 financial-dolim-solution) 릴레이. 미설정 시 /api/solution/calculate 503.
 # 개발: https://mc.mrcha.app/api/quotes/calculate (무인증) / 운영: external 엔드포인트 + 키(제프 협의 후)
-SOLUTION_QUOTE_API_URL=
-SOLUTION_QUOTE_API_KEY=
+PARTNER_QUOTE_API_URL=
+PARTNER_QUOTE_API_KEY=
 ```
 
 - [ ] **Step 4: 통과 확인** — Run: `bun run test:server src/routes/solution.test.ts` → PASS · `bun run typecheck` → 0
@@ -1000,7 +1000,7 @@ git commit -m "feat(crm): 워크벤치 솔루션 조회 실동작 — 금융사 
 ```bash
 # 사용자 dev(5173/8788) 불가침 — 8799/5174 임시 스택(선례: client/vite.config.smoke.ts 패턴, 스모크 후 삭제)
 PORT=8799 PUSH_NOTIFY=off EMBED_ON_WRITE=off AI_HINT_ON_WRITE=off \
-  SOLUTION_QUOTE_API_URL=https://mc.mrcha.app/api/quotes/calculate \
+  PARTNER_QUOTE_API_URL=https://mc.mrcha.app/api/quotes/calculate \
   bun --env-file=.env.local run src/local-dev.ts
 ```
 
@@ -1046,7 +1046,7 @@ PORT=8799 PUSH_NOTIFY=off EMBED_ON_WRITE=off AI_HINT_ON_WRITE=off \
 
 - **제프 전달 목록**(스펙 §10): external calculate 신설·자동차세 의미·키 공유 고지·X-Request-ID 형식
   (~~응답 확장 3필드~~ — 개정 1로 불필요)
-- **키 등록**(유슨생): `EXTERNAL_API_KEY` 값을 `.env.local` + CF Pages Production secret(`SOLUTION_QUOTE_API_KEY`)에.
+- **키 등록**(유슨생): `EXTERNAL_API_KEY` 값을 `.env.local` + CF Pages Production secret(`PARTNER_QUOTE_API_KEY`)에.
   등록 후 URL을 external로 교체(코드 불변)
 - **이사님 사후 공유**: 계산엔진 = 파트너 API 연동 확정 · 금융사 어휘 교체 · **금리 의미론 = 리스계산기
   실질 금리(개정 1)** · 파생 4필드 읽기 전용 전환

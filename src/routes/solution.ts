@@ -48,10 +48,10 @@ const TIMEOUT_MS = 8000; // 앱 partner_quote.ts 미러(스펙 §파트너 계�
 export const solution = new Hono();
 
 solution.post("/calculate", async (c) => {
-  const env = (c.env ?? {}) as { SOLUTION_QUOTE_API_URL?: string; SOLUTION_QUOTE_API_KEY?: string };
-  const url = env.SOLUTION_QUOTE_API_URL ?? process.env.SOLUTION_QUOTE_API_URL;
-  const apiKey = env.SOLUTION_QUOTE_API_KEY ?? process.env.SOLUTION_QUOTE_API_KEY;
-  if (!url) return c.json({ error: "솔루션 연결이 설정되지 않았습니다(SOLUTION_QUOTE_API_URL 미설정)" }, 503);
+  const env = (c.env ?? {}) as { PARTNER_QUOTE_API_URL?: string; PARTNER_QUOTE_API_KEY?: string };
+  const url = env.PARTNER_QUOTE_API_URL ?? process.env.PARTNER_QUOTE_API_URL;
+  const apiKey = env.PARTNER_QUOTE_API_KEY ?? process.env.PARTNER_QUOTE_API_KEY;
+  if (!url) return c.json({ error: "솔루션 연결이 설정되지 않았습니다(PARTNER_QUOTE_API_URL 미설정)" }, 503);
 
   let raw: unknown;
   try {
@@ -101,7 +101,7 @@ solution.post("/calculate", async (c) => {
     // 401/403 = 파트너 키 오설정(운영 문제 — 호출자 입력 잘못 아님). 400 패스스루와 섞이면 "실패해도
     // 조용한" 부류가 된다 — tail에서 grep할 토큰을 남기고 503으로 구분(push-notify AUTH_FAILED 선례).
     if (upstream.status === 401 || upstream.status === 403) {
-      console.error(`[solution] AUTH_FAILED(${upstream.status}) request_id=${requestId} — SOLUTION_QUOTE_API_KEY 확인 필요`);
+      console.error(`[solution] AUTH_FAILED(${upstream.status}) request_id=${requestId} — PARTNER_QUOTE_API_KEY 확인 필요`);
       return c.json({ error: "솔루션 연결 인증이 실패했습니다(운영 설정 확인)" }, 503);
     }
     if (!upstream.ok) {
