@@ -109,15 +109,23 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
 
   if (args.pricing.baseAndOption <= 0) return { ok: false, reason: "차량 가격을 먼저 입력해 주세요" };
 
-  // %→원 환산 기준 = 할인 전 차량가(파트너 입력이 할인 전 기준 — 스펙 §계약)
-  const wonOf = (mode: "none" | "amount" | "percent", raw: string): number => {
+  // %→원 환산 기준 = 할인 전 차량가(파트너 입력이 할인 전 기준 — 스펙 §계약).
+  // NaN·100% 초과는 null → 빌드 실패(fail-loud) — parseInterestRate의 100% 상한 사유(콤마 오입력 "10,5"→105% 무음 전송 차단)를 미러.
+  // 빈 문자열 %는 Number("")=0 → 0% → 0원(에러 아님 — 빈 % 칸은 0 의미).
+  const wonOf = (mode: "none" | "amount" | "percent", raw: string): number | null => {
     if (mode === "none") return 0;
     if (mode === "percent") {
       const pct = Number(raw.replace(/[^\d.]/g, ""));
-      return Number.isFinite(pct) ? Math.round(args.pricing.baseAndOption * pct / 100) : 0;
+      if (!Number.isFinite(pct) || pct > 100) return null;
+      return Math.round(args.pricing.baseAndOption * pct / 100);
     }
     return parseWon(raw);
   };
+
+  const depositAmount = wonOf(args.depositMode, args.depositRaw);
+  const upfrontPayment = wonOf(args.downPaymentMode, args.downPaymentRaw);
+  if (depositAmount == null || upfrontPayment == null)
+    return { ok: false, reason: "보증금·선수금 %는 100 이하로 입력해 주세요" };
 
   const input: SolutionQuoteInput = {
     lenderCode: lender.code,
@@ -128,8 +136,8 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
     ownershipType: "company",
     leaseTermMonths: args.termMonths,
     annualMileageKm: mileage,
-    depositAmount: wonOf(args.depositMode, args.depositRaw),
-    upfrontPayment: wonOf(args.downPaymentMode, args.downPaymentRaw),
+    depositAmount,
+    upfrontPayment,
     quotedVehiclePrice: args.pricing.baseAndOption,
   };
   if (args.pricing.discount > 0) input.discountAmount = args.pricing.discount;
@@ -143,6 +151,8 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
   } else if (args.residualMode === "percent") {
     const pct = Number(args.residualRaw.replace(/[^\d.]/g, ""));
     if (!Number.isFinite(pct) || pct <= 0) return { ok: false, reason: "잔존가치 %를 입력해 주세요" };
+    // 100% 초과 = 콤마 오입력("45,5"→455%) — wonOf와 동일한 fail-loud 상한
+    if (pct > 100) return { ok: false, reason: "잔존가치 %는 100 이하로 입력해 주세요" };
     input.residualMode = "standard";
     input.residualValueRatio = pct / 100;
   } else {
@@ -190,7 +200,7 @@ export function parseSolutionQuoteResult(raw: unknown): SolutionQuoteParsed | nu
   return {
     monthlyPayment,
     annualRatePct: pct(annualRate),
-    effectiveAnnualRatePct: pct(numOrNull(rates.effectiveAnnualRateDecimal) ?? annualRate),
+    effectiveAnnualRatePct: pct(numOrNull(rates.effectiveAnnualRateDecimal) ?? annualRate), // 유효금리 누락 시 표면금리 폴백 — 방어 기본값
     residualRatePct: pct(numOrNull(residual.rateDecimal) ?? 0),
     residualAmount,
     workbookVersion: typeof workbook.versionLabel === "string" ? workbook.versionLabel : "",

@@ -111,6 +111,26 @@ describe("buildSolutionQuoteInput", () => {
     const r = buildSolutionQuoteInput({ ...BASE_ARGS, purchaseMethod: "장기렌트" });
     expect(r.ok).toBe(false);
   });
+
+  test("% 100 초과 = 실패(콤마 오입력 차단 — parseInterestRate 선례 미러)", () => {
+    // "10,5"(10.5% 의도)가 콤마 제거로 105%가 되는 오입력 — 무음 전송 대신 fail-loud
+    expect(buildSolutionQuoteInput({ ...BASE_ARGS, depositMode: "percent", depositRaw: "10,5" }).ok).toBe(false);
+    expect(buildSolutionQuoteInput({ ...BASE_ARGS, residualMode: "percent", residualRaw: "45,5" }).ok).toBe(false);
+  });
+
+  test("소수 %는 정상 환산(10.5% → 반올림 원 환산)", () => {
+    const r = buildSolutionQuoteInput({ ...BASE_ARGS, depositMode: "percent", depositRaw: "10.5" });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.input.depositAmount).toBe(6_195_000); // 59,000,000의 10.5%
+  });
+
+  test("기간 이탈(72개월) = 실패", () => {
+    expect(buildSolutionQuoteInput({ ...BASE_ARGS, termMonths: 72 }).ok).toBe(false);
+  });
+
+  test("차량가 미입력(0원) = 실패", () => {
+    expect(buildSolutionQuoteInput({ ...BASE_ARGS, pricing: { baseAndOption: 0, discount: 0 } }).ok).toBe(false);
+  });
 });
 
 describe("parseSolutionQuoteResult", () => {
@@ -155,6 +175,12 @@ describe("parseSolutionQuoteResult", () => {
     expect(parseSolutionQuoteResult({ ok: false, error: "미취급" })).toBeNull();
     expect(parseSolutionQuoteResult({ ok: true, quote: { rates: {} } })).toBeNull();
     expect(parseSolutionQuoteResult("garbage")).toBeNull();
+  });
+
+  test("rates가 primitive여도 크래시 없이 null(방어 파싱)", () => {
+    expect(
+      parseSolutionQuoteResult({ ok: true, quote: { monthlyPayment: 1, rates: "x", residual: { amount: 1 } } }),
+    ).toBeNull();
   });
 
   test("금리 표시: 우리카드만 유효금리, 그 외 표면금리(제프 QuoteResultCard 규칙 미러)", () => {
