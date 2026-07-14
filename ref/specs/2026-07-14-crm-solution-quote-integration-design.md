@@ -166,16 +166,21 @@
 - 조건 변경 시 자동 재계산(수동 트리거만 — 파트너 서버 부하·연타 고려, 실사용 관찰 후)
 - 장기렌트 `releaseMethod`/`maintenanceGrade` 노출(v1 파트너 기본값 — 필요 시 후속)
 
-## §10. 제프 전달 목록 (복귀 시 협의 — CRM은 이것 없이도 개발 단계 동작)
+## §10. 제프 전달 목록 — ✅ **전량 종결(2026-07-14 밤)**
 
-1. **`POST /api/external/quotes/calculate` 신설**(키 게이트 단건 계산 — cheapest 미러). 우리가 PR로
-   제안 가능(제프 repo push 권한 실측 확인됨 — 단 머지=배포는 제프)
-2. **응답 확장 3필드**: 반납 총비용·인수 총비용·출고 전 납입 — 정의 협의(제프 엔진에 만기인수금액 등
-   구성요소 상주)
-3. **자동차세 토글 의미 확인**: CRM 카드의 포함/불포함이 파트너 입력에 대응 없음 — 장기렌트 월요금의
-   자동차세 내장 여부 재확인(현재 v1은 API 미전송·표시 메타)
-4. **키 공유 고지**: CRM도 `EXTERNAL_API_KEY`로 external 호출 시작(트래픽 주체 추가)
-5. **X-Request-ID 형식 공유**: `crm-<uuid>`(앱과 구분)
+1. ~~`POST /api/external/quotes/calculate` 신설~~ → ✅ **완료·배포**(제프 레포 `0bc7dda` — 내부 핸들러를
+   `computeCalculateQuoteResponse`로 추출해 내부/external 공유, body 계약("미취급" 400 문구 포함)
+   **구현상 동일 보장**. `createApiKeyMiddleware(EXTERNAL_API_KEY)` 게이트 + X-Request-ID echo).
+   **CRM 전환도 완료**: 내부 회귀 0·무키 401/유키 200·body 동일 검증 → `.env.local`+CF Pages
+   Production secrets(URL→external·KEY 등록)+재배포(`e812de3`) → crm.mrcha.app 인증 호출 200 실계산.
+2. ~~응답 확장 3필드~~ — **개정 1로 불필요**(CRM 파생으로 대체, 요청 철회)
+3. ~~자동차세 토글 의미 확인~~ → ✅ **회신 박제**: **운용리스 = 자동차세 별도**(엔진에 개념 없음 —
+   월납입은 PMT만) / **장기렌트 = 월요금에 내장**(MG CW16·메리츠 EG8·iM carTaxY 월분 합산) /
+   calculate 입력 스키마에 자동차세 필드 없음(external 동일) → **CRM 토글 = API 미전송·표시용이 정답
+   확정**. (후속 아이디어 저우선: 솔루션 조회로 채운 카드는 토글을 사실값 자동 세팅 — 실사용 관찰 후)
+4. ~~키 공유 고지~~ → ✅ 제프 반영 확인(EXTERNAL_API_KEY 공유 전제 그대로 — 노출 시 양 팀 동시 교체)
+5. ~~X-Request-ID 형식~~ → ✅ `crm-<uuid>`가 기존 REQUEST_ID_PATTERN 무변경 통과 — echo 테스트로 고정.
+   미취급 문구는 공유 핸들러로 구조 보장 + 8콜 병렬 패턴 무상태 OK 확인
 
 ## 이사님 사후 공유 항목
 
