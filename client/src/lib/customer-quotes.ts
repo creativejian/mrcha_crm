@@ -3,6 +3,7 @@ import { invalidateCustomerDetail } from "./customers";
 import { getJson, sendJson, sendVoid } from "./http";
 import type { QuoteGuidance } from "@/data/quote-guidance";
 import type { QuoteDiscountLine } from "./quote-items";
+import type { SolutionQuoteInput } from "./solution-quote";
 
 // 견적함 표시 문자열 → 시나리오 컬럼값. 숫자만 남겨 파싱한다.
 
@@ -146,7 +147,19 @@ export type ScenarioInput = {
   totalTakeoverCost?: string | null;
   dueAtDelivery?: string | null;
   interestRate?: string | null;
+  // 솔루션 조회 재현성 스냅샷(마이그 0031) — 수기 시나리오는 미전송. 서버 zod와 동형.
+  solutionLenderCode?: string | null;
+  solutionWorkbookVersion?: string | null;
+  solutionCalculatedAt?: string | null;
+  solutionRaw?: unknown;
 };
+
+// 솔루션 계산 릴레이 호출(POST /api/solution/calculate) — 응답 raw는 파트너 원문 그대로
+// (해석은 parseSolutionQuoteResult, 스냅샷은 raw 통째 저장). 실패 시 서버가 파트너 error 문구를
+// {error}로 매핑하므로 sendJson의 HttpError(message=한글 문구) 관례를 그대로 따른다.
+export async function requestSolutionQuote(input: SolutionQuoteInput): Promise<unknown> {
+  return sendJson<unknown>("/api/solution/calculate", "POST", input);
+}
 
 // 새 견적 생성. 서버가 quote_code·id 부여 → 반환값으로 낙관 임시 항목을 교체한다. 성공 시 상세 캐시 무효화.
 export async function createQuote(customerId: string, payload: QuoteCreatePayload): Promise<{ id: string; quoteCode: string; createdAt: string }> {

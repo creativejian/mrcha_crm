@@ -5,7 +5,10 @@ import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
 import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
-import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
+import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
+import { buildSolutionQuoteInput, parseSolutionQuoteResult, solutionLenderOptions, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
+import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solution-ranking";
+import { deriveCardResults, residualAmountOf } from "@/lib/lease-rate";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { seedScenarioCardFromRequest } from "@/lib/quote-request-seed";
 import { type VehicleSelection } from "@/components/VehiclePicker";
@@ -30,7 +33,9 @@ import {
   quotePurchaseMethodOptions,
   normalizeQuotePurchaseMethod,
   primaryQuotePurchaseMethod,
+  residualDisplayFromSnapshot,
   restoreDiscountLines,
+  solutionSnapshotsFromScenarios,
   type AcquisitionTaxMode,
   type CardUiState,
   type DiscountLine,
@@ -88,6 +93,12 @@ export function useQuoteWorkbench({
   // 비교카드 UI 상태(카드 id → CardUiState). 통합 전 속성별 Record 8벌 — 카드 하나를 다루는 모든
   // 동작이 8곳을 건드려야 했고 키 누락을 컴파일러가 못 잡았다(#163 저장 payload 오염).
   const [cardUi, setCardUi] = useState<Record<string, CardUiState>>({});
+  // 솔루션 조회: 전역 1건 in-flight(연타·동시 조회 방지 — 자동 재계산 없는 명시 버튼이라 파트너 서버 보호)와
+  // 카드별 재현성 스냅샷(저장 시 시나리오에 동봉 — 마이그 0031. 수정 재진입 시드가 전체 교체 저장에서 보존 담당).
+  const [solutionLoadingId, setSolutionLoadingId] = useState<string | null>(null);
+  const [solutionSnapshots, setSolutionSnapshots] = useState<Record<string, SolutionSnapshot>>({});
+  // 개정 1 R1: 금융사 미선택 상태로 계산기를 누르면 여는 지원 금융사 모달(열린 카드 id, null=닫힘).
+  const [solutionLenderPickerId, setSolutionLenderPickerId] = useState<string | null>(null);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   // 신규 작성완료 후 "이후 UPDATE 대상 id". editingQuoteId(=비교카드 key·prefill)를 안 건드려야 카드 리마운트(입력 리셋)를 막는다.
   const persistedQuoteIdRef = useRef<string | null>(null);
@@ -341,7 +352,8 @@ export function useQuoteWorkbench({
   }
 
   // 수정 진입 시 기존 시나리오(round)를 비교카드 골격에 덮어쓴다(빈 슬롯은 기본 mock).
-  function buildManualCardsFromScenarios(scenarios: EditScenario[]): ManualCard[] {
+  // snapshots = 그 견적의 솔루션 스냅샷 시드(solutionSnapshotsFromScenarios 결과) — max 잔가 표시값 복원용.
+  function buildManualCardsFromScenarios(scenarios: EditScenario[], snapshots: Record<string, SolutionSnapshot>): ManualCard[] {
     return emptyQuoteConditionCards.map((base) => {
       const sc = scenarios.find((s) => String(s.scenarioNo) === base.round);
       if (!sc) return base;
@@ -352,7 +364,11 @@ export function useQuoteWorkbench({
         // 모드는 cardUi(setCardUi ← cardUiMapFromScenarios)가 갖는다. 여기선 표시 금액 포맷에만 쓴다.
         depositValue: sc.depositMode === "percent" ? sc.depositValue : (sc.depositValue ? formatMoney(Number(sc.depositValue)) : "0"),
         downPaymentValue: sc.downPaymentMode === "percent" ? sc.downPaymentValue : (sc.downPaymentValue ? formatMoney(Number(sc.downPaymentValue)) : "0"),
-        residualValue: sc.residualMode === "max" ? "-" : (sc.residualMode === "percent" ? sc.residualValue : (sc.residualValue ? formatMoney(Number(sc.residualValue)) : "0")),
+        // max 모드는 DB residualValue가 null — 스냅샷 있으면 실채택 잔가 복원(재진입 직후 파생이 인수·금리를
+        // 보존 계산, 무재조회 재저장 소실 방지), 없으면(구 수기 견적) 기존 "-" placeholder 유지.
+        residualValue: sc.residualMode === "max"
+          ? (residualDisplayFromSnapshot(snapshots[cardIdOfScenarioNo(sc.scenarioNo)]) ?? "-")
+          : (sc.residualMode === "percent" ? sc.residualValue : (sc.residualValue ? formatMoney(Number(sc.residualValue)) : "0")),
         subsidyAmount: sc.subsidyAmount && Number(sc.subsidyAmount) > 0 ? formatMoney(Number(sc.subsidyAmount)) : "0",
         totalReturn: sc.totalReturnCost ? formatMoney(Number(sc.totalReturnCost)) : "0",
         totalTakeover: sc.totalTakeoverCost ? formatMoney(Number(sc.totalTakeoverCost)) : "0",
@@ -400,6 +416,9 @@ export function useQuoteWorkbench({
     const inputs = readPricingInputs(root);
     setPricingInputs(inputs);
     setPricing(computePricing(inputs));
+    // 가격패널 변경(기타비용·취득원가·차량가)도 결과 4필드 파생 입력이다(개정 1 R3) — 카드 편집과 같은
+    // 수렴점(refreshCardScenarioPreview: derive → extract)으로 재계산해 미리보기·저장 정합을 유지.
+    refreshCardScenarioPreview();
   }
 
   // 추가 할인 행 영속 스냅샷(crm.quotes.discount_lines) — 금액의 진실 원본은 uncontrolled DOM input
@@ -530,6 +549,9 @@ export function useQuoteWorkbench({
     setDiscountLines([]);
     setAcquisitionTaxMode("normal");
     setPrimaryDiscountUnit("amount");
+    // 솔루션 스냅샷도 저장 payload에 실리는 값 — 이전 견적 스냅샷이 새 견적에 새는 잔상 방지(#163 부류).
+    setSolutionSnapshots({});
+    setSolutionLenderPickerId(null); // 모달 열린 채 워크벤치가 닫힌 경우의 유령 모달 방어
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -682,6 +704,12 @@ export function useQuoteWorkbench({
 
     function closeQuoteSolutionWorkbenchByKeyboard(event: globalThis.KeyboardEvent) {
       if (event.key !== "Escape") return;
+      // 모달 스택 관례: 금융사 선택 모달이 열려 있으면 Esc는 모달만 닫는다(워크벤치 유지) —
+      // 분기 없이 워크벤치가 닫히면 pickerId가 남아 재오픈 시 유령 모달(#163 잔상 부류).
+      if (solutionLenderPickerId) {
+        setSolutionLenderPickerId(null);
+        return;
+      }
       if (solutionWorkbenchModeMenu) {
         setSolutionWorkbenchModeMenu(null);
         return;
@@ -702,7 +730,177 @@ export function useQuoteWorkbench({
       document.removeEventListener("keydown", closeQuoteSolutionWorkbenchByKeyboard);
       document.removeEventListener("pointerdown", closeQuoteSolutionWorkbenchMenu, true);
     };
-  }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu]);
+  }, [isQuoteSolutionWorkbenchOpen, solutionWorkbenchModeMenu, solutionLenderPickerId]);
+
+  // 카드 1장의 조건 스냅샷 → 파트너 입력 조립 인자(금융사 제외). 직접 계산(queryCardSolution)과
+  // 랭킹 모달 배치(SolutionLenderRankingModal — 금융사별 병렬, 개정 2 R4)가 같은 조립을 공유한다.
+  function buildCardSolutionArgs(condId: string): { cardEl: HTMLElement; base: Omit<BuildArgs, "lenderLabel"> } | null {
+    const compareForm = quoteDetailFormRef.current;
+    const cardEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
+    if (!cardEl) return null;
+    const fieldVal = (f: string) => cardEl.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? "";
+    const ui = cardUiOf(cardUi, condId);
+    // 할인 전 차량가(base+option)·할인 총액은 가격패널(pricingPanelRef) uncontrolled input에서 읽는다
+    // (readPricingInputs 재사용 — 저장 추출과 동일 관례. 비교카드 폼(quoteDetailFormRef)에는 data-pricing이 없다).
+    const pricingRoot = pricingPanelRef.current;
+    const pricingNow = pricingRoot ? readPricingInputs(pricingRoot) : null;
+    return {
+      cardEl,
+      base: {
+        purchaseMethod: solutionWorkbenchPurchaseMethod,
+        termMonths: ui.termMonths,
+        depositMode: ui.depositMode,
+        depositRaw: fieldVal("deposit"),
+        downPaymentMode: ui.downPaymentMode,
+        downPaymentRaw: fieldVal("downPayment"),
+        residualMode: ui.residualMode,
+        residualRaw: fieldVal("residual"),
+        mileageValue: effectiveMileageValue(ui),
+        subsidyApplicable: ui.subsidyApplicable,
+        subsidyRaw: fieldVal("subsidy"),
+        vehicle: {
+          brand: workbenchVehicle?.brand?.name ?? null,
+          model: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
+          mcCode: workbenchVehicle?.trim?.mcCode ?? trimDetail?.mcCode ?? null,
+        },
+        pricing: {
+          baseAndOption: (pricingNow?.basePrice ?? 0) + (pricingNow?.optionPrice ?? 0),
+          discount: pricingNow?.discount ?? 0,
+        },
+      },
+    };
+  }
+
+  // 랭킹 모달용 조립 인자 — 컴포넌트에 카드 DOM은 노출하지 않는다(base만, 채움은 pickRankingEntry가 담당).
+  function buildCardSolutionBaseArgs(condId: string): Omit<BuildArgs, "lenderLabel"> | null {
+    return buildCardSolutionArgs(condId)?.base ?? null;
+  }
+
+  // 조회 결과를 카드에 채우는 단일 경로 — 직접 계산(queryCardSolution)·랭킹 모달 행 선택(pickRankingEntry) 공유.
+  // 월납입 = 표시 라운딩 값(개정 2 R4: 운용리스 100원 올림·렌트 raw — 모달 행과 카드 일치, 원값은 raw 스냅샷 보존).
+  function applySolutionResult(args: {
+    cardEl: HTMLElement;
+    condId: string;
+    lenderLabel: string;
+    lenderCode: SolutionLenderCode;
+    parsed: SolutionQuoteParsed;
+    raw: unknown;
+    monthlyDisplay: number;
+  }) {
+    const { cardEl, condId, lenderLabel, lenderCode, parsed, raw, monthlyDisplay } = args;
+    // 워크벤치 전환/닫힘 후 늦은 응답/지연 선택 가드 — 카드 key(`${editingQuoteId ?? "new"}-${condId}`) 리마운트
+    // 구조상 detach가 완전한 판별자. 없으면 stale 스냅샷 병합 + dirty 마킹이 다음 견적 저장 payload를 오염(#163 잔상 부류).
+    if (!cardEl.isConnected) return;
+    // 금융사 select 세팅(uncontrolled DOM) — 모달 선택 경로의 확정, 직접 계산 경로는 이미 그 값(멱등).
+    const lenderSelect = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]');
+    if (lenderSelect) lenderSelect.value = lenderLabel;
+    const setField = (f: string, v: string) => {
+      const el = cardEl.querySelector<HTMLInputElement>(`input[data-sc-field="${f}"]`);
+      if (el) el.value = v;
+    };
+    setField("monthly", formatMoney(monthlyDisplay));
+    // "최대" 모드 표시값 "-"(placeholder) → 실채택 잔가로 갱신(표시 전용 — extract는 max 모드 residualValue를 null 유지.
+    // 인수 총비용·금리 파생의 잔가 입력이기도 하다 — residualAmountOf가 이 값을 읽는다).
+    if (cardUiOf(cardUi, condId).residualMode === "max") setField("residual", formatMoney(parsed.residualAmount));
+    // 결과 4필드(반납/인수/출고 전/금리)는 제프 응답으로 채우지 않는다(개정 1 R3) — 아래
+    // handleManualCardFieldEdit → deriveAndFillCardResults가 리스계산기 산식으로 파생해 채운다.
+    // 제프 금리·확장 필드는 solutionRaw 스냅샷에만 보존.
+    setSolutionSnapshots((prev) => ({
+      ...prev,
+      [condId]: {
+        solutionLenderCode: lenderCode,
+        solutionWorkbookVersion: parsed.workbookVersion,
+        solutionCalculatedAt: new Date().toISOString(),
+        solutionRaw: raw,
+      },
+    }));
+    if (parsed.warnings.length > 0) onToast(parsed.warnings.join(" · "));
+    handleManualCardFieldEdit();
+  }
+
+  // 비교카드 1장의 조건으로 파트너 계산(POST /api/solution/calculate) 직접 호출(금융사 선택된 카드).
+  // in-flight는 카드 단위가 아니라 전역 1건 — 파트너 서버 보호(자동 재계산 없음, 명시 버튼 조회만).
+  async function queryCardSolution(condId: string) {
+    if (solutionLoadingId) return;
+    const assembled = buildCardSolutionArgs(condId);
+    if (!assembled) return;
+    const { cardEl, base } = assembled;
+    const lenderLabel = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value ?? "";
+    const built = buildSolutionQuoteInput({ ...base, lenderLabel: lenderLabel || null });
+    if (!built.ok) {
+      onToast(built.reason); // fail-loud 매핑 사유(미지원 금융사·MC코드 부재·% 상한 등)를 그대로 표면화
+      return;
+    }
+    setSolutionLoadingId(condId);
+    try {
+      const raw = await requestSolutionQuote(built.input);
+      const parsed = parseSolutionQuoteResult(raw);
+      if (!parsed) {
+        if (cardEl.isConnected) onToast("계산 응답을 해석하지 못했습니다"); // detach 후 늦은 응답은 침묵(가드 관례)
+        return;
+      }
+      applySolutionResult({
+        cardEl,
+        condId,
+        lenderLabel,
+        lenderCode: built.input.lenderCode,
+        parsed,
+        raw,
+        monthlyDisplay: solutionMonthlyDisplay(built.input.productType, parsed.monthlyPayment),
+      });
+    } catch (e) {
+      // 서버 릴레이가 파트너 error 문구를 {error}로 매핑 → HttpError.message(한글)를 그대로 표면화.
+      onToast(e instanceof Error ? e.message : "계산에 실패했습니다");
+    } finally {
+      setSolutionLoadingId(null);
+    }
+  }
+
+  // 계산기 버튼 3분기(개정 1 R1·개정 2 R4): ①금융사 미선택 → 일괄 조회 랭킹 모달 ②파트너 지원사 → 즉시 계산
+  // ③미지원사(레거시 저장값·CRM_EXTRA_LENDERS 등) → 계산 없이 경고(수기 몫 안내). 지원 판정은
+  // select 옵션이 아니라 이 클릭 시점(R2 — 어휘가 파트너 상위집합이라 옵션 존재 ≠ 계산 가능).
+  function handleSolutionQueryClick(condId: string) {
+    const cardEl = quoteDetailFormRef.current?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
+    const lender = cardEl?.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value ?? "";
+    if (!lender || lender === "미선택") {
+      // 모달 오픈 전 사전 검증(금융사 외 공통 조건 — 차량/MC코드/가격/기간/약정거리): 전 금융사가 같은 사유로
+      // 실패할 모달 대신 기존 fail-loud 토스트. 프로브 금융사 = 지원 목록 1번(목록에서 뽑아 금융사 게이트는 항상 통과).
+      const options = solutionLenderOptions(solutionWorkbenchPurchaseMethod);
+      const assembled = buildCardSolutionArgs(condId);
+      if (!assembled || options.length === 0) return; // 미지원 구매방식은 버튼 disabled라 실도달 없음(방어)
+      const probe = buildSolutionQuoteInput({ ...assembled.base, lenderLabel: options[0].label });
+      if (!probe.ok) {
+        onToast(probe.reason);
+        return;
+      }
+      setSolutionLenderPickerId(condId);
+      return;
+    }
+    if (solutionLenderOptions(solutionWorkbenchPurchaseMethod).some((l) => l.label === lender)) {
+      void queryCardSolution(condId);
+      return;
+    }
+    onToast(`「${lender}」은(는) 솔루션 미취급 금융사입니다 — 수기로 작성해 주세요`);
+  }
+
+  // 랭킹 모달 행 선택(개정 2 R4-3): 그 금융사 결과(entry.raw)로 카드 채움 + 스냅샷 → 모달 닫기.
+  // 재호출 없음 — 모달 배치가 이미 받아둔 응답을 그대로 영속(모달 행 표시값과 카드 채움 값 일치).
+  function pickRankingEntry(condId: string, entry: SolutionRankingEntry) {
+    setSolutionLenderPickerId(null);
+    const cardEl = quoteDetailFormRef.current?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
+    if (!cardEl) return;
+    const parsed = parseSolutionQuoteResult(entry.raw); // entry가 이 raw로 조립됐으므로 항상 해석 가능(방어 겸)
+    if (!parsed) return;
+    applySolutionResult({
+      cardEl,
+      condId,
+      lenderLabel: entry.label,
+      lenderCode: entry.lenderCode,
+      parsed,
+      raw: entry.raw,
+      monthlyDisplay: entry.monthlyDisplay,
+    });
+  }
 
   // 비교카드 → 시나리오 추출. INSERT/UPDATE 공유. termMonths 포함(PR2c-2).
   // 화면에 보이는 모든 카드(manualQuoteCards) 중 "채워진 카드"만 추출한다 — "조건 저장" 클릭 여부와 무관.
@@ -746,13 +944,64 @@ export function useQuoteWorkbench({
         totalTakeoverCost: nz(parseMonthlyPayment(fieldVal("totalTakeover") ?? "")),
         dueAtDelivery: nz(parseMonthlyPayment(fieldVal("dueAtDelivery") ?? "")),
         interestRate: parseInterestRate(fieldVal("interestRate") ?? ""),
+        // 솔루션 조회 스냅샷 동봉(조회한 카드만 키 존재) — 서버 시나리오 저장이 전체 교체(delete→insert)라
+        // 미동봉 재저장은 저장된 스냅샷을 null로 덮는다. 수정 재진입 시드(openEditQuote)와 한 쌍.
+        ...(solutionSnapshots[condId] ?? {}),
       });
     }
     return scenarios;
   }
 
+  // 개정 1 R3: 결과 4필드(반납/인수/출고 전 납입/금리)는 읽기 전용 파생값 — 카드 조건(월납입·기간·보증금·
+  // 선수금·잔가)과 가격패널(기타비용·취득원가)에서 재계산해 readOnly input에 쓴다. 파생 불능은 "0"
+  // (저장은 기존 nz()/parseInterestRate가 null 처리). 프로그램 .value 쓰기는 React 이벤트를 발화하지
+  // 않아 루프 없음. 항상 미리보기 재추출 직전에 호출된다(derive → extract 순서 — 추출·저장이 최신 파생값을 싣는다).
+  function deriveAndFillCardResults() {
+    const compareForm = quoteDetailFormRef.current;
+    if (!compareForm) return;
+    const pricingRoot = pricingPanelRef.current;
+    const inputs = pricingRoot ? readPricingInputs(pricingRoot) : emptyQuotePricing;
+    const derivedPricing = computePricing(inputs); // otherCost·acquisitionCost SSOT(quote-pricing)
+    const basis = inputs.basePrice + inputs.optionPrice; // %→원 환산 기준 = 할인 전 차량가(솔루션 입력과 동일)
+    for (const card of manualQuoteCards) {
+      const cardEl = compareForm.querySelector<HTMLElement>(`[data-scenario-card="${card.id}"]`);
+      if (!cardEl) continue;
+      const fieldVal = (f: string) => cardEl.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? "";
+      const ui = cardUiOf(cardUi, card.id);
+      // 보증금/선수금 % 모드는 할인 전 차량가 기준 원 환산(discountLineWon 공유 산술). % 100 초과
+      // (콤마 오입력 "45,5"→455)는 0 처리 — 빌더 wonOf·residualAmountOf의 fail-loud 상한 미러.
+      // 파생 경로는 매 키스트로크 재계산이라 토스트 없이 오염(무음 부풀림·저장 영속)만 차단한다.
+      const wonOfMode = (mode: ManualDepositMode, raw: string) => {
+        if (mode === "none") return 0;
+        if (mode === "percent") {
+          const pct = parsePercent(raw); // 비유한 입력은 parsePercent가 이미 0
+          return pct > 100 ? 0 : discountLineWon("percent", pct, basis);
+        }
+        return parseMoney(raw);
+      };
+      const derived = deriveCardResults({
+        monthly: parseMoney(fieldVal("monthly")),
+        termMonths: ui.termMonths,
+        downPayment: wonOfMode(ui.downPaymentMode, fieldVal("downPayment")),
+        deposit: wonOfMode(ui.depositMode, fieldVal("deposit")),
+        residualAmount: residualAmountOf(ui.residualMode, fieldVal("residual"), basis),
+        otherCost: derivedPricing.otherCost,
+        acquisitionCost: derivedPricing.acquisitionCost,
+      });
+      const setField = (f: string, v: string) => {
+        const el = cardEl.querySelector<HTMLInputElement>(`input[data-sc-field="${f}"]`);
+        if (el) el.value = v;
+      };
+      setField("totalReturn", derived.totalReturn != null ? formatMoney(derived.totalReturn) : "0");
+      setField("totalTakeover", derived.totalTakeover != null ? formatMoney(derived.totalTakeover) : "0");
+      setField("dueAtDelivery", derived.dueAtDelivery != null ? formatMoney(derived.dueAtDelivery) : "0");
+      setField("interestRate", derived.ratePct != null ? String(derived.ratePct) : "0"); // percent 칸 — 콤마 없는 원문 숫자
+    }
+  }
+
   // 대표 시나리오(앱 미리보기 카드 model.scenario) 재계산 — DOM querySelector라 render 중이 아닌 핸들러/effect에서만 호출.
   function refreshCardScenarioPreview() {
+    deriveAndFillCardResults(); // 파생 → 추출 순서(개정 1 R3) — 추출이 항상 최신 파생 4필드를 읽는다
     setCardScenario(extractWorkbenchScenarios()[0] ?? null);
   }
 
@@ -766,10 +1015,11 @@ export function useQuoteWorkbench({
   // 저장/수정 클릭(savedIds)·모드/기간/주행/구매방식 등 state 변경 시 미리보기 동기화(state-driven 갱신).
   // DOM 텍스트/금융사 select 변경은 handleManualCardFieldEdit가 담당(uncontrolled라 state에 없음).
   useEffect(() => {
+    deriveAndFillCardResults(); // state-driven 갱신(기간/모드/구매방식 등)도 파생 → 추출 순서 유지(개정 1 R3)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 비교카드 state 변경 시 대표 시나리오 재추출(의도된 동기화 effect)
     setCardScenario(extractWorkbenchScenarios()[0] ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 아래 dep 변경 시점에만 재추출(extract가 읽는 DOM/내부 state는 그 시점 최신; 함수/객체 dep 추가 시 매 렌더 실행)
-  }, [savedManualQuoteConditionIds, manualQuoteCards, cardUi, solutionWorkbenchPurchaseMethod]);
+  }, [savedManualQuoteConditionIds, manualQuoteCards, cardUi, solutionWorkbenchPurchaseMethod, solutionSnapshots]);
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
   // 신규는 첫 INSERT 후 반환 id를 editingQuoteId로 세팅 → 이후 UPDATE(중복 INSERT 방지).
@@ -872,6 +1122,11 @@ export function useQuoteWorkbench({
         totalTakeoverCost: sc.totalTakeoverCost ?? null,
         dueAtDelivery: sc.dueAtDelivery ?? null,
         interestRate: sc.interestRate ?? null,
+        // 솔루션 조회 스냅샷(마이그 0031) — 낙관 표시에도 전달(서버 재페치 값과 동형 유지).
+        solutionLenderCode: sc.solutionLenderCode ?? null,
+        solutionWorkbookVersion: sc.solutionWorkbookVersion ?? null,
+        solutionCalculatedAt: sc.solutionCalculatedAt ?? null,
+        solutionRaw: sc.solutionRaw ?? null,
       }));
       // 대표 = scenario_no 최소(서버 insertScenarios 로직과 동일). 추출은 round1 우선이라 보통 [0].
       const primary = displayScenarios.reduce((m, s) => ((s.scenarioNo ?? 0) < (m.scenarioNo ?? 0) ? s : m), displayScenarios[0]);
@@ -1093,10 +1348,15 @@ export function useQuoteWorkbench({
       scenarios: editScenarios,
       guidance: normalizeQuoteGuidance(dq.guidance) ?? null,
     } : null);
+    // 솔루션 스냅샷 시드 — 시나리오 저장이 전체 교체라, 재조회 없이 재저장해도 저장된 스냅샷이 보존되게
+    // 저장본에서 카드 id 맵으로 복원(extractWorkbenchScenarios가 되실어 보낸다). 새 조회는 카드별로 덮어쓴다.
+    // 카드 조립(max 잔가 표시값 복원)과 스냅샷 state가 같은 시드를 공유한다.
+    const seededSnapshots = solutionSnapshotsFromScenarios(dq?.scenarios ?? []);
     // 비교카드 복원: 카드 데이터 + 저장됨 표시 + mode/기간 state
-    setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios) : [...emptyQuoteConditionCards]);
+    setManualQuoteCards(editScenarios.length ? buildManualCardsFromScenarios(editScenarios, seededSnapshots) : [...emptyQuoteConditionCards]);
     setSavedManualQuoteConditionIds(editScenarios.map((s) => cardIdOfScenarioNo(s.scenarioNo)));
     setCardUi(cardUiMapFromScenarios(editScenarios));
+    setSolutionSnapshots(seededSnapshots);
     // 취득세 모드는 견적 저장본에서 복원(미복원 시 이전 세션 잔상이 persist payload에 실려 수정 저장을 오염).
     setAcquisitionTaxMode((dq?.acquisitionTaxMode as AcquisitionTaxMode) ?? "normal");
     setDiscountLines(restoredDiscount.lines); // 저장본 복원(없으면 빈 행 — 다른 견적 잔상도 함께 청소)
@@ -1111,6 +1371,7 @@ export function useQuoteWorkbench({
     setSolutionWorkbenchPurchaseMethod(normalizeQuotePurchaseMethod(quote.financeType));
     setSolutionWorkbenchEntryMode(quote.source === "solution" ? "solution" : quote.source === "original" ? "original" : "manual");
     setSolutionWorkbenchModeMenu(null);
+    setSolutionLenderPickerId(null); // clearCardUiState 미경유 경로 — 유령 모달 방어(#163 부류)
     setRecognizedQuoteFile(null);
     setIsQuoteSolutionWorkbenchOpen(true);
     quoteList.handlers.setOpenQuoteActionId(null);
@@ -1144,6 +1405,8 @@ export function useQuoteWorkbench({
     savedManualQuoteConditionIds,
     manualQuoteCards,
     cardUi,
+    solutionLoadingId,
+    solutionLenderPickerId,
     editingQuoteId,
     guidance,
     quoteRequestPrefill,
@@ -1212,6 +1475,11 @@ export function useQuoteWorkbench({
       setManualTermMonthsFor,
       setManualCarTaxFor,
       setManualSubsidyFor,
+      queryCardSolution,
+      handleSolutionQueryClick,
+      buildCardSolutionBaseArgs,
+      pickRankingEntry,
+      setSolutionLenderPickerId,
       // 저장/발송/초기화
       saveQuoteDetailDraft,
       saveQuoteFromWorkbench,

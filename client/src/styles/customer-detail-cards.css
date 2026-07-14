@@ -726,6 +726,296 @@
   overflow: auto;
 }
 
+/* 솔루션 금융사 일괄 조회 랭킹 모달(개정 2 R4 — 제프 랭킹 UX 번역) — 앱카드 미리보기 모달과 같은
+   문법(backdrop/헤더/X), 본문은 콘솔 톤(흰 바닥·얇은 라인·보라 포인트) 랭킹 리스트. 제프 원본은
+   Tailwind 유틸리티지만 CRM 컴포넌트 트리는 커스텀 CSS 관례(유틸 사용 0)라 워크벤치 CSS로 번역. */
+.kim-solution-lender-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.34);
+  padding: 28px;
+}
+
+.kim-solution-lender-dialog {
+  width: min(420px, calc(100vw - 72px));
+  max-height: calc(100vh - 72px);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow:
+    0 28px 72px rgba(15, 23, 42, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.kim-solution-lender-dialog > header {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #273446;
+  padding: 0 16px;
+}
+
+.kim-solution-lender-dialog > header div {
+  display: grid;
+  gap: 1px;
+}
+
+.kim-solution-lender-dialog > header span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+}
+
+.kim-solution-lender-dialog > header strong {
+  color: #fff;
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 700;
+}
+
+.kim-solution-lender-dialog > header button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  padding: 0;
+}
+
+.kim-solution-lender-dialog.is-ranking {
+  width: min(520px, calc(100vw - 72px));
+  display: flex;
+  flex-direction: column;
+}
+
+.kim-solution-rank-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #efefec;
+}
+
+.kim-solution-rank-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #5f6872;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.kim-solution-rank-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #7f858c;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.kim-solution-rank-sort select {
+  height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  color: #3a4553;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 8px;
+}
+
+.kim-solution-rank-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px 4px;
+  max-height: min(430px, calc(100vh - 300px));
+  overflow-y: auto;
+}
+
+.kim-solution-rank-empty {
+  margin: 0;
+  padding: 18px 0;
+  text-align: center;
+  color: #7f858c;
+  font-size: 12px;
+}
+
+/* 랭킹 행(제프 QuoteResultRow 번역) — 3줄 카드: 순위·뱃지|+차액 / 로고·금융사·금리·⚠️|월납입 / 잔가·총 비용 */
+.kim-solution-rank-row {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  border: 1px solid #e4e4e2;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  box-shadow: 0 1px 1.5px rgba(15, 23, 42, 0.05), 0 4px 8px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.kim-solution-rank-row:hover,
+.kim-solution-rank-row:focus-visible {
+  border-color: rgba(88, 54, 255, 0.34);
+  box-shadow: 0 2px 3px rgba(15, 23, 42, 0.07), 0 8px 16px rgba(88, 54, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.kim-solution-rank-row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kim-solution-rank-row-head .rank-no {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #eceff2;
+  color: #5f6872;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-style: normal;
+  flex: none;
+}
+
+.kim-solution-rank-row-head .rank-badge {
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-style: normal;
+}
+
+.kim-solution-rank-row-head .rank-badge.is-red { background: #feecec; color: #d64545; }
+.kim-solution-rank-row-head .rank-badge.is-green { background: #e5f4ea; color: #2e8b57; }
+.kim-solution-rank-row-head .rank-badge.is-gray { background: #ececea; color: #6b7280; }
+
+.kim-solution-rank-row-head .rank-delta {
+  margin-left: auto;
+  color: #d64545;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kim-solution-rank-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kim-solution-rank-row-main img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex: none;
+}
+
+.kim-solution-rank-row-main strong {
+  color: #23292f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.kim-solution-rank-row-main .rank-rate {
+  padding: 1.5px 7px;
+  border-radius: 4px;
+  background: #eef2ff;
+  color: #3b5bdb;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.kim-solution-rank-row-main .rank-warn {
+  display: inline-grid;
+  place-items: center;
+  color: #d97706;
+  cursor: help;
+}
+
+.kim-solution-rank-row-main .rank-monthly {
+  margin-left: auto;
+  color: #1a1f24;
+  font-size: 16px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.kim-solution-rank-row-main .rank-monthly small {
+  margin-left: 3px;
+  color: #7f858c;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.kim-solution-rank-row-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #7f858c;
+  font-size: 10.5px;
+}
+
+.kim-solution-rank-row-sub b {
+  color: #4f5a64;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kim-solution-rank-row-sub i {
+  color: #d5d5d2;
+  font-style: normal;
+}
+
+.kim-solution-lender-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px 14px;
+}
+
+.kim-solution-lender-foot p {
+  margin: 0;
+  color: #7f858c;
+  font-size: 11.5px;
+  line-height: 15px;
+}
+
+.kim-solution-lender-foot button {
+  flex: none;
+  height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fbfbfa;
+  color: #5f6872;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 12px;
+}
+
+.kim-solution-lender-foot button:hover {
+  border-color: rgba(88, 54, 255, 0.34);
+  background: #f4f1ff;
+  color: #2f2470;
+}
+
 /* 추가 안내 동적 입력 리스트(핵심포인트/서비스 +) — 앱카드 리디자인(2026-07-04) */
 .guidance-list { display: grid; gap: 6px; }
 /* .kim-app-guidance-grid label.wide만 전폭 셀렉터라 label이 아닌 이 div엔 안 걸림 —

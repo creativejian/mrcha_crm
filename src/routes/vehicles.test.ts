@@ -65,3 +65,17 @@ test("GET /api/vehicles/workbench (trimId 없음) → 400", async () => {
   const res = await app.request("/api/vehicles/workbench", auth);
   expect(res.status).toBe(400);
 });
+
+test("트림 목록·상세에 mcCode 필드가 실린다(솔루션 조회 masterMcCode 소스)", async () => {
+  const { app, auth } = await authedApp();
+  const brands = (await (await app.request("/api/vehicles/brands", auth)).json()) as { id: number }[];
+  const models = (await (await app.request(`/api/vehicles/models?brandId=${brands[0].id}`, auth)).json()) as { id: number }[];
+  const trimsRes = await app.request(`/api/vehicles/trims?modelId=${models[0].id}`, auth);
+  const trims = (await trimsRes.json()) as { id: number }[];
+  expect(trims.length).toBeGreaterThan(0);
+  expect(Object.keys(trims[0])).toContain("mcCode");
+
+  const detailRes = await app.request(`/api/vehicles/trims/${trims[0].id}`, auth);
+  const detail = (await detailRes.json()) as Record<string, unknown>;
+  expect(Object.keys(detail)).toContain("mcCode");
+});

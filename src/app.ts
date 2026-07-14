@@ -10,6 +10,7 @@ import { consultations } from "./routes/consultations";
 import { customers } from "./routes/customers";
 import { me } from "./routes/me";
 import { quoteRequests } from "./routes/quote-requests";
+import { solution } from "./routes/solution";
 import { staff } from "./routes/staff";
 import { vehicles } from "./routes/vehicles";
 
@@ -40,6 +41,7 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   protect("/api/quote-requests/*");
   protect("/api/consultations/*");
   protect("/api/assistant/*");
+  protect("/api/solution/*");
   protect("/api/staff/*");
   protect("/api/me/*");
 
@@ -49,6 +51,7 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.route("/api/quote-requests", quoteRequests);
   app.route("/api/consultations", consultations);
   app.route("/api/assistant", assistant);
+  app.route("/api/solution", solution);
   app.route("/api/staff", staff);
   app.route("/api/me", me);
 

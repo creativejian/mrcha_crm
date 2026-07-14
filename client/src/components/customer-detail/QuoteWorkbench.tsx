@@ -2,6 +2,7 @@ import { Calculator, Check, ChevronDown, ChevronRight, FilePlus2, FileText, File
 
 import { type Customer } from "@/data/customers";
 import { formatMoney } from "@/lib/quote-pricing";
+import { CRM_EXTRA_LENDERS, solutionLenderOptions } from "@/lib/solution-quote";
 import { bindSelect } from "@/lib/select-bind";
 import { isDocumentFileDrag } from "@/lib/detail-utils";
 import { QUOTE_GUIDANCE_OPTIONS } from "@/data/quote-guidance";
@@ -9,6 +10,7 @@ import { ColorPicker } from "@/components/ColorPicker";
 import { AppCardPreview } from "@/components/AppCardPreview";
 import { OptionPicker } from "@/components/OptionPicker";
 import { VehiclePicker } from "@/components/VehiclePicker";
+import { SolutionLenderRankingModal } from "./SolutionLenderRankingModal";
 
 import {
   cardUiOf,
@@ -40,6 +42,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     savedManualQuoteConditionIds,
     manualQuoteCards,
     cardUi,
+    solutionLoadingId,
+    solutionLenderPickerId,
     editingQuoteId,
     guidance,
     quoteRequestPrefill,
@@ -103,6 +107,10 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     setManualTermMonthsFor,
     setManualCarTaxFor,
     setManualSubsidyFor,
+    handleSolutionQueryClick,
+    buildCardSolutionBaseArgs,
+    pickRankingEntry,
+    setSolutionLenderPickerId,
     saveQuoteDetailDraft,
     saveQuoteFromWorkbench,
     guardQuoteDraftOutput,
@@ -114,6 +122,11 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
   // controlled select Safari 병행 바인딩 규칙(실측 배경 포함)은 lib/select-bind.ts 참조.
   const bindGuidanceSelect = (field: "deliveryComment" | "stockNotice" | "expectedDelivery") =>
     bindSelect(guidance[field], (v) => setGuidance((g) => ({ ...g, [field]: v })));
+
+  // 금융사 어휘 = 파트너 목록(구매방식 종속 — 장기렌트는 취급 3사만) + CRM 수기 전용 확장(개정 1 R2 상위집합).
+  // 파트너 지원 판정은 select가 아니라 계산기 클릭 시점(handleSolutionQueryClick 3분기)이 담당.
+  const solutionLenders = solutionLenderOptions(solutionWorkbenchPurchaseMethod);
+  const lenderOptionLabels = [...solutionLenders.map((l) => l.label), ...CRM_EXTRA_LENDERS];
 
   if (!isQuoteSolutionWorkbenchOpen) return null;
 
@@ -269,7 +282,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
               <div className="kim-quote-workbench-action-group output">
                 <button
                   className="kim-quote-workbench-action muted"
-                  onClick={() => onToast("financial-dolim-solution 연결 전 임시 워크벤치입니다.")}
+                  onClick={() => onToast("솔루션 조회는 비교 카드의 계산기 버튼으로 실행합니다.")}
                   type="button"
                 >
                   <Calculator size={13} strokeWidth={2.2} />
@@ -442,7 +455,14 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           </div>
                         </header>
                         <div className="kim-manual-compare-body">
-                          <label className="select-value"><span>금융사</span><select data-sc-field="lender" defaultValue={condition.lender} disabled={isConditionSaved}><option>미선택</option><option>우리금융캐피탈</option><option>iM캐피탈</option><option>하나캐피탈</option></select></label>
+                          <label className="select-value"><span>금융사</span><select data-sc-field="lender" defaultValue={condition.lender} disabled={isConditionSaved}>
+                            <option>미선택</option>
+                            {solutionLenders.map((l) => <option key={l.code}>{l.label}</option>)}
+                            {CRM_EXTRA_LENDERS.map((label) => <option key={label}>{label}</option>)}
+                            {condition.lender && condition.lender !== "미선택" && !lenderOptionLabels.includes(condition.lender)
+                              ? <option>{condition.lender}</option> /* 구 어휘 저장 견적 표시 유지(스펙 결정 1) — 새 선택지는 아님 */
+                              : null}
+                          </select></label>
                           <label><span>기간</span><div className="kim-jeff-segment wide">{[12, 24, 36, 48, 60].map((m) => <button key={m} className={ui.termMonths === m ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualTermMonthsFor(condition.id, m)} type="button">{m}개월</button>)}</div></label>
                           <label><span>보증금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={depositMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "none")} type="button">없음</button><button className={depositMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "amount")} type="button">금액</button><button className={depositMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${depositMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="deposit" data-discount-unit={depositMode === "percent" ? "percent" : "amount"} defaultValue={condition.depositValue} disabled={isConditionSaved} readOnly={depositMode === "none"} /><em>{depositMode === "percent" ? "%" : "원"}</em></div></div></label>
                           {/* 선수금/선납금 라벨 SSOT = appCardModel.downPaymentRowLabel(구매방식 종속 도메인 규칙 — app-card.ts) */}
@@ -451,12 +471,15 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           <label><span>약정거리</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={mileageMode === "basic" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "basic")} type="button">기본</button><button className={mileageMode === "custom" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "custom")} type="button">변경</button></div><select className={`kim-manual-value-select${mileageMode === "basic" ? " is-fixed" : ""}`} disabled={isConditionSaved || mileageMode === "basic"} {...bindSelect(mileageValue, (v) => setManualMileageValue(condition.id, v))}>{manualMileageOptions.map((option) => <option key={option}>{option}</option>)}</select></div></label>
                           <label><span>자동차세</span><div className="kim-jeff-segment"><button className={!carTaxOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualCarTaxFor(condition.id, false)} type="button">불포함</button><button className={carTaxOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualCarTaxFor(condition.id, true)} type="button">포함</button></div></label>
                           <label className="before-emphasis"><span>보조금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={!subsidyOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualSubsidyFor(condition.id, false)} type="button">비해당</button><button className={subsidyOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualSubsidyFor(condition.id, true)} type="button">해당</button></div><div className={`kim-jeff-money-input${!subsidyOn ? " is-fixed" : ""}`}><input aria-label="보조금 금액" data-sc-field="subsidy" defaultValue={condition.subsidyAmount} disabled={isConditionSaved} readOnly={!subsidyOn} /><em>원</em></div></div></label>
-                          <div className="kim-manual-compare-row amount emphasis"><span>월 납입금</span><div className="kim-manual-monthly-control"><button aria-label="솔루션 조회" className="kim-manual-solution-query" disabled={isConditionSaved || !solutionWorkbenchCanQuery} onClick={() => onToast("financial-dolim-solution 연결 전 임시 조회 버튼입니다.")} title="솔루션 조회" type="button"><Calculator size={14} strokeWidth={2.15} /></button><div className="kim-jeff-money-input"><input aria-label="월 납입금" data-sc-field="monthly" defaultValue={condition.monthlyPayment} disabled={isConditionSaved} /><em>원</em></div></div></div>
+                          <div className="kim-manual-compare-row amount emphasis"><span>월 납입금</span><div className="kim-manual-monthly-control"><button aria-label="솔루션 조회" className="kim-manual-solution-query" disabled={isConditionSaved || !solutionWorkbenchCanQuery || solutionLoadingId !== null} onClick={() => handleSolutionQueryClick(condition.id)} title="솔루션 조회" type="button"><Calculator size={14} strokeWidth={2.15} /></button><div className="kim-jeff-money-input"><input aria-label="월 납입금" data-sc-field="monthly" defaultValue={condition.monthlyPayment} disabled={isConditionSaved} /><em>원</em></div></div></div>
+                          {/* 결과 4필드 = 읽기 전용 파생값(개정 1 R3) — 월납입·카드 조건·가격패널에서 deriveAndFillCardResults가
+                              자동 계산해 채운다(readOnly — jeff money 핸들러도 readOnly는 스킵). data-sc-field/defaultValue 추출 계약 불변
+                              (저장본 프리필은 파생 재계산 전까지 표시). 금리 = 리스계산기 실질 금리(제프 표면금리 아님 — 스펙 개정 1). */}
                           <div className="kim-manual-result-grid">
-                            <label><span>반납 총비용</span><div className="kim-jeff-money-input"><input aria-label="반납 총비용" data-sc-field="totalReturn" defaultValue={condition.totalReturn} disabled={isConditionSaved} /><em>원</em></div></label>
-                            <label><span>인수 총비용</span><div className="kim-jeff-money-input"><input aria-label="인수 총비용" data-sc-field="totalTakeover" defaultValue={condition.totalTakeover} disabled={isConditionSaved} /><em>원</em></div></label>
-                            <label><span>출고 전 납입</span><div className="kim-jeff-money-input"><input aria-label="출고 전 납입" data-sc-field="dueAtDelivery" defaultValue={condition.dueAtDelivery} disabled={isConditionSaved} /><em>원</em></div></label>
-                            <label><span>금리</span><div className="kim-jeff-money-input"><input aria-label="금리" data-discount-unit="percent" data-sc-field="interestRate" defaultValue={condition.interestRate} disabled={isConditionSaved} /><em>%</em></div></label>
+                            <label><span>반납 총비용</span><div className="kim-jeff-money-input is-fixed"><input aria-label="반납 총비용" data-sc-field="totalReturn" defaultValue={condition.totalReturn} disabled={isConditionSaved} readOnly /><em>원</em></div></label>
+                            <label><span>인수 총비용</span><div className="kim-jeff-money-input is-fixed"><input aria-label="인수 총비용" data-sc-field="totalTakeover" defaultValue={condition.totalTakeover} disabled={isConditionSaved} readOnly /><em>원</em></div></label>
+                            <label><span>출고 전 납입</span><div className="kim-jeff-money-input is-fixed"><input aria-label="출고 전 납입" data-sc-field="dueAtDelivery" defaultValue={condition.dueAtDelivery} disabled={isConditionSaved} readOnly /><em>원</em></div></label>
+                            <label><span>금리</span><div className="kim-jeff-money-input is-fixed"><input aria-label="금리" data-discount-unit="percent" data-sc-field="interestRate" defaultValue={condition.interestRate} disabled={isConditionSaved} readOnly /><em>%</em></div></label>
                           </div>
                           <button
                             className="kim-manual-condition-save"
@@ -570,6 +593,19 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
               <AppCardPreview model={appCardModel} inModal />
             </div>
           </div>
+        ) : null}
+        {solutionLenderPickerId ? (
+          /* 개정 2 R4: 금융사 미선택 상태에서 계산기 클릭 → 지원 금융사 일괄 조회 랭킹 모달(행 선택 = 카드 채움).
+             오픈마다 새 마운트(조건부 렌더) — 병렬 배치가 마운트 1회 발화. 닫힘 경로(backdrop/X/취소/Esc 분기·
+             잔상 리셋)는 개정 1 그대로. */
+          <SolutionLenderRankingModal
+            key={solutionLenderPickerId} /* 카드 전환 시 강제 리마운트 보험 — "오픈 = fresh mount" 계약을 구조로 보장 */
+            condId={solutionLenderPickerId}
+            purchaseMethod={solutionWorkbenchPurchaseMethod}
+            buildBaseArgs={buildCardSolutionBaseArgs}
+            onPick={pickRankingEntry}
+            onClose={() => setSolutionLenderPickerId(null)}
+          />
         ) : null}
       </div>
     </div>

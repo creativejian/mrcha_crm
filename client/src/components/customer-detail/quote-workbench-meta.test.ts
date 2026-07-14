@@ -12,7 +12,9 @@ import {
   discountLineWon,
   effectiveMileageValue,
   MILEAGE_BASIC_VALUE,
+  residualDisplayFromSnapshot,
   restoreDiscountLines,
+  solutionSnapshotsFromScenarios,
   type CardUiState,
   type EditScenario,
 } from "./quote-workbench-meta";
@@ -184,6 +186,67 @@ describe("cardUiMapFromScenarios", () => {
 
   it("시나리오가 없으면 빈 맵(모든 카드가 기본값으로 폴백)", () => {
     expect(cardUiMapFromScenarios([])).toEqual({});
+  });
+});
+
+// 수정 재진입 스냅샷 시드 — 시나리오 저장이 전체 교체(서버 insertScenarios delete→insert)라,
+// 재조회 없이 재저장해도 이 시드가 저장 payload에 스냅샷을 되실어 소실을 막는다(마이그 0031 계약).
+// 카드 대응 규칙은 cardUiMapFromScenarios와 동일(cardIdOfScenarioNo — scenario_no ↔ manual-condition-N).
+describe("solutionSnapshotsFromScenarios", () => {
+  const snapshotRow = {
+    scenarioNo: 1,
+    solutionLenderCode: "im-capital",
+    solutionWorkbookVersion: "2026-07 v2",
+    solutionCalculatedAt: "2026-07-14T02:00:00.000Z",
+    solutionRaw: { ok: true, quote: { monthlyPayment: 1_200_000 } },
+  };
+
+  it("스냅샷 있는 시나리오를 카드 id로 매핑한다(workbookVersion null은 null 그대로 왕복 — \"\" 드리프트 금지)", () => {
+    const map = solutionSnapshotsFromScenarios([
+      snapshotRow,
+      { ...snapshotRow, scenarioNo: 3, solutionLenderCode: "mg-capital", solutionWorkbookVersion: null },
+    ]);
+    expect(Object.keys(map)).toEqual(["manual-condition-1", "manual-condition-3"]);
+    expect(map["manual-condition-1"]).toEqual({
+      solutionLenderCode: "im-capital",
+      solutionWorkbookVersion: "2026-07 v2",
+      solutionCalculatedAt: "2026-07-14T02:00:00.000Z",
+      solutionRaw: { ok: true, quote: { monthlyPayment: 1_200_000 } },
+    });
+    expect(map["manual-condition-3"]).toMatchObject({ solutionLenderCode: "mg-capital", solutionWorkbookVersion: null });
+  });
+
+  it("스냅샷 없는(수기) 시나리오는 제외한다 — lenderCode/calculatedAt 둘 다 있어야 스냅샷 실존", () => {
+    const map = solutionSnapshotsFromScenarios([
+      { scenarioNo: 1, solutionLenderCode: null, solutionWorkbookVersion: null, solutionCalculatedAt: null, solutionRaw: null },
+      { ...snapshotRow, scenarioNo: 2, solutionCalculatedAt: null }, // 반쪽 행(과거 드리프트 방어) — 스냅샷으로 안 본다
+      { ...snapshotRow, scenarioNo: 3 },
+    ]);
+    expect(Object.keys(map)).toEqual(["manual-condition-3"]);
+  });
+});
+
+// 수정 재진입 max 잔가 재시드 — max 모드는 DB residualValue가 null(추출 규칙)이라 표시값이 "-"로 시드되는데,
+// 그대로 두면 재진입 직후 파생(residualAmountOf → null)이 인수 총비용·금리를 "0"으로 덮어 무재조회 재저장 시
+// 이전 저장값이 조용히 소실된다. 스냅샷 raw의 실채택 잔가로 표시값을 복원해 파생이 보존 계산되게 한다.
+describe("residualDisplayFromSnapshot", () => {
+  const snapshot = {
+    solutionLenderCode: "im-capital",
+    solutionWorkbookVersion: null,
+    solutionCalculatedAt: "2026-07-14T02:00:00.000Z",
+    solutionRaw: {
+      ok: true,
+      quote: { monthlyPayment: 1_234_567, rates: { annualRateDecimal: 0.0532 }, residual: { amount: 26_550_000 } },
+    },
+  };
+
+  it("스냅샷 raw의 실채택 잔가를 조회 채움과 동일 포맷(콤마)으로 돌려준다", () => {
+    expect(residualDisplayFromSnapshot(snapshot)).toBe("26,550,000");
+  });
+
+  it("스냅샷 부재·raw 해석 불능이면 null(호출부 '-' 폴백 유지)", () => {
+    expect(residualDisplayFromSnapshot(undefined)).toBeNull();
+    expect(residualDisplayFromSnapshot({ ...snapshot, solutionRaw: "garbage" })).toBeNull();
   });
 });
 

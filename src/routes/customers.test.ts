@@ -907,6 +907,60 @@ test("견적 시나리오 확장 필드(앱카드): 금리·총비용·자동차
   }
 });
 
+// 솔루션 조회 재현성 스냅샷(마이그 0031) — 요율이 매월 갱신되는 도메인이라 "어느 금융사/워크북 기준 계산인지"를
+// 시나리오에 남긴다. 수기 시나리오(4필드 미전송)는 null 왕복이어야 한다(하위호환).
+test("시나리오 솔루션 스냅샷 4필드 왕복(저장→조회)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  const snapshot = {
+    solutionLenderCode: "shinhan-card",
+    solutionWorkbookVersion: "2607",
+    solutionCalculatedAt: "2026-07-14T05:00:00.000Z",
+    solutionRaw: { ok: true, quote: { monthlyPayment: 1_750_000 } },
+  };
+  let quoteId: string | null = null;
+  try {
+    const created = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h,
+      body: JSON.stringify({
+        entryMode: "solution", status: "작성중",
+        scenarios: [
+          { scenarioNo: 1, isSaved: true, purchaseMethod: "운용리스", lender: "신한카드", monthlyPayment: "1750000", termMonths: 60, ...snapshot },
+          // 스냅샷 없는 수기 시나리오 — 4필드 전부 null로 왕복해야 한다.
+          { scenarioNo: 2, isSaved: true, purchaseMethod: "운용리스", lender: "iM캐피탈", monthlyPayment: "1800000" },
+        ],
+      }),
+    });
+    expect(created.status).toBe(201);
+    quoteId = ((await created.json()) as { id: string }).id;
+
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+      quotes: Array<{ id: string; scenarios: Array<Record<string, unknown>> }>;
+    };
+    const byNo = [...detail.quotes.find((x) => x.id === quoteId)!.scenarios]
+      .sort((a, b) => ((a.scenarioNo as number | null) ?? 0) - ((b.scenarioNo as number | null) ?? 0));
+    expect(byNo[0].solutionLenderCode).toBe("shinhan-card");
+    expect(byNo[0].solutionWorkbookVersion).toBe("2607");
+    // timestamptz 왕복 — ISO 파싱 가능 + 저장한 순간과 동일 시각(직렬화 포맷은 강제하지 않음).
+    const calcAt = new Date(byNo[0].solutionCalculatedAt as string);
+    expect(Number.isNaN(calcAt.getTime())).toBe(false);
+    expect(calcAt.getTime()).toBe(new Date(snapshot.solutionCalculatedAt).getTime());
+    // jsonb 깊은 동등(원 파트너 응답 그대로 보존).
+    expect(byNo[0].solutionRaw).toEqual(snapshot.solutionRaw);
+    // 수기 시나리오는 4필드 null.
+    expect(byNo[1].solutionLenderCode).toBeNull();
+    expect(byNo[1].solutionWorkbookVersion).toBeNull();
+    expect(byNo[1].solutionCalculatedAt).toBeNull();
+    expect(byNo[1].solutionRaw).toBeNull();
+  } finally {
+    // 공유 master DB라 항상 정리(scenarios는 ON DELETE CASCADE).
+    if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
 // valid_until 스탬프는 updateQuote(customer-quotes.ts:113)가 한다 — 라우트가 그 경로를 태우는지만 본다.
 // 전용 고객(app_user_id 없음)이라 발송 훅은 미발동(advisor_quotes upsert 검증은 send.test.ts 몫).
 test("견적 발송(갭ⓐ): PATCH appStatus=sent → valid_until = sent_at + 7일 자동 스탬프", async () => {

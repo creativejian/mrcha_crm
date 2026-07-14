@@ -6,8 +6,10 @@ import { MemoryRouter } from "react-router";
 import type { Customer } from "@/data/customers";
 import type { CustomerDetailData } from "@/lib/customers";
 import type { QuoteItem } from "@/lib/quote-items";
+import type { VehicleSelection } from "@/components/VehiclePicker";
 import { DEFAULT_QUOTE_GUIDANCE, regionFromResidence } from "@/data/quote-guidance";
 import { fetchQuoteRequestDetail } from "@/lib/quote-requests";
+import { createQuote, requestSolutionQuote } from "@/lib/customer-quotes";
 
 import { DEFAULT_CARD_UI } from "../quote-workbench-meta";
 import { useQuoteWorkbench } from "./useQuoteWorkbench";
@@ -18,7 +20,16 @@ vi.mock("@/lib/quote-requests", () => ({
   fetchAppQuoteRequestsCached: vi.fn(async () => []),
 }));
 
+// 솔루션 조회 릴레이 + 저장 INSERT만 모킹(payload 관측용) — parse 헬퍼·타입 등 나머지는 원본 유지.
+vi.mock("@/lib/customer-quotes", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/customer-quotes")>()),
+  requestSolutionQuote: vi.fn(),
+  createQuote: vi.fn(),
+}));
+
 const fetchRequestDetail = vi.mocked(fetchQuoteRequestDetail);
+const requestSolution = vi.mocked(requestSolutionQuote);
+const createQuoteMock = vi.mocked(createQuote);
 
 // 수정 진입 복원 검증용 견적(취득세 hybrid 저장본). 시나리오 없음 — 카드 복원은 빈 카드 폴백.
 const editTargetQuote = {
@@ -57,15 +68,41 @@ const editStaleRegionQuote = {
   guidance: { deliveryComment: "", stockNotice: "", expectedDelivery: "", customerRegion: "확인 필요", keyPoints: [], recommendReason: "", services: [] },
 };
 
+// max 모드 + 솔루션 스냅샷 저장본 — 수정 재진입 시 잔가 표시값(DB residualValue는 max에서 null)이
+// 스냅샷 raw의 실채택 잔가(20,000,000)로 재시드되는지 검증(무재조회 재저장 시 인수·금리 소실 방지).
+const editSolutionMaxQuote = {
+  ...editTargetQuote,
+  id: "q-edit-4",
+  scenarios: [{
+    id: "sc-solution-1",
+    scenarioNo: 1,
+    purchaseMethod: "운용리스",
+    lender: "iM캐피탈",
+    termMonths: 60,
+    monthlyPayment: "1234567",
+    residualMode: "max",
+    residualValue: null,
+    isSaved: true,
+    solutionLenderCode: "im-capital",
+    solutionWorkbookVersion: "2026-07 v2",
+    solutionCalculatedAt: "2026-07-14T02:00:00.000Z",
+    solutionRaw: {
+      ok: true,
+      quote: { monthlyPayment: 1_234_567, rates: { annualRateDecimal: 0.0532 }, residual: { amount: 20_000_000 } },
+    },
+  }],
+};
+
 const detail = {
   residence: "인천광역시 · 남동구",
-  quotes: [editTargetQuote, editTargetWithDiscounts, editStaleRegionQuote],
+  quotes: [editTargetQuote, editTargetWithDiscounts, editStaleRegionQuote, editSolutionMaxQuote],
 } as unknown as CustomerDetailData;
-const customer = { customerId: "CU-TEST-0001", name: "테스트" } as Customer;
+const customer = { id: "cust-1", customerId: "CU-TEST-0001", name: "테스트" } as Customer;
 
 function quoteListStub() {
   return {
     quotes: [],
+    setQuotes: vi.fn(), // persistWorkbenchQuote 낙관 갱신 경로(quoteList.setQuotes) — 솔루션 저장 payload 테스트가 통과한다
     handlers: {
       setConfirmingQuoteDeleteId: vi.fn(),
       setConfirmingQuoteSendId: vi.fn(),
@@ -79,12 +116,13 @@ function quoteListStub() {
 }
 
 function setup() {
-  return renderHook(
+  const onToast = vi.fn();
+  const hook = renderHook(
     () =>
       useQuoteWorkbench({
         detail,
         customer,
-        onToast: vi.fn(),
+        onToast,
         markRecentUpdate: vi.fn(),
         quoteList: quoteListStub(),
         purchaseFields: [{ label: "구매방식", value: "운용리스" }],
@@ -92,6 +130,7 @@ function setup() {
       }),
     { wrapper: ({ children }: { children: ReactNode }) => <MemoryRouter>{children}</MemoryRouter> },
   );
+  return Object.assign(hook, { onToast });
 }
 
 // 이전 세션(수정 진입 등)이 남긴 카드 UI 상태를 주입한다 — 카드 모드·할인 행·취득세 모드.
@@ -202,5 +241,228 @@ describe("useQuoteWorkbench — 오픈/리셋 경로의 카드 UI 상태 잔상 
       { label: "재구매 할인", amount: "500,000", unit: "amount" },
       { label: "프로모션", amount: "1.5", unit: "percent" },
     ]);
+  });
+});
+
+// ── 솔루션 조회(queryCardSolution) — DOM 계약 최소 재현 픽스처 ─────────────────────────────
+// QuoteWorkbench 마크업의 data-scenario-card/data-sc-field/data-pricing 계약을 훅 ref에 직접 배선.
+
+function buildCardDom(condId: string, values: Record<string, string> = {}) {
+  const card = document.createElement("section");
+  card.dataset.scenarioCard = condId;
+  const lender = document.createElement("select");
+  lender.dataset.scField = "lender";
+  for (const label of ["미선택", "iM캐피탈"]) {
+    const option = document.createElement("option");
+    option.value = label;
+    option.textContent = label;
+    lender.append(option);
+  }
+  lender.value = values.lender ?? "미선택";
+  card.append(lender);
+  for (const field of ["deposit", "downPayment", "residual", "subsidy", "monthly", "interestRate", "totalReturn", "totalTakeover", "dueAtDelivery"]) {
+    const input = document.createElement("input");
+    input.dataset.scField = field;
+    input.value = values[field] ?? "0";
+    card.append(input);
+  }
+  return card;
+}
+
+function buildPricingDom() {
+  const root = document.createElement("section");
+  for (const key of ["base", "option", "discount", "acquisitionTax", "bond", "delivery", "incidental"]) {
+    const input = document.createElement("input");
+    input.dataset.pricing = key;
+    input.value = "0";
+    root.append(input);
+  }
+  return root;
+}
+
+// trimDetail 동봉 — applyTrimToPricing이 fetch 없이 차량 상태(brand/model/mcCode)와 가격패널 base를 시드.
+const vehicleSelection = {
+  brand: { name: "BMW" },
+  model: { name: "5시리즈" },
+  trim: { id: 1, name: "520i", mcCode: "MC-520I" },
+  trimDetail: {
+    id: 1, name: "520i", trimName: "520i", modelName: "5시리즈", modelYear: 2026, mcCode: "MC-520I",
+    price: 50_000_000, financialDiscountAmount: 0, options: [], optionRelations: [], colors: [],
+  },
+} as unknown as VehicleSelection;
+
+// 파트너 정상 응답(parseSolutionQuoteResult 통과 형태).
+const partnerResponse = {
+  ok: true,
+  quote: {
+    monthlyPayment: 1_234_567,
+    rates: { annualRateDecimal: 0.0532, effectiveAnnualRateDecimal: 0.0555 },
+    residual: { amount: 20_000_000, rateDecimal: 0.4 },
+    workbookImport: { versionLabel: "2026-07 v2" },
+    warnings: [],
+  },
+};
+
+// 가격패널·비교카드 폼 DOM을 문서에 붙이고(isConnected 판별 전제) 차량 상태를 시드한다.
+async function setupSolutionDom(result: ReturnType<typeof setup>["result"]) {
+  const pricingRoot = buildPricingDom();
+  const compareForm = document.createElement("div");
+  document.body.append(pricingRoot, compareForm);
+  result.current.pricingPanelRef.current = pricingRoot;
+  result.current.quoteDetailFormRef.current = compareForm;
+  await act(async () => { await result.current.handlers.applyTrimToPricing(vehicleSelection); });
+  return { pricingRoot, compareForm };
+}
+
+// 작성완료(saveQuoteDetailDraft) → 모킹된 createQuote가 받은 INSERT payload의 시나리오 배열.
+// 스냅샷 오염/보존은 저장 payload가 최종 관측점(AppCardModel은 파생 라벨만 담아 스냅샷을 노출하지 않는다).
+async function savedScenarios(result: ReturnType<typeof setup>["result"]) {
+  createQuoteMock.mockClear(); // 호출 기록은 테스트 간 누적 — 이번 저장 1건만 관측
+  createQuoteMock.mockResolvedValue({ id: "srv-q-1", quoteCode: "QT-2607-0001", createdAt: "2026-07-14T00:00:00.000Z" });
+  await act(async () => { result.current.handlers.saveQuoteDetailDraft(); });
+  expect(createQuoteMock).toHaveBeenCalledTimes(1);
+  return createQuoteMock.mock.calls[0][1].scenarios ?? [];
+}
+
+describe("useQuoteWorkbench — 솔루션 조회 결과 반영·늦은 응답 잔상 가드", () => {
+  it("조회 성공: 월납입(표시 라운딩)·잔가 채움 + 결과 4필드는 리스계산기 파생 + 스냅샷이 저장 payload에 동봉된다(가드 대조군)", async () => {
+    const { result } = setup();
+    const { pricingRoot, compareForm } = await setupSolutionDom(result);
+    const card = buildCardDom("manual-condition-1", { lender: "iM캐피탈" });
+    compareForm.append(card);
+    requestSolution.mockResolvedValue(partnerResponse);
+    await act(async () => { await result.current.handlers.queryCardSolution("manual-condition-1"); });
+    const cardField = (f: string) => card.querySelector<HTMLInputElement>(`input[data-sc-field="${f}"]`)!.value;
+    expect(cardField("monthly")).toBe("1,234,600"); // 운용리스 표시 라운딩(100원 올림 — 개정 2 R4, 원값 1,234,567은 raw 스냅샷)
+    expect(cardField("residual")).toBe("20,000,000"); // 최대 모드 실채택 잔가(제프 응답) — 파생의 잔가 입력
+    // 결과 4필드 = 제프 응답이 아니라 파생값: 취득원가 50,000,000·기간 60·선수금/보증금 0·기타비용 0 기준.
+    expect(cardField("totalReturn")).toBe("74,076,000"); // 1,234,600×60 + 0
+    expect(cardField("totalTakeover")).toBe("94,076,000"); // + 잔가 20,000,000
+    expect(cardField("dueAtDelivery")).toBe("0"); // 보증금 0 + 선수금 0 + 기타비용 0
+    expect(cardField("interestRate")).toBe("23.16"); // RATE 역산 실질 금리(제프 표면금리 5.32와 다름 — 개정 1 의미론)
+    const scenarios = await savedScenarios(result);
+    expect(scenarios).toHaveLength(1);
+    expect(scenarios[0]).toMatchObject({
+      monthlyPayment: "1234600",
+      totalReturnCost: "74076000",
+      totalTakeoverCost: "94076000",
+      dueAtDelivery: null, // 파생 0 → nz()가 null 처리(가짜 0 영속 방지)
+      interestRate: "23.16",
+      solutionLenderCode: "im-capital",
+      solutionWorkbookVersion: "2026-07 v2",
+    });
+    pricingRoot.remove();
+    compareForm.remove();
+  });
+
+  it("수정 재진입: max 모드 + 스냅샷 견적은 잔가 표시값을 스냅샷 실채택 잔가로 재시드한다(무재조회 재저장 인수·금리 보존)", () => {
+    const { result } = setup();
+    act(() =>
+      result.current.openEditQuote({
+        id: "q-edit-4",
+        decisionStatus: null,
+        trimId: null,
+        financeType: "운용리스",
+        source: "solution",
+      } as unknown as QuoteItem),
+    );
+    // 구현 전엔 "-"(placeholder) → 파생이 잔가 null로 보고 인수·금리를 "0"으로 덮었다(조용한 소실).
+    expect(result.current.manualQuoteCards[0].residualValue).toBe("20,000,000");
+  });
+
+  it("계산기 3분기(개정 2 R4): 미선택 → 랭킹 모달 / 행 선택 → 재호출 없이 카드 채움 / 미지원사 → 미취급 경고", async () => {
+    const { result, onToast } = setup();
+    const { pricingRoot, compareForm } = await setupSolutionDom(result);
+    const card = buildCardDom("manual-condition-1"); // lender 기본값 = 미선택
+    compareForm.append(card);
+    requestSolution.mockClear();
+    // ① 미선택 → 사전 검증(차량/가격 프로브) 통과 → 랭킹 모달 오픈. 병렬 배치는 모달 컴포넌트 몫이라
+    //    훅 레벨에서는 호출 0(컴포넌트 테스트 SolutionLenderRankingModal.test.tsx가 배치를 잠근다).
+    act(() => result.current.handlers.handleSolutionQueryClick("manual-condition-1"));
+    expect(result.current.solutionLenderPickerId).toBe("manual-condition-1");
+    expect(requestSolution).not.toHaveBeenCalled();
+    // ② 랭킹 행 선택 → 재호출 없음(모달이 받아둔 raw 그대로 영속) + select 세팅 + 표시 월납입 채움 + 모달 닫힘
+    const entry = {
+      lenderCode: "im-capital" as const,
+      label: "iM캐피탈",
+      monthlyDisplay: 1_234_600,
+      ratePct: 5.32,
+      residualAmount: 20_000_000,
+      residualPct: 40,
+      totalCost: 1_234_600 * 60 + 20_000_000,
+      warnings: [],
+      raw: partnerResponse,
+    };
+    act(() => result.current.handlers.pickRankingEntry("manual-condition-1", entry));
+    expect(card.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')!.value).toBe("iM캐피탈");
+    expect(card.querySelector<HTMLInputElement>('input[data-sc-field="monthly"]')!.value).toBe("1,234,600");
+    expect(result.current.solutionLenderPickerId).toBeNull();
+    expect(requestSolution).not.toHaveBeenCalled(); // 행 선택은 재계산하지 않는다(개정 2 R4-3)
+    // ③ 미지원사(레거시 저장 어휘) → 계산 없이 경고 토스트(R1-3, 카드 불변)
+    const select = card.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')!;
+    const legacy = document.createElement("option");
+    legacy.value = "우리금융캐피탈";
+    legacy.textContent = "우리금융캐피탈";
+    select.append(legacy);
+    select.value = "우리금융캐피탈";
+    act(() => result.current.handlers.handleSolutionQueryClick("manual-condition-1"));
+    expect(requestSolution).not.toHaveBeenCalled(); // 증가 없음
+    expect(onToast).toHaveBeenCalledWith("「우리금융캐피탈」은(는) 솔루션 미취급 금융사입니다 — 수기로 작성해 주세요");
+    pricingRoot.remove();
+    compareForm.remove();
+  });
+
+  it("파생 % 상한 미러: 선수금 콤마 오입력(45,5 → 455%)은 파생값에 미반영(0 처리 — 무음 부풀림 차단)", async () => {
+    const { result } = setup();
+    const { pricingRoot, compareForm } = await setupSolutionDom(result);
+    const card = buildCardDom("manual-condition-1", { monthly: "1,200,000", downPayment: "45,5" });
+    compareForm.append(card);
+    // 선수금 % 모드 전환 → 동기화 effect(cardUi dep)가 파생 재계산. 조회 경로(빌더)는 토스트 fail-loud지만
+    // 수기 파생 경로는 매 키스트로크라 0 처리로 오염만 차단(residualAmountOf와 동일 상한 의미론).
+    act(() => result.current.handlers.setManualDownPaymentMode("manual-condition-1", "percent"));
+    const totalReturn = card.querySelector<HTMLInputElement>('input[data-sc-field="totalReturn"]')!.value;
+    expect(totalReturn).toBe("72,000,000"); // 1,200,000×60 + 선수금 0(455%는 미반영 — 상한 없으면 299,500,000)
+    pricingRoot.remove();
+    compareForm.remove();
+  });
+
+  it("Esc 모달 우선 분기: 금융사 모달만 닫고 워크벤치는 유지, 다음 Esc가 워크벤치를 닫는다", async () => {
+    const { result } = setup();
+    act(() => result.current.openNewWorkbench()); // Esc 리스너는 워크벤치 열림 상태에서만 부착(차량 리셋보다 먼저)
+    const { pricingRoot, compareForm } = await setupSolutionDom(result); // 모달 오픈 사전 검증(차량/가격 프로브) 충족
+    compareForm.append(buildCardDom("manual-condition-1")); // lender 미선택 → 클릭 시 모달
+    act(() => result.current.handlers.handleSolutionQueryClick("manual-condition-1"));
+    expect(result.current.solutionLenderPickerId).toBe("manual-condition-1");
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); });
+    expect(result.current.solutionLenderPickerId).toBeNull(); // 모달만 닫힘
+    expect(result.current.isQuoteSolutionWorkbenchOpen).toBe(true); // 워크벤치 유지(유령 모달·통닫힘 방지)
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); });
+    expect(result.current.isQuoteSolutionWorkbenchOpen).toBe(false); // 기존 규칙 불변
+    pricingRoot.remove();
+    compareForm.remove();
+  });
+
+  it("늦은 응답 가드: 조회 중 카드가 언마운트(견적 전환)되면 stale 스냅샷을 병합하지 않는다(#163 잔상 부류)", async () => {
+    const { result } = setup();
+    const { pricingRoot, compareForm } = await setupSolutionDom(result);
+    const staleCard = buildCardDom("manual-condition-1", { lender: "iM캐피탈" });
+    compareForm.append(staleCard);
+    let resolveLate!: (v: unknown) => void;
+    requestSolution.mockImplementation(() => new Promise((r) => { resolveLate = r; }));
+    let pending!: Promise<void>;
+    act(() => { pending = result.current.handlers.queryCardSolution("manual-condition-1"); });
+    // 워크벤치 전환 시뮬레이션 — 카드 key 리마운트로 구 노드 detach + 다음 견적의 같은 슬롯 카드 attach(월납입 수기 입력).
+    staleCard.remove();
+    const nextCard = buildCardDom("manual-condition-1", { lender: "iM캐피탈", monthly: "1,200,000" });
+    compareForm.append(nextCard);
+    await act(async () => { resolveLate(partnerResponse); await pending; });
+    // 다음 견적을 작성완료 — 채워진 카드의 시나리오는 저장되지만, 이전 견적 조건으로 계산된 스냅샷은 없어야 한다.
+    const scenarios = await savedScenarios(result);
+    expect(scenarios).toHaveLength(1);
+    expect(scenarios[0].monthlyPayment).toBe("1200000"); // 카드 자체는 채워짐(빈 추출로 인한 공허 통과 방지)
+    expect(scenarios[0].solutionLenderCode).toBeUndefined(); // 가드 없으면 "im-capital"이 저장 payload에 오염된다
+    expect(nextCard.querySelector<HTMLInputElement>('input[data-sc-field="monthly"]')!.value).toBe("1,200,000"); // 늦은 응답이 새 카드 입력을 덮지 않음
+    pricingRoot.remove();
+    compareForm.remove();
   });
 });

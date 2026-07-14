@@ -64,6 +64,7 @@ export async function getTrimsByModel(modelId: number, executor: Executor = getD
       seatingCapacity: trimsInCatalog.seatingCapacity,
       status: trimsInCatalog.status,
       sortOrder: trimsInCatalog.sortOrder,
+      mcCode: trimsInCatalog.mcCode,
     })
     .from(trimsInCatalog)
     .where(eq(trimsInCatalog.modelId, modelId))
@@ -93,6 +94,7 @@ export async function getTrimDetail(trimId: number, executor: Executor = getDefa
         financialDiscountAmount: trimsInCatalog.financialDiscountAmount,
         partnerDiscountAmount: trimsInCatalog.partnerDiscountAmount,
         cashDiscountAmount: trimsInCatalog.cashDiscountAmount,
+        mcCode: trimsInCatalog.mcCode,
         brandId: brandsInCatalog.id,
         brandName: brandsInCatalog.name,
         modelName: modelsInCatalog.name,

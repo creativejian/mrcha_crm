@@ -2,10 +2,11 @@
 // 훅(useQuoteWorkbench)과 컴포넌트(QuoteWorkbench)가 공유한다.
 
 import { PURCHASE_METHOD_OPTIONS, type PurchaseMethod } from "@/data/customers";
-import { type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
+import { type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { type QuoteGuidance } from "@/data/quote-guidance";
 import { computePricing, formatMoney, type PricingInputs } from "@/lib/quote-pricing";
 import { type ScenarioCardSeed } from "@/lib/quote-request-seed";
+import { parseSolutionQuoteResult, type SolutionSnapshot } from "@/lib/solution-quote";
 
 export type DiscountUnit = "amount" | "percent";
 export type DiscountLine = { id: string; label: string; amount: string; unit: DiscountUnit };
@@ -159,6 +160,42 @@ export function cardUiFromScenario(s: EditScenario): CardUiState {
 
 export function cardUiMapFromScenarios(scenarios: EditScenario[]): Record<string, CardUiState> {
   return Object.fromEntries(scenarios.map((s) => [cardIdOfScenarioNo(s.scenarioNo), cardUiFromScenario(s)]));
+}
+
+// 저장 시나리오 행에서 스냅샷 판독에 필요한 서브셋(CustomerDetailScenario 동형 — 서버 select() 전체 반환).
+type ScenarioSnapshotRow = Pick<
+  CustomerDetailScenario,
+  "scenarioNo" | "solutionLenderCode" | "solutionWorkbookVersion" | "solutionCalculatedAt" | "solutionRaw"
+>;
+
+// 수정 재진입 스냅샷 시드 — 시나리오 저장이 전체 교체(서버 insertScenarios delete→insert)라, 워크벤치가
+// 재조회 없이 재저장할 때 이 시드가 저장 payload에 스냅샷을 되실어 소실을 막는다(마이그 0031 계약).
+// 카드 대응 규칙은 cardUiMapFromScenarios와 동일(cardIdOfScenarioNo). lenderCode·calculatedAt 둘 다
+// 있어야 스냅샷 실존으로 본다(수기 시나리오·반쪽 행 제외). solutionCalculatedAt·workbookVersion은
+// 저장본 값 그대로 왕복(재변환·기본값 승격 없음 — 구 행의 버전 null이 재저장에서 ""로 드리프트하면 안 된다).
+export function solutionSnapshotsFromScenarios(scenarios: ScenarioSnapshotRow[]): Record<string, SolutionSnapshot> {
+  const entries: [string, SolutionSnapshot][] = [];
+  for (const s of scenarios) {
+    if (s.solutionLenderCode == null || s.solutionCalculatedAt == null) continue;
+    entries.push([cardIdOfScenarioNo(s.scenarioNo ?? 1), {
+      solutionLenderCode: s.solutionLenderCode,
+      solutionWorkbookVersion: s.solutionWorkbookVersion,
+      solutionCalculatedAt: s.solutionCalculatedAt,
+      solutionRaw: s.solutionRaw,
+    }]);
+  }
+  return Object.fromEntries(entries);
+}
+
+// 수정 재진입 max 잔가 재시드: max 모드는 DB residualValue가 null(추출 규칙)이라 카드 표시값이 "-"로
+// 시드되는데, 그대로 두면 재진입 직후 파생(residualAmountOf("max","-") → null)이 인수 총비용·금리를 "0"으로
+// 덮어 무재조회 재저장 시 이전 저장값이 조용히 소실된다(스냅샷 raw에는 실채택 잔가가 살아 있는 비대칭).
+// 스냅샷 raw에서 실채택 잔가를 조회 채움(queryCardSolution의 formatMoney)과 동일 포맷으로 복원 —
+// 스냅샷 시드의 "보존 담당" 계약(solutionSnapshotsFromScenarios)과 정합. 해석 불능이면 null(호출부 "-" 폴백).
+export function residualDisplayFromSnapshot(snapshot: SolutionSnapshot | undefined): string | null {
+  if (!snapshot) return null;
+  const parsed = parseSolutionQuoteResult(snapshot.solutionRaw);
+  return parsed ? formatMoney(parsed.residualAmount) : null;
 }
 
 export type EditPrefill = {

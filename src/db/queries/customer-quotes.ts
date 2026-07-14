@@ -88,6 +88,11 @@ export type ScenarioInput = QuoteScenarioPatch & {
   totalTakeoverCost?: string | null;
   dueAtDelivery?: string | null;
   interestRate?: string | null;
+  // 솔루션 조회 재현성 스냅샷(마이그 0031) — 수기 시나리오는 미전송(→null 저장).
+  solutionLenderCode?: string | null;
+  solutionWorkbookVersion?: string | null;
+  solutionCalculatedAt?: string | null;
+  solutionRaw?: unknown;
 };
 
 // 헤더 컬럼만 골라 set 객체로(컬럼 아닌 키 bumpRevision/scenario는 제외).
@@ -341,6 +346,8 @@ export type QuoteCreateBody = {
 };
 
 // 시나리오 N건 insert + 대표(scenario_no 최소) id 반환. createQuote/updateQuote 공용.
+// ⚠️ 전체 교체 계약: updateQuote(scenarios)는 delete→insert라 솔루션 스냅샷(solution_*) 미동봉 재저장이
+//    저장된 스냅샷을 null로 덮는다 — 워크벤치 수정 재진입 시드(useQuoteWorkbench의 solutionSnapshotsFromScenarios)가 보존을 담당.
 async function insertScenarios(
   ex: Executor,
   quoteId: string,
@@ -373,6 +380,11 @@ async function insertScenarios(
       totalTakeoverCost: sc.totalTakeoverCost ?? null,
       dueAtDelivery: sc.dueAtDelivery ?? null,
       interestRate: sc.interestRate ?? null,
+      // 솔루션 조회 스냅샷(마이그 0031) — 재현성: 어느 금융사/워크북 버전으로 언제 계산했는지 + 원 응답.
+      solutionLenderCode: sc.solutionLenderCode ?? null,
+      solutionWorkbookVersion: sc.solutionWorkbookVersion ?? null,
+      solutionCalculatedAt: sc.solutionCalculatedAt ? new Date(sc.solutionCalculatedAt) : null,
+      solutionRaw: sc.solutionRaw ?? null,
     }).returning({ id: quoteScenarios.id });
     inserted.push({ id: s.id, scenarioNo });
   }
