@@ -4,6 +4,8 @@
 // 계약 원본·매핑 근거: ref/specs/2026-07-14-crm-solution-quote-integration-design.md §파트너 계약.
 // 잔존 3모드 매핑은 제프 UI 원본(dolim-solution QuoteRevolutionV2.tsx:197-202)을 미러한다.
 
+import { parsePercentInput, percentToWon } from "./quote-pricing";
+
 export const SOLUTION_LENDERS = [
   { code: "mg-capital", label: "MG캐피탈" },
   { code: "bnk-capital", label: "BNK캐피탈" },
@@ -116,15 +118,15 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
 
   if (args.pricing.baseAndOption <= 0) return { ok: false, reason: "차량 가격을 먼저 입력해 주세요" };
 
-  // %→원 환산 기준 = 할인 전 차량가(파트너 입력이 할인 전 기준 — 스펙 §계약).
-  // NaN·100% 초과는 null → 빌드 실패(fail-loud) — parseInterestRate의 100% 상한 사유(콤마 오입력 "10,5"→105% 무음 전송 차단)를 미러.
-  // 빈 문자열 %는 Number("")=0 → 0% → 0원(에러 아님 — 빈 % 칸은 0 의미).
+  // %→원 환산 기준 = 할인 전 차량가(파트너 입력이 할인 전 기준 — 스펙 §계약). 파싱은 parsePercentInput SSOT
+  // (파생·할인 %와 공유). 100% 초과는 null → 빌드 실패(fail-loud) — 콤마 오입력 "10,5"→"105"→105% 무음 전송 차단.
+  // 빈 % 칸·비유한은 0 → 0원(에러 아님 — 빈 % 칸은 0 의미).
   const wonOf = (mode: "none" | "amount" | "percent", raw: string): number | null => {
     if (mode === "none") return 0;
     if (mode === "percent") {
-      const pct = Number(raw.replace(/[^\d.]/g, ""));
-      if (!Number.isFinite(pct) || pct > 100) return null;
-      return Math.round(args.pricing.baseAndOption * pct / 100);
+      const pct = parsePercentInput(raw);
+      if (pct > 100) return null;
+      return percentToWon(args.pricing.baseAndOption, pct);
     }
     return parseWon(raw);
   };
@@ -156,8 +158,8 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
   if (args.residualMode === "max") {
     input.residualMode = "high";
   } else if (args.residualMode === "percent") {
-    const pct = Number(args.residualRaw.replace(/[^\d.]/g, ""));
-    if (!Number.isFinite(pct) || pct <= 0) return { ok: false, reason: "잔존가치 %를 입력해 주세요" };
+    const pct = parsePercentInput(args.residualRaw);
+    if (pct <= 0) return { ok: false, reason: "잔존가치 %를 입력해 주세요" };
     // 100% 초과 = 콤마 오입력("45,5"→455%) — wonOf와 동일한 fail-loud 상한
     if (pct > 100) return { ok: false, reason: "잔존가치 %는 100 이하로 입력해 주세요" };
     input.residualMode = "standard";

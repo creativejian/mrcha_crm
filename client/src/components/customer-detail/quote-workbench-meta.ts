@@ -4,7 +4,7 @@
 import { PURCHASE_METHOD_OPTIONS, type PurchaseMethod } from "@/data/customers";
 import { type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { type QuoteGuidance } from "@/data/quote-guidance";
-import { computePricing, formatMoney, type PricingInputs } from "@/lib/quote-pricing";
+import { computePricing, formatMoney, percentToWon, type PricingInputs } from "@/lib/quote-pricing";
 import { type ScenarioCardSeed } from "@/lib/quote-request-seed";
 import { parseSolutionQuoteResult, type SolutionSnapshot } from "@/lib/solution-quote";
 
@@ -16,7 +16,7 @@ export type DiscountLine = { id: string; label: string; amount: string; unit: Di
 // 3소비처가 공유하는 단일 산술(배치 F) — 역산↔정산 산술이 어긋나면 수정 재진입 때 기본 할인이
 // 조용히 오염되는 load-bearing 불변이라, 주석 계약이 아니라 함수 1벌로 잠근다.
 export function discountLineWon(unit: DiscountUnit, value: number, basis: number): number {
-  return unit === "percent" ? Math.round(basis * value / 100) : value;
+  return unit === "percent" ? percentToWon(basis, value) : value;
 }
 
 // 수정 진입 복원: 저장된 할인 구성 내역(crm.quotes.discount_lines) → 워크벤치 행 state + 기본 할인 분리 산술.
@@ -170,13 +170,15 @@ type ScenarioSnapshotRow = Pick<
 
 // 수정 재진입 스냅샷 시드 — 시나리오 저장이 전체 교체(서버 insertScenarios delete→insert)라, 워크벤치가
 // 재조회 없이 재저장할 때 이 시드가 저장 payload에 스냅샷을 되실어 소실을 막는다(마이그 0031 계약).
-// 카드 대응 규칙은 cardUiMapFromScenarios와 동일(cardIdOfScenarioNo). lenderCode·calculatedAt 둘 다
-// 있어야 스냅샷 실존으로 본다(수기 시나리오·반쪽 행 제외). solutionCalculatedAt·workbookVersion은
-// 저장본 값 그대로 왕복(재변환·기본값 승격 없음 — 구 행의 버전 null이 재저장에서 ""로 드리프트하면 안 된다).
+// 카드 대응 규칙은 cardUiMapFromScenarios와 동일(cardIdOfScenarioNo). lenderCode·calculatedAt·raw 셋 다
+// 있어야 스냅샷 실존으로 본다(수기 시나리오·반쪽 행 제외). raw가 null이면 residualDisplayFromSnapshot이
+// "-"로 폴백해 max 잔가 재시드가 인수·금리를 소실시키므로(이 함수가 막으려던 바로 그 소실) 스냅샷으로 보지 않는다.
+// solutionCalculatedAt·workbookVersion은 저장본 값 그대로 왕복(재변환·기본값 승격 없음 — 구 행의 버전 null이
+// 재저장에서 ""로 드리프트하면 안 된다).
 export function solutionSnapshotsFromScenarios(scenarios: ScenarioSnapshotRow[]): Record<string, SolutionSnapshot> {
   const entries: [string, SolutionSnapshot][] = [];
   for (const s of scenarios) {
-    if (s.solutionLenderCode == null || s.solutionCalculatedAt == null) continue;
+    if (s.solutionLenderCode == null || s.solutionCalculatedAt == null || s.solutionRaw == null) continue;
     entries.push([cardIdOfScenarioNo(s.scenarioNo ?? 1), {
       solutionLenderCode: s.solutionLenderCode,
       solutionWorkbookVersion: s.solutionWorkbookVersion,

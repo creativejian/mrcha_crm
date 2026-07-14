@@ -68,6 +68,11 @@ describe("residualAmountOf (잔존가치 금액 해석 3모드)", () => {
     expect(residualAmountOf("percent", "45,5", 59_000_000)).toBeNull(); // 콤마 오입력 → 455%
   });
 
+  test("다중 소수점 오입력은 여분 점 흡수(parsePercentInput SSOT 통일) — 파생·전송이 같은 값을 본다", () => {
+    // 구현 이전: Number(\"4.5.5\")=NaN → null. 통일 후: parsePercentInput이 \"4.55\" 흡수(콤마 fail-loud와 별개 축).
+    expect(residualAmountOf("percent", "4.5.5", 10_000)).toBe(455); // 4.55% × 10,000 = 455
+  });
+
   test("최대 모드: 조회가 채운 실채택 잔가 금액, 조회 전(\"-\"/0)은 null(미정)", () => {
     expect(residualAmountOf("max", "26,550,000", 59_000_000)).toBe(26_550_000);
     expect(residualAmountOf("max", "-", 59_000_000)).toBeNull();

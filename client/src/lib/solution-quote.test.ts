@@ -123,6 +123,13 @@ describe("buildSolutionQuoteInput", () => {
     expect(r.input.depositAmount).toBe(6_195_000); // 59,000,000의 10.5%
   });
 
+  test("다중 소수점 % 오입력은 흡수(parsePercentInput SSOT 통일) — 콤마(>100 차단)와 별개 축, 파생과 일치", () => {
+    // 구현 이전: Number("4.5.5")=NaN → 실패. 통일 후: parsePercentInput이 "4.55" 흡수.
+    const r = buildSolutionQuoteInput({ ...BASE_ARGS, depositMode: "percent", depositRaw: "4.5.5" });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.input.depositAmount).toBe(2_684_500); // 59,000,000의 4.55%
+  });
+
   test("기간 이탈(72개월) = 실패", () => {
     expect(buildSolutionQuoteInput({ ...BASE_ARGS, termMonths: 72 }).ok).toBe(false);
   });

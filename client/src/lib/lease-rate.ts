@@ -3,7 +3,7 @@
 // calculateRate 원본 = mr-cha-app `supabase/functions/ai-analyst/utils/lease_calc.ts`
 // — 앱 리스계산기와 동기. 수학 수정 금지(Excel RATE, Newton-Raphson secant).
 
-import { parseMoney } from "./quote-pricing";
+import { parseMoney, parsePercentInput, percentToWon } from "./quote-pricing";
 
 export function calculateRate(
   periods: number,
@@ -88,9 +88,9 @@ export function deriveCardResults(args: DeriveCardResultsArgs): DerivedCardResul
 // %는 0·NaN·100 초과를 null(빌더 wonOf의 콤마 오입력 fail-loud 상한 미러 — "45,5" → 455%).
 export function residualAmountOf(mode: "max" | "amount" | "percent", raw: string, baseAndOption: number): number | null {
   if (mode === "percent") {
-    const pct = Number(raw.replace(/[^\d.]/g, ""));
-    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return null;
-    const amount = Math.round(baseAndOption * pct / 100);
+    const pct = parsePercentInput(raw); // 파생·전송·할인 % 공유 파서(0 보장 → NaN 체크 불필요)
+    if (pct <= 0 || pct > 100) return null;
+    const amount = percentToWon(baseAndOption, pct);
     return amount > 0 ? amount : null;
   }
   const amount = parseMoney(raw);
