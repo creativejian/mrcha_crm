@@ -96,3 +96,32 @@ export const profiles = pgTable("profiles", {
   fullName: text("full_name"),
   phoneNumber: text("phone_number"),
 });
+
+// 앱 콘텐츠 — CRM은 read 전용(admin 참조). 앱 staff가 CRUD·임베딩을 유지한다.
+// embedding(vector 3072)·author_id는 CRM 무관이라 미러 제외(read 컬럼만 정의).
+export const insights = pgTable("insights", {
+  id: uuid().primaryKey(),
+  title: text().notNull(),
+  summary: text().notNull(),
+  content: text().notNull(),
+  category: text().notNull(), // 자유 text(UI 5종) — 앱이 enum 아님
+  status: text().notNull(), // draft | published
+  publishedAt: timestamp("published_at", { withTimezone: true, mode: "string" }),
+  thumbnailUrl: text("thumbnail_url"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
+});
+
+// 지식베이스 원문 — 청크/임베딩(knowledge_chunks)은 앱 AI 전용이라 미러하지 않는다.
+// category는 12장 slug(client/src/data/knowledge-categories.ts 매핑). status는 항상 published.
+export const knowledgeArticles = pgTable("knowledge_articles", {
+  id: uuid().primaryKey(),
+  category: text().notNull(),
+  documentTitle: text("document_title").notNull(),
+  content: text().notNull(),
+  blockNumber: integer("block_number"),
+  subNumber: integer("sub_number"),
+  status: text().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
+});
