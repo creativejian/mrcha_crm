@@ -803,7 +803,10 @@ export function CustomerManagementPage({
         {vehicleCell}
         <td><span className={badgeClass(customer.status, customer.statusGroup)}>{customer.status}</span><span className="table-note">{customer.date}</span></td>
         <td><div className="ai-summary-cell">{aiHintPlainText(customer)}</div></td>
-        <td><span className={badgeClass(customer.priority)}>{customer.priority}</span><span className="table-note">{customer.nextAction}</span></td>
+        {/* priority(계약가능성/긴급) 셀은 헤더에 "action" 컬럼이 있는 mode만 그린다 — delivery는 그
+            컬럼이 없어(select~stage,summary,advisor,actions) 이 셀이 잉여 8번째가 되면 table-layout:fixed
+            에서 actions가 colgroup 밖으로 밀려 헤더 우측이 잘렸다(프로토타입 이래 상존, mock 렌더 시 발현). */}
+        {tableColumns.includes("action") && <td><span className={badgeClass(customer.priority)}>{customer.priority}</span><span className="table-note">{customer.nextAction}</span></td>}
         {showAdvisorColumn && <td><strong>{customer.advisor}</strong><span className="table-note">{customer.team}</span></td>}
         {actions}
       </tr>
