@@ -46,6 +46,23 @@ describe("CustomerManagementPage", () => {
     expect(screen.queryByRole("columnheader", { name: "담당" })).not.toBeInTheDocument();
   });
 
+  // 전 mode의 헤더 th 개수 == 데이터 행 td 개수 정합을 잠근다. delivery는 헤더에 priority(action)
+  // 컬럼이 없는데 renderRow fallthrough가 그 셀을 그려 데이터 행이 1칸 많았다(table-layout:fixed에서
+  // 마지막 액션 셀이 colgroup 밖으로 밀려 헤더 우측이 잘리던 프로토타입 버그). fallthrough를 공유하는
+  // 형제 mode(consulting/contract/hold)까지 함께 잠가 컬럼 정의↔렌더 드리프트를 광범위 방어한다.
+  const MODES = ["all", "consulting", "contract", "delivery", "settlement", "hold"] as const;
+  it.each(MODES.flatMap((mode) => (["최고관리자", "상담사"] as const).map((roleTab) => [mode, roleTab] as const)))(
+    "keeps header and body column counts aligned (%s, %s)",
+    (mode, roleTab) => {
+      render(<CustomerManagementPage mode={mode} roleTab={roleTab} />);
+      const rows = screen.getAllByRole("row");
+      if (rows.length < 2) return; // 필터 통과 행 없음 — 헤더만이라 잘림 무관
+      const headerCount = screen.getAllByRole("columnheader").length;
+      const cellCount = within(rows[1]).getAllByRole("cell").length; // rows[0] = 헤더
+      expect(cellCount).toBe(headerCount);
+    },
+  );
+
   it("filters rows by search keyword", async () => {
     const user = userEvent.setup();
     render(<CustomerManagementPage mode="all" />);
