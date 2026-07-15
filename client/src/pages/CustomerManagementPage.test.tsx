@@ -46,6 +46,25 @@ describe("CustomerManagementPage", () => {
     expect(screen.queryByRole("columnheader", { name: "담당" })).not.toBeInTheDocument();
   });
 
+  // 5개 비-all mode도 전체 보기와 같은 콘솔 문법(1줄 rail·필터 pill·전체 N명 카운트)을 쓴다.
+  // 뷰 select 3개(담당자별/상담상태별/긴급순)는 renderConsoleFilter로 흡수돼 pill(button)이 된다.
+  it.each(["consulting", "contract", "delivery", "settlement", "hold"] as const)(
+    "renders the console control rail for %s mode",
+    (mode) => {
+      render(<CustomerManagementPage mode={mode} />);
+      // 콘솔 검색 래퍼(구식 <input class="input"> 아님)
+      expect(document.querySelector(".customer-console-search")).not.toBeNull();
+      // 공통 필터가 pill(button)로 — 구식 네이티브 select 아님
+      expect(screen.getByRole("button", { name: /진행 상태 · 1차/ })).toBeInTheDocument();
+      // 카운트는 "전체 N명"(구식 "TOTAL N" 아님)
+      expect(screen.queryByText("TOTAL")).not.toBeInTheDocument();
+      // 뷰 select 3개가 pill(button)로 흡수
+      expect(screen.getByRole("button", { name: /담당자별 보기/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /상담상태별 보기/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /긴급순으로 보기/ })).toBeInTheDocument();
+    },
+  );
+
   // 전 mode의 헤더 th 개수 == 데이터 행 td 개수 정합을 잠근다. delivery는 헤더에 priority(action)
   // 컬럼이 없는데 renderRow fallthrough가 그 셀을 그려 데이터 행이 1칸 많았다(table-layout:fixed에서
   // 마지막 액션 셀이 colgroup 밖으로 밀려 헤더 우측이 잘리던 프로토타입 버그). fallthrough를 공유하는
