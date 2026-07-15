@@ -67,6 +67,10 @@ const pageSizeOptions = [15, 30, 50, 100] as const;
 type FinalUpdateFilterOption = CustomerManageStatus;
 type ConsoleFilterKey = "statusGroup" | "status" | "advisor" | "chance" | "finalUpdate" | "viewAdvisor" | "viewConsultStatus" | "viewUrgent";
 
+// 뷰 select(담당자별/상담상태별/긴급순 보기)는 아직 정렬 로직이 없다(mock). 시각 pill만 통일하고
+// onChange는 no-op — 옵션·핸들러는 후속 슬라이스에서 채운다.
+const NOOP_VIEW_CHANGE = (_value: string) => undefined;
+
 function shouldShowAdvisorColumn(roleTab: RoleTab) {
   return roleTab === "최고관리자" || roleTab === "팀장";
 }
@@ -813,7 +817,7 @@ export function CustomerManagementPage({
     );
   }
 
-  const isConsole = mode === "all";
+  const isAllMode = mode === "all";
   const consoleFilterOptions = {
     statusGroup: Object.keys(customerStatusGroups).map((group) => ({ value: group, label: group })),
     status: statuses.map((item) => ({ value: item, label: item })),
@@ -883,100 +887,74 @@ export function CustomerManagementPage({
   }
 
   return (
-    <section className={isConsole ? "customer-console-page" : undefined}>
-      <section className={isConsole ? "card customer-console-card" : "card"}>
-        <div className={isConsole ? "customer-console-control-rail" : undefined} ref={isConsole ? consoleFilterRailRef : undefined}>
-          <div className={isConsole ? "toolbar customer-console-toolbar" : "toolbar"}>
-            {isConsole && <div className="total-count">전체 <strong className="num">{rows.length}</strong><span>명</span></div>}
-            {isConsole ? (
-              <label className="customer-console-search">
-                <Search aria-hidden="true" size={15} strokeWidth={2.4} />
-                <input onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
-              </label>
-            ) : (
-              <input className="input" onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
-            )}
-            {isConsole ? (
-              <>
-                {renderConsoleFilter({
-                  id: "advisor",
-                  label: "담당자",
-                  value: advisor,
-                  items: consoleFilterOptions.advisor,
-                  onChange: setAdvisor,
-                  extraClassName: "filter-advisor",
-                })}
-                {renderConsoleFilter({
-                  id: "statusGroup",
-                  label: "진행 상태 · 1차",
-                  value: statusGroup,
-                  items: consoleFilterOptions.statusGroup,
-                  onChange: (value) => {
-                    setStatusGroup(value);
-                    setStatus("");
-                  },
-                  extraClassName: "filter-stage",
-                })}
-                {renderConsoleFilter({
-                  id: "status",
-                  label: "진행 상태 · 2차",
-                  value: status,
-                  items: consoleFilterOptions.status,
-                  onChange: setStatus,
-                  extraClassName: "filter-stage",
-                })}
-              </>
-            ) : (
-              <>
-                <select className="select" {...bindSelect(statusGroup, (v) => { setStatusGroup(v); setStatus(""); setCurrentPage(1); })}>
-                  <option value="">진행 상태 · 1차</option>
-                  {Object.keys(customerStatusGroups).map((group) => <option key={group}>{group}</option>)}
-                </select>
-                <select className="select" {...bindSelect(status, (v) => { setStatus(v); setCurrentPage(1); })}>
-                  <option value="">진행 상태 · 2차</option>
-                  {statuses.map((item, index) => <option key={`${item}-${index}`}>{item}</option>)}
-                </select>
-                <select className="select" {...bindSelect(advisor, (v) => { setAdvisor(v); setCurrentPage(1); })}>
-                  <option value="">담당자</option>
-                  {staffNames.map((name) => <option key={name}>{name}</option>)}
-                </select>
-              </>
-            )}
-            {isConsole && (
-              <div className="list-view-controls">
-                {renderConsoleFilter({
-                  id: "chance",
-                  label: "계약 가능성",
-                  value: chanceFilter,
-                  items: consoleFilterOptions.chance,
-                  onChange: (value) => setChanceFilter(value as "" | ChanceOption),
-                  extraClassName: "view-select filter-compact",
-                })}
-                {renderConsoleFilter({
-                  id: "finalUpdate",
-                  label: "관리 상태",
-                  value: finalUpdateFilter,
-                  items: consoleFilterOptions.finalUpdate,
-                  onChange: (value) => setFinalUpdateFilter(value as "" | FinalUpdateFilterOption),
-                  extraClassName: "view-select filter-compact",
-                })}
-              </div>
-            )}
-          </div>
-          <div className={isConsole ? "list-headbar customer-console-headbar" : "list-headbar"}>
-            <div className="list-head-left">
-              {!isConsole && (
+    <section className="customer-console-page">
+      <section className="card customer-console-card">
+        <div className="customer-console-control-rail" ref={consoleFilterRailRef}>
+          <div className="toolbar customer-console-toolbar">
+            <div className="total-count">전체 <strong className="num">{rows.length}</strong><span>명</span></div>
+            <label className="customer-console-search">
+              <Search aria-hidden="true" size={15} strokeWidth={2.4} />
+              <input onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
+            </label>
+            {renderConsoleFilter({
+              id: "advisor",
+              label: "담당자",
+              value: advisor,
+              items: consoleFilterOptions.advisor,
+              onChange: setAdvisor,
+              extraClassName: "filter-advisor",
+            })}
+            {renderConsoleFilter({
+              id: "statusGroup",
+              label: "진행 상태 · 1차",
+              value: statusGroup,
+              items: consoleFilterOptions.statusGroup,
+              onChange: (value) => {
+                setStatusGroup(value);
+                setStatus("");
+              },
+              extraClassName: "filter-stage",
+            })}
+            {renderConsoleFilter({
+              id: "status",
+              label: "진행 상태 · 2차",
+              value: status,
+              items: consoleFilterOptions.status,
+              onChange: setStatus,
+              extraClassName: "filter-stage",
+            })}
+            <div className="list-view-controls">
+              {isAllMode ? (
                 <>
-                  <div className="total-count">TOTAL <strong className="num">{rows.length}</strong></div>
-                  <div className="vertical-separator" />
-                  <div className="list-view-controls">
-                    <select className="select view-select"><option>담당자별 보기</option></select>
-                    <select className="select view-select"><option>상담상태별 보기</option></select>
-                    <select className="select view-select"><option>긴급순으로 보기</option></select>
-                  </div>
+                  {renderConsoleFilter({
+                    id: "chance",
+                    label: "계약 가능성",
+                    value: chanceFilter,
+                    items: consoleFilterOptions.chance,
+                    onChange: (value) => setChanceFilter(value as "" | ChanceOption),
+                    extraClassName: "view-select filter-compact",
+                  })}
+                  {renderConsoleFilter({
+                    id: "finalUpdate",
+                    label: "관리 상태",
+                    value: finalUpdateFilter,
+                    items: consoleFilterOptions.finalUpdate,
+                    onChange: (value) => setFinalUpdateFilter(value as "" | FinalUpdateFilterOption),
+                    extraClassName: "view-select filter-compact",
+                  })}
+                </>
+              ) : (
+                <>
+                  {/* 정렬/그룹 뷰 전환 — 기능은 나중(옵션 채우면 실동작), 지금은 시각 pill만(mock). */}
+                  {renderConsoleFilter({ id: "viewAdvisor", label: "담당자별 보기", value: "", items: [], onChange: NOOP_VIEW_CHANGE, includeAllOption: false, extraClassName: "view-select filter-compact" })}
+                  {renderConsoleFilter({ id: "viewConsultStatus", label: "상담상태별 보기", value: "", items: [], onChange: NOOP_VIEW_CHANGE, includeAllOption: false, extraClassName: "view-select filter-compact" })}
+                  {renderConsoleFilter({ id: "viewUrgent", label: "긴급순으로 보기", value: "", items: [], onChange: NOOP_VIEW_CHANGE, includeAllOption: false, extraClassName: "view-select filter-compact" })}
                 </>
               )}
             </div>
+          </div>
+          <div className="list-headbar customer-console-headbar">
+            <div className="list-head-left"></div>
             <div className="top-actions">
               {showAdvisorColumn ? (
                 <div className="advisor-change-wrap">
@@ -1127,8 +1105,8 @@ export function CustomerManagementPage({
         {/* 콘솔은 console-table-scroll만 — table-scroll의 overflow-x:auto는 같은 특이성·후순위
             overflow:hidden에 항상 지므로 무력(배치 5 4-B: 스크롤 의미 없는 클래스 제거, 계산값 불변).
             좁은 뷰포트 클리핑은 콘솔 원설계(#226 이전 customer-console-table-scroll부터 hidden). */}
-        <div className={isConsole ? "console-table-scroll" : "table-scroll"}>
-          <table className={`customer-table mode-${mode}${isConsole ? " console-table" : ""}`}>
+        <div className="console-table-scroll">
+          <table className={`customer-table mode-${mode} console-table`}>
             <colgroup>
               {tableColumns.map((column, index) => <col className={`col-${column}`} key={`${column}-${index}`} />)}
             </colgroup>
@@ -1150,7 +1128,7 @@ export function CustomerManagementPage({
             <tbody>{paginatedRows.map(renderRow)}</tbody>
           </table>
         </div>
-        <div className={isConsole ? "pagination-bar customer-console-pagination" : "pagination-bar"}>
+        <div className="pagination-bar customer-console-pagination">
           <div className="pagination-summary">
             <span className="num">{rows.length === 0 ? 0 : pageStart + 1}-{pageEnd}</span>
             <span> / </span>
@@ -1202,66 +1180,50 @@ export function CustomerManagementPage({
               마지막
             </button>
           </div>
-          {isConsole ? (
-            <div className="page-size-control" ref={pageSizeControlRef}>
-              <span>페이지당</span>
-              <div className="console-filter page-size-filter">
-                <button
-                  aria-expanded={openPageSize}
-                  aria-haspopup="listbox"
-                  className={filterSelectClass(pageSize !== 15, "console-filter-button page-size-select page-size-button")}
-                  onClick={() => setOpenPageSize((current) => !current)}
-                  type="button"
-                >
-                  <span>{pageSize}</span>
-                  <ChevronsUpDown aria-hidden="true" className="console-filter-chevron" size={14} strokeWidth={2.1} />
-                </button>
-                {openPageSize && (
-                  <div aria-label="페이지당 개수 선택" className="console-filter-popover page-size-popover" role="listbox">
-                    {pageSizeOptions.map((option) => {
-                      const selected = option === pageSize;
-                      return (
-                        <button
-                          aria-selected={selected}
-                          className={[
-                            "console-filter-option",
-                            selected ? "active" : "",
-                            option === 15 ? "default-option" : "",
-                          ].filter(Boolean).join(" ")}
-                          key={option}
-                          onClick={() => {
-                            setPageSize(option);
-                            setCurrentPage(1);
-                            setOpenPageSize(false);
-                          }}
-                          role="option"
-                          type="button"
-                        >
-                          <span>{option}</span>
-                          {selected && <Check aria-hidden="true" className="console-filter-check" size={14} strokeWidth={2.6} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              <span>명</span>
-            </div>
-          ) : (
-            <label className="page-size-control">
-              <span>페이지당</span>
-              <select
-                className="select page-size-select"
-                {...bindSelect(pageSize, (v) => {
-                  setPageSize(Number(v) as (typeof pageSizeOptions)[number]);
-                  setCurrentPage(1);
-                })}
+          <div className="page-size-control" ref={pageSizeControlRef}>
+            <span>페이지당</span>
+            <div className="console-filter page-size-filter">
+              <button
+                aria-expanded={openPageSize}
+                aria-haspopup="listbox"
+                className={filterSelectClass(pageSize !== 15, "console-filter-button page-size-select page-size-button")}
+                onClick={() => setOpenPageSize((current) => !current)}
+                type="button"
               >
-                {pageSizeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-              <span>개</span>
-            </label>
-          )}
+                <span>{pageSize}</span>
+                <ChevronsUpDown aria-hidden="true" className="console-filter-chevron" size={14} strokeWidth={2.1} />
+              </button>
+              {openPageSize && (
+                <div aria-label="페이지당 개수 선택" className="console-filter-popover page-size-popover" role="listbox">
+                  {pageSizeOptions.map((option) => {
+                    const selected = option === pageSize;
+                    return (
+                      <button
+                        aria-selected={selected}
+                        className={[
+                          "console-filter-option",
+                          selected ? "active" : "",
+                          option === 15 ? "default-option" : "",
+                        ].filter(Boolean).join(" ")}
+                        key={option}
+                        onClick={() => {
+                          setPageSize(option);
+                          setCurrentPage(1);
+                          setOpenPageSize(false);
+                        }}
+                        role="option"
+                        type="button"
+                      >
+                        <span>{option}</span>
+                        {selected && <Check aria-hidden="true" className="console-filter-check" size={14} strokeWidth={2.6} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <span>명</span>
+          </div>
         </div>
       </section>
     </section>
