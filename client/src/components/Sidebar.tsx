@@ -213,7 +213,6 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
           : (
             <>
               <button aria-label="대시보드" className={navButtonClass(visibleActiveView === "advisor-dashboard")} data-label="대시보드" onClick={() => navigate("advisor-dashboard")} type="button"><MenuIcon name="dashboard" /><span>대시보드</span></button>
-              <button aria-label="대시보드 공사중" className={navButtonClass(visibleActiveView === "dashboard-preview")} data-label="대시보드 (공사중)" onClick={() => navigate("dashboard-preview")} type="button"><MenuIcon name="dashboard" /><span>대시보드 <small>(공사중)</small></span></button>
               <button aria-label="실시간 상담" className={navButtonClass(visibleActiveView === "chat")} data-label="실시간 상담" onClick={() => navigate("chat")} type="button"><MenuIcon name="chat" /><span>실시간 상담</span>{pendingChatCount > 0 ? <span className="nav-count num">{pendingChatCount}</span> : null}</button>
               <div className="nav-group">
                 <button aria-label="고객 관리" className={cn(navButtonClass(visibleActiveView === "customers"), collapsed && "has-flyout")} data-label="고객 관리" onClick={handleCustomersToggle} type="button"><MenuIcon name="users" /><span>고객 관리</span><ChevronDown className={`nav-chevron ${customersOpen ? "open" : ""}`} size={16} /></button>
