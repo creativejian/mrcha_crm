@@ -352,8 +352,8 @@ export function App() {
         <Route path="/pipeline" element={<PipelinePage />} />
         <Route path="/quotes" element={<QuotesPage onToast={showToast} />} />
         <Route path="/delivery" element={<DeliveryPage />} />
-        <Route path="/insights" element={<InsightsPage />} />
-        <Route path="/knowledge-base" element={<KnowledgeBasePage />} />
+        <Route path="/insights" element={isAdmin ? <InsightsPage /> : <Navigate to="/" replace />} />
+        <Route path="/knowledge-base" element={isAdmin ? <KnowledgeBasePage /> : <Navigate to="/" replace />} />
         <Route path="/ai-settings" element={<AISettingsPage />} />
         <Route path="/mc-master" element={<MCMasterPage roleTab={roleTab} />} />
         <Route path="/mc-master/:modelId" element={<MCMasterPage roleTab={roleTab} />} />

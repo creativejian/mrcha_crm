@@ -245,6 +245,8 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
                   {!collapsed && financeOpen && <div className="subnav">{financeModes.map(([mode, label]) => <button className={subnavButtonClass(visibleActiveView === "finance" && financeMode === mode)} key={mode} onClick={() => { onFinanceModeChange(mode); navigate("finance"); }} type="button">{label}</button>)}</div>}
                   {collapsed && <SidebarFlyout title="재무 관리" items={financeModes.map(([mode, label]) => ({ active: visibleActiveView === "finance" && financeMode === mode, label, onClick: () => { onFinanceModeChange(mode); navigate("finance"); } }))} />}
                 </div>
+                <button aria-label="인사이트" className={navButtonClass(visibleActiveView === "insights")} data-label="인사이트" onClick={() => navigate("insights")} type="button"><MenuIcon name="insights" /><span>인사이트</span></button>
+                <button aria-label="지식베이스" className={navButtonClass(visibleActiveView === "knowledge-base")} data-label="지식베이스" onClick={() => navigate("knowledge-base")} type="button"><MenuIcon name="knowledge" /><span>지식베이스</span></button>
               </>
             )}
           </nav>
