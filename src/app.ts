@@ -7,6 +7,7 @@ import { dealerWriteGate } from "./middleware/role-gate";
 import { assistant } from "./routes/assistant";
 import { catalog } from "./routes/catalog";
 import { consultations } from "./routes/consultations";
+import { insightsRoute, knowledgeRoute } from "./routes/content";
 import { customers } from "./routes/customers";
 import { me } from "./routes/me";
 import { quoteRequests } from "./routes/quote-requests";
@@ -40,6 +41,8 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   protect("/api/customers/*");
   protect("/api/quote-requests/*");
   protect("/api/consultations/*");
+  protect("/api/insights/*");
+  protect("/api/knowledge/*");
   protect("/api/assistant/*");
   protect("/api/solution/*");
   protect("/api/staff/*");
@@ -50,6 +53,8 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.route("/api/customers", customers);
   app.route("/api/quote-requests", quoteRequests);
   app.route("/api/consultations", consultations);
+  app.route("/api/insights", insightsRoute);
+  app.route("/api/knowledge", knowledgeRoute);
   app.route("/api/assistant", assistant);
   app.route("/api/solution", solution);
   app.route("/api/staff", staff);

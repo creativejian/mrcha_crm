@@ -45,5 +45,6 @@ it("/mc-master → 엠씨 마스터 화면(제목)", () => {
 
 it("알 수 없는 경로 → 대시보드로 리다이렉트", () => {
   renderAt("/unknown-path");
-  expect(screen.getByRole("heading", { level: 1, name: "대시보드" })).toBeInTheDocument();
+  // 신규 대시보드(DashboardPreviewPage)는 자체 h2 제목을 쓰고 공통 헤더는 숨긴다(#250 승격).
+  expect(screen.getByRole("heading", { level: 2, name: "오늘 상담 우선순위" })).toBeInTheDocument();
 });
