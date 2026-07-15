@@ -16,7 +16,7 @@ export const KNOWLEDGE_BLOCK_TO_SLUG: Record<number, string> = {
   12: "purchase-risk",
 };
 
-export const KNOWLEDGE_SLUG_TO_LABEL: Record<string, string> = {
+const KNOWLEDGE_SLUG_TO_LABEL: Record<string, string> = {
   "identity-role": "차선생의 정체성과 역할 기준",
   "purchase-structure": "신차 구매 구조의 기본 이해",
   "lump-sum": "일시불 구매",
