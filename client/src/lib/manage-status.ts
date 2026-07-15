@@ -82,14 +82,18 @@ export function manualUpdateInfo(
 // 수동 관리 상태는 row(manageStatus/manageStatusAt)가 단일 소스 — 낙관 반영도 App이 row를 직접 갱신한다
 // (구 manageStatusOverride 옵션은 삭제 경로가 없어 만료·리로드를 가리던 이중 소스라 폐기 — 0713 감사).
 // 우선순위: 유효 수동 상태(스누즈, ⑦-①) > 파생(재문의→버킷).
+// info ≠ displayInfo: info는 응답 SLA(firstResponseDisplay) 입력이라 수동 지정을 절대 합치지 않는다
+// (수동 지정은 고객 응대가 아님 — "대기 중" 유지, #240 계약). displayInfo는 셀 팝오버 표시 전용
+// 합성값(파생 없을 때 수동 지정 시각 폴백) — 셀이 customer를 다시 읽던 이중 계산 해소(배치 5 3-C).
 export function resolveUpdateBadge(
   source: ManageStatusSource,
   opts: { finalUpdateOverride?: FinalUpdateInfo | null; now?: Date } = {},
-): { info: FinalUpdateInfo | null; status: FinalUpdateStatus | null } {
+): { info: FinalUpdateInfo | null; status: FinalUpdateStatus | null; displayInfo: FinalUpdateInfo | null } {
   const info = opts.finalUpdateOverride ?? deriveFinalUpdateInfo(source, opts.now);
   const manual = effectiveManageStatus(source);
   const status = manual
     ? finalUpdateStatusFromManage(manual)
     : info ? finalUpdateStatus(info) : null;
-  return { info, status };
+  const displayInfo = info ?? (manual ? manualUpdateInfo(source, opts.now) : null);
+  return { info, status, displayInfo };
 }

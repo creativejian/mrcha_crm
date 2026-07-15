@@ -66,6 +66,7 @@ Last updated: 2026-07-14 (유슨생 세션 `0714-partner-refactoring` — 착수
 ### 3-C. 셀이 `manualUpdateInfo(customer)` 재계산 [하]
 - `CustomerManagementRow.tsx:413` — `resolveUpdateBadge`가 이미 `effectiveManageStatus`(manual)로 status를 냈는데 셀이 `manualUpdateInfo(customer)`로 다시 계산. info↔status가 두 지점에서 `customer`를 각각 읽어 우연히 일치.
 - 수정: `resolveUpdateBadge` 반환에 manual 팝오버용 info 포함(합성) → 셀은 그 값만 렌더.
+- **✅ 이행(2026-07-15 잔여 PR)**: 처음 "info=null 계약(#240)·SLA 회귀 충돌"로 보류했으나, 충돌은 **info 필드에 합칠 때만** 성립 — 반환에 **`displayInfo` 제3 필드**(`info ?? 유효 수동 시 manualUpdateInfo`)를 합성해 해소. info(응답 SLA `firstResponseDisplay` 입력)와 계약 테스트(manage-status.test:142) 완전 불변, 셀은 displayInfo만 렌더. TDD 5케이스(RED 실관찰).
 
 ---
 
@@ -74,10 +75,12 @@ Last updated: 2026-07-14 (유슨생 세션 `0714-partner-refactoring` — 착수
 ### 4-A. #238 `.console-table` SSOT 불완전 [하, 확신 높음 — 설계]
 - `controls.css:99-112` `.console-table`은 background/color/border-bottom만 오버라이드. padding·font-size·font-weight(780)·white-space·text-align은 전부 **스코프 없는 전역 `th,td`/`th`/`td`**(`customer-list.css:55-77`) 누수에 의존(원래 견적요청 테이블에 회색 헤더 물들이던 그 누수). "SSOT"라는 이름이 실제 단일 소스가 아님. 누군가 전역 `th,td`를 `.customer-table`로 스코프하면 앱 견적요청 테이블이 padding/font 통째로 잃음.
 - 수정: 전역 `th,td`를 `.customer-table`/`.console-table`로 스코프하고 padding/font를 공용 `.console-table`에 흡수(진짜 SSOT화). **계산값 증명 필수**(`tools/verify-dead-css.sh` 방식).
+- **✅ 자급자족 방식으로 이행(2026-07-15 잔여 PR)**: 원안(전역 스코프화)은 기각(아래 표) — 대신 **`:where(.console-table)` 스켈레톤(특이성 0,0,1)**으로 골격(padding·정렬·폰트·줄바꿈)을 전역과 동일 값 명시. 지금은 뒤 import인 전역이 동률에서 이겨 계산값 불변, 전역이 스코프·제거되는 미래에만 스켈레톤이 이어받는다. **⚠️ 함정 실측**: 순진한 `.console-table td`(0,1,1) 흡수는 전역(0,0,1)을 이기던 셀 클래스 6종(`.select-cell`·`.operation-cell`·`.text-block-cell`·`.chance-cell`·`.final-update-cell`·`.actions-cell` — 전부 0,1,0)을 역전시켜 회귀. vertical-align은 테이블 고유 규칙(앱 견적요청 td=top)이라 흡수 제외. 증명 = 실 DOM 구조 하네스 계산값 **25요소×348속성 diff 0** + **변이 검증**(전역 3규칙 제거 → 콘솔 골격 유지·비콘솔 대조군 상실 = 스켈레톤 live).
 
 ### 4-B. #238 `table-scroll`+`console-table-scroll` overflow 무력화 [하]
 - `controls.css:86` `.table-scroll { overflow-x: auto }` vs `:96` `.console-table-scroll { overflow: hidden }`(후자 승) → `overflow-x: hidden`. radius 클리핑엔 정당하나 `table-scroll` 스크롤 의미 사망(좁은 뷰포트에서 고정폭 넘침 시 스크롤 대신 클리핑). 소비처 `AppRequestsPage.tsx:116`·`CustomerManagementPage.tsx:1122`.
 - 수정: 콘솔 래퍼에서 `table-scroll` 제거(불필요) 또는 `overflow-x: auto`+radius 병행 재검토.
+- **✅ 옵션 1(클래스 제거) 이행(2026-07-15 잔여 PR)**: 두 소비처에서 `table-scroll` 제거 — 같은 특이성·같은 파일 후순위 `overflow:hidden`이 항상 이겨 계산값 불변(하네스 overflow-x/y hidden 유지 실측). **사실 정정**: hidden은 #238이 만든 게 아니라 콘솔 원설계(#238 이전 `.customer-console-table-scroll`부터 상존)·앱 견적요청은 `table-layout:fixed`+width 100%라 가로 넘침 원리적 불가(실해 0). 옵션 2(스크롤 복원)는 기각/보류(아래 표).
 
 ### 4-C. 서버·클라 `AppQuoteRequestRow` 이중 정의 [중]
 - `src/db/queries/quote-requests.ts:12` ↔ `client/src/lib/quote-requests.ts:7` — ~25필드(이번 컬러 7필드 포함) 손 각각 선언. 컬러 PR이 lockstep 수정해 위험 재확인. 한쪽만 변경 시 컴파일러 미검출·조용한 드리프트(undefined).
@@ -106,6 +109,8 @@ Last updated: 2026-07-14 (유슨생 세션 `0714-partner-refactoring` — 착수
 | `workbookImport` "필수" 표기 | 파서가 의도적으로 관대(코드가 옳음) — **스펙 §91 문구만 stale, 정정 후보**(코드 무변경) |
 | `manualUpdateInfo` local tz getter | 채택 표준(로컬 표시·atIso 우선)과 정합 — days만 KST. 올바름 |
 | lease-rate "500벡터" 미커버 | residue 테스트가 2번째 실벡터(23.16%)로 종단 잠금 + 검증된 bit-identical 복사본 — 회귀 위험 제한적 |
+| 4-A 원안: 전역 `th,td` 스코프화(전역 제거·이동) | bare 테이블 9곳(Insights·Delivery·Partners·Quotes·Finance×3·Dashboard·OrgMembers — 전부 프로토타입 페이지)이 전역을 base로 소비 — 광범위 시각 검증 비용이 [하] 실익 초과. `:where` 스켈레톤이 목적(자급자족) 달성(2026-07-15 이행) — 전역은 "전 페이지 base 스타일"로 존치 |
+| 4-B 옵션 2: `console-table-scroll` `overflow-x:auto` 스크롤 복원 | hidden은 콘솔 원설계(승격 이후 상존)·좁은 뷰포트(<~1438px, 사이드바 펼침) 클리핑 실사용 리포트 0. auto 전환은 radius 클리핑+행 팝오버(absolute) 스크롤바 간섭 실기 검증 + "좁은 뷰포트 지원" 제품 판단 선행 — 요구 발생 시 별도 슬라이스(재제안이 아니라 제품 결정으로 재개) |
 
 ---
 
