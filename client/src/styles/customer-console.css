@@ -648,14 +648,14 @@
 
 .knowledge-row {
   width: 100%;
-  min-height: 48px;
+  min-height: 34px;
   border: 0;
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 8px 10px 8px 22px;
+  padding: 5px 10px 5px 22px;
   background: transparent;
   color: #464d54;
   text-align: left;
