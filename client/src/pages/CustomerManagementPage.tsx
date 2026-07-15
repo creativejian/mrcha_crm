@@ -65,7 +65,7 @@ const tableColumnsByMode: Record<CustomerMode, string[]> = {
 
 const pageSizeOptions = [15, 30, 50, 100] as const;
 type FinalUpdateFilterOption = CustomerManageStatus;
-type ConsoleFilterKey = "statusGroup" | "status" | "advisor" | "chance" | "finalUpdate";
+type ConsoleFilterKey = "statusGroup" | "status" | "advisor" | "chance" | "finalUpdate" | "viewAdvisor" | "viewConsultStatus" | "viewUrgent";
 
 function shouldShowAdvisorColumn(roleTab: RoleTab) {
   return roleTab === "최고관리자" || roleTab === "팀장";
