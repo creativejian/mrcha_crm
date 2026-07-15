@@ -15,7 +15,7 @@ import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
 import { AppRequestsPage } from "@/pages/AppRequestsPage";
-import { AdvisorDashboardPage, AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
+import { AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
 import { ChatPage } from "@/pages/ChatPage";
 import { CustomerDetailPage } from "@/pages/CustomerDetailPage";
 import { CustomerManagementPage } from "@/pages/CustomerManagementPage";
@@ -30,11 +30,10 @@ import { PartnersPage } from "@/pages/PartnersPage";
 import { PipelinePage } from "@/pages/PipelinePage";
 import { QuotesPage } from "@/pages/QuotesPage";
 
-type ViewKey = "advisor-dashboard" | "dashboard-preview" | "admin-dashboard" | "chat" | "customers" | "app-requests" | "customer-detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance" | "handoff-operation";
+type ViewKey = "advisor-dashboard" | "admin-dashboard" | "chat" | "customers" | "app-requests" | "customer-detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance" | "handoff-operation";
 
 const VIEW_TO_PATH: Record<ViewKey, string> = {
   "advisor-dashboard": "/",
-  "dashboard-preview": "/dashboard-preview",
   "admin-dashboard": "/admin-dashboard",
   chat: "/chat",
   customers: "/customers",
@@ -59,8 +58,7 @@ const PATH_TO_VIEW: Record<string, ViewKey> = Object.fromEntries(
 // 공통 헤더(타이틀·서브타이틀)의 단일 소스. customers는 customerModeMeta, finance는 financeModeMeta가 담당해 여기 없다.
 const CUSTOMERS_MENU_TITLE = "고객 관리";
 const viewMeta: Record<Exclude<ViewKey, "customers" | "finance">, [string, string]> = {
-  "advisor-dashboard": ["대시보드", "배정된 고객 중 오늘 처리할 업무, 우선순위, 내 실적을 한눈에 보는 상담사용 화면입니다."],
-  "dashboard-preview": ["대시보드 · 공사중", "차선생 전체 운영 상태를 Supabase Overview처럼 한눈에 훑는 신규 대시보드 초안입니다."],
+  "advisor-dashboard": ["대시보드", "상담사가 출근해서 바로 판단해야 하는 응답 지연, 견적 작성, 계약 후보, 재컨택 흐름을 한 화면에 모은 대시보드입니다."],
   "admin-dashboard": ["경영 리포트", "전체 운영, 상담 전환, 매출/지출, 직원 생산성 등 차선생의 주요 지표를 리포트 단위로 확인합니다."],
   chat: ["실시간 상담", "앱에서 상담원 연결을 요청한 고객을 접수하고, AI 상담 요약을 보며 실시간 상담으로 전환합니다."],
   "app-requests": ["앱 견적요청", "앱에서 고객이 직접 만든 견적요청을 확인하고, 추후 고객·견적으로 연결합니다."],
@@ -308,8 +306,7 @@ export function App() {
   function renderView() {
     return (
       <Routes>
-        <Route path="/" element={<AdvisorDashboardPage />} />
-        <Route path="/dashboard-preview" element={<DashboardPreviewPage />} />
+        <Route path="/" element={<DashboardPreviewPage />} />
         <Route path="/admin-dashboard" element={isAdmin ? <AdminDashboardPage /> : <Navigate to="/" replace />} />
         <Route path="/chat" element={<ChatPage customers={customers} roleTab={roleTab} onOpenCustomer={openCustomerDetailPanel} onToast={showToast} onRead={markChatRequestsRead} />} />
         <Route
@@ -384,8 +381,8 @@ export function App() {
           newAppRequestCount={newAppRequestCount}
           pendingChatCount={pendingChatCount}
         />
-        {/* customer-detail 전체화면은 CustomerDetailPage 자체 헤더가 있어 공통 헤더를 숨겨 중복을 막는다. */}
-        {activeView !== "dashboard-preview" && activeView !== "customer-detail" && (
+        {/* 대시보드·customer-detail 전체화면은 자체 헤더가 있어 공통 헤더를 숨겨 중복을 막는다. */}
+        {activeView !== "advisor-dashboard" && activeView !== "customer-detail" && (
           <header className="topbar">
             <div className="title">
               <h1>

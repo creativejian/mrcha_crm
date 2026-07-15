@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { adminBriefs, advisorBriefs, advisors, advisorTasks, brands, workQueue } from "@/data/prototype";
+import { adminBriefs, advisors, brands } from "@/data/prototype";
 
 function Stat({ label, value, note }: { label: string; value: string; note: string }) {
   return <div className="card stat"><span>{label}</span><strong className="num">{value}</strong><em>{note}</em></div>;
@@ -8,14 +8,6 @@ function Stat({ label, value, note }: { label: string; value: string; note: stri
 function BriefList({ items }: { items: readonly (readonly [string, string])[] }) {
   return <div className="brief-list">{items.map(([title, desc]) => <div className="brief" key={title}><strong>{title}</strong><span>{desc}</span></div>)}</div>;
 }
-
-const advisorMonthlyPerformance = [
-  ["총 상담", "42", "건", "완료 기준"],
-  ["계약", "9", "건", "목표 12건"],
-  ["출고", "7", "대", "이번 달 누적"],
-  ["예상매출", "1,842", "만원", "계약 완료 기준"],
-  ["전환율", "15.2", "%", "상담 대비 계약"],
-] as const;
 
 const adminMonthlyPerformance = [
   ["전체 출고", "86", "대", "+15"],
@@ -134,7 +126,7 @@ export function DashboardPreviewPage() {
         <div className="overview-project">
           <span className="overview-kicker">ADVISOR COMMAND CENTER</span>
           <h2>오늘 상담 우선순위</h2>
-          <p>상담사가 출근해서 바로 판단해야 하는 응답 지연, 견적 작성, 계약 후보, 재컨택 흐름을 한 화면에 모은 신규 대시보드 초안입니다.</p>
+          <p>상담사가 출근해서 바로 판단해야 하는 응답 지연, 견적 작성, 계약 후보, 재컨택 흐름을 한 화면에 모은 대시보드입니다.</p>
           <div className="overview-health-grid">
             <div><OverviewIcon name="warning" /><span>FIRST ACTION</span><strong>응답 지연 2건</strong></div>
             <div><OverviewIcon name="branch" /><span>QUOTE QUEUE</span><strong>견적 5건 필요</strong></div>
@@ -303,54 +295,6 @@ export function AdminDashboardPage() {
           <div className="panel-head"><h2>전환 / 성과 흐름</h2><span className="badge green">요약</span></div>
           <div className="panel-body bar-list">
             {bars.map(([label, pct, value]) => <div className="bar-row" key={label}><span>{label}</span><div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div><strong className="num">{value}</strong></div>)}
-          </div>
-        </section>
-      </div>
-    </>
-  );
-}
-
-export function AdvisorDashboardPage() {
-  return (
-    <>
-      <section className="card advisor-performance">
-        <div className="advisor-performance-head">
-          <div><strong>2026년 5월 성과 요약</strong><span>상담사 지안 계정 기준</span></div>
-          <span className="badge blue">이번 달</span>
-        </div>
-        <div className="advisor-performance-grid">
-          {advisorMonthlyPerformance.map(([label, value, unit, note]) => (
-            <div className="advisor-performance-item" key={label}>
-              <span>{label}</span>
-              <strong><span className="num">{value}</span>{unit}</strong>
-              <em>{note}</em>
-            </div>
-          ))}
-        </div>
-      </section>
-      <div className="grid stats">
-        <Stat label="오늘 처리할 고객" value="12" note="긴급 3건" />
-        <Stat label="응답 대기" value="6" note="15분 초과 2건" />
-        <Stat label="견적 작성 필요" value="5" note="오늘 송출 목표" />
-        <Stat label="계약 후보" value="4" note="우선 통화 권장" />
-        <Stat label="내 오늘 실적" value="3" note="견적 발송 완료" />
-      </div>
-      <div className="grid dashboard-layout">
-        <section className="card">
-          <div className="panel-head"><h2>오늘 우선순위 고객</h2><span className="badge red">상담사 배정</span></div>
-          <div className="panel-body table-scroll">
-            <table>
-              <thead><tr><th>우선</th><th>고객</th><th>차량</th><th>현재 이슈</th><th>다음 액션</th><th>마감</th></tr></thead>
-              <tbody>{advisorTasks.map(([priority, name, vehicle, issue, action, due]) => <tr key={`${name}-${vehicle}`}><td><span className={priority === "긴급" ? "badge red" : priority === "높음" ? "badge yellow" : "badge blue"}>{priority}</span></td><td><strong>{name}</strong></td><td>{vehicle}</td><td>{issue}</td><td>{action}</td><td>{due}</td></tr>)}</tbody>
-            </table>
-          </div>
-        </section>
-        <section className="card"><div className="panel-head"><h2>내 업무 큐</h2><span className="badge blue">지안 계정</span></div><div className="panel-body"><BriefList items={workQueue} /></div></section>
-        <section className="card"><div className="panel-head"><h2>AI 브리핑</h2><span className="badge yellow">상담 전 확인</span></div><div className="panel-body"><BriefList items={advisorBriefs} /></div></section>
-        <section className="card">
-          <div className="panel-head"><h2>내 실적 흐름</h2><span className="badge green">오늘 / 이번 주</span></div>
-          <div className="panel-body bar-list">
-            {[["응답 완료", 72, "18"], ["견적 발송", 48, "3"], ["심사 진행", 35, "2"], ["계약 전환", 22, "1"]].map(([label, pct, value]) => <div className="bar-row" key={label as string}><span>{label}</span><div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div><strong className="num">{value}</strong></div>)}
           </div>
         </section>
       </div>
