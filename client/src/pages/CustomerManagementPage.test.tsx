@@ -65,6 +65,19 @@ describe("CustomerManagementPage", () => {
     },
   );
 
+  // renderRow fallthrough는 priority 셀(action 컬럼 = 상담 메모/재컨택 성격) → advisor 셀(담당) 순으로 그린다.
+  // contract만 헤더/컬럼이 담당 → action으로 뒤집혀 있어 헤더 아래에 다른 데이터가 오던 버그(프로토타입).
+  // action 컬럼 라벨이 "담당"보다 앞에 오도록 잠근다(consulting/hold는 회귀 가드).
+  it.each([
+    ["consulting", "상담 메모"],
+    ["contract", "상담 메모"],
+    ["hold", "재컨택 액션"],
+  ] as const)("puts the action column before 담당 for %s mode (matches renderRow priority→advisor)", (mode, actionLabel) => {
+    render(<CustomerManagementPage mode={mode} />);
+    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
+    expect(headers.indexOf(actionLabel)).toBeLessThan(headers.indexOf("담당"));
+  });
+
   // 전 mode의 헤더 th 개수 == 데이터 행 td 개수 정합을 잠근다. delivery는 헤더에 priority(action)
   // 컬럼이 없는데 renderRow fallthrough가 그 셀을 그려 데이터 행이 1칸 많았다(table-layout:fixed에서
   // 마지막 액션 셀이 colgroup 밖으로 밀려 헤더 우측이 잘리던 프로토타입 버그). fallthrough를 공유하는
