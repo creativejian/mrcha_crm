@@ -5,7 +5,6 @@ import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react"
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups } from "@/data/customers";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
-import { manualUpdateInfo } from "@/lib/manage-status";
 
 function stopTableControlPointer(event: ReactPointerEvent<HTMLElement>) {
   event.stopPropagation();
@@ -397,20 +396,19 @@ export function CustomerFinalUpdateCell({
   customer,
   openFinalUpdateFor,
   finalUpdatePopoverRef,
-  updateInfo,
+  displayInfo,
   updateStatus,
   onToggle,
 }: {
   customer: Customer;
   openFinalUpdateFor: number | null;
   finalUpdatePopoverRef: RefObject<HTMLDivElement | null>;
-  updateInfo: FinalUpdateInfo | null;
+  displayInfo: FinalUpdateInfo | null;
   updateStatus: FinalUpdateStatus | null;
   onToggle: (event: MouseEvent<HTMLButtonElement>, customerNo: number) => void;
 }) {
-  // 파생 info가 없어도(신규·상담접수) 유효 수동 상태 배지는 표시한다 — 관리 상태 필터·상세 드로어와
-  // 판정 일치(배치 4 B2 기각 번복 2026-07-14). 팝오버는 수동 지정 시각으로 폴백.
-  const displayInfo = updateInfo ?? (updateStatus ? manualUpdateInfo(customer) : null);
+  // displayInfo = resolveUpdateBadge 합성값(파생 info, 없으면 수동 지정 시각 폴백 — 배치 5 3-C).
+  // 신규·상담접수 + 유효 수동도 배지 표시(배치 4 B2 기각 번복 2026-07-14) — 합성 규칙은 lib이 소유.
   return (
     <td className="final-update-cell">
       {displayInfo && updateStatus ? (

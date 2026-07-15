@@ -161,6 +161,50 @@ describe("isPreActionStatus (액션 전 상태 게이트 SSOT)", () => {
   });
 });
 
+// 3-C: 셀 표시 단일 값 — status와 팝오버 info를 두 지점(resolveUpdateBadge·셀의 manualUpdateInfo
+// 재계산)에서 customer를 각각 읽어 "우연히 일치"하던 결합 해소. info(응답 SLA firstResponseDisplay의
+// 입력)는 #240 계약대로 null 유지 — 수동 지정은 고객 응대가 아니므로 SLA "대기 중"이 유지돼야 한다.
+describe("resolveUpdateBadge.displayInfo (셀 표시 단일 값, 3-C)", () => {
+  const source = { ...base, lastActivityAt: daysAgo(2) };
+
+  test("파생 info가 있으면 displayInfo는 info 그대로(동일 참조)", () => {
+    const { info, displayInfo } = resolveUpdateBadge(source, { now: NOW });
+    expect(displayInfo).toBe(info);
+    expect(displayInfo?.days).toBe(2);
+  });
+
+  test("신규·상담접수 + 유효 수동: info는 null 유지(SLA 계약), displayInfo는 수동 지정 합성", () => {
+    const at = daysAgo(0);
+    const { info, displayInfo } = resolveUpdateBadge(
+      { ...base, statusGroup: "신규", status: "상담접수", lastActivityAt: at, manageStatus: "지연", manageStatusAt: at },
+      { now: NOW },
+    );
+    expect(info).toBeNull();
+    expect(displayInfo?.action).toBe("관리 상태 수동 지정");
+    expect(displayInfo?.atIso).toBe(at);
+  });
+
+  test("finalUpdateOverride(방금 전 마킹)도 displayInfo로 그대로 노출", () => {
+    const override = { action: "상담 메모 업데이트", label: "방금 전", days: 0 };
+    const { displayInfo } = resolveUpdateBadge(source, { finalUpdateOverride: override, now: NOW });
+    expect(displayInfo).toBe(override);
+  });
+
+  test("만료 수동 + 파생 info면 displayInfo는 파생(수동 미개입)", () => {
+    const { info, displayInfo } = resolveUpdateBadge(
+      { ...source, manageStatus: "지연", manageStatusAt: daysAgo(5) },
+      { now: NOW },
+    );
+    expect(displayInfo).toBe(info);
+    expect(displayInfo?.action).toBe("최근 활동 업데이트");
+  });
+
+  test("파생·수동 모두 없으면 null(공백 셀)", () => {
+    const { displayInfo } = resolveUpdateBadge({ ...base, statusGroup: "신규", status: "상담접수", lastActivityAt: daysAgo(1) }, { now: NOW });
+    expect(displayInfo).toBeNull();
+  });
+});
+
 describe("manualUpdateInfo — 수동 배지 팝오버 폴백(배치 4 B2 기각 번복 2026-07-14)", () => {
   test("유효 수동이면 manageStatusAt 기반 info 합성 — 액션 '관리 상태 수동 지정'", () => {
     const at = daysAgo(2);

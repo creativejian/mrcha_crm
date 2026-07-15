@@ -720,7 +720,7 @@ export function CustomerManagementPage({
 
   function renderRow(customer: Customer) {
     const chance = resolveChance(customer, chanceOverrides[customer.no]);
-    const { info: updateInfo, status: updateStatus } = resolveUpdateBadge(customer, {
+    const { info: updateInfo, status: updateStatus, displayInfo } = resolveUpdateBadge(customer, {
       finalUpdateOverride: finalUpdateOverrides[customer.no],
     });
     const operationResponseValue = showAdvisorColumn ? firstResponseDisplay(customer.assignedAt, updateInfo) : "담당 배정 후 표시";
@@ -760,7 +760,7 @@ export function CustomerManagementPage({
       />
     );
     const operationCell = <CustomerOperationCell customer={customer} operationResponseValue={operationResponseValue} showAdvisorColumn={showAdvisorColumn} />;
-    const finalUpdateCell = <CustomerFinalUpdateCell customer={customer} finalUpdatePopoverRef={finalUpdatePopoverRef} onToggle={toggleFinalUpdatePopover} openFinalUpdateFor={openFinalUpdateFor} updateInfo={updateInfo} updateStatus={updateStatus} />;
+    const finalUpdateCell = <CustomerFinalUpdateCell customer={customer} displayInfo={displayInfo} finalUpdatePopoverRef={finalUpdatePopoverRef} onToggle={toggleFinalUpdatePopover} openFinalUpdateFor={openFinalUpdateFor} updateStatus={updateStatus} />;
     const actions = <CustomerActionsCell customer={customer} onHintHover={() => setOpenFinalUpdateFor(null)} />;
 
     if (mode === "all") {
@@ -1119,7 +1119,10 @@ export function CustomerManagementPage({
             </div>
           </div>
         </div>
-        <div className={isConsole ? "table-scroll console-table-scroll" : "table-scroll"}>
+        {/* 콘솔은 console-table-scroll만 — table-scroll의 overflow-x:auto는 같은 특이성·후순위
+            overflow:hidden에 항상 지므로 무력(배치 5 4-B: 스크롤 의미 없는 클래스 제거, 계산값 불변).
+            좁은 뷰포트 클리핑은 콘솔 원설계(#226 이전 customer-console-table-scroll부터 hidden). */}
+        <div className={isConsole ? "console-table-scroll" : "table-scroll"}>
           <table className={`customer-table mode-${mode}${isConsole ? " console-table" : ""}`}>
             <colgroup>
               {tableColumns.map((column, index) => <col className={`col-${column}`} key={`${column}-${index}`} />)}

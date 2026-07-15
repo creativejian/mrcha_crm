@@ -87,13 +87,33 @@
 }
 
 /* 콘솔 테이블 공용 서피스 — 고객 관리 전체 보기 문법의 SSOT.
-   외곽선·radius·바닥은 래퍼(.console-table-scroll)가, 흰 헤더/연회색 바디 톤은
-   .console-table이 담당한다. 컬럼 폭·셀 정렬 같은 테이블 고유 규칙은 각자 파일에 둔다. */
+   외곽선·radius·바닥은 래퍼(.console-table-scroll)가, 흰 헤더/연회색 바디 톤과 셀 골격은
+   .console-table이 담당한다. 컬럼 폭·셀 정렬(vertical-align) 같은 테이블 고유 규칙은 각자 파일에 둔다. */
 .console-table-scroll {
   border: 1px solid #e5e5e2;
   border-radius: 6px;
   background: #f8f8f7;
   overflow: hidden;
+}
+
+/* 셀 골격(padding·정렬·폰트·줄바꿈) — 전역 th,td(customer-list.css)와 동일 값 명시(배치 5 4-A:
+   SSOT가 전역 누수에 의존하던 것을 자급자족으로). :where(특이성 0,0,1)이라 지금은 뒤 import인
+   전역이 동률에서 이겨 계산값 불변이고, 전역이 스코프·제거되는 미래에만 이 스켈레톤이 이어받는다.
+   ⚠️ .console-table(0,1,1)로 올리면 .operation-cell 등 셀 클래스(0,1,0) 오버라이드를 역전시킨다. */
+:where(.console-table) th,
+:where(.console-table) td {
+  padding: 9px 10px;
+  text-align: left;
+  font-size: 13px;
+}
+
+:where(.console-table) th {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-size: 11px;
+  font-weight: 780;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .console-table th {

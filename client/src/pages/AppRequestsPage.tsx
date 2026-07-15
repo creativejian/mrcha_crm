@@ -113,7 +113,9 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
       ) : rows.length === 0 ? (
         <div className="app-requests-empty">앱에서 들어온 견적요청이 없습니다.</div>
       ) : (
-        <div className="table-scroll console-table-scroll">
+        // console-table-scroll만 — table-scroll은 overflow:hidden에 항상 져 무력(배치 5 4-B).
+        // 이 테이블은 table-layout:fixed+width:100%라 가로 넘침 자체가 불가.
+        <div className="console-table-scroll">
         <table className="app-requests-table console-table">
           <thead>
             <tr>
