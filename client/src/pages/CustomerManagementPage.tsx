@@ -829,11 +829,13 @@ export function CustomerManagementPage({
     items: { value: string; label: string }[];
     onChange: (value: string) => void;
     extraClassName?: string;
+    includeAllOption?: boolean;
   }) {
     const active = Boolean(options.value);
     const open = openConsoleFilter === options.id;
     const selectedLabel = options.items.find((item) => item.value === options.value)?.label ?? options.label;
-    const allItems = [{ value: "", label: options.label }, ...options.items];
+    const includeAll = options.includeAllOption ?? true;
+    const allItems = includeAll ? [{ value: "", label: options.label }, ...options.items] : options.items;
 
     return (
       <div className="console-filter">
@@ -847,7 +849,7 @@ export function CustomerManagementPage({
           <span>{selectedLabel}</span>
           <ChevronsUpDown aria-hidden="true" className="console-filter-chevron" size={14} strokeWidth={2.1} />
         </button>
-        {open && (
+        {open && allItems.length > 0 && (
           <div aria-label={`${options.label} 선택`} className="console-filter-popover" role="listbox">
             {allItems.map((item) => {
               const selected = item.value === options.value;
