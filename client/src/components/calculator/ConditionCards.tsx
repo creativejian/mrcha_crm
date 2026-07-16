@@ -309,11 +309,12 @@ function ConditionCard({
           </p>
         )}
 
-        {/* 자동차세 (리스 전용) */}
+        {/* 자동차세 (리스 전용) — 라벨 = 워크벤치 어휘(불포함/포함, 유슨생 2026-07-16). 의미는 제프 원형
+            "리스료에 포함" 그대로(value 계약 불변) — 짧은 어휘라 40% 폭 트랙에 들어와 전 행 너비 통일. */}
         {isLease && (
           <CondRow label="자동차세">
             <SegmentGroup value={state.carTax}
-              options={[{ value: 'excluded', label: '불포함' }, { value: 'included', label: '리스료에 포함' }]}
+              options={[{ value: 'excluded', label: '불포함' }, { value: 'included', label: '포함' }]}
               onSelect={(v) => set('carTax', v)} />
           </CondRow>
         )}
