@@ -1,9 +1,9 @@
 // 제프(dolim-solution) components/vehicle/BrandPickerDialog.tsx 1:1 이식 — UI/마크업/인터랙션 원형 유지.
-// CRM 배선 = import 경로만: @/types/catalog → ../catalog-types. 로고는 /brand-logos/*.png(33종 복사 완료 — T0).
+// CRM 배선 = import 경로만: @/types/catalog → ./catalog-types. 공용 위치(계산기·워크벤치 SSOT — plan: ref/plans/2026-07-16-crm-workbench-picker-dialog-unify.md). 로고는 /brand-logos/*.png(33종 복사 완료 — T0).
 // (spec: ref/specs/2026-07-16-crm-calculator-modal-design.md — T3a)
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight, X } from 'lucide-react'
-import type { MasterBrand } from '../catalog-types'
+import type { MasterBrand } from './catalog-types'
 
 // master.brands.name (Korean) → logo file name in public/brand-logos/
 const LOGO_BY_NAME: Record<string, string> = {

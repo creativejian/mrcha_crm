@@ -14,7 +14,7 @@
 import { useEffect, useState } from 'react'
 import { HttpError } from '@/lib/http'
 import { fetchWorkbenchVehicle } from '@/lib/vehicles'
-import type { TrimColor, TrimOption, TrimOptionRelation } from '../catalog-types'
+import type { TrimColor, TrimOption, TrimOptionRelation } from '@/components/vehicle-pickers/catalog-types'
 
 export interface UseTrimOptionsState {
   basic: TrimOption[]
