@@ -30,6 +30,13 @@ export type KnowledgeDetail = KnowledgeListItem & {
   content: string;
 };
 
+// 콘텐츠 목록/상세 날짜 표시 1벌 — 인사이트·지식베이스가 연도 자릿수(4/2자리)로 갈리던 드리프트 해소.
+export function formatContentDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export const fetchInsights = () => getJson<InsightListItem[]>("/api/insights");
 export const fetchInsight = (id: string) => getJson<InsightDetail>(`/api/insights/${id}`);
 export const fetchKnowledgeArticles = () => getJson<KnowledgeListItem[]>("/api/knowledge");
