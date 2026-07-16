@@ -22,6 +22,14 @@ test("GET /api/insights — admin 200, 메타 목록(content 제외)", async () 
   }
 });
 
+test("GET /api/insights — 발행분(published)만 노출(draft 제외)", async () => {
+  const { app, token } = await adminApp();
+  const res = await app.request("/api/insights", { headers: { Authorization: `Bearer ${token}` } });
+  const body = await res.json();
+  // CRM은 앱 미발행 draft를 admin 참조 화면에 노출하지 않는다(이사님 결정 2026-07-16).
+  for (const row of body) expect(row.status).toBe("published");
+});
+
 test("GET /api/insights/:id — content·thumbnail 포함", async () => {
   const { app, token } = await adminApp();
   const list = await (await app.request("/api/insights", { headers: { Authorization: `Bearer ${token}` } })).json();
