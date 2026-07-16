@@ -1,6 +1,8 @@
 # 0715 리팩토링 배치 6 — 감사 결과 · 실행 계획
 
-Last updated: 2026-07-15 (유슨생 세션 `0715-fresh-start` — 감사·적대 검증 완료, 착수 대기)
+Last updated: 2026-07-16 (**전량 완료** — PR1 #252 · PR2 #253 · PR3+정비 C#4 #256 · B#2 #257(published만 결정) · 정비 A#2 #258. 잔여 0)
+
+이전: 2026-07-15 (유슨생 세션 `0715-fresh-start` — 감사·적대 검증 완료, 착수 대기)
 
 **범위**: 배치 5(#238~#242) 이후 미감사 구간 = **#248·#249·#250·#251** + 오늘 상담메모 버그픽스 `8b4a11b`. 커밋 `685acc8..8b4a11b`, 코드 ~15파일(+1055/-329). #243~#247은 배치 5의 검증된 실행 산물이라 제외.
 **방법**: 4앵글 병렬 감사(A 콘솔 레이아웃 #249/#248 · B 지식베이스 서버 #251 · C 지식베이스 클라+대시보드 #251/#250 · D 크로스커팅·실측) → 후보 취합 → 적대 검증 2명(상세 실패 경로 / 필터·key·테스트) → CONFIRMED/ADJUSTED/REFUTED.
@@ -15,7 +17,7 @@ Last updated: 2026-07-15 (유슨생 세션 `0715-fresh-start` — 감사·적대
 
 ## 실행 후보 (CONFIRMED/ADJUSTED) — PR 그룹 제안
 
-### PR1 — 콘텐츠 미러(인사이트·지식베이스) 상세 열기 실패 처리 정합화 + 2페이지 공통화
+### PR1 — 콘텐츠 미러(인사이트·지식베이스) 상세 열기 실패 처리 정합화 + 2페이지 공통화 — ✅ 완료(#252)
 
 가장 실질적인 묶음. C#1이 유일한 [중]이고, 나머지 콘텐츠 미러 [하]들이 같은 두 파일(`InsightsPage.tsx`·`KnowledgeBasePage.tsx`)에 몰려 있어 함께 고치는 게 자연스럽다.
 
@@ -40,7 +42,7 @@ Last updated: 2026-07-15 (유슨생 세션 `0715-fresh-start` — 감사·적대
 #### C#2. 상세 열기 시 로딩 피드백 없음 [하, CONFIRMED]
 - 행 클릭 → fetch 시작~해소 전까지 selected=null이라 화면 무반응 → 재클릭·중복 요청 유발. `detailLoading` 상태로 스피너/딤. C#5 공통 훅에 흡수.
 
-### PR2 — 고객 관리 mode 전환 필터 잔존 해소
+### PR2 — 고객 관리 mode 전환 필터 잔존 해소 — ✅ 완료(#253)
 
 #### A#3. mode 전환 시 chance/finalUpdate 필터 잔존·비-all mode 해제 UI 없음 [하, CONFIRMED — 4겹 실증]
 - `CustomerManagementPage.tsx:186-187`이 chanceFilter/finalUpdateFilter를 **전 mode** 적용(modeFilter와 직교) + pill은 all mode(929-947)만 렌더 + `App.tsx:315` `key` 없이 mount(prop 변경, 리마운트 아님) + `[mode]` 리셋 effect 부재.
@@ -51,7 +53,7 @@ Last updated: 2026-07-15 (유슨생 세션 `0715-fresh-start` — 감사·적대
 - 비-all mode 뷰 select 3개(`viewAdvisor`/`viewConsultStatus`/`viewUrgent`, `items:[]`). 클릭 시 aria-expanded=true 되나 popover 렌더 조건 `open && allItems.length>0`이라 listbox 부재 = NOOP. 설계상 의도된 mock이지만 스크린리더에 "expanded, listbox"라 안내되나 실체 없음.
 - 수정: 옵션 채우는 후속 전까지 mock pill을 `disabled`(또는 aria-expanded 미부여). A#3과 같은 파일이라 묶음. **저우선**.
 
-### PR3 — content 라우트 테스트·게이트 커버리지 보강
+### PR3 — content 라우트 테스트·게이트 커버리지 보강 — ✅ 완료(#256)
 
 #### B#3. content.test 조건부 커버리지 [하, ADJUSTED — "test5만 유효"는 과장]
 - knowledge_articles 111행이라 test3(정렬)·test4(상세 content)는 **실제 잠금**. 단 ⓐinsights 계약(목록 메타-only·not-content·상세 content/thumbnail)은 insights 0행이면 `if(body.length>0)`/`if(list.length===0) return`으로 조용히 통과 ⓑknowledge 목록 content-제외는 어느 test도 안 봄.
@@ -62,17 +64,18 @@ Last updated: 2026-07-15 (유슨생 세션 `0715-fresh-start` — 감사·적대
 
 ### 정비/dead (선택 — 소형 묶음 또는 흡수)
 
-#### A#2. `.customer-console-headbar` 하위 orphan CSS 4종 [하, CONFIRMED — pre-existing dead]
+#### A#2. `.customer-console-headbar` 하위 orphan CSS 4종 [하, CONFIRMED — pre-existing dead] — ✅ 완료(PR #258)
 - `customer-console.css:276·297·306·313·317·328` — #249가 total-count/list-view-controls/view-select를 toolbar로 옮겨 headbar 스코프 규칙이 매칭 대상 상실(#249 이전부터 dead, #249는 CSS 0줄 미변경). 별도 dead-CSS 정리 슬라이스에서 계산값 불변 증명 첨부 제거.
+- **완료 기록(2026-07-16, PR #258)**: 실측 dead는 위 6라인이 아니라 **9규칙** — 이 목록이 view-select 변형 `155·168·246`(hover/filter-active/focus:not)을 누락했다(유슨생 확인으로 전부 제거). 결합 셀렉터 6곳은 headbar 조각만·단독 3곳은 블록째. 증명 = ①DOM 소비자 전수(headbar 소비 1곳·후손에 4종 렌더 0·vertical-separator 전 앱 0건) ②baseline 빌드 CSS에서 제거 대상만 뺀 시뮬레이션 ↔ after 빌드 **byte-identical**(283,972B — 제거분 외 변경 0, #167 계산값 대조보다 강한 전체 증명) ③산출물 잔존 0회+live 셀렉터 보존 grep. 산출 CSS −1,163B.
 
-#### C#4. `KNOWLEDGE_BLOCK_TO_SLUG` 프로덕션 미소비 자기참조 테스트 export [하, CONFIRMED]
+#### C#4. `KNOWLEDGE_BLOCK_TO_SLUG` 프로덕션 미소비 자기참조 테스트 export [하, CONFIRMED] — ✅ 완료(#256, 제거)
 - `knowledge-categories.ts:4-17` — 프로덕션 렌더 경로 0건(페이지는 `group.blockNumber`+`knowledgeCategoryLabel`만). 테스트가 자기 리터럴과만 대조(앱 Dart 원본 파리티 미검증). 제거 또는 진짜 앱 파리티 픽스처로 승격.
 
 ---
 
 ## 제품 결정 필요
 
-#### B#2. 인사이트 목록이 draft(미발행) 포함 — status 필터 없음 [하, 추정]
+#### B#2. 인사이트 목록이 draft(미발행) 포함 — status 필터 없음 [하, 추정] — ✅ 결정·완료(#257: 발행분만 — 목록·상세 published 필터)
 - `src/db/queries/content.ts:36-48` `listInsights`에 `where(eq(status,'published'))` 없음. `insights.status`는 draft|published인데 CRM admin 목록에 앱 미발행 draft 노출. (knowledge는 "status 항상 published"라 무관.)
 - **결정 대상**: admin이 draft를 봐야 하면 현행 유지(단 UI status 배지 구분), 발행분만이면 쿼리에 published 필터. → 유슨생/이사님 확인.
 
@@ -96,9 +99,9 @@ Last updated: 2026-07-15 (유슨생 세션 `0715-fresh-start` — 감사·적대
 
 ---
 
-## 실행 우선순위 (유슨생 판단 대상)
-1. **PR1**(C#1[중]+B#1+C#5+C#6+C#2) — 콘텐츠 미러 실패 처리 + 2페이지 공통화. 유일한 [중] 포함, 실 사용자 영향.
-2. **PR2**(A#3+A#1) — 고객 관리 mode 필터 잔존. 실 UX 혼동.
-3. **PR3**(B#3+B#6) — content 테스트·게이트 보강.
-4. 정비(A#2 dead CSS·C#4 무가치 export) — 선택.
-5. B#2 draft 노출 — 제품 결정 선행.
+## 실행 우선순위 (유슨생 판단 대상) — ✅ 전량 소진(2026-07-16)
+1. ✅ **PR1**(C#1[중]+B#1+C#5+C#6+C#2) — 콘텐츠 미러 실패 처리 + 2페이지 공통화. 유일한 [중] 포함, 실 사용자 영향. → **#252**
+2. ✅ **PR2**(A#3+A#1) — 고객 관리 mode 필터 잔존. 실 UX 혼동. → **#253**
+3. ✅ **PR3**(B#3+B#6) — content 테스트·게이트 보강. → **#256**
+4. ✅ 정비(A#2 dead CSS·C#4 무가치 export) — 선택. → **C#4는 #256, A#2는 #258**
+5. ✅ B#2 draft 노출 — 제품 결정 선행. → **발행분만 결정, #257**
