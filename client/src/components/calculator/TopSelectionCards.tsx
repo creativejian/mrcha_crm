@@ -7,7 +7,10 @@
 // (spec: ref/specs/2026-07-16-crm-calculator-modal-design.md — T3a)
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Trash2 } from 'lucide-react'
+import { bindSelect } from '@/lib/select-bind'
+// 추가 할인 항목명 어휘 = 워크벤치와 공유(순수 상수 — SSOT 통합 전 어휘 정합).
+import { discountLabelOptions } from '@/components/customer-detail/quote-workbench-meta'
 import type { MasterCatalogState, MasterCatalogActions } from './hooks/useMasterCatalog'
 import { BrandPickerDialog, brandLogoUrl } from '@/components/vehicle-pickers/BrandPickerDialog'
 import { ModelPickerDialog } from '@/components/vehicle-pickers/ModelPickerDialog'
@@ -15,7 +18,7 @@ import { TrimPickerDialog } from '@/components/vehicle-pickers/TrimPickerDialog'
 import { OptionPickerDialog } from '@/components/vehicle-pickers/OptionPickerDialog'
 import { ColorPickerDialog } from '@/components/vehicle-pickers/ColorPickerDialog'
 import type { TrimColor, TrimOption, TrimOptionRelation } from '@/components/vehicle-pickers/catalog-types'
-import type { TaxReductionMode, ToggleIncluded, DiscountUnit } from './types'
+import type { CalcDiscountLine, TaxReductionMode, ToggleIncluded, DiscountUnit } from './types'
 
 /**
  * 비교견적 페이지 상단의 통합 패널 — 차량선택 / 옵션·컬러 / 할인 / 가격 / 취득원가.
@@ -39,6 +42,12 @@ interface Props {
   setDiscount: (v: string) => void
   discountUnit: DiscountUnit
   setDiscountUnit: (v: DiscountUnit) => void
+  // 추가 할인 행(워크벤치 패리티) — 최종 할인은 부모 파생(finalDiscountKrw) 표시 전용.
+  discountLines: CalcDiscountLine[]
+  onAddDiscountLine: () => void
+  onRemoveDiscountLine: (id: string) => void
+  onPatchDiscountLine: (id: string, patch: Partial<CalcDiscountLine>) => void
+  finalDiscountKrw: number
 
   // 취득원가 입력
   taxReduction: TaxReductionMode
@@ -277,7 +286,7 @@ export function TopSelectionCards(p: Props) {
           </div>
         </div>
 
-        {/* 할인 */}
+        {/* 할인 — 기본 할인 + 추가 할인 행(워크벤치 패리티: [+] 추가·항목명 select·삭제) */}
         <div className="flex flex-col">
           <div className="px-6 py-2 bg-slate-700">
             <h3 className="text-[14px]/[20px] text-white">💰 할인</h3>
@@ -285,7 +294,7 @@ export function TopSelectionCards(p: Props) {
           <div className="px-6 flex-1 flex flex-col">
             <div className="space-y-0">
               <div className="flex items-center gap-4 py-2 border-b border-gray-200">
-                <label className="text-[12px]/[16px] text-gray-500 w-20 flex-shrink-0">할인 금액</label>
+                <label className="text-[12px]/[16px] text-gray-500 w-20 flex-shrink-0">기본 할인</label>
                 <SegmentedToggle
                   value={p.discountUnit}
                   options={[{ value: 'amount', label: '금액' }, { value: 'percent', label: '%' }]}
@@ -297,7 +306,50 @@ export function TopSelectionCards(p: Props) {
                   suffix={p.discountUnit === 'amount' ? '원' : '%'}
                   onChange={p.setDiscount}
                 />
+                <button
+                  type="button"
+                  aria-label="할인 항목 추가"
+                  onClick={p.onAddDiscountLine}
+                  className="w-6 h-6 flex items-center justify-center rounded border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 flex-shrink-0 text-[14px]/[16px]"
+                >
+                  +
+                </button>
               </div>
+              {p.discountLines.map((line) => (
+                <div key={line.id} className="flex items-center gap-2 py-2 border-b border-gray-200">
+                  <label className="text-[12px]/[16px] text-gray-500 w-14 flex-shrink-0">추가 할인</label>
+                  <div className="relative flex-shrink-0">
+                    {/* controlled select — Safari 규칙(bindSelect: onChange+onInput 병행) */}
+                    <select
+                      aria-label="할인 항목명"
+                      {...bindSelect(line.label, (v) => p.onPatchDiscountLine(line.id, { label: v }))}
+                      className="w-28 py-1 pl-2 pr-6 border border-gray-200 rounded text-[12px]/[16px] bg-white text-gray-900 appearance-none focus:outline-none focus:border-slate-400"
+                    >
+                      {discountLabelOptions.map((option) => <option key={option}>{option}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                  </div>
+                  <SegmentedToggle
+                    value={line.unit}
+                    options={[{ value: 'amount', label: '금액' }, { value: 'percent', label: '%' }]}
+                    onChange={(v) => p.onPatchDiscountLine(line.id, { unit: v as DiscountUnit, amount: '0' })}
+                  />
+                  <NumberInput
+                    className="ml-auto w-28"
+                    value={line.amount}
+                    suffix={line.unit === 'amount' ? '원' : '%'}
+                    onChange={(v) => p.onPatchDiscountLine(line.id, { amount: v })}
+                  />
+                  <button
+                    type="button"
+                    aria-label="할인 항목 삭제"
+                    onClick={() => p.onRemoveDiscountLine(line.id)}
+                    className="w-6 h-6 flex items-center justify-center rounded border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 flex-shrink-0"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -307,8 +359,8 @@ export function TopSelectionCards(p: Props) {
       <div className="grid grid-cols-1 md:grid-cols-3 border-t border-gray-100 bg-gray-200">
         <PriceCell label="기본 가격"     value={p.basePrice}     onChange={p.setBasePrice} />
         <PriceCell label="(+) 옵션 금액" value={p.optionPrice}   onChange={p.setOptionPrice} />
-        <PriceCell label="(-) 최종 할인" value={p.discount}      onChange={p.setDiscount} last
-          unit={p.discountUnit === 'percent' ? '%' : '원'} />
+        {/* 최종 할인 = 기본+추가 행 환산 합 파생(워크벤치 syncDiscountTotalFromRows 미러 — 행 도입으로 표시 전용) */}
+        <PriceCell label="(-) 최종 할인" value={String(p.finalDiscountKrw)} onChange={() => {}} last readOnly />
       </div>
 
       {/* ── 취득원가 설정 + 최종 가격 (2-col grid, 행 공유) ── */}
@@ -321,7 +373,7 @@ export function TopSelectionCards(p: Props) {
           <h3 className="text-[14px]/[20px] text-white">📋 최종 가격</h3>
         </div>
 
-        {/* 취득세 / 최종 차량가 */}
+        {/* 취득세 / 최종 차량가 — 직접 입력(manual)만 편집 가능, 나머지 모드는 자동계산 표시(워크벤치 패리티) */}
         <div className="px-6 border-r-2 border-r-white">
           <div className="py-2 flex items-center gap-4 border-b border-gray-200">
             <label className="text-[12px]/[16px] text-gray-500 w-20 flex-shrink-0">취득세</label>
@@ -331,10 +383,11 @@ export function TopSelectionCards(p: Props) {
                 { value: 'none',     label: '일반' },
                 { value: 'hybrid',   label: '하이브리드 감면' },
                 { value: 'electric', label: '전기차 감면' },
+                { value: 'manual',   label: '직접 입력' },
               ]}
               onChange={(v) => p.setTaxReduction(v as TaxReductionMode)}
             />
-            <NumberInput className="ml-auto w-36" value={p.taxAmount} onChange={p.setTaxAmount} suffix="원" />
+            <NumberInput className="ml-auto w-36" value={p.taxAmount} onChange={p.setTaxAmount} suffix="원" readOnly={p.taxReduction !== 'manual'} />
           </div>
         </div>
         <SummaryCell label="최종 차량가(계산서 발행금액)" value={p.finalVehiclePrice} />
@@ -489,12 +542,13 @@ function SegmentedToggle<T extends string>({
 }
 
 function NumberInput({
-  value, onChange, className = '', suffix = '원',
+  value, onChange, className = '', suffix = '원', readOnly = false,
 }: {
   value: string
   onChange: (v: string) => void
   className?: string
   suffix?: string
+  readOnly?: boolean
 }) {
   return (
     <div className={`relative flex-shrink-0 ${className}`}>
@@ -502,9 +556,11 @@ function NumberInput({
         type="text"
         value={Number(value || 0).toLocaleString()}
         onChange={(e) => onChange(onlyDigits(e.target.value))}
-        className="w-full py-1 pl-2 pr-6 border border-gray-200 rounded text-[12px]/[16px] text-gray-900 text-right
-                   focus:outline-none focus:border-slate-400 bg-white
-                   font-mono tabular-nums font-normal"
+        readOnly={readOnly}
+        className={`w-full py-1 pl-2 pr-6 border border-gray-200 rounded text-[12px]/[16px] text-right
+                   focus:outline-none font-mono tabular-nums font-normal ${
+          readOnly ? 'bg-gray-50 text-gray-500 cursor-default' : 'bg-white text-gray-900 focus:border-slate-400'
+        }`}
       />
       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px]/[16px] text-gray-400 pointer-events-none">
         {suffix}
@@ -514,19 +570,20 @@ function NumberInput({
 }
 
 function PriceCell({
-  label, value, onChange, last, unit = '원',
+  label, value, onChange, last, unit = '원', readOnly = false,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   last?: boolean
   unit?: string
+  readOnly?: boolean
 }) {
   return (
     <div className={`px-6 py-2 ${last ? '' : 'border-r-2 border-white'}`}>
       <div className="flex justify-between items-center gap-4">
         <span className="text-[12px]/[16px] text-gray-900 font-bold flex-shrink-0">{label}</span>
-        <NumberInput value={value} onChange={onChange} className="w-36" suffix={unit} />
+        <NumberInput value={value} onChange={onChange} className="w-36" suffix={unit} readOnly={readOnly} />
       </div>
     </div>
   )

@@ -14,11 +14,14 @@ import { QuoteBottomBar } from './QuoteBottomBar'
 import type { SupportedLenderCode } from './lender-meta'
 import {
   defaultScenario,
+  type CalcDiscountLine,
   type ScenarioState,
   type TaxReductionMode,
   type ToggleIncluded,
   type DiscountUnit,
 } from './types'
+// 할인 행 환산 산술·항목명 어휘는 워크벤치와 공유(quote-workbench-meta 순수 상수/함수 — SSOT 통합 전 어휘 정합).
+import { discountLineWon } from '@/components/customer-detail/quote-workbench-meta'
 import type {
   AcquisitionTaxMode,
   AnnualMileage,
@@ -55,6 +58,8 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
 
   const [discount, setDiscount] = useState('0')
   const [discountUnit, setDiscountUnit] = useState<DiscountUnit>('amount')
+  // 추가 할인 행(워크벤치 패리티) — 기본 할인(discount)과 별개 행, 최종 할인 = 기본+행 환산 합.
+  const [discountLines, setDiscountLines] = useState<CalcDiscountLine[]>([])
 
   const [taxReduction, setTaxReduction] = useState<TaxReductionMode>('none')
   const [taxAmount, setTaxAmount] = useState('0')
@@ -149,17 +154,22 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
   const rawOption = Number(optionPrice.replace(/,/g, '')) || 0
   const rawDiscountInput = Number(discount.replace(/,/g, '')) || 0
   const totalQuotedPrice = rawBase + rawOption
+  // 최종 할인 = 기본 할인 환산 + Σ추가 행 환산(discountLineWon — 워크벤치 syncDiscountTotalFromRows와
+  // 동일 산술·동일 basis(base+option)). 행이 없으면 종전(기본 할인 단독)과 동일 값.
   const rawDiscountKrw =
-    discountUnit === 'amount'
-      ? rawDiscountInput
-      : Math.round(totalQuotedPrice * (rawDiscountInput || 0) / 100)
+    discountLineWon(discountUnit, rawDiscountInput, totalQuotedPrice) +
+    discountLines.reduce(
+      (sum, line) => sum + discountLineWon(line.unit, Number(line.amount.replace(/,/g, '')) || 0, totalQuotedPrice),
+      0,
+    )
   const finalVehiclePrice = Math.max(0, totalQuotedPrice - rawDiscountKrw)
 
-  // 취득세 자동 계산
+  // 취득세 자동 계산 — manual(직접 입력, 워크벤치 패리티)은 자동 재계산이 덮지 않는다.
   // - none: finalVehiclePrice/1.1 × 7% (10원 절사)
   // - hybrid: 위 값 − 400,000원
   // - electric: 위 값 − 1,400,000원
   useEffect(() => {
+    if (taxReduction === 'manual') return
     if (finalVehiclePrice <= 0) return
     const base = Math.floor((finalVehiclePrice / 1.1) * 0.07 / 10) * 10
     const reduction =
@@ -192,12 +202,20 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
   // 와 합쳐 하나라도 다르면 "다시 조회하기" 로 전환됨.
   const topLevelFingerprint = JSON.stringify({
     mcCode,
-    basePrice, optionPrice, discount, discountUnit,
+    basePrice, optionPrice, discount, discountUnit, discountLines,
     taxReduction, taxAmount,
     bondIncluded, bondAmount,
     deliveryIncluded, deliveryAmount,
     extraIncluded, extraAmount,
   })
+
+  // ── 추가 할인 행 액션(워크벤치 addDiscountLine/removeDiscountLine/setDiscountLine* 미러) ──
+  const addDiscountLine = () =>
+    setDiscountLines((prev) => [...prev, { id: `discount-${Date.now()}-${prev.length}`, label: '재구매 할인', unit: 'amount' as DiscountUnit, amount: '0' }])
+  const removeDiscountLine = (id: string) =>
+    setDiscountLines((prev) => prev.filter((line) => line.id !== id))
+  const patchDiscountLine = (id: string, patch: Partial<CalcDiscountLine>) =>
+    setDiscountLines((prev) => prev.map((line) => (line.id === id ? { ...line, ...patch } : line)))
 
   // ── 시나리오별 페이로드 빌드 ──
   function buildPayload(idx: 0 | 1 | 2): Omit<QuotePayload, 'lenderCode'> | null {
@@ -367,6 +385,11 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
           setDiscount={setDiscount}
           discountUnit={discountUnit}
           setDiscountUnit={setDiscountUnit}
+          discountLines={discountLines}
+          onAddDiscountLine={addDiscountLine}
+          onRemoveDiscountLine={removeDiscountLine}
+          onPatchDiscountLine={patchDiscountLine}
+          finalDiscountKrw={rawDiscountKrw}
           taxReduction={taxReduction}
           setTaxReduction={setTaxReduction}
           taxAmount={taxAmount}

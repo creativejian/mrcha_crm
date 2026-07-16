@@ -282,6 +282,9 @@ export const quoteScenarios = crm.table("quote_scenarios", {
   totalTakeoverCost: numeric("total_takeover_cost"),
   dueAtDelivery: numeric("due_at_delivery"),
   interestRate: numeric("interest_rate"),
+  // CM/AG 수수료 %(계산기 패리티 2026-07-16) — 파트너 calculate 입력(cmFeeRate/agFeeRate 분율의 % 원문).
+  cmFeePercent: numeric("cm_fee_percent"),
+  agFeePercent: numeric("ag_fee_percent"),
   // 솔루션 조회 재현성 스냅샷(스펙 결정 4·5) — 수기 시나리오는 전부 null.
   // 요율이 매월 갱신되는 도메인이라 "어느 워크북 기준 계산인지"를 남긴다. raw는 앱 partner_raw_response 선례.
   solutionLenderCode: text("solution_lender_code"),

@@ -147,6 +147,8 @@ function scenarioFixture(over: Partial<EditScenario> = {}): EditScenario {
     totalTakeoverCost: "20,000,000",
     dueAtDelivery: "5,000,000",
     interestRate: "5.3",
+    cmFeePercent: "1.5",
+    agFeePercent: "0",
     ...over,
   };
 }

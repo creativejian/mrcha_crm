@@ -371,6 +371,9 @@ export function useQuoteWorkbench({
         totalTakeover: sc.totalTakeoverCost ? formatMoney(Number(sc.totalTakeoverCost)) : "0",
         dueAtDelivery: sc.dueAtDelivery ? formatMoney(Number(sc.dueAtDelivery)) : "0",
         interestRate: sc.interestRate || "0",
+        // % 원문 표시(콤마 포맷 우회 규약 — 금리와 동일). 원 환산 미리보기는 파생이 채운다.
+        cmFeePercent: sc.cmFeePercent || "0",
+        agFeePercent: sc.agFeePercent || "0",
       };
     });
   }
@@ -405,7 +408,7 @@ export function useQuoteWorkbench({
     // "표시 유지" option)는 대상 카드에 렌더되지 않으므로, option 존재를 확인하고 없으면 건드리지 않는다.
     const lenderCopyable = targetLender != null && Array.from(targetLender.options).some((o) => o.value === sourceLender);
     if (targetLender && lenderCopyable) targetLender.value = sourceLender;
-    for (const field of ["deposit", "downPayment", "residual", "subsidy"]) {
+    for (const field of ["deposit", "downPayment", "residual", "subsidy", "cmFeePercent", "agFeePercent"]) {
       const src = sourceEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
       const dst = targetEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
       if (src && dst) dst.value = src.value;
@@ -787,6 +790,8 @@ export function useQuoteWorkbench({
         mileageValue: effectiveMileageValue(ui),
         subsidyApplicable: ui.subsidyApplicable,
         subsidyRaw: fieldVal("subsidy"),
+        cmFeeRaw: fieldVal("cmFeePercent"),
+        agFeeRaw: fieldVal("agFeePercent"),
         vehicle: {
           brand: workbenchVehicle?.brand?.name ?? null,
           model: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
@@ -973,6 +978,9 @@ export function useQuoteWorkbench({
         totalTakeoverCost: nz(parseMonthlyPayment(fieldVal("totalTakeover") ?? "")),
         dueAtDelivery: nz(parseMonthlyPayment(fieldVal("dueAtDelivery") ?? "")),
         interestRate: parseInterestRate(fieldVal("interestRate") ?? ""),
+        // CM/AG %(계산기 패리티) — parseInterestRate 재사용(소수 보존·0/100 초과 null. 0% = 미입력과 동등).
+        cmFeePercent: parseInterestRate(fieldVal("cmFeePercent") ?? ""),
+        agFeePercent: parseInterestRate(fieldVal("agFeePercent") ?? ""),
         // 솔루션 조회 스냅샷 동봉(조회한 카드만 키 존재) — 서버 시나리오 저장이 전체 교체(delete→insert)라
         // 미동봉 재저장은 저장된 스냅샷을 null로 덮는다. 수정 재진입 시드(openEditQuote)와 한 쌍.
         ...(solutionSnapshots[condId] ?? {}),
@@ -993,13 +1001,26 @@ export function useQuoteWorkbench({
     const derivedPricing = computePricing(inputs); // otherCost·acquisitionCost SSOT(quote-pricing)
     const basis = inputs.basePrice + inputs.optionPrice; // %→원 환산 기준 = 할인 전 차량가(솔루션 입력과 동일)
     for (const card of manualQuoteCards) {
+      const cardEl = compareForm.querySelector<HTMLElement>(`[data-scenario-card="${card.id}"]`);
+      if (!cardEl) continue;
+      const fieldVal = (f: string) => cardEl.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? "";
+      // CM/AG 원 환산 미리보기(계산기 basePriceForFeePreview 미러 — 기준 = 최종 차량가). 표시 전용
+      // (data-fee-preview — data-sc-field 아님 = 추출·저장에 안 실림)이라 saved 카드에도 채운다(값 고정이니 멱등).
+      // 100 초과(콤마 오입력)는 0 표시 — 아래 wonOfMode fail-loud 상한과 동일 방침.
+      const feePreviewWon = (raw: string) => {
+        const pct = parsePercentInput(raw);
+        return pct > 100 ? 0 : Math.round(derivedPricing.finalVehiclePrice * pct / 100);
+      };
+      const setPreview = (key: string, v: number) => {
+        const el = cardEl.querySelector<HTMLInputElement>(`input[data-fee-preview="${key}"]`);
+        if (el) el.value = formatMoney(v);
+      };
+      setPreview("cm", feePreviewWon(fieldVal("cmFeePercent")));
+      setPreview("ag", feePreviewWon(fieldVal("agFeePercent")));
       // 저장된(조건 미편집) 카드는 결과 4필드를 재파생하지 않는다(배치 5 2-A) — solution 도입 이전 수기 견적의
       // 저장값(표면금리 등)이 재진입만 해도 실질 IRR 파생값에 덮여 재발송 시 조용히 바뀌던 것을 차단.
       // 수정 클릭(editManualQuoteCondition)이 saved에서 빼면 그 카드만 다시 파생된다.
       if (savedManualQuoteConditionIds.includes(card.id)) continue;
-      const cardEl = compareForm.querySelector<HTMLElement>(`[data-scenario-card="${card.id}"]`);
-      if (!cardEl) continue;
-      const fieldVal = (f: string) => cardEl.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? "";
       const ui = cardUiOf(cardUi, card.id);
       // 보증금/선수금 % 모드는 할인 전 차량가 기준 원 환산(discountLineWon 공유 산술). % 100 초과
       // (콤마 오입력 "45,5"→455)는 0 처리 — 빌더 wonOf·residualAmountOf의 fail-loud 상한 미러.
@@ -1155,6 +1176,8 @@ export function useQuoteWorkbench({
         totalTakeoverCost: sc.totalTakeoverCost ?? null,
         dueAtDelivery: sc.dueAtDelivery ?? null,
         interestRate: sc.interestRate ?? null,
+        cmFeePercent: sc.cmFeePercent ?? null,
+        agFeePercent: sc.agFeePercent ?? null,
         // 솔루션 조회 스냅샷(마이그 0031) — 낙관 표시에도 전달(서버 재페치 값과 동형 유지).
         solutionLenderCode: sc.solutionLenderCode ?? null,
         solutionWorkbookVersion: sc.solutionWorkbookVersion ?? null,
@@ -1355,6 +1378,8 @@ export function useQuoteWorkbench({
       totalTakeoverCost: s.totalTakeoverCost ?? "",
       dueAtDelivery: s.dueAtDelivery ?? "",
       interestRate: s.interestRate ?? "",
+      cmFeePercent: s.cmFeePercent ?? "0",
+      agFeePercent: s.agFeePercent ?? "0",
     }));
     // 할인 구성 내역 복원(discount_lines 영속화) — 기본 할인은 finalDiscount(총액) − 추가 행 환산 합으로 역산.
     // 행 state는 아래 setDiscountLines, 기본 할인 값은 applyTrimToPricing이 prefill.pricing.primaryDiscount로 쓴다.

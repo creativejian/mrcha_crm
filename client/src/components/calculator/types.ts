@@ -7,7 +7,7 @@
 // 운용리스만 지원하므로 UI 표시만 하고 페이로드 빌드 시 무시됩니다.
 export interface ScenarioState {
   activeTab: 'lease' | 'rent'
-  period: string                       // '24' | '36' | '48' | '60'
+  period: string                       // '12' | '24' | '36' | '48' | '60' (SOLUTION_LEASE_TERMS — 워크벤치 패리티)
   downPaymentType: 'none' | 'amount' | 'percent'
   downPayment: string
   depositType: 'none' | 'amount' | 'percent'
@@ -56,6 +56,11 @@ export const defaultScenario = (): ScenarioState => ({
 })
 
 // TopSelectionCards 의 공유 입력값 (3 시나리오가 같이 쓰는 차량/할인/취득원가).
-export type TaxReductionMode = 'none' | 'electric' | 'hybrid'
+// manual = 직접 입력(워크벤치 취득세 4모드 패리티) — 자동 재계산이 값을 덮지 않고 입력이 활성화된다.
+export type TaxReductionMode = 'none' | 'electric' | 'hybrid' | 'manual'
 export type ToggleIncluded = 'included' | 'excluded'
 export type DiscountUnit = 'amount' | 'percent'
+
+// 할인 행(기본 할인 + 추가 행 — 워크벤치 DiscountLine 패리티, SSOT 통합 전 계산기 로컬 모양).
+// amount는 controlled 문자열(숫자만) — 워크벤치의 uncontrolled DOM 스냅샷과 달리 계산기는 state가 원본.
+export type CalcDiscountLine = { id: string; label: string; unit: DiscountUnit; amount: string }

@@ -120,6 +120,9 @@ export type BuildArgs = {
   mileageValue: string;
   subsidyApplicable: boolean;
   subsidyRaw: string;
+  // CM/AG 수수료 % 원문(계산기 패리티 — 파트너 cmFeeRate/agFeeRate 분율로 변환 전송).
+  cmFeeRaw: string;
+  agFeeRaw: string;
   vehicle: { brand: string | null; model: string | null; mcCode: string | null };
   pricing: { baseAndOption: number; discount: number };
 };
@@ -163,6 +166,13 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
   if (depositAmount == null || upfrontPayment == null)
     return { ok: false, reason: "보증금·선수금 %는 100 이하로 입력해 주세요" };
 
+  // CM/AG %(계산기 패리티) — 분율(0.01 = 1%) 변환 전송. 빈 칸은 0(계산기도 0 상시 전송 — prod 실증).
+  // 100 초과 = 콤마 오입력 fail-loud(wonOf 상한 미러).
+  const cmFeePct = parsePercentInput(args.cmFeeRaw);
+  const agFeePct = parsePercentInput(args.agFeeRaw);
+  if (cmFeePct > 100 || agFeePct > 100)
+    return { ok: false, reason: "CM/AG 수수료 %는 100 이하로 입력해 주세요" };
+
   const input: SolutionQuoteInput = {
     lenderCode: lender.code,
     productType,
@@ -175,6 +185,8 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
     depositAmount,
     upfrontPayment,
     quotedVehiclePrice: args.pricing.baseAndOption,
+    cmFeeRate: cmFeePct / 100,
+    agFeeRate: agFeePct / 100,
   };
   if (args.pricing.discount > 0) input.discountAmount = args.pricing.discount;
   if (args.subsidyApplicable) {

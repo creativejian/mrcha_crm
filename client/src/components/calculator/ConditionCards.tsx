@@ -218,10 +218,11 @@ function ConditionCard({
             </Row>
           )}
 
-          {/* 기간 */}
+          {/* 기간 — 12개월 포함(워크벤치 비교카드와 동일 어휘, SOLUTION_LEASE_TERMS 전체) */}
           <Row label="기간">
             <Segmented value={state.period}
               options={[
+                { value: '12', label: '12개월' },
                 { value: '24', label: '24개월' },
                 { value: '36', label: '36개월' },
                 { value: '48', label: '48개월' },
