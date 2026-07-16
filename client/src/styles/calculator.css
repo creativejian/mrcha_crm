@@ -104,3 +104,23 @@
   color: var(--muted-foreground);
   cursor: not-allowed;
 }
+
+/* ── 견적 조건 UI SSOT(2026-07-16) — kim(워크벤치) 문법 채택분의 계산기 컨텍스트 브릿지 ──
+   spec: ref/specs/2026-07-16-crm-quote-ui-ssot-design.md D4. 전부 .calculator-modal 스코프 —
+   워크벤치 계산값 불변. */
+
+/* kim-jeff-quote-body 기본 패딩(16px)은 unlayered라 Tailwind 유틸(p-8)을 layer 무관하게 이긴다
+   (#262 교훈의 역방향) — 계산기 페이지 여백은 명시 오버라이드로 유지(구 p-8 pb-24 = 32px/96px). */
+.calculator-modal .kim-jeff-quote-body {
+  padding: 32px 32px 96px;
+}
+
+/* 비교 카드 그리드 외곽 chrome — 워크벤치는 .kim-app-quote-form 셸이 담당(값 미러). */
+.calculator-modal .kim-manual-compare-grid {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.07),
+    0 2px 6px rgba(15, 23, 42, 0.035);
+}
