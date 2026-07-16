@@ -326,6 +326,26 @@ describe("CustomerManagementPage", () => {
     expect(within(row).getByText("외부 클릭 저장 확인")).toBeInTheDocument();
   });
 
+  it("does not fabricate a 정상 관리 상태 badge when saving the (unpersisted) 상담 메모", async () => {
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="all" onOpenCustomer={vi.fn()} />);
+
+    const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
+    // 저장 전: 김민준은 lastActivityAt·수동 관리 상태가 없어 관리 상태 배지가 공백이다.
+    expect(within(row).getByLabelText("최종 업데이트 없음")).toBeInTheDocument();
+
+    await user.click(within(row).getByRole("button", { name: "김민준 상담 메모 수정" }));
+    const input = within(row).getByRole("textbox", { name: "김민준 상담 메모 수정" });
+    await user.clear(input);
+    await user.type(input, "재고 확인 후 카톡 안내");
+    await user.click(within(row).getByRole("button", { name: "상담 메모 저장" }));
+
+    // 상담 메모는 서버에 저장되지 않으므로(프로토타입 전용), 저장이 관리 상태 배지를
+    // "방금 전(정상)"으로 바꿔선 안 된다. 리로드하면 사라지는 거짓 배지를 만들던 회귀.
+    expect(within(row).queryByLabelText("최종 업데이트: 정상")).not.toBeInTheDocument();
+    expect(within(row).getByLabelText("최종 업데이트 없음")).toBeInTheDocument();
+  });
+
   it("closes the chance popover from an outside row click without opening the customer", async () => {
     const user = userEvent.setup();
     const onOpenCustomer = vi.fn();

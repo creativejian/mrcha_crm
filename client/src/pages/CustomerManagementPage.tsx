@@ -669,7 +669,9 @@ export function CustomerManagementPage({
     if (editingNextAction?.customerNo !== customerNo) return;
     const nextAction = editingNextAction.draft.trim();
     updateCustomers((current) => current.map((customer) => customer.no === customerNo ? { ...customer, nextAction } : customer));
-    markFinalUpdate(customerNo, "상담 메모");
+    // 상담 메모 인라인 편집은 서버에 저장되지 않는 프로토타입 전용이라 markFinalUpdate를 부르지 않는다.
+    // 진행 상태·계약 가능성은 실제 PATCH(updated_at bump)가 뒷받침하지만, 이 저장은 뒷받침이 없어
+    // "방금 전(정상)" 마킹이 관리 상태 배지를 거짓으로 바꿨다가 리로드하면 사라지던 회귀였다.
     setEditingNextAction(null);
   }
 
