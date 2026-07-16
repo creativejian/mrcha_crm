@@ -102,6 +102,9 @@ export type ManualCard = {
   downPaymentValue: string;
   residualValue: string;
   subsidyAmount: string;
+  // CM/AG 수수료 %(계산기 패리티) — 원 환산 미리보기는 파생(deriveAndFillCardResults)이라 표시값은 % 원문만.
+  cmFeePercent: string;
+  agFeePercent: string;
 };
 export const discountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
 export const manualMileageOptions = [
@@ -138,6 +141,8 @@ export type EditScenario = {
   totalTakeoverCost: string;
   dueAtDelivery: string;
   interestRate: string;
+  cmFeePercent: string;
+  agFeePercent: string;
 };
 
 // 비교카드 id 규약 — 시나리오 번호(scenario_no)와 1:1. 복원·저장 양쪽이 이 함수를 쓴다.
@@ -241,6 +246,8 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     downPaymentValue: "0",
     residualValue: "-",
     subsidyAmount: "0",
+    cmFeePercent: "0",
+    agFeePercent: "0",
   },
   {
     id: "manual-condition-2",
@@ -257,6 +264,8 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     downPaymentValue: "0",
     residualValue: "-",
     subsidyAmount: "0",
+    cmFeePercent: "0",
+    agFeePercent: "0",
   },
   {
     id: "manual-condition-3",
@@ -273,6 +282,8 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     downPaymentValue: "0",
     residualValue: "-",
     subsidyAmount: "0",
+    cmFeePercent: "0",
+    agFeePercent: "0",
   },
 ] as const;
 

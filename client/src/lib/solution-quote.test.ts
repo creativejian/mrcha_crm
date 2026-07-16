@@ -22,6 +22,8 @@ const BASE_ARGS = {
   mileageValue: "20,000km / 년",
   subsidyApplicable: false,
   subsidyRaw: "",
+  cmFeeRaw: "",
+  agFeeRaw: "",
   vehicle: { brand: "BMW", model: "3 Series", mcCode: "MC-TEST-001" },
   pricing: { baseAndOption: 59_000_000, discount: 6_500_000 },
 };
@@ -61,6 +63,9 @@ describe("buildSolutionQuoteInput", () => {
       upfrontPayment: 0,
       quotedVehiclePrice: 59_000_000,
       discountAmount: 6_500_000,
+      // CM/AG(계산기 패리티) — 빈 칸도 분율 0 상시 전송(계산기 payload 미러)
+      cmFeeRate: 0,
+      agFeeRate: 0,
       residualMode: "high",
     });
   });
@@ -132,6 +137,21 @@ describe("buildSolutionQuoteInput", () => {
 
   test("기간 이탈(72개월) = 실패", () => {
     expect(buildSolutionQuoteInput({ ...BASE_ARGS, termMonths: 72 }).ok).toBe(false);
+  });
+
+  test("CM/AG 수수료 % → 분율 전송(빈 칸 = 0 상시 전송 — 계산기 payload 미러), 100 초과 = 실패", () => {
+    const empty = buildSolutionQuoteInput(BASE_ARGS);
+    if (!empty.ok) throw new Error(empty.reason);
+    expect(empty.input.cmFeeRate).toBe(0);
+    expect(empty.input.agFeeRate).toBe(0);
+    const filled = buildSolutionQuoteInput({ ...BASE_ARGS, cmFeeRaw: "1.5", agFeeRaw: "2" });
+    if (!filled.ok) throw new Error(filled.reason);
+    expect(filled.input.cmFeeRate).toBeCloseTo(0.015);
+    expect(filled.input.agFeeRate).toBeCloseTo(0.02);
+    // "1,5"(1.5% 의도) 콤마 오입력 → 15%가 아니라 105류 상한 검사… parsePercentInput은 콤마 제거 "15" — 100 이하라 통과.
+    // fail-loud 상한은 진짜 비현실값(>100)만 차단(보증금 % 미러): "10,5" → 105% → 실패.
+    expect(buildSolutionQuoteInput({ ...BASE_ARGS, cmFeeRaw: "10,5" }).ok).toBe(false);
+    expect(buildSolutionQuoteInput({ ...BASE_ARGS, agFeeRaw: "10,5" }).ok).toBe(false);
   });
 
   test("차량가 미입력(0원) = 실패", () => {
