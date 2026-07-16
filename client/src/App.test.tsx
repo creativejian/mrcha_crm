@@ -33,11 +33,6 @@ function renderAt(path: string) {
   );
 }
 
-it("/quotes → 견적 관리 화면(제목)", () => {
-  renderAt("/quotes");
-  expect(screen.getByRole("heading", { level: 1, name: "견적 관리" })).toBeInTheDocument();
-});
-
 it("/mc-master → 엠씨 마스터 화면(제목)", () => {
   renderAt("/mc-master");
   expect(screen.getByRole("heading", { level: 1, name: "엠씨 마스터" })).toBeInTheDocument();

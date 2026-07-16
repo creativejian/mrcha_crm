@@ -18,9 +18,3 @@ export const adminBriefs = [
   ["박서연 · Model Y 렌트", "초기비용을 낮추고 싶어하지만 보험/정비 포함 구조를 잘 모릅니다."],
   ["이도윤 · GV80 심사", "개인사업자 증빙이 약합니다. 승인 가능 금융사 우선순위가 필요합니다."],
 ] as const;
-
-export const quotes = [
-  { vehicle: "BMW X3 20i", finance: "A캐피탈", period: "48개월", initial: "보증금 20%", residual: "52%", monthly: "842,000원", stock: "가능", verdict: "추천" },
-  { vehicle: "Benz GLC 300", finance: "B캐피탈", period: "48개월", initial: "보증금 20%", residual: "49%", monthly: "879,000원", stock: "확인 필요", verdict: "재고 변수" },
-  { vehicle: "BMW X3 20i", finance: "C캐피탈", period: "60개월", initial: "보증금 10%", residual: "44%", monthly: "792,000원", stock: "가능", verdict: "월납 낮음" },
-];
