@@ -85,9 +85,13 @@ body {
   font-family: "Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-button,
-input,
-select {
+/* ⚠️ unlayered 규칙이라 Tailwind @layer utilities(text-[..px] 등)를 항상 이긴다 —
+   계산기 모달(제프 이식, Tailwind-only)은 스코프에서 제외한다. 모달 내부는 Tailwind
+   preflight(@layer base)의 동일 규칙(font: inherit)이 대신 작동하고 유틸리티가 정상 승리.
+   (:where 병용으로 기존 특이성 (0,0,1) 유지 — 모달 밖 계산값 불변) */
+button:where(:not(.calculator-modal *)),
+input:where(:not(.calculator-modal *)),
+select:where(:not(.calculator-modal *)) {
   font: inherit;
 }
 

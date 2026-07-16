@@ -1,13 +1,19 @@
 // 파트너(financial-dolim-solution) 견적 계산 API 인증 릴레이 — 스펙 §구성 2.
 // 매핑·조립은 클라(client/src/lib/solution-quote.ts)의 몫(B안 구조) — 여기는 zod 게이트 + 키/추적
 // 헤더 부착 + 타임아웃만 담당하는 얇은 릴레이다. 서버 계약은 파트너 계약과 1:1.
+// 계산기 모달(값어림 계산) 확장 17필드는 전부 optional(하위호환) — 제프 calculateQuoteSchema 미러,
+// ref/specs/2026-07-16-crm-calculator-modal-design.md §릴레이 zod 확장.
 import { Hono } from "hono";
 import { z } from "zod";
 
 import {
+  SOLUTION_ACQUISITION_TAX_MODES,
+  SOLUTION_AFFILIATE_TYPES,
   SOLUTION_LEASE_TERMS,
   SOLUTION_LENDERS,
+  SOLUTION_MAINTENANCE_GRADES,
   SOLUTION_MILEAGES,
+  SOLUTION_RELEASE_METHODS,
   type SolutionQuoteInput,
 } from "../../client/src/lib/solution-quote";
 
@@ -33,6 +39,26 @@ const solutionCalcBody = z.object({
   residualMode: z.enum(["high", "standard"]).optional(),
   residualValueRatio: z.number().min(0).max(1).optional(),
   residualAmountOverride: z.number().int().min(0).optional(),
+  // ── 계산기 모달 확장 17필드(전부 optional·하위호환) — 제프 calculateQuoteSchema 타입·범위 미러.
+  // 금액/율 필드는 제프와 동일하게 min(0)만(int 아님 — cmFeeRate 등 분율 존재), 예외는
+  // selectedResidualRateOverride의 positive(제프가 0을 거부 — 경계 일치) ──
+  affiliateType: z.enum(SOLUTION_AFFILIATE_TYPES).optional(),
+  directModelEntry: z.boolean().optional(),
+  releaseMethod: z.enum(SOLUTION_RELEASE_METHODS).optional(),
+  maintenanceGrade: z.enum(SOLUTION_MAINTENANCE_GRADES).optional(),
+  selectedResidualRateOverride: z.number().positive().optional(),
+  acquisitionTaxMode: z.enum(SOLUTION_ACQUISITION_TAX_MODES).optional(),
+  acquisitionTaxAmountOverride: z.number().min(0).optional(),
+  includePublicBondCost: z.boolean().optional(),
+  publicBondCost: z.number().min(0).optional(),
+  includeDeliveryFeeAmount: z.boolean().optional(),
+  deliveryFeeAmount: z.number().min(0).optional(),
+  includeMiscFeeAmount: z.boolean().optional(),
+  miscFeeAmount: z.number().min(0).optional(),
+  cmFeeRate: z.number().min(0).optional(),
+  agFeeRate: z.number().min(0).optional(),
+  insuranceYearlyAmount: z.number().min(0).optional(),
+  lossDamageAmount: z.number().min(0).optional(),
 });
 
 // 컴파일 타임 파리티: zod 스키마 출력이 클라 SolutionQuoteInput에 할당 가능해야 한다 — 서버 게이트가

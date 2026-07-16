@@ -1,0 +1,88 @@
+/* 전역 계산기 모달(값어림 계산 이식) 전용 스코프.
+   제프 dolim-solution client/src/index.css에서 이식 컴포넌트가 실제 소비하는 것만 발췌 —
+   form-input 프리미티브·animate-fade-up·shadow-elev 토큰·테마 변수 4종.
+   spec: ref/specs/2026-07-16-crm-calculator-modal-design.md (D8 — CRM 전역 CSS와 충돌 없이 스코프 격리) */
+
+.calculator-modal {
+  /* 제프 :root 토큰 중 CRM shadcn 값과 다른 것만 오버라이드.
+     CRM --accent는 #111(검정)인데 제프 픽커/폼은 파랑(#3b7dd8) accent 전제 —
+     theme.css가 @theme inline이라 유틸리티(border-accent 등)가 var(--accent)를 직접 참조,
+     이 스코프 오버라이드가 후손 전체에 캐스케이드된다. */
+  --accent: #3b7dd8;
+  /* CRM @theme은 Tailwind accent 유틸을 --accent가 아니라 --accent-shadcn에 매핑한다
+     (theme.css --color-accent: var(--accent-shadcn)) — 픽커의 border-accent/text-accent용 동반 오버라이드. */
+  --accent-shadcn: #3b7dd8;
+  --input: rgba(0, 0, 0, 0.1);
+  --foreground: #1a1a1a;
+  --muted-foreground: #6b6b6b;
+  --font-mono: "JetBrains Mono", "SF Mono", "SFMono-Regular", "Menlo", "Consolas", monospace;
+  /* Premium multi-layer shadow system (제프 원문 그대로) */
+  --shadow-elev-1: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03);
+  --shadow-elev-2: 0 2px 4px rgba(0, 0, 0, 0.03), 0 4px 12px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.03);
+  --shadow-elev-3: 0 4px 8px rgba(0, 0, 0, 0.03), 0 8px 24px rgba(0, 0, 0, 0.06), 0 16px 48px rgba(0, 0, 0, 0.04);
+  --shadow-elev-4: 0 8px 16px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.08), 0 32px 80px rgba(0, 0, 0, 0.04);
+  /* 모달 끝에서의 휠이 뒤 문서로 전파되지 않게(실시간 상담 .chat-messages 선례) */
+  overscroll-behavior: contain;
+
+  /* 제프 html{font-size:15px} 대응 — CRM root는 16px. Tailwind v4 유틸리티는 테마 변수를
+     var()로 참조하므로(py-2 = calc(var(--spacing)*2) 등, 빌드 실측) 스코프에서 15/16 배율로
+     오버라이드하면 rem 계열(py·gap·w·h·text-sm·max-w-md 등) 계산값이 제프와 픽셀 동일해진다.
+     px-arbitrary(text-[12px] 등)는 원래 동일. line-height 변수는 비율(calc(1.25/.875))이라 자동 비례. */
+  --spacing: 0.234375rem; /* 0.25rem × 15/16 = 3.75px */
+  --text-xs: 0.703125rem; /* 0.75rem × 15/16 = 11.25px */
+  --text-sm: 0.8203125rem; /* 0.875rem × 15/16 = 13.125px */
+  --text-lg: 1.0546875rem; /* 1.125rem × 15/16 = 16.875px */
+  --container-md: 26.25rem; /* 픽커 다이얼로그 max-w-md: 28rem × 15/16 = 420px */
+}
+
+/* 픽커 다이얼로그(공통 백드롭 패턴 = fixed inset-0 z-50)가 열려 있는 동안 뒤 모달 스크롤 잠금 —
+   다이얼로그 목록 끝에서의 휠 체이닝이 배경(모달 콘텐츠)으로 새지 않는다. body는 모달 오픈 시 이미 잠금. */
+.calculator-modal:has(.fixed.inset-0.z-50) {
+  overflow: hidden;
+}
+
+.calculator-modal .fixed.inset-0.z-50 .overflow-y-auto {
+  overscroll-behavior: contain;
+}
+
+@keyframes calculator-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.calculator-modal .animate-fade-up {
+  animation: calculator-fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* 제프 form primitives — 픽커 다이얼로그 검색창 등이 사용 */
+.calculator-modal .form-input {
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 450;
+  color: var(--foreground);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.calculator-modal .form-input::placeholder {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+.calculator-modal .form-input:focus,
+.calculator-modal .form-input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 125, 216, 0.12);
+}
+
+.calculator-modal .form-input:disabled {
+  background: #fafaf9;
+  color: var(--muted-foreground);
+  cursor: not-allowed;
+}

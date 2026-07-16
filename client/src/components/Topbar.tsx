@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AiAssistantPanel } from "@/components/ai/AiAssistantPanel";
 import { useAssistantThread } from "@/components/ai/useAssistantThread";
 import { initialCustomers, type Customer } from "@/data/customers";
@@ -6,6 +6,11 @@ import { roleAccountMeta, type RoleTab } from "@/data/roles";
 import { signOut } from "@/lib/auth";
 import { fetchLiveConsulting, saveLiveConsulting } from "@/lib/live-consulting";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
+
+// 전역 계산기 모달(값어림 계산 이식, ~3.5k줄) — 열 때만 로드(코드 스플리팅, pdf-lib 동적 import 선례).
+const CalculatorModal = lazy(() =>
+  import("@/components/calculator/CalculatorModal").then((m) => ({ default: m.CalculatorModal })),
+);
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
   return (
@@ -128,6 +133,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const [workAiClosing, setWorkAiClosing] = useState(false);
   const [workAiExpanded, setWorkAiExpanded] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState<NotificationTab>("전체");
   // 업무 AI 대화 스레드 — 상태는 여기(Topbar) 소유라 팝오버를 닫아도 유지된다. 렌더는 AiAssistantPanel.
   const aiThread = useAssistantThread();
@@ -441,7 +447,12 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
             </>
           )}
         </div>
-        <button className={`icon-btn calculator-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} type="button" aria-label="계산기"><CalculatorIcon /></button>
+        <button className={`icon-btn calculator-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => { if (shouldIgnoreTopbarAction()) return; setCalculatorOpen(true); }} type="button" aria-label="계산기"><CalculatorIcon /></button>
+        {calculatorOpen && (
+          <Suspense fallback={null}>
+            <CalculatorModal onClose={() => setCalculatorOpen(false)} />
+          </Suspense>
+        )}
         <button className={`icon-btn chat-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon />{pendingChatCount > 0 && <span className="chat-queue-count num">{pendingChatCount}</span>}</button>
         <div className="notifications-wrap" ref={notificationsRef}>
           <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon />{(newAppRequestCount + pendingChatCount) > 0 && <span className="notification-count num">{newAppRequestCount + pendingChatCount}</span>}</button>

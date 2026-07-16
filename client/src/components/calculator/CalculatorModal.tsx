@@ -1,0 +1,452 @@
+// 전역 계산기 모달 — 제프(dolim-solution) pages/QuoteRevolutionV2.tsx 본체의 모달 어댑터.
+// 원형과의 차이는 셋뿐: ①모달 셸(fixed inset·헤더 X·Esc 닫기 — spec D1, backdrop 닫기 없음)
+// ②판매사(BNK 딜러) 상태·effect 제거(spec D2 — bnkDealerName 미전송)
+// ③useTrimOptions/useTrimColors(mcCode 키) 2훅 → useTrimExtras(trimId 키) 1훅(T2 매핑).
+// spec: ref/specs/2026-07-16-crm-calculator-modal-design.md
+import { useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
+import { useMasterCatalog } from './hooks/useMasterCatalog'
+import { useMultiQuote } from './hooks/useMultiQuote'
+import { useTrimExtras } from './hooks/useTrimExtras'
+import { TopSelectionCards } from './TopSelectionCards'
+import { ConditionCards } from './ConditionCards'
+import { QuoteBottomBar } from './QuoteBottomBar'
+import type { SupportedLenderCode } from './lender-meta'
+import {
+  defaultScenario,
+  type ScenarioState,
+  type TaxReductionMode,
+  type ToggleIncluded,
+  type DiscountUnit,
+} from './types'
+import type {
+  AcquisitionTaxMode,
+  AnnualMileage,
+  LeaseTerm,
+  QuotePayload,
+} from './quote-types'
+
+type CalculatorModalProps = { onClose: () => void }
+
+/**
+ * 비교견적 V2 (이사님 디자인 기반) — 제프 원형 주석 승계.
+ *
+ * - 차량/할인/취득원가는 3 시나리오가 공유.
+ * - 견적비교 1·2·3 카드는 각자의 ScenarioState 와 useMultiQuote 인스턴스를 가짐.
+ * - 각 카드 [견적 조회] → 그 시나리오의 전 금융사 병렬 계산 → 그 시나리오의
+ *   결과만 자체 result row 에 렌더.
+ * - 렌트 탭 = 장기렌터카(long_term_rental) dispatch. 미지원 금융사는 파트너 가드의
+ *   "미취급" 문구로 숨김(isLenderNotAvailableMessage).
+ */
+export function CalculatorModal({ onClose }: CalculatorModalProps) {
+  const masterCatalog = useMasterCatalog()
+
+  // ── 공유 입력 (차량/할인/취득원가) ──
+  const [basePrice, setBasePrice] = useState('')
+  const [optionPrice, setOptionPrice] = useState('0')
+  const [selectedOptionIds, setSelectedOptionIds] = useState<Set<number>>(new Set())
+  const [selectedExteriorId, setSelectedExteriorId] = useState<number | null>(null)
+  const [selectedInteriorId, setSelectedInteriorId] = useState<number | null>(null)
+
+  // 제프는 mcCode 키 2훅 — CRM은 trimId 키 1훅(fetchWorkbench 1콜, 반환 계약은 제프 원형 분리 유지).
+  const trimId = masterCatalog.selectedTrim?.trimId ?? null
+  const mcCode = masterCatalog.selectedTrim?.mcCode ?? null
+  const { options: optionsState, colors: colorsState } = useTrimExtras(trimId)
+
+  const [discount, setDiscount] = useState('0')
+  const [discountUnit, setDiscountUnit] = useState<DiscountUnit>('amount')
+
+  const [taxReduction, setTaxReduction] = useState<TaxReductionMode>('none')
+  const [taxAmount, setTaxAmount] = useState('0')
+  const [bondIncluded, setBondIncluded] = useState<ToggleIncluded>('included')
+  const [bondAmount, setBondAmount] = useState('0')
+  const [deliveryIncluded, setDeliveryIncluded] = useState<ToggleIncluded>('excluded')
+  const [deliveryAmount, setDeliveryAmount] = useState('0')
+  const [extraIncluded, setExtraIncluded] = useState<ToggleIncluded>('excluded')
+  const [extraAmount, setExtraAmount] = useState('0')
+
+  // ── 3 시나리오 입력 ──
+  const [scenarios, setScenarios] = useState<[ScenarioState, ScenarioState, ScenarioState]>([
+    defaultScenario(),
+    defaultScenario(),
+    defaultScenario(),
+  ])
+
+  // ── 3 시나리오 결과 (각자 multi-lender) ──
+  const q1 = useMultiQuote()
+  const q2 = useMultiQuote()
+  const q3 = useMultiQuote()
+  const quotes = [q1, q2, q3] as const
+
+  // ── 모달 셸: Esc 닫기(spec D1 — backdrop 닫기 없음, 입력 유실 방지) ──
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  // 전체화면 모달이 열려 있는 동안 배경 문서 스크롤 잠금(닫힘/unmount 시 원복).
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
+
+  // "견적서 보기" 준비 중 안내 — 제프 원형도 alert 준비중(spec D6). App 전역 .toast는
+  // z-index가 모달보다 낮아 모달 내부 로컬 배너로 표시.
+  const [notice, setNotice] = useState<string | null>(null)
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current)
+  }, [])
+  const showNotice = (message: string) => {
+    setNotice(message)
+    if (noticeTimer.current) clearTimeout(noticeTimer.current)
+    noticeTimer.current = setTimeout(() => setNotice(null), 2400)
+  }
+
+  // 마운트시 brand 목록 로드
+  useEffect(() => {
+    void masterCatalog.loadBrands()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 트림 선택 시 기본가격 자동 채움
+  useEffect(() => {
+    const trim = masterCatalog.selectedTrim
+    if (trim && trim.price > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 제프 원형 미러: 트림 선택(외부 카탈로그) → 기본가격 입력 시드
+      setBasePrice(String(trim.price))
+    }
+  }, [masterCatalog.selectedTrim?.mcCode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 트림 변경 시 옵션/색상 선택 초기화 + optionPrice 0 리셋 (제프는 mcCode dep — 동일 의미)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 제프 원형 미러: 트림 전환 시 하위 선택 일괄 리셋
+    setSelectedOptionIds(new Set())
+    setSelectedExteriorId(null)
+    setSelectedInteriorId(null)
+    setOptionPrice('0')
+  }, [trimId])
+
+  // 옵션 선택 → optionPrice 자동 합산. 0개 선택 시 수동 입력 유지.
+  useEffect(() => {
+    if (selectedOptionIds.size === 0) return
+    let sum = 0
+    for (const o of [...optionsState.basic, ...optionsState.tuning]) {
+      if (selectedOptionIds.has(o.id)) sum += o.price ?? 0
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 제프 원형 미러: 옵션 선택 → 옵션 금액 자동 합산(0개면 수동 입력 유지라 파생 불가)
+    setOptionPrice(String(sum))
+  }, [selectedOptionIds, optionsState.basic, optionsState.tuning])
+
+  // ── 파생값 ──
+  const rawBase = Number(basePrice.replace(/,/g, '')) || 0
+  const rawOption = Number(optionPrice.replace(/,/g, '')) || 0
+  const rawDiscountInput = Number(discount.replace(/,/g, '')) || 0
+  const totalQuotedPrice = rawBase + rawOption
+  const rawDiscountKrw =
+    discountUnit === 'amount'
+      ? rawDiscountInput
+      : Math.round(totalQuotedPrice * (rawDiscountInput || 0) / 100)
+  const finalVehiclePrice = Math.max(0, totalQuotedPrice - rawDiscountKrw)
+
+  // 취득세 자동 계산
+  // - none: finalVehiclePrice/1.1 × 7% (10원 절사)
+  // - hybrid: 위 값 − 400,000원
+  // - electric: 위 값 − 1,400,000원
+  useEffect(() => {
+    if (finalVehiclePrice <= 0) return
+    const base = Math.floor((finalVehiclePrice / 1.1) * 0.07 / 10) * 10
+    const reduction =
+      taxReduction === 'hybrid' ? 400_000 :
+      taxReduction === 'electric' ? 1_400_000 : 0
+    const auto = Math.max(0, base - reduction)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 제프 원형 미러: 차량가 변경 → 취득세 자동 재계산(수동 수정 가능한 입력이라 파생 불가)
+    setTaxAmount(String(auto))
+  }, [finalVehiclePrice, taxReduction])
+
+  const taxAmountNum = Number(taxAmount.replace(/,/g, '')) || 0
+  const bondAmountNum = Number(bondAmount.replace(/,/g, '')) || 0
+  const deliveryAmountNum = Number(deliveryAmount.replace(/,/g, '')) || 0
+  const extraAmountNum = Number(extraAmount.replace(/,/g, '')) || 0
+
+  const registrationCost =
+    taxAmountNum + (bondIncluded === 'included' ? bondAmountNum : 0)
+  const miscCost =
+    (deliveryIncluded === 'excluded' ? deliveryAmountNum : 0) +
+    (extraIncluded === 'excluded' ? extraAmountNum : 0)
+  const acquisitionCost =
+    finalVehiclePrice +
+    registrationCost +
+    (deliveryIncluded === 'included' ? deliveryAmountNum : 0) +
+    (extraIncluded === 'included' ? extraAmountNum : 0)
+
+  const isVehicleReady = masterCatalog.selectedTrim != null
+
+  // 차량 + 취득원가 변경도 다시 조회 트리거. ConditionCards 의 currentQueryFingerprint
+  // 와 합쳐 하나라도 다르면 "다시 조회하기" 로 전환됨.
+  const topLevelFingerprint = JSON.stringify({
+    mcCode,
+    basePrice, optionPrice, discount, discountUnit,
+    taxReduction, taxAmount,
+    bondIncluded, bondAmount,
+    deliveryIncluded, deliveryAmount,
+    extraIncluded, extraAmount,
+  })
+
+  // ── 시나리오별 페이로드 빌드 ──
+  function buildPayload(idx: 0 | 1 | 2): Omit<QuotePayload, 'lenderCode'> | null {
+    const trim = masterCatalog.selectedTrim
+    const mb = masterCatalog.selectedBrand
+    if (!trim || !mb) return null
+    const resolvedBrand = mb.name
+    const resolvedModelName = trim.canonicalName ?? trim.trimName ?? trim.name
+    const resolvedMasterMcCode = trim.mcCode
+    const s = scenarios[idx]
+
+    // 선수금/보증금 절대값 계산
+    const computeAbs = (mode: ScenarioState['downPaymentType'], v: string): number => {
+      if (mode === 'none') return 0
+      const n = Number(v.replace(/,/g, '')) || 0
+      if (mode === 'amount') return n
+      return Math.round(finalVehiclePrice * n / 100)
+    }
+    const upfrontPayment = computeAbs(s.downPaymentType, s.downPayment)
+    const depositAmount = computeAbs(s.depositType, s.deposit)
+
+    // 잔존가치: max → high, amount/percent → standard + override
+    const residualMode: 'high' | 'standard' = s.residualValueType === 'max' ? 'high' : 'standard'
+    const residualNum = Number(s.residualValue.replace(/,/g, '')) || 0
+    // CRM 이탈 1건: percent 0 입력이면 필드 자체를 생략 — 파트너 스키마가 0을 거부한다
+    // (selectedResidualRateOverride만 positive(), T1 실측). 제프 원형은 0을 그대로 보내 400.
+    const selectedResidualRateOverride =
+      s.residualValueType === 'percent' && residualNum > 0 ? residualNum / 100 : undefined
+    const residualAmountOverride =
+      s.residualValueType === 'amount' ? residualNum : undefined
+
+    // 취득세 모드 매핑
+    const acquisitionTaxMode: AcquisitionTaxMode = 'amount'
+
+    const isRent = s.activeTab === 'rent'
+    return {
+      productType: isRent ? 'long_term_rental' : 'operating_lease',
+      // 렌트 출고방식 (대리점/금융사 특판) → 엔진 releaseMethod. 리스는 미전송.
+      releaseMethod: isRent ? s.deliveryType : undefined,
+      // 렌트 정비 등급 (Basic/VIP) → 엔진 maintenanceGrade. 리스는 미전송.
+      maintenanceGrade: isRent ? s.maintenanceGrade : undefined,
+      brand: resolvedBrand,
+      modelName: resolvedModelName,
+      masterMcCode: resolvedMasterMcCode,
+      affiliateType: '비제휴사',
+      // spec D2: 판매사(BNK 딜러) 입력은 v1 미이식 — bnkDealerName 미전송(비제휴 계산 고정).
+      directModelEntry: false,
+      ownershipType: 'company',
+      leaseTermMonths: parseInt(s.period, 10) as LeaseTerm,
+      annualMileageKm: parseInt(s.annualDistance, 10) as AnnualMileage,
+      upfrontPayment,
+      depositAmount,
+      quotedVehiclePrice: totalQuotedPrice,
+      discountAmount: rawDiscountKrw,
+      acquisitionTaxMode,
+      acquisitionTaxAmountOverride: taxAmountNum,
+      includePublicBondCost: bondIncluded === 'included',
+      publicBondCost: bondIncluded === 'included' ? bondAmountNum : undefined,
+      includeDeliveryFeeAmount: deliveryIncluded === 'included',
+      deliveryFeeAmount: deliveryIncluded === 'included' ? deliveryAmountNum : undefined,
+      includeMiscFeeAmount: extraIncluded === 'included',
+      miscFeeAmount: extraIncluded === 'included' ? extraAmountNum : undefined,
+      residualMode,
+      selectedResidualRateOverride,
+      residualAmountOverride,
+      cmFeeRate: s.cmFeePercent ? parseFloat(s.cmFeePercent) / 100 : 0,
+      agFeeRate: s.agFeePercent ? parseFloat(s.agFeePercent) / 100 : 0,
+      evSubsidyAmount:
+        s.subsidy === 'applicable'
+          ? Number(s.subsidyAmount.replace(/,/g, '')) || 0
+          : undefined,
+      insuranceYearlyAmount: 0,
+      lossDamageAmount: 0,
+    }
+  }
+
+  const handleCalculate = (idx: 0 | 1 | 2) => {
+    const payload = buildPayload(idx)
+    if (!payload) return
+    void quotes[idx].calculateAll(payload)
+  }
+
+  const loadings = [q1.isAnyLoading, q2.isAnyLoading, q3.isAnyLoading] as [boolean, boolean, boolean]
+
+  const [selectedQuotesByScenario, setSelectedQuotesByScenario] = useState<
+    [SupportedLenderCode[], SupportedLenderCode[], SupportedLenderCode[]]
+  >([[], [], []])
+  const [showMaxWarningByScenario, setShowMaxWarningByScenario] = useState<
+    [boolean, boolean, boolean]
+  >([false, false, false])
+
+  const totalSelectedCount =
+    selectedQuotesByScenario[0].length +
+    selectedQuotesByScenario[1].length +
+    selectedQuotesByScenario[2].length
+
+  const toggleSelect = (scenarioIdx: 0 | 1 | 2, lenderCode: SupportedLenderCode) => {
+    const current = selectedQuotesByScenario[scenarioIdx]
+    const isAlreadySelected = current.includes(lenderCode)
+    if (!isAlreadySelected && totalSelectedCount >= 3) {
+      setShowMaxWarningByScenario((prev) => {
+        const next = [...prev] as [boolean, boolean, boolean]
+        next[scenarioIdx] = true
+        return next
+      })
+      setTimeout(() => {
+        setShowMaxWarningByScenario((prev) => {
+          const next = [...prev] as [boolean, boolean, boolean]
+          next[scenarioIdx] = false
+          return next
+        })
+      }, 3000)
+      return
+    }
+    setSelectedQuotesByScenario((prev) => {
+      const next = [...prev] as [SupportedLenderCode[], SupportedLenderCode[], SupportedLenderCode[]]
+      next[scenarioIdx] = isAlreadySelected
+        ? current.filter((c) => c !== lenderCode)
+        : [...current, lenderCode]
+      return next
+    })
+  }
+
+  const resetAll = () => {
+    setScenarios([defaultScenario(), defaultScenario(), defaultScenario()])
+    q1.reset()
+    q2.reset()
+    q3.reset()
+  }
+
+  return (
+    <div
+      aria-label="비교견적 계산기"
+      aria-modal="true"
+      role="dialog"
+      className="calculator-modal fixed inset-0 z-[400] overflow-y-auto bg-[#f8f9fa] [--radius:0.625rem]
+                 font-[ui-sans-serif,_system-ui,_-apple-system,_BlinkMacSystemFont,_'Apple_SD_Gothic_Neo',_sans-serif]
+                 [&_label]:font-medium [&_h3]:font-medium [&_button]:font-medium
+                 [-webkit-font-smoothing:subpixel-antialiased] [-moz-osx-font-smoothing:auto]"
+    >
+      {/* Page header — 제프 V2 헤더 미러("검수 페이지" 캡션 대신 닫기 버튼) */}
+      <header className="bg-white border-b border-gray-200 px-8 py-5">
+        <div className="flex items-center gap-3">
+          <h2 className="text-[18px]/[28px] font-semibold text-gray-900">비교견적</h2>
+          <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-md text-[12px]/[16px] font-medium">
+            리스/렌트
+          </span>
+          <button
+            aria-label="계산기 닫기"
+            className="ml-auto flex items-center justify-center w-8 h-8 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      <div className="p-8 pb-24">
+        <TopSelectionCards
+          catalog={masterCatalog}
+          basePrice={basePrice}
+          setBasePrice={setBasePrice}
+          optionPrice={optionPrice}
+          setOptionPrice={setOptionPrice}
+          discount={discount}
+          setDiscount={setDiscount}
+          discountUnit={discountUnit}
+          setDiscountUnit={setDiscountUnit}
+          taxReduction={taxReduction}
+          setTaxReduction={setTaxReduction}
+          taxAmount={taxAmount}
+          setTaxAmount={setTaxAmount}
+          bondIncluded={bondIncluded}
+          setBondIncluded={setBondIncluded}
+          bondAmount={bondAmount}
+          setBondAmount={setBondAmount}
+          deliveryIncluded={deliveryIncluded}
+          setDeliveryIncluded={setDeliveryIncluded}
+          deliveryAmount={deliveryAmount}
+          setDeliveryAmount={setDeliveryAmount}
+          extraIncluded={extraIncluded}
+          setExtraIncluded={setExtraIncluded}
+          extraAmount={extraAmount}
+          setExtraAmount={setExtraAmount}
+          finalVehiclePrice={finalVehiclePrice}
+          registrationCost={registrationCost}
+          miscCost={miscCost}
+          acquisitionCost={acquisitionCost}
+          options={{
+            basic: optionsState.basic,
+            tuning: optionsState.tuning,
+            relations: optionsState.relations,
+            noOptions: optionsState.noOptions,
+            loading: optionsState.loading,
+            loaded: optionsState.loaded,
+          }}
+          selectedOptionIds={selectedOptionIds}
+          setSelectedOptionIds={setSelectedOptionIds}
+          colors={{
+            exterior: colorsState.exterior,
+            interior: colorsState.interior,
+            loading: colorsState.loading,
+            loaded: colorsState.loaded,
+          }}
+          selectedExteriorId={selectedExteriorId}
+          setSelectedExteriorId={setSelectedExteriorId}
+          selectedInteriorId={selectedInteriorId}
+          setSelectedInteriorId={setSelectedInteriorId}
+        />
+
+        <ConditionCards
+          scenarios={scenarios}
+          setScenarios={setScenarios}
+          onCalculate={handleCalculate}
+          loadings={loadings}
+          isVehicleReady={isVehicleReady}
+          basePriceForFeePreview={finalVehiclePrice}
+          topLevelFingerprint={topLevelFingerprint}
+          quotes={[q1, q2, q3]}
+          leaseTermMonths={[
+            parseInt(scenarios[0].period, 10),
+            parseInt(scenarios[1].period, 10),
+            parseInt(scenarios[2].period, 10),
+          ]}
+          selectedQuotesByScenario={selectedQuotesByScenario}
+          onToggleSelect={toggleSelect}
+          showMaxWarningByScenario={showMaxWarningByScenario}
+        />
+      </div>
+
+      <QuoteBottomBar
+        selectedCount={totalSelectedCount}
+        onReset={() => {
+          resetAll()
+          setSelectedQuotesByScenario([[], [], []])
+          setShowMaxWarningByScenario([false, false, false])
+        }}
+        onCheckout={() => showNotice('견적서 PDF 출력은 준비 중입니다')}
+      />
+
+      {notice ? (
+        <div
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[410] px-4 py-2 rounded-lg bg-gray-900 text-white text-[13px]/[20px] shadow-lg"
+          role="status"
+        >
+          {notice}
+        </div>
+      ) : null}
+    </div>
+  )
+}
