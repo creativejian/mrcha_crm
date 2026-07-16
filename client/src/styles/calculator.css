@@ -1,9 +1,15 @@
-/* 전역 계산기 모달(값어림 계산 이식) 전용 스코프.
+/* 전역 계산기 모달(값어림 계산 이식) + 공용 픽커 다이얼로그(.jeff-ui) 스코프.
    제프 dolim-solution client/src/index.css에서 이식 컴포넌트가 실제 소비하는 것만 발췌 —
    form-input 프리미티브·animate-fade-up·shadow-elev 토큰·테마 변수 4종.
-   spec: ref/specs/2026-07-16-crm-calculator-modal-design.md (D8 — CRM 전역 CSS와 충돌 없이 스코프 격리) */
+   spec: ref/specs/2026-07-16-crm-calculator-modal-design.md (D8 — CRM 전역 CSS와 충돌 없이 스코프 격리)
 
-.calculator-modal {
+   .jeff-ui = 픽커 다이얼로그 5종(vehicle-pickers/)의 루트 클래스. 다이얼로그가 계산기 밖
+   (견적 워크벤치)에서도 열리므로 토큰·가드 스코프를 :is(.calculator-modal, .jeff-ui)로 확장 —
+   theme.css font:inherit·dashboard.css .grid 가드의 제외 스코프와 짝(plan:
+   ref/plans/2026-07-16-crm-workbench-picker-dialog-unify.md 함정 1·2). 계산기 안에서는
+   조상(.calculator-modal)과 루트(.jeff-ui)가 같은 값을 재선언할 뿐이라 계산값 불변. */
+
+:is(.calculator-modal, .jeff-ui) {
   /* 제프 :root 토큰 중 CRM shadcn 값과 다른 것만 오버라이드.
      CRM --accent는 #111(검정)인데 제프 픽커/폼은 파랑(#3b7dd8) accent 전제 —
      theme.css가 @theme inline이라 유틸리티(border-accent 등)가 var(--accent)를 직접 참조,
@@ -35,13 +41,21 @@
   --container-md: 26.25rem; /* 픽커 다이얼로그 max-w-md: 28rem × 15/16 = 420px */
 }
 
-/* 픽커 다이얼로그(공통 백드롭 패턴 = fixed inset-0 z-50)가 열려 있는 동안 뒤 모달 스크롤 잠금 —
-   다이얼로그 목록 끝에서의 휠 체이닝이 배경(모달 콘텐츠)으로 새지 않는다. body는 모달 오픈 시 이미 잠금. */
+/* 픽커 다이얼로그(공통 백드롭 패턴 = fixed inset-0 z-50)가 열려 있는 동안 뒤 스크롤러 잠금 —
+   다이얼로그 목록 끝에서의 휠 체이닝이 배경(모달 콘텐츠)으로 새지 않는다. body는 모달 오픈 시 이미 잠금.
+   계산기 = .calculator-modal 자체가 스크롤러(fixed inset-0 overflow-y-auto). */
 .calculator-modal:has(.fixed.inset-0.z-50) {
   overflow: hidden;
 }
 
-.calculator-modal .fixed.inset-0.z-50 .overflow-y-auto {
+/* 워크벤치 = .kim-quote-solution-shell이 스크롤러(customer-detail-workbench.css overflow:auto).
+   다이얼로그 루트(.jeff-ui)가 모달 내부 DOM이라 :has 조상 매치로 잠근다(계산기 규칙 미러). */
+.kim-quote-solution-modal:has(.jeff-ui) .kim-quote-solution-shell {
+  overflow: hidden;
+}
+
+.calculator-modal .fixed.inset-0.z-50 .overflow-y-auto,
+.jeff-ui .overflow-y-auto {
   overscroll-behavior: contain;
 }
 
@@ -50,12 +64,16 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.calculator-modal .animate-fade-up {
+/* 다이얼로그 루트 자체가 animate-fade-up을 가진다(.jeff-ui.animate-fade-up) — 후손 셀렉터만으로는
+   워크벤치 컨텍스트(조상 .calculator-modal 부재)에서 안 잡힌다. */
+.calculator-modal .animate-fade-up,
+.jeff-ui.animate-fade-up,
+.jeff-ui .animate-fade-up {
   animation: calculator-fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* 제프 form primitives — 픽커 다이얼로그 검색창 등이 사용 */
-.calculator-modal .form-input {
+:is(.calculator-modal, .jeff-ui) .form-input {
   height: 40px;
   padding: 0 14px;
   border: 1px solid var(--input);
@@ -71,17 +89,17 @@
   appearance: none;
 }
 
-.calculator-modal .form-input::placeholder {
+:is(.calculator-modal, .jeff-ui) .form-input::placeholder {
   color: rgba(0, 0, 0, 0.3);
 }
 
-.calculator-modal .form-input:focus,
-.calculator-modal .form-input:focus-visible {
+:is(.calculator-modal, .jeff-ui) .form-input:focus,
+:is(.calculator-modal, .jeff-ui) .form-input:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 125, 216, 0.12);
 }
 
-.calculator-modal .form-input:disabled {
+:is(.calculator-modal, .jeff-ui) .form-input:disabled {
   background: #fafaf9;
   color: var(--muted-foreground);
   cursor: not-allowed;

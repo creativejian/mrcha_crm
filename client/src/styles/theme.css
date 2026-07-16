@@ -86,12 +86,13 @@ body {
 }
 
 /* ⚠️ unlayered 규칙이라 Tailwind @layer utilities(text-[..px] 등)를 항상 이긴다 —
-   계산기 모달(제프 이식, Tailwind-only)은 스코프에서 제외한다. 모달 내부는 Tailwind
-   preflight(@layer base)의 동일 규칙(font: inherit)이 대신 작동하고 유틸리티가 정상 승리.
-   (:where 병용으로 기존 특이성 (0,0,1) 유지 — 모달 밖 계산값 불변) */
-button:where(:not(.calculator-modal *)),
-input:where(:not(.calculator-modal *)),
-select:where(:not(.calculator-modal *)) {
+   계산기 모달(.calculator-modal)과 공용 픽커 다이얼로그(.jeff-ui — 워크벤치에서도 열림,
+   calculator.css 스코프 참조)는 제외한다. 내부는 Tailwind preflight(@layer base)의 동일
+   규칙(font: inherit)이 대신 작동하고 유틸리티가 정상 승리.
+   (:where 병용으로 기존 특이성 (0,0,1) 유지 — 스코프 밖 계산값 불변) */
+button:where(:not(:is(.calculator-modal, .jeff-ui) *)),
+input:where(:not(:is(.calculator-modal, .jeff-ui) *)),
+select:where(:not(:is(.calculator-modal, .jeff-ui) *)) {
   font: inherit;
 }
 
