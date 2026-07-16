@@ -19,10 +19,6 @@ function SolidBellIcon() {
   return <svg className="topbar-solid-icon notification-bell-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5a2 2 0 0 1 2 2v.36c2.9.82 5 3.48 5 6.64v4.2l2 2.8v1H3v-1l2-2.8v-4.2c0-3.16 2.1-5.82 5-6.64V4.5a2 2 0 0 1 2-2Zm-3 18h6a3 3 0 0 1-6 0Z" /></svg>;
 }
 
-function QuoteQueueIcon() {
-  return <svg className="topbar-solid-icon quote-queue-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2.5h9.4L20 8.1v13.4H5v-19Zm8.2 1.9v4.9h4.9l-4.9-4.9Z" /><text x="12.2" y="16.4" textAnchor="middle" fill="#fff" fontSize="8.6" fontWeight="900" fontFamily="Arial, sans-serif">₩</text></svg>;
-}
-
 function ChatQueueIcon() {
   return <svg className="topbar-solid-icon chat-queue-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 22V2h20v16H6zm4-8h8v-2H6zm0-3h12V9H6zm0-3h12V6H6z" /></svg>;
 }
@@ -447,7 +443,6 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
         </div>
         <button className={`icon-btn calculator-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} type="button" aria-label="계산기"><CalculatorIcon /></button>
         <button className={`icon-btn chat-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon />{pendingChatCount > 0 && <span className="chat-queue-count num">{pendingChatCount}</span>}</button>
-        <button className={`icon-btn quote-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("quotes")} type="button" aria-label="견적 요청 큐"><QuoteQueueIcon /><span className="quote-queue-count num">5</span></button>
         <div className="notifications-wrap" ref={notificationsRef}>
           <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon />{(newAppRequestCount + pendingChatCount) > 0 && <span className="notification-count num">{newAppRequestCount + pendingChatCount}</span>}</button>
           {notificationsOpen && (
@@ -491,7 +486,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
                     </button>
                   )}
                   {visibleNotifications.map(([type, title, desc, time]) => (
-                    <button className={`notification-item ${type === "긴급" ? "urgent" : ""}`} key={title} onClick={() => { if (type === "견적") onNavigate("quotes"); else if (type === "정산") onNavigate("finance"); else if (type === "계약/출고") onNavigate("delivery"); else onNavigate("customers"); setNotificationsOpen(false); }} type="button">
+                    <button className={`notification-item ${type === "긴급" ? "urgent" : ""}`} key={title} onClick={() => { if (type === "견적") onNavigate("app-requests"); else if (type === "정산") onNavigate("finance"); else if (type === "계약/출고") onNavigate("delivery"); else onNavigate("customers"); setNotificationsOpen(false); }} type="button">
                       <span className={`notification-badge ${type === "긴급" ? "urgent" : ""}`}>{type}</span>
                       <strong>{title}</strong>
                       <small>{desc}</small>
