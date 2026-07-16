@@ -134,7 +134,11 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
-                <td className="app-req-date">{r.createdAt}</td>
+                {/* 날짜 1줄·시간 2줄(유슨생 2026-07-16) — createdAt = "YY/MM/DD HH:mm" 고정 포맷(formatActivity) */}
+                <td className="app-req-date">
+                  <span>{r.createdAt.split(" ")[0]}</span>
+                  <span className="app-req-sub">{r.createdAt.split(" ")[1]}</span>
+                </td>
                 <td className="app-req-name" title={r.requesterName}>{r.requesterName}</td>
                 <td className="app-req-vehicle">
                   <span>{r.vehicleLabel}</span>

@@ -10,7 +10,7 @@
    금지, 차량·조건·매칭이 잔여 폭을 균등 분배(2026-07-13 폴리시 — "운용리\스"류 꺾임 해소). */
 .app-requests-table { table-layout: fixed; }
 .app-requests-table td { vertical-align: top; }
-.app-req-col-date { width: 112px; }    /* "26/06/29 20:55" 고정 포맷 */
+.app-req-col-date { width: 80px; }     /* "26/06/29" + 시간 2줄(sub) — 고정 포맷 */
 .app-req-col-name { width: 90px; }
 .app-req-col-payment { width: 76px; }  /* 최장 어휘 "운용리스" + 여백 */
 .app-req-col-option { width: 52px; }
@@ -22,7 +22,7 @@
 /* 차량/조건 셀은 td를 flex로 만들지 않고(table-cell 유지) 내부 span만 block으로 쌓아
    다른 단일라인 컬럼과 vertical-align:top 기준을 동일하게(행 내 세로정렬 일치). */
 .app-req-vehicle { max-width: 280px; }
-.app-req-vehicle > span, .app-req-terms > span { display: block; }
+.app-req-vehicle > span, .app-req-terms > span, .app-req-date > span { display: block; }
 .app-req-sub { display: block; margin-top: 2px; color: #7f858c; }
 /* 칩 높이를 액션 버튼(padding 3px + border 1px)과 동일하게 — 투명 border로 박스 높이 일치. */
 .app-req-match { display: inline-block; padding: 3px 8px; border: 1px solid transparent; border-radius: 5px; font-size: 12px; font-weight: 600; white-space: nowrap; }
