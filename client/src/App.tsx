@@ -11,6 +11,7 @@ import { fetchAppQuoteRequests } from "@/lib/quote-requests";
 import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
 import { customerCodeFromLocation, customerListPath, customerModeFromSearch } from "@/lib/customer-route";
+import { financeListPath, financeModeFromSearch, financeModeMeta } from "@/lib/finance-route";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
@@ -75,12 +76,6 @@ const viewMeta: Record<Exclude<ViewKey, "customers" | "finance">, [string, strin
   "handoff-operation": ["상담 운영 설정", "고객 앱 실시간 상담사 연결의 운영시간과 강제 ON/OFF, 안내 문구를 관리합니다."],
 };
 
-const financeModeMeta: Record<FinanceMode, [string, string]> = {
-  stats: ["재무 관리 · 통계", "매출, 지출, 정산, 순마진 흐름을 한눈에 확인합니다."],
-  revenue: ["재무 관리 · 매출 관리", "계약과 출고에서 발생하는 수수료 매출과 입금 상태를 관리합니다."],
-  expense: ["재무 관리 · 지출 관리", "광고비, 출고 비용, 운영비처럼 차선생 운영 지출을 분류합니다."],
-  payroll: ["재무 관리 · 급여 관리", "구성원별 급여, 성과급, 지급 기준을 관리합니다."],
-};
 
 export function App() {
   const location = useLocation();
@@ -94,7 +89,8 @@ export function App() {
         : "advisor-dashboard");
   // 고객 목록 mode는 URL(?view=)이 single source — 드로어(?customer)와 같은 축. 딥링크·새로고침 유지·뒤로가기.
   const customerMode = customerModeFromSearch(location.search);
-  const [financeMode, setFinanceMode] = useState<FinanceMode>("stats");
+  // 재무 mode도 URL(?view=)이 single source — 고객 관리와 대칭.
+  const financeMode = financeModeFromSearch(location.search);
   const [toast, setToast] = useState("작업이 반영되었습니다.");
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
@@ -215,6 +211,12 @@ export function App() {
   function handleCustomerModeChange(mode: CustomerMode) {
     setCustomerDetailEditorOpen(false);
     navigate(customerListPath(mode));
+  }
+
+  // 사이드바 재무 관리 서브메뉴 → mode를 URL로 전환(stats는 view 생략).
+  function handleFinanceModeChange(mode: FinanceMode) {
+    setCustomerDetailEditorOpen(false);
+    navigate(financeListPath(mode));
   }
 
   function openCustomerDetailPanel(customer: Customer) {
@@ -376,7 +378,7 @@ export function App() {
 
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} onCustomerModeChange={handleCustomerModeChange} onFinanceModeChange={setFinanceMode} onViewChange={handleViewChange} />
+      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} onCustomerModeChange={handleCustomerModeChange} onFinanceModeChange={handleFinanceModeChange} onViewChange={handleViewChange} />
       <main className="main">
         <Topbar
           sidebarCollapsed={sidebarCollapsed}
