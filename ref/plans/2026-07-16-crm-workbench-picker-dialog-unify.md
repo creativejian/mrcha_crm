@@ -2,6 +2,25 @@
 
 작성: 2026-07-16 (유슨생 지시, 세션 0716-fable5-again에서 실측·정리 — **다른 세션 실행용 핸드오프**)
 
+## ✅ 진행 상태 (2026-07-16 세션 0716-vehicle-ssot 실행 완료 — T1~T5 전량)
+
+| 태스크 | 커밋 | 요지 |
+|---|---|---|
+| T1 | `4186f9a` | 다이얼로그 5종+catalog-types → `components/vehicle-pickers/` git mv, 어댑터(toMaster*·trimMcCodeKey) `catalog-adapters.ts` 공용 추출, calculator import 갱신 |
+| T2 | `c0a8b91` | 스코프 클래스 = **`.jeff-ui`**(다이얼로그 5종 루트). theme.css·dashboard.css 가드 `:is(.calculator-modal, .jeff-ui)` 확장, calculator.css 토큰·form-input·animate-fade-up 공용화, 워크벤치 스크롤 잠금 `.kim-quote-solution-modal:has(.jeff-ui) .kim-quote-solution-shell{overflow:hidden}`. **계산값 불변 = 빌드 CSS 규칙 diff 전수(예상 셀렉터 확장 5건뿐·특이성 전부 동일)** |
+| T3 | `efdabe5` | `customer-detail/WorkbenchVehiclePickers.tsx` 신설(3컴포넌트 + VehicleSelection 이전). 시딩 방식 = **래퍼 자체 fetch**(useMasterCatalog 미사용 — 원본 Brand/Model/Trim 보존이 onChange 계약에 필수). 캐스케이드 자동 오픈(계산기 미러). quotable=true 오버라이드(함정 7). 옵션 = controlled·[적용]에서만 발화, 컬러 = 재클릭 해제(null) 확장. TDD 10케이스 |
+| T4 | `31c8569` | 구 3종+테스트+useOutsideClick 삭제, option-selection에서 resolveSelection·disabledOptionIds 폐기(excludeGroups/Partners는 mc-master가 사용 — 잔류), dead CSS 15클래스 제거. **증명 = 규칙 diff 전수: dead 15종 소멸 + minifier 인접 병합 1건(`.kim-option-picker,.kim-color-picker` — 선언 동치 = 계산값 불변, #207 선례) + live 10종 생존** |
+| T5 | — | typecheck 0·lint 0·unit 709→691(구 테스트 −18/신규 +10)·build·knip 신규 0 + **격리 스택(8799/5174) 스모크 5종 전부 통과**(아래) |
+
+**스모크 실측(magiclink admin, EMBED/PUSH/AI_HINT off):**
+①신규 저장 — 김민준 픽커 캐스케이드(현대→쏘나타→프리미엄, 자동 오픈)→옵션 1(+440,000)→컬러 2종→작성완료→**psql 전필드 일치**(QT-2607-0007: trim_id 2803·base 29,370,000·option_total 440,000·색 id 48992/48997)→UI 삭제 원복(잔재 0·고아 임베딩 0)
+②수정 재진입 — ancestry 3행·옵션 라벨·컬러·기본가 전부 복원 + 트림 다이얼로그 현재 선택 accent 하이라이트
+③승격 prefill — 제임스 `?quoteRequest=` 진입: 자동 오픈·제네시스 G70 ancestry(catalog 3693 대조 일치)·**옵션 3개 시딩(+2,630,000)**·저장 없이 닫기(요청 status open 불변)
+④계산기 회귀 — 모달 정상·브랜드 다이얼로그 420px·form-input 40px·로고 33종
+⑤워크벤치 스타일 — **폰트 13px(가드 작동 — 거대화 재발 0)·checkbox 15px(rem 15/16 배율)·다이얼로그 420px(계산기와 픽셀 동일)·shell overflow hidden(잠금)·overscroll contain**
+
+**함정 3(스크롤 잠금) 확정**: 워크벤치 스크롤러 = `.kim-quote-solution-shell`(overflow:auto) — `:has(.jeff-ui)`로 잠금(다이얼로그는 `if(!open) return null`이라 닫히면 DOM 소멸 = 조건 정확). 참고: `.kim-quote-solution-modal`이 `will-change:transform`이라 다이얼로그 `fixed inset-0`은 모달 기준 배치(= 모달 영역만 백드롭, 의도 부합 실측).
+
 ## 목적 (유슨생 확정)
 
 계산기 모달(#262)의 **픽커 다이얼로그 방식**(행 클릭 → 브랜드 로고·차량 이미지·검색이 있는
