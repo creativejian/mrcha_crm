@@ -1,45 +1,16 @@
-// 옵션 선택 관계 강제(includes/excludes) + 합산. 순수 함수 — 단위 테스트 가능.
+// 옵션 합산 + excludes 그룹 유틸. 순수 함수 — 단위 테스트 가능.
 // 규칙: ref/specs/2026-06-15-quote-option-selection-design.md
+// (구 OptionPicker 전용이던 resolveSelection·disabledOptionIds는 픽커 다이얼로그 통일로 폐기 —
+//  선택 강제/비활성화는 vehicle-pickers/OptionPickerDialog가 자체 처리한다.)
 
 export type OptionRelation = { optionId: number; relatedOptionId: number; type: "includes" | "excludes" };
 export type OptionLite = { id: number; type: "basic" | "tuning"; price: number | null };
-
-// toggledId를 on(true)/off(false)로 바꿨을 때 관계를 적용한 새 선택 집합을 반환(원본 불변).
-export function resolveSelection(
-  relations: OptionRelation[],
-  selected: ReadonlySet<number>,
-  toggledId: number,
-  on: boolean,
-): Set<number> {
-  const next = new Set(selected);
-  if (!on) {
-    next.delete(toggledId);
-    return next;
-  }
-  next.add(toggledId);
-  // includes: 단방향, 한 단계만 추가 (excludes는 UI 비활성화로 처리)
-  for (const rel of relations) {
-    if (rel.type === "includes" && rel.optionId === toggledId) next.add(rel.relatedOptionId);
-  }
-  return next;
-}
 
 // 선택된 옵션의 price 합(basic/tuning 모두 유료 옵션, price null → 0).
 export function optionTotal(options: OptionLite[], selectedIds: ReadonlySet<number>): number {
   return options
     .filter((o) => selectedIds.has(o.id))
     .reduce((sum, o) => sum + (o.price ?? 0), 0);
-}
-
-// 선택된 옵션과 excludes 관계인(아직 선택 안 된) 옵션 = 비활성화 대상. 대칭.
-export function disabledOptionIds(relations: OptionRelation[], selectedIds: ReadonlySet<number>): Set<number> {
-  const disabled = new Set<number>();
-  for (const rel of relations) {
-    if (rel.type !== "excludes") continue;
-    if (selectedIds.has(rel.optionId) && !selectedIds.has(rel.relatedOptionId)) disabled.add(rel.relatedOptionId);
-    if (selectedIds.has(rel.relatedOptionId) && !selectedIds.has(rel.optionId)) disabled.add(rel.optionId);
-  }
-  return disabled;
 }
 
 // excludes를 무방향 그래프로 보고 connected component로 묶어 optionId→그룹번호.
