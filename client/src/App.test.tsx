@@ -43,6 +43,16 @@ it("/mc-master → 엠씨 마스터 화면(제목)", () => {
   expect(screen.getByRole("heading", { level: 1, name: "엠씨 마스터" })).toBeInTheDocument();
 });
 
+it("/customers → 전체 보기 mode(breadcrumb)", () => {
+  renderAt("/customers");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("전체 보기");
+});
+
+it("/customers?view=consulting → 상담 필요 mode(헤더는 URL에서 파생)", () => {
+  renderAt("/customers?view=consulting");
+  expect(screen.getByRole("heading", { level: 1, name: /상담 필요/ })).toBeInTheDocument();
+});
+
 it("알 수 없는 경로 → 대시보드로 리다이렉트", () => {
   renderAt("/unknown-path");
   // 신규 대시보드(DashboardPreviewPage)는 자체 h2 제목을 쓰고 공통 헤더는 숨긴다(#250 승격).
