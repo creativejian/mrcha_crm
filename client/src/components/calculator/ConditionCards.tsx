@@ -1,12 +1,12 @@
-// 제프(dolim-solution) components/redesign/ConditionCards.tsx 이식.
-// (spec: ref/specs/2026-07-16-crm-calculator-modal-design.md — 배선 교체 표)
+// 제프(dolim-solution) components/redesign/ConditionCards.tsx 이식 → 견적 조건 UI SSOT로 워크벤치
+// 문법 수렴(spec: ref/specs/2026-07-16-crm-quote-ui-ssot-design.md — 통합 디자인 기준 = 워크벤치).
 //
-// 의도적 변경(spec D2) 단 하나: 판매사 행(dealerType '비제휴 계산'/'판매사 입력' 토글 + BNK 딜러
-// select)과 bnkDealers prop 체인을 제거 — /api/catalog/bnk-dealers는 제프 내부 전용이라 v1 미이식.
-// ScenarioState의 dealerType/dealer 필드 자체는 types.ts에 잔존(기본값 nonAffiliated 고정).
-// 그 외 마크업·로직(조건 복사·재입력·fingerprint·수수료 미리보기·결과 행·선택 토글) 전부 1:1.
-// 약정거리 controlled select는 CRM Safari 규칙에 따라 bindSelect(onChange+onInput 병행) 적용.
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+// 카드 셸·조건 행 = quote-fields 공유 프리미티브(kim-manual-compare-card/body 문법 — 라벨 80px 고정
+// 칸 그리드·세그먼트 칸·값 칸 전 행 좌우 정렬). 상태/파생/fingerprint/payload는 제프 원형 그대로
+// (controlled ScenarioState — 행위 변경 0, spec D6). 계산기 전용 슬롯(spec D5) = 리스/렌트 탭·렌트
+// 전용 4행(행 문법만 공유)·견적 조회 버튼/정렬 드롭다운/결과 리스트.
+// 의도적 변경(구 spec D2) 유지: 판매사 행(BNK 딜러) 미이식 — dealerType 기본값 고정.
+import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, Check, Loader2 } from 'lucide-react'
 import type { ScenarioState } from './types'
 import { QuoteResultRow } from './QuoteResultRow'
@@ -23,17 +23,15 @@ import { roundUpToNearestHundred } from './calc-format'
 import type { QuoteResult } from './quote-types'
 import { useMultiQuote } from './hooks/useMultiQuote'
 import { bindSelect } from '@/lib/select-bind'
+import { CondCombo, CondRow, FeeCombo, MoneyField, SegmentGroup, ValueSelect, type MoneyInputProps } from '@/components/quote-fields/QuoteFields'
+import { SOLUTION_LEASE_TERMS } from '@/lib/solution-quote'
 
 /**
  * 견적비교 1·2·3 카드 그룹.
  *
- * 디자인은 Figma Make export 의 ConditionCards 를 그대로 따르고,
- * 상태/액션은 부모(QuoteRevolutionV2)가 소유합니다.
- * 각 카드의 [견적 조회] 클릭 시 해당 시나리오의 useMultiQuote 인스턴스가
- * 4-lender 계산을 병렬 실행합니다.
- *
- * 렌트 탭은 시각적으로 노출하지만 현 백엔드는 운용리스만 지원하므로
- * 비활성 안내(disabled badge) 처리합니다.
+ * 상태/액션은 부모(CalculatorModal)가 소유하고, 각 카드의 [견적 조회] 클릭 시 해당 시나리오의
+ * useMultiQuote 인스턴스가 전 금융사 계산을 병렬 실행한다(제프 원형 로직 그대로).
+ * 렌트 탭 = 장기렌터카(long_term_rental) dispatch.
  */
 interface CardProps {
   cardNumber: 1 | 2 | 3
@@ -60,6 +58,25 @@ interface CardProps {
 
 const onlyDigits = (s: string) => s.replace(/[^0-9]/g, '')
 const onlyDecimal = (s: string) => s.replace(/[^0-9.]/g, '')
+
+// 기간 어휘 = SOLUTION_LEASE_TERMS 파생(워크벤치와 같은 소스 — 값 타입만 ScenarioState.period 계약(string)).
+const leaseTermSegmentOptions = SOLUTION_LEASE_TERMS.map((m) => ({ value: String(m), label: `${m}개월` }))
+
+// controlled 금액 바인딩(제프 ValueInput 의미론 보존): integer = 콤마 표시 + 숫자만, decimal = 소수 허용
+// 원문 표시. disabled여도 값은 상태에 남고 표시만 비운다(구 ValueInput 동작).
+function moneyBinding(
+  value: string,
+  onChange: (v: string) => void,
+  { disabled = false, decimal = false, ariaLabel }: { disabled?: boolean; decimal?: boolean; ariaLabel?: string } = {},
+): MoneyInputProps {
+  return {
+    'aria-label': ariaLabel,
+    value: disabled ? '' : decimal ? value : Number(value || 0).toLocaleString(),
+    onChange: (e) => onChange(decimal ? onlyDecimal(e.currentTarget.value) : onlyDigits(e.currentTarget.value)),
+    disabled,
+    placeholder: '0',
+  }
+}
 
 function ConditionCard({
   cardNumber,
@@ -154,34 +171,23 @@ function ConditionCard({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-      <div className="px-6 py-2 bg-slate-700 flex items-center justify-between">
-        <h3 className="text-[14px]/[20px] text-white">
-          견적비교 {['1️⃣', '2️⃣', '3️⃣'][cardNumber - 1]}
-        </h3>
-        <div className="flex items-center gap-2">
+    <section className="kim-manual-compare-card">
+      <header>
+        <strong>견적비교 <span>{cardNumber}</span></strong>
+        <div>
           {onCopy && copyLabel && (
-            <button
-              onClick={onCopy}
-              className="px-3 py-1 text-[12px]/[16px] bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              {copyLabel}
-            </button>
+            <button className="copy" onClick={onCopy} type="button">{copyLabel}</button>
           )}
-          <button
-            onClick={() => setState({ ...state, ...resetFields })}
-            className="px-3 py-1 text-[12px]/[16px] bg-gray-500 text-white rounded hover:bg-gray-600"
-          >
-            재입력
-          </button>
+          <button className="edit" onClick={() => setState({ ...state, ...resetFields })} type="button">재입력</button>
         </div>
-      </div>
+      </header>
 
-      <div className="p-6">
-        {/* 리스 / 렌트 탭 */}
-        <div className="flex gap-1 mb-4 bg-gray-200 rounded p-0.5 border border-gray-300">
+      <div className="kim-manual-compare-body">
+        {/* 리스 / 렌트 탭 — 계산기 전용 축(spec D5 선확정 1: SSOT 무관, productType 전환) */}
+        <div className="flex gap-1 my-3 bg-gray-200 rounded p-0.5 border border-gray-300">
           <button
             onClick={() => handleTabChange('lease')}
+            type="button"
             className={`flex-1 px-4 py-1.5 text-[12px]/[16px] transition-all ${
               isLease ? 'bg-white text-gray-900 font-semibold rounded shadow-sm' : 'bg-transparent text-gray-600'
             }`}
@@ -190,6 +196,7 @@ function ConditionCard({
           </button>
           <button
             onClick={() => handleTabChange('rent')}
+            type="button"
             className={`flex-1 px-4 py-1.5 text-[12px]/[16px] transition-all ${
               isRent ? 'bg-white text-gray-900 font-semibold rounded shadow-sm' : 'bg-transparent text-gray-600'
             }`}
@@ -199,273 +206,235 @@ function ConditionCard({
           </button>
         </div>
 
-        <div className="space-y-0">
-          {/* 출고방식 (렌트 전용) */}
-          {isRent && (
-            <Row label="출고방식">
-              <Segmented value={state.deliveryType}
-                options={[{ value: 'dealer', label: '대리점' }, { value: 'special', label: '금융사 특판' }]}
-                onChange={(v) => set('deliveryType', v as ScenarioState['deliveryType'])} />
-            </Row>
-          )}
+        {/* 출고방식 (렌트 전용) */}
+        {isRent && (
+          <CondRow label="출고방식">
+            <SegmentGroup value={state.deliveryType}
+              options={[{ value: 'dealer', label: '대리점' }, { value: 'special', label: '금융사 특판' }]}
+              onSelect={(v) => set('deliveryType', v)} />
+          </CondRow>
+        )}
 
-          {/* 정비 등급 (렌트 전용) */}
-          {isRent && (
-            <Row label="정비">
-              <Segmented value={state.maintenanceGrade}
-                options={[{ value: 'basic', label: 'Basic' }, { value: 'vip', label: 'VIP' }]}
-                onChange={(v) => set('maintenanceGrade', v as ScenarioState['maintenanceGrade'])} />
-            </Row>
-          )}
+        {/* 정비 등급 (렌트 전용) */}
+        {isRent && (
+          <CondRow label="정비">
+            <SegmentGroup value={state.maintenanceGrade}
+              options={[{ value: 'basic', label: 'Basic' }, { value: 'vip', label: 'VIP' }]}
+              onSelect={(v) => set('maintenanceGrade', v)} />
+          </CondRow>
+        )}
 
-          {/* 기간 — 12개월 포함(워크벤치 비교카드와 동일 어휘, SOLUTION_LEASE_TERMS 전체) */}
-          <Row label="기간">
-            <Segmented value={state.period}
-              options={[
-                { value: '12', label: '12개월' },
-                { value: '24', label: '24개월' },
-                { value: '36', label: '36개월' },
-                { value: '48', label: '48개월' },
-                { value: '60', label: '60개월' },
-              ]}
-              onChange={(v) => set('period', v)} />
-          </Row>
+        {/* 기간 — 워크벤치와 동일 어휘(SOLUTION_LEASE_TERMS)·동일 wide 세그먼트 문법 */}
+        <CondRow label="기간">
+          <SegmentGroup wide value={state.period} options={leaseTermSegmentOptions} onSelect={(v) => set('period', v)} />
+        </CondRow>
 
-          {/* 선수금 */}
-          <Row label="선수금">
-            <Segmented value={state.downPaymentType}
-              options={[
-                { value: 'none', label: '없음' },
-                { value: 'amount', label: '금액' },
-                { value: 'percent', label: '%' },
-              ]}
-              onChange={(v) => set('downPaymentType', v as ScenarioState['downPaymentType'])} />
-            <ValueInput
-              className="ml-auto w-28"
-              value={state.downPayment}
-              disabled={state.downPaymentType === 'none'}
-              suffix={state.downPaymentType === 'amount' ? '원' : state.downPaymentType === 'percent' ? '%' : ''}
-              onChange={(v) => set('downPayment', v)}
-              integer
+        {/* 선수금 */}
+        <CondRow label="선수금">
+          <CondCombo>
+            <SegmentGroup value={state.downPaymentType}
+              options={[{ value: 'none', label: '없음' }, { value: 'amount', label: '금액' }, { value: 'percent', label: '%' }]}
+              onSelect={(v) => set('downPaymentType', v)} />
+            <MoneyField
+              fixed={state.downPaymentType === 'none'}
+              suffix={state.downPaymentType === 'percent' ? '%' : '원'}
+              inputProps={moneyBinding(state.downPayment, (v) => set('downPayment', v), { disabled: state.downPaymentType === 'none', ariaLabel: '선수금' })}
             />
-          </Row>
+          </CondCombo>
+        </CondRow>
 
-          {/* 보증금 */}
-          <Row label="보증금">
-            <Segmented value={state.depositType}
-              options={[
-                { value: 'none', label: '없음' },
-                { value: 'amount', label: '금액' },
-                { value: 'percent', label: '%' },
-              ]}
-              onChange={(v) => set('depositType', v as ScenarioState['depositType'])} />
-            <ValueInput
-              className="ml-auto w-28"
-              value={state.deposit}
-              disabled={state.depositType === 'none'}
-              suffix={state.depositType === 'amount' ? '원' : state.depositType === 'percent' ? '%' : ''}
-              onChange={(v) => set('deposit', v)}
-              integer
+        {/* 보증금 */}
+        <CondRow label="보증금">
+          <CondCombo>
+            <SegmentGroup value={state.depositType}
+              options={[{ value: 'none', label: '없음' }, { value: 'amount', label: '금액' }, { value: 'percent', label: '%' }]}
+              onSelect={(v) => set('depositType', v)} />
+            <MoneyField
+              fixed={state.depositType === 'none'}
+              suffix={state.depositType === 'percent' ? '%' : '원'}
+              inputProps={moneyBinding(state.deposit, (v) => set('deposit', v), { disabled: state.depositType === 'none', ariaLabel: '보증금' })}
             />
-          </Row>
+          </CondCombo>
+        </CondRow>
 
-          {/* 잔존가치 */}
-          <Row label="잔존가치">
-            <Segmented value={state.residualValueType}
-              options={[
-                { value: 'max', label: '최대' },
-                { value: 'amount', label: '금액' },
-                { value: 'percent', label: '%' },
-              ]}
-              onChange={(v) => set('residualValueType', v as ScenarioState['residualValueType'])} />
-            <ValueInput
-              className="ml-auto w-28"
-              value={state.residualValue}
-              disabled={state.residualValueType === 'max'}
-              suffix={state.residualValueType === 'amount' ? '원' : state.residualValueType === 'percent' ? '%' : ''}
-              onChange={(v) => set('residualValue', v)}
-              integer
+        {/* 잔존가치 */}
+        <CondRow label="잔존가치">
+          <CondCombo>
+            <SegmentGroup value={state.residualValueType}
+              options={[{ value: 'max', label: '최대' }, { value: 'amount', label: '금액' }, { value: 'percent', label: '%' }]}
+              onSelect={(v) => set('residualValueType', v)} />
+            <MoneyField
+              fixed={state.residualValueType === 'max'}
+              suffix={state.residualValueType === 'amount' ? '원' : state.residualValueType === 'percent' ? '%' : '원'}
+              inputProps={moneyBinding(state.residualValue, (v) => set('residualValue', v), { disabled: state.residualValueType === 'max', ariaLabel: '잔존가치' })}
             />
-          </Row>
+          </CondCombo>
+        </CondRow>
 
-          {/* 약정거리 */}
-          <div className={`flex items-center gap-4 py-2 ${showDistanceWarning ? '' : 'border-b border-gray-200'}`}>
-            <label className="text-[12px]/[16px] text-gray-500 w-16 flex-shrink-0">약정거리</label>
-            <Segmented value={state.annualDistanceMode}
+        {/* 약정거리 — 계산기는 기본 모드에서도 select 직접 변경 허용(현행 행위 보존 — spec D6 미시 이탈 1) */}
+        <CondRow label="약정거리">
+          <CondCombo>
+            <SegmentGroup value={state.annualDistanceMode}
               options={[{ value: 'default', label: '기본' }, { value: 'custom', label: '변경' }]}
-              onChange={(v) => {
+              onSelect={(v) => {
                 if (v === 'default') {
                   setState({ ...state, annualDistanceMode: 'default', annualDistance: '20000' })
                 } else {
                   set('annualDistanceMode', 'custom')
                 }
               }} />
-            <div className="relative ml-auto flex-shrink-0">
-              <select
-                {...bindSelect(state.annualDistance, (next) =>
+            <ValueSelect
+              selectProps={{
+                'aria-label': '약정거리',
+                ...bindSelect(state.annualDistance, (next) =>
                   setState({
                     ...state,
                     annualDistance: next,
                     annualDistanceMode: next === '20000' ? 'default' : 'custom',
                   }),
-                )}
-                className={`w-36 py-1 pl-2 pr-6 border border-gray-200 rounded text-[12px]/[16px] appearance-none focus:outline-none font-mono tabular-nums font-normal ${
-                  state.annualDistanceMode === 'default'
-                    ? 'bg-gray-50 text-gray-500'
-                    : 'bg-white text-gray-900 focus:border-slate-400'
-                }`}
-              >
-                {distanceOptions.map((v) =>
-                  v === 'unlimited'
-                    ? <option key="unlimited" value="unlimited">무제한</option>
-                    : <option key={v} value={v}>{Number(v).toLocaleString()}km / 년</option>
-                )}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-          {showDistanceWarning && (
-            <div className="pb-2 border-b border-gray-200">
-              <p className="text-[12px]/[16px] text-red-500 text-right">
-                해당 약정거리를 지원하지 않는 금융사는 조회 불가능
-              </p>
-            </div>
-          )}
-
-          {/* 자동차세 (리스 전용) */}
-          {isLease && (
-            <Row label="자동차세">
-              <Segmented value={state.carTax}
-                options={[{ value: 'excluded', label: '불포함' }, { value: 'included', label: '리스료에 포함' }]}
-                onChange={(v) => set('carTax', v as ScenarioState['carTax'])} />
-            </Row>
-          )}
-
-          {/* 운전연령 (렌트 전용) */}
-          {isRent && (
-            <Row label="운전연령">
-              <Segmented value={state.driverAge}
-                options={[{ value: '21', label: '만 21세 이상' }, { value: '26', label: '만 26세 이상' }]}
-                onChange={(v) => set('driverAge', v as ScenarioState['driverAge'])} />
-            </Row>
-          )}
-
-          {/* 대물한도 (렌트 전용) */}
-          {isRent && (
-            <Row label="대물한도">
-              <Segmented value={state.liabilityLimit}
-                options={[
-                  { value: '100', label: '1억' },
-                  { value: '200', label: '2억' },
-                  { value: '300', label: '3억' },
-                  { value: '500', label: '5억' },
-                ]}
-                onChange={(v) => set('liabilityLimit', v as ScenarioState['liabilityLimit'])} />
-            </Row>
-          )}
-
-          {/* 보조금 */}
-          <Row label="보조금">
-            <Segmented value={state.subsidy}
-              options={[{ value: 'none', label: '비해당' }, { value: 'applicable', label: '해당' }]}
-              onChange={(v) => set('subsidy', v as ScenarioState['subsidy'])} />
-            <ValueInput
-              className="ml-auto w-28"
-              value={state.subsidyAmount}
-              disabled={state.subsidy === 'none'}
-              suffix={state.subsidy === 'applicable' ? '원' : ''}
-              onChange={(v) => set('subsidyAmount', v)}
-              integer
-            />
-          </Row>
-
-          {/* 판매사 행(BNK 딜러 입력)은 CRM v1 미이식 — spec D2. 필요 시 제프 원본에서 복원. */}
-
-          {/* CM 수수료 */}
-          <Row label="CM수수료">
-            <ValueInput
-              className="w-20"
-              value={state.cmFeePercent}
-              suffix="%"
-              onChange={(v) => set('cmFeePercent', v)}
-              decimal
-            />
-            <ReadonlyAmount className="ml-auto w-28" value={cmFeeAmount} />
-          </Row>
-
-          {/* AG 수수료 */}
-          <Row label="AG수수료">
-            <ValueInput
-              className="w-20"
-              value={state.agFeePercent}
-              suffix="%"
-              onChange={(v) => set('agFeePercent', v)}
-              decimal
-            />
-            <ReadonlyAmount className="ml-auto w-28" value={agFeeAmount} />
-          </Row>
-
-          {/* 견적 조회 버튼 + 정렬 드롭다운 */}
-          <div className="pt-4 relative" ref={dropdownRef}>
-            <button
-              onClick={handleQueryClick}
-              disabled={isLoading || (!showResults && calcDisabled)}
-              className={`w-full px-4 py-2 text-[12px]/[16px] rounded transition-colors flex items-center justify-center gap-2 ${
-                isLoading
-                  ? 'bg-blue-400 text-white cursor-not-allowed'
-                  : !showResults
-                    ? 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed'
-                    : hasChanges
-                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                      : 'bg-gray-400 hover:bg-gray-500 text-white cursor-pointer'
-              }`}
+                ),
+              }}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  견적 조회 중...
-                </>
-              ) : (
-                <>
-                  {!showResults
-                    ? '견적 조회'
-                    : hasChanges
-                      ? '변경된 조건으로 다시 조회하기'
-                      : `${getSortLabel(sortType)}으로 조회 완료`}
-                  {showResults && !hasChanges && <ChevronDown className="w-3 h-3" />}
-                </>
+              {distanceOptions.map((v) =>
+                v === 'unlimited'
+                  ? <option key="unlimited" value="unlimited">무제한</option>
+                  : <option key={v} value={v}>{Number(v).toLocaleString()}km / 년</option>
               )}
-            </button>
+            </ValueSelect>
+          </CondCombo>
+        </CondRow>
+        {showDistanceWarning && (
+          <p className="py-1 text-[11px]/[15px] text-red-500 text-right">
+            해당 약정거리를 지원하지 않는 금융사는 조회 불가능
+          </p>
+        )}
 
-            {showSortDropdown && showResults && !hasChanges && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-10">
-                {SORT_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => {
-                      setSortType(option.value)
-                      setShowSortDropdown(false)
-                    }}
-                    className={`w-full px-4 py-2 text-[12px]/[16px] text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${
-                      sortType === option.value ? 'bg-gray-100' : ''
-                    }`}
-                  >
-                    <span className="text-gray-700">{option.label}</span>
-                    {sortType === option.value && <Check className="w-3 h-3 text-blue-500" />}
-                  </button>
-                ))}
-              </div>
-            )}
+        {/* 자동차세 (리스 전용) — 라벨 = 워크벤치 어휘(불포함/포함, 유슨생 2026-07-16). 의미는 제프 원형
+            "리스료에 포함" 그대로(value 계약 불변) — 짧은 어휘라 40% 폭 트랙에 들어와 전 행 너비 통일. */}
+        {isLease && (
+          <CondRow label="자동차세">
+            <SegmentGroup value={state.carTax}
+              options={[{ value: 'excluded', label: '불포함' }, { value: 'included', label: '포함' }]}
+              onSelect={(v) => set('carTax', v)} />
+          </CondRow>
+        )}
 
-            {!isVehicleReady && (
-              <p className="text-[11px] text-gray-400 text-center mt-2">차량을 먼저 선택하세요</p>
+        {/* 운전연령 (렌트 전용) */}
+        {isRent && (
+          <CondRow label="운전연령">
+            <SegmentGroup value={state.driverAge}
+              options={[{ value: '21', label: '만 21세 이상' }, { value: '26', label: '만 26세 이상' }]}
+              onSelect={(v) => set('driverAge', v)} />
+          </CondRow>
+        )}
+
+        {/* 대물한도 (렌트 전용) */}
+        {isRent && (
+          <CondRow label="대물한도">
+            <SegmentGroup value={state.liabilityLimit}
+              options={[
+                { value: '100', label: '1억' },
+                { value: '200', label: '2억' },
+                { value: '300', label: '3억' },
+                { value: '500', label: '5억' },
+              ]}
+              onSelect={(v) => set('liabilityLimit', v)} />
+          </CondRow>
+        )}
+
+        {/* 보조금 */}
+        <CondRow label="보조금">
+          <CondCombo>
+            <SegmentGroup value={state.subsidy}
+              options={[{ value: 'none', label: '비해당' }, { value: 'applicable', label: '해당' }]}
+              onSelect={(v) => set('subsidy', v)} />
+            <MoneyField
+              fixed={state.subsidy === 'none'}
+              suffix="원"
+              inputProps={moneyBinding(state.subsidyAmount, (v) => set('subsidyAmount', v), { disabled: state.subsidy === 'none', ariaLabel: '보조금 금액' })}
+            />
+          </CondCombo>
+        </CondRow>
+
+        {/* 판매사 행(BNK 딜러 입력)은 CRM v1 미이식 — 구 spec D2. 필요 시 제프 원본에서 복원. */}
+
+        {/* CM/AG 수수료 — % 입력 + 기본가격 기준 원 미리보기(워크벤치 fee 콤보 문법) */}
+        <CondRow label="CM수수료">
+          <FeeCombo>
+            <MoneyField suffix="%" inputProps={moneyBinding(state.cmFeePercent, (v) => set('cmFeePercent', v), { decimal: true, ariaLabel: 'CM수수료 퍼센트' })} />
+            <MoneyField fixed suffix="원" inputProps={{ 'aria-label': 'CM수수료 환산 금액', value: cmFeeAmount.toLocaleString(), readOnly: true }} />
+          </FeeCombo>
+        </CondRow>
+
+        <CondRow label="AG수수료">
+          <FeeCombo>
+            <MoneyField suffix="%" inputProps={moneyBinding(state.agFeePercent, (v) => set('agFeePercent', v), { decimal: true, ariaLabel: 'AG수수료 퍼센트' })} />
+            <MoneyField fixed suffix="원" inputProps={{ 'aria-label': 'AG수수료 환산 금액', value: agFeeAmount.toLocaleString(), readOnly: true }} />
+          </FeeCombo>
+        </CondRow>
+
+        {/* 견적 조회 버튼 + 정렬 드롭다운 — 계산기 전용 슬롯(spec D5) */}
+        <div className="pt-4 pb-5 relative" ref={dropdownRef}>
+          <button
+            onClick={handleQueryClick}
+            type="button"
+            disabled={isLoading || (!showResults && calcDisabled)}
+            className={`w-full px-4 py-2 text-[12px]/[16px] rounded transition-colors flex items-center justify-center gap-2 ${
+              isLoading
+                ? 'bg-blue-400 text-white cursor-not-allowed'
+                : !showResults
+                  ? 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed'
+                  : hasChanges
+                    ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                    : 'bg-gray-400 hover:bg-gray-500 text-white cursor-pointer'
+            }`}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                견적 조회 중...
+              </>
+            ) : (
+              <>
+                {!showResults
+                  ? '견적 조회'
+                  : hasChanges
+                    ? '변경된 조건으로 다시 조회하기'
+                    : `${getSortLabel(sortType)}으로 조회 완료`}
+                {showResults && !hasChanges && <ChevronDown className="w-3 h-3" />}
+              </>
             )}
-          </div>
+          </button>
+
+          {showSortDropdown && showResults && !hasChanges && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-10">
+              {SORT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    setSortType(option.value)
+                    setShowSortDropdown(false)
+                  }}
+                  className={`w-full px-4 py-2 text-[12px]/[16px] text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                    sortType === option.value ? 'bg-gray-100' : ''
+                  }`}
+                >
+                  <span className="text-gray-700">{option.label}</span>
+                  {sortType === option.value && <Check className="w-3 h-3 text-blue-500" />}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!isVehicleReady && (
+            <p className="text-[11px] text-gray-400 text-center mt-2">차량을 먼저 선택하세요</p>
+          )}
         </div>
 
-        {/* 결과 영역 */}
+        {/* 결과 영역 — 계산기 전용 슬롯(spec D5) */}
         {showResults && (
-          <div className="mt-4">
+          <div className="pb-5">
             {showMaxWarning && (
               <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-[11px] text-yellow-700 text-center animate-pulse">
                 견적 작성은 최대 3개 조건까지 가능합니다
@@ -536,7 +505,7 @@ function ConditionCard({
           </div>
         )}
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -555,97 +524,6 @@ const resetFields: Partial<ScenarioState> = {
   subsidyAmount: '0',
   cmFeePercent: '',
   agFeePercent: '',
-}
-
-/* ─────────── primitives ─────────── */
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-4 py-2 border-b border-gray-200">
-      <label className="text-[12px]/[16px] text-gray-500 w-16 flex-shrink-0">{label}</label>
-      {children}
-    </div>
-  )
-}
-
-function Segmented({
-  value, options, onChange,
-}: {
-  value: string
-  options: { value: string; label: string }[]
-  onChange: (v: string) => void
-}) {
-  return (
-    <div className="flex items-center rounded overflow-hidden border border-gray-200 flex-shrink-0">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          className={`px-3 py-1 text-[12px]/[16px] font-medium transition-colors ${
-            value === opt.value
-              ? 'bg-slate-700 text-white'
-              : 'bg-gray-50 text-gray-400 hover:text-gray-600'
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function ValueInput({
-  value, onChange, suffix = '', disabled = false, className = '', integer = false, decimal = false,
-}: {
-  value: string
-  onChange: (v: string) => void
-  suffix?: string
-  disabled?: boolean
-  className?: string
-  integer?: boolean
-  decimal?: boolean
-}) {
-  const display = disabled ? '' : integer ? Number(value || 0).toLocaleString() : value
-  return (
-    <div className={`relative flex-shrink-0 ${className}`}>
-      <input
-        type="text"
-        value={display}
-        onChange={(e) => {
-          if (decimal) onChange(onlyDecimal(e.target.value))
-          else onChange(onlyDigits(e.target.value))
-        }}
-        disabled={disabled}
-        placeholder="0"
-        className={`w-full py-1 pl-2 pr-6 border border-gray-200 rounded text-[12px]/[16px] text-right focus:outline-none
-                   font-mono tabular-nums font-normal ${
-          disabled
-            ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
-            : 'bg-white text-gray-900 focus:border-slate-400'
-        }`}
-      />
-      {!disabled && suffix && (
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px]/[16px] text-gray-400 pointer-events-none">
-          {suffix}
-        </span>
-      )}
-    </div>
-  )
-}
-
-function ReadonlyAmount({ value, className = '' }: { value: number; className?: string }) {
-  return (
-    <div className={`relative flex-shrink-0 ${className}`}>
-      <input
-        type="text"
-        value={value.toLocaleString()}
-        readOnly
-        className="w-full py-1 pl-2 pr-6 border border-gray-200 rounded text-[12px]/[16px] text-gray-500 text-right
-                   bg-gray-50 cursor-default focus:outline-none font-mono tabular-nums font-normal"
-      />
-      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px]/[16px] text-gray-400 pointer-events-none">원</span>
-    </div>
-  )
 }
 
 /* ─────────── public API: ConditionCards 그룹 ─────────── */
@@ -688,7 +566,7 @@ export function ConditionCards({
     }))
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="kim-manual-compare-grid">
       <ConditionCard
         cardNumber={1}
         state={scenarios[0]}

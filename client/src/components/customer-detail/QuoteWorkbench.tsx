@@ -2,23 +2,29 @@ import { Calculator, Check, ChevronDown, ChevronRight, FilePlus2, FileText, File
 
 import { type Customer } from "@/data/customers";
 import { formatMoney } from "@/lib/quote-pricing";
-import { CRM_EXTRA_LENDERS, solutionLenderOptions } from "@/lib/solution-quote";
+import { CRM_EXTRA_LENDERS, SOLUTION_LEASE_TERMS, solutionLenderOptions } from "@/lib/solution-quote";
 import { bindSelect } from "@/lib/select-bind";
 import { isDocumentFileDrag } from "@/lib/detail-utils";
 import { QUOTE_GUIDANCE_OPTIONS } from "@/data/quote-guidance";
 import { AppCardPreview } from "@/components/AppCardPreview";
+import { CondCombo, CondRow, DiscountLineRow, FeeCombo, FormRow, MoneyField, PriceCell, SegmentGroup, SummaryRow, ValueSelect } from "@/components/quote-fields/QuoteFields";
 import { SolutionLenderRankingModal } from "./SolutionLenderRankingModal";
 import { WorkbenchColorPicker, WorkbenchOptionPicker, WorkbenchVehiclePicker } from "./WorkbenchVehiclePickers";
 
 import {
+  ACQUISITION_TAX_MODE_LABELS,
   cardUiOf,
-  discountLabelOptions,
   effectiveMileageValue,
   manualMileageOptions,
   emptyQuotePricing,
   quotePurchaseMethodOptions,
 } from "./quote-workbench-meta";
 import { type useQuoteWorkbench } from "./hooks/useQuoteWorkbench";
+
+// 세그먼트 어휘 — 기간은 SOLUTION_LEASE_TERMS 파생·취득세는 라벨 SSOT zip(계산기도 같은 소스에서
+// 파생 — 값 타입만 화면 상태 계약을 따름: 워크벤치 number/normal ↔ 계산기 string/none).
+const leaseTermSegmentOptions = SOLUTION_LEASE_TERMS.map((m) => ({ value: m, label: `${m}개월` }));
+const acquisitionTaxModeOptions = (["normal", "hybrid", "electric", "manual"] as const).map((value, i) => ({ value, label: ACQUISITION_TAX_MODE_LABELS[i] }));
 
 type QuoteWorkbenchProps = {
   workbench: ReturnType<typeof useQuoteWorkbench>;
@@ -361,62 +367,60 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
               </div>
               <div className="kim-jeff-section">
                 <h4>💰 할인</h4>
-                <div className="kim-jeff-form-row kim-jeff-discount-row">
-                  <span>기본 할인</span>
-                  <span className="kim-jeff-discount-label-placeholder" aria-hidden="true" />
-                  <div className="kim-jeff-segment">
-                    <button className={primaryDiscountUnit === "amount" ? "active" : ""} onClick={() => setPrimaryDiscountMode("amount")} type="button">금액</button>
-                    <button className={primaryDiscountUnit === "percent" ? "active" : ""} onClick={() => setPrimaryDiscountMode("percent")} type="button">%</button>
-                  </div>
-                  <div className="kim-jeff-money-input"><input data-discount-line="true" data-discount-primary="true" data-discount-unit={primaryDiscountUnit} defaultValue={formatMoney(emptyQuotePricing.discount)} /><em>{primaryDiscountUnit === "percent" ? "%" : "원"}</em></div>
-                  <button className="kim-jeff-discount-add" aria-label="할인 항목 추가" onClick={addDiscountLine} type="button">+</button>
-                </div>
+                <DiscountLineRow
+                  label="기본 할인"
+                  unit={primaryDiscountUnit}
+                  onUnitChange={setPrimaryDiscountMode}
+                  inputProps={{ "data-discount-line": "true", "data-discount-primary": "true", "data-discount-unit": primaryDiscountUnit, defaultValue: formatMoney(emptyQuotePricing.discount) }}
+                  action={{ kind: "add", onClick: addDiscountLine }}
+                />
                 {discountLines.map((line) => (
-                  <div className="kim-jeff-form-row kim-jeff-discount-row" key={line.id}>
-                    <span>추가 할인</span>
-                    <select className="kim-jeff-discount-label" aria-label="할인 항목명" {...bindSelect(line.label, (v) => setDiscountLineLabel(line.id, v))}>
-                      {discountLabelOptions.map((option) => <option key={option}>{option}</option>)}
-                    </select>
-                    <div className="kim-jeff-segment">
-                      <button className={line.unit === "amount" ? "active" : ""} onClick={() => setDiscountLineMode(line.id, "amount")} type="button">금액</button>
-                      <button className={line.unit === "percent" ? "active" : ""} onClick={() => setDiscountLineMode(line.id, "percent")} type="button">%</button>
-                    </div>
-                    <div className="kim-jeff-money-input"><input data-discount-id={line.id} data-discount-line="true" data-discount-unit={line.unit} defaultValue={line.amount} /><em>{line.unit === "percent" ? "%" : "원"}</em></div>
-                    <button className="kim-jeff-discount-remove" aria-label="할인 항목 삭제" onClick={() => removeDiscountLine(line.id)} type="button"><Trash2 size={13} strokeWidth={2.1} /></button>
-                  </div>
+                  <DiscountLineRow
+                    key={line.id}
+                    label="추가 할인"
+                    labelSelect={{ value: line.label, onSelect: (v) => setDiscountLineLabel(line.id, v) }}
+                    unit={line.unit}
+                    onUnitChange={(unit) => setDiscountLineMode(line.id, unit)}
+                    inputProps={{ "data-discount-id": line.id, "data-discount-line": "true", "data-discount-unit": line.unit, defaultValue: line.amount }}
+                    action={{ kind: "remove", onClick: () => removeDiscountLine(line.id) }}
+                  />
                 ))}
               </div>
             </div>
 
             <div className="kim-jeff-price-grid">
-              <div className="kim-jeff-price-cell"><strong>기본 가격</strong><div className="kim-jeff-money-input"><input data-pricing="base" defaultValue={formatMoney(emptyQuotePricing.basePrice)} /><em>원</em></div></div>
-              <div className="kim-jeff-price-cell"><strong>(+) 옵션 금액</strong><div className="kim-jeff-money-input"><input data-pricing="option" defaultValue={formatMoney(emptyQuotePricing.optionPrice)} /><em>원</em></div></div>
-              <div className="kim-jeff-price-cell"><strong>(-) 최종 할인</strong><div className="kim-jeff-money-input"><input data-pricing="discount" defaultValue={formatMoney(emptyQuotePricing.discount)} /><em>원</em></div></div>
+              <PriceCell label="기본 가격" inputProps={{ "data-pricing": "base", defaultValue: formatMoney(emptyQuotePricing.basePrice) }} />
+              <PriceCell label="(+) 옵션 금액" inputProps={{ "data-pricing": "option", defaultValue: formatMoney(emptyQuotePricing.optionPrice) }} />
+              <PriceCell label="(-) 최종 할인" inputProps={{ "data-pricing": "discount", defaultValue: formatMoney(emptyQuotePricing.discount) }} />
             </div>
 
             <div className="kim-jeff-cost-grid">
               <div className="kim-jeff-section kim-jeff-cost-section">
                 <h4>⚙️ 취득원가 설정</h4>
-                <div className="kim-jeff-form-row kim-jeff-acquisition-tax-row">
-                  <span>취득세</span>
-                  <div className="kim-jeff-segment">
-                    <button className={acquisitionTaxMode === "normal" ? "active" : ""} onClick={() => setAcquisitionTaxMode("normal")} type="button">일반</button>
-                    <button className={acquisitionTaxMode === "hybrid" ? "active" : ""} onClick={() => setAcquisitionTaxMode("hybrid")} type="button">하이브리드 감면</button>
-                    <button className={acquisitionTaxMode === "electric" ? "active" : ""} onClick={() => setAcquisitionTaxMode("electric")} type="button">전기차 감면</button>
-                    <button className={acquisitionTaxMode === "manual" ? "active" : ""} onClick={() => setAcquisitionTaxMode("manual")} type="button">직접 입력</button>
-                  </div>
-                  <div className="kim-jeff-money-input"><input data-pricing="acquisitionTax" defaultValue={formatMoney(emptyQuotePricing.acquisitionTax)} readOnly={acquisitionTaxMode !== "manual"} /><em>원</em></div>
-                </div>
-                <div className="kim-jeff-form-row kim-jeff-cost-toggle-row"><span>공채</span><div className="kim-jeff-segment"><button className="active" type="button">포함</button><button type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="bond" defaultValue={formatMoney(emptyQuotePricing.bond)} /><em>원</em></div></div>
-                <div className="kim-jeff-form-row kim-jeff-cost-toggle-row"><span>탁송료</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="delivery" defaultValue={formatMoney(emptyQuotePricing.delivery)} /><em>원</em></div></div>
-                <div className="kim-jeff-form-row kim-jeff-cost-toggle-row"><span>부대비용</span><div className="kim-jeff-segment"><button type="button">포함</button><button className="active" type="button">불포함</button></div><div className="kim-jeff-money-input"><input data-pricing="incidental" defaultValue={formatMoney(emptyQuotePricing.incidental)} /><em>원</em></div></div>
+                <FormRow label="취득세" className="kim-jeff-acquisition-tax-row">
+                  <SegmentGroup value={acquisitionTaxMode} options={acquisitionTaxModeOptions} onSelect={setAcquisitionTaxMode} />
+                  <MoneyField suffix="원" inputProps={{ "data-pricing": "acquisitionTax", defaultValue: formatMoney(emptyQuotePricing.acquisitionTax), readOnly: acquisitionTaxMode !== "manual" }} />
+                </FormRow>
+                {/* 공채/탁송료/부대비용 토글 = 현행 장식(무핸들러 고정 — spec D6, 실동작화는 별도 제품 결정). */}
+                <FormRow label="공채" className="kim-jeff-cost-toggle-row">
+                  <SegmentGroup value="included" options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} />
+                  <MoneyField suffix="원" inputProps={{ "data-pricing": "bond", defaultValue: formatMoney(emptyQuotePricing.bond) }} />
+                </FormRow>
+                <FormRow label="탁송료" className="kim-jeff-cost-toggle-row">
+                  <SegmentGroup value="excluded" options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} />
+                  <MoneyField suffix="원" inputProps={{ "data-pricing": "delivery", defaultValue: formatMoney(emptyQuotePricing.delivery) }} />
+                </FormRow>
+                <FormRow label="부대비용" className="kim-jeff-cost-toggle-row">
+                  <SegmentGroup value="excluded" options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} />
+                  <MoneyField suffix="원" inputProps={{ "data-pricing": "incidental", defaultValue: formatMoney(emptyQuotePricing.incidental) }} />
+                </FormRow>
               </div>
               <div className="kim-jeff-section kim-jeff-summary-section">
                 <h4>📋 최종 가격</h4>
-                <div className="kim-jeff-summary-row"><span>최종 차량가(계산서 발행금액)</span><b><span>{formatMoney(pricing.finalVehiclePrice)}</span><em>원</em></b></div>
-                <div className="kim-jeff-summary-row"><span>등록비용(취득원가 포함)</span><b><span>{formatMoney(pricing.registrationCost)}</span><em>원</em></b></div>
-                <div className="kim-jeff-summary-row no-divider"><span>기타비용(취득원가 불포함, 고객 부담)</span><b><span>{formatMoney(pricing.otherCost)}</span><em>원</em></b></div>
-                <div className="kim-jeff-summary-row emphasized"><span>취득원가</span><b><span>{formatMoney(pricing.acquisitionCost)}</span><em>원</em></b></div>
+                <SummaryRow label="최종 차량가(계산서 발행금액)" value={formatMoney(pricing.finalVehiclePrice)} />
+                <SummaryRow label="등록비용(취득원가 포함)" value={formatMoney(pricing.registrationCost)} />
+                <SummaryRow label="기타비용(취득원가 불포함, 고객 부담)" value={formatMoney(pricing.otherCost)} className="no-divider" />
+                <SummaryRow label="취득원가" value={formatMoney(pricing.acquisitionCost)} className="emphasized" />
               </div>
             </div>
           </section>
@@ -454,26 +458,26 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           </div>
                         </header>
                         <div className="kim-manual-compare-body">
-                          <label className="select-value"><span>금융사</span><select data-sc-field="lender" defaultValue={condition.lender} disabled={isConditionSaved}>
+                          <CondRow label="금융사" className="select-value"><select data-sc-field="lender" defaultValue={condition.lender} disabled={isConditionSaved}>
                             <option>미선택</option>
                             {solutionLenders.map((l) => <option key={l.code}>{l.label}</option>)}
                             {CRM_EXTRA_LENDERS.map((label) => <option key={label}>{label}</option>)}
                             {condition.lender && condition.lender !== "미선택" && !lenderOptionLabels.includes(condition.lender)
                               ? <option>{condition.lender}</option> /* 구 어휘 저장 견적 표시 유지(스펙 결정 1) — 새 선택지는 아님 */
                               : null}
-                          </select></label>
-                          <label><span>기간</span><div className="kim-jeff-segment wide">{[12, 24, 36, 48, 60].map((m) => <button key={m} className={ui.termMonths === m ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualTermMonthsFor(condition.id, m)} type="button">{m}개월</button>)}</div></label>
-                          <label><span>보증금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={depositMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "none")} type="button">없음</button><button className={depositMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "amount")} type="button">금액</button><button className={depositMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDepositMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${depositMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="deposit" data-discount-unit={depositMode === "percent" ? "percent" : "amount"} defaultValue={condition.depositValue} disabled={isConditionSaved} readOnly={depositMode === "none"} /><em>{depositMode === "percent" ? "%" : "원"}</em></div></div></label>
+                          </select></CondRow>
+                          <CondRow label="기간"><SegmentGroup wide value={ui.termMonths} options={leaseTermSegmentOptions} disabled={isConditionSaved} onSelect={(m) => setManualTermMonthsFor(condition.id, m)} /></CondRow>
+                          <CondRow label="보증금"><CondCombo><SegmentGroup value={depositMode} options={[{ value: "none", label: "없음" }, { value: "amount", label: "금액" }, { value: "percent", label: "%" }]} disabled={isConditionSaved} onSelect={(m) => setManualDepositMode(condition.id, m)} /><MoneyField fixed={depositMode === "none"} suffix={depositMode === "percent" ? "%" : "원"} inputProps={{ "data-sc-field": "deposit", "data-discount-unit": depositMode === "percent" ? "percent" : "amount", defaultValue: condition.depositValue, disabled: isConditionSaved, readOnly: depositMode === "none" }} /></CondCombo></CondRow>
                           {/* 선수금/선납금 라벨 SSOT = appCardModel.downPaymentRowLabel(구매방식 종속 도메인 규칙 — app-card.ts) */}
-                          <label><span>{appCardModel.downPaymentRowLabel}</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={downPaymentMode === "none" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "none")} type="button">없음</button><button className={downPaymentMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "amount")} type="button">금액</button><button className={downPaymentMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualDownPaymentMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${downPaymentMode === "none" ? " is-fixed" : ""}`}><input data-sc-field="downPayment" data-discount-unit={downPaymentMode === "percent" ? "percent" : "amount"} defaultValue={condition.downPaymentValue} disabled={isConditionSaved} readOnly={downPaymentMode === "none"} /><em>{downPaymentMode === "percent" ? "%" : "원"}</em></div></div></label>
-                          <label><span>잔존가치</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={residualMode === "max" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "max")} type="button">최대</button><button className={residualMode === "amount" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "amount")} type="button">금액</button><button className={residualMode === "percent" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualResidualMode(condition.id, "percent")} type="button">%</button></div><div className={`kim-jeff-money-input${residualMode === "max" ? " is-fixed" : ""}`}><input data-sc-field="residual" data-discount-unit={residualMode === "percent" ? "percent" : "amount"} defaultValue={condition.residualValue} disabled={isConditionSaved} readOnly={residualMode === "max"} /><em>{residualMode === "percent" ? "%" : "원"}</em></div></div></label>
-                          <label><span>약정거리</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={mileageMode === "basic" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "basic")} type="button">기본</button><button className={mileageMode === "custom" ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualMileageMode(condition.id, "custom")} type="button">변경</button></div><select className={`kim-manual-value-select${mileageMode === "basic" ? " is-fixed" : ""}`} disabled={isConditionSaved || mileageMode === "basic"} {...bindSelect(mileageValue, (v) => setManualMileageValue(condition.id, v))}>{manualMileageOptions.map((option) => <option key={option}>{option}</option>)}</select></div></label>
-                          <label><span>자동차세</span><div className="kim-jeff-segment"><button className={!carTaxOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualCarTaxFor(condition.id, false)} type="button">불포함</button><button className={carTaxOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualCarTaxFor(condition.id, true)} type="button">포함</button></div></label>
-                          <label><span>보조금</span><div className="kim-manual-combo"><div className="kim-jeff-segment"><button className={!subsidyOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualSubsidyFor(condition.id, false)} type="button">비해당</button><button className={subsidyOn ? "active" : ""} disabled={isConditionSaved} onClick={() => setManualSubsidyFor(condition.id, true)} type="button">해당</button></div><div className={`kim-jeff-money-input${!subsidyOn ? " is-fixed" : ""}`}><input aria-label="보조금 금액" data-sc-field="subsidy" defaultValue={condition.subsidyAmount} disabled={isConditionSaved} readOnly={!subsidyOn} /><em>원</em></div></div></label>
+                          <CondRow label={appCardModel.downPaymentRowLabel}><CondCombo><SegmentGroup value={downPaymentMode} options={[{ value: "none", label: "없음" }, { value: "amount", label: "금액" }, { value: "percent", label: "%" }]} disabled={isConditionSaved} onSelect={(m) => setManualDownPaymentMode(condition.id, m)} /><MoneyField fixed={downPaymentMode === "none"} suffix={downPaymentMode === "percent" ? "%" : "원"} inputProps={{ "data-sc-field": "downPayment", "data-discount-unit": downPaymentMode === "percent" ? "percent" : "amount", defaultValue: condition.downPaymentValue, disabled: isConditionSaved, readOnly: downPaymentMode === "none" }} /></CondCombo></CondRow>
+                          <CondRow label="잔존가치"><CondCombo><SegmentGroup value={residualMode} options={[{ value: "max", label: "최대" }, { value: "amount", label: "금액" }, { value: "percent", label: "%" }]} disabled={isConditionSaved} onSelect={(m) => setManualResidualMode(condition.id, m)} /><MoneyField fixed={residualMode === "max"} suffix={residualMode === "percent" ? "%" : "원"} inputProps={{ "data-sc-field": "residual", "data-discount-unit": residualMode === "percent" ? "percent" : "amount", defaultValue: condition.residualValue, disabled: isConditionSaved, readOnly: residualMode === "max" }} /></CondCombo></CondRow>
+                          <CondRow label="약정거리"><CondCombo><SegmentGroup value={mileageMode} options={[{ value: "basic", label: "기본" }, { value: "custom", label: "변경" }]} disabled={isConditionSaved} onSelect={(m) => setManualMileageMode(condition.id, m)} /><ValueSelect fixed={mileageMode === "basic"} selectProps={{ disabled: isConditionSaved || mileageMode === "basic", ...bindSelect(mileageValue, (v) => setManualMileageValue(condition.id, v)) }}>{manualMileageOptions.map((option) => <option key={option}>{option}</option>)}</ValueSelect></CondCombo></CondRow>
+                          <CondRow label="자동차세"><SegmentGroup value={carTaxOn ? "on" : "off"} options={[{ value: "off", label: "불포함" }, { value: "on", label: "포함" }]} disabled={isConditionSaved} onSelect={(v) => setManualCarTaxFor(condition.id, v === "on")} /></CondRow>
+                          <CondRow label="보조금"><CondCombo><SegmentGroup value={subsidyOn ? "on" : "off"} options={[{ value: "off", label: "비해당" }, { value: "on", label: "해당" }]} disabled={isConditionSaved} onSelect={(v) => setManualSubsidyFor(condition.id, v === "on")} /><MoneyField fixed={!subsidyOn} suffix="원" inputProps={{ "aria-label": "보조금 금액", "data-sc-field": "subsidy", defaultValue: condition.subsidyAmount, disabled: isConditionSaved, readOnly: !subsidyOn }} /></CondCombo></CondRow>
                           {/* CM/AG 수수료(계산기 패리티 2026-07-16) — %는 파트너 계산 입력(cmFeeRate/agFeeRate 분율·저장 cm_fee_percent),
                               원 칸은 최종 차량가 기준 파생 미리보기(deriveAndFillCardResults가 채움 — 추출·저장에 안 실림). */}
-                          <label><span>CM수수료</span><div className="kim-manual-fee-combo"><div className="kim-jeff-money-input"><input aria-label="CM수수료 퍼센트" data-discount-unit="percent" data-sc-field="cmFeePercent" defaultValue={condition.cmFeePercent} disabled={isConditionSaved} /><em>%</em></div><div className="kim-jeff-money-input is-fixed"><input aria-label="CM수수료 환산 금액" data-fee-preview="cm" defaultValue="0" disabled={isConditionSaved} readOnly /><em>원</em></div></div></label>
-                          <label className="before-emphasis"><span>AG수수료</span><div className="kim-manual-fee-combo"><div className="kim-jeff-money-input"><input aria-label="AG수수료 퍼센트" data-discount-unit="percent" data-sc-field="agFeePercent" defaultValue={condition.agFeePercent} disabled={isConditionSaved} /><em>%</em></div><div className="kim-jeff-money-input is-fixed"><input aria-label="AG수수료 환산 금액" data-fee-preview="ag" defaultValue="0" disabled={isConditionSaved} readOnly /><em>원</em></div></div></label>
+                          <CondRow label="CM수수료"><FeeCombo><MoneyField suffix="%" inputProps={{ "aria-label": "CM수수료 퍼센트", "data-discount-unit": "percent", "data-sc-field": "cmFeePercent", defaultValue: condition.cmFeePercent, disabled: isConditionSaved }} /><MoneyField fixed suffix="원" inputProps={{ "aria-label": "CM수수료 환산 금액", "data-fee-preview": "cm", defaultValue: "0", disabled: isConditionSaved, readOnly: true }} /></FeeCombo></CondRow>
+                          <CondRow label="AG수수료" className="before-emphasis"><FeeCombo><MoneyField suffix="%" inputProps={{ "aria-label": "AG수수료 퍼센트", "data-discount-unit": "percent", "data-sc-field": "agFeePercent", defaultValue: condition.agFeePercent, disabled: isConditionSaved }} /><MoneyField fixed suffix="원" inputProps={{ "aria-label": "AG수수료 환산 금액", "data-fee-preview": "ag", defaultValue: "0", disabled: isConditionSaved, readOnly: true }} /></FeeCombo></CondRow>
                           <div className="kim-manual-compare-row amount emphasis"><span>월 납입금</span><div className="kim-manual-monthly-control"><button aria-label="솔루션 조회" className="kim-manual-solution-query" disabled={isConditionSaved || !solutionWorkbenchCanQuery || solutionLoadingId !== null} onClick={() => handleSolutionQueryClick(condition.id)} title="솔루션 조회" type="button"><Calculator size={14} strokeWidth={2.15} /></button><div className="kim-jeff-money-input"><input aria-label="월 납입금" data-sc-field="monthly" defaultValue={condition.monthlyPayment} disabled={isConditionSaved} /><em>원</em></div></div></div>
                           {/* 결과 4필드 = 읽기 전용 파생값(개정 1 R3) — 월납입·카드 조건·가격패널에서 deriveAndFillCardResults가
                               자동 계산해 채운다(readOnly — jeff money 핸들러도 readOnly는 스킵). data-sc-field/defaultValue 추출 계약 불변

@@ -117,6 +117,9 @@ export const manualMileageOptions = [
   "40,000km / 년",
 ] as const;
 export type AcquisitionTaxMode = "normal" | "hybrid" | "electric" | "manual";
+// 취득세 4모드 라벨 어휘 SSOT(quote-fields 프리미티브 UI SSOT와 짝) — 모드 value는 화면별 상태
+// 계약(워크벤치 normal·계산기 none)이라 각자 zip한다(라벨만 1벌).
+export const ACQUISITION_TAX_MODE_LABELS = ["일반", "하이브리드 감면", "전기차 감면", "직접 입력"] as const;
 
 export type QuoteEntryMode = "solution" | "manual" | "original";
 export type QuotePurchaseMethod = PurchaseMethod;

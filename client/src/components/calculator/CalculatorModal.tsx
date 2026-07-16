@@ -374,7 +374,10 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
         </div>
       </header>
 
-      <div className="p-8 pb-24">
+      {/* kim-jeff-quote-body = 워크벤치 문법 스코프(토큰 --jeff-navy·베이스 입력 스타일 — spec D4).
+          패딩은 calculator.css 브릿지가 페이지 여백(32px)으로 오버라이드(unlayered kim 16px가
+          Tailwind 유틸을 layer 무관하게 이기므로 명시 규칙 필수). 자식 간 22px 리듬은 kim 소관. */}
+      <div className="kim-jeff-quote-body">
         <TopSelectionCards
           catalog={masterCatalog}
           basePrice={basePrice}

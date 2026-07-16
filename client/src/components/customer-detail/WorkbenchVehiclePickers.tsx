@@ -6,9 +6,9 @@
 // onChange 의미론(구 VehiclePicker 계약 유지 — applyTrimToPricing이 이 전제로 짜여 있다):
 //   드롭다운/다이얼로그 직접 선택은 trimDetail을 동봉하지 않는다 → 소비자가 fetchTrimDetail 폴백.
 //   번들 trimDetail 동봉은 수정 진입(initialTrimId) 마운트 복원 경로만.
-import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { PickerTriggerRow } from "@/components/quote-fields/QuoteFields";
 import { BrandPickerDialog } from "@/components/vehicle-pickers/BrandPickerDialog";
 import { ModelPickerDialog } from "@/components/vehicle-pickers/ModelPickerDialog";
 import { TrimPickerDialog } from "@/components/vehicle-pickers/TrimPickerDialog";
@@ -124,27 +124,21 @@ export function WorkbenchVehiclePicker({ initialTrimId, onChange }: { initialTri
   return (
     <div className="kim-vehicle-picker">
       <div className="kim-vehicle-picker-anchor">
-        <button className="kim-jeff-picker-row" type="button" onClick={() => setOpenDialog("brand")}>
-          <span>제조사</span>
-          <b className={brand ? "" : "muted"}>{editLoading ? <span className="kim-vehicle-skeleton" /> : (brand?.name ?? "선택")}</b>
-          <ChevronDown size={15} />
-        </button>
+        <PickerTriggerRow label="제조사" onClick={() => setOpenDialog("brand")} bClassName={brand ? "" : "muted"}>
+          {editLoading ? <span className="kim-vehicle-skeleton" /> : (brand?.name ?? "선택")}
+        </PickerTriggerRow>
       </div>
 
       <div className="kim-vehicle-picker-anchor">
-        <button className="kim-jeff-picker-row" type="button" disabled={!brand} onClick={() => setOpenDialog("model")}>
-          <span>모델</span>
-          <b className={model ? "" : "muted"}>{editLoading ? <span className="kim-vehicle-skeleton" /> : (model?.name ?? "선택")}</b>
-          <ChevronDown size={15} />
-        </button>
+        <PickerTriggerRow label="모델" disabled={!brand} onClick={() => setOpenDialog("model")} bClassName={model ? "" : "muted"}>
+          {editLoading ? <span className="kim-vehicle-skeleton" /> : (model?.name ?? "선택")}
+        </PickerTriggerRow>
       </div>
 
       <div className="kim-vehicle-picker-anchor">
-        <button className="kim-jeff-picker-row" type="button" disabled={!model} onClick={() => setOpenDialog("trim")}>
-          <span>트림</span>
-          <b className={trim ? "" : "muted"}>{editLoading ? <span className="kim-vehicle-skeleton" /> : (trim ? trim.trimName ?? trim.name : "선택")}</b>
-          <ChevronDown size={15} />
-        </button>
+        <PickerTriggerRow label="트림" disabled={!model} onClick={() => setOpenDialog("trim")} bClassName={trim ? "" : "muted"}>
+          {editLoading ? <span className="kim-vehicle-skeleton" /> : (trim ? trim.trimName ?? trim.name : "선택")}
+        </PickerTriggerRow>
       </div>
 
       <BrandPickerDialog
@@ -205,14 +199,10 @@ export function WorkbenchOptionPicker({ options, relations, selectedIds, trimLab
 
   return (
     <div className="kim-option-picker">
-      <button className="kim-jeff-picker-row" type="button" disabled={!options.length} onClick={() => setOpen(true)}>
-        <span>옵션</span>
-        <b className={selectedCount ? "" : "muted"}>
-          {selectedCount ? `${selectedCount}개 선택` : "선택"}
-          {total > 0 ? ` · +${formatMoney(total)}원` : ""}
-        </b>
-        <ChevronDown size={15} />
-      </button>
+      <PickerTriggerRow label="옵션" disabled={!options.length} onClick={() => setOpen(true)} bClassName={selectedCount ? "" : "muted"}>
+        {selectedCount ? `${selectedCount}개 선택` : "선택"}
+        {total > 0 ? ` · +${formatMoney(total)}원` : ""}
+      </PickerTriggerRow>
       <OptionPickerDialog
         open={open}
         onClose={() => setOpen(false)}
@@ -246,18 +236,16 @@ export function WorkbenchColorPicker({ colorType, colors, value, onChange }: Wor
 
   return (
     <div className="kim-color-picker">
-      <button className="kim-jeff-picker-row" type="button" disabled={!items.length} onClick={() => setOpen(true)}>
-        <span>{label}</span>
+      <PickerTriggerRow label={label} disabled={!items.length} onClick={() => setOpen(true)} bClassName={value ? "kim-color-picker-value" : "muted"}>
         {value ? (
-          <b className="kim-color-picker-value">
+          <>
             <span className="kim-color-picker-swatch" style={{ background: value.hexValue ?? "transparent" }} />
             {value.name}
-          </b>
+          </>
         ) : (
-          <b className="muted">미선택</b>
+          "미선택"
         )}
-        <ChevronDown size={15} />
-      </button>
+      </PickerTriggerRow>
       <ColorPickerDialog
         open={open}
         onClose={() => setOpen(false)}
