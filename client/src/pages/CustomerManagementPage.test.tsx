@@ -65,6 +65,19 @@ describe("CustomerManagementPage", () => {
     },
   );
 
+  // 상담필요(consulting) = 미배정 고객 업무함(2026-07-16 확정). 담당자가 배정된 고객은
+  // 계약 전 단계여도 이 목록에 들어오지 않는다 — 배정되면 담당자 관리 흐름으로 넘어간다.
+  it("keeps only unassigned customers in consulting mode", () => {
+    render(<CustomerManagementPage mode="consulting" />);
+
+    // mock에서 계약 전 단계 & 미배정은 김민준(견적)뿐.
+    expect(screen.getByText("김민준")).toBeInTheDocument();
+    // 배정된 계약 전 고객은 제외: 문태호(신규·김지안), 오세린(상담중·이주선), 박서연(견적·이주선).
+    expect(screen.queryByText("문태호")).not.toBeInTheDocument();
+    expect(screen.queryByText("오세린")).not.toBeInTheDocument();
+    expect(screen.queryByText("박서연")).not.toBeInTheDocument();
+  });
+
   // renderRow fallthrough는 priority 셀(action 컬럼 = 상담 메모/재컨택 성격) → advisor 셀(담당) 순으로 그린다.
   // contract만 헤더/컬럼이 담당 → action으로 뒤집혀 있어 헤더 아래에 다른 데이터가 오던 버그(프로토타입).
   // action 컬럼 라벨이 "담당"보다 앞에 오도록 잠근다(consulting/hold는 회귀 가드).
