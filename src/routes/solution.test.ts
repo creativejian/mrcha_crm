@@ -125,6 +125,62 @@ test("zod strip 계약: 스키마 밖 키는 파트너로 전달되지 않는다
   expect(Object.keys(calls[0].body as Record<string, unknown>)).not.toContain("extra");
 });
 
+// ── 계산기 모달 확장 17필드(스펙 2026-07-16 §릴레이 zod 확장 — 제프 calculateQuoteSchema 미러) ──
+// zod strip 특성상 스키마에 없는 필드는 업스트림 body에서 조용히 탈락한다 — 확장 전엔 아래 단언이
+// RED(탈락 실관찰), 확장 후 GREEN. 값은 제프 V2 buildPayload(QuoteRevolutionV2.tsx:177-247) 실전송 형태.
+const CALCULATOR_EXTENDED_FIELDS = {
+  affiliateType: "비제휴사",
+  directModelEntry: false,
+  releaseMethod: "special",
+  maintenanceGrade: "vip",
+  selectedResidualRateOverride: 0.45,
+  acquisitionTaxMode: "amount",
+  acquisitionTaxAmountOverride: 4_130_000,
+  includePublicBondCost: true,
+  publicBondCost: 250_000,
+  includeDeliveryFeeAmount: true,
+  deliveryFeeAmount: 330_000,
+  includeMiscFeeAmount: true,
+  miscFeeAmount: 150_000,
+  cmFeeRate: 0.01,
+  agFeeRate: 0,
+  insuranceYearlyAmount: 0,
+  lossDamageAmount: 0,
+} as const;
+
+test("계산기 확장 17필드: 400 없이 통과 + 전 필드가 업스트림 body에 실린다", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
+  const calls = captureRequests();
+
+  const res = await post({
+    ...VALID_BODY,
+    lenderCode: "mg-capital",
+    productType: "long_term_rental",
+    ...CALCULATOR_EXTENDED_FIELDS,
+  });
+  expect(res.status).toBe(200);
+  expect(calls).toHaveLength(1);
+  const sent = calls[0].body as Record<string, unknown>;
+  const sentSubset = Object.fromEntries(
+    Object.keys(CALCULATOR_EXTENDED_FIELDS).map((key) => [key, sent[key]]),
+  );
+  expect(sentSubset).toEqual({ ...CALCULATOR_EXTENDED_FIELDS });
+});
+
+test("계산기 확장 필드 enum 위반(releaseMethod) → 400", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
+  const res = await post({ ...VALID_BODY, releaseMethod: "oto" });
+  expect(res.status).toBe(400);
+});
+
+// 제프는 selectedResidualRateOverride를 positive()로 잠근다(min(0) 아님) — 0 전송은 업스트림 400이므로
+// 릴레이가 같은 경계에서 미리 자른다(범위 미러 잠금).
+test("계산기 확장 필드 범위 위반(selectedResidualRateOverride=0) → 400", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
+  const res = await post({ ...VALID_BODY, selectedResidualRateOverride: 0 });
+  expect(res.status).toBe(400);
+});
+
 test("키 미설정이면 X-API-Key 생략(개발 무인증 단계) — 호출은 진행", async () => {
   process.env.PARTNER_QUOTE_API_URL = "https://partner.test/calc";
   delete process.env.PARTNER_QUOTE_API_KEY;

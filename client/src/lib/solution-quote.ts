@@ -54,6 +54,14 @@ function solutionMileageOf(mileageValue: string): number | null {
 // 파트너 지원 기간(개월). export — 서버 릴레이 zod 게이트가 이 값에서 파생한다(손 복제 금지).
 export const SOLUTION_LEASE_TERMS = [12, 24, 36, 48, 60] as const;
 
+// 계산기 모달(값어림 계산) 확장 어휘 — 제프 shared/contracts/quote.constants.ts 미러
+// (스펙: ref/specs/2026-07-16-crm-calculator-modal-design.md §릴레이 zod 확장).
+// export — 서버 릴레이 zod 게이트가 이 값에서 파생한다(손 복제 금지, SOLUTION_MILEAGES 선례).
+export const SOLUTION_AFFILIATE_TYPES = ["비제휴사", "KCC오토", "KCC면제"] as const;
+export const SOLUTION_ACQUISITION_TAX_MODES = ["automatic", "ratio", "reduction", "amount"] as const;
+export const SOLUTION_RELEASE_METHODS = ["dealer", "special"] as const; // 장기렌트 출고방식(dealer=대리점 / special=제조사 특판)
+export const SOLUTION_MAINTENANCE_GRADES = ["basic", "vip"] as const; // 장기렌트 정비 등급
+
 // 파트너 CanonicalQuoteInput의 CRM 전송 서브셋(스펙 §계약).
 export type SolutionQuoteInput = {
   lenderCode: SolutionLenderCode;
@@ -72,6 +80,25 @@ export type SolutionQuoteInput = {
   residualMode?: "high" | "standard";
   residualValueRatio?: number; // 분율(0.45)
   residualAmountOverride?: number; // 원
+  // ── 계산기 모달 확장 17필드(전부 optional — 스펙 2026-07-16 §릴레이 zod 확장, 제프 calculateQuoteSchema 미러) ──
+  // buildSolutionQuoteInput(워크벤치 빌더)은 이 필드들을 만들지 않는다 — 출력 불변(하위호환).
+  affiliateType?: (typeof SOLUTION_AFFILIATE_TYPES)[number];
+  directModelEntry?: boolean;
+  releaseMethod?: (typeof SOLUTION_RELEASE_METHODS)[number]; // 장기렌트 전용(리스는 미전송 — V2 미러)
+  maintenanceGrade?: (typeof SOLUTION_MAINTENANCE_GRADES)[number]; // 장기렌트 전용
+  selectedResidualRateOverride?: number; // 분율(0.45) — 제프는 positive(0 불가)
+  acquisitionTaxMode?: (typeof SOLUTION_ACQUISITION_TAX_MODES)[number];
+  acquisitionTaxAmountOverride?: number; // 원
+  includePublicBondCost?: boolean;
+  publicBondCost?: number; // 원
+  includeDeliveryFeeAmount?: boolean;
+  deliveryFeeAmount?: number; // 원
+  includeMiscFeeAmount?: boolean;
+  miscFeeAmount?: number; // 원
+  cmFeeRate?: number; // 분율(0.01 = 1%)
+  agFeeRate?: number; // 분율
+  insuranceYearlyAmount?: number; // 원/년
+  lossDamageAmount?: number; // 원
 };
 
 const parseWon = (raw: string): number => {

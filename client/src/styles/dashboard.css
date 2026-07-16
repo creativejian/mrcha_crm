@@ -201,7 +201,10 @@
   color: #fff;
 }
 
-.grid {
+/* ⚠️ 프로토타입 공용 .grid — Tailwind `.grid` 유틸리티(@layer utilities)와 클래스명이 겹치고
+   unlayered라 항상 이겨서 gap: 14px을 주입한다. 계산기 모달(제프 이식, Tailwind-only)은
+   스코프에서 제외(theme.css button/input/select 가드와 동일 수법 — :where로 특이성 (0,1,0) 유지). */
+.grid:where(:not(.calculator-modal *)) {
   display: grid;
   gap: 14px;
 }
