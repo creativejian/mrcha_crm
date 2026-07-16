@@ -346,6 +346,34 @@ describe("CustomerManagementPage", () => {
     expect(within(row).getByLabelText("최종 업데이트 없음")).toBeInTheDocument();
   });
 
+  // 배치 6 A#3: chance/finalUpdate 필터 pill은 all mode에만 있다(다른 mode엔 해제 UI 없음).
+  // 비-all mode에선 이 필터를 적용하지 않아야 한다 — 잔존 필터가 목록을 조용히 좁히면 "고객이 사라졌다" 혼동.
+  it("does not carry the 계약가능성 filter into non-all modes", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<CustomerManagementPage mode="all" />);
+
+    // "확정"은 계약완료 단계 종속이라 상담중(consulting) 고객은 하나도 매칭되지 않는다.
+    await user.click(screen.getByRole("button", { name: /계약 가능성/ }));
+    await user.click(within(screen.getByRole("listbox", { name: "계약 가능성 선택" })).getByRole("option", { name: "확정" }));
+
+    rerender(<CustomerManagementPage mode="consulting" />);
+
+    // 구 코드는 "확정" 필터가 consulting에도 적용돼 목록이 비었다(헤더만). 파생 수정 후엔 미적용 → 고객 표시.
+    expect(screen.getAllByRole("row").length).toBeGreaterThan(1);
+  });
+
+  // 배치 6 A#1: 비-all mode의 mock 뷰 pill은 열 옵션이 없으므로 확장 가능(aria-expanded) 신호를 주면 안 된다.
+  it("does not signal an expandable popover on mock view pills", async () => {
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="consulting" />);
+
+    const pill = screen.getByRole("button", { name: "담당자별 보기" });
+    expect(pill).not.toHaveAttribute("aria-expanded");
+    await user.click(pill);
+    expect(pill).not.toHaveAttribute("aria-expanded");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
   it("closes the chance popover from an outside row click without opening the customer", async () => {
     const user = userEvent.setup();
     const onOpenCustomer = vi.fn();

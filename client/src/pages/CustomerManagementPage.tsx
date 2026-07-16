@@ -172,6 +172,11 @@ export function CustomerManagementPage({
   const statuses = statusGroup ? customerStatusGroups[statusGroup] : Object.values(customerStatusGroups).flat();
   const rows = useMemo(() => {
     const keyword = search.trim().toLowerCase();
+    // 계약가능성·관리상태 필터는 all mode에만 pill이 있다(다른 mode엔 해제 UI가 없다). state는
+    // 유지하되 비-all mode에선 적용하지 않는다 — 잔존 필터가 비-all 목록을 조용히 좁혀 "고객이
+    // 사라졌다" 혼동을 만들던 것 해소. all 복귀 시 값이 살아 있어 pill로 다시 제어한다(배치 6 A#3).
+    const activeChanceFilter = mode === "all" ? chanceFilter : "";
+    const activeFinalUpdateFilter = mode === "all" ? finalUpdateFilter : "";
     return customers.filter((customer) => {
       const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${aiHintPlainText(customer)}`.toLowerCase();
       const chance = resolveChance(customer, chanceOverrides[customer.no]);
@@ -183,8 +188,8 @@ export function CustomerManagementPage({
         (!statusGroup || customer.statusGroup === statusGroup) &&
         (!status || customer.status === status) &&
         (!advisor || customer.advisor === advisor) &&
-        (!chanceFilter || chance === chanceFilter) &&
-        (!finalUpdateFilter || updateStatus === finalUpdateFilter);
+        (!activeChanceFilter || chance === activeChanceFilter) &&
+        (!activeFinalUpdateFilter || updateStatus === activeFinalUpdateFilter);
     });
   }, [advisor, chanceFilter, chanceOverrides, customers, finalUpdateFilter, finalUpdateOverrides, mode, search, status, statusGroup]);
 
@@ -842,14 +847,17 @@ export function CustomerManagementPage({
     const selectedLabel = options.items.find((item) => item.value === options.value)?.label ?? options.label;
     const includeAll = options.includeAllOption ?? true;
     const allItems = includeAll ? [{ value: "", label: options.label }, ...options.items] : options.items;
+    // 열 옵션이 없는 pill(비-all mode의 mock 뷰 pill)은 확장 가능 신호(aria-expanded)를 주지 않는다 —
+    // 클릭해도 popover가 없어 스크린리더에 "expanded, listbox"가 거짓으로 안내되던 것 해소(배치 6 A#1).
+    const hasOptions = allItems.length > 0;
 
     return (
       <div className="console-filter">
         <button
-          aria-expanded={open}
-          aria-haspopup="listbox"
+          aria-expanded={hasOptions ? open : undefined}
+          aria-haspopup={hasOptions ? "listbox" : undefined}
           className={filterSelectClass(active, ["console-filter-button", options.extraClassName].filter(Boolean).join(" "))}
-          onClick={() => setOpenConsoleFilter((current) => current === options.id ? null : options.id)}
+          onClick={hasOptions ? () => setOpenConsoleFilter((current) => current === options.id ? null : options.id) : undefined}
           type="button"
         >
           <span>{selectedLabel}</span>
