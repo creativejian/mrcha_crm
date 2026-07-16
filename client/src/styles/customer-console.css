@@ -679,8 +679,25 @@
   color: #7f858c;
   font-size: 13px;
 }
+/* 상세 열기 로딩/실패 배너 — 목록 위에 인라인으로 뜨고 목록을 대체하지 않는다(배치 6 C#1·C#2). */
+.content-notice {
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #f5f5f4;
+  color: #7f858c;
+  font-size: 12.5px;
+}
+.content-notice.error {
+  background: #fdecec;
+  color: #c0392b;
+}
 .content-row {
   cursor: pointer;
+}
+.content-row:focus-visible {
+  outline: 2px solid #5836ff;
+  outline-offset: -2px;
 }
 .content-row:hover td {
   background: #f5f5f4;

@@ -33,6 +33,12 @@ test("GET /api/insights/:id — content·thumbnail 포함", async () => {
   expect(body).toHaveProperty("thumbnailUrl");
 });
 
+test("GET /api/insights/:id — 미존재 id는 404(200 null 아님)", async () => {
+  const { app, token } = await adminApp();
+  const res = await app.request("/api/insights/00000000-0000-0000-0000-000000000000", { headers: { Authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(404);
+});
+
 test("GET /api/knowledge — admin 200, block_number 오름차순", async () => {
   const { app, token } = await adminApp();
   const res = await app.request("/api/knowledge", { headers: { Authorization: `Bearer ${token}` } });
@@ -50,6 +56,12 @@ test("GET /api/knowledge/:id — content 포함", async () => {
   const res = await app.request(`/api/knowledge/${list[0].id}`, { headers: { Authorization: `Bearer ${token}` } });
   expect(res.status).toBe(200);
   expect(await res.json()).toHaveProperty("content");
+});
+
+test("GET /api/knowledge/:id — 미존재 id는 404(200 null 아님)", async () => {
+  const { app, token } = await adminApp();
+  const res = await app.request("/api/knowledge/00000000-0000-0000-0000-000000000000", { headers: { Authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(404);
 });
 
 test("non-admin(staff)은 403 — CRM은 admin 전용 참조", async () => {

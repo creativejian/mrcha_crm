@@ -20,7 +20,7 @@ insightsRoute.use("*", async (c, next) => {
   await next();
 });
 insightsRoute.get("/", (c) => run(c, () => listInsights(c.var.db)));
-insightsRoute.get("/:id", zValidator("param", idParam), (c) => run(c, () => getInsight(c.req.valid("param").id, c.var.db)));
+insightsRoute.get("/:id", zValidator("param", idParam), (c) => run(c, () => getInsight(c.req.valid("param").id, c.var.db), "인사이트를 찾을 수 없습니다."));
 
 export const knowledgeRoute = new Hono<Vars>();
 knowledgeRoute.use("*", async (c, next) => {
@@ -28,4 +28,4 @@ knowledgeRoute.use("*", async (c, next) => {
   await next();
 });
 knowledgeRoute.get("/", (c) => run(c, () => listKnowledgeArticles(c.var.db)));
-knowledgeRoute.get("/:id", zValidator("param", idParam), (c) => run(c, () => getKnowledgeArticle(c.req.valid("param").id, c.var.db)));
+knowledgeRoute.get("/:id", zValidator("param", idParam), (c) => run(c, () => getKnowledgeArticle(c.req.valid("param").id, c.var.db), "지식 문서를 찾을 수 없습니다."));
