@@ -37,7 +37,9 @@ type CustomerManagementPageProps = {
 };
 
 function modeFilter(mode: CustomerMode, customer: Customer) {
-  if (mode === "consulting") return ["신규", "상담중", "견적", "차량체크", "심사서류", "관리중"].includes(customer.statusGroup);
+  // 상담필요 = 계약 전 단계의 "미배정" 고객 업무함(2026-07-16 확정) — 배정되면 이 목록에서 빠져
+  // 담당자 관리 흐름으로 넘어간다. 미배정 판정은 목록 어댑터의 폴백 문자열(lib/customers.ts advisorName ?? "미배정")과 동일 문법.
+  if (mode === "consulting") return (!customer.advisor || customer.advisor === "미배정") && ["신규", "상담중", "견적", "차량체크", "심사서류", "관리중"].includes(customer.statusGroup);
   if (mode === "contract") return ["심사서류", "계약완료"].includes(customer.statusGroup);
   if (mode === "delivery") return customer.statusGroup === "계약완료";
   if (mode === "settlement") return customer.status === "출고완료" && customer.settlementStatus;
