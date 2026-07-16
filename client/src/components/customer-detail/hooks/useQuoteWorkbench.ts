@@ -387,6 +387,35 @@ export function useQuoteWorkbench({
     onToast(`${conditionRound}번 조건을 수정할 수 있습니다.`);
   }
 
+  // N번 복사(비교카드 헤더): 직전 카드의 조건 — 금융사·기간·보증금·선수금·잔존가치·약정거리·자동차세·보조금
+  // (모드+입력값) — 을 이 카드로 복사한다. 월납입·결과 4필드·솔루션 스냅샷은 조회 파생값이라 복사하지 않는다
+  // (조건만 — 복사 후 계산기 재조회가 채운다). 값은 uncontrolled DOM 직접 쓰기(applySolutionResult 관례),
+  // 모드는 patchCardUi — cardUi 변경이 파생·미리보기 effect를 발화시켜 별도 refresh 호출이 없다.
+  function copyManualQuoteCondition(targetId: string, targetRound: string) {
+    if (savedManualQuoteConditionIds.includes(targetId)) return; // 저장(잠금) 카드 보호 — 버튼 disabled 미러
+    const sourceRound = Number(targetRound) - 1;
+    const sourceId = cardIdOfScenarioNo(sourceRound);
+    const compareForm = quoteDetailFormRef.current;
+    const sourceEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${sourceId}"]`);
+    const targetEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${targetId}"]`);
+    if (!sourceEl || !targetEl) return;
+    const sourceLender = sourceEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value ?? "미선택";
+    const targetLender = targetEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]');
+    // 대상 select에 없는 값 대입은 선택을 비워버린다(selectedIndex -1) — 구 어휘 금융사(수정 재진입 견적의
+    // "표시 유지" option)는 대상 카드에 렌더되지 않으므로, option 존재를 확인하고 없으면 건드리지 않는다.
+    const lenderCopyable = targetLender != null && Array.from(targetLender.options).some((o) => o.value === sourceLender);
+    if (targetLender && lenderCopyable) targetLender.value = sourceLender;
+    for (const field of ["deposit", "downPayment", "residual", "subsidy"]) {
+      const src = sourceEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
+      const dst = targetEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
+      if (src && dst) dst.value = src.value;
+    }
+    patchCardUi(targetId, cardUiOf(cardUi, sourceId));
+    onToast(targetLender != null && !lenderCopyable
+      ? `${sourceRound}번 조건을 복사했습니다. (금융사 "${sourceLender}"은 지원 목록에 없어 제외)`
+      : `${sourceRound}번 조건을 복사했습니다.`);
+  }
+
   function markQuoteDraftChanged() {
     if (!isQuoteDraftSaved) return;
     setIsQuoteDraftDirty(true);
@@ -1471,6 +1500,7 @@ export function useQuoteWorkbench({
       // 비교카드
       saveManualQuoteCondition,
       editManualQuoteCondition,
+      copyManualQuoteCondition,
       setManualDepositMode,
       setManualDownPaymentMode,
       setManualResidualMode,

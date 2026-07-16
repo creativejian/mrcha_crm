@@ -99,6 +99,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     setDiscountLineMode,
     saveManualQuoteCondition,
     editManualQuoteCondition,
+    copyManualQuoteCondition,
     setManualDepositMode,
     setManualDownPaymentMode,
     setManualResidualMode,
@@ -448,7 +449,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                         <header>
                           <strong>{condition.title} <span>{condition.round}</span></strong>
                           <div>
-                            {condition.copyLabel ? <button className="copy" type="button">{condition.copyLabel}</button> : null}
+                            {condition.copyLabel ? <button className="copy" disabled={isConditionSaved} onClick={() => copyManualQuoteCondition(condition.id, condition.round)} type="button">{condition.copyLabel}</button> : null}
                             {isConditionSaved ? (
                               <button className="edit" onClick={() => editManualQuoteCondition(condition.id, condition.round)} type="button">수정</button>
                             ) : null}

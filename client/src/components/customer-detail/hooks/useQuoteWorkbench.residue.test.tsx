@@ -563,3 +563,100 @@ describe("useQuoteWorkbench — 승격 컬러 프리필", () => {
     expect(result.current.interiorColor).toBeNull();
   });
 });
+
+// ── N번 조건 복사(비교카드 헤더 "1번 복사"/"2번 복사") ─────────────────────────────
+// 값의 진실 원본이 uncontrolled DOM(금융사 select·금액 input)이라 state가 아닌 카드 DOM을 직접 대조한다.
+
+function setupCopyDom(result: ReturnType<typeof setup>["result"], sourceValues: Record<string, string> = {}) {
+  const compareForm = document.createElement("div");
+  document.body.append(compareForm);
+  result.current.quoteDetailFormRef.current = compareForm;
+  const card1 = buildCardDom("manual-condition-1", sourceValues);
+  const card2 = buildCardDom("manual-condition-2");
+  const card3 = buildCardDom("manual-condition-3");
+  compareForm.append(card1, card2, card3);
+  return { card1, card2, card3 };
+}
+
+const domField = (card: HTMLElement, f: string) =>
+  card.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)!.value;
+
+describe("useQuoteWorkbench — N번 조건 복사(비교카드 헤더)", () => {
+  it("1번 복사: 금융사·조건 입력값(DOM)과 카드 UI 상태(기간/모드/약정거리/자동차세/보조금)를 카드2로 복사한다", () => {
+    const hook = setup();
+    const { result, onToast } = hook;
+    const { card2 } = setupCopyDom(result, {
+      lender: "iM캐피탈", deposit: "5,000,000", downPayment: "3,000,000", residual: "20,000,000", subsidy: "1,000,000",
+    });
+    act(() => {
+      result.current.handlers.setManualTermMonthsFor("manual-condition-1", 48);
+      result.current.handlers.setManualDepositMode("manual-condition-1", "amount");
+      result.current.handlers.setManualDownPaymentMode("manual-condition-1", "amount");
+      result.current.handlers.setManualResidualMode("manual-condition-1", "amount");
+      result.current.handlers.setManualMileageMode("manual-condition-1", "custom");
+      result.current.handlers.setManualMileageValue("manual-condition-1", "30,000km / 년");
+      result.current.handlers.setManualCarTaxFor("manual-condition-1", true);
+      result.current.handlers.setManualSubsidyFor("manual-condition-1", true);
+    });
+    act(() => { result.current.handlers.copyManualQuoteCondition("manual-condition-2", "2"); });
+    expect(domField(card2, "lender")).toBe("iM캐피탈");
+    expect(domField(card2, "deposit")).toBe("5,000,000");
+    expect(domField(card2, "downPayment")).toBe("3,000,000");
+    expect(domField(card2, "residual")).toBe("20,000,000");
+    expect(domField(card2, "subsidy")).toBe("1,000,000");
+    expect(result.current.cardUi["manual-condition-2"]).toEqual(result.current.cardUi["manual-condition-1"]);
+    expect(onToast).toHaveBeenCalledWith("1번 조건을 복사했습니다.");
+  });
+
+  it("월납입·결과 4필드는 조회 파생값이라 복사하지 않는다", () => {
+    const { result } = setup();
+    const { card2 } = setupCopyDom(result, {
+      lender: "iM캐피탈", monthly: "1,234,600", interestRate: "5.32",
+      totalReturn: "80,000,000", totalTakeover: "95,000,000", dueAtDelivery: "5,000,000",
+    });
+    act(() => { result.current.handlers.copyManualQuoteCondition("manual-condition-2", "2"); });
+    expect(domField(card2, "lender")).toBe("iM캐피탈"); // 복사 자체는 수행됐다(대조군)
+    for (const f of ["monthly", "interestRate", "totalReturn", "totalTakeover", "dueAtDelivery"]) {
+      expect(domField(card2, f)).toBe("0");
+    }
+  });
+
+  it("2번 복사: 카드3은 카드2(직전 카드)에서 복사한다 — 카드1이 아니라", () => {
+    const { result } = setup();
+    const { card2, card3 } = setupCopyDom(result);
+    const card2Lender = card2.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')!;
+    card2Lender.value = "iM캐피탈";
+    card2.querySelector<HTMLInputElement>('input[data-sc-field="deposit"]')!.value = "7,000,000";
+    act(() => { result.current.handlers.setManualTermMonthsFor("manual-condition-2", 24); });
+    act(() => { result.current.handlers.copyManualQuoteCondition("manual-condition-3", "3"); });
+    expect(domField(card3, "lender")).toBe("iM캐피탈");
+    expect(domField(card3, "deposit")).toBe("7,000,000");
+    expect(result.current.cardUi["manual-condition-3"].termMonths).toBe(24);
+  });
+
+  it("저장(잠금)된 대상 카드에는 복사하지 않는다 — 버튼 disabled 미러 가드", () => {
+    const { result } = setup();
+    const { card2 } = setupCopyDom(result, { lender: "iM캐피탈", deposit: "5,000,000" });
+    act(() => { result.current.handlers.saveManualQuoteCondition("manual-condition-2", "2"); });
+    act(() => { result.current.handlers.copyManualQuoteCondition("manual-condition-2", "2"); });
+    expect(domField(card2, "lender")).toBe("미선택");
+    expect(domField(card2, "deposit")).toBe("0");
+    expect(result.current.cardUi["manual-condition-2"]).toBeUndefined();
+  });
+
+  it("구 어휘 금융사(대상 select에 option 없음)는 무음 부분 복사 대신 토스트로 제외를 알린다", () => {
+    const hook = setup();
+    const { result, onToast } = hook;
+    const { card1, card2 } = setupCopyDom(result, { deposit: "5,000,000" });
+    const legacyOption = document.createElement("option");
+    legacyOption.value = "구캐피탈";
+    legacyOption.textContent = "구캐피탈";
+    const card1Lender = card1.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')!;
+    card1Lender.append(legacyOption); // 수정 재진입 카드만 렌더하는 "구 어휘 표시 유지" option 재현
+    card1Lender.value = "구캐피탈";
+    act(() => { result.current.handlers.copyManualQuoteCondition("manual-condition-2", "2"); });
+    expect(domField(card2, "lender")).toBe("미선택"); // option 부재 — 세팅 무시
+    expect(domField(card2, "deposit")).toBe("5,000,000"); // 나머지 조건은 복사됨
+    expect(onToast).toHaveBeenCalledWith('1번 조건을 복사했습니다. (금융사 "구캐피탈"은 지원 목록에 없어 제외)');
+  });
+});
