@@ -19,6 +19,7 @@
 
 - **소비처**: `QuoteWorkbench.tsx:346`(VehiclePicker, `key={editingQuoteId ?? "new"}` 리마운트 패턴) — 소비처가 워크벤치뿐인지 grep 후 확정(뿐이면 3컴포넌트 폐기+CSS dead 정리)
 - **수정 재진입 복원**: `initialTrimId` → `fetchWorkbenchVehicleCached(trimId)`가 brands/models/trims 목록+`trimDetail.brandId/modelId` ancestry를 한 번에 복원(VehiclePicker.tsx:37-56). **이 메커니즘은 유지 필수**
+- **⚠️ `initialTrimId`는 이중 소스**(QuoteWorkbench.tsx:346): `editingQuoteId ? openQuoteActionTrimId() : quoteRequestPrefill?.trimId` — **수정 재진입과 앱 견적요청 승격 프리필이 같은 prop 하나를 탄다.** ancestry 복원을 구현하면 승격도 자동 커버되지만, **검증은 두 경로 각각**(T5 ②·③이 분리돼 있는 이유). 옵션/컬러 프리필은 픽커 내부가 아니라 훅 레벨 시딩(useQuoteWorkbench.ts:592-597·619 — qrPrefill 분기)이라 D2 무접촉 원칙이면 자동 보존
 - **onChange 의미론**(VehiclePicker.tsx:96 주석): 드롭다운 직접 선택은 trimDetail 미동봉 → 소비자(applyTrimToPricing)가 fetchTrimDetail 폴백. 번들 동봉은 수정 진입 마운트 경로만
 - **옵션/컬러 상태 계약**(useQuoteWorkbench.ts): `selectedWorkbenchOptionIds`·`exteriorColor/interiorColor(TrimColor)`·견적요청 prefill `{trimId, optionIds, exteriorColorId, interiorColorId}`(:114) · 저장 스냅샷 = quotes의 `options[]`/`optionTotal`/색상명(:228-229, customer-quotes.ts) — **서버 zod·저장 계약 무변경**
 - 할인 항목명 select(:380, bindSelect)는 **별개** — 이 슬라이스 무관, 잔존
