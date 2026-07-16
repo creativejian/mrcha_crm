@@ -1,11 +1,11 @@
 // 제프(dolim-solution) components/vehicle/TrimPickerDialog.tsx 1:1 이식 — UI/마크업/인터랙션 원형 유지.
-// CRM 배선 = import 경로만: @/types/catalog → ../catalog-types.
+// CRM 배선 = import 경로만: @/types/catalog → ./catalog-types. 공용 위치(계산기·워크벤치 SSOT — plan: ref/plans/2026-07-16-crm-workbench-picker-dialog-unify.md).
 // CRM에서 mcCode 없는 트림은 T2 어댑트가 placeholder(`crm-trim-{id}`) + quotable=false로 채운다 —
 //   여기 disabled 처리("잔가 데이터 없음" 배지)가 그대로 선택을 막아 placeholder가 payload로 새지 않는다.
 // (spec: ref/specs/2026-07-16-crm-calculator-modal-design.md — T3a)
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, X } from 'lucide-react'
-import type { MasterTrim } from '../catalog-types'
+import type { MasterTrim } from './catalog-types'
 
 function formatPriceKor(v: number): string {
   if (!v || v <= 0) return ''
@@ -185,7 +185,8 @@ export function TrimPickerDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-up"
+      /* jeff-ui = 공용 스코프 루트(calculator.css) — 워크벤치 등 계산기 밖 컨텍스트에서도 토큰·가드 성립 */
+      className="jeff-ui fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-up"
       onClick={onClose}
     >
       <div

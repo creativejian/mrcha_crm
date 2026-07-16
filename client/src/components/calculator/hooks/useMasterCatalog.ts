@@ -16,47 +16,14 @@
 //   mcCode ← mcCode ?? `crm-trim-{id}`(렌더 key 전용 placeholder — quotable=false로 선택 불가라
 //   payload masterMcCode로 전송될 일 없음) · quotable ← mcCode != null(제프 의미 = 잔가 데이터 보유,
 //   CRM 대응 = mcCode 없으면 계산 불가) · canonicalName/trimName 등 나머지 = 동명 passthrough
+//   (변환 함수 본체는 vehicle-pickers/catalog-adapters.ts 공용 — 워크벤치 픽커와 SSOT)
 //
 // 제프 원형과 달라진 점: lenderCode 파라미터 제거(제프 = lender별 offering 필터 카탈로그,
 // CRM /api/vehicles는 필터 개념 없음. V2 페이지도 인자 없이 호출).
 import { useCallback, useEffect, useState } from 'react'
-import { fetchBrands, fetchModels, fetchTrims, type Brand, type Model, type Trim } from '@/lib/vehicles'
-import type { MasterBrand, MasterModel, MasterTrim } from '../catalog-types'
-
-const toMasterBrand = (b: Brand): MasterBrand => ({
-  id: b.id,
-  brandCode: b.id,
-  name: b.name,
-  isDomestic: b.isDomestic,
-  isPopular: b.isPopular,
-  sortOrder: b.sortOrder ?? 0,
-})
-
-const toMasterModel = (m: Model): MasterModel => ({
-  id: m.id,
-  modelCode: m.id,
-  name: m.name,
-  category: m.category,
-  imageUrl: m.imageUrl,
-  minPrice: null,
-  maxPrice: null,
-})
-
-const toMasterTrim = (t: Trim): MasterTrim => ({
-  trimId: t.id,
-  mcCode: t.mcCode ?? `crm-trim-${t.id}`,
-  name: t.name,
-  trimName: t.trimName,
-  canonicalName: t.canonicalName,
-  price: t.price,
-  modelYear: t.modelYear,
-  fuelType: t.fuelType,
-  displacementCc: t.displacementCc,
-  driveSystem: t.driveSystem,
-  bodyStyle: t.bodyStyle,
-  status: t.status,
-  quotable: t.mcCode != null,
-})
+import { fetchBrands, fetchModels, fetchTrims } from '@/lib/vehicles'
+import { toMasterBrand, toMasterModel, toMasterTrim } from '@/components/vehicle-pickers/catalog-adapters'
+import type { MasterBrand, MasterModel, MasterTrim } from '@/components/vehicle-pickers/catalog-types'
 
 export interface MasterCatalogState {
   brands: MasterBrand[]

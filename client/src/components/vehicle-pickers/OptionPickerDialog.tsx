@@ -1,9 +1,9 @@
 // 제프(dolim-solution) components/vehicle/OptionPickerDialog.tsx 1:1 이식 — UI/마크업/인터랙션 원형 유지.
-// CRM 배선 = import 경로만: @/types/catalog → ../catalog-types.
+// CRM 배선 = import 경로만: @/types/catalog → ./catalog-types. 공용 위치(계산기·워크벤치 SSOT — plan: ref/plans/2026-07-16-crm-workbench-picker-dialog-unify.md).
 // (spec: ref/specs/2026-07-16-crm-calculator-modal-design.md — T3a)
 import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
-import type { TrimOption, TrimOptionRelation } from '../catalog-types'
+import type { TrimOption, TrimOptionRelation } from './catalog-types'
 
 interface Props {
   open: boolean
@@ -155,7 +155,11 @@ export function OptionPickerDialog({
   const isEmpty = basic.length === 0 && tuning.length === 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div
+      /* jeff-ui = 공용 스코프 루트(calculator.css) — 워크벤치 등 계산기 밖 컨텍스트에서도 토큰·가드 성립 */
+      className="jeff-ui fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
       <div
         className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}

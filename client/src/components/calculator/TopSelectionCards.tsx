@@ -1,6 +1,7 @@
 // 제프(dolim-solution) components/redesign/TopSelectionCards.tsx 1:1 이식 — UI/마크업/인터랙션 원형 유지.
 // CRM 배선 = import 경로만: @/hooks/useMasterCatalog → ./hooks/useMasterCatalog ·
-//   @/components/vehicle/* → ./vehicle/* · @/types/catalog → ./catalog-types (./types는 동일).
+//   @/components/vehicle/* · @/types/catalog → @/components/vehicle-pickers/* (계산기·워크벤치 공용 SSOT —
+//   plan: ref/plans/2026-07-16-crm-workbench-picker-dialog-unify.md. ./types는 동일).
 // 제프 원형과의 차이 1건: 미사용 로컬 DropdownRow(제프에서도 참조 0인 데드 코드 — 아래 primitives 주석 참조)는
 //   CRM lint(@typescript-eslint/no-unused-vars error)가 막아 제거했다. 렌더 출력 무영향.
 // (spec: ref/specs/2026-07-16-crm-calculator-modal-design.md — T3a)
@@ -8,12 +9,12 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { MasterCatalogState, MasterCatalogActions } from './hooks/useMasterCatalog'
-import { BrandPickerDialog, brandLogoUrl } from './vehicle/BrandPickerDialog'
-import { ModelPickerDialog } from './vehicle/ModelPickerDialog'
-import { TrimPickerDialog } from './vehicle/TrimPickerDialog'
-import { OptionPickerDialog } from './vehicle/OptionPickerDialog'
-import { ColorPickerDialog } from './vehicle/ColorPickerDialog'
-import type { TrimColor, TrimOption, TrimOptionRelation } from './catalog-types'
+import { BrandPickerDialog, brandLogoUrl } from '@/components/vehicle-pickers/BrandPickerDialog'
+import { ModelPickerDialog } from '@/components/vehicle-pickers/ModelPickerDialog'
+import { TrimPickerDialog } from '@/components/vehicle-pickers/TrimPickerDialog'
+import { OptionPickerDialog } from '@/components/vehicle-pickers/OptionPickerDialog'
+import { ColorPickerDialog } from '@/components/vehicle-pickers/ColorPickerDialog'
+import type { TrimColor, TrimOption, TrimOptionRelation } from '@/components/vehicle-pickers/catalog-types'
 import type { TaxReductionMode, ToggleIncluded, DiscountUnit } from './types'
 
 /**

@@ -6,11 +6,9 @@ import { CRM_EXTRA_LENDERS, solutionLenderOptions } from "@/lib/solution-quote";
 import { bindSelect } from "@/lib/select-bind";
 import { isDocumentFileDrag } from "@/lib/detail-utils";
 import { QUOTE_GUIDANCE_OPTIONS } from "@/data/quote-guidance";
-import { ColorPicker } from "@/components/ColorPicker";
 import { AppCardPreview } from "@/components/AppCardPreview";
-import { OptionPicker } from "@/components/OptionPicker";
-import { VehiclePicker } from "@/components/VehiclePicker";
 import { SolutionLenderRankingModal } from "./SolutionLenderRankingModal";
+import { WorkbenchColorPicker, WorkbenchOptionPicker, WorkbenchVehiclePicker } from "./WorkbenchVehiclePickers";
 
 import {
   cardUiOf,
@@ -343,7 +341,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
             <div className="kim-jeff-top-grid">
               <div className="kim-jeff-section">
                 <h4>🚘 차량 선택</h4>
-                <VehiclePicker key={editingQuoteId ?? "new"} initialTrimId={editingQuoteId ? openQuoteActionTrimId() : (quoteRequestPrefill?.trimId ?? undefined)} onChange={(selection) => { void applyTrimToPricing(selection); }} />
+                <WorkbenchVehiclePicker key={editingQuoteId ?? "new"} initialTrimId={editingQuoteId ? openQuoteActionTrimId() : (quoteRequestPrefill?.trimId ?? undefined)} onChange={(selection) => { void applyTrimToPricing(selection); }} />
               </div>
               <div className="kim-jeff-section">
                 <h4>🎨 옵션 / 컬러</h4>
@@ -355,9 +353,9 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                   </div>
                 ) : (
                   <>
-                    <OptionPicker key={trimDetail?.id ?? "none"} options={trimDetail?.options ?? []} relations={trimDetail?.optionRelations ?? []} initialSelectedIds={selectedWorkbenchOptionIds} onChange={applyOptionTotal} />
-                    <ColorPicker colorType="exterior" colors={trimDetail?.colors ?? []} value={exteriorColor} onChange={(c) => { setExteriorColor(c); markQuoteDraftChanged(); }} />
-                    <ColorPicker colorType="interior" colors={trimDetail?.colors ?? []} value={interiorColor} onChange={(c) => { setInteriorColor(c); markQuoteDraftChanged(); }} />
+                    <WorkbenchOptionPicker options={trimDetail?.options ?? []} relations={trimDetail?.optionRelations ?? []} selectedIds={selectedWorkbenchOptionIds} trimLabel={workbenchVehicleLabel} onChange={applyOptionTotal} />
+                    <WorkbenchColorPicker colorType="exterior" colors={trimDetail?.colors ?? []} value={exteriorColor} onChange={(c) => { setExteriorColor(c); markQuoteDraftChanged(); }} />
+                    <WorkbenchColorPicker colorType="interior" colors={trimDetail?.colors ?? []} value={interiorColor} onChange={(c) => { setInteriorColor(c); markQuoteDraftChanged(); }} />
                   </>
                 )}
               </div>
