@@ -10,7 +10,7 @@ import { fetchCustomers, updateCustomer } from "@/lib/customers";
 import { fetchAppQuoteRequests } from "@/lib/quote-requests";
 import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
-import { customerCodeFromLocation } from "@/lib/customer-route";
+import { customerCodeFromLocation, customerListPath, customerModeFromSearch } from "@/lib/customer-route";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
@@ -92,7 +92,8 @@ export function App() {
       : location.pathname.startsWith("/mc-master/")
         ? "mc-master"
         : "advisor-dashboard");
-  const [customerMode, setCustomerMode] = useState<CustomerMode>("all");
+  // 고객 목록 mode는 URL(?view=)이 single source — 드로어(?customer)와 같은 축. 딥링크·새로고침 유지·뒤로가기.
+  const customerMode = customerModeFromSearch(location.search);
   const [financeMode, setFinanceMode] = useState<FinanceMode>("stats");
   const [toast, setToast] = useState("작업이 반영되었습니다.");
   const [toastVisible, setToastVisible] = useState(false);
@@ -210,10 +211,17 @@ export function App() {
     navigate(VIEW_TO_PATH[view as ViewKey] ?? "/");
   }
 
+  // 사이드바 고객 관리 서브메뉴 → mode를 URL로 전환(all은 view 생략). 드로어는 닫힌다(customer 미포함).
+  function handleCustomerModeChange(mode: CustomerMode) {
+    setCustomerDetailEditorOpen(false);
+    navigate(customerListPath(mode));
+  }
+
   function openCustomerDetailPanel(customer: Customer) {
     const alreadyOpen = isDrawerOpen;
     setCustomerDetailEditorOpen(false);
-    navigate(`/customers?customer=${encodeURIComponent(customer.customerId)}`, { replace: alreadyOpen });
+    // 현재 mode를 유지한 채 드로어를 연다(?view=x&customer=code) — 닫으면 그 목록으로 돌아간다.
+    navigate(customerListPath(customerMode, customer.customerId), { replace: alreadyOpen });
     showToast(`${customer.name} 고객 상세 패널을 열었습니다.`);
   }
 
@@ -221,7 +229,7 @@ export function App() {
   // 드로어는 URL이 single source(/customers?customer=code)라 목록이 도착하는 순간 자동으로 열린다
   // (isDrawerOpen이 selectedCustomer 발견 시점에 성립 — 새 상태 0, 기존 메커니즘 그대로).
   function handleCustomerCreated(customerCode: string) {
-    navigate(`/customers?customer=${encodeURIComponent(customerCode)}`, { replace: isDrawerOpen });
+    navigate(customerListPath(customerMode, customerCode), { replace: isDrawerOpen });
     showToast("고객이 등록되었습니다.");
     // 리로드 실패 = 등록은 됐는데 드로어가 조용히 안 열리는 상태 — 실패를 등록 맥락으로 알린다.
     void reloadCustomers().then((ok) => {
@@ -287,12 +295,12 @@ export function App() {
     function closeByEscape(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       if (customerDetailEditorOpen) return;
-      navigate("/customers");
+      navigate(customerListPath(customerMode)); // 드로어만 닫고 현재 mode 목록 유지
     }
 
     document.addEventListener("keydown", closeByEscape);
     return () => document.removeEventListener("keydown", closeByEscape);
-  }, [customerDetailEditorOpen, isDrawerOpen, navigate]);
+  }, [customerDetailEditorOpen, customerMode, isDrawerOpen, navigate]);
 
   // 고객 상세 패널이 열린 동안 배경(고객 목록 페이지) 스크롤을 잠가 스크롤 전파(chaining)를 막는다.
   useEffect(() => {
@@ -368,7 +376,7 @@ export function App() {
 
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} onCustomerModeChange={setCustomerMode} onFinanceModeChange={setFinanceMode} onViewChange={handleViewChange} />
+      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} onCustomerModeChange={handleCustomerModeChange} onFinanceModeChange={setFinanceMode} onViewChange={handleViewChange} />
       <main className="main">
         <Topbar
           sidebarCollapsed={sidebarCollapsed}
@@ -403,12 +411,12 @@ export function App() {
       </main>
       {isDrawerOpen && selectedCustomer && (
         <div className="customer-detail-drawer-overlay" role="presentation">
-          <button aria-label="고객 상세 닫기" className="customer-detail-drawer-backdrop" onClick={() => navigate("/customers")} type="button" />
+          <button aria-label="고객 상세 닫기" className="customer-detail-drawer-backdrop" onClick={() => navigate(customerListPath(customerMode))} type="button" />
           <aside aria-label={`${selectedCustomer.name} 고객 상세 패널`} className="customer-detail-drawer" role="dialog" aria-modal="true">
             <CustomerDetailPage
               chanceOverride={chanceOverrides[selectedCustomer.no]}
               customer={selectedCustomer}
-              onBack={() => navigate("/customers")}
+              onBack={() => navigate(customerListPath(customerMode))}
               onEditorOpenChange={setCustomerDetailEditorOpen}
               onFullScreen={openCustomerDetailFullScreen}
               onToast={showToast}
