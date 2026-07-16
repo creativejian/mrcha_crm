@@ -1,7 +1,7 @@
 // 앱 콘텐츠(public.insights·knowledge_articles) 읽기 전용 조회 — CRM admin 참조 화면용.
 // write·임베딩·knowledge_chunks는 앱 소유(범위 밖). 목록은 메타만(content 제외 — knowledge 111행
 // 전문 일괄 로드 방지), 상세(:id)에서만 content를 싣는다.
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import { insights, knowledgeArticles } from "../public-app";
@@ -46,6 +46,7 @@ export async function listInsights(ex: Executor = getDefaultDb()): Promise<Insig
       updatedAt: insights.updatedAt,
     })
     .from(insights)
+    .where(eq(insights.status, "published")) // 앱 미발행 draft는 CRM 참조 화면에서 제외(이사님 결정 2026-07-16)
     .orderBy(desc(insights.createdAt));
 }
 
@@ -63,7 +64,7 @@ export async function getInsight(id: string, ex: Executor = getDefaultDb()): Pro
       thumbnailUrl: insights.thumbnailUrl,
     })
     .from(insights)
-    .where(eq(insights.id, id))
+    .where(and(eq(insights.id, id), eq(insights.status, "published"))) // draft는 딥링크로도 노출 안 함
     .limit(1);
   return row ?? null;
 }
