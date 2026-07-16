@@ -17,10 +17,8 @@ export type MoneyInputProps = ComponentPropsWithoutRef<"input"> & Record<`data-$
 export type ValueSelectProps = ComponentPropsWithoutRef<"select"> & Record<`data-${string}`, string | undefined>;
 
 export type SegmentOption<T extends string | number> = { value: T; label: string };
-
-// 취득세 4모드 라벨 어휘 SSOT — 모드 value는 화면별 상태 계약(워크벤치 normal·계산기 none)이라
-// 각자 zip한다(라벨만 1벌).
-export const ACQUISITION_TAX_MODE_LABELS = ["일반", "하이브리드 감면", "전기차 감면", "직접 입력"] as const;
+// 취득세 4모드 라벨 어휘는 quote-workbench-meta.ACQUISITION_TAX_MODE_LABELS(어휘 SSOT의 집 —
+// react-refresh 규칙상 컴포넌트 파일에 상수 export 불가).
 
 /** 세그먼트 버튼 그룹(.kim-jeff-segment). onSelect 미전달 = 장식 세그먼트(워크벤치 공채/탁송료/부대비용 현행). */
 export function SegmentGroup<T extends string | number>({

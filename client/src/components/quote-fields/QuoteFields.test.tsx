@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  ACQUISITION_TAX_MODE_LABELS,
   CondCombo,
   CondRow,
   DiscountLineRow,
@@ -16,6 +15,7 @@ import {
   SummaryRow,
   ValueSelect,
 } from "./QuoteFields";
+import { ACQUISITION_TAX_MODE_LABELS } from "@/components/customer-detail/quote-workbench-meta";
 
 describe("SegmentGroup", () => {
   it("active 분기·클릭 시 onSelect(value)·wide 변형", async () => {
