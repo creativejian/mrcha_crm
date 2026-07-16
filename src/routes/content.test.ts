@@ -47,6 +47,9 @@ test("GET /api/knowledge — admin 200, block_number 오름차순", async () => 
   expect(Array.isArray(body)).toBe(true);
   const blocks = body.map((r: { blockNumber: number | null }) => r.blockNumber).filter((b: number | null): b is number => b != null);
   expect(blocks).toEqual([...blocks].sort((a, b) => a - b));
+  // knowledge_articles는 111행 실재(0행이면 데이터 이상 — fail) → 목록 메타-only 계약을 무조건 잠근다.
+  expect(body.length).toBeGreaterThan(0);
+  expect(body[0]).not.toHaveProperty("content"); // 목록은 메타만(전문은 상세에서만)
 });
 
 test("GET /api/knowledge/:id — content 포함", async () => {
@@ -64,9 +67,13 @@ test("GET /api/knowledge/:id — 미존재 id는 404(200 null 아님)", async ()
   expect(res.status).toBe(404);
 });
 
-test("non-admin(staff)은 403 — CRM은 admin 전용 참조", async () => {
-  const { token, keyResolver, issuer } = await makeTestAuth("staff");
-  const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/insights", { headers: { Authorization: `Bearer ${token}` } });
-  expect(res.status).toBe(403);
+test("non-admin(staff·manager·dealer)은 403 — admin 전용 게이트(manager를 admin 유사로 완화하는 회귀 방어)", async () => {
+  for (const role of ["staff", "manager", "dealer"] as const) {
+    const { token, keyResolver, issuer } = await makeTestAuth(role);
+    const app = createApp({ keyResolver, issuer });
+    const insights = await app.request("/api/insights", { headers: { Authorization: `Bearer ${token}` } });
+    const knowledge = await app.request("/api/knowledge", { headers: { Authorization: `Bearer ${token}` } });
+    expect(insights.status).toBe(403);
+    expect(knowledge.status).toBe(403);
+  }
 });
