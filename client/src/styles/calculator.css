@@ -124,3 +124,9 @@
     0 10px 22px rgba(15, 23, 42, 0.07),
     0 2px 6px rgba(15, 23, 42, 0.035);
 }
+
+/* 카드 직속(콤보 밖) 세그먼트의 40% 고정폭은 워크벤치 어휘(불포함/포함) 전제 — 계산기 전용 어휘
+   (리스료에 포함·금융사 특판·만 21세 이상 등)가 넘치면 내용폭으로 성장(짧으면 40% 유지). */
+.calculator-modal .kim-manual-compare-body label > .kim-jeff-segment:not(.wide) {
+  min-width: max-content;
+}
