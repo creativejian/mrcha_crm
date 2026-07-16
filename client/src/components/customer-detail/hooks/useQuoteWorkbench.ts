@@ -11,7 +11,7 @@ import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solutio
 import { deriveCardResults, residualAmountOf } from "@/lib/lease-rate";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { seedScenarioCardFromRequest } from "@/lib/quote-request-seed";
-import { type VehicleSelection } from "@/components/VehiclePicker";
+import { type VehicleSelection } from "@/components/customer-detail/WorkbenchVehiclePickers";
 import { buildAppCardModel, type AppCardModel } from "@/lib/app-card";
 import { computePricing, formatMoney, parseMoney, parsePercentInput, type PricingInputs, type PricingResult } from "@/lib/quote-pricing";
 import { fetchTrimDetail, type TrimColor, type TrimDetail } from "@/lib/vehicles";

@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router";
 import type { Customer } from "@/data/customers";
 import type { CustomerDetailData } from "@/lib/customers";
 import type { QuoteItem } from "@/lib/quote-items";
-import type { VehicleSelection } from "@/components/VehiclePicker";
+import type { VehicleSelection } from "@/components/customer-detail/WorkbenchVehiclePickers";
 import { DEFAULT_QUOTE_GUIDANCE, regionFromResidence } from "@/data/quote-guidance";
 import { fetchQuoteRequestDetail } from "@/lib/quote-requests";
 import { createQuote, requestSolutionQuote } from "@/lib/customer-quotes";
