@@ -304,6 +304,8 @@ export function useCustomerWorkflow({
 
   return {
     statusValues,
+    // 앱 연결 고객의 주 번호 잠금(2026-07-17 spec §3-7) — 값 회색·APP 필 표시와 편집 차단이 같은 소스를 본다.
+    phoneLocked: Boolean(detail.appUserId),
     advisorId,
     stageGroup,
     stageStatus,

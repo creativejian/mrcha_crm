@@ -22,7 +22,7 @@ type StatusWorkflowProps = {
 };
 
 export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEditor, editorRef, workflow }: StatusWorkflowProps) {
-  const { statusValues, advisorId, stageGroup, stageStatus, chance, manage, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
+  const { statusValues, phoneLocked, advisorId, stageGroup, stageStatus, chance, manage, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
   const navigate = useNavigate();
   // 앱 채팅 이동은 앱 계정 연결(appUserId)이 전제 — source 어휘만 앱 계열이고 미연결이면 볼 채팅이 없다.
   const appChatUserId = hasAppSourceQueue(statusValues.source) ? customer.appUserId ?? null : null;
@@ -234,7 +234,15 @@ export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEdit
                 <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                 <span className="kim-status-copy">
                 <span>{field.label}</span>
-                <strong className={isUnassignedStatus(field.key, statusValues[field.key]) ? "is-unassigned" : undefined}>{statusValues[field.key]}</strong>
+                {/* 앱 등록 번호(잠금)는 값 회색 + APP 필(2026-07-17 유슨생 — 목록 NEW 필 문법) */}
+                {field.key === "phone" && phoneLocked ? (
+                  <strong className="is-app-locked">
+                    {statusValues[field.key]}
+                    <span className="kim-app-pill" aria-label="앱 등록 번호">APP</span>
+                  </strong>
+                ) : (
+                  <strong className={isUnassignedStatus(field.key, statusValues[field.key]) ? "is-unassigned" : undefined}>{statusValues[field.key]}</strong>
+                )}
                 </span>
               </button>
               {openEditor?.kind === "status" && openEditor.key === field.key ? renderStatusEditor(field.key) : null}

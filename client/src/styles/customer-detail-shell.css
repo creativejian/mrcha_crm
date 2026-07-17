@@ -555,6 +555,32 @@
   color: #c24132;
 }
 
+/* 앱 등록 번호 잠금(2026-07-17 spec §3-7) — 편집 불가를 값 톤으로 표시(라벨/아이콘과 같은 회색). */
+.kim-status-copy strong.is-app-locked {
+  color: #8f969c;
+}
+
+/* APP 필 — 목록 stage-new-badge(NEW) 문법 미러(customer-list.css 스코프라 복제, 값만 동일 유지). */
+.kim-app-pill {
+  min-width: 20px;
+  height: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 3px 0;
+  background: #0f9f6e;
+  box-shadow: 0 1px 3px rgba(15, 159, 110, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(0.5px);
+}
+
 .kim-status-copy strong .kim-app-queue-button {
   width: 28px;
   height: 28px;
