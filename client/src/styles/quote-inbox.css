@@ -62,6 +62,28 @@
   pointer-events: none; /* 배지가 링크 히트 영역을 가리지 않게 */
 }
 
+/* ── 상담 신청 DB 인박스 ─────────────────────────────────────────────────────
+   서피스·매칭 칩·액션 버튼·충돌 안내는 위 견적요청 인박스 클래스(console-table/app-req-*)를
+   그대로 재사용 — 여기엔 이 테이블 고유 규칙(컬럼 폭·그룹 행·펼침 리스트)만 둔다. */
+.consult-inbox-table { table-layout: fixed; }
+.consult-inbox-table td { vertical-align: top; }
+.consult-inbox-col-date { width: 80px; }   /* "26/06/29" + 시간 2줄(sub) — 견적요청 인박스와 동일 */
+.consult-inbox-col-name { width: 90px; }
+.consult-inbox-col-phone { width: 112px; } /* "010-1234-5678" nowrap */
+.consult-inbox-col-count { width: 74px; }  /* "37건" + 펼침 chevron */
+.consult-inbox-row { cursor: pointer; }    /* 행 클릭 = 개별 상담 펼침(상세 이동 아님 — 고객 목록 행과 의미 다름) */
+.consult-inbox-count { white-space: nowrap; color: #5f6872; }
+.consult-inbox-chevron { margin-left: 4px; vertical-align: -2px; color: #9aa1a8; transition: transform 0.15s ease; }
+.consult-inbox-chevron.open { transform: rotate(180deg); }
+.consult-inbox-preview { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #5f6872; }
+/* 펼침 영역 — 개별 상담(날짜·차종·문의) 읽기 전용 리스트. 그룹 행과 톤을 살짝 분리. */
+.consult-inbox-detail-row td { background: #fdfdfc; }
+.consult-inbox-items { margin: 0; padding: 2px 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.consult-inbox-items li { display: flex; gap: 10px; align-items: baseline; font-size: 12.5px; }
+.consult-inbox-item-date { flex: none; width: 96px; color: #7f858c; white-space: nowrap; }
+.consult-inbox-item-car { flex: none; font-weight: 600; color: #3d4650; white-space: nowrap; }
+.consult-inbox-item-notes { color: #4f5a64; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* link 충돌 인라인 안내 — 차단 사유 + 충돌 고객으로 가는 경로(닫기 전까지 유지, 토스트보다 읽을 시간 확보) */
 .app-req-conflict {
   display: flex;
