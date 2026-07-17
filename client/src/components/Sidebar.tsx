@@ -4,6 +4,7 @@ import mrchaLogoColor from "@/assets/mrcha-logo-color.svg";
 import { customerModeMeta, type CustomerMode } from "@/data/customers";
 import type { FinanceMode } from "@/pages/FinancePage";
 import type { RoleTab } from "@/data/roles";
+import { prefetchPendingConsultations } from "@/lib/consultations";
 import { prefetchAppQuoteRequests } from "@/lib/quote-requests";
 import { cn } from "@/lib/utils";
 
@@ -99,8 +100,9 @@ const financeModes: Array<[FinanceMode, string]> = [
   ["payroll", "급여 관리"],
 ];
 
+// "상담 신청 DB"는 실제 라우트(/consultation-requests — 상담신청 인박스), "실시간 상담 요청"은 아직 스텁(하이라이트만).
 const advisorAssignmentModes = [
-  ["advisor-assignment-db", "상담 신청 DB"],
+  ["consultation-requests", "상담 신청 DB"],
   ["advisor-assignment-live", "실시간 상담 요청"],
 ] as const;
 
@@ -190,7 +192,8 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
 
   function handleAdvisorAssignmentToggle() {
     if (collapsed) {
-      setSelectedDraftMenu("advisor-assignment-db");
+      // 접힘 상태 부모 클릭 = 첫 서브메뉴(고객 관리 handleCustomersToggle 미러 — 구 draft 하이라이트 폐기).
+      navigate("consultation-requests");
       return;
     }
     setSelectedDraftMenu("advisor-assignment");
@@ -199,6 +202,15 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
       return;
     }
     setAdvisorAssignmentOpen(true);
+  }
+
+  // 상담사 배정 서브메뉴 — 상담 신청 DB만 실제 navigate, 나머지(실시간 상담 요청)는 스텁 하이라이트 유지.
+  function handleAdvisorAssignmentSelect(view: string) {
+    if (view === "consultation-requests") {
+      navigate(view);
+      return;
+    }
+    setSelectedDraftMenu(view);
   }
 
   return (
@@ -230,9 +242,9 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
         <div className="sidebar-admin-section">
           <nav className="nav admin-nav">
             <div className="nav-group">
-              <button aria-label="상담사 배정" className={cn(navButtonClass(visibleActiveView.startsWith("advisor-assignment")), collapsed && "has-flyout")} data-label="상담사 배정" onClick={handleAdvisorAssignmentToggle} type="button"><MenuIcon name="headphones" /><span>상담사 배정</span><ChevronDown className={`nav-chevron ${advisorAssignmentOpen ? "open" : ""}`} size={16} /></button>
-              {!collapsed && advisorAssignmentOpen && <div className="subnav">{advisorAssignmentModes.map(([view, label]) => <button className={subnavButtonClass(visibleActiveView === view)} key={view} onClick={() => setSelectedDraftMenu(view)} type="button">{label}</button>)}</div>}
-              {collapsed && <SidebarFlyout title="상담사 배정" items={advisorAssignmentModes.map(([view, label]) => ({ active: visibleActiveView === view, label, onClick: () => setSelectedDraftMenu(view) }))} />}
+              <button aria-label="상담사 배정" className={cn(navButtonClass(visibleActiveView.startsWith("advisor-assignment") || visibleActiveView === "consultation-requests"), collapsed && "has-flyout")} data-label="상담사 배정" onClick={handleAdvisorAssignmentToggle} type="button"><MenuIcon name="headphones" /><span>상담사 배정</span><ChevronDown className={`nav-chevron ${advisorAssignmentOpen ? "open" : ""}`} size={16} /></button>
+              {!collapsed && advisorAssignmentOpen && <div className="subnav">{advisorAssignmentModes.map(([view, label]) => <button className={subnavButtonClass(visibleActiveView === view)} key={view} onClick={() => handleAdvisorAssignmentSelect(view)} onMouseEnter={view === "consultation-requests" ? () => prefetchPendingConsultations() : undefined} type="button">{label}</button>)}</div>}
+              {collapsed && <SidebarFlyout title="상담사 배정" items={advisorAssignmentModes.map(([view, label]) => ({ active: visibleActiveView === view, label, onClick: () => handleAdvisorAssignmentSelect(view) }))} />}
             </div>
             <button aria-label="팀원 관리" className={navButtonClass(visibleActiveView === "team-members")} data-label="팀원 관리" onClick={() => setSelectedDraftMenu("team-members")} type="button"><MenuIcon name="team" /><span>팀원 관리</span></button>
             {canViewAdminMenu && (

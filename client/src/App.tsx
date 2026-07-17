@@ -18,6 +18,7 @@ import { AISettingsPage } from "@/pages/AISettingsPage";
 import { AppRequestsPage } from "@/pages/AppRequestsPage";
 import { AdminDashboardPage, DashboardPreviewPage } from "@/pages/DashboardPages";
 import { ChatPage } from "@/pages/ChatPage";
+import { ConsultationRequestsPage } from "@/pages/ConsultationRequestsPage";
 import { CustomerDetailPage } from "@/pages/CustomerDetailPage";
 import { CustomerManagementPage } from "@/pages/CustomerManagementPage";
 import { DeliveryPage } from "@/pages/DeliveryPage";
@@ -30,7 +31,7 @@ import { OrgMembersPage } from "@/pages/OrgMembersPage";
 import { PartnersPage } from "@/pages/PartnersPage";
 import { PipelinePage } from "@/pages/PipelinePage";
 
-type ViewKey = "advisor-dashboard" | "admin-dashboard" | "chat" | "customers" | "app-requests" | "customer-detail" | "pipeline" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance" | "handoff-operation";
+type ViewKey = "advisor-dashboard" | "admin-dashboard" | "chat" | "customers" | "app-requests" | "consultation-requests" | "customer-detail" | "pipeline" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance" | "handoff-operation";
 
 const VIEW_TO_PATH: Record<ViewKey, string> = {
   "advisor-dashboard": "/",
@@ -38,6 +39,7 @@ const VIEW_TO_PATH: Record<ViewKey, string> = {
   chat: "/chat",
   customers: "/customers",
   "app-requests": "/app-requests",
+  "consultation-requests": "/consultation-requests",
   "customer-detail": "/customer-detail",
   pipeline: "/pipeline",
   delivery: "/delivery",
@@ -61,6 +63,7 @@ const viewMeta: Record<Exclude<ViewKey, "customers" | "finance">, [string, strin
   "admin-dashboard": ["경영 리포트", "전체 운영, 상담 전환, 매출/지출, 직원 생산성 등 차선생의 주요 지표를 리포트 단위로 확인합니다."],
   chat: ["실시간 상담", "앱에서 상담원 연결을 요청한 고객을 접수하고, AI 상담 요약을 보며 실시간 상담으로 전환합니다."],
   "app-requests": ["앱 견적요청", "앱에서 고객이 직접 만든 견적요청을 확인하고, 추후 고객·견적으로 연결합니다."],
+  "consultation-requests": ["상담 신청 DB", "앱에서 접수된 상담신청을 유저별로 모아 확인하고, 기존 고객 연결 또는 신규 고객 생성으로 승격합니다."],
   "customer-detail": ["고객 상세", "AI 요약, 상담 메모, 타임라인, 견적, 다음 액션을 한 화면에서 처리합니다."],
   pipeline: ["상담 파이프라인", "상담 진행 단계를 칸반 방식으로 관리하고 상태 변경 로그를 남기는 구조입니다."],
   delivery: ["계약 / 출고", "계약 이후 출고까지 필요한 상태와 체크리스트를 관리합니다."],
@@ -335,6 +338,8 @@ export function App() {
           }
         />
         <Route path="/app-requests" element={<AppRequestsPage signal={appRequestSignal} onRead={markAppRequestsRead} onToast={showToast} onCustomerListChanged={reloadCustomers} />} />
+        {/* 상담 신청 DB 인박스 — 게이트는 견적요청 인박스와 동일 수준(라우트 무게이트, 서버 읽기는 auth만). */}
+        <Route path="/consultation-requests" element={<ConsultationRequestsPage customers={customers} onToast={showToast} onCustomerListChanged={reloadCustomers} />} />
         <Route path="/customer-detail" element={<Navigate to="/customers" replace />} />
         <Route
           path="/customer-detail/:code"

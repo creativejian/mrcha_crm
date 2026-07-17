@@ -1,7 +1,7 @@
 // 앱 상담신청(public.consultations) → CRM 고객 통합. 견적요청(quote-requests.ts fetchCustomerQuoteRequestsCached) 패턴 미러.
-// 고객 상세 니즈 영역의 읽기 전용 문의 카드 목록 전용 — link/create-customer 승격 흐름은 서버(consultations.ts 라우트)만 다룬다.
-import { formatActivity } from "./customers";
-import { getJson, sendVoid } from "./http";
+// ①고객 상세 니즈 영역의 읽기 전용 문의 카드 목록 ②상담 신청 DB 인박스(pending 목록 + link/create 승격).
+import { formatActivity, invalidateCustomerDetail } from "./customers";
+import { getJson, sendJson, sendVoid } from "./http";
 
 // 백엔드 GET /api/customers/:id/consultations 응답 1행(ConsultationRow, camelCase).
 export type AppConsultationRow = {
@@ -67,4 +67,56 @@ export function invalidateCustomerConsultations(customerId: string): void {
 // CRM 전용 삭제 — 백엔드가 dismissal만 기록(public.consultations는 어떤 경로로도 변경하지 않는다).
 export async function dismissConsultation(consultationId: string): Promise<void> {
   await sendVoid(`/api/consultations/${consultationId}`, "DELETE");
+}
+
+// ── 상담 신청 DB 인박스 ─────────────────────────────────────────────────────────
+// raw row 그대로 반환 — 유저 그룹핑·매칭 파생은 consultation-inbox.ts(순수 계층)가 담당.
+export async function fetchPendingConsultations(): Promise<AppConsultationRow[]> {
+  return getJson<AppConsultationRow[]>("/api/consultations");
+}
+
+// 인박스 목록 캐시 + inflight dedupe (quote-requests fetchAppQuoteRequestsCached와 동형, 단일 키).
+// 사이드메뉴 hover 프리패치·재진입은 캐시 hit으로 즉시, 60s 폴링·승격 후는 force=true로 fresh.
+const INBOX_TTL_MS = 60_000;
+let inboxCache: { value: AppConsultationRow[]; at: number } | null = null;
+let inboxInflight: Promise<AppConsultationRow[]> | null = null;
+
+export function fetchPendingConsultationsCached(force = false): Promise<AppConsultationRow[]> {
+  if (!force && inboxCache && Date.now() - inboxCache.at < INBOX_TTL_MS) return Promise.resolve(inboxCache.value);
+  if (!force && inboxInflight) return inboxInflight;
+  const p = fetchPendingConsultations()
+    .then((value) => {
+      inboxCache = { value, at: Date.now() };
+      return value;
+    })
+    .finally(() => {
+      if (inboxInflight === p) inboxInflight = null;
+    });
+  if (!force) inboxInflight = p;
+  return p;
+}
+
+// 사이드메뉴 '상담 신청 DB' hover가 호출. 백그라운드 워밍(결과/에러 무시).
+export function prefetchPendingConsultations(): void {
+  void fetchPendingConsultationsCached().catch(() => {});
+}
+
+type PromoteResult = { id: string; customerCode: string; name: string };
+
+// 전화 매칭된 기존 고객에 연결. 성공 시 인박스 캐시 fresh + 그 고객 상세·상담 카드 캐시 무효화
+// (연결로 그 고객의 상담신청 카드 목록이 비어있음→N건으로 바뀐다).
+export async function linkConsultationToCustomer(consultationId: string, customerId: string): Promise<PromoteResult> {
+  const r = await sendJson<PromoteResult>(`/api/consultations/${consultationId}/link`, "POST", { customerId });
+  await fetchPendingConsultationsCached(true);
+  invalidateCustomerDetail(customerId);
+  invalidateCustomerConsultations(customerId);
+  return r;
+}
+
+// 미매칭 유저 → 신규 고객 생성. 성공 시 인박스 캐시 fresh + 생성 고객 상세 캐시 무효화.
+export async function createCustomerFromConsultation(consultationId: string): Promise<PromoteResult> {
+  const r = await sendJson<PromoteResult>(`/api/consultations/${consultationId}/create-customer`, "POST");
+  await fetchPendingConsultationsCached(true);
+  invalidateCustomerDetail(r.id);
+  return r;
 }

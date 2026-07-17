@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { formatActivity } from "./customers";
-import { fetchCustomerConsultations, toAppConsultation, type AppConsultationRow } from "./consultations";
+import {
+  createCustomerFromConsultation,
+  fetchCustomerConsultations,
+  fetchPendingConsultations,
+  linkConsultationToCustomer,
+  toAppConsultation,
+  type AppConsultationRow,
+} from "./consultations";
 
 // apiFetch(./api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
 vi.mock("./supabase", () => ({
@@ -59,5 +66,46 @@ describe("fetchCustomerConsultations", () => {
     vi.stubGlobal("fetch", spy);
     const list = await fetchCustomerConsultations("cust-2");
     expect(list).toEqual([]);
+  });
+});
+
+describe("상담 신청 DB 인박스", () => {
+  it("fetchPendingConsultations는 GET /api/consultations raw row를 그대로 반환한다", async () => {
+    const spy = vi.fn(async () => new Response(JSON.stringify([base]), { status: 200 }));
+    vi.stubGlobal("fetch", spy);
+    const list = await fetchPendingConsultations();
+    expect((spy.mock.calls[0] as unknown[])[0]).toBe("/api/consultations");
+    expect(list[0].userId).toBe("u1"); // 어댑터 없이 raw(그룹핑 파생 입력)
+  });
+
+  it("linkConsultationToCustomer는 POST /:id/link + customerId body, 성공 후 인박스 재조회", async () => {
+    const result = { id: "cust-9", customerCode: "CU-2607-0009", name: "송미진" };
+    const spy = vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? new Response(JSON.stringify(result), { status: 200 })
+        : new Response(JSON.stringify([]), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", spy);
+    const r = await linkConsultationToCustomer("c1", "cust-9");
+    expect(r).toEqual(result);
+    const [postUrl, postInit] = spy.mock.calls[0] as [string, RequestInit];
+    expect(postUrl).toBe("/api/consultations/c1/link");
+    expect(JSON.parse(String(postInit.body))).toEqual({ customerId: "cust-9" });
+    // 승격 성공 후 인박스 목록 fresh 재조회(캐시 우회)까지가 계약.
+    expect((spy.mock.calls[1] as unknown[])[0]).toBe("/api/consultations");
+  });
+
+  it("createCustomerFromConsultation은 POST /:id/create-customer, 성공 후 인박스 재조회", async () => {
+    const result = { id: "cust-10", customerCode: "CU-2607-0010", name: "김지운" };
+    const spy = vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? new Response(JSON.stringify(result), { status: 200 })
+        : new Response(JSON.stringify([]), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", spy);
+    const r = await createCustomerFromConsultation("c2");
+    expect(r).toEqual(result);
+    expect((spy.mock.calls[0] as unknown[])[0]).toBe("/api/consultations/c2/create-customer");
+    expect((spy.mock.calls[1] as unknown[])[0]).toBe("/api/consultations");
   });
 });
