@@ -21,6 +21,7 @@ import {
 } from './lender-meta'
 import { roundUpToNearestHundred } from './calc-format'
 import type { QuoteResult } from './quote-types'
+import { scenarioQueryFingerprint } from './query-fingerprint'
 import { useMultiQuote } from './hooks/useMultiQuote'
 import { bindSelect } from '@/lib/select-bind'
 import { CondCombo, CondRow, FeeCombo, MoneyField, SegmentGroup, ValueSelect, type MoneyInputProps } from '@/components/quote-fields/QuoteFields'
@@ -132,22 +133,10 @@ function ConditionCard({
   const [querySnapshot, setQuerySnapshot] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
-  const currentQueryFingerprint = JSON.stringify({
-    period: state.period,
-    downPaymentType: state.downPaymentType,
-    downPayment: state.downPayment,
-    depositType: state.depositType,
-    deposit: state.deposit,
-    residualValueType: state.residualValueType,
-    residualValue: state.residualValue,
-    annualDistance: state.annualDistance,
-    carTax: state.carTax,
-    subsidy: state.subsidy,
-    subsidyAmount: state.subsidyAmount,
-    cmFeePercent: state.cmFeePercent,
-    agFeePercent: state.agFeePercent,
-    topLevel: topLevelFingerprint,
-  })
+  // 배치 7 A#3(제프 대비 의도적 이탈): 인라인 조립 → 순수 헬퍼. 제프 원형은 activeTab/
+  // deliveryType/maintenanceGrade 누락 — 리스 결과가 렌트 탭 아래 "조회 완료"로 오표시됐다.
+  // 편입 키 원칙("payload 키 ⊆ fingerprint 키")·잠금 테스트는 query-fingerprint.ts 참조.
+  const currentQueryFingerprint = scenarioQueryFingerprint(state, topLevelFingerprint)
   const hasChanges = showResults && querySnapshot !== null && querySnapshot !== currentQueryFingerprint
 
   useEffect(() => {
