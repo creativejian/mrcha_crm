@@ -11,7 +11,6 @@ import { useMultiQuote } from './hooks/useMultiQuote'
 import { useTrimExtras } from './hooks/useTrimExtras'
 import { TopSelectionCards } from './TopSelectionCards'
 import { ConditionCards } from './ConditionCards'
-import { feeRateFraction } from './calc-guards'
 import { QuoteBottomBar } from './QuoteBottomBar'
 import type { SupportedLenderCode } from './lender-meta'
 import {
@@ -26,12 +25,9 @@ import {
 import { discountLineWon } from '@/components/customer-detail/quote-workbench-meta'
 import { SOLUTION_LENDERS } from '@/lib/solution-quote'
 import { fetchSolutionDealers, type DealerOption } from '@/lib/solution-dealers'
-import type {
-  AcquisitionTaxMode,
-  AnnualMileage,
-  LeaseTerm,
-  QuotePayload,
-} from './quote-types'
+// payload 조립·취득세 자동 공식·판매사 해석은 순수 계층으로 추출(배치 7 A#15 후속 —
+// build-payload.test.ts가 산술·생략 계약을 잠근다). 컴포넌트는 파생값을 넘겨 호출만.
+import { autoAcquisitionTax, buildScenarioPayload, resolveDealerSelection } from './build-payload'
 
 type CalculatorModalProps = { onClose: () => void }
 
@@ -224,18 +220,11 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
     )
   const finalVehiclePrice = Math.max(0, totalQuotedPrice - rawDiscountKrw)
 
-  // 취득세 자동 계산 — manual(직접 입력, 워크벤치 패리티)은 자동 재계산이 덮지 않는다.
-  // - none: finalVehiclePrice/1.1 × 7% (10원 절사)
-  // - hybrid: 위 값 − 400,000원
-  // - electric: 위 값 − 1,400,000원
+  // 취득세 자동 계산 — 공식은 autoAcquisitionTax(build-payload 순수 계층)로 추출.
+  // null = "덮지 않는다"(manual 직접 입력 모드·차량가 0 이하 — 워크벤치 패리티).
   useEffect(() => {
-    if (taxReduction === 'manual') return
-    if (finalVehiclePrice <= 0) return
-    const base = Math.floor((finalVehiclePrice / 1.1) * 0.07 / 10) * 10
-    const reduction =
-      taxReduction === 'hybrid' ? 400_000 :
-      taxReduction === 'electric' ? 1_400_000 : 0
-    const auto = Math.max(0, base - reduction)
+    const auto = autoAcquisitionTax(finalVehiclePrice, taxReduction)
+    if (auto === null) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 제프 원형 미러: 차량가 변경 → 취득세 자동 재계산(수동 수정 가능한 입력이라 파생 불가)
     setTaxAmount(String(auto))
   }, [finalVehiclePrice, taxReduction])
@@ -277,101 +266,6 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
   const patchDiscountLine = (id: string, patch: Partial<CalcDiscountLine>) =>
     setDiscountLines((prev) => prev.map((line) => (line.id === id ? { ...line, ...patch } : line)))
 
-  // ── 시나리오별 페이로드 빌드 ──
-  // dealerName은 여기서 만들지 않는다 — useMultiQuote.calculateAll이 dealerSelection으로
-  // lenderCode 일치 금융사에만 동봉한다(타사 유입 = 견적 무음 오염, useMultiQuote 주석 참조).
-  function buildPayload(idx: 0 | 1 | 2): Omit<QuotePayload, 'lenderCode' | 'dealerName'> | null {
-    const trim = masterCatalog.selectedTrim
-    const mb = masterCatalog.selectedBrand
-    if (!trim || !mb) return null
-    const resolvedBrand = mb.name
-    const resolvedModelName = trim.canonicalName ?? trim.trimName ?? trim.name
-    const resolvedMasterMcCode = trim.mcCode
-    const s = scenarios[idx]
-
-    // 선수금/보증금 절대값 계산
-    const computeAbs = (mode: ScenarioState['downPaymentType'], v: string): number => {
-      if (mode === 'none') return 0
-      const n = Number(v.replace(/,/g, '')) || 0
-      if (mode === 'amount') return n
-      return Math.round(finalVehiclePrice * n / 100)
-    }
-    const upfrontPayment = computeAbs(s.downPaymentType, s.downPayment)
-    const depositAmount = computeAbs(s.depositType, s.deposit)
-
-    // 잔존가치: max → high, amount/percent → standard + override
-    const residualMode: 'high' | 'standard' = s.residualValueType === 'max' ? 'high' : 'standard'
-    const residualNum = Number(s.residualValue.replace(/,/g, '')) || 0
-    // CRM 이탈 1건: percent 0 입력이면 필드 자체를 생략 — 파트너 스키마가 0을 거부한다
-    // (selectedResidualRateOverride만 positive(), T1 실측). 제프 원형은 0을 그대로 보내 400.
-    const selectedResidualRateOverride =
-      s.residualValueType === 'percent' && residualNum > 0 ? residualNum / 100 : undefined
-    const residualAmountOverride =
-      s.residualValueType === 'amount' ? residualNum : undefined
-
-    // 취득세 모드 매핑
-    const acquisitionTaxMode: AcquisitionTaxMode = 'amount'
-
-    const isRent = s.activeTab === 'rent'
-    return {
-      productType: isRent ? 'long_term_rental' : 'operating_lease',
-      // 렌트 출고방식 (대리점/금융사 특판) → 엔진 releaseMethod. 리스는 미전송.
-      releaseMethod: isRent ? s.deliveryType : undefined,
-      // 렌트 정비 등급 (Basic/VIP) → 엔진 maintenanceGrade. 리스는 미전송.
-      maintenanceGrade: isRent ? s.maintenanceGrade : undefined,
-      brand: resolvedBrand,
-      modelName: resolvedModelName,
-      masterMcCode: resolvedMasterMcCode,
-      affiliateType: '비제휴사',
-      directModelEntry: false,
-      ownershipType: 'company',
-      leaseTermMonths: parseInt(s.period, 10) as LeaseTerm,
-      annualMileageKm: parseInt(s.annualDistance, 10) as AnnualMileage,
-      upfrontPayment,
-      depositAmount,
-      quotedVehiclePrice: totalQuotedPrice,
-      discountAmount: rawDiscountKrw,
-      acquisitionTaxMode,
-      acquisitionTaxAmountOverride: taxAmountNum,
-      includePublicBondCost: bondIncluded === 'included',
-      publicBondCost: bondIncluded === 'included' ? bondAmountNum : undefined,
-      includeDeliveryFeeAmount: deliveryIncluded === 'included',
-      deliveryFeeAmount: deliveryIncluded === 'included' ? deliveryAmountNum : undefined,
-      includeMiscFeeAmount: extraIncluded === 'included',
-      miscFeeAmount: extraIncluded === 'included' ? extraAmountNum : undefined,
-      residualMode,
-      selectedResidualRateOverride,
-      residualAmountOverride,
-      // 배치 7 A#8(제프 대비 의도적 이탈): parseFloat → parsePercentInput SSOT(feeRateFraction).
-      // 제프 원형은 '.' 입력이 NaN → JSON.stringify가 null 직렬화 → 릴레이 zod 400 전사가
-      // 무사유로 은닉됐다(워크벤치 buildSolutionQuoteInput은 이미 같은 SSOT — 비대칭 해소).
-      // 100 초과는 조회 시작 전 percentGuardReason(ConditionCards)이 차단한다.
-      cmFeeRate: feeRateFraction(s.cmFeePercent),
-      agFeeRate: feeRateFraction(s.agFeePercent),
-      evSubsidyAmount:
-        s.subsidy === 'applicable'
-          ? Number(s.subsidyAmount.replace(/,/g, '')) || 0
-          : undefined,
-      insuranceYearlyAmount: 0,
-      lossDamageAmount: 0,
-    }
-  }
-
-  /**
-   * 선택된 딜러를 `{lenderCode, dealerName}`로 푼다(제프 QuoteRevolutionV2.tsx:276-293 미러).
-   *
-   * 드롭다운 option value는 `lenderCode::dealerName` 합성값이다 — 사별 union이라
-   * 딜러명만으로는 어느 lender 것인지 알 수 없고, 딜러명이 겹치는 경우도 있다
-   * (예: "모터원"은 우리·메리츠 양쪽에 존재).
-   */
-  function resolveDealerSelection(idx: 0 | 1 | 2): { lenderCode: string; dealerName: string } | null {
-    const s = scenarios[idx]
-    if (s.dealerType !== 'input' || !s.dealer) return null
-    const sep = s.dealer.indexOf('::')
-    if (sep < 0) return null
-    return { lenderCode: s.dealer.slice(0, sep), dealerName: s.dealer.slice(sep + 2) }
-  }
-
   const loadings = [q1.isAnyLoading, q2.isAnyLoading, q3.isAnyLoading] as [boolean, boolean, boolean]
 
   const [selectedQuotesByScenario, setSelectedQuotesByScenario] = useState<
@@ -382,7 +276,25 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
   >([false, false, false])
 
   const handleCalculate = (idx: 0 | 1 | 2) => {
-    const payload = buildPayload(idx)
+    // 시나리오별 페이로드 빌드(순수 계층) — dealerName은 여기서 만들지 않는다:
+    // useMultiQuote.calculateAll이 dealerSelection으로 lenderCode 일치 금융사에만 동봉한다.
+    const payload = buildScenarioPayload(
+      scenarios[idx],
+      masterCatalog.selectedTrim,
+      masterCatalog.selectedBrand,
+      {
+        totalQuotedPrice,
+        finalVehiclePrice,
+        discountKrw: rawDiscountKrw,
+        taxAmountNum,
+        bondIncluded,
+        bondAmountNum,
+        deliveryIncluded,
+        deliveryAmountNum,
+        extraIncluded,
+        extraAmountNum,
+      },
+    )
     if (!payload) return
     // 배치 7 A#14(제프 대비 의도적 이탈): 재조회로 결과 집합이 바뀌면 직전 결과에서 고른 금융사가
     // 새 결과에 없어도 선택이 유령으로 남아 3개 상한·하단 "견적서 보기 (N)" 카운트를 오염했다 —
@@ -393,7 +305,7 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
       next[idx] = []
       return next
     })
-    void quotes[idx].calculateAll(payload, resolveDealerSelection(idx))
+    void quotes[idx].calculateAll(payload, resolveDealerSelection(scenarios[idx]))
   }
 
   const totalSelectedCount =

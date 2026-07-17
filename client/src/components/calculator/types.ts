@@ -29,7 +29,7 @@ export interface ScenarioState {
   cmFeePercent: string
   agFeePercent: string
   // 판매사(딜러) — 실동작(T1, 구 spec D2 해제). dealer는 `lenderCode::dealerName` 합성값(사별 union이라
-  // 딜러명만으로는 lender 식별 불가·딜러명 사 간 중복 실존 — 예: "모터원"). 해석은 CalculatorModal
+  // 딜러명만으로는 lender 식별 불가·딜러명 사 간 중복 실존 — 예: "모터원"). 해석은 build-payload.ts
   // resolveDealerSelection(제프 QuoteRevolutionV2.tsx:276-293 미러).
   dealerType: 'nonAffiliated' | 'input'
   dealer: string                       // `lenderCode::dealerName` (dealerType='input' 시만 사용)
