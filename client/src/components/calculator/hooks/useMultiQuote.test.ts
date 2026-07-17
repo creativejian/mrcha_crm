@@ -123,4 +123,42 @@ describe("useMultiQuote", () => {
       expect(entry.notAvailable).toBe(false);
     }
   });
+
+  // 배치 7 A#6 회귀 잠금 — 조회 중 초기화 시 in-flight 응답이 리셋을 덮고 결과를 부활시키던 race.
+  it("reset 후 도착한 늦은 응답은 무시한다(세대 토큰 — stale 폐기)", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    sendJsonMock.mockImplementation(async () => {
+      await gate;
+      return { ok: true, quote: quoteResult };
+    });
+    const { result } = renderHook(() => useMultiQuote());
+
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.calculateAll(basePayload);
+    });
+    expect(result.current.isAnyLoading).toBe(true);
+
+    // 조회가 끝나기 전에 초기화
+    act(() => {
+      result.current.reset();
+    });
+    expect(result.current.isAnyLoading).toBe(false);
+    expect(result.current.hasAnyResult).toBe(false);
+
+    // 늦은 응답 도착 — 리셋을 덮고 결과가 부활하면 안 된다
+    await act(async () => {
+      release();
+      await pending;
+    });
+    for (const entry of result.current.entries) {
+      expect(entry.result).toBeNull();
+      expect(entry.error).toBeNull();
+      expect(entry.loading).toBe(false);
+    }
+    expect(result.current.hasAnyResult).toBe(false);
+  });
 });

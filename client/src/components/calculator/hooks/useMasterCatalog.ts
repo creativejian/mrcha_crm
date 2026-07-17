@@ -20,7 +20,7 @@
 //
 // 제프 원형과 달라진 점: lenderCode 파라미터 제거(제프 = lender별 offering 필터 카탈로그,
 // CRM /api/vehicles는 필터 개념 없음. V2 페이지도 인자 없이 호출).
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchBrands, fetchModels, fetchTrims } from '@/lib/vehicles'
 import { toMasterBrand, toMasterModel, toMasterTrim } from '@/components/vehicle-pickers/catalog-adapters'
 import type { MasterBrand, MasterModel, MasterTrim } from '@/components/vehicle-pickers/catalog-types'
@@ -57,6 +57,12 @@ export function useMasterCatalog(): MasterCatalogState & MasterCatalogActions {
   const [modelsLoading, setModelsLoading] = useState(false)
   const [trimsLoading, setTrimsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 배치 7 A#16(제프 대비 의도적 이탈): 요청 세대 ref — 빠른 연속 선택(브랜드 A→B, 모델 A→B) 시
+  // 늦게 도착한 A 응답이 setModels/setTrims로 최신 선택의 목록을 덮는 race 가드. 형제 훅
+  // useTrimExtras는 cancelled 가드를 이미 갖고 있는데 이 두 액션만 부재였다. 최신 세대의
+  // 응답만 반영한다(loading/error도 최신 세대만 마감).
+  const modelsRequestRef = useRef(0)
+  const trimsRequestRef = useRef(0)
 
   const loadBrands = useCallback(async () => {
     setBrandsLoading(true)
@@ -73,6 +79,8 @@ export function useMasterCatalog(): MasterCatalogState & MasterCatalogActions {
 
   const selectBrand = useCallback(
     async (brandCode: number | null) => {
+      const request = ++modelsRequestRef.current // A#16: 직전 모델 로드 무효화
+      trimsRequestRef.current++ // 브랜드 전환은 진행 중 트림 로드도 무효화(아래 setTrims([]) 보존)
       setSelectedModel(null)
       setSelectedTrim(null)
       setModels([])
@@ -89,11 +97,13 @@ export function useMasterCatalog(): MasterCatalogState & MasterCatalogActions {
       try {
         // CRM 배선: brandCode = CRM brands.id (어댑트 매핑 표 참조)
         const data = await fetchModels(brandCode)
+        if (request !== modelsRequestRef.current) return // stale — 더 새 선택이 앞섬(A#16)
         setModels(data.map(toMasterModel))
       } catch (e) {
+        if (request !== modelsRequestRef.current) return
         setError(String(e))
       } finally {
-        setModelsLoading(false)
+        if (request === modelsRequestRef.current) setModelsLoading(false)
       }
     },
     [brands],
@@ -101,6 +111,7 @@ export function useMasterCatalog(): MasterCatalogState & MasterCatalogActions {
 
   const selectModel = useCallback(
     async (modelCode: number | null) => {
+      const request = ++trimsRequestRef.current // A#16: 직전 트림 로드 무효화
       setSelectedTrim(null)
       setTrims([])
       if (modelCode == null || !selectedBrand) {
@@ -115,11 +126,13 @@ export function useMasterCatalog(): MasterCatalogState & MasterCatalogActions {
       try {
         // CRM 배선: modelCode = CRM models.id — 제프는 (brandCode, modelCode) 2키, CRM은 modelId 단일 키
         const data = await fetchTrims(modelCode)
+        if (request !== trimsRequestRef.current) return // stale — 더 새 선택이 앞섬(A#16)
         setTrims(data.map(toMasterTrim))
       } catch (e) {
+        if (request !== trimsRequestRef.current) return
         setError(String(e))
       } finally {
-        setTrimsLoading(false)
+        if (request === trimsRequestRef.current) setTrimsLoading(false)
       }
     },
     [models, selectedBrand],
@@ -138,6 +151,9 @@ export function useMasterCatalog(): MasterCatalogState & MasterCatalogActions {
   )
 
   const reset = useCallback(() => {
+    // 진행 중 모델/트림 로드 응답이 reset을 덮지 않도록 세대 무효화(A#16 가드 공유)
+    modelsRequestRef.current++
+    trimsRequestRef.current++
     setSelectedBrand(null)
     setSelectedModel(null)
     setSelectedTrim(null)
