@@ -82,32 +82,49 @@ describe("useMultiQuote", () => {
     expect(result.current.hasAnyResult).toBe(true);
   });
 
-  it("미취급 문구 실패는 notAvailable=true(조용히 제외)·error=null", async () => {
+  it("미취급 문구 실패는 notAvailable=true(조용히 제외)·error=null — 관측 로그 없음", async () => {
     // 릴레이가 파트너 400 문구를 {error}로 패스스루 → HttpError.message에 미취급 패턴 매칭
     sendJsonMock.mockRejectedValue(new HttpError("해당 차량은 미취급입니다", 400));
-    const { result } = renderHook(() => useMultiQuote());
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { result } = renderHook(() => useMultiQuote());
 
-    await act(() => result.current.calculateAll(basePayload));
+      await act(() => result.current.calculateAll(basePayload));
 
-    for (const entry of result.current.entries) {
-      expect(entry.notAvailable).toBe(true);
-      expect(entry.error).toBeNull();
-      expect(entry.result).toBeNull();
-      expect(entry.loading).toBe(false);
+      for (const entry of result.current.entries) {
+        expect(entry.notAvailable).toBe(true);
+        expect(entry.error).toBeNull();
+        expect(entry.result).toBeNull();
+        expect(entry.loading).toBe(false);
+      }
+      expect(result.current.hasAnyResult).toBe(false);
+      // 미취급은 정상 분기(조용히 제외) — A#1 관측 로그 대상이 아니다
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
     }
-    expect(result.current.hasAnyResult).toBe(false);
   });
 
-  it("일반 실패(미취급 패턴 미매칭)는 error에 사유를 세팅한다", async () => {
+  it("일반 실패(미취급 패턴 미매칭)는 error에 사유를 세팅한다 — 금융사별 관측 로그(A#1)", async () => {
     sendJsonMock.mockRejectedValue(new HttpError("계산 서버에 연결하지 못했습니다", 502));
-    const { result } = renderHook(() => useMultiQuote());
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { result } = renderHook(() => useMultiQuote());
 
-    await act(() => result.current.calculateAll(basePayload));
+      await act(() => result.current.calculateAll(basePayload));
 
-    for (const entry of result.current.entries) {
-      expect(entry.error).toBe("계산 서버에 연결하지 못했습니다");
-      expect(entry.notAvailable).toBe(false);
-      expect(entry.result).toBeNull();
+      for (const entry of result.current.entries) {
+        expect(entry.error).toBe("계산 서버에 연결하지 못했습니다");
+        expect(entry.notAvailable).toBe(false);
+        expect(entry.result).toBeNull();
+      }
+      // 에러성 실패는 lender별 1줄 관측 로그(SolutionLenderRankingModal 미러 — 장애/미취급 콘솔 구분)
+      expect(warnSpy).toHaveBeenCalledTimes(SOLUTION_LENDERS.length);
+      expect(warnSpy).toHaveBeenCalledWith(
+        `[calculator] 견적 조회 실패 lender=${SOLUTION_LENDERS[0].code}: 계산 서버에 연결하지 못했습니다`,
+      );
+    } finally {
+      warnSpy.mockRestore();
     }
   });
 

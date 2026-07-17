@@ -10,6 +10,7 @@ import { useMultiQuote } from './hooks/useMultiQuote'
 import { useTrimExtras } from './hooks/useTrimExtras'
 import { TopSelectionCards } from './TopSelectionCards'
 import { ConditionCards } from './ConditionCards'
+import { feeRateFraction } from './calc-guards'
 import { QuoteBottomBar } from './QuoteBottomBar'
 import type { SupportedLenderCode } from './lender-meta'
 import {
@@ -299,8 +300,12 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
       residualMode,
       selectedResidualRateOverride,
       residualAmountOverride,
-      cmFeeRate: s.cmFeePercent ? parseFloat(s.cmFeePercent) / 100 : 0,
-      agFeeRate: s.agFeePercent ? parseFloat(s.agFeePercent) / 100 : 0,
+      // 배치 7 A#8(제프 대비 의도적 이탈): parseFloat → parsePercentInput SSOT(feeRateFraction).
+      // 제프 원형은 '.' 입력이 NaN → JSON.stringify가 null 직렬화 → 릴레이 zod 400 전사가
+      // 무사유로 은닉됐다(워크벤치 buildSolutionQuoteInput은 이미 같은 SSOT — 비대칭 해소).
+      // 100 초과는 조회 시작 전 percentGuardReason(ConditionCards)이 차단한다.
+      cmFeeRate: feeRateFraction(s.cmFeePercent),
+      agFeeRate: feeRateFraction(s.agFeePercent),
       evSubsidyAmount:
         s.subsidy === 'applicable'
           ? Number(s.subsidyAmount.replace(/,/g, '')) || 0
@@ -455,6 +460,9 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
             noOptions: optionsState.noOptions,
             loading: optionsState.loading,
             loaded: optionsState.loaded,
+            // 배치 7 A#1(제프 대비 의도적 이탈): fetch 실패 사유 배선 — 종전엔 여기서 유실돼
+            // 네트워크 실패가 '옵션 정보 미제공'(데이터 부재 어휘)으로 오표기됐다.
+            error: optionsState.error,
           }}
           selectedOptionIds={selectedOptionIds}
           // A#7 — 픽커 [적용] 전체 해제 시 옵션 금액 0 리셋(수신 지점 래퍼)
@@ -464,6 +472,7 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
             interior: colorsState.interior,
             loading: colorsState.loading,
             loaded: colorsState.loaded,
+            error: colorsState.error, // A#1 — 옵션과 동일(색상 '…정보 미제공' 오표기 방지)
           }}
           selectedExteriorId={selectedExteriorId}
           setSelectedExteriorId={setSelectedExteriorId}

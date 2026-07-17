@@ -71,11 +71,13 @@ interface Props {
   acquisitionCost: number            // 취득원가 = 최종차량가 + 등록비용 + 포함된 비용들
 
   // 옵션/색상 (Phase 1 — Mr.Cha mirror 통합)
-  options: { basic: TrimOption[]; tuning: TrimOption[]; relations: TrimOptionRelation[]; noOptions: boolean; loading: boolean; loaded: boolean }
+  // error: 배치 7 A#1(제프 대비 의도적 이탈) — useTrimExtras fetch 실패 사유. 종전엔 미배선이라
+  // 네트워크 실패가 '옵션 정보 미제공'/'…색상 정보 미제공'(데이터 부재 어휘)으로 오표기됐다.
+  options: { basic: TrimOption[]; tuning: TrimOption[]; relations: TrimOptionRelation[]; noOptions: boolean; loading: boolean; loaded: boolean; error: string | null }
   selectedOptionIds: Set<number>
   setSelectedOptionIds: (ids: Set<number>) => void
 
-  colors: { exterior: TrimColor[]; interior: TrimColor[]; loading: boolean; loaded: boolean }
+  colors: { exterior: TrimColor[]; interior: TrimColor[]; loading: boolean; loaded: boolean; error: string | null }
   selectedExteriorId: number | null
   setSelectedExteriorId: (id: number | null) => void
   selectedInteriorId: number | null
@@ -155,10 +157,14 @@ export function TopSelectionCards(p: Props) {
     : ''
 
   const optionDisabled = !c.selectedTrim || p.options.loading || (p.options.loaded && (p.options.noOptions || (p.options.basic.length === 0 && p.options.tuning.length === 0)))
+  // 배치 7 A#1(제프 대비 의도적 이탈): fetch 실패(error)는 데이터 부재 어휘('옵션 정보 미제공')와
+  // 구분해 실패 어휘로 표기 — 미제공/실패가 같은 문구면 장애가 카탈로그 공백으로 위장된다.
   const optionPlaceholder = !c.selectedTrim
     ? '트림 먼저 선택'
     : p.options.loading
     ? '불러오는 중…'
+    : p.options.error
+    ? '옵션을 불러오지 못했습니다'
     : p.options.noOptions
     ? '옵션 없음'
     : p.options.loaded && p.options.basic.length === 0 && p.options.tuning.length === 0
@@ -188,7 +194,13 @@ export function TopSelectionCards(p: Props) {
                 )}
                 {c.selectedBrand.name}
               </>
-            ) : (c.brandsLoading ? '불러오는 중…' : '선택 없음')}
+            ) : (c.brandsLoading
+              ? '불러오는 중…'
+              // A#1 — useMasterCatalog.error 소비(종전 소비처 0): 목록 실패를 '선택 없음'과 구분.
+              // error는 브랜드/모델/트림 공유 필드라 "해당 목록이 비어 있음"을 함께 확인해 오표기 방지.
+              : c.error && c.brands.length === 0
+              ? '불러오지 못했습니다'
+              : '선택 없음')}
           </PickerTriggerRow>
 
           <PickerTriggerRow
@@ -204,7 +216,11 @@ export function TopSelectionCards(p: Props) {
                 )}
                 {c.selectedModel.name}
               </>
-            ) : (c.modelsLoading ? '불러오는 중…' : '선택 없음')}
+            ) : (c.modelsLoading
+              ? '불러오는 중…'
+              : c.error && c.selectedBrand && c.models.length === 0 // A#1 — 제조사 행과 동일
+              ? '불러오지 못했습니다'
+              : '선택 없음')}
           </PickerTriggerRow>
 
           <PickerTriggerRow
@@ -215,7 +231,11 @@ export function TopSelectionCards(p: Props) {
           >
             {c.selectedTrim
               ? (c.selectedTrim.trimName ?? c.selectedTrim.name)
-              : (c.trimsLoading ? '불러오는 중…' : '선택 없음')}
+              : (c.trimsLoading
+                ? '불러오는 중…'
+                : c.error && c.selectedModel && c.trims.length === 0 // A#1 — 제조사 행과 동일
+                ? '불러오지 못했습니다'
+                : '선택 없음')}
           </PickerTriggerRow>
         </div>
 
@@ -243,7 +263,7 @@ export function TopSelectionCards(p: Props) {
                 <span className="kim-color-picker-swatch" style={{ background: selectedExterior.hexValue ?? '#E5E7EB' }} />
                 {selectedExterior.name}
               </>
-            ) : (!c.selectedTrim ? '트림 먼저 선택' : p.colors.loading ? '불러오는 중…' : p.colors.loaded && p.colors.exterior.length === 0 ? '외장 색상 정보 미제공' : '선택 없음')}
+            ) : (!c.selectedTrim ? '트림 먼저 선택' : p.colors.loading ? '불러오는 중…' : p.colors.error ? '색상을 불러오지 못했습니다' : p.colors.loaded && p.colors.exterior.length === 0 ? '외장 색상 정보 미제공' : '선택 없음')}
           </PickerTriggerRow>
           <PickerTriggerRow
             label="내장"
@@ -256,7 +276,7 @@ export function TopSelectionCards(p: Props) {
                 <span className="kim-color-picker-swatch" style={{ background: selectedInterior.hexValue ?? '#E5E7EB' }} />
                 {selectedInterior.name}
               </>
-            ) : (!c.selectedTrim ? '트림 먼저 선택' : p.colors.loading ? '불러오는 중…' : p.colors.loaded && p.colors.interior.length === 0 ? '내장 색상 정보 미제공' : '선택 없음')}
+            ) : (!c.selectedTrim ? '트림 먼저 선택' : p.colors.loading ? '불러오는 중…' : p.colors.error ? '색상을 불러오지 못했습니다' : p.colors.loaded && p.colors.interior.length === 0 ? '내장 색상 정보 미제공' : '선택 없음')}
           </PickerTriggerRow>
         </div>
 
