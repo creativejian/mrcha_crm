@@ -52,13 +52,6 @@
   font-size: 18px;
 }
 
-.vertical-separator {
-  width: 1px;
-  height: 22px;
-  margin: 0 4px;
-  background: #d8d8d6;
-}
-
 .view-select {
   width: 154px;
   height: 34px;
