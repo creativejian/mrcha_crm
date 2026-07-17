@@ -19,7 +19,7 @@ import {
   computeStats,
   type QuoteEntryForRow,
 } from './lender-meta'
-import { failureNoteFromEntries, feePreviewWon, percentGuardReason } from './calc-guards'
+import { distanceGuardReason, failureNoteFromEntries, feePreviewWon, percentGuardReason } from './calc-guards'
 import type { QuoteResult } from './quote-types'
 import { scenarioQueryFingerprint } from './query-fingerprint'
 import { useMultiQuote } from './hooks/useMultiQuote'
@@ -158,8 +158,8 @@ function ConditionCard({
 
   const handleQueryClick = () => {
     if (!showResults || hasChanges) {
-      // A#8 — % 상한 위반이면 조회를 시작하지 않는다(전 금융사 400 전사 낭비 + 무사유 은닉 차단).
-      const guardReason = percentGuardReason(state)
+      // A#8 % 상한 + A#2 렌트 무제한 — 위반이면 조회를 시작하지 않는다(전 금융사 400 전사 낭비 + 무사유 은닉 차단).
+      const guardReason = distanceGuardReason(state) ?? percentGuardReason(state)
       if (guardReason) {
         setBlockReason(guardReason)
         return

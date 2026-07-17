@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  distanceGuardReason,
   failureNoteFromEntries,
   feePreviewWon,
   feeRateFraction,
@@ -126,5 +127,18 @@ describe("feeRateFraction / feePreviewWon — CM/AG % 파생(parsePercentInput S
     // 제프 원형 parseFloat('1.2.3')=1.2와 다른 의도적 이탈 — 워크벤치 파싱 SSOT와 동일 의미론.
     expect(feeRateFraction("1.2.3")).toBeCloseTo(0.0123, 10);
     expect(feePreviewWon(10_000_000, "1.2.3")).toBe(123_000);
+  });
+});
+
+describe("distanceGuardReason — 렌트 무제한 조회 차단(배치 7 A#2)", () => {
+  it("'unlimited'는 사유와 함께 차단한다(파트너 계약에 무제한 표현 부재 — 종전 8사 400 전사 무사유 은닉)", () => {
+    expect(distanceGuardReason({ annualDistance: "unlimited" })).toBe(
+      "무제한 약정거리는 파트너 계산이 지원하지 않습니다 — 약정거리를 선택해 주세요",
+    );
+  });
+
+  it("숫자 약정거리는 통과한다(생략 전송 대안은 기각 — 제프 엔진 `?? 20_000` 기본값이라 무음 오계산)", () => {
+    expect(distanceGuardReason({ annualDistance: "20000" })).toBeNull();
+    expect(distanceGuardReason({ annualDistance: "40000" })).toBeNull();
   });
 });
