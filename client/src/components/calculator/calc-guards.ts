@@ -43,6 +43,17 @@ export function percentGuardReason(
   return null
 }
 
+// 렌트 약정거리 '무제한' 조회 차단(배치 7 A#2 — 제프 대비 의도적 이탈). 파트너 calculate 계약에
+// 무제한 표현 자체가 없다 — 'unlimited'는 parseInt→NaN→JSON null→릴레이 zod 400으로 8사 전사했다.
+// "필드 생략" 대안은 기각: 제프 MG 렌트 엔진이 `annualMileageKm ?? 20_000`(2026-07-17 실측)이라
+// 생략 = 기본 2만km **무음 오계산**이 된다(전멸보다 나쁨). 옵션 자체는 제프 원형 유지(숨기지 않음) —
+// 선택은 자유, 조회만 사유와 함께 차단한다. 파트너가 무제한을 계약에 편입하면 이 가드만 걷어낸다.
+export function distanceGuardReason(s: Pick<ScenarioState, 'annualDistance'>): string | null {
+  if (s.annualDistance === 'unlimited')
+    return '무제한 약정거리는 파트너 계산이 지원하지 않습니다 — 약정거리를 선택해 주세요'
+  return null
+}
+
 // CM/AG % → 분율(payload cmFeeRate/agFeeRate). 빈 칸·'.'·비유한 = 0(빈 % 칸은 0 의미 — 워크벤치 계약).
 export function feeRateFraction(raw: string): number {
   return parsePercentInput(raw) / 100
