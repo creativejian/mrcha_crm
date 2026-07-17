@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -84,6 +84,76 @@ describe("WorkbenchVehiclePicker", () => {
     render(<WorkbenchVehiclePicker />);
     expect(screen.getByRole("button", { name: /모델/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /트림/ })).toBeDisabled();
+  });
+
+  it("브랜드 로드 실패 시 다이얼로그에 '불러오지 못했습니다' 표시(데이터 없음과 구분)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("err", { status: 500 })));
+    const user = userEvent.setup();
+    render(<WorkbenchVehiclePicker />);
+    await user.click(screen.getByRole("button", { name: /제조사/ }));
+    expect(await screen.findByText("불러오지 못했습니다")).toBeInTheDocument();
+  });
+
+  it("복원 실패 후 제조사 행 재클릭 시 재fetch로 자기 회복", async () => {
+    let fail = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/vehicles/brands") {
+          return fail ? new Response("err", { status: 500 }) : new Response(JSON.stringify([BRAND]), { status: 200 });
+        }
+        if (url.startsWith("/api/vehicles/workbench")) return new Response("err", { status: 500 });
+        return new Response("[]", { status: 200 });
+      }),
+    );
+    const user = userEvent.setup();
+    // 999 = vehicles-cache 미적재 trimId(복원 테스트의 100 캐시 오염 회피 — 캐시는 모듈 전역).
+    render(<WorkbenchVehiclePicker initialTrimId={999} />);
+    await user.click(screen.getByRole("button", { name: /제조사/ }));
+    expect(await screen.findByText("불러오지 못했습니다")).toBeInTheDocument();
+    fail = false;
+    await user.click(screen.getByRole("button", { name: /제조사/ }));
+    expect(await screen.findByRole("button", { name: /현대/ })).toBeInTheDocument();
+  });
+
+  it("늦은 selectBrand 모델 응답은 폐기 — 새 선택 목록·열린 다이얼로그를 강탈하지 않는다", async () => {
+    const BRAND_B = { id: 2, name: "기아", logoUrl: null, isDomestic: true, isPopular: true, sortOrder: 2, brandCode: 2 };
+    const MODEL_B = { id: 20, brandId: 2, name: "쏘렌토", imageUrl: null, category: null, status: "판매중", sortOrder: 1, modelCode: 2 };
+    const pending = new Map<string, (res: Response) => void>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url === "/api/vehicles/brands") {
+          return Promise.resolve(new Response(JSON.stringify([BRAND, BRAND_B]), { status: 200 }));
+        }
+        if (url.startsWith("/api/vehicles/models")) {
+          return new Promise<Response>((resolve) => pending.set(url, resolve));
+        }
+        return Promise.resolve(new Response("[]", { status: 200 }));
+      }),
+    );
+    const user = userEvent.setup();
+    render(<WorkbenchVehiclePicker />);
+
+    // 브랜드 A(현대) 선택 → 모델 요청 A 미해소 상태에서 브랜드 B(기아)로 재선택 → 요청 B도 발사.
+    await user.click(screen.getByRole("button", { name: /제조사/ }));
+    await user.click(await screen.findByRole("button", { name: /현대/ }));
+    await user.click(screen.getByRole("button", { name: /제조사/ }));
+    await user.click(await screen.findByRole("button", { name: /기아/ }));
+
+    // B 응답 먼저 도착 → 모델 다이얼로그 자동 오픈(쏘렌토).
+    await act(async () => {
+      pending.get("/api/vehicles/models?brandId=2")!(new Response(JSON.stringify([MODEL_B]), { status: 200 }));
+    });
+    expect(await screen.findByRole("button", { name: /쏘렌토/ })).toBeInTheDocument();
+
+    // A 늦은 응답 도착 → 세대 비교로 폐기(쏘렌토 유지·팰리세이드 미출현).
+    await act(async () => {
+      pending.get("/api/vehicles/models?brandId=1")!(new Response(JSON.stringify([MODEL]), { status: 200 }));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.queryByRole("button", { name: /팰리세이드/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /쏘렌토/ })).toBeInTheDocument();
   });
 });
 

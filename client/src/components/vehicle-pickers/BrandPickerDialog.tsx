@@ -54,6 +54,8 @@ interface BrandPickerDialogProps {
   selectedBrandCode: number | null
   onSelect: (brandCode: number) => void
   onClose: () => void
+  // 목록 로드 실패(CRM 확장 — "데이터 없음"과 구분되는 빈 상태 문구). 기본 false = 제프 원형.
+  errored?: boolean
 }
 
 export function BrandPickerDialog({
@@ -62,6 +64,7 @@ export function BrandPickerDialog({
   selectedBrandCode,
   onSelect,
   onClose,
+  errored = false,
 }: BrandPickerDialogProps) {
   const [query, setQuery] = useState('')
 
@@ -119,7 +122,9 @@ export function BrandPickerDialog({
 
         <div className="overflow-y-auto px-4 pb-4 flex flex-col gap-4">
           {groups.domestic.length === 0 && groups.foreign.length === 0 && (
-            <div className="py-8 text-center text-[0.78rem] text-muted-foreground">검색 결과가 없습니다</div>
+            <div className="py-8 text-center text-[0.78rem] text-muted-foreground">
+              {errored ? '불러오지 못했습니다' : '검색 결과가 없습니다'}
+            </div>
           )}
           {groups.domestic.length > 0 && (
             <BrandGroup

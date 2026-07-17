@@ -1,8 +1,14 @@
-// 제프(dolim-solution) components/vehicle/OptionPickerDialog.tsx 1:1 이식 — UI/마크업/인터랙션 원형 유지.
-// CRM 배선 = import 경로만: @/types/catalog → ./catalog-types. 공용 위치(계산기·워크벤치 SSOT — plan: ref/plans/2026-07-16-crm-workbench-picker-dialog-unify.md).
+// 제프(dolim-solution) components/vehicle/OptionPickerDialog.tsx 이식 — UI/마크업/인터랙션 원형 유지.
+// CRM 배선 = import 경로: @/types/catalog → ./catalog-types. 공용 위치(계산기·워크벤치 SSOT — plan: ref/plans/2026-07-16-crm-workbench-picker-dialog-unify.md).
+// CRM 확장 2건(원형 대비 의도적 이탈):
+//   ①로컬 시딩 = 닫힘→열림 전이 1회 — 열려 있는 동안 부모 재렌더(selectedIds identity 변경)가
+//     로컬 편집을 되덮지 않는다(워크벤치는 input 버블만으로 부모가 재렌더되는 DOM 구조).
+//   ②enforceIncludes opt-in — 켤 때 includes 상대 자동 ON(단방향·한 단계, lib/option-selection
+//     resolveSelection). 워크벤치만 true — 계산기는 제프 원형 미강제(기본 false).
 // (spec: ref/specs/2026-07-16-crm-calculator-modal-design.md — T3a)
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
+import { resolveSelection } from '@/lib/option-selection'
 import type { TrimOption, TrimOptionRelation } from './catalog-types'
 
 interface Props {
@@ -14,6 +20,8 @@ interface Props {
   selectedIds: Set<number>
   onApply: (ids: Set<number>) => void
   trimDisplayName: string
+  // 켤 때 includes 상대 자동 ON(구 워크벤치 OptionPicker 계약 — 스펙 2026-06-15). 기본 false = 제프 원형.
+  enforceIncludes?: boolean
 }
 
 const fmtKrw = (n: number | null) =>
@@ -28,12 +36,16 @@ export function OptionPickerDialog({
   selectedIds,
   onApply,
   trimDisplayName,
+  enforceIncludes = false,
 }: Props) {
   const [local, setLocal] = useState<Set<number>>(new Set())
+  const wasOpenRef = useRef(false)
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 다이얼로그 열림 시 부모 선택값을 로컬 편집 상태로 시드(제프 원형 미러 — 취소 시 부모 불변)
-    if (open) setLocal(new Set(selectedIds))
+    // 닫힘→열림 전이에서만 부모 선택값을 로컬 편집 상태로 시드(제프 원형 "열림 시점 시드" 의미론 — 취소 시 부모 불변).
+    // 열려 있는 동안 selectedIds identity가 바뀌어도(부모 재렌더) 로컬 편집을 되덮지 않는다.
+    if (open && !wasOpenRef.current) setLocal(new Set(selectedIds))
+    wasOpenRef.current = open
   }, [open, selectedIds])
 
   // 선택된 옵션과 excludes 관계인 옵션들을 비활성화.
@@ -91,6 +103,12 @@ export function OptionPickerDialog({
 
   const toggle = (id: number) => {
     if (disabledIds.has(id) && !local.has(id)) return
+    if (enforceIncludes) {
+      // 켤 때 includes 상대 자동 ON(끌 때 연쇄 해제 없음 — resolveSelection off = 단순 삭제).
+      // 자동 ON된 옵션의 excludes 상대는 disabledIds가 local 파생이라 함께 비활성화된다.
+      setLocal(resolveSelection(relations, local, id, !local.has(id)))
+      return
+    }
     const next = new Set(local)
     if (next.has(id)) next.delete(id)
     else next.add(id)
