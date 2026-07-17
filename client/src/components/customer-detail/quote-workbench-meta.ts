@@ -57,6 +57,17 @@ export const DEALER_MODE_SEGMENT_OPTIONS: readonly { value: ManualDealerMode; la
   { value: "input", label: "입력" },
 ];
 
+// 판매사 select의 빈 목록 placeholder — 선택지가 없는 "이유"를 표면화(안내 없는 죽은 select가
+// 고장으로 읽히던 실기 지적, 2026-07-17). 워크벤치·계산기 공용 1벌(문구 SSOT):
+// 워크벤치는 딜러 스코프가 카드의 선택 금융사라 lenderReady = "금융사 스코프 로드 결과 존재",
+// 계산기는 전사 union이라 금융사 단계가 없어 lenderReady 상수 true(0건이면 곧장 "등록 딜러 없음").
+export function dealerSelectPlaceholder(state: { hasChoices: boolean; vehicleReady: boolean; lenderReady: boolean }): string {
+  if (state.hasChoices) return "선택";
+  if (!state.vehicleReady) return "차량 먼저 선택"; // 픽커 "트림 먼저 선택" 문법 미러
+  if (!state.lenderReady) return "금융사 먼저 선택";
+  return "등록 딜러 없음";
+}
+
 // 약정거리 "기본" 모드의 고정 표시값 — 화면·추출·복원이 공유하는 유일 리터럴.
 export const MILEAGE_BASIC_VALUE = "20,000km / 년";
 

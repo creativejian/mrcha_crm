@@ -733,9 +733,16 @@ export function useQuoteWorkbench({
   async function loadCardDealers(condId: string, lenderLabel: string) {
     const brand = workbenchVehicle?.brand?.name ?? null;
     const lender = solutionLenderOptions(solutionWorkbenchPurchaseMethod).find((l) => l.label === lenderLabel);
-    // 브랜드 미선택·파트너 미지원 금융사(CRM 수기 어휘 포함)는 목록 없음 → select 선택지 0 = 비활성 표시.
+    // 브랜드 미선택·파트너 미지원 금융사(CRM 수기 어휘 포함)는 목록 없음 → 키 삭제(빈 배열 아님).
+    // 키 존재 = "금융사 스코프 로드 결과"라는 계약 — placeholder(dealerSelectPlaceholder)가
+    // "금융사 먼저 선택"(키 부재)과 "등록 딜러 없음"(로드했더니 0건)을 구분하는 근거.
     if (!brand || !lender) {
-      setDealerOptionsByCard((prev) => (prev[condId]?.length ? { ...prev, [condId]: [] } : prev));
+      setDealerOptionsByCard((prev) => {
+        if (!(condId in prev)) return prev;
+        const next = { ...prev };
+        delete next[condId];
+        return next;
+      });
       return;
     }
     const key = `${lender.code}::${brand}`;

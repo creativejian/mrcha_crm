@@ -9,6 +9,7 @@ import {
   cardUiMapFromScenarios,
   cardUiOf,
   DEFAULT_CARD_UI,
+  dealerSelectPlaceholder,
   discountLineWon,
   effectiveMileageValue,
   MILEAGE_BASIC_VALUE,
@@ -181,6 +182,23 @@ describe("cardUiFromScenario", () => {
   it("dealerName이 있으면 dealerMode를 '판매사 입력'으로 복원한다", () => {
     expect(cardUiFromScenario(scenarioFixture({ dealerName: "도이치모터스" })).dealerMode).toBe("input");
     expect(cardUiFromScenario(scenarioFixture({ dealerName: null })).dealerMode).toBe("nonAffiliated");
+  });
+});
+
+// 판매사 select 빈 목록 placeholder — 선택지가 없는 "이유" 표면화(죽은 select 오인 방지, 실기 지적).
+// 워크벤치·계산기 공용 1벌: 계산기는 union이라 lenderReady 상수 true(금융사 단계 없음 → 0건 = 등록 딜러 없음).
+describe("dealerSelectPlaceholder", () => {
+  it("선택지가 있으면 항상 '선택'(이유 문구는 빈 목록에서만)", () => {
+    expect(dealerSelectPlaceholder({ hasChoices: true, vehicleReady: false, lenderReady: false })).toBe("선택");
+  });
+  it("차량 미선택이 최우선 안내 — 브랜드 없인 어떤 목록도 못 얻는다", () => {
+    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: false, lenderReady: false })).toBe("차량 먼저 선택");
+  });
+  it("차량은 있고 금융사 스코프 로드 결과가 없으면(키 부재) '금융사 먼저 선택' — 워크벤치 스코프 안내", () => {
+    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: true, lenderReady: false })).toBe("금융사 먼저 선택");
+  });
+  it("로드했는데 0건이면 '등록 딜러 없음' — 미취급 금융사(예: 신한카드)·계산기 union 0건", () => {
+    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: true, lenderReady: true })).toBe("등록 딜러 없음");
   });
 });
 

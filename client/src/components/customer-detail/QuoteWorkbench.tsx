@@ -16,6 +16,7 @@ import {
   ACQUISITION_TAX_MODE_LABELS,
   cardUiOf,
   DEALER_MODE_SEGMENT_OPTIONS,
+  dealerSelectPlaceholder,
   effectiveMileageValue,
   manualMileageOptions,
   emptyQuotePricing,
@@ -508,7 +509,10 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                                   disabled: isConditionSaved || dealerMode === "nonAffiliated" || (dealerList.length === 0 && !condition.dealerName),
                                 }}
                               >
-                                <option value="">선택</option>
+                                {/* 빈 목록 placeholder = 이유 표면화(차량/금융사 먼저·등록 딜러 없음) — 죽은 select 오인 방지.
+                                    lenderReady = 키 존재(금융사 스코프 로드 결과 — 훅 loadCardDealers 키 계약). 로드 in-flight
+                                    순간엔 "금융사 먼저 선택"이 잠깐 보일 수 있음(sub-second·캐시 히트 즉시 — 상태 3분화는 과설계). */}
+                                <option value="">{dealerSelectPlaceholder({ hasChoices: dealerList.length > 0 || condition.dealerName !== "", vehicleReady: trimDetail !== null, lenderReady: condition.id in dealerOptionsByCard })}</option>
                                 {condition.dealerName
                                   ? <option value={condition.dealerName}>{savedDealerInList ? dealerOptionLabel(savedDealerInList) : condition.dealerName}</option>
                                   : null}

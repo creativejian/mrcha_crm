@@ -23,8 +23,8 @@ import {
 import { distanceGuardReason, failureNoteFromEntries, feePreviewWon, percentGuardReason } from './calc-guards'
 import type { QuoteResult } from './quote-types'
 import type { DealerOption } from '@/lib/solution-dealers'
-// 판매사 세그먼트 어휘 — 워크벤치와 물리 1벌(quote-workbench-meta 순수 상수, discountLineWon 선례).
-import { DEALER_MODE_SEGMENT_OPTIONS } from '@/components/customer-detail/quote-workbench-meta'
+// 판매사 세그먼트 어휘·빈 목록 placeholder — 워크벤치와 물리 1벌(quote-workbench-meta 순수 상수, discountLineWon 선례).
+import { DEALER_MODE_SEGMENT_OPTIONS, dealerSelectPlaceholder } from '@/components/customer-detail/quote-workbench-meta'
 import { scenarioQueryFingerprint } from './query-fingerprint'
 import { useMultiQuote } from './hooks/useMultiQuote'
 import { bindSelect } from '@/lib/select-bind'
@@ -390,7 +390,9 @@ function ConditionCard({
                 ...bindSelect(state.dealer, (next) => set('dealer', next)),
               }}
             >
-              <option value="">선택</option>
+              {/* 빈 목록 placeholder = 이유 표면화(워크벤치 파리티 — 제프 원문 "선택" 고정 대비 의도 이탈).
+                  계산기는 전사 union이라 금융사 단계가 없음 → lenderReady 상수 true. */}
+              <option value="">{dealerSelectPlaceholder({ hasChoices: dealers.length > 0, vehicleReady: isVehicleReady, lenderReady: true })}</option>
               {dealers.map((d) => (
                 <option
                   key={`${d.lenderCode}::${d.dealerName}`}
