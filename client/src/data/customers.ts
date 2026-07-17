@@ -13,7 +13,8 @@ export type Customer = {
   name: string;
   customerType: string;
   customerTypeDetail: string;
-  phone: string;
+  phone: string; // 주 번호 표시값 — 서버 합성(앱 연결이면 profiles.phone_number, 아니면 crm phone)
+  phoneSecondary?: string; // 추가 연락처(상담사 소유·항상 편집 가능) — 매칭에 쓰지 않는다(2026-07-17 spec)
   vehicle: string;
   vehicleTrim?: string;
   method: string;

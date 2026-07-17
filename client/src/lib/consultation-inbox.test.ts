@@ -158,6 +158,17 @@ describe("buildConsultationInboxGroups — 매칭 파생(견적요청 인박스 
     expect(g.matchedCustomerId).toBe("cust-app");
   });
 
+  it("앱 연결 고객은 phone 매칭 후보에서 제외한다(합성 phone = 앱 번호 — 2026-07-17 spec §3-6)", () => {
+    // 다른 유저(u2)의 상담인데 전화가 "이미 u1에 연결된 고객"의 표시 phone과 같다(가족 공유 번호).
+    // 그 고객을 후보로 잡으면 link 시 역방향 409로만 막히는 오매칭 — 후보에서 아예 빠져야 한다.
+    const [g] = buildConsultationInboxGroups(
+      [row({ userId: "u2", phoneNumber: "01011112222" })],
+      [customer({ id: "cust-linked", appUserId: "u1", name: "연결고객", phone: "010-1111-2222" })],
+    );
+    expect(g.matchType).toBe("none");
+    expect(g.matchedCustomerId).toBeNull();
+  });
+
   it("매칭 없음 → none + 신규(미연결) 라벨", () => {
     const [g] = buildConsultationInboxGroups([row()], [customer({ id: "x", phone: "010-9999-0000" })]);
     expect(g.matchType).toBe("none");

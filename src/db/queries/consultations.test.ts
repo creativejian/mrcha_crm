@@ -127,7 +127,7 @@ test("createCustomerFromConsultation: userId 없으면 null(통합 불가)", asy
   }
 });
 
-test("createCustomerFromConsultation: 신규 고객 생성 — source/phone/appUserId/needModel 왕복", async () => {
+test("createCustomerFromConsultation: 신규 고객 생성 — source/appUserId/needModel 왕복, phone 미저장(2026-07-17 spec)", async () => {
   const userId = await anyUnlinkedProfileId();
   // 이름은 registry(TEST_CUSTOMER_NAMES) 등록값 — createCustomerFromConsultation이 이 이름으로
   // **실채번**(CU-YYMM-####) 고객을 만들어 접두사 registry가 못 잡는다. 실행이 끊겨 남아도
@@ -147,7 +147,9 @@ test("createCustomerFromConsultation: 신규 고객 생성 — source/phone/appU
 
     const [row] = await db.select().from(customers).where(eq(customers.id, result!.id));
     expect(row.name).toBe("상담승격테스트");
-    expect(row.phone).toBe("01099998888");
+    // 폼 phone은 저장하지 않는다(spec §3-5) — 앱 연결 고객 주 번호는 profiles read-through 합성.
+    // CHECK 불변식(app_user_id ↔ phone 배타)이 DB에서도 강제한다.
+    expect(row.phone).toBeNull();
     expect(row.appUserId).toBe(userId);
     expect(row.needModel).toBe("벤츠 GLE");
     expect(row.source).toBe("앱 상담신청");
@@ -175,31 +177,41 @@ test("createCustomerFromConsultation: 같은 appUserId 기존 고객 있으면 d
   }
 });
 
-test("linkConsultationToCustomer: 기존 고객에 appUserId 연결 + 빈 phone 보강", async () => {
+test("linkConsultationToCustomer: appUserId 연결 — 구 '빈 phone 보강' 폐기, phone은 null 유지(read-through가 담당)", async () => {
   const userId = await anyUnlinkedProfileId();
   const customerId = await insertCustomer({ phone: null, source: "카카오" });
   const consultationId = await insertConsultation({ userId, phoneNumber: "01055556666" });
   try {
     const result = await linkConsultationToCustomer(consultationId, customerId, db);
     expect(result?.appUserId).toBe(userId);
+    expect(result?.droppedPhone).toBeNull();
 
     const [row] = await db.select().from(customers).where(eq(customers.id, customerId));
     expect(row.appUserId).toBe(userId);
-    expect(row.phone).toBe("01055556666"); // 빈 phone 보강
+    expect(row.phone).toBeNull(); // 폼 번호를 저장하지 않는다(2026-07-17 spec §3-5)
+    expect(row.phoneSecondary).toBeNull();
   } finally {
     await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
     await db.delete(customers).where(eq(customers.id, customerId));
   }
 });
 
-test("linkConsultationToCustomer: 기존 phone 있으면 보강하지 않고 유지", async () => {
+test("linkConsultationToCustomer: 기존 phone은 앱 번호와 다르면 secondary로 내려가고 phone은 null(전이 규칙)", async () => {
   const userId = await anyUnlinkedProfileId();
-  const customerId = await insertCustomer({ phone: "01022223333", source: "카카오" });
+  // 실 profile의 phone과 우연히 같으면 '같으면 버림' 분기로 빠져 단언이 흔들린다 — 조회해서 회피(결정적).
+  const [prof] = await db.select({ phone: profiles.phoneNumber }).from(profiles).where(eq(profiles.id, userId));
+  const crmPhone = prof?.phone === "01022223333" ? "01033334444" : "01022223333";
+  const customerId = await insertCustomer({ phone: crmPhone, source: "카카오" });
   const consultationId = await insertConsultation({ userId, phoneNumber: "01099990000" });
   try {
-    await linkConsultationToCustomer(consultationId, customerId, db);
-    const [row] = await db.select({ phone: customers.phone }).from(customers).where(eq(customers.id, customerId));
-    expect(row.phone).toBe("01022223333"); // 기존 phone 유지
+    const result = await linkConsultationToCustomer(consultationId, customerId, db);
+    expect(result?.droppedPhone).toBeNull();
+    const [row] = await db
+      .select({ phone: customers.phone, phoneSecondary: customers.phoneSecondary })
+      .from(customers)
+      .where(eq(customers.id, customerId));
+    expect(row.phone).toBeNull(); // CHECK 불변식 — 연결 고객의 주 번호는 profiles 파생
+    expect(row.phoneSecondary).toBe(crmPhone); // 상담사가 적었던 번호는 추가 연락처로 보존
   } finally {
     await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
     await db.delete(customers).where(eq(customers.id, customerId));

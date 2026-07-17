@@ -235,7 +235,9 @@ export function prefetchAppQuoteRequests(): void {
   void fetchAppQuoteRequestsCached().catch(() => {});
 }
 
-type PromoteResult = { id: string; customerCode: string; name: string };
+// droppedPhone: link 전이에서 secondary 점유로 옮기지 못한 기존 번호(2026-07-17 spec — 무음 유실 방지 토스트용).
+// create 응답에는 없다(optional).
+type PromoteResult = { id: string; customerCode: string; name: string; droppedPhone?: string | null };
 
 // 전화 매칭된 기존 고객에 연결. 성공 시 인박스 캐시 fresh + 그 고객 상세 캐시 무효화.
 export async function linkRequestToCustomer(requestId: string, customerId: string): Promise<PromoteResult> {

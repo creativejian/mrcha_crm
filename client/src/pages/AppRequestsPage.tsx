@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { formatPhone } from "@/lib/customers";
 import { HttpError } from "@/lib/http";
 import { createCustomerFromRequest, fetchAppQuoteRequestsCached, linkRequestToCustomer, type AppQuoteRequest } from "@/lib/quote-requests";
 
@@ -47,7 +48,12 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
     setLinkConflict(null);
     try {
       const linked = await linkRequestToCustomer(r.id, r.matchedCustomerId);
-      onToast(`${linked.name} 고객에 연결했습니다`);
+      // droppedPhone = 기존 번호가 추가 연락처 자리 점유로 못 옮겨진 경우(2026-07-17 spec) — 무음 유실 방지.
+      onToast(
+        linked.droppedPhone
+          ? `${linked.name} 고객에 연결했습니다 · 기존 번호 ${formatPhone(linked.droppedPhone)}은 추가 연락처가 있어 옮기지 못했습니다`
+          : `${linked.name} 고객에 연결했습니다`,
+      );
       // link도 crm.customers 실변경(appUserId·updatedAt) — create와 동일하게 목록 리로드(0713 감사:
       // 미호출이면 ChatPage의 appUserId 고객 매칭·목록 최종 업데이트가 다음 리로드까지 stale).
       onCustomerListChanged();

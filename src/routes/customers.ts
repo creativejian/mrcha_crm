@@ -14,6 +14,7 @@ import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDoc
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
 import { deleteCustomer, quoteStoragePath } from "../db/queries/customer-delete";
 import { getStaffName } from "../db/queries/staff";
+import { normalizePhoneDigits } from "../lib/customer-phone";
 import { validateLookupValue, validateStatusSelection } from "../lib/lookup-validate";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
 import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
@@ -44,9 +45,14 @@ function removeOrphanObjects(env: StorageEnv, paths: string[]): Promise<void> {
   });
 }
 
+// 전화번호 필드 서버 정규화(2026-07-17 spec §3-8): 숫자만 저장(하이픈 유입 시 매칭이 조용히 깨지던
+// 잠재 드리프트 해소 — 구 "클라가 숫자만 전송" 관례 의존 제거). null=클리어 유지, 숫자 0개 입력도 클리어.
+const phoneField = z.string().nullable().optional().transform((v) => (v == null ? v : normalizePhoneDigits(v)));
+
 // 쓰기 가능 컬럼(전부 optional·문자열 nullable). 값 enum 검증 없음(추후 사이클).
 export const customerWriteSchema = z.object({
-  phone: z.string().nullable().optional(),
+  phone: phoneField, // ⚠️ 앱 연결 고객은 PATCH 핸들러가 409로 거부(profiles 파생이 주 번호 — spec §3-7)
+  phoneSecondary: phoneField, // 추가 연락처 — 항상 편집 가능(상담사 소유)
   residence: z.string().nullable().optional(),
   customerType: z.enum(["개인", "개인사업자", "법인사업자"]).nullable().optional(),
   customerTypeDetail: z.string().nullable().optional(),
@@ -78,7 +84,7 @@ export const customerWriteSchema = z.object({
 // 기존 PATCH 경로로 입력한다(spec 확정 결정 1 — 폼 중복 제로).
 const customerCreateSchema = z.object({
   name: z.string().trim().min(1),
-  phone: z.string().nullable().optional(), // 클라가 숫자만 전송(DB 규칙). PATCH와 동일하게 서버 정규화 없음.
+  phone: phoneField, // 서버 정규화(digits) — PATCH와 동일 규칙
   source: z.string().nullable().optional(),
 });
 
@@ -192,6 +198,13 @@ customers.patch(
     if (patch.source !== undefined) {
       const error = validateLookupValue("source", patch.source);
       if (error) return c.json({ error }, 400);
+    }
+    // 앱 연결 고객의 주 번호는 profiles 파생(2026-07-17 spec §3-7) — phone 쓰기는 소유권 침범이라 거부.
+    // phoneSecondary는 상담사 소유라 게이트 없음. 서버가 진짜 게이트(클라 popover 차단은 UX 보조).
+    if (patch.phone !== undefined) {
+      const target = await getCustomerAppUserId(c.req.valid("param").id, c.var.db);
+      if (!target) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+      if (target.appUserId) return c.json({ error: "앱 등록 번호는 수정할 수 없습니다." }, 409);
     }
     // 담당자 배정(advisorName): 배정시각은 서버가 기록(클라 시각 신뢰 안 함).
     // 담당자가 실제로 바뀔 때만 스탬프 — 동일 담당자 재저장(팀만 변경 등)에 assigned_at을 리셋하면

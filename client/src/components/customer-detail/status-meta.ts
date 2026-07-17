@@ -7,7 +7,8 @@ import { type CustomerChanceOption } from "@/data/customers";
 import { type StatusFieldKey, type WorkflowKey } from "./types";
 
 export const statusFieldMeta = [
-  { key: "phone", label: "연락처", icon: Phone },
+  { key: "phone", label: "연락처", icon: Phone }, // 앱 연결 고객은 편집 차단(앱 등록 번호 — 훅 openStatusEditor)
+  { key: "phoneSecondary", label: "추가 연락처", icon: Phone }, // 항상 편집 가능(2026-07-17 spec)
   { key: "job", label: "직군", icon: BriefcaseBusiness },
   { key: "location", label: "거주지", icon: MapPin },
   { key: "source", label: "상담경로", icon: Route },

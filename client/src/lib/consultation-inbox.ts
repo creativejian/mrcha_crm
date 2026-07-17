@@ -65,6 +65,10 @@ export function buildConsultationInboxGroups(
     if (!c.id) continue;
     const entry: MatchedCustomer = { id: c.id, name: c.name, code: c.customerId };
     if (c.appUserId && !byAppUser.has(c.appUserId)) byAppUser.set(c.appUserId, entry);
+    // phone 매칭 후보 = 앱 미연결 고객만(2026-07-17 spec §3-6). 연결 고객의 표시 phone은 서버 합성
+    // **앱 번호**라 여기 넣으면 가족 공유 번호의 다른 유저가 이미 연결된 고객으로 오매칭된다
+    // (그 고객은 app_user_id로 이미 확정 매칭 — phone 후보일 이유가 없다). 추가 연락처도 매칭 제외.
+    if (c.appUserId) continue;
     const digits = sanitizePhoneDigits(c.phone);
     if (digits && !byPhone.has(digits)) byPhone.set(digits, entry);
   }
