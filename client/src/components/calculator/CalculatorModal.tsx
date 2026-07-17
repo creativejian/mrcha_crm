@@ -86,7 +86,15 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
   // ── 모달 셸: Esc 닫기(spec D1 — backdrop 닫기 없음, 입력 유실 방지) ──
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Escape') return
+      // 배치 7 A#4(제프 대비 의도적 이탈): 픽커 다이얼로그가 열려 있으면 Esc를 무시한다.
+      // 픽커 5종(vehicle-pickers — 이 PR 불가침)은 keydown 핸들러가 없어, 종전엔 Esc가
+      // 계산기 모달 전체를 닫아 입력이 전소실됐다. 판별자 = `.jeff-ui` 존재 프로브
+      // (픽커는 open일 때만 .jeff-ui 루트를 렌더 — 워크벤치 스크롤 잠금 CSS
+      // `.kim-quote-solution-modal:has(.jeff-ui)`와 같은 판별자의 JS 대칭).
+      // "Esc가 픽커만 닫아주는" UX 개선은 픽커 몫이라 범위 밖(PR 본문 follow-up).
+      if (document.querySelector('.jeff-ui')) return
+      onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -148,6 +156,16 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 제프 원형 미러: 옵션 선택 → 옵션 금액 자동 합산(0개면 수동 입력 유지라 파생 불가)
     setOptionPrice(String(sum))
   }, [selectedOptionIds, optionsState.basic, optionsState.tuning])
+
+  // 배치 7 A#7(제프 대비 의도적 이탈): 옵션 픽커 [적용]으로 전체 해제하면 옵션 금액을 0으로 리셋.
+  // 위 합산 effect의 `size === 0` early return은 수동 타이핑 보존용이라 유지 — 그 유지 때문에
+  // 픽커 경유 전체 해제만은 여기(onApply 수신 지점)서 0을 써 준다. 그러지 않으면 직전 옵션 금액이
+  // 잔존해 차량가·취득세·payload가 오염된다. 수동 입력 경로(선택 0개에서 금액만 타이핑)는
+  // "현재 세트 non-empty" 조건에 안 걸려 불변.
+  const applyPickedOptionIds = (next: Set<number>) => {
+    if (next.size === 0 && selectedOptionIds.size > 0) setOptionPrice('0')
+    setSelectedOptionIds(next)
+  }
 
   // ── 파생값 ──
   const rawBase = Number(basePrice.replace(/,/g, '')) || 0
@@ -292,12 +310,6 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
     }
   }
 
-  const handleCalculate = (idx: 0 | 1 | 2) => {
-    const payload = buildPayload(idx)
-    if (!payload) return
-    void quotes[idx].calculateAll(payload)
-  }
-
   const loadings = [q1.isAnyLoading, q2.isAnyLoading, q3.isAnyLoading] as [boolean, boolean, boolean]
 
   const [selectedQuotesByScenario, setSelectedQuotesByScenario] = useState<
@@ -306,6 +318,21 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
   const [showMaxWarningByScenario, setShowMaxWarningByScenario] = useState<
     [boolean, boolean, boolean]
   >([false, false, false])
+
+  const handleCalculate = (idx: 0 | 1 | 2) => {
+    const payload = buildPayload(idx)
+    if (!payload) return
+    // 배치 7 A#14(제프 대비 의도적 이탈): 재조회로 결과 집합이 바뀌면 직전 결과에서 고른 금융사가
+    // 새 결과에 없어도 선택이 유령으로 남아 3개 상한·하단 "견적서 보기 (N)" 카운트를 오염했다 —
+    // 재조회 시작 시 해당 시나리오의 선택만 클리어한다(다른 시나리오 선택 불변).
+    setSelectedQuotesByScenario((prev) => {
+      if (prev[idx].length === 0) return prev
+      const next = [...prev] as [SupportedLenderCode[], SupportedLenderCode[], SupportedLenderCode[]]
+      next[idx] = []
+      return next
+    })
+    void quotes[idx].calculateAll(payload)
+  }
 
   const totalSelectedCount =
     selectedQuotesByScenario[0].length +
@@ -339,11 +366,19 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
     })
   }
 
+  // 배치 7 A#5(제프 대비 의도적 이탈): 초기화 리마운트 epoch — ConditionCards key에 편입해
+  // 조건 카드 로컬 상태(showResults/querySnapshot/sortType)까지 fresh 마운트로 리셋한다(신규
+  // 상태 채널 0 — 가장 값싼 구현). 종전엔 resetAll이 시나리오·결과만 비워 "○○으로 조회 완료"
+  // 라벨과 빈 결과가 모순 표시됐고, 기본 조건 그대로는 fingerprint가 스냅샷과 같아 재조회도
+  // 불가능했다.
+  const [resetEpoch, setResetEpoch] = useState(0)
+
   const resetAll = () => {
     setScenarios([defaultScenario(), defaultScenario(), defaultScenario()])
     q1.reset()
     q2.reset()
     q3.reset()
+    setResetEpoch((n) => n + 1) // A#5 — 카드 로컬 상태 리마운트 리셋
   }
 
   return (
@@ -422,7 +457,8 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
             loaded: optionsState.loaded,
           }}
           selectedOptionIds={selectedOptionIds}
-          setSelectedOptionIds={setSelectedOptionIds}
+          // A#7 — 픽커 [적용] 전체 해제 시 옵션 금액 0 리셋(수신 지점 래퍼)
+          setSelectedOptionIds={applyPickedOptionIds}
           colors={{
             exterior: colorsState.exterior,
             interior: colorsState.interior,
@@ -436,6 +472,7 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
         />
 
         <ConditionCards
+          key={resetEpoch} // A#5 — 초기화 시 카드 로컬 상태(showResults 등) 리마운트 리셋
           scenarios={scenarios}
           setScenarios={setScenarios}
           onCalculate={handleCalculate}
