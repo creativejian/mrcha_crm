@@ -23,6 +23,8 @@ import {
 import { distanceGuardReason, failureNoteFromEntries, feePreviewWon, percentGuardReason } from './calc-guards'
 import type { QuoteResult } from './quote-types'
 import type { DealerOption } from '@/lib/solution-dealers'
+// 판매사 세그먼트 어휘 — 워크벤치와 물리 1벌(quote-workbench-meta 순수 상수, discountLineWon 선례).
+import { DEALER_MODE_SEGMENT_OPTIONS } from '@/components/customer-detail/quote-workbench-meta'
 import { scenarioQueryFingerprint } from './query-fingerprint'
 import { useMultiQuote } from './hooks/useMultiQuote'
 import { bindSelect } from '@/lib/select-bind'
@@ -365,15 +367,13 @@ function ConditionCard({
           </CondCombo>
         </CondRow>
 
-        {/* 판매사(제프 ConditionCards.tsx:383-419 미러 — T1 실동작화). 세그먼트는 어휘가 길어 자연폭
-            (dealer 변형), select 는 값 트랙(40%)이라 위아래 "0 원" 입력과 라인 일치. */}
+        {/* 판매사(제프 ConditionCards.tsx:383-419 미러 — T1 실동작화). 세그먼트 어휘·폭 = 표준 행과 통일
+            (DEALER_MODE_SEGMENT_OPTIONS 공용 1벌 — 제프 원문 자연폭은 #265 고정 칸 그리드를 깨서 폐기, T2 픽스).
+            select 는 값 트랙(40%)이라 위아래 "0 원" 입력과 라인 일치. */}
         <CondRow label="판매사">
-          <div className="kim-manual-combo kim-manual-combo-dealer">
+          <CondCombo>
             <SegmentGroup value={state.dealerType}
-              options={[
-                { value: 'nonAffiliated', label: '비제휴 계산' },
-                { value: 'input', label: '판매사 입력' },
-              ]}
+              options={DEALER_MODE_SEGMENT_OPTIONS}
               onSelect={(v) => set('dealerType', v)} />
             {/*
               사별 union 이라 어느 lender 의 딜러인지 라벨에 반드시 표시한다.
@@ -400,7 +400,7 @@ function ConditionCard({
                 </option>
               ))}
             </ValueSelect>
-          </div>
+          </CondCombo>
         </CondRow>
 
         {/* CM/AG 수수료 — % 입력 + 기본가격 기준 원 미리보기(워크벤치 fee 콤보 문법) */}

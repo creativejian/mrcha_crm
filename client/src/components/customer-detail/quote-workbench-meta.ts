@@ -47,6 +47,16 @@ export type ManualMileageMode = "basic" | "custom";
 // 값의 진실 원본은 카드 DOM select(data-sc-field="dealer", uncontrolled — 금융사 select와 동일 계약).
 export type ManualDealerMode = "nonAffiliated" | "input";
 
+// 판매사 모드 세그먼트 어휘 — 워크벤치·계산기 공용 1벌(취득세 ACQUISITION_TAX_MODE_LABELS 선례).
+// 제프 원문(비제휴 계산/판매사 입력)을 축약: 표준 2버튼 세그먼트의 버튼당 텍스트 상한이 한글 3자
+// (1440px 실측 31.4px — 자동차세 "불포함"과 동일 폭)라, 원문(5~6자 = 자연폭 149.7px)은 세그먼트가
+// 값 트랙까지 침범해 전 행 폭 통일(#265 고정 칸 그리드)을 깬다. 라벨만 축약 — value 계약 불변
+// (계산기 ScenarioState.dealerType과 동일 리터럴). 행 라벨 "판매사"가 문맥을 제공한다.
+export const DEALER_MODE_SEGMENT_OPTIONS: readonly { value: ManualDealerMode; label: string }[] = [
+  { value: "nonAffiliated", label: "비제휴" },
+  { value: "input", label: "입력" },
+];
+
 // 약정거리 "기본" 모드의 고정 표시값 — 화면·추출·복원이 공유하는 유일 리터럴.
 export const MILEAGE_BASIC_VALUE = "20,000km / 년";
 

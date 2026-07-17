@@ -15,6 +15,7 @@ import { WorkbenchColorPicker, WorkbenchOptionPicker, WorkbenchVehiclePicker } f
 import {
   ACQUISITION_TAX_MODE_LABELS,
   cardUiOf,
+  DEALER_MODE_SEGMENT_OPTIONS,
   effectiveMileageValue,
   manualMileageOptions,
   emptyQuotePricing,
@@ -491,10 +492,11 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           {/* 판매사(T2 — 계산기 판매사 행 미러, 스코프는 카드의 선택 금융사 단일): 목록 = 훅 dealerOptionsByCard
                               (금융사 변경·브랜드 도착 시 재적재), 값 = uncontrolled select(data-sc-field 추출 계약 — 금융사 select 문법).
                               저장값(condition.dealerName)은 목록 fetch 도착 전에도 option으로 상시 렌더(구 어휘 금융사 "표시 유지" 미러)
-                              + 리마운트 키(재진입/복사/리셋 재시드). 단일 금융사 목록이라 계산기와 달리 lender 접두·합성값 없음. */}
+                              + 리마운트 키(재진입/복사/리셋 재시드). 단일 금융사 목록이라 계산기와 달리 lender 접두·합성값 없음.
+                              세그먼트 어휘·폭 = 표준 행과 통일(DEALER_MODE_SEGMENT_OPTIONS — 구 자연폭 변형 폐기, #265 그리드). */}
                           <CondRow label="판매사">
-                            <div className="kim-manual-combo kim-manual-combo-dealer">
-                              <SegmentGroup value={dealerMode} options={[{ value: "nonAffiliated", label: "비제휴 계산" }, { value: "input", label: "판매사 입력" }]} disabled={isConditionSaved} onSelect={(m) => setManualDealerMode(condition.id, m)} />
+                            <CondCombo>
+                              <SegmentGroup value={dealerMode} options={DEALER_MODE_SEGMENT_OPTIONS} disabled={isConditionSaved} onSelect={(m) => setManualDealerMode(condition.id, m)} />
                               <ValueSelect
                                 key={`dealer-${condition.dealerName}`}
                                 fixed={dealerMode === "nonAffiliated"}
@@ -514,7 +516,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                                   <option key={d.dealerName} value={d.dealerName}>{dealerOptionLabel(d)}</option>
                                 ))}
                               </ValueSelect>
-                            </div>
+                            </CondCombo>
                           </CondRow>
                           {/* CM/AG 수수료(계산기 패리티 2026-07-16) — %는 파트너 계산 입력(cmFeeRate/agFeeRate 분율·저장 cm_fee_percent),
                               원 칸은 최종 차량가 기준 파생 미리보기(deriveAndFillCardResults가 채움 — 추출·저장에 안 실림). */}
