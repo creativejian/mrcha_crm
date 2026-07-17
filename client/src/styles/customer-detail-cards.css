@@ -398,6 +398,14 @@
   width: 100%;
 }
 
+/* 판매사 행 세그먼트(제프 index.css 미러 — kim-manual-combo-dealer 변형) — 어휘(비제휴 계산/판매사 입력)가
+   길어 자연폭 유지(트랙을 넘어 빈 스페이서 칸(3) 사용). 베이스 max-width가 트랙 폭으로 클램프하므로
+   해제 필수. select 는 표준 값 트랙(4/6) — 위아래 "0 원" 입력과 라인 일치. */
+.kim-manual-combo.kim-manual-combo-dealer > .kim-jeff-segment {
+  width: max-content;
+  max-width: none;
+}
+
 /* CM/AG 수수료 행(계산기 패리티) — 입력 2개(%·원 미리보기)라 kim-manual-combo(세그먼트+입력 전제)와
    별도 트랙: % 입력은 세그먼트 자리(1/3), 원 미리보기는 값 자리(4/6) — 위아래 행과 세로 리듬 정합. */
 .kim-manual-fee-combo {

@@ -25,6 +25,8 @@ const flipped: { [K in (typeof SCENARIO_QUERY_KEYS)[number]]: ScenarioState[K] }
   subsidyAmount: "5000000",
   cmFeePercent: "1.5",
   agFeePercent: "2",
+  dealerType: "input",
+  dealer: "bnk-capital::모터원",
 };
 
 describe("scenarioQueryFingerprint (배치 7 A#3)", () => {

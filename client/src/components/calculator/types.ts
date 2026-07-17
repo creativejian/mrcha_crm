@@ -6,7 +6,8 @@
 // 페이로드 미전송 필드는 운전연령(driverAge)·대물한도(liabilityLimit) 둘뿐이다(UI 표시만).
 // 렌트 탭(activeTab=rent → long_term_rental dispatch)·출고방식(deliveryType)·정비(maintenanceGrade)는
 // 실제로 전송된다(배치 7 A#13 — 구 "렌트/출고방식 무시" 서술은 렌트 미지원 시절 제프 원문 잔재).
-// 판매사(dealerType/dealer)는 spec D2로 UI 미노출·미전송(아래 필드 주석 참조).
+// 판매사(dealerType/dealer)도 실전송(판매사 실동작화 T1, 2026-07-17 — 구 spec D2 해제): 제프가
+// 판매사를 일반화해 external dealers API를 열어, 선택 딜러가 해당 lender 요청에만 dealerName으로 실린다.
 export interface ScenarioState {
   activeTab: 'lease' | 'rent'
   period: string                       // '12' | '24' | '36' | '48' | '60' (SOLUTION_LEASE_TERMS — 워크벤치 패리티)
@@ -27,10 +28,11 @@ export interface ScenarioState {
   subsidyAmount: string
   cmFeePercent: string
   agFeePercent: string
-  // ⚠️ CRM v1: 판매사(BNK 딜러) 입력은 UI 미노출·미전송(spec D2 — /api/catalog/bnk-dealers는 제프 내부 전용).
-  // ScenarioState 모양은 제프 원형 그대로 보존(컴포넌트 이식 안정성) — 값은 defaultScenario 고정으로만 존재.
+  // 판매사(딜러) — 실동작(T1, 구 spec D2 해제). dealer는 `lenderCode::dealerName` 합성값(사별 union이라
+  // 딜러명만으로는 lender 식별 불가·딜러명 사 간 중복 실존 — 예: "모터원"). 해석은 CalculatorModal
+  // resolveDealerSelection(제프 QuoteRevolutionV2.tsx:276-293 미러).
   dealerType: 'nonAffiliated' | 'input'
-  dealer: string                       // 선택된 BNK 딜러명 (dealerType='input' 시만 사용)
+  dealer: string                       // `lenderCode::dealerName` (dealerType='input' 시만 사용)
 }
 
 export const defaultScenario = (): ScenarioState => ({

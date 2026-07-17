@@ -103,7 +103,7 @@ test("성공 릴레이: 파트너 body 패스스루 + X-Request-ID(crm- 접두) 
   process.env.PARTNER_QUOTE_API_KEY = "test-key-123";
   const calls = captureRequests();
 
-  const res = await post(VALID_BODY);
+  const res = await post({ ...VALID_BODY, dealerName: "테스트모터스" });
   expect(res.status).toBe(200);
   const body = (await res.json()) as { ok: boolean };
   expect(body.ok).toBe(true);
@@ -113,6 +113,8 @@ test("성공 릴레이: 파트너 body 패스스루 + X-Request-ID(crm- 접두) 
   expect(calls[0].headers["x-api-key"]).toBe("test-key-123");
   expect(calls[0].headers["x-request-id"]).toMatch(/^crm-[0-9a-f-]{36}$/);
   expect((calls[0].body as { lenderCode: string }).lenderCode).toBe("shinhan-card");
+  // 판매사 실동작화(T1): 제프 canonical dealerName이 zod strip에 안 잘리고 실린다(스키마 누락이면 탈락 = RED).
+  expect((calls[0].body as { dealerName?: string }).dealerName).toBe("테스트모터스");
 });
 
 test("zod strip 계약: 스키마 밖 키는 파트너로 전달되지 않는다", async () => {
@@ -295,4 +297,87 @@ test("fetchImpl은 plain call로 호출된다(this 미결합 — Workers Illegal
   await post(VALID_BODY);
   expect(called).toBe(true);
   expect(hadThis).toBe(false);
+});
+
+// ── GET /dealers 릴레이(판매사 실동작화 T1) — 제프 external catalog/dealers 미러 ──
+
+function getDealers(query: string) {
+  return app.request(`/api/solution/dealers?${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+// GET 릴레이용 캡처(위 captureRequests는 POST body 파싱 전제라 별도) — 업스트림 성공 응답 고정.
+function captureDealerRequests() {
+  const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+  solutionDeps.fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), headers: Object.fromEntries(new Headers(init?.headers).entries()) });
+    return new Response(
+      JSON.stringify({ ok: true, dealers: [{ dealerName: "모터원", baseIrrRate: 0.0681 }] }),
+      { status: 200 },
+    );
+  }) as typeof fetch;
+  return calls;
+}
+
+test("dealers 성공 패스스루 + URL 조립(calculate URL의 origin 파생) + X-API-Key/X-Request-ID", async () => {
+  // PARTNER_QUOTE_API_URL은 calculate 전체 URL — dealers는 origin만 취해 external 경로를 조립한다.
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/api/external/quotes/calculate";
+  process.env.PARTNER_QUOTE_API_KEY = "test-key-123";
+  const calls = captureDealerRequests();
+
+  const res = await getDealers("lenderCode=bnk-capital&brand=BMW");
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as { ok: boolean; dealers: Array<{ dealerName: string; baseIrrRate: number }> };
+  expect(body.ok).toBe(true);
+  expect(body.dealers).toEqual([{ dealerName: "모터원", baseIrrRate: 0.0681 }]);
+
+  expect(calls).toHaveLength(1);
+  expect(calls[0].url).toBe("https://partner.test/api/external/catalog/dealers?lenderCode=bnk-capital&brand=BMW");
+  expect(calls[0].headers["x-api-key"]).toBe("test-key-123");
+  expect(calls[0].headers["x-request-id"]).toMatch(/^crm-[0-9a-f-]{36}$/);
+});
+
+test("dealers 쿼리 zod 위반(미지원 lenderCode / brand 누락) → 400(업스트림 미호출)", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/api/external/quotes/calculate";
+  const calls = captureDealerRequests();
+
+  expect((await getDealers("lenderCode=hana-capital&brand=BMW")).status).toBe(400);
+  expect((await getDealers("lenderCode=bnk-capital")).status).toBe(400);
+  expect(calls).toHaveLength(0);
+});
+
+test("dealers 업스트림 400(VALIDATION_ERROR) → 400 + error 문구 패스스루", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/api/external/quotes/calculate";
+  solutionDeps.fetchImpl = (async () =>
+    new Response(JSON.stringify({ ok: false, errorCode: "VALIDATION_ERROR", error: "요청 형식이 올바르지 않습니다" }), {
+      status: 400,
+    })) as unknown as typeof fetch;
+
+  const res = await getDealers("lenderCode=bnk-capital&brand=BMW");
+  expect(res.status).toBe(400);
+  const body = (await res.json()) as { error: string };
+  expect(body.error).toContain("형식");
+});
+
+test("dealers 파트너 401 → 503 + 인증 실패 문구(AUTH_FAILED 구분 — calculate 미러)", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/api/external/quotes/calculate";
+  solutionDeps.fetchImpl = (async () =>
+    new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 })) as unknown as typeof fetch;
+
+  const res = await getDealers("lenderCode=bnk-capital&brand=BMW");
+  expect(res.status).toBe(503);
+  const body = (await res.json()) as { error: string };
+  expect(body.error).toContain("인증");
+});
+
+test("dealers env URL이 origin 파생 불가(비 URL 문자열) → 503 fail-loud", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "not-a-url";
+  const calls = captureDealerRequests();
+
+  const res = await getDealers("lenderCode=bnk-capital&brand=BMW");
+  expect(res.status).toBe(503);
+  const body = (await res.json()) as { error: string };
+  expect(body.error).toContain("설정");
+  expect(calls).toHaveLength(0);
 });

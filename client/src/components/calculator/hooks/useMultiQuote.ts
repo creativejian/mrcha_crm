@@ -32,6 +32,15 @@ const initialStates = (): Record<string, LenderQuoteState> =>
     ]),
   )
 
+/**
+ * 선택된 판매사(딜러). 딜러는 **해당 lender 요청에만** 실린다(제프 useMultiQuote 원문 미러).
+ *
+ * 딜러 목록은 lender마다 다른데 예전(제프)엔 BNK 딜러명을 4사 전부에 보냈다. BNK는
+ * 미매칭 딜러명에 0.0681 하드 폴백을, 메리츠는 fee 0을 조용히 적용하므로
+ * 타사 딜러명이 흘러가면 견적이 소리 없이 틀어진다.
+ */
+type DealerSelection = { lenderCode: string; dealerName: string }
+
 export function useMultiQuote() {
   const [states, setStates] = useState<Record<string, LenderQuoteState>>(initialStates)
   // 배치 7 A#6(제프 대비 의도적 이탈): 조회 세대 토큰. 제프 원형은 in-flight 취소 개념이 없어
@@ -40,7 +49,10 @@ export function useMultiQuote() {
   // 세대를 올리고, 응답(성공·실패·미취급 전부)은 기록 직전 세대가 같을 때만 반영한다.
   const generationRef = useRef(0)
 
-  const calculateAll = useCallback(async (basePayload: Omit<QuotePayload, 'lenderCode'>) => {
+  const calculateAll = useCallback(async (
+    basePayload: Omit<QuotePayload, 'lenderCode' | 'dealerName'>,
+    dealerSelection?: DealerSelection | null,
+  ) => {
     const generation = ++generationRef.current // 직전 조회의 잔여 in-flight 응답도 무효화
     // Set all to loading
     setStates(
@@ -61,7 +73,15 @@ export function useMultiQuote() {
           const data = await sendJson<{ ok?: unknown; quote?: QuoteResult }>(
             '/api/solution/calculate',
             'POST',
-            { ...basePayload, lenderCode: l.lenderCode },
+            {
+              ...basePayload,
+              lenderCode: l.lenderCode,
+              // 다른 lender에는 미전송 = 비제휴 경로(종전 동작 — DealerSelection 주석 참조).
+              dealerName:
+                dealerSelection?.lenderCode === l.lenderCode
+                  ? dealerSelection.dealerName
+                  : undefined,
+            },
           )
           if (data?.ok !== true || data.quote == null) throw new Error('계산 응답을 해석하지 못했습니다')
           const result = data.quote

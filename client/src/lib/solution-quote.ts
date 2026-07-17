@@ -99,6 +99,9 @@ export type SolutionQuoteInput = {
   agFeeRate?: number; // 분율
   insuranceYearlyAmount?: number; // 원/년
   lossDamageAmount?: number; // 원
+  // 판매사(딜러) — 제프 canonical 필드(quote.schema.ts:85, bnkDealerName은 deprecated alias라 미사용).
+  // 해당 lender 요청에만 동봉(useMultiQuote dealerSelection) — 타사로 흘리면 견적이 조용히 틀어진다.
+  dealerName?: string;
 };
 
 const parseWon = (raw: string): number => {

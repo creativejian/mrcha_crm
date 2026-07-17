@@ -59,6 +59,9 @@ const solutionCalcBody = z.object({
   agFeeRate: z.number().min(0).optional(),
   insuranceYearlyAmount: z.number().min(0).optional(),
   lossDamageAmount: z.number().min(0).optional(),
+  // 판매사(딜러) — 제프 canonical 필드(quote.schema.ts:85 `dealerName: z.string().min(1).optional()`
+  // 미러). bnkDealerName은 deprecated alias라 CRM은 안 쓴다.
+  dealerName: z.string().min(1).optional(),
 });
 
 // 컴파일 타임 파리티: zod 스키마 출력이 클라 SolutionQuoteInput에 할당 가능해야 한다 — 서버 게이트가
@@ -143,6 +146,84 @@ solution.post("/calculate", async (c) => {
   } catch (e) {
     const aborted = e instanceof Error && e.name === "AbortError";
     console.error(`[solution] calculate ${aborted ? "TIMEOUT" : "NETWORK_FAIL"} request_id=${requestId}`, e);
+    if (aborted) return c.json({ error: "계산 서버가 응답하지 않습니다(시간 초과)" }, 504);
+    return c.json({ error: "계산 서버에 연결하지 못했습니다" }, 502);
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+// ── 판매사(딜러) 목록 릴레이 — 제프 external `GET /api/external/catalog/dealers`(app.ts:524-533).
+// 업스트림 계약: 200 {ok:true, dealers:[{dealerName, baseIrrRate}]} / 400 {ok:false,
+// errorCode:"VALIDATION_ERROR", error}. 미지원 금융사는 200 빈 목록(사별 union 조회 전제).
+// env·인증·타임아웃·에러 매핑은 위 calculate 릴레이와 동일 계약(미러) — PARTNER_QUOTE_API_URL은
+// calculate 전체 URL이라 origin만 파생해 dealers 경로를 조립한다.
+const dealersQuery = z.object({
+  lenderCode: z.enum(LENDER_CODES),
+  brand: z.string().min(1),
+});
+
+solution.get("/dealers", async (c) => {
+  const env = (c.env ?? {}) as { PARTNER_QUOTE_API_URL?: string; PARTNER_QUOTE_API_KEY?: string };
+  const url = env.PARTNER_QUOTE_API_URL ?? process.env.PARTNER_QUOTE_API_URL;
+  const apiKey = env.PARTNER_QUOTE_API_KEY ?? process.env.PARTNER_QUOTE_API_KEY;
+  if (!url) return c.json({ error: "솔루션 연결이 설정되지 않았습니다(PARTNER_QUOTE_API_URL 미설정)" }, 503);
+
+  const parsed = dealersQuery.safeParse(c.req.query());
+  if (!parsed.success) return c.json({ error: "판매사 조회 입력이 유효하지 않습니다" }, 400);
+
+  // calculate URL에서 origin 파생 — 파싱 실패는 운영 오설정이므로 fail-loud(호출자 잘못 아님).
+  let origin: string;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    console.error(`[solution] dealers PARTNER_QUOTE_API_URL 파싱 실패 — origin 파생 불가`);
+    return c.json({ error: "솔루션 연결 설정이 올바르지 않습니다(PARTNER_QUOTE_API_URL 확인)" }, 503);
+  }
+  const upstreamUrl =
+    `${origin}/api/external/catalog/dealers?lenderCode=${encodeURIComponent(parsed.data.lenderCode)}` +
+    `&brand=${encodeURIComponent(parsed.data.brand)}`;
+
+  const requestId = `crm-${crypto.randomUUID()}`;
+  const headers: Record<string, string> = { "X-Request-ID": requestId };
+  if (apiKey) headers["X-API-Key"] = apiKey; // 미설정 = 개발 무인증 단계(calculate 미러)
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), solutionDeps.timeoutMs);
+  const startedAt = Date.now();
+  // ⚠️ 지역 변수 plain call — Workers Illegal invocation 가드(위 calculate 주석·PR #202 참조).
+  const fetchImpl = solutionDeps.fetchImpl;
+  try {
+    const upstream = await fetchImpl(upstreamUrl, { headers, signal: controller.signal });
+    let body: unknown = null;
+    let bodyUnparsable = false;
+    try {
+      body = await upstream.json();
+    } catch {
+      if (controller.signal.aborted) {
+        console.error(`[solution] dealers TIMEOUT(body-read) status=${upstream.status} request_id=${requestId}`);
+        return c.json({ error: "계산 서버가 응답하지 않습니다(시간 초과)" }, 504);
+      }
+      bodyUnparsable = true;
+    }
+    const ms = Date.now() - startedAt;
+    console.log(
+      `[solution] dealers lender=${parsed.data.lenderCode} status=${upstream.status} ${ms}ms request_id=${requestId}`,
+    );
+    if (upstream.status === 401 || upstream.status === 403) {
+      console.error(`[solution] AUTH_FAILED(${upstream.status}) request_id=${requestId} — PARTNER_QUOTE_API_KEY 확인 필요`);
+      return c.json({ error: "솔루션 연결 인증이 실패했습니다(운영 설정 확인)" }, 503);
+    }
+    if (!upstream.ok) {
+      const msg = (body as { error?: unknown } | null)?.error;
+      const status = upstream.status >= 500 ? 502 : 400;
+      return c.json({ error: typeof msg === "string" ? msg : "판매사 조회에 실패했습니다" }, status);
+    }
+    if (bodyUnparsable || body === null) return c.json({ error: "계산 서버 응답을 해석하지 못했습니다" }, 502);
+    return c.json(body as Record<string, unknown>);
+  } catch (e) {
+    const aborted = e instanceof Error && e.name === "AbortError";
+    console.error(`[solution] dealers ${aborted ? "TIMEOUT" : "NETWORK_FAIL"} request_id=${requestId}`, e);
     if (aborted) return c.json({ error: "계산 서버가 응답하지 않습니다(시간 초과)" }, 504);
     return c.json({ error: "계산 서버에 연결하지 못했습니다" }, 502);
   } finally {
