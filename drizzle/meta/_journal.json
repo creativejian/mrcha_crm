@@ -239,6 +239,13 @@
       "when": 1784260063837,
       "tag": "0033_red_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1784279797547,
+      "tag": "0034_colorful_deathbird",
+      "breakpoints": true
     }
   ]
 }

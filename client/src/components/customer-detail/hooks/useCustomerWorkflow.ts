@@ -84,6 +84,7 @@ export function useCustomerWorkflow({
 }: UseCustomerWorkflowArgs) {
   const [statusValues, setStatusValues] = useState<Record<StatusFieldKey, string>>(() => ({
     phone: detail.phone ? formatPhone(detail.phone) : "미입력",
+    phoneSecondary: detail.phoneSecondary ? formatPhone(detail.phoneSecondary) : "미입력",
     job: detail.customerType ? formatJobValue(detail.customerType as CustomerTypeValue, detail.customerTypeDetail ?? "") : "미입력",
     location: detail.residence ?? "확인 필요",
     source: detail.source ?? "미입력",
@@ -138,6 +139,13 @@ export function useCustomerWorkflow({
       onToast("자동 접수 경로는 수정할 수 없습니다.");
       return;
     }
+    // 앱 연결 고객의 주 번호 = 앱 등록 번호(profiles 파생, 2026-07-17 spec §3-7) — 편집 진입 차단.
+    // 서버 PATCH도 409로 거부하는 진짜 게이트가 있고, 이건 UX 보조(자동 접수 경로 차단과 동일 문법).
+    if (next.kind === "status" && next.key === "phone" && detail.appUserId) {
+      setOpenEditor(null);
+      onToast("앱 등록 번호는 수정할 수 없습니다. 다른 번호는 추가 연락처에 입력하세요.");
+      return;
+    }
     if (next.kind === "status" && next.key === "assignedAt") {
       setOpenEditor(null);
       onToast("배정시간은 담당자 배정 시 자동 기록됩니다.");
@@ -164,14 +172,16 @@ export function useCustomerWorkflow({
     const value = String(formData.get("value") ?? "").trim();
     if (!value) return;
     const prev = statusValues[key];
-    if (key === "phone") {
+    if (key === "phone" || key === "phoneSecondary") {
       const digits = `010${value.replace(/\D/g, "")}`; // 입력 8자리 + 010 고정 prefix = 11자리
       const display = formatPhone(digits);
-      setStatusValues((current) => ({ ...current, phone: display }));
+      setStatusValues((current) => ({ ...current, [key]: display }));
       setOpenEditor(null);
       markRecentUpdate("고객 정보");
-      onToast("연락처 수정 완료");
-      savePatch({ phone: digits }, () => setStatusValues((current) => ({ ...current, phone: prev })));
+      onToast(`${fieldLabel(key)} 수정 완료`);
+      savePatch(key === "phone" ? { phone: digits } : { phoneSecondary: digits }, () =>
+        setStatusValues((current) => ({ ...current, [key]: prev })),
+      );
       return;
     }
     setStatusValues((current) => ({ ...current, [key]: value }));

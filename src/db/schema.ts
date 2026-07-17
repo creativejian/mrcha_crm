@@ -65,7 +65,11 @@ export const customers = crm.table("customers", {
   customerCode: text("customer_code").notNull().unique(), // CU-YYMM-####
   appUserId: uuid("app_user_id"), // → public.profiles.id (FK: Phase B)
   name: text("name").notNull(),
+  // 앱 미연결 고객의 주 번호만(2026-07-17 spec). 앱 연결 고객의 주 번호는 profiles.phone_number
+  // 파생(read-through — listCustomers/getCustomer 합성)이라 저장하지 않는다(아래 CHECK가 강제).
   phone: text("phone"),
+  // 추가 연락처(상담사 소유·항상 편집 가능) — "다른 번호로 연락달라" 실무 케이스. 매칭에는 쓰지 않는다.
+  phoneSecondary: text("phone_secondary"),
   residence: text("residence"),
   customerType: text("customer_type"), // 개인 | 개인사업자 | 법인사업자
   customerTypeDetail: text("customer_type_detail"),
@@ -118,6 +122,9 @@ export const customers = crm.table("customers", {
   // 앱 유저 1 = CRM 고객 1의 DB 최후 방어선(0713 감사) — link/승격 가드는 autocommit SELECT라 동시
   // 요청 경합(TOCTOU)을 못 막는다. 위반은 23505 → run() dbErrorMessage가 연결 충돌 문구로 매핑.
   uniqueIndex("customers_app_user_id_unique").on(t.appUserId).where(sql`${t.appUserId} IS NOT NULL`),
+  // 전화번호 소유권 불변식(2026-07-17 spec): 앱 연결 고객의 주 번호는 profiles 파생 — phone 컬럼과
+  // 공존 금지(한 컬럼 두 소유자 차단). 연결(link) 전이는 lib/customer-phone.ts resolvePhoneOnLink.
+  check("customers_phone_app_exclusive_check", sql`${t.appUserId} IS NULL OR ${t.phone} IS NULL`),
 ]);
 
 // ── 고객 자식 테이블 (1:N) ────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { getDefaultDb, type Executor } from "../client";
 import { staffActivityAt } from "./activity";
 import { listAdvisorViewedAt } from "./advisor-quotes";
 import { nextCustomerCode } from "./quote-requests";
+import { profiles } from "../public-app";
 import {
   consultations,
   customerDocuments,
@@ -29,11 +30,17 @@ const latestTaskBody = sql<string | null>`(
 // "마지막 담당자 액션" 파생은 activity.ts로 이동(0706 배치 B) — 업무 AI 도구와 공유하는 SSOT.
 // 파생 집합·완전정규화(섀도잉) 주의사항은 그쪽 주석 참조.
 
+// 주 번호 read-through 합성(2026-07-17 spec §3-2): 앱 연결 고객의 주 번호는 profiles.phone_number가
+// 진실 원본(앱에서 바꾸면 다음 조회부터 자동 반영 — viewed_at #159 선례). 수기 고객은 crm phone.
+// 저장·동기화 없음 — CHECK 불변식(app_user_id ↔ phone 배타)이 두 소스의 공존을 막는다.
+const composedPhone = sql<string | null>`coalesce(${profiles.phoneNumber}, ${customers.phone})`;
+
 // 쓰기 가능한 customers 컬럼만(고객 쓰기 #1 범위). 값 enum 검증은 추후.
 export type CustomerWritePatch = Partial<
   Pick<
     typeof customers.$inferInsert,
     | "phone"
+    | "phoneSecondary"
     | "residence"
     | "customerType"
     | "customerTypeDetail"
@@ -137,8 +144,9 @@ export async function getCustomerAppUserId(
 
 export async function listCustomers(executor: Executor = getDefaultDb()): Promise<CustomerListRow[]> {
   return executor
-    .select({ ...getTableColumns(customers), latestTask: latestTaskBody, lastActivityAt: staffActivityAt })
+    .select({ ...getTableColumns(customers), phone: composedPhone, latestTask: latestTaskBody, lastActivityAt: staffActivityAt })
     .from(customers)
+    .leftJoin(profiles, eq(customers.appUserId, profiles.id))
     .orderBy(desc(customers.receivedAt));
 }
 
@@ -157,8 +165,9 @@ export type CustomerDetail = typeof customers.$inferSelect & {
 
 export async function getCustomer(id: string, executor: Executor = getDefaultDb()): Promise<CustomerDetail | null> {
   const [customer] = await executor
-    .select({ ...getTableColumns(customers), lastActivityAt: staffActivityAt })
+    .select({ ...getTableColumns(customers), phone: composedPhone, lastActivityAt: staffActivityAt })
     .from(customers)
+    .leftJoin(profiles, eq(customers.appUserId, profiles.id))
     .where(eq(customers.id, id));
   if (!customer) return null;
   // 자식 6개는 병렬(존재 확인 후 1회 배치). quotes는 scenarios 묶음을 위해 id 목록을 먼저 받아야 하므로 그 뒤 1 왕복 추가.

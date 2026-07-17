@@ -180,7 +180,7 @@ export function CustomerManagementPage({
     const activeChanceFilter = mode === "all" ? chanceFilter : "";
     const activeFinalUpdateFilter = mode === "all" ? finalUpdateFilter : "";
     return customers.filter((customer) => {
-      const searchable = `${customer.name} ${customer.phone} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${aiHintPlainText(customer)}`.toLowerCase();
+      const searchable = `${customer.name} ${customer.phone} ${customer.phoneSecondary ?? ""} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${aiHintPlainText(customer)}`.toLowerCase();
       const chance = resolveChance(customer, chanceOverrides[customer.no]);
       const updateStatus = resolveUpdateBadge(customer, {
         finalUpdateOverride: finalUpdateOverrides[customer.no],

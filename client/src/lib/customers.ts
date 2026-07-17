@@ -7,7 +7,8 @@ export type CustomerRow = {
   id: string;
   customerCode: string;
   name: string;
-  phone: string | null;
+  phone: string | null; // 서버 합성 주 번호(앱 연결 = profiles.phone_number, 미연결 = crm phone)
+  phoneSecondary: string | null;
   appUserId: string | null;
   customerType: string | null;
   customerTypeDetail: string | null;
@@ -62,6 +63,7 @@ export function toCustomer(row: CustomerRow): Customer {
     customerType: row.customerType ?? "",
     customerTypeDetail: row.customerTypeDetail ?? "",
     phone: formatPhone(row.phone),
+    phoneSecondary: row.phoneSecondary ? formatPhone(row.phoneSecondary) : undefined,
     vehicle: row.needModel ?? "",
     vehicleTrim: row.needTrim ?? undefined,
     method: row.needMethod ?? "",
@@ -99,7 +101,8 @@ export type CustomerDetailResponse = {
   appUserId: string | null;
   customerCode: string;
   name: string;
-  phone: string | null;
+  phone: string | null; // 서버 합성 주 번호 — appUserId 있으면 읽기 전용(앱 소유)
+  phoneSecondary: string | null;
   residence: string | null;
   customerType: string | null;
   customerTypeDetail: string | null;
@@ -137,6 +140,7 @@ export type CustomerDetailData = Pick<
   | "customerCode"
   | "name"
   | "phone"
+  | "phoneSecondary"
   | "residence"
   | "customerType"
   | "customerTypeDetail"
@@ -174,6 +178,7 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
     customerCode: res.customerCode,
     name: res.name,
     phone: res.phone,
+    phoneSecondary: res.phoneSecondary,
     residence: res.residence,
     customerType: res.customerType,
     customerTypeDetail: res.customerTypeDetail,
@@ -242,7 +247,8 @@ export function prefetchCustomerDetail(id: string): void {
 // ── 고객 본체 쓰기(PATCH /api/customers/:id) ────────────────────────────────────
 // 쓰기 가능 컬럼 partial. 백엔드 customerWriteSchema와 1:1. 쓰기는 apiFetch 재시도 대상 아님.
 export type CustomerWritePatch = {
-  phone?: string | null;
+  phone?: string | null; // 앱 연결 고객은 서버가 409로 거부(앱 등록 번호 — 2026-07-17 spec §3-7)
+  phoneSecondary?: string | null; // 추가 연락처 — 항상 편집 가능
   residence?: string | null;
   customerType?: string | null;
   customerTypeDetail?: string | null;

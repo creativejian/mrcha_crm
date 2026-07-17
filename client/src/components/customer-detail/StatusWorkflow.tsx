@@ -58,8 +58,8 @@ export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEdit
         ) : (
         <form className="kim-edit-form" onSubmit={(event) => handlers.saveStatusField(event, key)}>
           <label>
-            <span>{key === "phone" ? "연락처 수정" : fieldLabel(key)}</span>
-            {key === "phone" ? (
+            <span>{key === "phone" || key === "phoneSecondary" ? `${fieldLabel(key)} 수정` : fieldLabel(key)}</span>
+            {key === "phone" || key === "phoneSecondary" ? (
               <PhoneStatusInput initialValue={statusValues[key]} />
             ) : (
               <input autoFocus defaultValue={statusValues[key]} name="value" />

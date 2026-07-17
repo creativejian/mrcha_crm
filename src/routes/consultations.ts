@@ -23,7 +23,8 @@ const idParam = z.object({ id: z.uuid() });
 // 인박스: pending 상담신청 목록.
 consultations.get("/", (c) => run(c, () => listConsultations(c.var.db)));
 
-// 매칭된 기존 고객에 연결(app_user_id set + 빈 연락처 보강). app_user_id 중복이면 run()이 409로 매핑.
+// 매칭된 기존 고객에 연결(app_user_id set — phone은 저장 안 함·기존 phone은 전이 규칙, 2026-07-17 spec).
+// 응답에 droppedPhone 동봉(secondary 점유로 못 옮긴 번호 — 클라 토스트). app_user_id 중복이면 run()이 409로 매핑.
 // customer_profile은 재임베딩하지 않는다 — 연결이 세팅하는 필드(app_user_id·phone)는 그 청크의 구성
 // 필드가 아니다(상담신청 문의 자체도 임베딩/RAG가 아니라 업무 AI customer_consultations 도구가
 // crm.consultation_dismissals를 제외하고 직접 조회해 답한다). 다만 **그 유저의 앱 견적요청**은 이 연결이

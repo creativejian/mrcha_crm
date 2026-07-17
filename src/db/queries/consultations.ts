@@ -1,10 +1,11 @@
 // 앱 상담신청(public.consultations) → CRM 고객 통합. 견적요청(quote-requests.ts) 패턴 재사용 —
-// 차이점: userId nullable(비로그인 상담신청 경로가 스키마상 존재), phoneNumber는 폼 자체가 NOT NULL로
-// 항상 확보(통합의 핵심 가치 = 빈 CRM 연락처를 채우는 경로). status는 read-only로 시작(전이는 미구현).
+// 차이점: userId nullable(비로그인 상담신청 경로가 스키마상 존재). status는 read-only로 시작(전이는 미구현).
+// 폼 phone_number는 표시(ConsultationRow)용으로만 읽는다 — CRM 고객 phone에 저장하지 않는다
+// (2026-07-17 spec §3-5: 앱 연결 고객 주 번호 = profiles read-through 합성).
 import { and, desc, eq, notInArray } from "drizzle-orm";
 
 import { APP_CONSULTATION_SOURCE } from "../../../client/src/data/customers";
-import { assertAppUserLinkable } from "./app-user-link";
+import { applyAppUserLink } from "./app-user-link";
 import { nextCustomerCode } from "./quote-requests";
 import { getDefaultDb, type Executor } from "../client";
 import { consultationRequests, profiles } from "../public-app";
@@ -90,7 +91,7 @@ export async function createCustomerFromConsultation(
   if (existing) return { ...existing, appUserId: req.userId };
 
   const [profile] = await ex
-    .select({ fullName: profiles.fullName, phoneNumber: profiles.phoneNumber })
+    .select({ fullName: profiles.fullName })
     .from(profiles)
     .where(eq(profiles.id, req.userId));
 
@@ -99,10 +100,12 @@ export async function createCustomerFromConsultation(
     .insert(customers)
     .values({
       customerCode,
-      // 폼 우선(OpenQ1 확정) — book_consultation Edge가 폼값을 저장하고, phone_number는 NOT NULL이라
-      // 항상 채워진다. profile 폴백은 폼 값이 빈 문자열인 방어적 케이스만 대비.
+      // 이름은 폼 우선(OpenQ1 확정) — book_consultation Edge가 폼값을 저장한다.
       name: req.customerName.trim() || profile?.fullName || "이름미상",
-      phone: req.phoneNumber.trim() || profile?.phoneNumber || null,
+      // phone은 저장하지 않는다(2026-07-17 spec §3-5): 앱 연결 고객의 주 번호는 profiles read-through
+      // 합성이 담당(구 "폼 우선 phone" 규칙 폐기 — 실측상 과거 폼 번호는 테스트 노이즈였고, 앱이
+      // 등록 번호 강제로 전환하면 폼 번호=앱 번호라 규칙 자체가 무의미). CHECK 불변식도 이걸 강제.
+      phone: null,
       appUserId: req.userId,
       needModel: req.carModel ?? null,
       source: APP_CONSULTATION_SOURCE,
@@ -114,30 +117,20 @@ export async function createCustomerFromConsultation(
   return row ? { ...row, appUserId: req.userId } : null;
 }
 
-// 상담신청의 user_id를 대상 고객 app_user_id에 set + 빈 연락처 보강. 요청/고객 없으면 null.
-// app_user_id 중복이면 ConflictError(→409, quote-requests.linkRequestToCustomer와 대칭 fail-closed).
+// 상담신청의 user_id를 대상 고객 app_user_id에 set. 요청/고객 없으면 null.
+// 가드+전화번호 전이+UPDATE는 applyAppUserLink SSOT(견적요청 link와 완전 공유 — 구 "빈 연락처를
+// 폼 번호로 보강"은 2026-07-17 spec §3-5로 폐기: 주 번호 표시는 profiles read-through 합성이 담당).
 export async function linkConsultationToCustomer(
   consultationId: string,
   customerId: string,
   ex: Executor = getDefaultDb(),
-): Promise<{ id: string; customerCode: string; name: string; appUserId: string } | null> {
+): Promise<{ id: string; customerCode: string; name: string; appUserId: string; droppedPhone: string | null } | null> {
   const [req] = await ex
-    .select({ userId: consultationRequests.userId, phoneNumber: consultationRequests.phoneNumber })
+    .select({ userId: consultationRequests.userId })
     .from(consultationRequests)
     .where(eq(consultationRequests.id, consultationId));
   if (!req || !req.userId) return null;
-
-  // 정·역방향 연결 가드 SSOT(app-user-link) — 문구·conflict 동봉(이사님 2026-07-13 ②)까지
-  // 견적요청 link와 공유해 드리프트를 차단한다(0713 감사). 반환 target.phone은 빈 연락처 보강용.
-  const target = await assertAppUserLinkable(req.userId, customerId, ex);
-  if (!target) return null;
-
-  const [row] = await ex
-    .update(customers)
-    .set({ appUserId: req.userId, phone: target.phone?.trim() || req.phoneNumber, updatedAt: new Date() })
-    .where(eq(customers.id, customerId))
-    .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
-  return row ? { ...row, appUserId: req.userId } : null;
+  return applyAppUserLink(req.userId, customerId, ex);
 }
 
 // CRM 전용 숨김 — public.consultations는 절대 건드리지 않고 dismissal만 기록(idempotent).

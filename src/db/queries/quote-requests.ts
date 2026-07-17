@@ -7,7 +7,7 @@ import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles, quoteRequestOptions, quoteRequests } from "../public-app";
 import { customers, quotes } from "../schema";
-import { assertAppUserLinkable } from "./app-user-link";
+import { applyAppUserLink } from "./app-user-link";
 
 export type AppQuoteRequestRow = {
   id: string;
@@ -143,7 +143,9 @@ async function buildAppQuoteRequestRows(
   // 같은 phone/appUserId를 가진 고객이 여럿이면 마지막 행 우선(표시용 read, 기능 무관)
   for (const c of custRows) {
     const entry = { id: c.id, name: c.name, code: c.code };
-    if (c.phone) custByPhone.set(c.phone, entry);
+    // phone 후보 = 앱 미연결 고객만(2026-07-17 spec §3-6). CHECK 불변식상 연결 고객은 phone이
+    // NULL이라 자동 성립하지만, 의미를 코드에 명시한다(연결 고객은 app_user_id가 확정 매칭).
+    if (c.phone && !c.appUserId) custByPhone.set(c.phone, entry);
     if (c.appUserId) custByAppUser.set(c.appUserId, entry);
   }
 
@@ -304,24 +306,15 @@ export async function listQuoteRequestIdsByUser(appUserId: string, ex: Executor 
 
 // 요청의 user_id를 대상 고객의 app_user_id에 set(전화 매칭된 기존 고객 연결). 요청/고객 없으면 null.
 // appUserId는 라우트의 요청 청크 임베딩 훅용(응답 JSON에 실려도 무해한 식별자).
+// 가드+전화번호 전이+UPDATE는 applyAppUserLink SSOT(상담신청 link와 완전 공유 — 2026-07-17 spec).
 export async function linkRequestToCustomer(
   requestId: string,
   customerId: string,
   ex: Executor = getDefaultDb(),
-): Promise<{ id: string; customerCode: string; name: string; appUserId: string } | null> {
+): Promise<{ id: string; customerCode: string; name: string; appUserId: string; droppedPhone: string | null } | null> {
   const [req] = await ex.select({ userId: quoteRequests.userId }).from(quoteRequests).where(eq(quoteRequests.id, requestId));
   if (!req) return null;
-  // 정·역방향 연결 가드 SSOT(app-user-link) — 전화 매칭 후보는 이미 연결된 고객도 노출하므로
-  // (matchType="phone") 가드 없이는 "연결" 한 번에 app_user_id가 조용히 교체된다. 문구·conflict
-  // 동봉(이사님 2026-07-13 ②)까지 상담신청 link와 공유해 드리프트를 차단한다(0713 감사).
-  const target = await assertAppUserLinkable(req.userId, customerId, ex);
-  if (!target) return null;
-  const [row] = await ex
-    .update(customers)
-    .set({ appUserId: req.userId, updatedAt: new Date() })
-    .where(eq(customers.id, customerId))
-    .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
-  return row ? { ...row, appUserId: req.userId } : null;
+  return applyAppUserLink(req.userId, customerId, ex);
 }
 
 // profiles + 요청 데이터로 신규 customers INSERT(app_user_id 연결). 같은 user로 이미 고객 있으면 기존 반환(중복 방지).
@@ -348,7 +341,7 @@ export async function createCustomerFromRequest(
   if (existing) return { ...existing, appUserId: req.userId };
 
   const [profile] = await ex
-    .select({ fullName: profiles.fullName, phoneNumber: profiles.phoneNumber })
+    .select({ fullName: profiles.fullName })
     .from(profiles)
     .where(eq(profiles.id, req.userId));
 
@@ -373,7 +366,9 @@ export async function createCustomerFromRequest(
     .values({
       customerCode,
       name: profile?.fullName ?? "이름미상",
-      phone: profile?.phoneNumber ?? null,
+      // phone 미저장(2026-07-17 spec §3-5) — 앱 연결 고객의 주 번호는 profiles read-through 합성이
+      // 담당한다(복사 스냅샷은 앱에서 번호가 바뀌는 순간 스테일). CHECK 불변식도 이걸 강제.
+      phone: null,
       appUserId: req.userId,
       needModel,
       needTrim,

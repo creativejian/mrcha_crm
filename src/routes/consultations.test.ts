@@ -74,7 +74,7 @@ test("GET /api/consultations 무토큰 → 401", async () => {
   expect(res.status).toBe(401);
 });
 
-test("POST /api/consultations/:id/create-customer → 200, source=앱 상담신청 + 폼 phone (실 insert, finally 삭제)", async () => {
+test("POST /api/consultations/:id/create-customer → 200, source=앱 상담신청·phone 미저장 (실 insert, finally 삭제)", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
   const userId = await anyUnlinkedProfileId();
@@ -100,7 +100,7 @@ test("POST /api/consultations/:id/create-customer → 200, source=앱 상담신�
 
     const [row] = await db.select().from(customers).where(eq(customers.id, body.id));
     expect(row.name).toBe("라우트승격테스트");
-    expect(row.phone).toBe("01077778888");
+    expect(row.phone).toBeNull(); // 폼 phone 미저장(2026-07-17 spec §3-5) — 주 번호는 profiles read-through
     expect(row.source).toBe("앱 상담신청");
     expect(row.needModel).toBe("아우디 Q7");
   } finally {

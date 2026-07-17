@@ -7,6 +7,7 @@ const row: CustomerRow = {
   customerCode: "CU-2605-0020",
   name: "김민준",
   phone: "010-9588-0812",
+  phoneSecondary: null,
   appUserId: null,
   customerType: "개인",
   customerTypeDetail: "4대보험",
@@ -45,6 +46,10 @@ describe("toCustomer", () => {
   });
   it("needTrim 없으면 vehicleTrim은 undefined(목록은 트림 미확인 폴백)", () => {
     expect(toCustomer({ ...row, needTrim: null }).vehicleTrim).toBeUndefined();
+  });
+  it("phoneSecondary는 하이픈 포맷으로, 없으면 undefined(2026-07-17 추가 연락처)", () => {
+    expect(toCustomer({ ...row, phoneSecondary: "01077776666" }).phoneSecondary).toBe("010-7777-6666");
+    expect(toCustomer(row).phoneSecondary).toBeUndefined();
   });
   it("advisor는 미배정 폴백, null 필드는 빈 문자열", () => {
     const c = toCustomer({ ...row, latestTask: null, phone: null });
@@ -95,6 +100,7 @@ const detailRes: CustomerDetailResponse = {
   customerCode: "CU-2605-0020",
   name: "김민준",
   phone: "010-9588-0812",
+  phoneSecondary: null,
   residence: "인천광역시",
   customerType: "개인",
   customerTypeDetail: "4대보험",

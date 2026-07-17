@@ -10,6 +10,7 @@ import {
   linkConsultationToCustomer,
   type AppConsultationRow,
 } from "@/lib/consultations";
+import { formatPhone } from "@/lib/customers";
 import { HttpError } from "@/lib/http";
 
 // 매칭 칩 톤 — 앱 견적요청 인박스와 같은 클래스(quote-inbox.css 공유).
@@ -109,7 +110,12 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
     setLinkConflict(null);
     try {
       const linked = await linkConsultationToCustomer(g.latestConsultationId, g.matchedCustomerId);
-      onToast(`${linked.name} 고객에 연결했습니다`);
+      // droppedPhone = 기존 번호가 추가 연락처 자리 점유로 못 옮겨진 경우(2026-07-17 spec) — 무음 유실 방지.
+      onToast(
+        linked.droppedPhone
+          ? `${linked.name} 고객에 연결했습니다 · 기존 번호 ${formatPhone(linked.droppedPhone)}은 추가 연락처가 있어 옮기지 못했습니다`
+          : `${linked.name} 고객에 연결했습니다`,
+      );
       onCustomerListChanged();
       setRows(await fetchPendingConsultationsCached(false));
     } catch (e) {
