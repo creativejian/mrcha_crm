@@ -117,6 +117,16 @@ describe("ValueSelect", () => {
     expect(select).toBeDisabled();
     expect(select.value).toBe("20,000km / 년");
   });
+
+  it("selectProps.className은 기본 클래스에 병합(무음 대체 금지 — 배치 7 D#4)", () => {
+    const { container } = render(
+      <ValueSelect selectProps={{ className: "custom-variant", defaultValue: "a" }}>
+        <option>a</option>
+      </ValueSelect>,
+    );
+    const select = container.querySelector("select") as HTMLSelectElement;
+    expect(select.className).toBe("kim-manual-value-select custom-variant");
+  });
 });
 
 describe("PickerTriggerRow", () => {

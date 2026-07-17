@@ -283,6 +283,9 @@ export function TopSelectionCards(p: Props) {
         {/* 할인 — 기본 할인 + 추가 할인 행(워크벤치와 같은 DiscountLineRow) */}
         <div className="kim-jeff-section">
           <h4>💰 할인</h4>
+          {/* 배치 7 C#4 각주 — 단위 전환 의미론(의도 박제, 코드 변경 없음):
+              기본 할인 = 값 유지(단위 재해석: 500 원 ↔ 500 %) — 제프 원형 byte-일치 보존 의도.
+              워크벤치 convertDiscountInputUnit의 등가 환산과 다르다(D1 — 표현 계층만 공유). */}
           <DiscountLineRow
             label="기본 할인"
             unit={p.discountUnit}
@@ -296,6 +299,8 @@ export function TopSelectionCards(p: Props) {
               label="추가 할인"
               labelSelect={{ value: line.label, onSelect: (v) => p.onPatchDiscountLine(line.id, { label: v }) }}
               unit={line.unit}
+              // C#4 각주 ② — 추가 행 = {unit, amount:'0'} 리셋: 제프(값 유지)와도 다른 CRM 선택(단위
+              // 재해석 오폭 방지 — 예. 5,000,000원 → % 전환 시 500만%로 읽히는 사고 차단).
               onUnitChange={(unit) => p.onPatchDiscountLine(line.id, { unit, amount: '0' })}
               inputProps={numBinding(line.amount, (v) => p.onPatchDiscountLine(line.id, { amount: v }))}
               action={{ kind: 'remove', onClick: () => p.onRemoveDiscountLine(line.id) }}

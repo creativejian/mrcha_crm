@@ -123,18 +123,22 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
     noticeTimer.current = setTimeout(() => setNotice(null), 2400)
   }
 
-  // 마운트시 brand 목록 로드
-  useEffect(() => {
-    void masterCatalog.loadBrands()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // 브랜드 목록 로드는 useMasterCatalog 훅의 마운트 자동 로드가 SSOT(배치 7 A#12 — 종전 여기 명시
+  // 호출과 이중 fetch였다).
 
   // 트림 선택 시 기본가격 자동 채움
   useEffect(() => {
     const trim = masterCatalog.selectedTrim
-    if (trim && trim.price > 0) {
+    if (!trim) return
+    if (trim.price > 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 제프 원형 미러: 트림 선택(외부 카탈로그) → 기본가격 입력 시드
       setBasePrice(String(trim.price))
+    } else {
+      // 배치 7 A#9(제프 대비 의도적 이탈): 출시예정(가격 미정) 트림 — price≤0인데 mc_code가 있어
+      // 선택 가능한 트림(실 DB 2건)을 고르면 종전엔 basePrice가 직전 트림 가격으로 잔존해
+      // "새 트림 mcCode + 옛 가격" payload로 샜다. 첫 선택과 동일한 빈 상태로 리셋 — 수기 입력
+      // 가능, 미입력 조회는 기존 가드(릴레이 zod quotedVehiclePrice min(1))가 차단한다.
+      setBasePrice('')
     }
   }, [masterCatalog.selectedTrim?.mcCode]) // eslint-disable-line react-hooks/exhaustive-deps
 

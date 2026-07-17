@@ -83,8 +83,12 @@ export function FeeCombo({ children }: { children: ReactNode }) {
 
 /** 카드 값 select(.kim-manual-value-select). */
 export function ValueSelect({ fixed, selectProps, children }: { fixed?: boolean; selectProps: ValueSelectProps; children: ReactNode }) {
+  // className은 spread에서 분리해 기본 클래스와 병합(배치 7 D#4) — 종전엔 기본 className 계산이
+  // {...selectProps} 앞이라 소비처가 className을 전달하면 kim-manual-value-select가 통째로 무음
+  // 대체되는 footgun이었다(현 소비처는 미전달 — 방어적 하드닝).
+  const { className, ...rest } = selectProps;
   return (
-    <select className={`kim-manual-value-select${fixed ? " is-fixed" : ""}`} {...selectProps}>
+    <select className={`kim-manual-value-select${fixed ? " is-fixed" : ""}${className ? ` ${className}` : ""}`} {...rest}>
       {children}
     </select>
   );

@@ -3,8 +3,10 @@
 //
 // 견적비교 1·2·3 카드 각 슬롯의 입력 상태.
 // 디자인 시안(Figma Make export)의 ConditionCards.tsx 와 동일한 필드 구조.
-// 일부 필드(productType=렌트, 출고방식, 운전연령, 대물한도)는 현 백엔드가
-// 운용리스만 지원하므로 UI 표시만 하고 페이로드 빌드 시 무시됩니다.
+// 페이로드 미전송 필드는 운전연령(driverAge)·대물한도(liabilityLimit) 둘뿐이다(UI 표시만).
+// 렌트 탭(activeTab=rent → long_term_rental dispatch)·출고방식(deliveryType)·정비(maintenanceGrade)는
+// 실제로 전송된다(배치 7 A#13 — 구 "렌트/출고방식 무시" 서술은 렌트 미지원 시절 제프 원문 잔재).
+// 판매사(dealerType/dealer)는 spec D2로 UI 미노출·미전송(아래 필드 주석 참조).
 export interface ScenarioState {
   activeTab: 'lease' | 'rent'
   period: string                       // '12' | '24' | '36' | '48' | '60' (SOLUTION_LEASE_TERMS — 워크벤치 패리티)

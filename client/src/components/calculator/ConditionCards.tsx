@@ -19,7 +19,6 @@ import {
   computeStats,
   type QuoteEntryForRow,
 } from './lender-meta'
-import { roundUpToNearestHundred } from './calc-format'
 import { failureNoteFromEntries, feePreviewWon, percentGuardReason } from './calc-guards'
 import type { QuoteResult } from './quote-types'
 import { scenarioQueryFingerprint } from './query-fingerprint'
@@ -27,6 +26,8 @@ import { useMultiQuote } from './hooks/useMultiQuote'
 import { bindSelect } from '@/lib/select-bind'
 import { CondCombo, CondRow, FeeCombo, MoneyField, SegmentGroup, ValueSelect, type MoneyInputProps } from '@/components/quote-fields/QuoteFields'
 import { SOLUTION_LEASE_TERMS } from '@/lib/solution-quote'
+// 결과 행 표시 규칙 3종(월납입 라운딩·우리카드 유효금리·총비용)은 랭킹 모달과 공유 SSOT(배치 7 A#11).
+import { solutionDisplayRatePct, solutionMonthlyDisplay, solutionTotalCost } from '@/lib/solution-ranking'
 
 /**
  * 견적비교 1·2·3 카드 그룹.
@@ -457,23 +458,20 @@ function ConditionCard({
                   .filter((r) => !r.notAvailable && r.result !== null && !r.loading)
                   .map((r) => {
                     const result = r.result!
-                    const isWoori = r.lenderCode === 'woori-card'
-                    const rate = isWoori
-                      ? result.rates.effectiveAnnualRateDecimal
-                      : result.rates.annualRateDecimal
-                    // 렌트(long_term_rental) 월대여료는 이미 VAT 포함 최종값(CW25) →
-                    // 100원 올림 금지. 운용리스만 floor(PMT) → 100원 올림 표시.
-                    const monthlyDisplay =
-                      result.productType === 'long_term_rental'
-                        ? result.monthlyPayment
-                        : roundUpToNearestHundred(result.monthlyPayment)
+                    // 표시 규칙 3종 = solution-ranking SSOT(배치 7 A#11 — 랭킹 모달과 공유):
+                    // 월납입(렌트 VAT 기포함 그대로·운용리스 100원 올림)·우리카드 유효금리 우선·
+                    // 총비용(표시 월납입 × 기간 + 잔가).
+                    const monthlyDisplay = solutionMonthlyDisplay(result.productType, result.monthlyPayment)
                     return {
                       lenderCode: r.lenderCode,
                       monthlyPayment: monthlyDisplay,
-                      interestRate: rate * 100,
+                      interestRate: solutionDisplayRatePct(r.lenderCode, {
+                        annualRatePct: result.rates.annualRateDecimal * 100,
+                        effectiveAnnualRatePct: result.rates.effectiveAnnualRateDecimal * 100,
+                      }),
                       residualAmount: result.residual.amount,
                       residualPercent: result.residual.rateDecimal * 100,
-                      totalCost: monthlyDisplay * leaseTermMonths + result.residual.amount,
+                      totalCost: solutionTotalCost(monthlyDisplay, leaseTermMonths, result.residual.amount),
                       warnings: result.warnings ?? [],
                     }
                   })

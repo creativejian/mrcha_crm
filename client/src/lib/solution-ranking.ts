@@ -20,6 +20,21 @@ export function solutionMonthlyDisplay(productType: SolutionProductType, monthly
   return productType === "long_term_rental" ? monthlyPayment : Math.ceil(monthlyPayment / 100) * 100;
 }
 
+// 표시 금리(제프 QuoteResultCard/sortQuotes 규칙 미러): 우리카드는 잔가보장수수료 lump-sum 때문에
+// 유효금리가 메인, 그 외는 표면금리. 랭킹 모달(buildRankingEntry)·계산기(ConditionCards) 공유 —
+// 배치 7 A#11(표시 규칙 복제 통합).
+export function solutionDisplayRatePct(
+  lenderCode: SolutionLenderCode,
+  rates: { annualRatePct: number; effectiveAnnualRatePct: number },
+): number {
+  return lenderCode === "woori-card" ? rates.effectiveAnnualRatePct : rates.annualRatePct;
+}
+
+// 총비용 = 표시 월납입 × 기간 + 잔가 금액(제프 미러 — 표시 라운딩 적용값 기준). 공유처 위와 동일(A#11).
+export function solutionTotalCost(monthlyDisplay: number, termMonths: number, residualAmount: number): number {
+  return monthlyDisplay * termMonths + residualAmount;
+}
+
 export type SolutionRankingEntry = {
   lenderCode: SolutionLenderCode;
   label: string;
@@ -45,11 +60,10 @@ export function buildRankingEntry(
     lenderCode,
     label,
     monthlyDisplay,
-    // 우리카드는 잔가보장수수료 lump-sum 때문에 유효금리가 메인(제프 QuoteResultCard/sortQuotes 규칙 미러).
-    ratePct: lenderCode === "woori-card" ? parsed.effectiveAnnualRatePct : parsed.annualRatePct,
+    ratePct: solutionDisplayRatePct(lenderCode, parsed),
     residualAmount: parsed.residualAmount,
     residualPct: parsed.residualRatePct,
-    totalCost: monthlyDisplay * termMonths + parsed.residualAmount,
+    totalCost: solutionTotalCost(monthlyDisplay, termMonths, parsed.residualAmount),
     warnings: parsed.warnings,
     raw,
   };

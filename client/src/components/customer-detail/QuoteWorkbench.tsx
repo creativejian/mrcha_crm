@@ -451,7 +451,9 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                         <header>
                           <strong>{condition.title} <span>{condition.round}</span></strong>
                           <div>
-                            {condition.copyLabel ? <button className="copy" disabled={isConditionSaved} onClick={() => copyManualQuoteCondition(condition.id, condition.round)} type="button">{condition.copyLabel}</button> : null}
+                            {/* solutionLoadingId 가드 = 조회 in-flight 중 조건 통째 교체 차단(계산기 버튼 disabled 미러 — 배치 7 C#2).
+                                부분 개선 — in-flight 중 수동 편집 미가드는 스냅샷 무효화 정책(배치 7 C#1 기록)과 함께 별도 판단. */}
+                            {condition.copyLabel ? <button className="copy" disabled={isConditionSaved || solutionLoadingId !== null} onClick={() => copyManualQuoteCondition(condition.id, condition.round)} type="button">{condition.copyLabel}</button> : null}
                             {isConditionSaved ? (
                               <button className="edit" onClick={() => editManualQuoteCondition(condition.id, condition.round)} type="button">수정</button>
                             ) : null}

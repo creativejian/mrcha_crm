@@ -2,17 +2,23 @@
 // (spec: ref/specs/2026-07-16-crm-calculator-modal-design.md)
 //
 // 제프 원본은 @shared/contracts/quote.constants 리터럴에서 enum 타입을 파생한다.
-// CRM 배선: 기간·약정거리는 CRM SSOT(@/lib/solution-quote — 제프 상수와 값 일치 실측:
-// LEASE_TERMS=[12,24,36,48,60]·ANNUAL_MILEAGES=[10000..40000])에서 파생해 어휘 이중화를 막고,
-// CRM SSOT가 없는 AffiliateType·AcquisitionTaxMode만 제프 리터럴을 인라인 미러한다.
-import type { SOLUTION_LEASE_TERMS, SOLUTION_MILEAGES } from '@/lib/solution-quote'
+// CRM 배선: 4종 전부 CRM SSOT(@/lib/solution-quote — 제프 상수와 값 일치 실측:
+// LEASE_TERMS=[12,24,36,48,60]·ANNUAL_MILEAGES=[10000..40000]·AFFILIATE_TYPES·
+// ACQUISITION_TAX_MODES)에서 파생해 어휘 이중화를 막는다(배치 7 A#10 — 구 서술 "CRM SSOT가
+// 없는 AffiliateType·AcquisitionTaxMode만 인라인 미러"는 거짓: SOLUTION_AFFILIATE_TYPES·
+// SOLUTION_ACQUISITION_TAX_MODES가 릴레이 zod 파생용으로 이미 존재했다).
+import type {
+  SOLUTION_ACQUISITION_TAX_MODES,
+  SOLUTION_AFFILIATE_TYPES,
+  SOLUTION_LEASE_TERMS,
+  SOLUTION_MILEAGES,
+} from '@/lib/solution-quote'
 
 export type LeaseTerm = (typeof SOLUTION_LEASE_TERMS)[number]
 export type AnnualMileage = (typeof SOLUTION_MILEAGES)[number]
-// 제프 quote.constants AFFILIATE_TYPES 미러 — v1은 '비제휴사'만 전송(spec D2).
-type AffiliateType = '비제휴사' | 'KCC오토' | 'KCC면제'
-// 제프 quote.constants ACQUISITION_TAX_MODES 미러.
-export type AcquisitionTaxMode = 'automatic' | 'ratio' | 'reduction' | 'amount'
+// v1은 '비제휴사'만 전송(spec D2).
+type AffiliateType = (typeof SOLUTION_AFFILIATE_TYPES)[number]
+export type AcquisitionTaxMode = (typeof SOLUTION_ACQUISITION_TAX_MODES)[number]
 
 export interface QuotePayload {
   lenderCode: string
