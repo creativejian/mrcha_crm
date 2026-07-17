@@ -961,6 +961,45 @@ test("시나리오 솔루션 스냅샷 4필드 왕복(저장→조회)", async (
   }
 });
 
+// CM/AG 수수료 %(마이그 0032, #264) 왕복 — 두 필드가 타입 동형(string|null)이라 cm↔ag 교차 배선 회귀는
+// typecheck·기존 테스트 전부 green으로 통과한다 → 서로 다른 값(1.5 ≠ 2)의 저장→조회 왕복으로 잠근다.
+// 필드 미전송 시나리오는 null 왕복(구 견적 하위 호환 — 클라 "0" 폴백의 전제).
+test("시나리오 CM/AG 수수료 % 왕복(저장→조회) — 상이 값 교차 검출 + 미전송 null", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  let quoteId: string | null = null;
+  try {
+    const created = await app.request(`/api/customers/${cid}/quotes`, {
+      method: "POST", headers: h,
+      body: JSON.stringify({
+        entryMode: "manual", status: "작성중",
+        scenarios: [
+          { scenarioNo: 1, isSaved: true, purchaseMethod: "운용리스", lender: "iM캐피탈", monthlyPayment: "1500000", termMonths: 60, cmFeePercent: "1.5", agFeePercent: "2" },
+          // 필드 미전송(구 견적/구 클라 payload) — null로 왕복해야 한다.
+          { scenarioNo: 2, isSaved: true, purchaseMethod: "운용리스", lender: "신한카드", monthlyPayment: "1600000" },
+        ],
+      }),
+    });
+    expect(created.status).toBe(201);
+    quoteId = ((await created.json()) as { id: string }).id;
+    const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+      quotes: Array<{ id: string; scenarios: Array<Record<string, unknown>> }>;
+    };
+    const byNo = [...detail.quotes.find((x) => x.id === quoteId)!.scenarios]
+      .sort((a, b) => ((a.scenarioNo as number | null) ?? 0) - ((b.scenarioNo as number | null) ?? 0));
+    expect(byNo[0].cmFeePercent).toBe("1.5");
+    expect(byNo[0].agFeePercent).toBe("2");
+    expect(byNo[1].cmFeePercent).toBeNull();
+    expect(byNo[1].agFeePercent).toBeNull();
+  } finally {
+    // 공유 master DB라 항상 정리(scenarios는 ON DELETE CASCADE).
+    if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
+  }
+});
+
 // valid_until 스탬프는 updateQuote(customer-quotes.ts:113)가 한다 — 라우트가 그 경로를 태우는지만 본다.
 // 전용 고객(app_user_id 없음)이라 발송 훅은 미발동(advisor_quotes upsert 검증은 send.test.ts 몫).
 test("견적 발송(갭ⓐ): PATCH appStatus=sent → valid_until = sent_at + 7일 자동 스탬프", async () => {
