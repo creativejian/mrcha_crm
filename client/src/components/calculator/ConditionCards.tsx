@@ -20,6 +20,7 @@ import {
   type QuoteEntryForRow,
 } from './lender-meta'
 import { roundUpToNearestHundred } from './calc-format'
+import { failureNoteFromEntries, feePreviewWon, percentGuardReason } from './calc-guards'
 import type { QuoteResult } from './quote-types'
 import { scenarioQueryFingerprint } from './query-fingerprint'
 import { useMultiQuote } from './hooks/useMultiQuote'
@@ -50,6 +51,9 @@ interface CardProps {
     result: QuoteResult | null
     loading: boolean
     notAvailable: boolean
+    // 배치 7 A#1(제프 대비 의도적 이탈): useMultiQuote가 저장한 에러성 실패 사유(미취급이면 null).
+    // 종전 매핑이 이 필드를 버려 전사 실패가 무사유 "조회 결과가 없습니다"로 위장됐다.
+    error: string | null
   }>
   leaseTermMonths: number
   selectedQuotes: SupportedLenderCode[]
@@ -114,12 +118,10 @@ function ConditionCard({
     }
   }
 
-  const cmFeeAmount = state.cmFeePercent
-    ? Math.round(basePriceForFeePreview * (parseFloat(state.cmFeePercent) / 100))
-    : 0
-  const agFeeAmount = state.agFeePercent
-    ? Math.round(basePriceForFeePreview * (parseFloat(state.agFeePercent) / 100))
-    : 0
+  // 배치 7 A#8(제프 대비 의도적 이탈): parseFloat → parsePercentInput SSOT(feePreviewWon).
+  // 제프 원형은 '.' 입력이 NaN → 미리보기 "NaN원"으로 샜다(onlyDecimal이 '.'·'1.2.3'을 통과시킴).
+  const cmFeeAmount = feePreviewWon(basePriceForFeePreview, state.cmFeePercent)
+  const agFeeAmount = feePreviewWon(basePriceForFeePreview, state.agFeePercent)
 
   const warningDistances = ['15000', '25000', '35000', '40000', 'unlimited']
   const showDistanceWarning = warningDistances.includes(state.annualDistance)
@@ -131,6 +133,10 @@ function ConditionCard({
   const [showSortDropdown, setShowSortDropdown] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [querySnapshot, setQuerySnapshot] = useState<string | null>(null)
+  // 배치 7 A#8(제프 대비 의도적 이탈): 조회 시작 % 검증(percentGuardReason) 실패 사유.
+  // 워크벤치는 같은 입력이 빌드 실패(reason)로 차단되는데 계산기는 무캡 전송이던 비대칭 해소 —
+  // 표면화는 A#1 빈 상태와 같은 문구 문법("조회에 실패했습니다 — {사유}")으로, 신규 UI 채널 없음.
+  const [blockReason, setBlockReason] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
   // 배치 7 A#3(제프 대비 의도적 이탈): 인라인 조립 → 순수 헬퍼. 제프 원형은 activeTab/
@@ -151,10 +157,18 @@ function ConditionCard({
 
   const handleQueryClick = () => {
     if (!showResults || hasChanges) {
+      // A#8 — % 상한 위반이면 조회를 시작하지 않는다(전 금융사 400 전사 낭비 + 무사유 은닉 차단).
+      const guardReason = percentGuardReason(state)
+      if (guardReason) {
+        setBlockReason(guardReason)
+        return
+      }
+      setBlockReason(null)
       setQuerySnapshot(currentQueryFingerprint)
       setShowResults(true)
       onCalculate()
     } else {
+      setBlockReason(null) // 조건이 스냅샷과 일치(원복)하면 차단 사유도 소거
       setShowSortDropdown((v) => !v)
     }
   }
@@ -164,10 +178,11 @@ function ConditionCard({
       <header>
         <strong>견적비교 <span>{cardNumber}</span></strong>
         <div>
+          {/* 재입력/조건 복사 = 입력 통째 교체 — 잔존 차단 사유(A#8 blockReason)도 함께 소거 */}
           {onCopy && copyLabel && (
-            <button className="copy" onClick={onCopy} type="button">{copyLabel}</button>
+            <button className="copy" onClick={() => { setBlockReason(null); onCopy() }} type="button">{copyLabel}</button>
           )}
-          <button className="edit" onClick={() => setState({ ...state, ...resetFields })} type="button">재입력</button>
+          <button className="edit" onClick={() => { setBlockReason(null); setState({ ...state, ...resetFields }) }} type="button">재입력</button>
         </div>
       </header>
 
@@ -421,6 +436,13 @@ function ConditionCard({
           )}
         </div>
 
+        {/* A#8 — 조회 차단 사유(% 상한 위반). A#1 빈 상태와 같은 문구 문법으로 표면화. */}
+        {blockReason && (
+          <div className="pb-5">
+            <div className="text-center text-xs text-gray-500 py-4">조회에 실패했습니다 — {blockReason}</div>
+          </div>
+        )}
+
         {/* 결과 영역 — 계산기 전용 슬롯(spec D5) */}
         {showResults && (
           <div className="pb-5">
@@ -459,8 +481,14 @@ function ConditionCard({
                 const stats = computeStats(entries)
                 if (!stats || sorted.length === 0) {
                   if (isLoading) return null
+                  // 배치 7 A#1(제프 대비 의도적 이탈): 전멸 + 에러성 실패(릴레이 503/502/504 등 —
+                  // 미취급 아님)면 첫 사유를 표면화 — 미취급 전멸("조회 결과가 없습니다")과 구분.
+                  // SolutionLenderRankingModal 빈 상태(#241 fail-loud) 미러. 일부 성공 시 현행 유지.
+                  const failureNote = failureNoteFromEntries(results)
                   return (
-                    <div className="text-center text-xs text-gray-500 py-4">조회 결과가 없습니다</div>
+                    <div className="text-center text-xs text-gray-500 py-4">
+                      {failureNote ? `조회에 실패했습니다 — ${failureNote}` : '조회 결과가 없습니다'}
+                    </div>
                   )
                 }
                 return sorted.map((e, idx) => {
@@ -552,6 +580,7 @@ export function ConditionCards({
       result: e.result,
       loading: e.loading,
       notAvailable: e.notAvailable,
+      error: e.error, // A#1 — 에러성 실패 사유 통과(종전엔 여기서 유실돼 전사 실패가 은닉)
     }))
 
   return (

@@ -75,6 +75,9 @@ export function useMultiQuote() {
           // Vehicle not carried by this lender → hide silently instead of error
           const isNotAvailable = isLenderNotAvailableMessage(msg)
           if (generation !== generationRef.current) return // stale — reset()/재조회가 앞섬(A#6)
+          // 배치 7 A#1(제프 대비 의도적 이탈): 에러성 실패(미취급 아님)는 관측 로그 — 전사 실패가
+          // "조회 결과가 없습니다"로 위장될 때 장애/미취급을 콘솔에서 구분(SolutionLenderRankingModal 미러).
+          if (!isNotAvailable) console.warn(`[calculator] 견적 조회 실패 lender=${l.lenderCode}: ${msg}`)
           setStates((prev) => ({
             ...prev,
             [l.lenderCode]: {
