@@ -30,6 +30,8 @@ interface ModelPickerDialogProps {
   brandName: string | null
   onSelect: (modelCode: number) => void
   onClose: () => void
+  // 목록 로드 실패(CRM 확장 — "데이터 없음"과 구분되는 빈 상태 문구). 기본 false = 제프 원형.
+  errored?: boolean
 }
 
 export function ModelPickerDialog({
@@ -40,6 +42,7 @@ export function ModelPickerDialog({
   brandName,
   onSelect,
   onClose,
+  errored = false,
 }: ModelPickerDialogProps) {
   const [query, setQuery] = useState('')
 
@@ -94,7 +97,7 @@ export function ModelPickerDialog({
           )}
           {!loading && filtered.length === 0 && (
             <div className="py-8 text-center text-[0.78rem] text-muted-foreground">
-              {query ? '검색 결과가 없습니다' : '모델이 없습니다'}
+              {errored ? '불러오지 못했습니다' : query ? '검색 결과가 없습니다' : '모델이 없습니다'}
             </div>
           )}
           {!loading &&
