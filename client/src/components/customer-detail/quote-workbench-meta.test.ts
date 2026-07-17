@@ -94,6 +94,7 @@ describe("DEFAULT_CARD_UI", () => {
       mileageValue: "20,000km / 년",
       carTaxIncluded: false,
       subsidyApplicable: false,
+      dealerMode: "nonAffiliated", // T2 — 계산기 defaultScenario.dealerType 미러(비제휴 계산이 기본)
     });
   });
 
@@ -149,6 +150,7 @@ function scenarioFixture(over: Partial<EditScenario> = {}): EditScenario {
     interestRate: "5.3",
     cmFeePercent: "1.5",
     agFeePercent: "0",
+    dealerName: null,
     ...over,
   };
 }
@@ -171,7 +173,14 @@ describe("cardUiFromScenario", () => {
       mileageValue: "30,000km / 년",
       carTaxIncluded: true,
       subsidyApplicable: true,
+      dealerMode: "nonAffiliated", // dealerName null = 비제휴 복원
     });
+  });
+
+  // 판매사 모드(T2)는 컬럼이 아니라 dealer_name 유무에서 파생 — 비제휴 = null과 동치라 모드를 저장하지 않는다.
+  it("dealerName이 있으면 dealerMode를 '판매사 입력'으로 복원한다", () => {
+    expect(cardUiFromScenario(scenarioFixture({ dealerName: "도이치모터스" })).dealerMode).toBe("input");
+    expect(cardUiFromScenario(scenarioFixture({ dealerName: null })).dealerMode).toBe("nonAffiliated");
   });
 });
 

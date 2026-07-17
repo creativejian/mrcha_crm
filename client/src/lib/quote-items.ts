@@ -82,6 +82,8 @@ export type CustomerDetailScenario = {
   // CM/AG 수수료 %(마이그 0032, 계산기 패리티) — 파트너 계산 입력의 % 원문. 서버 select() 전체 반환.
   cmFeePercent: string | null;
   agFeePercent: string | null;
+  // 판매사(마이그 0033, T2) — plain dealer_name(금융사는 lender가 보유 — 합성 불필요). 수기/비제휴는 null.
+  dealerName: string | null;
   // 솔루션 조회 재현성 스냅샷(마이그 0031) — 수기 시나리오는 null. 서버가 select() 전체 반환이라 항상 실림.
   // 수정 재진입 시 워크벤치 스냅샷 시드(solutionSnapshotsFromScenarios)가 소비한다.
   solutionLenderCode: string | null;

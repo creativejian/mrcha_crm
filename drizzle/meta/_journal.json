@@ -232,6 +232,13 @@
       "when": 1784200225316,
       "tag": "0032_redundant_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1784260063837,
+      "tag": "0033_red_excalibur",
+      "breakpoints": true
     }
   ]
 }

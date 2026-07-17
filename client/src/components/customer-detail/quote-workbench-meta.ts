@@ -43,6 +43,9 @@ export function restoreDiscountLines(
 export type ManualDepositMode = "none" | "amount" | "percent";
 export type ManualResidualMode = "max" | "amount" | "percent";
 export type ManualMileageMode = "basic" | "custom";
+// 판매사 모드(T2 — 계산기 ScenarioState.dealerType 미러). 딜러 "선택값"은 여기 없다 —
+// 값의 진실 원본은 카드 DOM select(data-sc-field="dealer", uncontrolled — 금융사 select와 동일 계약).
+export type ManualDealerMode = "nonAffiliated" | "input";
 
 // 약정거리 "기본" 모드의 고정 표시값 — 화면·추출·복원이 공유하는 유일 리터럴.
 export const MILEAGE_BASIC_VALUE = "20,000km / 년";
@@ -58,6 +61,7 @@ export type CardUiState = {
   mileageValue: string;
   carTaxIncluded: boolean;
   subsidyApplicable: boolean;
+  dealerMode: ManualDealerMode;
 };
 
 // 통합 전 8개 Record의 읽기 폴백과 동일한 값(테스트로 잠금). 변경 = 저장 payload 변경.
@@ -70,6 +74,7 @@ export const DEFAULT_CARD_UI: CardUiState = {
   mileageValue: MILEAGE_BASIC_VALUE,
   carTaxIncluded: false,
   subsidyApplicable: false,
+  dealerMode: "nonAffiliated", // 계산기 defaultScenario.dealerType 미러(비제휴 계산이 기본)
 };
 
 export function cardUiOf(map: Record<string, CardUiState>, conditionId: string): CardUiState {
@@ -105,6 +110,10 @@ export type ManualCard = {
   // CM/AG 수수료 %(계산기 패리티) — 원 환산 미리보기는 파생(deriveAndFillCardResults)이라 표시값은 % 원문만.
   cmFeePercent: string;
   agFeePercent: string;
+  // 판매사(T2) — 딜러 select의 초기 표시값(defaultValue)이자 "저장값 표시 유지" option의 원천.
+  // 딜러 목록(fetch)이 아직 없어도 이 값이 option으로 렌더돼 재진입 복원이 성립한다(금융사 구 어휘
+  // option 패턴 미러). 이 값이 바뀌면 select가 리마운트 재시드된다(uncontrolled 재시드 키 — 복사/리셋 경로).
+  dealerName: string;
 };
 export const discountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
 export const manualMileageOptions = [
@@ -146,6 +155,8 @@ export type EditScenario = {
   interestRate: string;
   cmFeePercent: string;
   agFeePercent: string;
+  // 판매사(T2) — cm/ag의 `|| "0"` 폴백과 달리 `?? null`(빈 문자열 저장 금지 — 값 없음 = null 계약).
+  dealerName: string | null;
 };
 
 // 비교카드 id 규약 — 시나리오 번호(scenario_no)와 1:1. 복원·저장 양쪽이 이 함수를 쓴다.
@@ -163,6 +174,9 @@ export function cardUiFromScenario(s: EditScenario): CardUiState {
     mileageValue: s.mileageValue,
     carTaxIncluded: s.carTaxIncluded,
     subsidyApplicable: s.subsidyApplicable,
+    // 판매사 모드는 컬럼이 아니라 저장값 유무에서 파생 — dealer_name이 있으면 "판매사 입력"으로 복원
+    // (계산기 dealerType 대응. 모드 자체를 저장하지 않는 근거: 비제휴 = dealer_name null과 동치).
+    dealerMode: s.dealerName ? "input" : "nonAffiliated",
   };
 }
 
@@ -251,6 +265,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     subsidyAmount: "0",
     cmFeePercent: "0",
     agFeePercent: "0",
+    dealerName: "",
   },
   {
     id: "manual-condition-2",
@@ -269,6 +284,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     subsidyAmount: "0",
     cmFeePercent: "0",
     agFeePercent: "0",
+    dealerName: "",
   },
   {
     id: "manual-condition-3",
@@ -287,6 +303,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     subsidyAmount: "0",
     cmFeePercent: "0",
     agFeePercent: "0",
+    dealerName: "",
   },
 ] as const;
 

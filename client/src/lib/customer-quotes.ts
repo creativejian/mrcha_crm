@@ -150,6 +150,8 @@ export type ScenarioInput = {
   // CM/AG 수수료 %(마이그 0032, 계산기 패리티) — 파트너 계산 입력의 % 원문. 서버 zod와 동형.
   cmFeePercent?: string | null;
   agFeePercent?: string | null;
+  // 판매사(마이그 0033, T2) — plain dealer_name. 비제휴/미선택은 null(빈 문자열 저장 금지). 서버 zod와 동형.
+  dealerName?: string | null;
   // 솔루션 조회 재현성 스냅샷(마이그 0031) — 수기 시나리오는 미전송. 서버 zod와 동형.
   solutionLenderCode?: string | null;
   solutionWorkbookVersion?: string | null;

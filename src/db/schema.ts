@@ -285,6 +285,10 @@ export const quoteScenarios = crm.table("quote_scenarios", {
   // CM/AG 수수료 %(계산기 패리티 2026-07-16) — 파트너 calculate 입력(cmFeeRate/agFeeRate 분율의 % 원문).
   cmFeePercent: numeric("cm_fee_percent"),
   agFeePercent: numeric("ag_fee_percent"),
+  // 판매사(딜러) — 파트너 calculate 입력 dealerName 원문(판매사 실동작화 T2, 마이그 0033).
+  // plain 이름 저장(계산기 `lenderCode::dealerName` 합성과 다름) — 금융사는 lender 컬럼이 이미 보유하고,
+  // 워크벤치 딜러 스코프가 카드의 선택 금융사 단일이라 합성이 불필요하다. 수기/비제휴 시나리오는 null.
+  dealerName: text("dealer_name"),
   // 솔루션 조회 재현성 스냅샷(스펙 결정 4·5) — 수기 시나리오는 전부 null.
   // 요율이 매월 갱신되는 도메인이라 "어느 워크북 기준 계산인지"를 남긴다. raw는 앱 partner_raw_response 선례.
   solutionLenderCode: text("solution_lender_code"),
