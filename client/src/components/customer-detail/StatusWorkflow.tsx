@@ -198,6 +198,42 @@ export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEdit
       <div className="kim-status-grid">
         {statusFieldMeta.map((field) => {
           const Icon = field.icon;
+          // 연락처+추가 연락처 = 묶음 카드 1개(아이콘 1개·항목 세로 스택 — 유슨생 2026-07-17).
+          // phoneSecondary 차례는 위 카드가 이미 그렸으므로 그리드 칸을 소비하지 않는다.
+          if (field.key === "phoneSecondary") return null;
+          if (field.key === "phone") {
+            const phoneOpen = openEditor?.kind === "status" && openEditor.key === "phone";
+            const secondaryOpen = openEditor?.kind === "status" && openEditor.key === "phoneSecondary";
+            return (
+              <div className="kim-edit-anchor" key={field.key} ref={phoneOpen || secondaryOpen ? editorRef : undefined}>
+                <div className="kim-status-field kim-phone-stack">
+                  <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
+                  {/* 라벨·번호 같은 라인(유슨생) — 카드 전체가 정확히 2줄: "연락처 …" / "추가 …".
+                      표시 라벨만 축약("추가") — 편집기 제목·토스트는 fieldLabel("추가 연락처") 유지. */}
+                  <span className="kim-status-copy kim-phone-stack-copy">
+                    <button className="kim-phone-entry" onClick={() => handlers.openStatusEditor({ kind: "status", key: "phone" })} type="button">
+                      <span>연락처</span>
+                      {phoneLocked ? (
+                        // 앱 등록 번호(잠금) — 값 회색 + APP 칩(계약 가능성 '확정' 칩 톤 미러)
+                        <strong className="is-app-locked">
+                          {statusValues.phone}
+                          <span className="kim-app-pill" aria-label="앱 등록 번호">APP</span>
+                        </strong>
+                      ) : (
+                        <strong>{statusValues.phone}</strong>
+                      )}
+                    </button>
+                    <button className="kim-phone-entry" onClick={() => handlers.openStatusEditor({ kind: "status", key: "phoneSecondary" })} type="button">
+                      <span>추가</span>
+                      <strong>{statusValues.phoneSecondary}</strong>
+                    </button>
+                  </span>
+                </div>
+                {phoneOpen ? renderStatusEditor("phone") : null}
+                {secondaryOpen ? renderStatusEditor("phoneSecondary") : null}
+              </div>
+            );
+          }
           if (field.key === "source") {
             return (
               <div className="kim-edit-anchor" key={field.key} ref={openEditor?.kind === "status" && openEditor.key === field.key ? editorRef : undefined}>
@@ -234,15 +270,7 @@ export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEdit
                 <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                 <span className="kim-status-copy">
                 <span>{field.label}</span>
-                {/* 앱 등록 번호(잠금)는 값 회색 + APP 필(2026-07-17 유슨생 — 목록 NEW 필 문법) */}
-                {field.key === "phone" && phoneLocked ? (
-                  <strong className="is-app-locked">
-                    {statusValues[field.key]}
-                    <span className="kim-app-pill" aria-label="앱 등록 번호">APP</span>
-                  </strong>
-                ) : (
-                  <strong className={isUnassignedStatus(field.key, statusValues[field.key]) ? "is-unassigned" : undefined}>{statusValues[field.key]}</strong>
-                )}
+                <strong className={isUnassignedStatus(field.key, statusValues[field.key]) ? "is-unassigned" : undefined}>{statusValues[field.key]}</strong>
                 </span>
               </button>
               {openEditor?.kind === "status" && openEditor.key === field.key ? renderStatusEditor(field.key) : null}

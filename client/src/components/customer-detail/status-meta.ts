@@ -6,12 +6,12 @@ import { type CustomerChanceOption } from "@/data/customers";
 
 import { type StatusFieldKey, type WorkflowKey } from "./types";
 
-// 순서 주의: kim-status-grid가 2열 row-major라 "연락처 바로 **아래** 추가 연락처"(유슨생 2026-07-17,
-// 가로 나열 아님)를 만들려면 phone(1행 좌) 다음 칸이 job(1행 우)이고 그 다음이 phoneSecondary(2행 좌)여야 한다.
+// phone+phoneSecondary는 StatusWorkflow가 **묶음 카드 1개**(아이콘 1개·항목 세로 스택 — 유슨생
+// 2026-07-17)로 렌더한다: phone 차례에 둘을 함께 그리고 phoneSecondary 차례는 null(그리드 칸 소비 0).
 export const statusFieldMeta = [
   { key: "phone", label: "연락처", icon: Phone }, // 앱 연결 고객은 편집 차단(앱 등록 번호 — 훅 openStatusEditor)
-  { key: "job", label: "직군", icon: BriefcaseBusiness },
   { key: "phoneSecondary", label: "추가 연락처", icon: Phone }, // 항상 편집 가능(2026-07-17 spec)
+  { key: "job", label: "직군", icon: BriefcaseBusiness },
   { key: "location", label: "거주지", icon: MapPin },
   { key: "source", label: "상담경로", icon: Route },
   { key: "advisor", label: "담당자", icon: UserRound },

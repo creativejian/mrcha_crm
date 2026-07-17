@@ -560,22 +560,45 @@
   color: #8f969c;
 }
 
-/* APP 필 — 목록 stage-new-badge(NEW) 문법 미러(customer-list.css 스코프라 복제, 값만 동일 유지). */
-.kim-app-pill {
-  min-width: 20px;
-  height: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 999px;
+/* 연락처+추가 연락처 묶음 카드 — 아이콘 1개, 항목당 라벨·번호 한 줄 = 카드 2줄(유슨생 2026-07-17). */
+.kim-phone-stack-copy {
+  gap: 10px;
+}
+
+.kim-phone-entry {
+  min-width: 0;
+  border: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
+/* 라벨 폭 고정("연락처" 3자 기준) — 두 줄의 번호 시작선을 맞춘다("추가"는 2자라 자연폭이면 어긋남). */
+.kim-phone-entry > span {
+  flex: none;
+  min-width: 34px;
+}
+
+/* APP 칩 — 계약 가능성 '확정' 칩 톤 미러(#d9f3e4/#08783b — chance-green, 유슨생 지정).
+   .kim-status-copy span(0,1,1)의 라벨 타이포가 스며들지 않게 span 결합 특이성(0,2,1)으로 잠근다. */
+.kim-status-copy span.kim-app-pill {
+  min-width: 30px;
+  height: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px 3px 0;
-  background: #0f9f6e;
-  box-shadow: 0 1px 3px rgba(15, 159, 110, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  color: #fff;
-  font-size: 8px;
+  padding: 1px 6px 0;
+  background: #d9f3e4;
+  box-shadow: 0 1px 3px rgba(8, 120, 59, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  color: #08783b;
+  font-size: 9px;
   font-weight: 850;
-  letter-spacing: 0;
+  letter-spacing: 0.02em;
   line-height: 1;
   pointer-events: none;
   transform: translateY(0.5px);
