@@ -3,6 +3,7 @@ import { Calculator, Check, ChevronDown, ChevronRight, FilePlus2, FileText, File
 import { type Customer } from "@/data/customers";
 import { formatMoney } from "@/lib/quote-pricing";
 import { CRM_EXTRA_LENDERS, SOLUTION_LEASE_TERMS, solutionLenderOptions } from "@/lib/solution-quote";
+import { type SolutionDealer } from "@/lib/solution-dealers";
 import { bindSelect } from "@/lib/select-bind";
 import { isDocumentFileDrag } from "@/lib/detail-utils";
 import { QUOTE_GUIDANCE_OPTIONS } from "@/data/quote-guidance";
@@ -14,6 +15,8 @@ import { WorkbenchColorPicker, WorkbenchOptionPicker, WorkbenchVehiclePicker } f
 import {
   ACQUISITION_TAX_MODE_LABELS,
   cardUiOf,
+  DEALER_MODE_SEGMENT_OPTIONS,
+  dealerSelectPlaceholder,
   effectiveMileageValue,
   manualMileageOptions,
   emptyQuotePricing,
@@ -25,6 +28,11 @@ import { type useQuoteWorkbench } from "./hooks/useQuoteWorkbench";
 // 파생 — 값 타입만 화면 상태 계약을 따름: 워크벤치 number/normal ↔ 계산기 string/none).
 const leaseTermSegmentOptions = SOLUTION_LEASE_TERMS.map((m) => ({ value: m, label: `${m}개월` }));
 const acquisitionTaxModeOptions = (["normal", "hybrid", "electric", "manual"] as const).map((value, i) => ({ value, label: ACQUISITION_TAX_MODE_LABELS[i] }));
+
+// 딜러 option 라벨 — % 병기(계산기 미러). ⚠ %의 의미는 금융사별로 다르다(BNK=기준 IRR / 우리=합산
+// 수수료율 / 메리츠=딜러 fee 율 — solution-dealers.ts 원문). 워크벤치 목록은 카드의 선택 금융사
+// 단일 스코프라 계산기 union과 달리 lender 접두는 생략한다.
+const dealerOptionLabel = (d: SolutionDealer) => `${d.dealerName} (${(d.baseIrrRate * 100).toFixed(2)}%)`;
 
 type QuoteWorkbenchProps = {
   workbench: ReturnType<typeof useQuoteWorkbench>;
@@ -46,6 +54,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     savedManualQuoteConditionIds,
     manualQuoteCards,
     cardUi,
+    dealerOptionsByCard,
     solutionLoadingId,
     solutionLenderPickerId,
     editingQuoteId,
@@ -112,6 +121,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     setManualTermMonthsFor,
     setManualCarTaxFor,
     setManualSubsidyFor,
+    setManualDealerMode,
     handleSolutionQueryClick,
     buildCardSolutionBaseArgs,
     pickRankingEntry,
@@ -445,6 +455,10 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                     const mileageValue = effectiveMileageValue(ui);
                     const carTaxOn = ui.carTaxIncluded;
                     const subsidyOn = ui.subsidyApplicable;
+                    const dealerMode = ui.dealerMode;
+                    const dealerList = dealerOptionsByCard[condition.id] ?? [];
+                    // 저장/복사 재시드 값(condition.dealerName) — 목록 도착 전엔 이름만, 도착 후 % 병기로 승격.
+                    const savedDealerInList = condition.dealerName ? dealerList.find((d) => d.dealerName === condition.dealerName) : undefined;
 
                     return (
                       <section className={`kim-manual-compare-card${isConditionSaved ? " is-saved" : ""}`} data-scenario-card={condition.id} key={`${editingQuoteId ?? "new"}-${condition.id}`}>
@@ -476,6 +490,38 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           <CondRow label="약정거리"><CondCombo><SegmentGroup value={mileageMode} options={[{ value: "basic", label: "기본" }, { value: "custom", label: "변경" }]} disabled={isConditionSaved} onSelect={(m) => setManualMileageMode(condition.id, m)} /><ValueSelect fixed={mileageMode === "basic"} selectProps={{ disabled: isConditionSaved || mileageMode === "basic", ...bindSelect(mileageValue, (v) => setManualMileageValue(condition.id, v)) }}>{manualMileageOptions.map((option) => <option key={option}>{option}</option>)}</ValueSelect></CondCombo></CondRow>
                           <CondRow label="자동차세"><SegmentGroup value={carTaxOn ? "on" : "off"} options={[{ value: "off", label: "불포함" }, { value: "on", label: "포함" }]} disabled={isConditionSaved} onSelect={(v) => setManualCarTaxFor(condition.id, v === "on")} /></CondRow>
                           <CondRow label="보조금"><CondCombo><SegmentGroup value={subsidyOn ? "on" : "off"} options={[{ value: "off", label: "비해당" }, { value: "on", label: "해당" }]} disabled={isConditionSaved} onSelect={(v) => setManualSubsidyFor(condition.id, v === "on")} /><MoneyField fixed={!subsidyOn} suffix="원" inputProps={{ "aria-label": "보조금 금액", "data-sc-field": "subsidy", defaultValue: condition.subsidyAmount, disabled: isConditionSaved, readOnly: !subsidyOn }} /></CondCombo></CondRow>
+                          {/* 판매사(T2 — 계산기 판매사 행 미러, 스코프는 카드의 선택 금융사 단일): 목록 = 훅 dealerOptionsByCard
+                              (금융사 변경·브랜드 도착 시 재적재), 값 = uncontrolled select(data-sc-field 추출 계약 — 금융사 select 문법).
+                              저장값(condition.dealerName)은 목록 fetch 도착 전에도 option으로 상시 렌더(구 어휘 금융사 "표시 유지" 미러)
+                              + 리마운트 키(재진입/복사/리셋 재시드). 단일 금융사 목록이라 계산기와 달리 lender 접두·합성값 없음.
+                              세그먼트 어휘·폭 = 표준 행과 통일(DEALER_MODE_SEGMENT_OPTIONS — 구 자연폭 변형 폐기, #265 그리드). */}
+                          <CondRow label="판매사">
+                            <CondCombo>
+                              <SegmentGroup value={dealerMode} options={DEALER_MODE_SEGMENT_OPTIONS} disabled={isConditionSaved} onSelect={(m) => setManualDealerMode(condition.id, m)} />
+                              <ValueSelect
+                                key={`dealer-${condition.dealerName}`}
+                                fixed={dealerMode === "nonAffiliated"}
+                                selectProps={{
+                                  "aria-label": "판매사",
+                                  "data-sc-field": "dealer",
+                                  defaultValue: condition.dealerName,
+                                  // 금융사 미선택·브랜드 미선택·해당 사 딜러 0건 = 목록 없음(저장 표시값도 없으면) → 비활성.
+                                  disabled: isConditionSaved || dealerMode === "nonAffiliated" || (dealerList.length === 0 && !condition.dealerName),
+                                }}
+                              >
+                                {/* 빈 목록 placeholder = 이유 표면화(차량/금융사 먼저·등록 딜러 없음) — 죽은 select 오인 방지.
+                                    lenderReady = 키 존재(금융사 스코프 로드 결과 — 훅 loadCardDealers 키 계약). 로드 in-flight
+                                    순간엔 "금융사 먼저 선택"이 잠깐 보일 수 있음(sub-second·캐시 히트 즉시 — 상태 3분화는 과설계). */}
+                                <option value="">{dealerSelectPlaceholder({ hasChoices: dealerList.length > 0 || condition.dealerName !== "", vehicleReady: trimDetail !== null, lenderReady: condition.id in dealerOptionsByCard })}</option>
+                                {condition.dealerName
+                                  ? <option value={condition.dealerName}>{savedDealerInList ? dealerOptionLabel(savedDealerInList) : condition.dealerName}</option>
+                                  : null}
+                                {dealerList.filter((d) => d.dealerName !== condition.dealerName).map((d) => (
+                                  <option key={d.dealerName} value={d.dealerName}>{dealerOptionLabel(d)}</option>
+                                ))}
+                              </ValueSelect>
+                            </CondCombo>
+                          </CondRow>
                           {/* CM/AG 수수료(계산기 패리티 2026-07-16) — %는 파트너 계산 입력(cmFeeRate/agFeeRate 분율·저장 cm_fee_percent),
                               원 칸은 최종 차량가 기준 파생 미리보기(deriveAndFillCardResults가 채움 — 추출·저장에 안 실림). */}
                           <CondRow label="CM수수료"><FeeCombo><MoneyField suffix="%" inputProps={{ "aria-label": "CM수수료 퍼센트", "data-discount-unit": "percent", "data-sc-field": "cmFeePercent", defaultValue: condition.cmFeePercent, disabled: isConditionSaved }} /><MoneyField fixed suffix="원" inputProps={{ "aria-label": "CM수수료 환산 금액", "data-fee-preview": "cm", defaultValue: "0", disabled: isConditionSaved, readOnly: true }} /></FeeCombo></CondRow>

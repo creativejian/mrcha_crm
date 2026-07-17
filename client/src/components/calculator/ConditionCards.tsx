@@ -5,7 +5,8 @@
 // 칸 그리드·세그먼트 칸·값 칸 전 행 좌우 정렬). 상태/파생/fingerprint/payload는 제프 원형 그대로
 // (controlled ScenarioState — 행위 변경 0, spec D6). 계산기 전용 슬롯(spec D5) = 리스/렌트 탭·렌트
 // 전용 4행(행 문법만 공유)·견적 조회 버튼/정렬 드롭다운/결과 리스트.
-// 의도적 변경(구 spec D2) 유지: 판매사 행(BNK 딜러) 미이식 — dealerType 기본값 고정.
+// 판매사 행 = 실동작(T1, 2026-07-17 — 구 spec D2 "미이식" 해제): 제프 ConditionCards.tsx:383-419 미러,
+// 사별 union 목록(dealers prop)에서 `lenderCode::dealerName` 합성값 선택.
 import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, Check, Loader2 } from 'lucide-react'
 import type { ScenarioState } from './types'
@@ -21,6 +22,9 @@ import {
 } from './lender-meta'
 import { distanceGuardReason, failureNoteFromEntries, feePreviewWon, percentGuardReason } from './calc-guards'
 import type { QuoteResult } from './quote-types'
+import type { DealerOption } from '@/lib/solution-dealers'
+// 판매사 세그먼트 어휘·빈 목록 placeholder — 워크벤치와 물리 1벌(quote-workbench-meta 순수 상수, discountLineWon 선례).
+import { DEALER_MODE_SEGMENT_OPTIONS, dealerSelectPlaceholder } from '@/components/customer-detail/quote-workbench-meta'
 import { scenarioQueryFingerprint } from './query-fingerprint'
 import { useMultiQuote } from './hooks/useMultiQuote'
 import { bindSelect } from '@/lib/select-bind'
@@ -47,6 +51,7 @@ interface CardProps {
   isVehicleReady: boolean
   basePriceForFeePreview: number   // CM/AG 수수료 미리보기용 (기본가격)
   topLevelFingerprint: string      // 차량/취득원가 변경 감지용 (페이지 레벨)
+  dealers: DealerOption[]          // 판매사 사별 union 목록(CalculatorModal fetch — 브랜드 변경 시 갱신)
   results: Array<{
     lenderCode: SupportedLenderCode
     result: QuoteResult | null
@@ -95,6 +100,7 @@ function ConditionCard({
   isVehicleReady,
   basePriceForFeePreview,
   topLevelFingerprint,
+  dealers,
   results,
   leaseTermMonths,
   selectedQuotes,
@@ -361,7 +367,43 @@ function ConditionCard({
           </CondCombo>
         </CondRow>
 
-        {/* 판매사 행(BNK 딜러 입력)은 CRM v1 미이식 — 구 spec D2. 필요 시 제프 원본에서 복원. */}
+        {/* 판매사(제프 ConditionCards.tsx:383-419 미러 — T1 실동작화). 세그먼트 어휘·폭 = 표준 행과 통일
+            (DEALER_MODE_SEGMENT_OPTIONS 공용 1벌 — 제프 원문 자연폭은 #265 고정 칸 그리드를 깨서 폐기, T2 픽스).
+            select 는 값 트랙(40%)이라 위아래 "0 원" 입력과 라인 일치. */}
+        <CondRow label="판매사">
+          <CondCombo>
+            <SegmentGroup value={state.dealerType}
+              options={DEALER_MODE_SEGMENT_OPTIONS}
+              onSelect={(v) => set('dealerType', v)} />
+            {/*
+              사별 union 이라 어느 lender 의 딜러인지 라벨에 반드시 표시한다.
+              value 는 `lenderCode::dealerName` 합성 — 딜러명이 사 간 겹칠 수
+              있어(예: "모터원") 이름만으로는 식별이 안 된다.
+              ⚠ 옆의 % 는 **의미가 사별로 다르다** (BNK=기준 IRR /
+              우리=합산 수수료율 / 메리츠=딜러 fee 율).
+            */}
+            <ValueSelect
+              fixed={state.dealerType === 'nonAffiliated'}
+              selectProps={{
+                'aria-label': '판매사',
+                disabled: state.dealerType === 'nonAffiliated',
+                ...bindSelect(state.dealer, (next) => set('dealer', next)),
+              }}
+            >
+              {/* 빈 목록 placeholder = 이유 표면화(워크벤치 파리티 — 제프 원문 "선택" 고정 대비 의도 이탈).
+                  계산기는 전사 union이라 금융사 단계가 없음 → lenderReady 상수 true. */}
+              <option value="">{dealerSelectPlaceholder({ hasChoices: dealers.length > 0, vehicleReady: isVehicleReady, lenderReady: true })}</option>
+              {dealers.map((d) => (
+                <option
+                  key={`${d.lenderCode}::${d.dealerName}`}
+                  value={`${d.lenderCode}::${d.dealerName}`}
+                >
+                  {d.lenderName} · {d.dealerName} ({(d.baseIrrRate * 100).toFixed(2)}%)
+                </option>
+              ))}
+            </ValueSelect>
+          </CondCombo>
+        </CondRow>
 
         {/* CM/AG 수수료 — % 입력 + 기본가격 기준 원 미리보기(워크벤치 fee 콤보 문법) */}
         <CondRow label="CM수수료">
@@ -539,6 +581,8 @@ const resetFields: Partial<ScenarioState> = {
   subsidyAmount: '0',
   cmFeePercent: '',
   agFeePercent: '',
+  dealerType: 'nonAffiliated',
+  dealer: '',
 }
 
 /* ─────────── public API: ConditionCards 그룹 ─────────── */
@@ -553,6 +597,7 @@ interface GroupProps {
   isVehicleReady: boolean
   basePriceForFeePreview: number
   topLevelFingerprint: string
+  dealers: DealerOption[]
   quotes: [
     ReturnType<typeof useMultiQuote>,
     ReturnType<typeof useMultiQuote>,
@@ -566,7 +611,7 @@ interface GroupProps {
 
 export function ConditionCards({
   scenarios, setScenarios, onCalculate, loadings, isVehicleReady, basePriceForFeePreview,
-  topLevelFingerprint,
+  topLevelFingerprint, dealers,
   quotes, leaseTermMonths, selectedQuotesByScenario, onToggleSelect, showMaxWarningByScenario,
 }: GroupProps) {
   const updateAt = (idx: 0 | 1 | 2) => (s: ScenarioState) =>
@@ -592,6 +637,7 @@ export function ConditionCards({
         isVehicleReady={isVehicleReady}
         basePriceForFeePreview={basePriceForFeePreview}
         topLevelFingerprint={topLevelFingerprint}
+        dealers={dealers}
         results={toResults(quotes[0])}
         leaseTermMonths={leaseTermMonths[0]}
         selectedQuotes={selectedQuotesByScenario[0]}
@@ -607,6 +653,7 @@ export function ConditionCards({
         isVehicleReady={isVehicleReady}
         basePriceForFeePreview={basePriceForFeePreview}
         topLevelFingerprint={topLevelFingerprint}
+        dealers={dealers}
         results={toResults(quotes[1])}
         leaseTermMonths={leaseTermMonths[1]}
         selectedQuotes={selectedQuotesByScenario[1]}
@@ -624,6 +671,7 @@ export function ConditionCards({
         isVehicleReady={isVehicleReady}
         basePriceForFeePreview={basePriceForFeePreview}
         topLevelFingerprint={topLevelFingerprint}
+        dealers={dealers}
         results={toResults(quotes[2])}
         leaseTermMonths={leaseTermMonths[2]}
         selectedQuotes={selectedQuotesByScenario[2]}

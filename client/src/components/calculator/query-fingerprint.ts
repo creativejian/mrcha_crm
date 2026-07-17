@@ -27,6 +27,10 @@ export const SCENARIO_QUERY_KEYS = [
   'subsidyAmount',
   'cmFeePercent',
   'agFeePercent',
+  // 판매사 실동작화(T1, 2026-07-17) — payload dealerName의 원천(resolveDealerSelection이 읽는 2필드).
+  // 판매사만 바꿔도 "다시 조회하기"로 전환돼야 한다(제프 원형 fingerprint도 두 키 편입).
+  'dealerType',
+  'dealer',
 ] as const satisfies readonly (keyof ScenarioState)[]
 
 export function scenarioQueryFingerprint(state: ScenarioState, topLevelFingerprint: string): string {

@@ -30,6 +30,7 @@ const baseArgs: Omit<BuildArgs, "lenderLabel"> = {
   subsidyRaw: "",
   cmFeeRaw: "",
   agFeeRaw: "",
+  dealerName: null,
   vehicle: { brand: "BMW", model: "5시리즈", mcCode: "MC-1" },
   pricing: { baseAndOption: 50_000_000, discount: 0 },
 };

@@ -7,6 +7,7 @@ import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, 
 import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { buildSolutionQuoteInput, parseSolutionQuoteResult, solutionLenderOptions, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
+import { fetchSolutionDealers, type SolutionDealer } from "@/lib/solution-dealers";
 import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solution-ranking";
 import { deriveCardResults, residualAmountOf } from "@/lib/lease-rate";
 import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
@@ -43,6 +44,7 @@ import {
   type EditPrefill,
   type EditScenario,
   type ManualCard,
+  type ManualDealerMode,
   type ManualDepositMode,
   type ManualMileageMode,
   type ManualResidualMode,
@@ -128,6 +130,17 @@ export function useQuoteWorkbench({
   // #4c-2 워크벤치 저장용: VehiclePicker가 고른 brand/model(applyTrimToPricing이 버리던 값)과 선택 옵션 ids.
   const [workbenchVehicle, setWorkbenchVehicle] = useState<VehicleSelection | null>(null);
   const [selectedWorkbenchOptionIds, setSelectedWorkbenchOptionIds] = useState<number[]>([]);
+  // 판매사(딜러) 목록 — 카드별, 스코프 = (카드의 선택 금융사, 워크벤치 브랜드) (T2). 계산기의 전사 union과
+  // 다른 설계: 비교카드는 단일 금융사 조건이라 그 금융사 딜러만 노출하고, 저장값도 plain dealer_name
+  // (금융사는 카드 lender 컬럼이 보유 — `lenderCode::dealerName` 합성 불필요). 딜러 "선택값"은 state가
+  // 아니라 카드 DOM select(uncontrolled — 금융사 select 계약 미러)에 산다.
+  const [dealerOptionsByCard, setDealerOptionsByCard] = useState<Record<string, SolutionDealer[]>>({});
+  // (lenderCode, brand) 키 fetch 메모 — 같은 조합 재조회·카드 간 중복 조회 방지(내용 주소형이라 세션 내 유지).
+  const dealerFetchCacheRef = useRef(new Map<string, Promise<SolutionDealer[]>>());
+  // 늦은 응답 가드용 브랜드 미러(cardUiRef 패턴) — await 뒤 클로저 브랜드는 stale일 수 있다.
+  const workbenchBrandRef = useRef<string | null>(null);
+  // 브랜드 "도착"(재진입 복원 — 딜러 보존)과 "전환"(구 브랜드 딜러 청소)을 구분하는 직전 브랜드.
+  const prevDealerBrandRef = useRef<string | null>(null);
   const quoteWorkbenchOriginalInputRef = useRef<HTMLInputElement>(null);
   const quoteDetailFormRef = useRef<HTMLDivElement>(null);
   // 수정 진입 시점의 trimId를 고정. 작성완료(send:false)의 optimistic setQuotes가 quote.trimId를 새 차량으로 덮으면
@@ -374,6 +387,9 @@ export function useQuoteWorkbench({
         // % 원문 표시(콤마 포맷 우회 규약 — 금리와 동일). 원 환산 미리보기는 파생이 채운다.
         cmFeePercent: sc.cmFeePercent || "0",
         agFeePercent: sc.agFeePercent || "0",
+        // 판매사(T2) — cm/ag `|| "0"`과 달리 빈 문자열이 "값 없음"(select "선택" option) 그 자체다.
+        // 이 값이 곧 딜러 select의 defaultValue + "저장값 표시 유지" option(목록 fetch 도착 전에도 표시).
+        dealerName: sc.dealerName ?? "",
       };
     });
   }
@@ -412,6 +428,19 @@ export function useQuoteWorkbench({
       const src = sourceEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
       const dst = targetEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
       if (src && dst) dst.value = src.value;
+    }
+    // 판매사(T2): 금융사가 함께 복사되므로 (금융사, 브랜드) 딜러 목록도 대상에 그대로 유효 — 목록 state 복사 +
+    // ManualCard.dealerName 재시드(딜러 select 리마운트 키)로 "대상 select에 option이 아직 없는" 타이밍을
+    // 우회한다(딜러 option은 비동기 fetch 산물이라 직접 DOM 쓰기는 option 부재 시 무음 no-op — 정적 어휘인
+    // 금융사 select와 다른 지점). DOM 쓰기는 option 기존재 시 즉시 반영(빈값 "" 포함 — 소스가 미선택이면
+    // 대상 선택도 청소). 금융사가 복사에서 제외됐으면(구 어휘) 그 금융사 귀속인 딜러도 함께 제외.
+    // 모드(dealerMode)는 아래 patchCardUi(cardUi 통째 복사)가 담당.
+    if (lenderCopyable) {
+      const sourceDealer = sourceEl.querySelector<HTMLSelectElement>('select[data-sc-field="dealer"]')?.value ?? "";
+      const dstDealer = targetEl.querySelector<HTMLSelectElement>('select[data-sc-field="dealer"]');
+      if (dstDealer) dstDealer.value = sourceDealer;
+      setDealerOptionsByCard((prev) => (prev[sourceId] ? { ...prev, [targetId]: prev[sourceId] } : prev));
+      setManualQuoteCards((cards) => cards.map((c) => (c.id === targetId ? { ...c, dealerName: sourceDealer } : c)));
     }
     patchCardUi(targetId, cardUiOf(cardUi, sourceId));
     onToast(targetLender != null && !lenderCopyable
@@ -581,6 +610,7 @@ export function useQuoteWorkbench({
     // 솔루션 스냅샷도 저장 payload에 실리는 값 — 이전 견적 스냅샷이 새 견적에 새는 잔상 방지(#163 부류).
     setSolutionSnapshots({});
     setSolutionLenderPickerId(null); // 모달 열린 채 워크벤치가 닫힌 경우의 유령 모달 방어
+    setDealerOptionsByCard({}); // 딜러 목록도 카드 종속 상태 — 이전 견적 금융사의 목록 잔존 방지(T2)
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -690,6 +720,94 @@ export function useQuoteWorkbench({
     patchCardUi(conditionId, { subsidyApplicable: applicable });
   }
 
+  // 비제휴 전환은 선택값을 지우지 않는다(DOM 잔존 — 계산기 dealerType 토글 미러, 되돌리면 복원).
+  // 추출·조회 payload가 모드로 게이트하므로 잔존 값은 저장·전송에 안 실린다.
+  function setManualDealerMode(conditionId: string, mode: ManualDealerMode) {
+    patchCardUi(conditionId, { dealerMode: mode });
+  }
+
+  // ── 판매사(딜러) 목록 적재/리셋(T2) ─────────────────────────────────────────
+  // 스코프 = 카드의 선택 금융사 + 워크벤치 브랜드(계산기의 전사 union fetch와 다름 — 단일 금융사 조건
+  // 카드라 그 금융사 딜러만 의미가 있고, option 라벨에 lender 접두도 불필요).
+
+  async function loadCardDealers(condId: string, lenderLabel: string) {
+    const brand = workbenchVehicle?.brand?.name ?? null;
+    const lender = solutionLenderOptions(solutionWorkbenchPurchaseMethod).find((l) => l.label === lenderLabel);
+    // 브랜드 미선택·파트너 미지원 금융사(CRM 수기 어휘 포함)는 목록 없음 → 키 삭제(빈 배열 아님).
+    // 키 존재 = "금융사 스코프 로드 결과"라는 계약 — placeholder(dealerSelectPlaceholder)가
+    // "금융사 먼저 선택"(키 부재)과 "등록 딜러 없음"(로드했더니 0건)을 구분하는 근거.
+    if (!brand || !lender) {
+      setDealerOptionsByCard((prev) => {
+        if (!(condId in prev)) return prev;
+        const next = { ...prev };
+        delete next[condId];
+        return next;
+      });
+      return;
+    }
+    const key = `${lender.code}::${brand}`;
+    let pending = dealerFetchCacheRef.current.get(key);
+    if (!pending) {
+      // 실패 = 빈 목록(계산기 catch 미러) + 캐시 키 삭제 — 일시 장애가 세션 내내 빈 목록으로 박제되지 않게.
+      pending = fetchSolutionDealers(lender.code, brand).catch(() => {
+        dealerFetchCacheRef.current.delete(key);
+        return [] as SolutionDealer[];
+      });
+      dealerFetchCacheRef.current.set(key, pending);
+    }
+    const list = await pending;
+    // 늦은 응답 가드(#163 부류): 응답 시점 카드의 금융사·브랜드가 요청과 다르면 버린다(카드 detach 포함).
+    const cardEl = quoteDetailFormRef.current?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
+    const liveLender = cardEl?.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value;
+    if (!cardEl?.isConnected || liveLender !== lenderLabel || workbenchBrandRef.current !== brand) return;
+    setDealerOptionsByCard((prev) => ({ ...prev, [condId]: list }));
+  }
+
+  // 금융사/브랜드 전환 시 딜러 선택 청소 — 타사(타 브랜드) 딜러 잔존은 무음 오계산(T1 useMultiQuote 스코프
+  // 가드와 같은 근거). DOM 값 + 저장 표시 option 원천(ManualCard.dealerName — 지우면 select 리마운트) 양쪽.
+  function resetCardDealer(cardEl: HTMLElement, condId: string) {
+    const dealerSelect = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="dealer"]');
+    if (dealerSelect) dealerSelect.value = "";
+    setManualQuoteCards((cards) => cards.map((c) => (c.id === condId && c.dealerName ? { ...c, dealerName: "" } : c)));
+  }
+
+  // 델리게이션(handleManualCardFieldEdit) 경유 금융사 select 변경 감지. uncontrolled select의 change/input은
+  // 실제 값 변경에서만 발화하므로(같은 값 재선택 = 무이벤트) 이벤트 자체가 "금융사가 바뀌었다"는 신호다.
+  // onInput+onChange 이중 발화(Safari 병행 바인딩 관례)는 리셋·적재 모두 멱등이라 무해.
+  function syncDealerOnLenderChange(target: EventTarget | null) {
+    if (!(target instanceof HTMLSelectElement) || target.dataset.scField !== "lender") return;
+    const cardEl = target.closest<HTMLElement>("[data-scenario-card]");
+    const condId = cardEl?.dataset.scenarioCard;
+    if (!cardEl || !condId) return;
+    resetCardDealer(cardEl, condId);
+    void loadCardDealers(condId, target.value);
+  }
+
+  // 브랜드 확정/변경 시 카드별 딜러 목록 재적재 — 재진입 복원의 핵심 경로: openEditQuote 시점엔 차량이 아직
+  // 없어(resetWorkbenchVehicle → VehiclePicker 비동기 복원 → applyTrimToPricing) 목록을 못 얻고, 브랜드
+  // 도착이 그 신호다. 신규 워크벤치는 카드 금융사가 전부 "미선택"이라 자연 no-op. 세션 중 브랜드 "전환"
+  // (직전 브랜드 존재)은 구 브랜드 딜러 선택까지 청소한다 — "도착"(재진입 복원, 직전 null)과 구분.
+  const workbenchBrand = workbenchVehicle?.brand?.name ?? null;
+  workbenchBrandRef.current = workbenchBrand;
+  useEffect(() => {
+    const prevBrand = prevDealerBrandRef.current;
+    prevDealerBrandRef.current = workbenchBrand;
+    if (!workbenchBrand) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 계산기 미러: 브랜드 해제 시 딜러 목록 클리어
+      setDealerOptionsByCard({});
+      return;
+    }
+    const compareForm = quoteDetailFormRef.current;
+    for (const card of manualQuoteCards) {
+      const cardEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${card.id}"]`);
+      if (!cardEl) continue;
+      if (prevBrand && prevBrand !== workbenchBrand) resetCardDealer(cardEl, card.id);
+      const lender = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value;
+      if (lender && lender !== "미선택") void loadCardDealers(card.id, lender);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 브랜드 변경 시점에만 재적재(카드 금융사는 그 시점 DOM이 최신 — uncontrolled 계약)
+  }, [workbenchBrand]);
+
   function validateQuoteDetailDraft() {
     const form = quoteDetailFormRef.current;
     if (!form) return ["세부 견적 작성 영역을 확인해 주세요."];
@@ -792,6 +910,8 @@ export function useQuoteWorkbench({
         subsidyRaw: fieldVal("subsidy"),
         cmFeeRaw: fieldVal("cmFeePercent"),
         agFeeRaw: fieldVal("agFeePercent"),
+        // 판매사(T2) — 카드의 선택 금융사에 귀속(입력 모드 + 선택값 있을 때만 — 추출과 동일 게이트).
+        dealerName: ui.dealerMode === "input" ? (fieldVal("dealer") || null) : null,
         vehicle: {
           brand: workbenchVehicle?.brand?.name ?? null,
           model: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
@@ -806,8 +926,13 @@ export function useQuoteWorkbench({
   }
 
   // 랭킹 모달용 조립 인자 — 컴포넌트에 카드 DOM은 노출하지 않는다(base만, 채움은 pickRankingEntry가 담당).
+  // 딜러는 항상 미전송(비제휴 고정 — T2): 랭킹은 전사 병렬 프로브인데 딜러는 단일 금융사 귀속 값이라,
+  // 실으면 타사 견적이 무음 오염된다(BNK 미매칭 하드 폴백/메리츠 fee 0 — T1 useMultiQuote 스코프 가드와
+  // 같은 근거). 금융사 미선택 카드는 딜러도 고를 수 없어 보통 자연 성립하지만, 구매방식 전환 등으로
+  // 금융사만 리셋된 잔존 케이스까지 구조적으로 차단한다.
   function buildCardSolutionBaseArgs(condId: string): Omit<BuildArgs, "lenderLabel"> | null {
-    return buildCardSolutionArgs(condId)?.base ?? null;
+    const base = buildCardSolutionArgs(condId)?.base;
+    return base ? { ...base, dealerName: null } : null;
   }
 
   // 조회 결과를 카드에 채우는 단일 경로 — 직접 계산(queryCardSolution)·랭킹 모달 행 선택(pickRankingEntry) 공유.
@@ -827,7 +952,17 @@ export function useQuoteWorkbench({
     if (!cardEl.isConnected) return;
     // 금융사 select 세팅(uncontrolled DOM) — 모달 선택 경로의 확정, 직접 계산 경로는 이미 그 값(멱등).
     const lenderSelect = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]');
-    if (lenderSelect) lenderSelect.value = lenderLabel;
+    if (lenderSelect) {
+      // 프로그램적 쓰기는 델리게이션 이벤트가 없다 — 금융사가 실제로 바뀐 경로(랭킹 모달 선택)만 여기서
+      // 딜러 리셋 + 목록 재적재. 무조건 리셋하면 직접 계산(동일 값 멱등)이 사용자가 고른 딜러를 지운다
+      // (조회가 제 입력을 파괴 — 그 딜러가 방금 계산 입력이었는데도).
+      const lenderChanged = lenderSelect.value !== lenderLabel;
+      lenderSelect.value = lenderLabel;
+      if (lenderChanged) {
+        resetCardDealer(cardEl, condId);
+        void loadCardDealers(condId, lenderLabel);
+      }
+    }
     const setField = (f: string, v: string) => {
       const el = cardEl.querySelector<HTMLInputElement>(`input[data-sc-field="${f}"]`);
       if (el) el.value = v;
@@ -981,6 +1116,10 @@ export function useQuoteWorkbench({
         // CM/AG %(계산기 패리티) — parseInterestRate 재사용(소수 보존·0/100 초과 null. 0% = 미입력과 동등).
         cmFeePercent: parseInterestRate(fieldVal("cmFeePercent") ?? ""),
         agFeePercent: parseInterestRate(fieldVal("agFeePercent") ?? ""),
+        // 판매사(T2) — plain dealer_name 저장(금융사는 lender 컬럼이 보유 — 계산기 합성값과 다른 근거).
+        // 비제휴 모드·미선택(빈 문자열 저장 금지)·금융사 없음(딜러는 금융사 귀속 값 — 구매방식 전환으로
+        // 금융사만 리셋된 잔존 포함)은 null.
+        dealerName: ui.dealerMode === "input" && lender !== null ? (fieldVal("dealer") || null) : null,
         // 솔루션 조회 스냅샷 동봉(조회한 카드만 키 존재) — 서버 시나리오 저장이 전체 교체(delete→insert)라
         // 미동봉 재저장은 저장된 스냅샷을 null로 덮는다. 수정 재진입 시드(openEditQuote)와 한 쌍.
         ...(solutionSnapshots[condId] ?? {}),
@@ -1061,7 +1200,10 @@ export function useQuoteWorkbench({
 
   // 카드 입력(금융사 select·월납입/보증금 등 input)이 바뀌면 미리보기 즉시 갱신 + draft dirty 표시.
   // 폼 컨테이너 onInput/onChange가 카드 텍스트/select 변경을 위임 캐치(QuoteWorkbench.tsx). 저장 여부와 무관하게 갱신.
-  function handleManualCardFieldEdit() {
+  function handleManualCardFieldEdit(event?: SyntheticEvent<HTMLElement>) {
+    // 금융사 select 변경(델리게이션 이벤트)은 딜러 리셋 + 목록 재적재를 동반한다(T2). 프로그램적 변경은
+    // 이벤트가 없어 여기로 안 온다 — applySolutionResult(랭킹 선택)·copy(조건 복사)가 각자 처리.
+    if (event) syncDealerOnLenderChange(event.target);
     refreshCardScenarioPreview();
     markQuoteDraftChanged();
   }
@@ -1178,6 +1320,7 @@ export function useQuoteWorkbench({
         interestRate: sc.interestRate ?? null,
         cmFeePercent: sc.cmFeePercent ?? null,
         agFeePercent: sc.agFeePercent ?? null,
+        dealerName: sc.dealerName ?? null,
         // 솔루션 조회 스냅샷(마이그 0031) — 낙관 표시에도 전달(서버 재페치 값과 동형 유지).
         solutionLenderCode: sc.solutionLenderCode ?? null,
         solutionWorkbookVersion: sc.solutionWorkbookVersion ?? null,
@@ -1380,6 +1523,8 @@ export function useQuoteWorkbench({
       interestRate: s.interestRate ?? "",
       cmFeePercent: s.cmFeePercent ?? "0",
       agFeePercent: s.agFeePercent ?? "0",
+      // 판매사(T2) — cm/ag `?? "0"`과 달리 `?? null`(빈 문자열 저장 금지 계약 — 값 없음 = null 왕복).
+      dealerName: s.dealerName ?? null,
     }));
     // 할인 구성 내역 복원(discount_lines 영속화) — 기본 할인은 finalDiscount(총액) − 추가 행 환산 합으로 역산.
     // 행 state는 아래 setDiscountLines, 기본 할인 값은 applyTrimToPricing이 prefill.pricing.primaryDiscount로 쓴다.
@@ -1415,6 +1560,9 @@ export function useQuoteWorkbench({
     setSavedManualQuoteConditionIds(editScenarios.map((s) => cardIdOfScenarioNo(s.scenarioNo)));
     setCardUi(cardUiMapFromScenarios(editScenarios));
     setSolutionSnapshots(seededSnapshots);
+    // 딜러 목록은 여기서 못 채운다(차량이 아직 없음) — 브랜드 도착 effect가 카드 금융사 기준으로 재적재.
+    // 그때까지 저장 딜러 표시는 ManualCard.dealerName의 "표시 유지" option이 담당(clearCardUiState 미경유 경로).
+    setDealerOptionsByCard({});
     // 취득세 모드는 견적 저장본에서 복원(미복원 시 이전 세션 잔상이 persist payload에 실려 수정 저장을 오염).
     setAcquisitionTaxMode((dq?.acquisitionTaxMode as AcquisitionTaxMode) ?? "normal");
     setDiscountLines(restoredDiscount.lines); // 저장본 복원(없으면 빈 행 — 다른 견적 잔상도 함께 청소)
@@ -1463,6 +1611,7 @@ export function useQuoteWorkbench({
     savedManualQuoteConditionIds,
     manualQuoteCards,
     cardUi,
+    dealerOptionsByCard,
     solutionLoadingId,
     solutionLenderPickerId,
     editingQuoteId,
@@ -1534,6 +1683,7 @@ export function useQuoteWorkbench({
       setManualTermMonthsFor,
       setManualCarTaxFor,
       setManualSubsidyFor,
+      setManualDealerMode,
       queryCardSolution,
       handleSolutionQueryClick,
       buildCardSolutionBaseArgs,

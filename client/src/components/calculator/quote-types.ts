@@ -62,7 +62,10 @@ export interface QuotePayload {
   lossDamageAmount?: number
   manualVehicleClass?: string
   manualEngineDisplacementCc?: number
-  // ⚠️ CRM v1 미전송(spec D2 — 판매사 입력 숨김). 필드는 제프 계약 모양 보존용으로만 잔존.
+  // 판매사(딜러) — 제프 canonical 필드(shared/contracts/quote.schema.ts:85, 판매사 일반화 2026-07-17).
+  // useMultiQuote dealerSelection이 lenderCode 일치 금융사에만 동봉한다(타사 유입 = 견적 무음 오염).
+  dealerName?: string
+  // ⚠️ deprecated alias(제프가 dealerName으로 정규화) — CRM 미사용. 필드는 제프 계약 모양 보존용으로만 잔존.
   bnkDealerName?: string
   kcbScorePct?: number
   // 렌트(long_term_rental) 전용

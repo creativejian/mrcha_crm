@@ -91,6 +91,8 @@ export type ScenarioInput = QuoteScenarioPatch & {
   // CM/AG 수수료 %(마이그 0032, 계산기 패리티) — 파트너 계산 입력의 % 원문.
   cmFeePercent?: string | null;
   agFeePercent?: string | null;
+  // 판매사(마이그 0033, T2) — plain dealer_name. 수기/비제휴 시나리오는 미전송(→null 저장).
+  dealerName?: string | null;
   // 솔루션 조회 재현성 스냅샷(마이그 0031) — 수기 시나리오는 미전송(→null 저장).
   solutionLenderCode?: string | null;
   solutionWorkbookVersion?: string | null;
@@ -385,6 +387,7 @@ async function insertScenarios(
       interestRate: sc.interestRate ?? null,
       cmFeePercent: sc.cmFeePercent ?? null,
       agFeePercent: sc.agFeePercent ?? null,
+      dealerName: sc.dealerName ?? null,
       // 솔루션 조회 스냅샷(마이그 0031) — 재현성: 어느 금융사/워크북 버전으로 언제 계산했는지 + 원 응답.
       solutionLenderCode: sc.solutionLenderCode ?? null,
       solutionWorkbookVersion: sc.solutionWorkbookVersion ?? null,

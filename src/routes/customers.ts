@@ -282,6 +282,9 @@ const quoteScenarioBody = z.object({
   // CM/AG 수수료 %(마이그 0032, 계산기 패리티) — 파트너 계산 입력의 % 원문
   cmFeePercent: z.string().nullable().optional(),
   agFeePercent: z.string().nullable().optional(),
+  // 판매사(마이그 0033, T2) — plain dealer_name(금융사는 lender 컬럼 보유 — 합성 불필요).
+  // 빈 문자열은 클라(extractWorkbenchScenarios)가 null로 정규화해 보낸다(빈 문자열 저장 금지).
+  dealerName: z.string().nullable().optional(),
   // 솔루션 조회 스냅샷(마이그 0031) — 수기 시나리오는 미전송
   solutionLenderCode: z.string().nullable().optional(),
   solutionWorkbookVersion: z.string().nullable().optional(),

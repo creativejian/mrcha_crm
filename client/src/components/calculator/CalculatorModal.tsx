@@ -1,7 +1,8 @@
 // 전역 계산기 모달 — 제프(dolim-solution) pages/QuoteRevolutionV2.tsx 본체의 모달 어댑터.
-// 원형과의 차이는 셋뿐: ①모달 셸(fixed inset·헤더 X·Esc 닫기 — spec D1, backdrop 닫기 없음)
-// ②판매사(BNK 딜러) 상태·effect 제거(spec D2 — bnkDealerName 미전송)
-// ③useTrimOptions/useTrimColors(mcCode 키) 2훅 → useTrimExtras(trimId 키) 1훅(T2 매핑).
+// 원형과의 차이는 둘뿐: ①모달 셸(fixed inset·헤더 X·Esc 닫기 — spec D1, backdrop 닫기 없음)
+// ②useTrimOptions/useTrimColors(mcCode 키) 2훅 → useTrimExtras(trimId 키) 1훅(T2 매핑).
+// (구 차이 "판매사 상태·effect 제거(spec D2)"는 판매사 실동작화 T1(2026-07-17)로 해제 — 제프가
+// 판매사를 일반화해 external dealers API를 열었고, union fetch·선택 해석을 원형대로 미러한다.)
 // spec: ref/specs/2026-07-16-crm-calculator-modal-design.md
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
@@ -23,6 +24,8 @@ import {
 } from './types'
 // 할인 행 환산 산술·항목명 어휘는 워크벤치와 공유(quote-workbench-meta 순수 상수/함수 — SSOT 통합 전 어휘 정합).
 import { discountLineWon } from '@/components/customer-detail/quote-workbench-meta'
+import { SOLUTION_LENDERS } from '@/lib/solution-quote'
+import { fetchSolutionDealers, type DealerOption } from '@/lib/solution-dealers'
 import type {
   AcquisitionTaxMode,
   AnnualMileage,
@@ -31,6 +34,10 @@ import type {
 } from './quote-types'
 
 type CalculatorModalProps = { onClose: () => void }
+
+// 판매사 union fetch의 금융사 셋 — SOLUTION_LENDERS 파생(제프의 q1.entries 대응 — CRM은 fetchLenders
+// 내부 API 대신 고정 어휘 SSOT라 모듈 상수로 충분, useMultiQuote LENDERS와 같은 소스).
+const DEALER_LENDERS = SOLUTION_LENDERS.map((l) => ({ lenderCode: l.code, lenderName: l.label }))
 
 /**
  * 비교견적 V2 (이사님 디자인 기반) — 제프 원형 주석 승계.
@@ -83,6 +90,36 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
   const q2 = useMultiQuote()
   const q3 = useMultiQuote()
   const quotes = [q1, q2, q3] as const
+
+  // ── 판매사(딜러) 목록 — 사별 조회 union (브랜드 변경 시 갱신, 제프 QuoteRevolutionV2.tsx:82-107 미러) ──
+  // 금융사 셋(DEALER_LENDERS)에서 그대로 돌린다(하드코딩 없음). 딜러가 없는/미지원 사는 빈 목록을
+  // 주므로(업스트림 200 빈 목록), 신한처럼 나중에 딜러가 붙어도 여기 고칠 게 없다. 개별 실패도
+  // 빈 목록(catch) — 한 사의 장애가 union 전체를 죽이지 않는다.
+  const [dealers, setDealers] = useState<DealerOption[]>([])
+
+  useEffect(() => {
+    const brandForDealers = masterCatalog.selectedBrand?.name ?? ''
+    if (!brandForDealers) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 제프 원형 미러: 브랜드 해제 시 union 목록 클리어
+      setDealers([])
+      return
+    }
+    let cancelled = false
+    void Promise.all(
+      DEALER_LENDERS.map((l) =>
+        fetchSolutionDealers(l.lenderCode, brandForDealers)
+          .then((list) =>
+            list.map((d) => ({ ...d, lenderCode: l.lenderCode, lenderName: l.lenderName })),
+          )
+          .catch(() => [] as DealerOption[]),
+      ),
+    ).then((lists) => {
+      if (!cancelled) setDealers(lists.flat()) // cancelled 가드 — 늦은 응답이 새 브랜드 목록을 덮지 않게
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [masterCatalog.selectedBrand?.brandCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 모달 셸: Esc 닫기(spec D1 — backdrop 닫기 없음, 입력 유실 방지) ──
   useEffect(() => {
@@ -241,7 +278,9 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
     setDiscountLines((prev) => prev.map((line) => (line.id === id ? { ...line, ...patch } : line)))
 
   // ── 시나리오별 페이로드 빌드 ──
-  function buildPayload(idx: 0 | 1 | 2): Omit<QuotePayload, 'lenderCode'> | null {
+  // dealerName은 여기서 만들지 않는다 — useMultiQuote.calculateAll이 dealerSelection으로
+  // lenderCode 일치 금융사에만 동봉한다(타사 유입 = 견적 무음 오염, useMultiQuote 주석 참조).
+  function buildPayload(idx: 0 | 1 | 2): Omit<QuotePayload, 'lenderCode' | 'dealerName'> | null {
     const trim = masterCatalog.selectedTrim
     const mb = masterCatalog.selectedBrand
     if (!trim || !mb) return null
@@ -284,7 +323,6 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
       modelName: resolvedModelName,
       masterMcCode: resolvedMasterMcCode,
       affiliateType: '비제휴사',
-      // spec D2: 판매사(BNK 딜러) 입력은 v1 미이식 — bnkDealerName 미전송(비제휴 계산 고정).
       directModelEntry: false,
       ownershipType: 'company',
       leaseTermMonths: parseInt(s.period, 10) as LeaseTerm,
@@ -319,6 +357,21 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
     }
   }
 
+  /**
+   * 선택된 딜러를 `{lenderCode, dealerName}`로 푼다(제프 QuoteRevolutionV2.tsx:276-293 미러).
+   *
+   * 드롭다운 option value는 `lenderCode::dealerName` 합성값이다 — 사별 union이라
+   * 딜러명만으로는 어느 lender 것인지 알 수 없고, 딜러명이 겹치는 경우도 있다
+   * (예: "모터원"은 우리·메리츠 양쪽에 존재).
+   */
+  function resolveDealerSelection(idx: 0 | 1 | 2): { lenderCode: string; dealerName: string } | null {
+    const s = scenarios[idx]
+    if (s.dealerType !== 'input' || !s.dealer) return null
+    const sep = s.dealer.indexOf('::')
+    if (sep < 0) return null
+    return { lenderCode: s.dealer.slice(0, sep), dealerName: s.dealer.slice(sep + 2) }
+  }
+
   const loadings = [q1.isAnyLoading, q2.isAnyLoading, q3.isAnyLoading] as [boolean, boolean, boolean]
 
   const [selectedQuotesByScenario, setSelectedQuotesByScenario] = useState<
@@ -340,7 +393,7 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
       next[idx] = []
       return next
     })
-    void quotes[idx].calculateAll(payload)
+    void quotes[idx].calculateAll(payload, resolveDealerSelection(idx))
   }
 
   const totalSelectedCount =
@@ -493,6 +546,7 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
           isVehicleReady={isVehicleReady}
           basePriceForFeePreview={finalVehiclePrice}
           topLevelFingerprint={topLevelFingerprint}
+          dealers={dealers}
           quotes={[q1, q2, q3]}
           leaseTermMonths={[
             parseInt(scenarios[0].period, 10),

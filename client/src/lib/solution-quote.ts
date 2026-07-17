@@ -99,6 +99,9 @@ export type SolutionQuoteInput = {
   agFeeRate?: number; // 분율
   insuranceYearlyAmount?: number; // 원/년
   lossDamageAmount?: number; // 원
+  // 판매사(딜러) — 제프 canonical 필드(quote.schema.ts:85, bnkDealerName은 deprecated alias라 미사용).
+  // 해당 lender 요청에만 동봉(useMultiQuote dealerSelection) — 타사로 흘리면 견적이 조용히 틀어진다.
+  dealerName?: string;
 };
 
 const parseWon = (raw: string): number => {
@@ -123,6 +126,10 @@ export type BuildArgs = {
   // CM/AG 수수료 % 원문(계산기 패리티 — 파트너 cmFeeRate/agFeeRate 분율로 변환 전송).
   cmFeeRaw: string;
   agFeeRaw: string;
+  // 판매사(T2) — 선택 딜러명 그대로 passthrough(null = 비제휴/미선택 → 미전송). ⚠️ 딜러는 lenderLabel의
+  // 금융사에 귀속된 값이다 — 다른 금융사 요청에 실으면 견적이 무음으로 틀어진다(BNK 하드 폴백/메리츠 fee 0,
+  // useMultiQuote DealerSelection 근거). 전사 프로브(랭킹 모달)는 buildCardSolutionBaseArgs가 null로 벗긴다.
+  dealerName: string | null;
   vehicle: { brand: string | null; model: string | null; mcCode: string | null };
   pricing: { baseAndOption: number; discount: number };
 };
@@ -189,6 +196,8 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
     agFeeRate: agFeePct / 100,
   };
   if (args.pricing.discount > 0) input.discountAmount = args.pricing.discount;
+  // 판매사(T2) — 값 있을 때만 동봉(파트너 zod min(1) optional — 빈 문자열 전송 금지).
+  if (args.dealerName) input.dealerName = args.dealerName;
   if (args.subsidyApplicable) {
     const subsidy = parseWon(args.subsidyRaw);
     if (subsidy > 0) input.evSubsidyAmount = subsidy;

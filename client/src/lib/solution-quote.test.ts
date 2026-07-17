@@ -24,6 +24,7 @@ const BASE_ARGS = {
   subsidyRaw: "",
   cmFeeRaw: "",
   agFeeRaw: "",
+  dealerName: null,
   vehicle: { brand: "BMW", model: "3 Series", mcCode: "MC-TEST-001" },
   pricing: { baseAndOption: 59_000_000, discount: 6_500_000 },
 };
@@ -156,6 +157,15 @@ describe("buildSolutionQuoteInput", () => {
 
   test("차량가 미입력(0원) = 실패", () => {
     expect(buildSolutionQuoteInput({ ...BASE_ARGS, pricing: { baseAndOption: 0, discount: 0 } }).ok).toBe(false);
+  });
+
+  test("판매사(T2): dealerName passthrough — null(비제휴/미선택)은 미전송, 값은 그대로 동봉", () => {
+    const off = buildSolutionQuoteInput(BASE_ARGS); // BASE_ARGS.dealerName = null
+    if (!off.ok) throw new Error(off.reason);
+    expect(off.input.dealerName).toBeUndefined(); // 파트너 zod min(1) optional — 빈/무선택은 키 자체 미전송
+    const on = buildSolutionQuoteInput({ ...BASE_ARGS, dealerName: "도이치모터스" });
+    if (!on.ok) throw new Error(on.reason);
+    expect(on.input.dealerName).toBe("도이치모터스");
   });
 });
 

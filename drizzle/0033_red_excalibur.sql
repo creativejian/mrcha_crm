@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."quote_scenarios" ADD COLUMN "dealer_name" text;
