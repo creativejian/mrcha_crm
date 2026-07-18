@@ -386,6 +386,7 @@ export function App() {
           roleTab={roleTab}
           userName={auth.name}
           userAvatarUrl={auth.avatarUrl}
+          customers={customers}
           onNavigate={handleViewChange}
           onOpenCustomer={openCustomerDetailPanel}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
