@@ -18,7 +18,7 @@ import { customers } from "../schema";
 // 경합 주의: 이 가드는 잠금 없는 SELECT라 동시 요청의 TOCTOU 창을 닫지 못한다 — 최후 방어선은
 //   customers_app_user_id_unique partial index(23505 → run()이 연결 충돌 문구로 매핑).
 // 반환: 대상 고객 행(phone/phoneSecondary — applyAppUserLink의 전화번호 전이 입력) / 대상 고객 없음 null.
-export async function assertAppUserLinkable(
+async function assertAppUserLinkable(
   userId: string,
   customerId: string,
   ex: Executor = getDefaultDb(),

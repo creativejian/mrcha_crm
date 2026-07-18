@@ -30,6 +30,9 @@ function dbErrorMessage(e: unknown): string {
   if (/customers_app_user_id_unique/i.test(msg)) return "이 앱 계정은 이미 다른 고객에 연결돼 있습니다.";
   if (/customers_customer_code_unique/i.test(msg)) return "고객 번호 채번이 겹쳤습니다. 잠시 후 다시 시도해 주세요.";
   if (/duplicate key|unique constraint|23505/i.test(msg)) return "같은 모델에 동일한 트림명 또는 고유번호가 있습니다.";
+  // phone 배타 CHECK(app_user_id ↔ phone, 마이그 0034) — PATCH 409 게이트 통과 후 동시 link가 끼어든
+  // TOCTOU의 최후 방어선. generic 23514 문구로는 사유가 불투명해 constraint 이름 선매칭(위 23505 선례).
+  if (/customers_phone_app_exclusive_check/i.test(msg)) return "앱 연결 고객의 번호는 저장할 수 없습니다.";
   if (/check constraint|23514/i.test(msg)) return "허용되지 않는 값입니다.";
   if (/단종|trim_status|enforce_trim_status/i.test(msg)) return "단종 모델의 트림은 단종/블라인드 상태만 가능합니다.";
   if (/prevent_.*_change|code/i.test(msg) && /update|change/i.test(msg)) return "이미 부여된 코드는 변경할 수 없습니다.";

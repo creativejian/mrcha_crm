@@ -118,6 +118,41 @@ describe("CustomerManagementPage", () => {
     expect(screen.queryByText("박서연")).not.toBeInTheDocument();
   });
 
+  // 추가 연락처(phoneSecondary)는 검색에 포함된다(2026-07-17 결정 — plan T5).
+  // searchable에는 하이픈 포맷값이 들어가므로(서버 어댑터 formatPhone) 질의도 포맷 기준으로 잠근다.
+  it("finds a customer by the hyphen-formatted secondary phone", async () => {
+    const user = userEvent.setup();
+    const [first, second] = initialCustomers;
+    render(
+      <CustomerManagementPage
+        customers={[
+          { ...first, name: "추가연락처보유", phone: "010-1111-2222", phoneSecondary: "010-1233-4444" },
+          { ...second, name: "추가연락처없음", phone: "010-3333-5555", phoneSecondary: undefined },
+        ]}
+        mode="all"
+      />,
+    );
+
+    await user.type(screen.getByPlaceholderText("고객명, 연락처, 차종 검색"), "1233-4444");
+
+    expect(screen.getByText("추가연락처보유")).toBeInTheDocument();
+    expect(screen.queryByText("추가연락처없음")).not.toBeInTheDocument();
+  });
+
+  // 목록 병기(주 · 추가)는 값이 있는 항목만 잇는다 — 주 번호 공란 + 추가 연락처만 있으면
+  // 선행 " · " 없이 추가 연락처만 표시(배치 8 C#9).
+  it("omits the separator when only the secondary phone exists", () => {
+    const [first] = initialCustomers;
+    render(
+      <CustomerManagementPage
+        customers={[{ ...first, phone: "", phoneSecondary: "010-9876-5432" }]}
+        mode="all"
+      />,
+    );
+
+    expect(document.querySelector(".customer-phone")?.textContent).toBe("010-9876-5432");
+  });
+
   it("keeps console filter controls visually active until they return to their default value", async () => {
     const user = userEvent.setup();
     render(<CustomerManagementPage mode="all" />);

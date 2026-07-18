@@ -48,6 +48,27 @@ export function buildTimelineRows(customer: Customer, consultations: CustomerDet
   ];
 }
 
+// 상태 필드 폼 제출 판정(순수) — saveStatusField가 소비한다.
+// phone류는 입력 8자리 + 010 고정 prefix = 11자리 digits, 표시값은 formatPhone.
+// 빈 제출(배치 8 C#1): phoneSecondary(추가 연락처)만 클리어 — 서버 phoneField가 null 클리어를
+// 지원하는데(customers.phone.test.ts 잠금) 클라 경로가 없어 한번 입력하면 지울 수 없었다.
+// 주 번호(phone)는 빈 제출 no-op 유지 — UI로 주 번호를 비우는 경로를 만들지 않는다(2026-07-17 계약).
+export type StatusFieldSubmit =
+  | { kind: "noop" }
+  | { kind: "clearSecondary" }
+  | { kind: "phone"; digits: string; display: string }
+  | { kind: "text"; value: string };
+
+export function resolveStatusFieldSubmit(key: StatusFieldKey, raw: string): StatusFieldSubmit {
+  const value = raw.trim();
+  if (!value) return key === "phoneSecondary" ? { kind: "clearSecondary" } : { kind: "noop" };
+  if (key === "phone" || key === "phoneSecondary") {
+    const digits = `010${value.replace(/\D/g, "")}`;
+    return { kind: "phone", digits, display: formatPhone(digits) };
+  }
+  return { kind: "text", value };
+}
+
 // 상세 관리 상태 = 목록과 동일 규칙(row가 단일 소스 — 낙관 반영도 App이 row의 manageStatus/manageStatusAt을
 // 직접 갱신한다, 0713 이중 소스 폐기). 유효 수동 상태 > 서버 파생 lastActivityAt 버킷, 파생 불가(신규·상담접수/
 // 활동 없음)면 ""(목록처럼 공백). 무조건 "정상" 폴백 금지.
@@ -169,22 +190,29 @@ export function useCustomerWorkflow({
   function saveStatusField(event: SyntheticEvent<HTMLFormElement>, key: StatusFieldKey) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const value = String(formData.get("value") ?? "").trim();
-    if (!value) return;
+    const submit = resolveStatusFieldSubmit(key, String(formData.get("value") ?? ""));
+    if (submit.kind === "noop") return;
     const prev = statusValues[key];
-    if (key === "phone" || key === "phoneSecondary") {
-      const digits = `010${value.replace(/\D/g, "")}`; // 입력 8자리 + 010 고정 prefix = 11자리
-      const display = formatPhone(digits);
-      setStatusValues((current) => ({ ...current, [key]: display }));
+    if (submit.kind === "clearSecondary") {
+      // 추가 연락처 비우기 — 표시값은 초기 매핑과 같은 "미입력" 센티널, 서버는 null로 클리어.
+      setStatusValues((current) => ({ ...current, phoneSecondary: "미입력" }));
+      setOpenEditor(null);
+      markRecentUpdate("고객 정보");
+      onToast(`${fieldLabel(key)} 삭제 완료`);
+      savePatch({ phoneSecondary: null }, () => setStatusValues((current) => ({ ...current, phoneSecondary: prev })));
+      return;
+    }
+    if (submit.kind === "phone") {
+      setStatusValues((current) => ({ ...current, [key]: submit.display }));
       setOpenEditor(null);
       markRecentUpdate("고객 정보");
       onToast(`${fieldLabel(key)} 수정 완료`);
-      savePatch(key === "phone" ? { phone: digits } : { phoneSecondary: digits }, () =>
+      savePatch(key === "phone" ? { phone: submit.digits } : { phoneSecondary: submit.digits }, () =>
         setStatusValues((current) => ({ ...current, [key]: prev })),
       );
       return;
     }
-    setStatusValues((current) => ({ ...current, [key]: value }));
+    setStatusValues((current) => ({ ...current, [key]: submit.value }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast(`${fieldLabel(key)} 수정 완료`);

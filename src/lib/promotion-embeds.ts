@@ -11,8 +11,9 @@ import { scheduleEmbedOnWrite, type EmbedOnWriteJob } from "./embed-on-write";
 // 백필을 수동 실행하기 전까지 코퍼스에 영구 공백이 남는다 — 상담 승격 라우트가 이걸 빠뜨렸다(0709 감사).
 //
 // customerId는 create-customer에서만 넘긴다: 승격 INSERT가 프로필 청크 구성 필드(needModel/source 등)를
-// 시드하므로 customer_profile 재임베딩이 필요하다. link는 app_user_id·phone만 세팅하는데 둘 다 프로필
-// 청크 구성 필드가 아니라 제외한다(기존 의도 유지).
+// 시드하므로 customer_profile 재임베딩이 필요하다. link(applyAppUserLink, 2026-07-17 #276)는
+// app_user_id·phone(CHECK 배타로 NULL 강제)·phone_secondary(전이 보존)를 세팅하는데 셋 다 프로필
+// 청크 구성 필드가 아니라 제외한다(재임베딩 불요 결론 유지).
 //
 // 이후 앱이 write하는 신규 요청은 CRM 훅이 없어 백필이 보정한다(주기 보정은 CF Cron 검토 보류).
 export async function promotionEmbedJobs(

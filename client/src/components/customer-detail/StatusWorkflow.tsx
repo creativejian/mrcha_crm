@@ -206,7 +206,7 @@ export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEdit
             const secondaryOpen = openEditor?.kind === "status" && openEditor.key === "phoneSecondary";
             return (
               <div className="kim-edit-anchor" key={field.key} ref={phoneOpen || secondaryOpen ? editorRef : undefined}>
-                <div className="kim-status-field kim-phone-stack">
+                <div className="kim-status-field">
                   <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                   {/* 라벨·번호 같은 라인(유슨생) — 카드 전체가 정확히 2줄: "연락처 …" / "추가 …".
                       표시 라벨만 축약("추가") — 편집기 제목·토스트는 fieldLabel("추가 연락처") 유지. */}
