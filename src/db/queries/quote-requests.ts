@@ -38,11 +38,18 @@ export type AppQuoteRequestRow = {
   promotedQuoteCount: number;
   promotedQuoteIds: string[];
   matchType: "app_user" | "phone" | "none";
+  // none일 때만 채우는 같은 이름 미연결 고객 후보(예방용 제안 — 자동 연결 아님). 그 외 매칭은 빈 배열.
+  nameMatches: { id: string; name: string; code: string }[];
 };
+
+// 이름 매칭 정규화 — 클라 consultation-inbox.normalizeName와 동일 규칙(공유 모듈은 import 경계상 미도입).
+function normalizeName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
 
 // 헬퍼/두 함수 공통 base row(rows 조회 결과 1행). 아래 quoteRequestBaseSelect와 컬럼이 1:1로 맞아야 한다
 // (select에 컬럼을 더하면 이 타입에도 추가할 것 — 안 그러면 헬퍼에서 그 컬럼이 안 보임).
-type QuoteRequestBaseRow = {
+export type QuoteRequestBaseRow = {
   id: string;
   createdAt: string;
   userId: string;
@@ -67,7 +74,7 @@ type QuoteRequestBaseRow = {
 
 // rows(요청+요청자) → catalog(차량명)·options·customers(매칭)·quotes(승격 역참조) batch read + map.
 // listQuoteRequests(전체)와 listQuoteRequestsByUser(user 필터)가 공유 — rows만 다르게 넣는다.
-async function buildAppQuoteRequestRows(
+export async function buildAppQuoteRequestRows(
   rows: QuoteRequestBaseRow[],
   executor: Executor,
 ): Promise<AppQuoteRequestRow[]> {
@@ -80,6 +87,7 @@ async function buildAppQuoteRequestRows(
   const phones = [...new Set(rows.map((r) => r.requesterPhone).filter((v): v is string => v != null))];
   // userId는 schema에서 notNull + 위 early-return 이후라 항상 1개 이상 → or()가 빈 WHERE를 만들지 않음(customers 전체 스캔 방지)
   const userIds = [...new Set(rows.map((r) => r.userId))];
+  const names = [...new Set(rows.map((r) => r.requesterName).filter((v): v is string => v != null))];
 
   const [trimRows, optRows, custRows, promoRows] = await Promise.all([
     trimIds.length
@@ -114,6 +122,7 @@ async function buildAppQuoteRequestRows(
         or(
           phones.length ? inArray(customers.phone, phones) : undefined,
           userIds.length ? inArray(customers.appUserId, userIds) : undefined,
+          names.length ? inArray(customers.name, names) : undefined,
         ),
       ),
     executor
@@ -140,6 +149,7 @@ async function buildAppQuoteRequestRows(
   // 매칭: app_user_id 직접연결 > phone 일치 (둘 다 표시용 read)
   const custByPhone = new Map<string, { id: string; name: string; code: string }>();
   const custByAppUser = new Map<string, { id: string; name: string; code: string }>();
+  const custByNameUnlinked = new Map<string, { id: string; name: string; code: string }[]>();
   // 같은 phone/appUserId를 가진 고객이 여럿이면 마지막 행 우선(표시용 read, 기능 무관)
   for (const c of custRows) {
     const entry = { id: c.id, name: c.name, code: c.code };
@@ -147,6 +157,15 @@ async function buildAppQuoteRequestRows(
     // NULL이라 자동 성립하지만, 의미를 코드에 명시한다(연결 고객은 app_user_id가 확정 매칭).
     if (c.phone && !c.appUserId) custByPhone.set(c.phone, entry);
     if (c.appUserId) custByAppUser.set(c.appUserId, entry);
+    // 이름 매칭 후보도 미연결 고객만(중복 고객 예방 제안 — 이미 연결된 고객은 다른 앱 유저로 붙을 수 없다).
+    if (!c.appUserId) {
+      const nameKey = normalizeName(c.name);
+      if (nameKey) {
+        const list = custByNameUnlinked.get(nameKey) ?? [];
+        list.push(entry);
+        custByNameUnlinked.set(nameKey, list);
+      }
+    }
   }
 
   return rows.map((r) => {
@@ -185,6 +204,12 @@ async function buildAppQuoteRequestRows(
       promotedQuoteCount: promotedQuoteIds.length,
       promotedQuoteIds,
       matchType,
+      nameMatches:
+        matchType === "none" && r.requesterName
+          ? (custByNameUnlinked.get(normalizeName(r.requesterName)) ?? [])
+              .slice()
+              .sort((a, b) => a.code.localeCompare(b.code))
+          : [],
     };
   });
 }

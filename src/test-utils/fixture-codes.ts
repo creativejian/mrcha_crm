@@ -40,6 +40,7 @@ export const TEST_CUSTOMER_NAMES: readonly string[] = [
   "상담승격테스트",   // db/queries/consultations.test.ts — createCustomerFromConsultation 실채번 승격
   "라우트승격테스트", // routes/consultations.test.ts — POST create-customer 실채번 승격
   "승격배선테스트",   // routes/customers.embed.test.ts — 견적요청 승격이 실 profile 실명으로 만든 고객을 응답 직후 rename
+  "이름매칭테스트",   // db/queries/quote-requests.test.ts — nameMatches 이름 매칭 제안 픽스처
 ];
 
 // public.consultations 픽스처의 customer_name registry — 잔재 스캔 **report-only** 전용.
