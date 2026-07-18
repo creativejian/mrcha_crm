@@ -84,6 +84,10 @@
 .consult-inbox-item-car { flex: none; font-weight: 600; color: #3d4650; white-space: nowrap; }
 .consult-inbox-item-notes { color: #4f5a64; white-space: pre-wrap; overflow-wrap: anywhere; }
 
+/* 이름 매칭 제안 — none/미연결 행에서 같은 이름의 미연결 고객 후보를 [고객 생성] 위에 노출(중복 고객 예방) */
+.app-req-name-suggest { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; align-items: flex-start; }
+.app-req-name-suggest-label { font-size: 11px; font-weight: 600; color: #7f858c; }
+
 /* link 충돌 인라인 안내 — 차단 사유 + 충돌 고객으로 가는 경로(닫기 전까지 유지, 토스트보다 읽을 시간 확보) */
 .app-req-conflict {
   display: flex;
