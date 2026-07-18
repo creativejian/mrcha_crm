@@ -38,6 +38,8 @@ export type ConsultationInboxGroup = {
   matchedCustomerId: string | null;
   matchedCustomerName: string | null;
   matchedCustomerCode: string | null;
+  // none일 때만 채우는 같은 이름 미연결 고객 후보(예방용 제안 — 자동 연결 아님). 그 외 매칭은 빈 배열.
+  nameMatches: MatchedCustomer[];
 };
 
 type MatchedCustomer = { id: string; name: string; code: string };
@@ -45,6 +47,11 @@ type MatchedCustomer = { id: string; name: string; code: string };
 function createdAtMs(row: AppConsultationRow): number {
   const t = Date.parse(row.createdAt);
   return Number.isNaN(t) ? 0 : t;
+}
+
+// 이름 매칭 정규화 — 앞뒤/중복 공백 접기 + 소문자. digits(phone)와 별개(spec §3).
+function normalizeName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 // 매칭 라벨 — 견적요청 인박스(quote-requests.ts toAppQuoteRequest)와 같은 어휘.
@@ -62,6 +69,7 @@ export function buildConsultationInboxGroups(
   // 같은 키 고객이 여럿이면 첫 고객(표시용 read — findPhoneDuplicate의 first-wins와 동일 규칙).
   const byAppUser = new Map<string, MatchedCustomer>();
   const byPhone = new Map<string, MatchedCustomer>();
+  const byNameUnlinked = new Map<string, MatchedCustomer[]>();
   for (const c of customers) {
     if (!c.id) continue;
     const entry: MatchedCustomer = { id: c.id, name: c.name, code: c.customerId };
@@ -70,6 +78,12 @@ export function buildConsultationInboxGroups(
     // **앱 번호**라 여기 넣으면 가족 공유 번호의 다른 유저가 이미 연결된 고객으로 오매칭된다
     // (그 고객은 app_user_id로 이미 확정 매칭 — phone 후보일 이유가 없다). 추가 연락처도 매칭 제외.
     if (c.appUserId) continue;
+    const nameKey = normalizeName(c.name);
+    if (nameKey) {
+      const list = byNameUnlinked.get(nameKey) ?? [];
+      list.push(entry);
+      byNameUnlinked.set(nameKey, list);
+    }
     const digits = sanitizePhoneDigits(c.phone);
     if (digits && !byPhone.has(digits)) byPhone.set(digits, entry);
   }
@@ -107,6 +121,12 @@ export function buildConsultationInboxGroups(
       matchedCustomerId: matched?.id ?? null,
       matchedCustomerName: matched?.name ?? null,
       matchedCustomerCode: matched?.code ?? null,
+      nameMatches:
+        matchType === "none"
+          ? (byNameUnlinked.get(normalizeName(latest.customerName)) ?? [])
+              .slice()
+              .sort((a, b) => a.code.localeCompare(b.code))
+          : [],
     };
   });
 }

@@ -105,12 +105,12 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
     }
   }
 
-  async function handleLink(g: ConsultationInboxGroup) {
-    if (!g.matchedCustomerId) return;
+  async function handleLink(g: ConsultationInboxGroup, customerId: string | null = g.matchedCustomerId) {
+    if (!customerId) return;
     setActingKey(g.key);
     setLinkConflict(null);
     try {
-      const linked = await linkConsultationToCustomer(g.latestConsultationId, g.matchedCustomerId);
+      const linked = await linkConsultationToCustomer(g.latestConsultationId, customerId);
       // droppedPhone = 기존 번호가 추가 연락처 자리 점유로 못 옮겨진 경우(2026-07-17 spec) — 무음 유실 방지.
       onToast(
         linked.droppedPhone
@@ -197,6 +197,25 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
                         {/* flex는 안쪽 div에 — td를 flex로 만들면 Safari에서 행 높이 세로정렬이 어긋남(견적요청 인박스 관례) */}
                         <div className="app-req-match-inner">
                           <span className={MATCH_CLASS[g.matchType]}>{g.matchLabel}</span>
+                          {g.matchType === "none" && g.canPromote && g.nameMatches.length > 0 && (
+                            <div className="app-req-name-suggest">
+                              <span className="app-req-name-suggest-label">이름이 같은 미연결 고객</span>
+                              {g.nameMatches.map((m) => (
+                                <button
+                                  key={m.id}
+                                  className="app-req-action"
+                                  disabled={actingKey === g.key}
+                                  onClick={(event) => {
+                                    stopRowToggle(event);
+                                    void handleLink(g, m.id);
+                                  }}
+                                  type="button"
+                                >
+                                  {m.name} {m.code} 연결
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           {g.matchType === "none" && g.canPromote && (
                             <button
                               className="app-req-action"

@@ -222,3 +222,46 @@ describe("buildConsultationInboxGroups — 매칭 파생(견적요청 인박스 
     expect(g.matchType).toBe("none");
   });
 });
+
+describe("nameMatches (이름 매칭 제안)", () => {
+  it("none일 때 같은 이름 미연결 고객을 nameMatches에 노출", () => {
+    const rows = [row({ userId: "u-new", customerName: "김지운", phoneNumber: "01011112222" })];
+    const customers = [customer({ id: "c-1", name: "김지운", customerId: "CU-2605-0018", phone: "010-9999-8888", appUserId: null })];
+    const [g] = buildConsultationInboxGroups(rows, customers);
+    expect(g.matchType).toBe("none");
+    expect(g.nameMatches.map((m) => m.code)).toEqual(["CU-2605-0018"]);
+  });
+
+  it("연결 고객(appUserId 보유)은 nameMatches에서 제외", () => {
+    const rows = [row({ userId: "u-new", customerName: "김지운", phoneNumber: "01011112222" })];
+    const customers = [customer({ id: "c-1", name: "김지운", customerId: "CU-2605-0018", phone: "010-9999-8888", appUserId: "someone-else" })];
+    const [g] = buildConsultationInboxGroups(rows, customers);
+    expect(g.matchType).toBe("none");
+    expect(g.nameMatches).toEqual([]);
+  });
+
+  it("phone 매칭이면 nameMatches는 비운다(none이 아니므로)", () => {
+    const rows = [row({ userId: "u-new", customerName: "김지운", phoneNumber: "01011112222" })];
+    const customers = [customer({ id: "c-1", name: "김지운", customerId: "CU-2605-0018", phone: "010-1111-2222", appUserId: null })];
+    const [g] = buildConsultationInboxGroups(rows, customers);
+    expect(g.matchType).toBe("phone");
+    expect(g.nameMatches).toEqual([]);
+  });
+
+  it("동명이인 미연결 고객 2명을 모두 나열(고객번호 순)", () => {
+    const rows = [row({ userId: "u-new", customerName: "김지운", phoneNumber: "01011112222" })];
+    const customers = [
+      customer({ id: "c-2", name: "김지운", customerId: "CU-2605-0031", phone: "010-3333-3333", appUserId: null }),
+      customer({ id: "c-1", name: "김지운", customerId: "CU-2605-0018", phone: "010-9999-8888", appUserId: null }),
+    ];
+    const [g] = buildConsultationInboxGroups(rows, customers);
+    expect(g.nameMatches.map((m) => m.code)).toEqual(["CU-2605-0018", "CU-2605-0031"]);
+  });
+
+  it("이름 정규화 — 앞뒤 공백·대소문자 무관", () => {
+    const rows = [row({ userId: "u-new", customerName: "  Daniel Kang ", phoneNumber: "01011112222" })];
+    const customers = [customer({ id: "c-1", name: "daniel kang", customerId: "CU-2605-0018", phone: "010-9999-8888", appUserId: null })];
+    const [g] = buildConsultationInboxGroups(rows, customers);
+    expect(g.nameMatches.map((m) => m.code)).toEqual(["CU-2605-0018"]);
+  });
+});

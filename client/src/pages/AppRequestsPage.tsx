@@ -43,12 +43,12 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
     }
   }
 
-  async function handleLink(r: AppQuoteRequest) {
-    if (!r.matchedCustomerId) return;
+  async function handleLink(r: AppQuoteRequest, customerId: string | null = r.matchedCustomerId) {
+    if (!customerId) return;
     setActingId(r.id);
     setLinkConflict(null);
     try {
-      const linked = await linkRequestToCustomer(r.id, r.matchedCustomerId);
+      const linked = await linkRequestToCustomer(r.id, customerId);
       // droppedPhone = 기존 번호가 추가 연락처 자리 점유로 못 옮겨진 경우(2026-07-17 spec) — 무음 유실 방지.
       onToast(
         linked.droppedPhone
@@ -166,6 +166,22 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
                   {/* flex는 안쪽 div에 — td를 flex로 만들면 Safari에서 행 높이만큼 안 늘어나 세로정렬이 어긋남 */}
                   <div className="app-req-match-inner">
                     <span className={MATCH_CLASS[r.matchType]}>{r.matchLabel}</span>
+                    {r.matchType === "none" && r.nameMatches.length > 0 && (
+                      <div className="app-req-name-suggest">
+                        <span className="app-req-name-suggest-label">이름이 같은 미연결 고객</span>
+                        {r.nameMatches.map((m) => (
+                          <button
+                            key={m.id}
+                            className="app-req-action"
+                            disabled={actingId === r.id}
+                            onClick={() => handleLink(r, m.id)}
+                            type="button"
+                          >
+                            {m.name} {m.code} 연결
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {r.matchType === "none" && (
                       <button className="app-req-action" disabled={actingId === r.id} onClick={() => handleCreate(r)} type="button">신규 생성</button>
                     )}
