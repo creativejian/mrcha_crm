@@ -37,6 +37,7 @@ const PHONE_MATCH_ROW: AppQuoteRequest = {
   promotedQuoteCount: 0,
   promotedQuoteIds: [],
   matchType: "phone",
+  nameMatches: [],
 };
 
 function renderInbox(onToast = vi.fn()) {

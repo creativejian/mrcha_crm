@@ -33,6 +33,7 @@ export type AppQuoteRequestRow = {
   promotedQuoteCount: number;
   promotedQuoteIds: string[];
   matchType: "app_user" | "phone" | "none";
+  nameMatches: { id: string; name: string; code: string }[];
 };
 
 // 결제방식/보증금 라벨은 data/quote-request-labels(클라·서버 공용 SSOT — 배치 E 수렴)에서 import.
@@ -63,6 +64,7 @@ export type AppQuoteRequest = {
   promotedQuoteCount: number;
   promotedQuoteIds: string[];
   matchType: AppQuoteRequestRow["matchType"];
+  nameMatches: AppQuoteRequestRow["nameMatches"];
 };
 
 function moneyOrDash(won: number | null): string {
@@ -120,6 +122,7 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
     promotedQuoteCount: row.promotedQuoteCount,
     promotedQuoteIds: row.promotedQuoteIds,
     matchType: row.matchType,
+    nameMatches: row.nameMatches,
   };
 }
 

@@ -41,6 +41,7 @@ const base: AppQuoteRequestRow = {
   promotedQuoteCount: 0,
   promotedQuoteIds: [],
   matchType: "none",
+  nameMatches: [],
 };
 
 describe("toAppQuoteRequest", () => {
