@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   autoAcquisitionTax,
   buildScenarioPayload,
+  resetScenarioDealers,
   resolveDealerSelection,
   type SharedQuoteInputs,
 } from "./build-payload";
@@ -376,5 +377,31 @@ describe("resolveDealerSelection — `lenderCode::dealerName` 합성 해석", ()
       lenderCode: "meritz",
       dealerName: "모터::원",
     });
+  });
+});
+
+// 배치 8 A#1 — 브랜드 전환 시 3 시나리오 딜러 선택 리셋(워크벤치 resetCardDealer 미러).
+// 딜러는 (lender, brand) 귀속이라 구 브랜드 딜러 잔존은 재조회 payload 무음 동봉
+// (BNK 브랜드 스코프 미매칭 → 하드 폴백 무음 오계산). 값(dealer)만 리셋, dealerType 모드는 유지.
+describe("resetScenarioDealers — 브랜드 전환 딜러 리셋(값만·모드 유지)", () => {
+  it("딜러 선택이 있는 시나리오는 dealer만 ''로 리셋하고 dealerType('input')·다른 필드는 유지한다", () => {
+    const withDealer = scenario({ dealerType: "input", dealer: "bnk-capital::모터원", period: "36", cmFeePercent: "1.5" });
+    const [first] = resetScenarioDealers([withDealer, scenario(), scenario()]);
+    expect(first).toEqual({ ...withDealer, dealer: "" });
+    expect(first.dealerType).toBe("input"); // 모드 유지 — 비제휴로 강등하지 않는다
+  });
+
+  it("딜러가 빈 시나리오는 같은 참조를 그대로 반환한다(불필요 객체 교체 없음)", () => {
+    const untouched = scenario({ dealerType: "input", dealer: "" });
+    const withDealer = scenario({ dealerType: "input", dealer: "meritz::모터원" });
+    const result = resetScenarioDealers([untouched, withDealer, scenario()]);
+    expect(result[0]).toBe(untouched);
+    expect(result[2].dealer).toBe("");
+    expect(result[1]).toEqual({ ...withDealer, dealer: "" });
+  });
+
+  it("전 시나리오가 빈 딜러면 입력 튜플 참조를 그대로 반환한다(no-op — 리렌더 회피)", () => {
+    const tuple: [ScenarioState, ScenarioState, ScenarioState] = [scenario(), scenario(), scenario()];
+    expect(resetScenarioDealers(tuple)).toBe(tuple);
   });
 });

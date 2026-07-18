@@ -134,9 +134,11 @@ export function useQuoteWorkbench({
   // 다른 설계: 비교카드는 단일 금융사 조건이라 그 금융사 딜러만 노출하고, 저장값도 plain dealer_name
   // (금융사는 카드 lender 컬럼이 보유 — `lenderCode::dealerName` 합성 불필요). 딜러 "선택값"은 state가
   // 아니라 카드 DOM select(uncontrolled — 금융사 select 계약 미러)에 산다.
-  const [dealerOptionsByCard, setDealerOptionsByCard] = useState<Record<string, SolutionDealer[]>>({});
+  // 값 "failed" = 로드 시도했으나 실패(배치 8 A#2) — 종전엔 실패를 빈 목록(성공 모양)으로 기록해
+  // placeholder가 "등록 딜러 없음"(데이터-부재 어휘)으로 오표기했다. 배열 = 로드 성공 목록.
+  const [dealerOptionsByCard, setDealerOptionsByCard] = useState<Record<string, SolutionDealer[] | "failed">>({});
   // (lenderCode, brand) 키 fetch 메모 — 같은 조합 재조회·카드 간 중복 조회 방지(내용 주소형이라 세션 내 유지).
-  const dealerFetchCacheRef = useRef(new Map<string, Promise<SolutionDealer[]>>());
+  const dealerFetchCacheRef = useRef(new Map<string, Promise<SolutionDealer[] | "failed">>());
   // 늦은 응답 가드용 브랜드 미러(cardUiRef 패턴) — await 뒤 클로저 브랜드는 stale일 수 있다.
   const workbenchBrandRef = useRef<string | null>(null);
   // 브랜드 "도착"(재진입 복원 — 딜러 보존)과 "전환"(구 브랜드 딜러 청소)을 구분하는 직전 브랜드.
@@ -734,8 +736,8 @@ export function useQuoteWorkbench({
     const brand = workbenchVehicle?.brand?.name ?? null;
     const lender = solutionLenderOptions(solutionWorkbenchPurchaseMethod).find((l) => l.label === lenderLabel);
     // 브랜드 미선택·파트너 미지원 금융사(CRM 수기 어휘 포함)는 목록 없음 → 키 삭제(빈 배열 아님).
-    // 키 존재 = "금융사 스코프 로드 결과"라는 계약 — placeholder(dealerSelectPlaceholder)가
-    // "금융사 먼저 선택"(키 부재)과 "등록 딜러 없음"(로드했더니 0건)을 구분하는 근거.
+    // 키 존재 = "금융사 스코프 로드 시도 결과"라는 계약 — placeholder(dealerSelectPlaceholder)가
+    // "금융사 먼저 선택"(키 부재)과 "등록 딜러 없음"(성공 0건)·"불러오지 못했습니다"("failed")를 구분하는 근거.
     if (!brand || !lender) {
       setDealerOptionsByCard((prev) => {
         if (!(condId in prev)) return prev;
@@ -748,10 +750,12 @@ export function useQuoteWorkbench({
     const key = `${lender.code}::${brand}`;
     let pending = dealerFetchCacheRef.current.get(key);
     if (!pending) {
-      // 실패 = 빈 목록(계산기 catch 미러) + 캐시 키 삭제 — 일시 장애가 세션 내내 빈 목록으로 박제되지 않게.
+      // 실패 = "failed" 마커(배치 8 A#2 — 구 빈 목록 기록은 성공 모양이라 "등록 딜러 없음" 오표기)
+      // + 캐시 키 삭제 — 일시 장애가 세션 내내 실패로 박제되지 않게(금융사/브랜드 재전환이 재시도 트리거).
       pending = fetchSolutionDealers(lender.code, brand).catch(() => {
         dealerFetchCacheRef.current.delete(key);
-        return [] as SolutionDealer[];
+        console.warn(`[workbench] 딜러 목록 조회 실패 lender=${lender.code} brand=${brand}`);
+        return "failed" as const;
       });
       dealerFetchCacheRef.current.set(key, pending);
     }

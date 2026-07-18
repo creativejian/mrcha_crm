@@ -27,7 +27,7 @@ import { SOLUTION_LENDERS } from '@/lib/solution-quote'
 import { fetchSolutionDealers, type DealerOption } from '@/lib/solution-dealers'
 // payload 조립·취득세 자동 공식·판매사 해석은 순수 계층으로 추출(배치 7 A#15 후속 —
 // build-payload.test.ts가 산술·생략 계약을 잠근다). 컴포넌트는 파생값을 넘겨 호출만.
-import { autoAcquisitionTax, buildScenarioPayload, resolveDealerSelection } from './build-payload'
+import { autoAcquisitionTax, buildScenarioPayload, resetScenarioDealers, resolveDealerSelection } from './build-payload'
 
 type CalculatorModalProps = { onClose: () => void }
 
@@ -89,28 +89,54 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
 
   // ── 판매사(딜러) 목록 — 사별 조회 union (브랜드 변경 시 갱신, 제프 QuoteRevolutionV2.tsx:82-107 미러) ──
   // 금융사 셋(DEALER_LENDERS)에서 그대로 돌린다(하드코딩 없음). 딜러가 없는/미지원 사는 빈 목록을
-  // 주므로(업스트림 200 빈 목록), 신한처럼 나중에 딜러가 붙어도 여기 고칠 게 없다. 개별 실패도
-  // 빈 목록(catch) — 한 사의 장애가 union 전체를 죽이지 않는다.
+  // 주므로(업스트림 200 빈 목록), 신한처럼 나중에 딜러가 붙어도 여기 고칠 게 없다. 개별 실패는
+  // union에서 제외(catch null) — 한 사의 장애가 union 전체를 죽이지 않는다(부분 실패 허용 의도).
   const [dealers, setDealers] = useState<DealerOption[]>([])
+  // 배치 8 A#2(제프 대비 의도적 이탈): 전 사 실패 판별 — 사별 부분 실패 허용(위 union 의도)은
+  // 유지하되, 전부 실패면 placeholder가 데이터-부재 어휘("등록 딜러 없음") 대신 실패를 표면화한다.
+  const [dealersFailed, setDealersFailed] = useState(false)
+  // 배치 8 A#1: 브랜드 "전환" 감지용 직전 실브랜드(워크벤치 prevDealerBrandRef 미러). null(해제)은
+  // 덮지 않는다 — 계산기는 복원 경로가 없어 마지막 실브랜드를 유지하면 A→해제→B 경유 전환도 잡힌다
+  // (A→해제→A 재선택은 동일 브랜드라 리셋 불요·실제로 안 됨). 재열기 상태 유지가 와도 마운트 시
+  // ref가 null이라 "도착"은 리셋되지 않는다(load-bearing).
+  const prevDealerBrandRef = useRef<number | null>(null)
 
   useEffect(() => {
+    const brandCode = masterCatalog.selectedBrand?.brandCode ?? null
+    const prevBrand = prevDealerBrandRef.current
+    if (brandCode != null) prevDealerBrandRef.current = brandCode
+    // 배치 8 A#1(제프 대비 의도적 이탈): 브랜드 전환(직전 실브랜드 존재 && 실변경) 시 3 시나리오의
+    // 딜러 선택 리셋(값만 — dealerType 모드 유지, 워크벤치 resetCardDealer 미러). 제프 원형은 union
+    // 목록만 갱신해 구 브랜드 딜러가 ScenarioState에 잔존, 재조회 payload에 무음 동봉된다 — BNK는
+    // 브랜드 스코프 미매칭 시 policyBaseIrr 0.0681 하드 폴백 무음 오계산(검증 실측. lenderCode
+    // 게이트는 브랜드 축을 원리적으로 못 막는다 — `lenderCode::dealerName` 합성에 브랜드 정보 없음).
+    if (prevBrand != null && brandCode != null && prevBrand !== brandCode) {
+      setScenarios((prev) => resetScenarioDealers(prev))
+    }
     const brandForDealers = masterCatalog.selectedBrand?.name ?? ''
     if (!brandForDealers) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 제프 원형 미러: 브랜드 해제 시 union 목록 클리어
       setDealers([])
+      setDealersFailed(false) // A#2: 목록 클리어와 같은 축 — 실패 표시 잔존 방지
       return
     }
     let cancelled = false
     void Promise.all(
       DEALER_LENDERS.map((l) =>
         fetchSolutionDealers(l.lenderCode, brandForDealers)
-          .then((list) =>
+          .then((list): DealerOption[] =>
             list.map((d) => ({ ...d, lenderCode: l.lenderCode, lenderName: l.lenderName })),
           )
-          .catch(() => [] as DealerOption[]),
+          // A#2: null = 사별 실패 마커 — 업스트림 200 빈 목록(딜러 미등록)과 구분해 전 사 실패를 판별.
+          .catch((): DealerOption[] | null => null),
       ),
     ).then((lists) => {
-      if (!cancelled) setDealers(lists.flat()) // cancelled 가드 — 늦은 응답이 새 브랜드 목록을 덮지 않게
+      if (cancelled) return // cancelled 가드 — 늦은 응답이 새 브랜드 목록을 덮지 않게
+      const succeeded = lists.filter((list): list is DealerOption[] => list !== null)
+      const allFailed = succeeded.length === 0 // DEALER_LENDERS는 비어 있지 않은 상수 — 전 사 reject와 동치
+      if (allFailed) console.warn(`[calculator] 딜러 목록 전 사 조회 실패 brand=${brandForDealers}`)
+      setDealersFailed(allFailed)
+      setDealers(succeeded.flat())
     })
     return () => {
       cancelled = true
@@ -459,6 +485,7 @@ export function CalculatorModal({ onClose }: CalculatorModalProps) {
           basePriceForFeePreview={finalVehiclePrice}
           topLevelFingerprint={topLevelFingerprint}
           dealers={dealers}
+          dealersFailed={dealersFailed} // A#2 — 전 사 실패 표면화(placeholder 실패 어휘 근거)
           quotes={[q1, q2, q3]}
           leaseTermMonths={[
             parseInt(scenarios[0].period, 10),
