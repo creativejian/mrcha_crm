@@ -40,8 +40,9 @@ export function CustomerInfoCell({ customer }: { customer: Customer }) {
     <td>
       <strong className="customer-name">{customer.name}<span className="customer-code num">{customer.customerId}</span></strong>
       <span className="customer-meta">{customerMeta(customer)}</span>
-      {/* 추가 연락처 병기(2026-07-17 결정 — 목록에도 노출). 주 번호 = 서버 합성(앱 연결이면 앱 번호). */}
-      <span className="customer-phone num">{customer.phoneSecondary ? `${customer.phone} · ${customer.phoneSecondary}` : customer.phone}</span>
+      {/* 추가 연락처 병기(2026-07-17 결정 — 목록에도 노출). 주 번호 = 서버 합성(앱 연결이면 앱 번호).
+          값 있는 항목만 잇는다 — 주 번호 공란+추가만 있으면 선행 " · " 없이(배치 8 C#9). */}
+      <span className="customer-phone num">{[customer.phone, customer.phoneSecondary].filter(Boolean).join(" · ")}</span>
     </td>
   );
 }

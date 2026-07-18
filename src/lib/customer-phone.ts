@@ -29,18 +29,23 @@ export type PhoneOnLinkResult = {
 /**
  * 앱 계정 연결 시 기존 phone 전이(spec §3-4).
  * 앱 번호와 같으면 버리고(중복 — phone 매칭 연결이 정확히 이 경로), 다르면 secondary로 보존한다.
- * secondary가 다른 값으로 점유돼 있으면 연결은 막지 않되 droppedPhone으로 알린다(v1 알림, 선택 UI 후속).
+ * secondary가 앱 번호와 같은 값으로 차 있으면 점유가 아니라 중복 정보다 — 연결 후 주 번호가
+ * profiles 파생으로 같은 값을 이미 표시하므로, 그 자리를 기존 phone(실번호)으로 교체·보존한다
+ * (droppedPhone 없음 — 중복 병기·실번호 유실 동시 차단, 배치 8 C#2 유슨생 결정).
+ * secondary가 그 외 다른 값으로 점유돼 있으면 연결은 막지 않되 droppedPhone으로 알린다(v1 알림, 선택 UI 후속).
  * 비교는 전부 정규화(digits) 기준 — 하이픈 유입 전환기 호환.
  */
 export function resolvePhoneOnLink(input: PhoneOnLinkInput): PhoneOnLinkResult {
   const current = normalizePhoneDigits(input.currentPhone);
   const secondary = input.currentSecondary;
+  const appDigits = normalizePhoneDigits(input.appPhone);
   if (!current) return { phone: null, phoneSecondary: secondary, droppedPhone: null };
-  if (current === normalizePhoneDigits(input.appPhone)) {
+  if (current === appDigits) {
     return { phone: null, phoneSecondary: secondary, droppedPhone: null };
   }
   const secondaryDigits = normalizePhoneDigits(secondary);
   if (!secondaryDigits) return { phone: null, phoneSecondary: current, droppedPhone: null };
   if (secondaryDigits === current) return { phone: null, phoneSecondary: secondary, droppedPhone: null };
+  if (secondaryDigits === appDigits) return { phone: null, phoneSecondary: current, droppedPhone: null };
   return { phone: null, phoneSecondary: secondary, droppedPhone: current };
 }

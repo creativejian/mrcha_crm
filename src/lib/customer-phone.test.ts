@@ -53,6 +53,19 @@ describe("resolvePhoneOnLink", () => {
       .toEqual({ phone: null, phoneSecondary: "01055556666", droppedPhone: "01095880812" });
   });
 
+  // 배치 8 C#2(유슨생 결정): secondary가 앱 번호와 같은 값으로 차 있으면 점유가 아니라 중복 정보 —
+  // 주 번호가 profiles 파생으로 같은 값을 표시하므로 그 자리를 기존 phone(실번호)으로 교체·보존한다.
+  // 구 동작은 점유 판정 → 동일 번호 2회 병기(`x · x`) + 실번호 droppedPhone 폐기였다.
+  test("secondary가 앱 번호와 같은 값이면 기존 phone으로 교체·보존 (droppedPhone 없음)", () => {
+    expect(resolvePhoneOnLink({ currentPhone: "01011112222", currentSecondary: "01012345678", appPhone: "01012345678" }))
+      .toEqual({ phone: null, phoneSecondary: "01011112222", droppedPhone: null });
+  });
+
+  test("secondary==앱 번호 비교도 정규화 후 (하이픈 유입 호환)", () => {
+    expect(resolvePhoneOnLink({ currentPhone: "010-1111-2222", currentSecondary: "010-1234-5678", appPhone: "01012345678" }))
+      .toEqual({ phone: null, phoneSecondary: "01011112222", droppedPhone: null });
+  });
+
   test("앱 번호가 없어도(과거 테스트 계정) phone은 secondary로 보존 후 null", () => {
     expect(resolvePhoneOnLink({ currentPhone: "01095880812", currentSecondary: null, appPhone: null }))
       .toEqual({ phone: null, phoneSecondary: "01095880812", droppedPhone: null });
