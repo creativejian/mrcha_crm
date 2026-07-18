@@ -10,7 +10,8 @@ import { formatActivity, formatPhone } from "./customers";
 export type ConsultationMatchType = "app_user" | "phone" | "none";
 
 // 펼침 영역의 개별 상담 1건(읽기 전용 — 고객 상세 상담신청 카드 어휘 미러).
-export type ConsultationInboxItem = {
+// 외부 도달은 ConsultationInboxGroup.items 요소 타입으로 충분해 비공개(배치 8 D#2 — knip unused type).
+type ConsultationInboxItem = {
   id: string;
   dateLabel: string;
   carModel: string | null;
