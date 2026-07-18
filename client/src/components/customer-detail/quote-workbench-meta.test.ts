@@ -189,16 +189,28 @@ describe("cardUiFromScenario", () => {
 // 워크벤치·계산기 공용 1벌: 계산기는 union이라 lenderReady 상수 true(금융사 단계 없음 → 0건 = 등록 딜러 없음).
 describe("dealerSelectPlaceholder", () => {
   it("선택지가 있으면 항상 '선택'(이유 문구는 빈 목록에서만)", () => {
-    expect(dealerSelectPlaceholder({ hasChoices: true, vehicleReady: false, lenderReady: false })).toBe("선택");
+    expect(dealerSelectPlaceholder({ hasChoices: true, vehicleReady: false, lenderReady: false, loadFailed: false })).toBe("선택");
   });
   it("차량 미선택이 최우선 안내 — 브랜드 없인 어떤 목록도 못 얻는다", () => {
-    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: false, lenderReady: false })).toBe("차량 먼저 선택");
+    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: false, lenderReady: false, loadFailed: false })).toBe("차량 먼저 선택");
   });
   it("차량은 있고 금융사 스코프 로드 결과가 없으면(키 부재) '금융사 먼저 선택' — 워크벤치 스코프 안내", () => {
-    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: true, lenderReady: false })).toBe("금융사 먼저 선택");
+    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: true, lenderReady: false, loadFailed: false })).toBe("금융사 먼저 선택");
   });
   it("로드했는데 0건이면 '등록 딜러 없음' — 미취급 금융사(예: 신한카드)·계산기 union 0건", () => {
-    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: true, lenderReady: true })).toBe("등록 딜러 없음");
+    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: true, lenderReady: true, loadFailed: false })).toBe("등록 딜러 없음");
+  });
+  // 배치 8 A#2 — fetch 실패를 데이터-부재 어휘("등록 딜러 없음")와 구분해 표면화(옵션/색상
+  // '불러오지 못했습니다' 배선(배치 7 A#1)과 같은 원칙 — 실패가 "딜러 없음"으로 위장되지 않게).
+  it("로드 실패면 '딜러 목록을 불러오지 못했습니다' — 데이터 부재('등록 딜러 없음')와 구분", () => {
+    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: true, lenderReady: true, loadFailed: true })).toBe("딜러 목록을 불러오지 못했습니다");
+  });
+  it("실패보다 선행 조건 안내가 우선 — 차량/금융사 없인 재시도 자체가 성립 안 한다", () => {
+    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: false, lenderReady: false, loadFailed: true })).toBe("차량 먼저 선택");
+    expect(dealerSelectPlaceholder({ hasChoices: false, vehicleReady: true, lenderReady: false, loadFailed: true })).toBe("금융사 먼저 선택");
+  });
+  it("실패했어도 선택지가 있으면(저장 표시값 등) '선택' — 실패 문구는 빈 목록에서만", () => {
+    expect(dealerSelectPlaceholder({ hasChoices: true, vehicleReady: true, lenderReady: true, loadFailed: true })).toBe("선택");
   });
 });
 

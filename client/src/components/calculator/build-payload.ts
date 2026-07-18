@@ -143,3 +143,21 @@ export function resolveDealerSelection(
   if (sep < 0) return null
   return { lenderCode: s.dealer.slice(0, sep), dealerName: s.dealer.slice(sep + 2) }
 }
+
+/**
+ * 배치 8 A#1(제프 대비 의도적 이탈) — 브랜드 전환 시 3 시나리오의 딜러 선택 리셋.
+ *
+ * 딜러는 (lender, brand) 귀속인데 제프 원형(QuoteRevolutionV2.tsx:82-110)은 브랜드 전환 시
+ * union 목록만 갱신해 구 브랜드 딜러가 ScenarioState에 잔존, 재조회 payload에 무음 동봉된다
+ * (BNK = 브랜드 스코프 미매칭 → policyBaseIrr 0.0681 하드 폴백 무음 오계산 — 파트너 서버 실측.
+ * lenderCode 게이트는 브랜드 축을 원리적으로 못 막는다 — 합성값에 브랜드 정보가 없다).
+ * 같은 PR의 워크벤치 resetCardDealer(useQuoteWorkbench)와 동일 원칙: 값(dealer)만 리셋하고
+ * dealerType 모드는 유지한다. 무변경 시나리오는 참조를 보존한다(불필요 리렌더 회피).
+ */
+export function resetScenarioDealers(
+  scenarios: [ScenarioState, ScenarioState, ScenarioState],
+): [ScenarioState, ScenarioState, ScenarioState] {
+  if (scenarios.every((s) => !s.dealer)) return scenarios
+  return scenarios.map((s) => (s.dealer ? { ...s, dealer: '' } : s)) as
+    [ScenarioState, ScenarioState, ScenarioState]
+}

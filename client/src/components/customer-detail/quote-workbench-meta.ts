@@ -59,12 +59,15 @@ export const DEALER_MODE_SEGMENT_OPTIONS: readonly { value: ManualDealerMode; la
 
 // 판매사 select의 빈 목록 placeholder — 선택지가 없는 "이유"를 표면화(안내 없는 죽은 select가
 // 고장으로 읽히던 실기 지적, 2026-07-17). 워크벤치·계산기 공용 1벌(문구 SSOT):
-// 워크벤치는 딜러 스코프가 카드의 선택 금융사라 lenderReady = "금융사 스코프 로드 결과 존재",
+// 워크벤치는 딜러 스코프가 카드의 선택 금융사라 lenderReady = "금융사 스코프 로드 시도 결과 존재",
 // 계산기는 전사 union이라 금융사 단계가 없어 lenderReady 상수 true(0건이면 곧장 "등록 딜러 없음").
-export function dealerSelectPlaceholder(state: { hasChoices: boolean; vehicleReady: boolean; lenderReady: boolean }): string {
+// loadFailed(배치 8 A#2): fetch 실패를 데이터-부재 어휘("등록 딜러 없음")와 구분 — 옵션/색상
+// '불러오지 못했습니다' 배선(배치 7 A#1)과 같은 원칙. 선행 조건 안내(차량/금융사)가 실패보다 우선.
+export function dealerSelectPlaceholder(state: { hasChoices: boolean; vehicleReady: boolean; lenderReady: boolean; loadFailed: boolean }): string {
   if (state.hasChoices) return "선택";
   if (!state.vehicleReady) return "차량 먼저 선택"; // 픽커 "트림 먼저 선택" 문법 미러
   if (!state.lenderReady) return "금융사 먼저 선택";
+  if (state.loadFailed) return "딜러 목록을 불러오지 못했습니다";
   return "등록 딜러 없음";
 }
 

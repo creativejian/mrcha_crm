@@ -52,6 +52,9 @@ interface CardProps {
   basePriceForFeePreview: number   // CM/AG 수수료 미리보기용 (기본가격)
   topLevelFingerprint: string      // 차량/취득원가 변경 감지용 (페이지 레벨)
   dealers: DealerOption[]          // 판매사 사별 union 목록(CalculatorModal fetch — 브랜드 변경 시 갱신)
+  // 배치 8 A#2: 전 사 조회 실패(사별 부분 실패는 union 축소로 허용 — CalculatorModal 판별).
+  // placeholder가 데이터-부재 어휘("등록 딜러 없음") 대신 실패를 표면화하는 근거.
+  dealersFailed: boolean
   results: Array<{
     lenderCode: SupportedLenderCode
     result: QuoteResult | null
@@ -101,6 +104,7 @@ function ConditionCard({
   basePriceForFeePreview,
   topLevelFingerprint,
   dealers,
+  dealersFailed,
   results,
   leaseTermMonths,
   selectedQuotes,
@@ -391,8 +395,9 @@ function ConditionCard({
               }}
             >
               {/* 빈 목록 placeholder = 이유 표면화(워크벤치 파리티 — 제프 원문 "선택" 고정 대비 의도 이탈).
-                  계산기는 전사 union이라 금융사 단계가 없음 → lenderReady 상수 true. */}
-              <option value="">{dealerSelectPlaceholder({ hasChoices: dealers.length > 0, vehicleReady: isVehicleReady, lenderReady: true })}</option>
+                  계산기는 전사 union이라 금융사 단계가 없음 → lenderReady 상수 true.
+                  loadFailed = 전 사 실패(A#2 — 부분 실패는 union 축소로 허용, 어휘는 SSOT 문구). */}
+              <option value="">{dealerSelectPlaceholder({ hasChoices: dealers.length > 0, vehicleReady: isVehicleReady, lenderReady: true, loadFailed: dealersFailed })}</option>
               {dealers.map((d) => (
                 <option
                   key={`${d.lenderCode}::${d.dealerName}`}
@@ -598,6 +603,7 @@ interface GroupProps {
   basePriceForFeePreview: number
   topLevelFingerprint: string
   dealers: DealerOption[]
+  dealersFailed: boolean // A#2 — 전 사 실패 표면화(CardProps 주석 참조)
   quotes: [
     ReturnType<typeof useMultiQuote>,
     ReturnType<typeof useMultiQuote>,
@@ -611,7 +617,7 @@ interface GroupProps {
 
 export function ConditionCards({
   scenarios, setScenarios, onCalculate, loadings, isVehicleReady, basePriceForFeePreview,
-  topLevelFingerprint, dealers,
+  topLevelFingerprint, dealers, dealersFailed,
   quotes, leaseTermMonths, selectedQuotesByScenario, onToggleSelect, showMaxWarningByScenario,
 }: GroupProps) {
   const updateAt = (idx: 0 | 1 | 2) => (s: ScenarioState) =>
@@ -638,6 +644,7 @@ export function ConditionCards({
         basePriceForFeePreview={basePriceForFeePreview}
         topLevelFingerprint={topLevelFingerprint}
         dealers={dealers}
+        dealersFailed={dealersFailed}
         results={toResults(quotes[0])}
         leaseTermMonths={leaseTermMonths[0]}
         selectedQuotes={selectedQuotesByScenario[0]}
@@ -654,6 +661,7 @@ export function ConditionCards({
         basePriceForFeePreview={basePriceForFeePreview}
         topLevelFingerprint={topLevelFingerprint}
         dealers={dealers}
+        dealersFailed={dealersFailed}
         results={toResults(quotes[1])}
         leaseTermMonths={leaseTermMonths[1]}
         selectedQuotes={selectedQuotesByScenario[1]}
@@ -672,6 +680,7 @@ export function ConditionCards({
         basePriceForFeePreview={basePriceForFeePreview}
         topLevelFingerprint={topLevelFingerprint}
         dealers={dealers}
+        dealersFailed={dealersFailed}
         results={toResults(quotes[2])}
         leaseTermMonths={leaseTermMonths[2]}
         selectedQuotes={selectedQuotesByScenario[2]}

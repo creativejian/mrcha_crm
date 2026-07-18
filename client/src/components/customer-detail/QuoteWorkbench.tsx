@@ -456,7 +456,10 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                     const carTaxOn = ui.carTaxIncluded;
                     const subsidyOn = ui.subsidyApplicable;
                     const dealerMode = ui.dealerMode;
-                    const dealerList = dealerOptionsByCard[condition.id] ?? [];
+                    // "failed" = 로드 실패 마커(배치 8 A#2 — 훅 loadCardDealers 키 계약) — 목록은 빈 배열로 취급.
+                    const dealerEntry = dealerOptionsByCard[condition.id];
+                    const dealerList = Array.isArray(dealerEntry) ? dealerEntry : [];
+                    const dealerLoadFailed = dealerEntry === "failed";
                     // 저장/복사 재시드 값(condition.dealerName) — 목록 도착 전엔 이름만, 도착 후 % 병기로 승격.
                     const savedDealerInList = condition.dealerName ? dealerList.find((d) => d.dealerName === condition.dealerName) : undefined;
 
@@ -509,10 +512,10 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                                   disabled: isConditionSaved || dealerMode === "nonAffiliated" || (dealerList.length === 0 && !condition.dealerName),
                                 }}
                               >
-                                {/* 빈 목록 placeholder = 이유 표면화(차량/금융사 먼저·등록 딜러 없음) — 죽은 select 오인 방지.
-                                    lenderReady = 키 존재(금융사 스코프 로드 결과 — 훅 loadCardDealers 키 계약). 로드 in-flight
+                                {/* 빈 목록 placeholder = 이유 표면화(차량/금융사 먼저·등록 딜러 없음·로드 실패) — 죽은 select 오인 방지.
+                                    lenderReady = 키 존재(금융사 스코프 로드 시도 결과 — 훅 loadCardDealers 키 계약). 로드 in-flight
                                     순간엔 "금융사 먼저 선택"이 잠깐 보일 수 있음(sub-second·캐시 히트 즉시 — 상태 3분화는 과설계). */}
-                                <option value="">{dealerSelectPlaceholder({ hasChoices: dealerList.length > 0 || condition.dealerName !== "", vehicleReady: trimDetail !== null, lenderReady: condition.id in dealerOptionsByCard })}</option>
+                                <option value="">{dealerSelectPlaceholder({ hasChoices: dealerList.length > 0 || condition.dealerName !== "", vehicleReady: trimDetail !== null, lenderReady: condition.id in dealerOptionsByCard, loadFailed: dealerLoadFailed })}</option>
                                 {condition.dealerName
                                   ? <option value={condition.dealerName}>{savedDealerInList ? dealerOptionLabel(savedDealerInList) : condition.dealerName}</option>
                                   : null}
