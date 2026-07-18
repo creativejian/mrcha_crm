@@ -65,6 +65,22 @@ describe("buildConsultationInboxGroups — 그룹핑", () => {
     expect(groups.find((g) => g.userId === "u2")?.count).toBe(1);
   });
 
+  it("파싱 불능 createdAt(NaN→0)은 그룹·그룹 내 항목 정렬 최하단으로 강등된다", () => {
+    const groups = buildConsultationInboxGroups(
+      [
+        row({ id: "bad-only", userId: "u-bad", customerName: "깨진날짜", createdAt: "not-a-date" }),
+        row({ id: "u1-bad", userId: "u1", createdAt: "" }),
+        row({ id: "u1-good", userId: "u1", createdAt: "2026-07-01T00:00:00.000+00:00" }),
+      ],
+      [],
+    );
+    // 그룹 간: 파싱 불능뿐인 그룹은 최하단.
+    expect(groups.map((g) => g.userId)).toEqual(["u1", "u-bad"]);
+    // 그룹 내: 파싱 불능 항목이 아래 — 대표(latest = 이름·연락처·액션 대상)도 정상 건 기준이 된다.
+    expect(groups[0].items.map((i) => i.id)).toEqual(["u1-good", "u1-bad"]);
+    expect(groups[0].latestConsultationId).toBe("u1-good");
+  });
+
   it("그룹 정렬은 최근 상담 desc, 그룹 내 개별 상담도 desc", () => {
     const groups = buildConsultationInboxGroups(
       [
@@ -156,6 +172,20 @@ describe("buildConsultationInboxGroups — 매칭 파생(견적요청 인박스 
     );
     expect(g.matchType).toBe("app_user");
     expect(g.matchedCustomerId).toBe("cust-app");
+  });
+
+  it("같은 번호의 미연결 고객이 여럿이면 먼저 온 고객을 매칭한다(first-wins) — matchedCustomerId는 link 대상 인자 계약", () => {
+    const [g] = buildConsultationInboxGroups(
+      [row({ userId: "u1", phoneNumber: "01011112222" })],
+      [
+        customer({ id: "cust-first", appUserId: null, name: "먼저온고객", phone: "010-1111-2222" }),
+        customer({ id: "cust-second", appUserId: null, name: "나중고객", customerId: "CU-2607-0002", phone: "010-1111-2222" }),
+      ],
+    );
+    expect(g.matchType).toBe("phone");
+    // 이 id가 handleLink의 linkConsultationToCustomer 두 번째 인자로 그대로 흘러간다(행위 계약 — 배치 8 B#4).
+    expect(g.matchedCustomerId).toBe("cust-first");
+    expect(g.matchedCustomerName).toBe("먼저온고객");
   });
 
   it("앱 연결 고객은 phone 매칭 후보에서 제외한다(합성 phone = 앱 번호 — 2026-07-17 spec §3-6)", () => {

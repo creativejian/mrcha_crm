@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, type KeyboardEvent, type SyntheticEvent } from "react";
 import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
 
@@ -12,6 +12,7 @@ import {
 } from "@/lib/consultations";
 import { formatPhone } from "@/lib/customers";
 import { HttpError } from "@/lib/http";
+import { resolveInboxViewState } from "@/lib/inbox-view-state";
 
 // 매칭 칩 톤 — 앱 견적요청 인박스와 같은 클래스(quote-inbox.css 공유).
 const MATCH_CLASS: Record<ConsultationMatchType, string> = {
@@ -44,7 +45,6 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
 
   // 초기 로드(캐시 허용 — 사이드메뉴 hover 프리패치가 채워두면 즉시) + 60초 폴링(fresh).
   // 상담신청은 견적요청과 달리 Realtime 구독이 없어 폴링이 유일한 자동 갱신 경로다.
-  const firstLoadRef = useRef(true);
   useEffect(() => {
     let alive = true;
     const load = (force: boolean) => {
@@ -62,8 +62,9 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
           if (alive) setLoading(false);
         });
     };
-    load(!firstLoadRef.current);
-    firstLoadRef.current = false;
+    // 캐시 허용 고정(force=false) — deps []라 이 호출은 마운트 1회뿐이어서 원형 AppRequestsPage
+    // (deps [signal] — 초회/재실행 구분에 firstLoadRef 필요)와 달리 ref 구분이 무의미하다(배치 8 B#2).
+    load(false);
     const id = window.setInterval(() => load(true), 60000);
     return () => {
       alive = false;
@@ -136,20 +137,22 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
   }
 
   const totalCount = rows.length;
+  // 데이터를 한 번이라도 성공 수신한 뒤의 폴 실패는 테이블·카운트 유지 — 전체 에러는 무데이터일 때만(배치 8 B#1).
+  const view = resolveInboxViewState({ loading, error, hasRows: rows.length > 0 });
 
   return (
     <div className="consult-inbox-page">
       <div className="app-requests-head">
         <strong>상담 신청 DB</strong>
         <span className="app-requests-count">
-          {loading ? "불러오는 중…" : error ? "—" : `${groups.length}명 · ${totalCount}건`}
+          {view === "loading" ? "불러오는 중…" : view === "error" ? "—" : `${groups.length}명 · ${totalCount}건`}
         </span>
       </div>
-      {error ? (
+      {view === "error" ? (
         <div className="app-requests-empty">불러오지 못했습니다. 새로고침해 주세요.</div>
-      ) : loading ? (
+      ) : view === "loading" ? (
         <div className="app-requests-empty">불러오는 중…</div>
-      ) : groups.length === 0 ? (
+      ) : view === "empty" ? (
         <div className="app-requests-empty">앱에서 들어온 상담신청이 없습니다.</div>
       ) : (
         <div className="console-table-scroll">
@@ -227,7 +230,9 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
                           )}
                         </div>
                         {linkConflict?.groupKey === g.key && (
-                          <div className="app-req-conflict" role="alert">
+                          // 안내 텍스트 클릭·드래그가 행 펼침 토글로 번지지 않게 wrapper에서 차단(배치 8 B#3) —
+                          // 전파 차단 전용(실제 인터랙션은 내부 Link·닫기 버튼).
+                          <div className="app-req-conflict" onClick={stopRowToggle} role="alert">
                             <span>{linkConflict.message}</span>
                             <div className="app-req-conflict-actions">
                               <Link className="app-req-action link" onClick={stopRowToggle} to={`/customer-detail/${linkConflict.customerCode}`}>

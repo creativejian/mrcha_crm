@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { formatPhone } from "@/lib/customers";
 import { HttpError } from "@/lib/http";
+import { resolveInboxViewState } from "@/lib/inbox-view-state";
 import { createCustomerFromRequest, fetchAppQuoteRequestsCached, linkRequestToCustomer, type AppQuoteRequest } from "@/lib/quote-requests";
 
 const MATCH_CLASS: Record<AppQuoteRequest["matchType"], string> = {
@@ -106,17 +107,21 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
     };
   }, [signal]);
 
+  // 데이터를 한 번이라도 성공 수신한 뒤의 폴 실패는 테이블·카운트 유지 — 전체 에러는 무데이터일 때만
+  // (배치 8 B#1, ConsultationRequestsPage 미러 — 공유 헬퍼).
+  const view = resolveInboxViewState({ loading, error, hasRows: rows.length > 0 });
+
   return (
     <div className="app-requests-page">
       <div className="app-requests-head">
         <strong>앱 견적요청</strong>
-        <span className="app-requests-count">{loading ? "불러오는 중…" : error ? "—" : `${rows.length}건`}</span>
+        <span className="app-requests-count">{view === "loading" ? "불러오는 중…" : view === "error" ? "—" : `${rows.length}건`}</span>
       </div>
-      {error ? (
+      {view === "error" ? (
         <div className="app-requests-empty">불러오지 못했습니다. 새로고침해 주세요.</div>
-      ) : loading ? (
+      ) : view === "loading" ? (
         <div className="app-requests-empty">불러오는 중…</div>
-      ) : rows.length === 0 ? (
+      ) : view === "empty" ? (
         <div className="app-requests-empty">앱에서 들어온 견적요청이 없습니다.</div>
       ) : (
         // console-table-scroll만 — table-scroll은 overflow:hidden에 항상 져 무력(배치 5 4-B).
