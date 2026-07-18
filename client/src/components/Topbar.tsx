@@ -1,9 +1,10 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AiAssistantPanel } from "@/components/ai/AiAssistantPanel";
 import { useAssistantThread } from "@/components/ai/useAssistantThread";
-import { initialCustomers, type Customer } from "@/data/customers";
+import { type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
 import { signOut } from "@/lib/auth";
+import { filterGlobalCustomerSearch, normalizeSearchValue } from "@/lib/global-customer-search";
 import { fetchLiveConsulting, saveLiveConsulting } from "@/lib/live-consulting";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
@@ -101,6 +102,7 @@ type TopbarProps = {
   roleTab: RoleTab;
   userName: string | null;
   userAvatarUrl: string | null;
+  customers: Customer[]; // 상단 통합검색 대상 = App이 로드한 실 고객(목록과 같은 소스·스코프)
   onNavigate: (view: string) => void;
   onOpenCustomer: (customer: Customer) => void;
   onToggleSidebar: () => void;
@@ -119,11 +121,7 @@ const notifications = [
   ["정산", "최민석 출고 건 입금 확인 필요", "금융사 수수료 입금 상태를 정산 관리에서 확인하세요.", "어제 17:20"],
 ] as const;
 
-function normalizeSearchValue(value: string): string {
-  return value.toLowerCase().replace(/[\s-]/g, "");
-}
-
-export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onNavigate, onOpenCustomer, onToggleSidebar, newAppRequestCount, pendingChatCount }: TopbarProps) {
+export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, customers, onNavigate, onOpenCustomer, onToggleSidebar, newAppRequestCount, pendingChatCount }: TopbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -178,24 +176,12 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, onN
   const displayLiveConsulting = canManageLiveConsulting && liveConsulting;
   const accountOrgLabel = dealerMode ? accountMeta.title : roleTab === "최고관리자" ? "크리에이티브지안" : "인천본사 상담팀";
   const accountScopeLabel = roleTab === "최고관리자" ? "전체 운영 권한" : roleTab === "팀장" ? "팀 상담 관리" : roleTab === "상담사" ? "상담 업무" : "딜러 포털";
-  const normalizedGlobalSearchQuery = normalizeSearchValue(globalSearchQuery);
-  const hasGlobalSearchQuery = normalizedGlobalSearchQuery.length > 0;
-  const globalSearchResults = useMemo(() => normalizedGlobalSearchQuery
-    ? initialCustomers.filter((customer) => {
-      const haystack = normalizeSearchValue([
-        customer.name,
-        customer.phone,
-        customer.customerId,
-        String(customer.no),
-        customer.vehicle,
-        customer.status,
-        customer.statusGroup,
-        customer.advisor,
-        customer.source,
-      ].join(" "));
-      return haystack.includes(normalizedGlobalSearchQuery);
-    }).slice(0, 6)
-    : [], [normalizedGlobalSearchQuery]);
+  const hasGlobalSearchQuery = normalizeSearchValue(globalSearchQuery).length > 0;
+  // 실 고객(customers prop)을 검색한다 — 종전엔 목업 initialCustomers를 필터해 실 데이터가 안 잡혔다.
+  const globalSearchResults = useMemo(
+    () => filterGlobalCustomerSearch(customers, globalSearchQuery),
+    [customers, globalSearchQuery],
+  );
 
   function openSettingsMenu() {
     if (settingsCloseTimerRef.current) {
