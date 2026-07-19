@@ -40,6 +40,9 @@ describe("normalizeDateText", () => {
     expect(normalizeDateText("2026-7")).toBeNull();
     expect(normalizeDateText("not a date")).toBeNull();
   });
+  it("무구분은 정확히 8자리만 — 7자리는 모호해서 거부(리뷰 잠금)", () => {
+    expect(normalizeDateText("2026719")).toBeNull();
+  });
 });
 
 describe("normalizeTimeText", () => {
@@ -66,5 +69,8 @@ describe("normalizeTimeText", () => {
     expect(normalizeTimeText("14시 30분")).toEqual({ ok: false });
     expect(normalizeTimeText("14")).toEqual({ ok: false });
     expect(normalizeTimeText("not a time")).toEqual({ ok: false });
+  });
+  it("무콜론은 정확히 4자리만 — 3자리(930)는 모호해서 거부(리뷰 잠금)", () => {
+    expect(normalizeTimeText("930")).toEqual({ ok: false });
   });
 });
