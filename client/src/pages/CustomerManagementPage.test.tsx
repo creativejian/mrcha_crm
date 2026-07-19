@@ -466,8 +466,8 @@ describe("CustomerManagementPage", () => {
 });
 
 // 출고 관리(delivery) 콘솔 1단계 — 계약완료 2차 상태를 출고 단계 작업 큐로 재구성.
-// 이 시점(Task 5)은 기본 pill 필터가 아직 없어(Task 6) mode 필터(statusGroup === "계약완료")를
-// 통과한 계약완료 3명(최유진 출고완료·한지훈 배정완료·김도현 딜러사계약중)이 전부 노출된다.
+// 기본 pill = "진행 중"(Task 6) — 계약완료 3명(최유진 출고완료·한지훈 배정완료·김도현 딜러사계약중) 중
+// 출고완료(최유진)는 기본 노출에서 빠지고, 진행 중 단계인 한지훈·김도현만 노출된다.
 describe("출고 관리(delivery) 콘솔", () => {
   it("헤더 = 선택/고객/차량/출고 단계/출고 예정/인도 방식/담당/관리", () => {
     render(<CustomerManagementPage mode="delivery" />);
@@ -503,5 +503,18 @@ describe("출고 관리(delivery) 콘솔", () => {
   it("delivery mode에선 mock 뷰 select 3개가 렌더되지 않는다", () => {
     render(<CustomerManagementPage mode="delivery" />);
     expect(screen.queryByRole("button", { name: /담당자별 보기/ })).toBeNull();
+  });
+
+  it("행 정렬 = 출고 예정일 오름차순, 미지정은 뒤", () => {
+    const base = initialCustomers[4]; // 한지훈 형태 복제
+    const customers = [
+      { ...base, no: 91001, customerId: "CU-2605-9101", name: "출고정렬셋째", statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null },
+      { ...base, no: 91002, customerId: "CU-2605-9102", name: "출고정렬둘째", statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: { id: "s2", date: "2026-08-02", time: null } },
+      { ...base, no: 91003, customerId: "CU-2605-9103", name: "출고정렬첫째", statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: { id: "s1", date: "2026-07-21", time: null } },
+    ];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    const names = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    expect(names.findIndex((t) => t.includes("출고정렬첫째"))).toBeLessThan(names.findIndex((t) => t.includes("출고정렬둘째")));
+    expect(names.findIndex((t) => t.includes("출고정렬둘째"))).toBeLessThan(names.findIndex((t) => t.includes("출고정렬셋째")));
   });
 });
