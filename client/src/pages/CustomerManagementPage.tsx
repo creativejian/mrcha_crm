@@ -196,6 +196,10 @@ export function CustomerManagementPage({
     // 사라졌다" 혼동을 만들던 것 해소. all 복귀 시 값이 살아 있어 pill로 다시 제어한다(배치 6 A#3).
     const activeChanceFilter = mode === "all" ? chanceFilter : "";
     const activeFinalUpdateFilter = mode === "all" ? finalUpdateFilter : "";
+    // 진행 상태 1차/2차 필터도 delivery mode에선 해제 UI가 없다(단계 pill과 완전 중복이라 숨김) —
+    // 같은 이유로 잔존 값을 적용하지 않는다(A#3 선례 미러). delivery를 벗어나면 pill로 다시 제어.
+    const activeStatusGroup = mode === "delivery" ? "" : statusGroup;
+    const activeStatus = mode === "delivery" ? "" : status;
     return customers.filter((customer) => {
       const searchable = normalizeSearchValue(`${customer.name} ${customer.phone} ${customer.phoneSecondary ?? ""} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${aiHintPlainText(customer)}`);
       const chance = resolveChance(customer, chanceOverrides[customer.no]);
@@ -204,8 +208,8 @@ export function CustomerManagementPage({
       }).status?.label ?? "";
       return modeFilter(mode, customer) &&
         (!keyword || searchable.includes(keyword)) &&
-        (!statusGroup || customer.statusGroup === statusGroup) &&
-        (!status || customer.status === status) &&
+        (!activeStatusGroup || customer.statusGroup === activeStatusGroup) &&
+        (!activeStatus || customer.status === activeStatus) &&
         (!advisor || customer.advisor === advisor) &&
         (!activeChanceFilter || chance === activeChanceFilter) &&
         (!activeFinalUpdateFilter || updateStatus === activeFinalUpdateFilter);
@@ -1053,7 +1057,7 @@ export function CustomerManagementPage({
     <section className="customer-console-page">
       <section className="card customer-console-card">
         <div className="customer-console-control-rail" ref={consoleFilterRailRef}>
-          <div className="toolbar customer-console-toolbar">
+          <div className={mode === "delivery" ? "toolbar customer-console-toolbar customer-console-toolbar--delivery" : "toolbar customer-console-toolbar"}>
             <div className="total-count">{mode === "delivery" ? deliveryCountLabel(deliveryPill) : "전체"} <strong className="num">{loaded ? rows.length : ""}</strong><span>명</span></div>
             <label className="customer-console-search">
               <Search aria-hidden="true" size={15} strokeWidth={2.4} />
@@ -1067,25 +1071,31 @@ export function CustomerManagementPage({
               onChange: setAdvisor,
               extraClassName: "filter-advisor",
             })}
-            {renderConsoleFilter({
-              id: "statusGroup",
-              label: "진행 상태 · 1차",
-              value: statusGroup,
-              items: consoleFilterOptions.statusGroup,
-              onChange: (value) => {
-                setStatusGroup(value);
-                setStatus("");
-              },
-              extraClassName: "filter-stage",
-            })}
-            {renderConsoleFilter({
-              id: "status",
-              label: "진행 상태 · 2차",
-              value: status,
-              items: consoleFilterOptions.status,
-              onChange: setStatus,
-              extraClassName: "filter-stage",
-            })}
+            {/* delivery는 진행 상태 필터를 숨긴다 — 1차는 계약완료 고정 스코프라 무의미, 2차는 단계 pill과
+                완전 중복이라 모순 조합(2차=출고완료 ∧ pill=진행 중 → 상시 0명)만 만든다. 담당자·검색은 공통 유지. */}
+            {mode !== "delivery" && (
+              <>
+                {renderConsoleFilter({
+                  id: "statusGroup",
+                  label: "진행 상태 · 1차",
+                  value: statusGroup,
+                  items: consoleFilterOptions.statusGroup,
+                  onChange: (value) => {
+                    setStatusGroup(value);
+                    setStatus("");
+                  },
+                  extraClassName: "filter-stage",
+                })}
+                {renderConsoleFilter({
+                  id: "status",
+                  label: "진행 상태 · 2차",
+                  value: status,
+                  items: consoleFilterOptions.status,
+                  onChange: setStatus,
+                  extraClassName: "filter-stage",
+                })}
+              </>
+            )}
             <div className="list-view-controls">
               {isAllMode ? (
                 <>
@@ -1108,11 +1118,13 @@ export function CustomerManagementPage({
                 </>
               ) : mode === "delivery" ? (
                 <>
-                  {/* 출고 단계 필터 pill — no-op 뷰 select 대체(spec D4·D8). 다른 mode의 mock 뷰는 불변. */}
+                  {/* 출고 단계 필터 pill — no-op 뷰 select 대체(spec D4·D8). 다른 mode의 mock 뷰는 불변.
+                      filterSelectClass(.select)는 쓰지 않는다 — select 스킨(chevron 배경·고정 100px 폭)을
+                      상속해 드롭다운처럼 보이고 카운트 라벨이 줄바꿈으로 pill 밖으로 샜다(1440px 실측). */}
                   {DELIVERY_STAGE_PILLS.map((pill) => (
                     <button
                       aria-pressed={deliveryPill === pill}
-                      className={filterSelectClass(deliveryPill === pill, "view-select filter-compact")}
+                      className={deliveryPill === pill ? "delivery-stage-pill active" : "delivery-stage-pill"}
                       key={pill}
                       onClick={() => { setDeliveryPill(pill); setCurrentPage(1); }}
                       type="button"

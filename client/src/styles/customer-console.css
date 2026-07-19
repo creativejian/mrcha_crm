@@ -319,6 +319,58 @@
   width: 110px;
 }
 
+/* delivery는 진행 상태 1차/2차 필터를 숨긴다(중복·모순 조합 방지) — 툴바 직속 자식이 4개(카운트·검색·
+   담당자·단계 pill 영역)로 줄어, 6열 그리드(auto 220px 100px 110px 110px auto)에 순서대로 채우면 pill
+   영역이 4번째 자식이 되어 110px 트랙에 짓눌린다(1440px 실측 — 잘림+headbar 겹침). mode 전용 4열
+   템플릿으로 마지막 트랙에 남는 폭을 전부 준다. */
+.customer-console-toolbar.customer-console-toolbar--delivery {
+  grid-template-columns: auto 220px 100px minmax(0, 1fr);
+}
+
+/* control-rail은 [툴바 auto | 헤드바 1fr] 2열이라 툴바(1열, auto=콘텐츠에 맞춰 무제한 성장)가 7개 pill
+   로 넓어지면 헤드바(2열, 1fr=나머지)가 좁아진 트랙에 밀려 담당자 변경 등 액션 버튼과 겹친다(1440px
+   실측 — grid rect 대조: 담당자 변경 x1136~1229 ∩ 출고완료·전체 pill x1137~1274). delivery는 우선순위를
+   뒤집는다 — 헤드바(액션 버튼, 고정 필요폭)는 항상 auto로 제 폭을 갖고, 툴바가 남는 1fr을 쓴다. */
+.customer-console-control-rail:has(.customer-console-toolbar--delivery) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* 1440px 실측 기준 7개 pill 총 필요폭(~600px)이 헤드바에 폭을 양보한 뒤 남는 1fr보다 클 수 있다
+   (검색 220px·담당자 100px 등 앞선 고정폭 때문). 잘리거나 헤드바를 다시 침범하는 대신 다음 줄로
+   줄바꿈되게 한다 — 좁은 화면에서도 안전한 범용 폴백. */
+.customer-console-toolbar--delivery .list-view-controls {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* 출고 단계 필터 pill — select 스킨(chevron 배경·appearance:none·필터 고정폭) 비상속.
+   nowrap으로 카운트 숫자가 pill 밖으로 줄바꿈되지 않는다. active = 기존 filter-active 보라 톤. */
+.delivery-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  color: #3f4750;
+  cursor: pointer;
+  box-shadow: 0 1px 1.5px rgba(15, 20, 25, 0.06);
+}
+
+.delivery-stage-pill:hover {
+  border-color: rgba(88, 54, 255, 0.34);
+}
+
+.delivery-stage-pill.active {
+  border-color: #5836ff;
+  color: #5836ff;
+  background: #f4f1ff;
+  font-weight: 600;
+}
+
 .customer-console-headbar .top-actions {
   flex: 0 0 auto;
   justify-self: end;

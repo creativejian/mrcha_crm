@@ -59,10 +59,18 @@ describe("CustomerManagementPage", () => {
       render(<CustomerManagementPage mode={mode} />);
       // 콘솔 검색 래퍼(구식 <input class="input"> 아님)
       expect(document.querySelector(".customer-console-search")).not.toBeNull();
-      // 공통 필터가 pill(button)로 — 구식 네이티브 select 아님
-      expect(screen.getByRole("button", { name: /진행 상태 · 1차/ })).toBeInTheDocument();
       // 카운트는 "전체 N명"(구식 "TOTAL N" 아님)
       expect(screen.queryByText("TOTAL")).not.toBeInTheDocument();
+    },
+  );
+
+  // 공통 진행 상태 1차/2차 필터가 pill(button)로 — 구식 네이티브 select 아님. delivery는 제외
+  // (Task 6 보강 — 단계 pill과 완전 중복·모순 조합이라 숨김, "출고 관리(delivery) 콘솔" describe에서 별도 검증).
+  it.each(["consulting", "contract", "settlement", "hold"] as const)(
+    "renders the shared stage filter pills for %s mode",
+    (mode) => {
+      render(<CustomerManagementPage mode={mode} />);
+      expect(screen.getByRole("button", { name: /진행 상태 · 1차/ })).toBeInTheDocument();
     },
   );
 
@@ -509,6 +517,15 @@ describe("출고 관리(delivery) 콘솔", () => {
   it("delivery mode에선 mock 뷰 select 3개가 렌더되지 않는다", () => {
     render(<CustomerManagementPage mode="delivery" />);
     expect(screen.queryByRole("button", { name: /담당자별 보기/ })).toBeNull();
+  });
+
+  // 진행 상태 1차/2차 필터는 단계 pill과 완전 중복이라 delivery에서 숨긴다(1440px 실측 보강 — 겹침·
+  // 모순 조합 방지). 잔존 statusGroup/status state가 목록을 조용히 좁히지 않는 것은 baseRows의
+  // activeStatusGroup/activeStatus 게이트(A#3 선례 미러)가 담당 — 코드 리뷰로 확인.
+  it("delivery mode에선 진행 상태 1차/2차 필터가 렌더되지 않는다", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    expect(screen.queryByRole("button", { name: /진행 상태 · 1차/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /진행 상태 · 2차/ })).toBeNull();
   });
 
   it("행 정렬 = 출고 예정일 오름차순, 미지정은 뒤", () => {
