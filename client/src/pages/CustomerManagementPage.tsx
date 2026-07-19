@@ -308,13 +308,21 @@ export function CustomerManagementPage({
       if (event.key === "Escape") setOpenStagePicker(null);
     }
 
+    // 팝오버가 position:fixed(콘솔 래퍼 overflow:hidden 클리핑 탈출 — 2026-07-19 확산 픽스)로 바뀌어
+    // 스크롤을 따라가지 않는다 — 앵커에서 분리되는 걸 막기 위해 스크롤 발생 시 닫는다(T13 미러).
+    function closeStagePickerOnScroll() {
+      setOpenStagePicker(null);
+    }
+
     document.addEventListener("pointerdown", closeStagePicker, true);
     document.addEventListener("click", suppressOutsideClick, true);
     document.addEventListener("keydown", closeStagePickerByKeyboard);
+    document.addEventListener("scroll", closeStagePickerOnScroll, true);
     return () => {
       document.removeEventListener("pointerdown", closeStagePicker, true);
       document.removeEventListener("click", suppressOutsideClick, true);
       document.removeEventListener("keydown", closeStagePickerByKeyboard);
+      document.removeEventListener("scroll", closeStagePickerOnScroll, true);
     };
   }, [openStagePicker]);
 
@@ -391,13 +399,20 @@ export function CustomerManagementPage({
       if (event.key === "Escape") setOpenChanceFor(null);
     }
 
+    // fixed 팝오버는 스크롤을 따라가지 않는다 — 스크롤 발생 시 닫는다(스테이지 effect 주석 참조).
+    function closeChancePopoverOnScroll() {
+      setOpenChanceFor(null);
+    }
+
     document.addEventListener("pointerdown", closeChancePopover, true);
     document.addEventListener("click", suppressOutsideClick, true);
     document.addEventListener("keydown", closeChancePopoverByKeyboard);
+    document.addEventListener("scroll", closeChancePopoverOnScroll, true);
     return () => {
       document.removeEventListener("pointerdown", closeChancePopover, true);
       document.removeEventListener("click", suppressOutsideClick, true);
       document.removeEventListener("keydown", closeChancePopoverByKeyboard);
+      document.removeEventListener("scroll", closeChancePopoverOnScroll, true);
     };
   }, [openChanceFor]);
 
