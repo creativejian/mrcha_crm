@@ -2,9 +2,11 @@
 // CustomerManagementPage.renderRow가 이 셀들을 조립한다.
 // 셀별 props는 각 셀이 의존하는 상태/핸들러/ref와 1:1로 대응한다.
 import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
+import { useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { CHANCE_OPTIONS, type Customer, customerStatusGroups } from "@/data/customers";
+import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
+import { deliveryScheduleLabel } from "@/lib/delivery-console";
 
 function stopTableControlPointer(event: ReactPointerEvent<HTMLElement>) {
   event.stopPropagation();
@@ -483,5 +485,72 @@ export function CustomerActionsCell({ customer, onHintHover }: { customer: Custo
         <button className="tiny-btn" title="상세 문서" type="button"><FileText size={15} /></button>
       </span>
     </td>
+  );
+}
+
+export function CustomerDeliveryScheduleCell({
+  customer,
+  notice,
+  open,
+  popoverRef,
+  saving,
+  onDelete,
+  onSave,
+  onToggle,
+}: {
+  customer: Customer;
+  notice: string | null;
+  open: boolean;
+  popoverRef: RefObject<HTMLDivElement | null>;
+  saving: boolean;
+  onDelete: () => void;
+  onSave: (draft: { date: string; time: string }) => void;
+  onToggle: () => void;
+}) {
+  const schedule = customer.nextDeliverySchedule ?? null;
+  const label = deliveryScheduleLabel(schedule, new Date());
+  return (
+    <td className="delivery-schedule-cell">
+      <div className="delivery-schedule-wrap" ref={open ? popoverRef : undefined}>
+        <button
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={label ? `출고 예정 ${label.text}: ${customer.name}` : `출고 예정 입력: ${customer.name}`}
+          className={["delivery-schedule-btn", label ? "" : "empty", label?.overdue ? "overdue" : ""].filter(Boolean).join(" ")}
+          onClick={(event) => { event.stopPropagation(); onToggle(); }}
+          onPointerDown={stopTableControlPointer}
+          type="button"
+        >
+          <span>{label ? label.text : "+ 미지정"}</span>
+          {label?.overdue && <span className="delivery-overdue-badge">지남</span>}
+        </button>
+        {open && (
+          <DeliverySchedulePopover key={schedule?.id ?? "new"} initial={schedule} notice={notice} saving={saving} onDelete={onDelete} onSave={onSave} />
+        )}
+      </div>
+    </td>
+  );
+}
+
+// 팝오버 본문 — key(schedule id)로 리마운트해 draft를 대표 일정 값으로 재시드. date/time input이라 Safari select 함정 무관.
+function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: {
+  initial: NextDeliverySchedule | null;
+  notice: string | null;
+  saving: boolean;
+  onDelete: () => void;
+  onSave: (draft: { date: string; time: string }) => void;
+}) {
+  const [date, setDate] = useState(initial?.date ?? "");
+  const [time, setTime] = useState(initial?.time?.slice(0, 5) ?? "");
+  return (
+    <div aria-label="출고 예정 편집" className="delivery-schedule-popover" onClick={(event) => event.stopPropagation()} role="dialog">
+      <label><span>날짜</span><input onChange={(event) => setDate(event.target.value)} type="date" value={date} /></label>
+      <label><span>시간</span><input onChange={(event) => setTime(event.target.value)} type="time" value={time} /></label>
+      {notice && <p className="delivery-schedule-notice" role="alert">{notice}</p>}
+      <div className="delivery-schedule-actions">
+        {initial && <button className="danger" disabled={saving} onClick={onDelete} type="button">삭제</button>}
+        <button disabled={saving} onClick={() => onSave({ date, time })} type="button">{saving ? "저장 중…" : "저장"}</button>
+      </div>
+    </div>
   );
 }

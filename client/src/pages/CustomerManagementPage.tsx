@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
 import { aiHintPlainText, badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
@@ -11,9 +11,10 @@ import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
 import { changeAdvisorBulk } from "@/lib/customer-bulk-advisor";
 import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-delete";
-import { compareDeliverySchedule, DELIVERY_PILL_IN_PROGRESS, DELIVERY_STAGE_PILLS, deliveryCountLabel, deliveryPillCounts, deliveryScheduleLabel, matchesDeliveryPill } from "@/lib/delivery-console";
+import { addSchedule, deleteSchedule, updateSchedule } from "@/lib/customer-children";
+import { compareDeliverySchedule, DELIVERY_PILL_IN_PROGRESS, DELIVERY_STAGE_PILLS, deliveryCountLabel, deliveryPillCounts, matchesDeliveryPill, resolveDeliveryScheduleSubmit } from "@/lib/delivery-console";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
-import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
+import { CustomerActionsCell, CustomerChanceCell, CustomerDeliveryScheduleCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
 
 type CustomerManagementPageProps = {
@@ -124,6 +125,11 @@ export function CustomerManagementPage({
   const [openChanceFor, setOpenChanceFor] = useState<number | null>(null);
   const [openExtraFor, setOpenExtraFor] = useState<string | null>(null);
   const [openFinalUpdateFor, setOpenFinalUpdateFor] = useState<number | null>(null);
+  // 출고 예정 팝오버(delivery mode 전용, Task 7) — 생성/수정/삭제.
+  const [openDeliveryScheduleFor, setOpenDeliveryScheduleFor] = useState<number | null>(null);
+  const [savingDeliveryFor, setSavingDeliveryFor] = useState<number | null>(null);
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
+  const deliverySchedulePopoverRef = useRef<HTMLDivElement>(null);
   const [internalChanceOverrides, setInternalChanceOverrides] = useState<Record<number, ChanceOption>>({});
   const [finalUpdateOverrides, setFinalUpdateOverrides] = useState<Record<number, FinalUpdateInfo>>({});
   const [editingNextAction, setEditingNextAction] = useState<{ customerNo: number; draft: string } | null>(null);
@@ -268,7 +274,7 @@ export function CustomerManagementPage({
   }, [openPageSize]);
 
   function isTableControlTarget(target: EventTarget | null) {
-    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control"));
+    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .delivery-schedule-wrap"));
   }
 
   useEffect(() => {
@@ -307,6 +313,43 @@ export function CustomerManagementPage({
       document.removeEventListener("keydown", closeStagePickerByKeyboard);
     };
   }, [openStagePicker]);
+
+  useEffect(() => {
+    if (openDeliveryScheduleFor === null) return;
+
+    function closeDeliverySchedule(event: PointerEvent) {
+      if (deliverySchedulePopoverRef.current?.contains(event.target as Node)) return;
+      if (isTableControlTarget(event.target)) return;
+      suppressOutsideClickRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      setOpenDeliveryScheduleFor(null);
+    }
+
+    function suppressOutsideClick(event: globalThis.MouseEvent) {
+      if (!suppressOutsideClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.setTimeout(() => {
+        suppressOutsideClickRef.current = false;
+      }, 0);
+    }
+
+    function closeDeliveryScheduleByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setOpenDeliveryScheduleFor(null);
+    }
+
+    document.addEventListener("pointerdown", closeDeliverySchedule, true);
+    document.addEventListener("click", suppressOutsideClick, true);
+    document.addEventListener("keydown", closeDeliveryScheduleByKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeDeliverySchedule, true);
+      document.removeEventListener("click", suppressOutsideClick, true);
+      document.removeEventListener("keydown", closeDeliveryScheduleByKeyboard);
+    };
+  }, [openDeliveryScheduleFor]);
 
   useEffect(() => {
     if (openChanceFor === null) return;
@@ -489,6 +532,7 @@ export function CustomerManagementPage({
     setOpenStagePicker(null);
     setOpenChanceFor(null);
     setOpenExtraFor(null);
+    setOpenDeliveryScheduleFor(null);
     setOpenFinalUpdateFor((current) => current === customerNo ? null : customerNo);
   }
 
@@ -626,6 +670,7 @@ export function CustomerManagementPage({
   function toggleChancePopover(customerNo: number) {
     setOpenStagePicker(null);
     setOpenFinalUpdateFor(null);
+    setOpenDeliveryScheduleFor(null);
     setOpenChanceFor((current) => current === customerNo ? null : customerNo);
   }
 
@@ -633,6 +678,7 @@ export function CustomerManagementPage({
     setOpenChanceFor(null);
     setOpenExtraFor(null);
     setOpenFinalUpdateFor(null);
+    setOpenDeliveryScheduleFor(null);
     setOpenStagePicker((current) => current?.customerNo === customerNo && current.level === level ? null : { customerNo, level });
   }
 
@@ -747,7 +793,60 @@ export function CustomerManagementPage({
     setOpenStagePicker(null);
     setOpenChanceFor(null);
     setOpenFinalUpdateFor(null);
+    setOpenDeliveryScheduleFor(null);
     setOpenExtraFor((current) => current === extraId ? null : extraId);
+  }
+
+  function toggleDeliverySchedulePopover(customerNo: number) {
+    setOpenStagePicker(null);
+    setOpenChanceFor(null);
+    setOpenExtraFor(null);
+    setOpenFinalUpdateFor(null);
+    setDeliveryNotice(null);
+    setOpenDeliveryScheduleFor((current) => (current === customerNo ? null : customerNo));
+  }
+
+  // 낙관 갱신 + fail-loud(customer-children이 상세 캐시 무효화를 이미 수행 — 드로어 정합 자동).
+  async function saveDeliverySchedule(customer: Customer, draft: { date: string; time: string }) {
+    const submit = resolveDeliveryScheduleSubmit(customer.nextDeliverySchedule ?? null, draft);
+    if (submit.kind === "invalid") { setDeliveryNotice(submit.reason); return; }
+    if (!customer.id) { setDeliveryNotice("목업 행에는 저장할 수 없습니다."); return; }
+    const cid = customer.id;
+    setSavingDeliveryFor(customer.no);
+    setDeliveryNotice(null);
+    try {
+      let next: NextDeliverySchedule;
+      if (submit.kind === "create") {
+        const created = await addSchedule(cid, submit.body);
+        next = { id: created.id, date: submit.body.scheduledDate, time: submit.body.scheduledTime };
+      } else {
+        await updateSchedule(cid, submit.id, submit.body);
+        next = { id: submit.id, date: submit.body.scheduledDate, time: submit.body.scheduledTime };
+      }
+      updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: next } : c)));
+      setOpenDeliveryScheduleFor(null);
+    } catch {
+      setDeliveryNotice("출고 예정 저장에 실패했습니다. 다시 시도해 주세요.");
+    } finally {
+      setSavingDeliveryFor(null);
+    }
+  }
+
+  async function deleteDeliverySchedule(customer: Customer) {
+    const schedule = customer.nextDeliverySchedule;
+    if (!schedule || !customer.id) return;
+    setSavingDeliveryFor(customer.no);
+    setDeliveryNotice(null);
+    try {
+      await deleteSchedule(customer.id, schedule.id);
+      // 대표 1건 통로(spec §5.4): 다른 미완료 '출고' 일정이 있으면 다음 서버 리로드에서 그 행이 대표로 승계.
+      updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: null } : c)));
+      setOpenDeliveryScheduleFor(null);
+    } catch {
+      setDeliveryNotice("출고 예정 삭제에 실패했습니다. 다시 시도해 주세요.");
+    } finally {
+      setSavingDeliveryFor(null);
+    }
   }
 
   function renderRow(customer: Customer) {
@@ -829,15 +928,22 @@ export function CustomerManagementPage({
 
     if (mode === "delivery") {
       // 출고 단계 셀 = 계약완료 2차 상태 버튼 재사용(secondaryOnly — 1차는 이 큐에서 무의미).
-      // 출고 예정 셀은 이 단계에선 표시 전용(팝오버로 생성/수정/삭제하는 것은 Task 7).
-      const scheduleLabel = deliveryScheduleLabel(customer.nextDeliverySchedule, new Date());
       return (
         <tr key={customer.no} {...rowProps}>
           {check}
           {customerCell}
           {vehicleCell}
           <CustomerStageCell customer={customer} onChangePrimary={changeTwoStepPrimaryStage} onChangeSecondary={changeTwoStepSecondaryStage} onOpenPicker={openTwoStepStagePicker} pickerLevel={twoStepPickerOpen} secondaryOnly stagePickerRef={stagePickerRef} />
-          <td>{scheduleLabel ? scheduleLabel.text : <span className="table-note">미지정</span>}</td>
+          <CustomerDeliveryScheduleCell
+            customer={customer}
+            notice={openDeliveryScheduleFor === customer.no ? deliveryNotice : null}
+            open={openDeliveryScheduleFor === customer.no}
+            popoverRef={deliverySchedulePopoverRef}
+            saving={savingDeliveryFor === customer.no}
+            onDelete={() => void deleteDeliverySchedule(customer)}
+            onSave={(draft) => void saveDeliverySchedule(customer, draft)}
+            onToggle={() => toggleDeliverySchedulePopover(customer.no)}
+          />
           <td>{customer.deliveryMethod || "—"}</td>
           {showAdvisorColumn && <td><strong>{customer.advisor}</strong><span className="table-note">{customer.team}</span></td>}
           {actions}

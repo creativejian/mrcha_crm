@@ -1,8 +1,14 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { initialCustomers } from "@/data/customers";
 import { CustomerManagementPage } from "./CustomerManagementPage";
+
+vi.mock("@/lib/customer-children", () => ({
+  addSchedule: vi.fn().mockResolvedValue({ id: "sch-new", createdAt: "2026-07-19T00:00:00Z" }),
+  updateSchedule: vi.fn().mockResolvedValue(undefined),
+  deleteSchedule: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe("CustomerManagementPage", () => {
   it("renders the all-customer list with vehicle context right after the customer", () => {
@@ -516,5 +522,38 @@ describe("출고 관리(delivery) 콘솔", () => {
     const names = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
     expect(names.findIndex((t) => t.includes("출고정렬첫째"))).toBeLessThan(names.findIndex((t) => t.includes("출고정렬둘째")));
     expect(names.findIndex((t) => t.includes("출고정렬둘째"))).toBeLessThan(names.findIndex((t) => t.includes("출고정렬셋째")));
+  });
+
+  it("미지정 클릭 → 팝오버에서 날짜 저장 = '출고' 일정 생성 호출", async () => {
+    const { addSchedule } = await import("@/lib/customer-children");
+    const customers = [{
+      ...initialCustomers[4], // 한지훈(배정완료) 형태 복제
+      id: "cid-1", no: 90001, customerId: "CU-2605-9001", name: "출고팝오버검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => {
+      expect(addSchedule).toHaveBeenCalledWith("cid-1", { scheduledDate: "2026-07-24", scheduledTime: null, type: "출고", done: false });
+    });
+  });
+
+  it("대표 일정 있는 행 = 라벨 표시 + 저장 시 그 id PATCH", async () => {
+    const { updateSchedule } = await import("@/lib/customer-children");
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-2", no: 90002, customerId: "CU-2605-9002", name: "출고팝오버수정",
+      statusGroup: "계약완료", status: "배정완료",
+      nextDeliverySchedule: { id: "sch-1", date: "2026-07-24", time: "14:00" },
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고 예정 7\/24/ }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-31" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => {
+      expect(updateSchedule).toHaveBeenCalledWith("cid-2", "sch-1", { scheduledDate: "2026-07-31", scheduledTime: "14:00" });
+    });
   });
 });

@@ -993,3 +993,28 @@
   color: #3f474f;
   word-break: keep-all;
 }
+
+/* 출고 예정 셀(delivery mode) — 값/미지정/지남 버튼 + 편집 팝오버 (2026-07-19 출고 콘솔 1단계) */
+.delivery-schedule-wrap { position: relative; display: inline-flex; }
+.delivery-schedule-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 9px; border-radius: 6px;
+  border: 1px solid #dededb; background: #fff; font-size: 12px; color: #3f4750;
+  box-shadow: 0 1px 1.5px rgba(15, 20, 25, 0.06); cursor: pointer;
+}
+.delivery-schedule-btn.empty { border-style: dashed; color: #9aa1a9; }
+.delivery-schedule-btn.overdue { border-color: #f3c1c1; background: #fdf0f0; color: #c0392b; }
+.delivery-schedule-btn:hover { border-color: rgba(88, 54, 255, 0.34); }
+.delivery-overdue-badge { font-size: 10px; font-weight: 700; }
+.delivery-schedule-popover {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  display: grid; gap: 8px; min-width: 220px; padding: 12px;
+  background: #fff; border: 1px solid var(--line, #dededb); border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 20, 25, 0.16);
+}
+.delivery-schedule-popover label { display: grid; gap: 4px; font-size: 11px; color: #6b7280; }
+.delivery-schedule-popover input { height: 28px; border: 1px solid #dededb; border-radius: 6px; padding: 0 8px; font-size: 12px; }
+.delivery-schedule-notice { margin: 0; font-size: 11px; color: #c0392b; }
+.delivery-schedule-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.delivery-schedule-actions button { height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid #dededb; background: #fff; font-size: 12px; cursor: pointer; }
+.delivery-schedule-actions button.danger { color: #c0392b; border-color: #f3c1c1; }
