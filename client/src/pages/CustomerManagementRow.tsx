@@ -516,7 +516,7 @@ export function CustomerDeliveryScheduleCell({
           aria-expanded={open}
           aria-haspopup="dialog"
           aria-label={label ? `출고 예정 ${label.text}: ${customer.name}` : `출고 예정 입력: ${customer.name}`}
-          className={["delivery-schedule-btn", label ? "" : "empty", label?.overdue ? "overdue" : ""].filter(Boolean).join(" ")}
+          className={["delivery-schedule-btn", label ? "" : "delivery-schedule-empty", label?.overdue ? "overdue" : ""].filter(Boolean).join(" ")}
           onClick={(event) => { event.stopPropagation(); onToggle(); }}
           onPointerDown={stopTableControlPointer}
           type="button"

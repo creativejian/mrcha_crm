@@ -1002,7 +1002,8 @@
   border: 1px solid #dededb; background: #fff; font-size: 12px; color: #3f4750;
   box-shadow: 0 1px 1.5px rgba(15, 20, 25, 0.06); cursor: pointer;
 }
-.delivery-schedule-btn.empty { border-style: dashed; color: #9aa1a9; }
+/* 모디파이어를 generic 'empty'로 두면 dashboard.css 전역 .empty(빈 상태 박스, min-height:240px)가 캐스케이드로 이긴다 — 고유 이름으로 회피 */
+.delivery-schedule-btn.delivery-schedule-empty { border-style: dashed; color: #9aa1a9; }
 .delivery-schedule-btn.overdue { border-color: #f3c1c1; background: #fdf0f0; color: #c0392b; }
 .delivery-schedule-btn:hover { border-color: rgba(88, 54, 255, 0.34); }
 .delivery-overdue-badge { font-size: 10px; font-weight: 700; }
