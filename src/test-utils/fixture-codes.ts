@@ -18,6 +18,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
   "CU-AITOOL-",     // db/queries/assistant-tools.test.ts
   "CU-CONSULT-",    // db/queries/consultations.test.ts (CU-CONSULT-RT- 도 여기 걸린다)
   "CU-DEL-",        // routes/customers.delete.test.ts
+  "CU-DLVR-",       // db/queries/customers.next-delivery.test.ts — 출고 예정 파생
   "CU-EMBRT-",      // routes/customers.embed.test.ts  ← 2026-07-09 유령 행의 출처
   "CU-EMBSRC-",     // db/queries/embed-sources.test.ts
   "CU-EMBTEST-",    // db/queries/embeddings.test.ts
