@@ -2,12 +2,12 @@
 // CustomerManagementPage.renderRow가 이 셀들을 조립한다.
 // 셀별 props는 각 셀이 의존하는 상태/핸들러/ref와 1:1로 대응한다.
 import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
-import { deliveryScheduleLabel } from "@/lib/delivery-console";
+import { deliveryScheduleLabel, resolveFixedPopoverPosition } from "@/lib/delivery-console";
 
 function stopTableControlPointer(event: ReactPointerEvent<HTMLElement>) {
   event.stopPropagation();
@@ -538,6 +538,9 @@ export function CustomerDeliveryScheduleCell({
 // 2026-07-19 유슨생 지시로 텍스트+유연 정규화(resolveDeliveryScheduleSubmit → datetime-text.ts)로 전환,
 // 이후 T12로 DateTextField SSOT(달력 버튼 하이브리드)에 통합). 시간은 텍스트 유지(별도 픽커 없음).
 // select가 아니므로 Safari onInput 병행 바인딩 함정과도 무관.
+// position:fixed 배치(T13) — 콘솔 래퍼(.console-table-scroll) overflow:hidden 클리핑을 마지막 행에서
+// 절단하던 실기 결함 대응. 앵커(.delivery-schedule-wrap)의 뷰포트 rect 기준으로 좌표를 직접 계산해
+// 인라인 style에 싣는다(fixed는 조상 overflow의 영향을 받지 않음 — 스태킹은 tr:has 승격 룰이 계속 담당).
 function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: {
   initial: NextDeliverySchedule | null;
   notice: string | null;
@@ -547,8 +550,33 @@ function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: 
 }) {
   const [date, setDate] = useState(initial?.date ?? "");
   const [time, setTime] = useState(initial?.time?.slice(0, 5) ?? "");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<ReturnType<typeof resolveFixedPopoverPosition> | null>(null);
+  const hasNotice = Boolean(notice);
+
+  // layout effect(paint 전) — 마운트 시 1회 계산. notice 등장/소멸로 박스 높이가 바뀔 수 있어
+  // deps에 포함(날짜/시간 타이핑은 높이에 영향 없어 deps 제외 — 과도한 재계산 방지).
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    const wrap = el?.closest(".delivery-schedule-wrap");
+    if (!el || !wrap) return;
+    const anchor = wrap.getBoundingClientRect();
+    setPos(resolveFixedPopoverPosition(
+      { top: anchor.top, bottom: anchor.bottom, left: anchor.left },
+      { width: el.offsetWidth, height: el.offsetHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+    ));
+  }, [hasNotice]);
+
   return (
-    <div aria-label="출고 예정 편집" className="delivery-schedule-popover" onClick={(event) => event.stopPropagation()} role="dialog">
+    <div
+      aria-label="출고 예정 편집"
+      className="delivery-schedule-popover"
+      onClick={(event) => event.stopPropagation()}
+      ref={rootRef}
+      role="dialog"
+      style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
+    >
       <label><span>날짜</span><DateTextField onValueChange={setDate} value={date} /></label>
       <label><span>시간</span><input maxLength={5} onChange={(event) => setTime(event.target.value)} placeholder="14:00 (선택)" type="text" value={time} /></label>
       {notice && <p className="delivery-schedule-notice" role="alert">{notice}</p>}

@@ -345,13 +345,22 @@ export function CustomerManagementPage({
       if (event.key === "Escape") setOpenDeliveryScheduleFor(null);
     }
 
+    // T13: 팝오버가 position:fixed(콘솔 래퍼 overflow:hidden 클리핑 탈출)로 바뀌어 스크롤을 따라가지
+    // 않는다 — 앵커에서 분리되는 걸 막기 위해 스크롤 발생 시 닫는다.
+    function closeDeliveryScheduleOnScroll() {
+      setOpenDeliveryScheduleFor(null);
+    }
+
     document.addEventListener("pointerdown", closeDeliverySchedule, true);
     document.addEventListener("click", suppressOutsideClick, true);
     document.addEventListener("keydown", closeDeliveryScheduleByKeyboard);
+    // (capture — 테이블 내부 스크롤 포함. 팝오버 내부엔 스크롤 요소가 없어 오탐 없음)
+    document.addEventListener("scroll", closeDeliveryScheduleOnScroll, true);
     return () => {
       document.removeEventListener("pointerdown", closeDeliverySchedule, true);
       document.removeEventListener("click", suppressOutsideClick, true);
       document.removeEventListener("keydown", closeDeliveryScheduleByKeyboard);
+      document.removeEventListener("scroll", closeDeliveryScheduleOnScroll, true);
     };
   }, [openDeliveryScheduleFor]);
 
