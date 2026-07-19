@@ -22,7 +22,7 @@ type SidebarProps = {
 };
 
 
-type MenuIconName = "dashboard" | "chat" | "users" | "detail" | "pipeline" | "quotes" | "delivery" | "ai" | "mc-master" | "org" | "team" | "finance" | "report" | "headphones" | "discount" | "inventory";
+type MenuIconName = "dashboard" | "chat" | "users" | "detail" | "pipeline" | "quotes" | "ai" | "mc-master" | "org" | "team" | "finance" | "report" | "headphones" | "discount" | "inventory";
 
 function BrandLogo() {
   return (
@@ -51,9 +51,6 @@ function MenuIcon({ name }: { name: MenuIconName }) {
   }
   if (name === "quotes") {
     return <svg className="menu-icon quote-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 1.5h10L20.8 7v15.5H5.2v-21Zm9 1.8V8h4.8l-4.8-4.7Z" /><text x="12.35" y="16.5" textAnchor="middle" fill="#fff" fontSize="8.6" fontWeight="900" fontFamily="Arial, sans-serif">₩</text></svg>;
-  }
-  if (name === "delivery") {
-    return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21v-9l2.45-7H9v2H5.85L4.8 10h6.35l3.375 3.375q-.25.2-.387.488T14 14.5q0 .625.438 1.063T15.5 16q.35 0 .638-.137t.487-.388l.975.975l2.4-2.375V21h-3v-2H5v2zm4.5-5q.625 0 1.063-.437T8 14.5t-.437-1.062T6.5 13t-1.062.438T5 14.5t.438 1.063T6.5 16m11.1-2.375L11 7V1h6l6.6 6.625zM15 6q.425 0 .713-.288T16 5t-.288-.712T15 4t-.712.288T14 5t.288.713T15 6" /></svg>;
   }
   if (name === "ai") {
     return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v3h3v10h-2v3H7v-3H5V7h3V4Zm1 5v6h6V9H9Zm1.5 1.5h1.2v1.2h-1.2v-1.2Zm2.8 0h1.2v1.2h-1.2v-1.2ZM10 13h4v1h-4v-1Z" /></svg>;
@@ -228,7 +225,6 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
               <button aria-label="고객 상세" className={navButtonClass(visibleActiveView === "customer-detail")} data-label="고객 상세" onClick={() => navigate("customer-detail")} type="button"><MenuIcon name="detail" /><span>고객 상세</span></button>
               <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" onMouseEnter={() => prefetchAppQuoteRequests()} onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span>{newAppRequestCount > 0 ? <span className="nav-count num">{newAppRequestCount}</span> : null}</button>
               <button aria-label="상담 파이프라인" className={navButtonClass(visibleActiveView === "pipeline")} data-label="상담 파이프라인" onClick={() => navigate("pipeline")} type="button"><MenuIcon name="pipeline" /><span>상담 파이프라인</span></button>
-              <button aria-label="계약 / 출고" className={navButtonClass(visibleActiveView === "delivery")} data-label="계약 / 출고" onClick={() => navigate("delivery")} type="button"><MenuIcon name="delivery" /><span>계약 / 출고</span></button>
             </>
           )}
       </nav>
