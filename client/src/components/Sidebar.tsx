@@ -22,7 +22,7 @@ type SidebarProps = {
 };
 
 
-type MenuIconName = "dashboard" | "chat" | "users" | "detail" | "pipeline" | "quotes" | "delivery" | "insights" | "knowledge" | "ai" | "mc-master" | "org" | "team" | "finance" | "report" | "headphones" | "discount" | "inventory";
+type MenuIconName = "dashboard" | "chat" | "users" | "detail" | "pipeline" | "quotes" | "delivery" | "ai" | "mc-master" | "org" | "team" | "finance" | "report" | "headphones" | "discount" | "inventory";
 
 function BrandLogo() {
   return (
@@ -54,12 +54,6 @@ function MenuIcon({ name }: { name: MenuIconName }) {
   }
   if (name === "delivery") {
     return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21v-9l2.45-7H9v2H5.85L4.8 10h6.35l3.375 3.375q-.25.2-.387.488T14 14.5q0 .625.438 1.063T15.5 16q.35 0 .638-.137t.487-.388l.975.975l2.4-2.375V21h-3v-2H5v2zm4.5-5q.625 0 1.063-.437T8 14.5t-.437-1.062T6.5 13t-1.062.438T5 14.5t.438 1.063T6.5 16m11.1-2.375L11 7V1h6l6.6 6.625zM15 6q.425 0 .713-.288T16 5t-.288-.712T15 4t-.712.288T14 5t.288.713T15 6" /></svg>;
-  }
-  if (name === "insights") {
-    return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5V3Zm3 4v2h8V7H8Zm0 4v2h8v-2H8Zm0 4v2h5v-2H8Z" /></svg>;
-  }
-  if (name === "knowledge") {
-    return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h12a2 2 0 0 1 2 2v14h-2V5H7v14h10v2H5V3Zm4 4h6v2H9V7Zm0 4h6v2H9v-2Zm0 4h4v2H9v-2Z" /><path d="M3 7h2v14h12v2H3V7Z" /></svg>;
   }
   if (name === "ai") {
     return <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v3h3v10h-2v3H7v-3H5V7h3V4Zm1 5v6h6V9H9Zm1.5 1.5h1.2v1.2h-1.2v-1.2Zm2.8 0h1.2v1.2h-1.2v-1.2ZM10 13h4v1h-4v-1Z" /></svg>;
@@ -256,8 +250,8 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
                   {!collapsed && financeOpen && <div className="subnav">{financeModes.map(([mode, label]) => <button className={subnavButtonClass(visibleActiveView === "finance" && financeMode === mode)} key={mode} onClick={() => onFinanceModeChange(mode)} type="button">{label}</button>)}</div>}
                   {collapsed && <SidebarFlyout title="재무 관리" items={financeModes.map(([mode, label]) => ({ active: visibleActiveView === "finance" && financeMode === mode, label, onClick: () => { onFinanceModeChange(mode); navigate("finance"); } }))} />}
                 </div>
-                <button aria-label="인사이트" className={navButtonClass(visibleActiveView === "insights")} data-label="인사이트" onClick={() => navigate("insights")} type="button"><MenuIcon name="insights" /><span>인사이트</span></button>
-                <button aria-label="지식베이스" className={navButtonClass(visibleActiveView === "knowledge-base")} data-label="지식베이스" onClick={() => navigate("knowledge-base")} type="button"><MenuIcon name="knowledge" /><span>지식베이스</span></button>
+                {/* 인사이트·지식베이스 진입은 프로필 팝오버 "차선생 앱 설정" 그룹만(프로토타입 원 설계).
+                    #251이 덧붙인 사이드바 진입점은 중복이라 제거(2026-07-19 유슨생 — pending 항목 12). */}
               </>
             )}
           </nav>
