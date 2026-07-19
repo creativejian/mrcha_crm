@@ -402,7 +402,10 @@ th {
 }
 
 .customer-table tr:has(.stage-two-step-popover),
-.customer-table tr:has(.chance-status-popover) {
+.customer-table tr:has(.chance-status-popover),
+/* 출고 예정 팝오버도 동일 승격 필수 — 행이 z:1 스태킹 컨텍스트라 승격 없이는 뒤 행이 팝오버를
+   덮어 마지막 행 외엔 마우스 클릭이 안 닿는다(2026-07-19 스모크 hit-test 실측). */
+.customer-table tr:has(.delivery-schedule-popover) {
   position: relative;
   z-index: 120;
 }
