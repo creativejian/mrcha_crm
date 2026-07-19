@@ -5,6 +5,7 @@ import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react"
 import { useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
+import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
 
@@ -534,7 +535,8 @@ export function CustomerDeliveryScheduleCell({
 
 // 팝오버 본문 — key(schedule id)로 리마운트해 draft를 대표 일정 값으로 재시드.
 // 날짜/시간은 text input(네이티브 date/time은 로케일 종속 표시 포맷이라 영어 환경에서 MM/DD/YYYY로 뜸 —
-// 2026-07-19 유슨생 지시로 텍스트+유연 정규화(resolveDeliveryScheduleSubmit → datetime-text.ts)로 전환).
+// 2026-07-19 유슨생 지시로 텍스트+유연 정규화(resolveDeliveryScheduleSubmit → datetime-text.ts)로 전환,
+// 이후 T12로 DateTextField SSOT(달력 버튼 하이브리드)에 통합). 시간은 텍스트 유지(별도 픽커 없음).
 // select가 아니므로 Safari onInput 병행 바인딩 함정과도 무관.
 function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: {
   initial: NextDeliverySchedule | null;
@@ -547,7 +549,7 @@ function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: 
   const [time, setTime] = useState(initial?.time?.slice(0, 5) ?? "");
   return (
     <div aria-label="출고 예정 편집" className="delivery-schedule-popover" onClick={(event) => event.stopPropagation()} role="dialog">
-      <label><span>날짜</span><input maxLength={10} onChange={(event) => setDate(event.target.value)} placeholder="2026-07-19" type="text" value={date} /></label>
+      <label><span>날짜</span><DateTextField onValueChange={setDate} value={date} /></label>
       <label><span>시간</span><input maxLength={5} onChange={(event) => setTime(event.target.value)} placeholder="14:00 (선택)" type="text" value={time} /></label>
       {notice && <p className="delivery-schedule-notice" role="alert">{notice}</p>}
       <div className="delivery-schedule-actions">

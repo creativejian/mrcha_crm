@@ -1,5 +1,6 @@
 import { CalendarClock, Check, Trash2 } from "lucide-react";
 
+import { DateTextField } from "@/components/DateTextField";
 import { SCHEDULE_TYPE_OPTIONS } from "@/data/customers";
 import { formatDateInputValue, formatScheduleDateLabel, scheduleHourOptions, scheduleMinuteOptions, parseScheduleTimeParts } from "@/lib/detail-utils";
 import { scheduleRecordKey, type ScheduleItem } from "@/lib/schedule-items";
@@ -39,7 +40,7 @@ export function CustomerSchedules({
         <div className="kim-schedule-composer-top">
           <div className="kim-schedule-datetime-group">
             <label className="kim-schedule-date-field">
-              <input aria-label="예정 날짜" autoFocus defaultValue={item?.date ?? formatDateInputValue()} maxLength={10} name="date" placeholder="2026-07-19" type="text" />
+              <DateTextField ariaLabel="예정 날짜" autoFocus defaultValue={item?.date ?? formatDateInputValue()} name="date" />
             </label>
             <label className="kim-schedule-time-field">
               <span className="kim-schedule-time-picker">
