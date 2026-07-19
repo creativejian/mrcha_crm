@@ -40,6 +40,17 @@ const PHONE_MATCH_ROW: AppQuoteRequest = {
   nameMatches: [],
 };
 
+const NAME_MATCH_ROW: AppQuoteRequest = {
+  ...PHONE_MATCH_ROW,
+  id: "req-2",
+  matchLabel: "신규(미연결)",
+  matchType: "none",
+  matchedCustomerId: null,
+  matchedCustomerName: null,
+  matchedCustomerCode: null,
+  nameMatches: [{ id: "cand-7", name: "김테스트", code: "CU-2604-0007" }],
+};
+
 function renderInbox(onToast = vi.fn()) {
   vi.mocked(fetchAppQuoteRequestsCached).mockResolvedValue([PHONE_MATCH_ROW]);
   render(
@@ -85,6 +96,28 @@ it("link 409 conflict 미동봉 → 서버 한글 사유를 토스트로 표시�
 
   expect(onToast).toHaveBeenCalledWith("이 고객은 이미 다른 앱 계정에 연결돼 있습니다.");
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+// 배치 9 B-b: 제안 클릭 → link 후보 id 인자 계약 잠금 — handleLink 기본 인자(matchedCustomerId)가
+// none 행에선 null이라, 회귀로 후보 id 인자가 빠지면 에러·토스트 없이 무음 no-op이 된다(#282 신규 경로).
+it("이름 제안 클릭 → 후보 고객 id로 link를 호출한다(none 행 무음 no-op 회귀 방지)", async () => {
+  const user = userEvent.setup();
+  vi.mocked(fetchAppQuoteRequestsCached).mockResolvedValue([NAME_MATCH_ROW]);
+  vi.mocked(linkRequestToCustomer).mockResolvedValue({
+    id: "cand-7",
+    customerCode: "CU-2604-0007",
+    name: "김테스트",
+    droppedPhone: null,
+  });
+  render(
+    <MemoryRouter>
+      <AppRequestsPage signal={0} onRead={vi.fn()} onToast={vi.fn()} onCustomerListChanged={vi.fn()} />
+    </MemoryRouter>,
+  );
+
+  await user.click(await screen.findByRole("button", { name: "김테스트 CU-2604-0007 연결" }));
+
+  expect(linkRequestToCustomer).toHaveBeenCalledWith("req-2", "cand-7");
 });
 
 // 네트워크 등 비HTTP 실패는 기존 일반 문구 유지.

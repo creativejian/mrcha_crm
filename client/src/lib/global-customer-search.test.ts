@@ -62,6 +62,21 @@ describe("filterGlobalCustomerSearch", () => {
     expect(filterGlobalCustomerSearch(withSecondary, "1233-4444").map((c) => c.name)).toEqual(["김민준"]);
   });
 
+  // 배치 9 A#6: haystack 필드 잠금 — 아래 필드를 haystack에서 빼는 변이가 조용히 통과하던 사각 해소.
+  it("진행 상태·상태 그룹·유입 경로로도 매칭(필드 잠금)", () => {
+    const rows = [
+      makeCustomer({ name: "상태보유", customerId: "CU-2605-0001", status: "출고완료", statusGroup: "계약완료", source: "유튜브" }),
+      makeCustomer({ name: "상태무관", customerId: "CU-2605-0002", status: "견적", statusGroup: "견적", source: "앱 견적비교" }),
+    ];
+    expect(filterGlobalCustomerSearch(rows, "출고완료").map((c) => c.name)).toEqual(["상태보유"]);
+    expect(filterGlobalCustomerSearch(rows, "계약완료").map((c) => c.name)).toEqual(["상태보유"]);
+    expect(filterGlobalCustomerSearch(rows, "유튜브").map((c) => c.name)).toEqual(["상태보유"]);
+  });
+
+  it("질의 내부 공백은 무시 — '김 민준'도 김민준 매칭", () => {
+    expect(filterGlobalCustomerSearch(customers, "김 민준").map((c) => c.name)).toEqual(["김민준"]);
+  });
+
   it(`결과는 최대 ${GLOBAL_SEARCH_LIMIT}행`, () => {
     const many = Array.from({ length: 10 }, (_, i) => makeCustomer({ name: `공유고객`, customerId: `CU-2605-00${i}` }));
     expect(filterGlobalCustomerSearch(many, "공유고객")).toHaveLength(GLOBAL_SEARCH_LIMIT);
