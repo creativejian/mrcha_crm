@@ -1,5 +1,10 @@
 # 출고 관리 콘솔 1단계 구현 계획 (2026-07-19)
 
+> **✅ 진행 상태(2026-07-19): 전 태스크 이행 완료** — subagent-driven(태스크별 spec+품질 2단계 리뷰·RED 실관찰 의무) + 최종 통합 적대 리뷰(Ready to merge — 신성 규칙 6종 clean·크로스 태스크 shape 정합·두 게이트(라우트 lookup+DB CHECK) 단일 SSOT 파생 실증) + 격리 스택 브라우저 스모크 통과.
+> **스모크 발견 픽스 2(플랜 외)**: ①전역 `.empty`(dashboard.css:144 빈 상태 박스, min-height 240px)가 버튼 모디파이어와 캐스케이드 충돌 → `delivery-schedule-empty` 개명(`426492f`) ②delivery 툴바 1440px 겹침/잘림(rail·toolbar 6열 grid 전제 붕괴 + pill의 select 스킨 상속) → **진행 상태 1차/2차 필터 delivery에서 숨김**(단계 pill과 완전 중복·모순 조합(2차=출고완료 ∧ pill=진행 중 → 상시 0명) 차단, 잔존 필터 미적용 게이트 = 배치 6 A#3 미러) + `.delivery-stage-pill` 전용 스타일 + rail/toolbar grid delivery 스코프 재정의(`:has()` — 타 mode 불가침, `14e0b7e`).
+> **리뷰 승격 픽스 3**: overdue 비패딩 날짜 방어(`dd1ec06`)·정렬 통합 잠금(변이 실관찰 — `.sort` 제거 시 정확히 그 테스트만 실패, `8dc6be2`)·저장/삭제 성공 경로 서버 리로드 규약 #234 전환(스테일 클로저 클로버 차단 + 겹침 가드, `b33931a`).
+> **검증(최종 HEAD)**: typecheck 0·lint 0·unit **884**·server **582**·build·knip 7/9 무드리프트 + 스모크(pill 카운트 psql 대조·전이 2회 psql 대조(chance 자동 확정 동반)·팝오버 생성/수정 psql 대조(update가 같은 행 PATCH — 행 수 1 불변)·드로어 일정 동시 표시·지남 배지·정렬 선두 이동·서브타이틀·B 제거 3종(메뉴 부재·/delivery 홈 폴백·알림 리라우트)·**원복 완전**(UI 하드 삭제 cascade·감사 행 정리·잔재 0·"진행 3명" 복원)).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 고객관리 › 출고 관리(`?view=delivery`)를 계약완료 2차 상태 파생 출고 작업 큐로 실동작화하고, 상단 "계약 / 출고" 목업(DeliveryPage)을 제거한다.
