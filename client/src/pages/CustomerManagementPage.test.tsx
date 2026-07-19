@@ -1,8 +1,14 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { initialCustomers } from "@/data/customers";
 import { CustomerManagementPage } from "./CustomerManagementPage";
+
+vi.mock("@/lib/customer-children", () => ({
+  addSchedule: vi.fn().mockResolvedValue({ id: "sch-new", createdAt: "2026-07-19T00:00:00Z" }),
+  updateSchedule: vi.fn().mockResolvedValue(undefined),
+  deleteSchedule: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe("CustomerManagementPage", () => {
   it("renders the all-customer list with vehicle context right after the customer", () => {
@@ -47,18 +53,33 @@ describe("CustomerManagementPage", () => {
   });
 
   // 5개 비-all mode도 전체 보기와 같은 콘솔 문법(1줄 rail·필터 pill·전체 N명 카운트)을 쓴다.
-  // 뷰 select 3개(담당자별/상담상태별/긴급순)는 renderConsoleFilter로 흡수돼 pill(button)이 된다.
   it.each(["consulting", "contract", "delivery", "settlement", "hold"] as const)(
     "renders the console control rail for %s mode",
     (mode) => {
       render(<CustomerManagementPage mode={mode} />);
       // 콘솔 검색 래퍼(구식 <input class="input"> 아님)
       expect(document.querySelector(".customer-console-search")).not.toBeNull();
-      // 공통 필터가 pill(button)로 — 구식 네이티브 select 아님
-      expect(screen.getByRole("button", { name: /진행 상태 · 1차/ })).toBeInTheDocument();
       // 카운트는 "전체 N명"(구식 "TOTAL N" 아님)
       expect(screen.queryByText("TOTAL")).not.toBeInTheDocument();
-      // 뷰 select 3개가 pill(button)로 흡수
+    },
+  );
+
+  // 공통 진행 상태 1차/2차 필터가 pill(button)로 — 구식 네이티브 select 아님. delivery는 제외
+  // (Task 6 보강 — 단계 pill과 완전 중복·모순 조합이라 숨김, "출고 관리(delivery) 콘솔" describe에서 별도 검증).
+  it.each(["consulting", "contract", "settlement", "hold"] as const)(
+    "renders the shared stage filter pills for %s mode",
+    (mode) => {
+      render(<CustomerManagementPage mode={mode} />);
+      expect(screen.getByRole("button", { name: /진행 상태 · 1차/ })).toBeInTheDocument();
+    },
+  );
+
+  // 뷰 select 3개(담당자별/상담상태별/긴급순)는 renderConsoleFilter로 흡수돼 pill(button)이 된다.
+  // delivery는 출고 단계 필터 pill로 대체(Task 6) — "출고 관리(delivery) 콘솔" describe에서 별도 검증.
+  it.each(["consulting", "contract", "settlement", "hold"] as const)(
+    "renders the mock view-select pills for %s mode",
+    (mode) => {
+      render(<CustomerManagementPage mode={mode} />);
       expect(screen.getByRole("button", { name: /담당자별 보기/ })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /상담상태별 보기/ })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /긴급순으로 보기/ })).toBeInTheDocument();
@@ -455,5 +476,130 @@ describe("CustomerManagementPage", () => {
     await user.click(screen.getByText("박서연"));
     expect(screen.queryByRole("listbox", { name: "가능성 선택" })).not.toBeInTheDocument();
     expect(onOpenCustomer).not.toHaveBeenCalled();
+  });
+});
+
+// 출고 관리(delivery) 콘솔 1단계 — 계약완료 2차 상태를 출고 단계 작업 큐로 재구성.
+// 기본 pill = "진행 중"(Task 6) — 계약완료 3명(최유진 출고완료·한지훈 배정완료·김도현 딜러사계약중) 중
+// 출고완료(최유진)는 기본 노출에서 빠지고, 진행 중 단계인 한지훈·김도현만 노출된다.
+describe("출고 관리(delivery) 콘솔", () => {
+  it("헤더 = 선택/고객/차량/출고 단계/출고 예정/인도 방식/담당/관리", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    const heads = screen.getAllByRole("columnheader").map((th) => th.textContent);
+    // index 0(선택) 헤더는 텍스트가 아니라 전체선택 체크박스를 렌더한다(기존 all mode 테스트와 동일 관례).
+    expect(heads).toEqual(["", "고객", "차량", "출고 단계", "출고 예정", "인도 방식", "담당", "관리"]);
+  });
+
+  it("출고 단계 셀 = 2차 상태 버튼(1차 버튼 없음), 팝오버 옵션 = 계약완료 2차 5종", async () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    const stageButton = screen.getByRole("button", { name: "진행 2단계 변경: 배정완료" });
+    expect(screen.queryByRole("button", { name: "진행 1단계 변경: 계약완료" })).toBeNull();
+    fireEvent.click(stageButton);
+    const listbox = screen.getByRole("listbox", { name: "진행 2단계 선택" });
+    const options = within(listbox).getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["딜러사계약중", "대리점발주중", "특판발주중", "배정완료", "출고완료"]);
+  });
+
+  it("기본 pill = 진행 중: 출고완료(최유진) 미노출, 배정완료(한지훈) 노출", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    expect(screen.getByText("한지훈")).toBeInTheDocument();
+    expect(screen.queryByText("최유진")).toBeNull();
+  });
+
+  it("출고완료 pill 클릭 시 출고완료만 노출 + 카운트 라벨 전환", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고완료 \d+$/ }));
+    expect(screen.getByText("최유진")).toBeInTheDocument();
+    expect(screen.queryByText("한지훈")).toBeNull();
+    expect(screen.getByText("출고완료", { selector: ".total-count" })).toBeInTheDocument();
+  });
+
+  it("delivery mode에선 mock 뷰 select 3개가 렌더되지 않는다", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    expect(screen.queryByRole("button", { name: /담당자별 보기/ })).toBeNull();
+  });
+
+  // 진행 상태 1차/2차 필터는 단계 pill과 완전 중복이라 delivery에서 숨긴다(1440px 실측 보강 — 겹침·
+  // 모순 조합 방지). 잔존 statusGroup/status state가 목록을 조용히 좁히지 않는 것은 baseRows의
+  // activeStatusGroup/activeStatus 게이트(A#3 선례 미러)가 담당 — 코드 리뷰로 확인.
+  it("delivery mode에선 진행 상태 1차/2차 필터가 렌더되지 않는다", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    expect(screen.queryByRole("button", { name: /진행 상태 · 1차/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /진행 상태 · 2차/ })).toBeNull();
+  });
+
+  it("행 정렬 = 출고 예정일 오름차순, 미지정은 뒤", () => {
+    const base = initialCustomers[4]; // 한지훈 형태 복제
+    const customers = [
+      { ...base, no: 91001, customerId: "CU-2605-9101", name: "출고정렬셋째", statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null },
+      { ...base, no: 91002, customerId: "CU-2605-9102", name: "출고정렬둘째", statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: { id: "s2", date: "2026-08-02", time: null } },
+      { ...base, no: 91003, customerId: "CU-2605-9103", name: "출고정렬첫째", statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: { id: "s1", date: "2026-07-21", time: null } },
+    ];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    const names = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    expect(names.findIndex((t) => t.includes("출고정렬첫째"))).toBeLessThan(names.findIndex((t) => t.includes("출고정렬둘째")));
+    expect(names.findIndex((t) => t.includes("출고정렬둘째"))).toBeLessThan(names.findIndex((t) => t.includes("출고정렬셋째")));
+  });
+
+  it("미지정 클릭 → 팝오버에서 날짜 저장 = '출고' 일정 생성 호출", async () => {
+    const { addSchedule } = await import("@/lib/customer-children");
+    const customers = [{
+      ...initialCustomers[4], // 한지훈(배정완료) 형태 복제
+      id: "cid-1", no: 90001, customerId: "CU-2605-9001", name: "출고팝오버검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => {
+      expect(addSchedule).toHaveBeenCalledWith("cid-1", { scheduledDate: "2026-07-24", scheduledTime: null, type: "출고", done: false });
+    });
+  });
+
+  it("대표 일정 있는 행 = 라벨 표시 + 저장 시 그 id PATCH", async () => {
+    const { updateSchedule } = await import("@/lib/customer-children");
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-2", no: 90002, customerId: "CU-2605-9002", name: "출고팝오버수정",
+      statusGroup: "계약완료", status: "배정완료",
+      nextDeliverySchedule: { id: "sch-1", date: "2026-07-24", time: "14:00" },
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고 예정 7\/24/ }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-31" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => {
+      expect(updateSchedule).toHaveBeenCalledWith("cid-2", "sch-1", { scheduledDate: "2026-07-31", scheduledTime: "14:00" });
+    });
+  });
+
+  it("날짜 텍스트 형식이 틀리면 저장을 막고 안내 문구를 보여준다(년-월-일 고정, 로케일 무관 — 2026-07-19)", async () => {
+    const { addSchedule } = await import("@/lib/customer-children");
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-3", no: 90003, customerId: "CU-2605-9003", name: "출고팝오버형식오류",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "0724" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("년-월-일");
+    expect(addSchedule).not.toHaveBeenCalledWith("cid-3", expect.anything());
+  });
+
+  it("저장 성공 시 onCustomerListChanged(서버 리로드)를 호출한다", async () => {
+    const reload = vi.fn().mockResolvedValue(true);
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-1", no: 90001, customerId: "CU-2605-9001", name: "출고팝오버검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
   });
 });

@@ -2,9 +2,12 @@
 // CustomerManagementPage.renderRow가 이 셀들을 조립한다.
 // 셀별 props는 각 셀이 의존하는 상태/핸들러/ref와 1:1로 대응한다.
 import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { CHANCE_OPTIONS, type Customer, customerStatusGroups } from "@/data/customers";
+import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
+import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
+import { deliveryScheduleLabel, resolveFixedPopoverPosition } from "@/lib/delivery-console";
 
 function stopTableControlPointer(event: ReactPointerEvent<HTMLElement>) {
   event.stopPropagation();
@@ -109,6 +112,7 @@ export function CustomerVehicleCell({
 export function CustomerStageCell({
   customer,
   pickerLevel,
+  secondaryOnly = false,
   stagePickerRef,
   onOpenPicker,
   onChangePrimary,
@@ -116,6 +120,9 @@ export function CustomerStageCell({
 }: {
   customer: Customer;
   pickerLevel: StagePickerLevel | null;
+  // true면 1차 컨트롤+커넥터를 렌더하지 않는다(출고 콘솔 — statusGroup이 이미 "계약완료"로 고정된
+  // 큐라 1차 전이는 무의미. 2차 블록은 무수정 재사용, 옵션은 statusGroup 종속이라 자동으로 계약완료 5종).
+  secondaryOnly?: boolean;
   stagePickerRef: RefObject<HTMLDivElement | null>;
   onOpenPicker: (customerNo: number, level: StagePickerLevel) => void;
   onChangePrimary: (customerNo: number, nextGroup: string) => void;
@@ -126,48 +133,52 @@ export function CustomerStageCell({
   return (
     <td className="stage-cell stage-cell-two-step-preview">
       <div className="stage-two-step-stack" ref={pickerLevel ? stagePickerRef : undefined}>
-        <div className="stage-control">
-          <button
-            aria-expanded={pickerLevel === "primary"}
-            aria-haspopup="listbox"
-            aria-label={`진행 1단계 변경: ${customer.statusGroup}`}
-            className="stage-step-button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenPicker(customer.no, "primary");
-            }}
-            onPointerDown={stopTableControlPointer}
-            type="button"
-          >
-            <span>{customer.statusGroup}</span>
-          </button>
-          {pickerLevel === "primary" && (
-            <div aria-label="진행 1단계 선택" className="stage-two-step-popover level-primary" role="listbox">
-              <div className="stage-two-step-options">
-                {primaryStageOptions.map((value) => {
-                  const selected = value === customer.statusGroup;
-                  return (
-                    <button
-                      aria-selected={selected}
-                      className={selected ? "stage-two-step-option level-primary active" : "stage-two-step-option level-primary"}
-                      key={value}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onChangePrimary(customer.no, value);
-                      }}
-                      role="option"
-                      type="button"
-                    >
-                      <span>{value}</span>
-                      {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
-                    </button>
-                  );
-                })}
-              </div>
+        {!secondaryOnly && (
+          <>
+            <div className="stage-control">
+              <button
+                aria-expanded={pickerLevel === "primary"}
+                aria-haspopup="listbox"
+                aria-label={`진행 1단계 변경: ${customer.statusGroup}`}
+                className="stage-step-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenPicker(customer.no, "primary");
+                }}
+                onPointerDown={stopTableControlPointer}
+                type="button"
+              >
+                <span>{customer.statusGroup}</span>
+              </button>
+              {pickerLevel === "primary" && (
+                <div aria-label="진행 1단계 선택" className="stage-two-step-popover level-primary" role="listbox">
+                  <div className="stage-two-step-options">
+                    {primaryStageOptions.map((value) => {
+                      const selected = value === customer.statusGroup;
+                      return (
+                        <button
+                          aria-selected={selected}
+                          className={selected ? "stage-two-step-option level-primary active" : "stage-two-step-option level-primary"}
+                          key={value}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onChangePrimary(customer.no, value);
+                          }}
+                          role="option"
+                          type="button"
+                        >
+                          <span>{value}</span>
+                          {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <span aria-hidden="true" className="stage-step-connector">›</span>
+            <span aria-hidden="true" className="stage-step-connector">›</span>
+          </>
+        )}
         <div className="stage-control">
           <button
             aria-expanded={pickerLevel === "secondary"}
@@ -475,5 +486,104 @@ export function CustomerActionsCell({ customer, onHintHover }: { customer: Custo
         <button className="tiny-btn" title="상세 문서" type="button"><FileText size={15} /></button>
       </span>
     </td>
+  );
+}
+
+export function CustomerDeliveryScheduleCell({
+  customer,
+  notice,
+  open,
+  popoverRef,
+  saving,
+  onDelete,
+  onSave,
+  onToggle,
+}: {
+  customer: Customer;
+  notice: string | null;
+  open: boolean;
+  popoverRef: RefObject<HTMLDivElement | null>;
+  saving: boolean;
+  onDelete: () => void;
+  onSave: (draft: { date: string; time: string }) => void;
+  onToggle: () => void;
+}) {
+  const schedule = customer.nextDeliverySchedule ?? null;
+  const label = deliveryScheduleLabel(schedule, new Date());
+  return (
+    <td className="delivery-schedule-cell">
+      <div className="delivery-schedule-wrap" ref={open ? popoverRef : undefined}>
+        <button
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={label ? `출고 예정 ${label.text}: ${customer.name}` : `출고 예정 입력: ${customer.name}`}
+          className={["delivery-schedule-btn", label ? "" : "delivery-schedule-empty", label?.overdue ? "overdue" : ""].filter(Boolean).join(" ")}
+          onClick={(event) => { event.stopPropagation(); onToggle(); }}
+          onPointerDown={stopTableControlPointer}
+          type="button"
+        >
+          <span>{label ? label.text : "+ 미지정"}</span>
+          {label?.overdue && <span className="delivery-overdue-badge">지남</span>}
+        </button>
+        {open && (
+          <DeliverySchedulePopover key={schedule?.id ?? "new"} initial={schedule} notice={notice} saving={saving} onDelete={onDelete} onSave={onSave} />
+        )}
+      </div>
+    </td>
+  );
+}
+
+// 팝오버 본문 — key(schedule id)로 리마운트해 draft를 대표 일정 값으로 재시드.
+// 날짜/시간은 text input(네이티브 date/time은 로케일 종속 표시 포맷이라 영어 환경에서 MM/DD/YYYY로 뜸 —
+// 2026-07-19 유슨생 지시로 텍스트+유연 정규화(resolveDeliveryScheduleSubmit → datetime-text.ts)로 전환,
+// 이후 T12로 DateTextField SSOT(달력 버튼 하이브리드)에 통합). 시간은 텍스트 유지(별도 픽커 없음).
+// select가 아니므로 Safari onInput 병행 바인딩 함정과도 무관.
+// position:fixed 배치(T13) — 콘솔 래퍼(.console-table-scroll) overflow:hidden 클리핑을 마지막 행에서
+// 절단하던 실기 결함 대응. 앵커(.delivery-schedule-wrap)의 뷰포트 rect 기준으로 좌표를 직접 계산해
+// 인라인 style에 싣는다(fixed는 조상 overflow의 영향을 받지 않음 — 스태킹은 tr:has 승격 룰이 계속 담당).
+function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: {
+  initial: NextDeliverySchedule | null;
+  notice: string | null;
+  saving: boolean;
+  onDelete: () => void;
+  onSave: (draft: { date: string; time: string }) => void;
+}) {
+  const [date, setDate] = useState(initial?.date ?? "");
+  const [time, setTime] = useState(initial?.time?.slice(0, 5) ?? "");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<ReturnType<typeof resolveFixedPopoverPosition> | null>(null);
+  const hasNotice = Boolean(notice);
+
+  // layout effect(paint 전) — 마운트 시 1회 계산. notice 등장/소멸로 박스 높이가 바뀔 수 있어
+  // deps에 포함(날짜/시간 타이핑은 높이에 영향 없어 deps 제외 — 과도한 재계산 방지).
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    const wrap = el?.closest(".delivery-schedule-wrap");
+    if (!el || !wrap) return;
+    const anchor = wrap.getBoundingClientRect();
+    setPos(resolveFixedPopoverPosition(
+      { top: anchor.top, bottom: anchor.bottom, left: anchor.left },
+      { width: el.offsetWidth, height: el.offsetHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+    ));
+  }, [hasNotice]);
+
+  return (
+    <div
+      aria-label="출고 예정 편집"
+      className="delivery-schedule-popover"
+      onClick={(event) => event.stopPropagation()}
+      ref={rootRef}
+      role="dialog"
+      style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
+    >
+      <label><span>날짜</span><DateTextField onValueChange={setDate} value={date} /></label>
+      <label><span>시간</span><input maxLength={5} onChange={(event) => setTime(event.target.value)} placeholder="14:00 (선택)" type="text" value={time} /></label>
+      {notice && <p className="delivery-schedule-notice" role="alert">{notice}</p>}
+      <div className="delivery-schedule-actions">
+        {initial && <button className="danger" disabled={saving} onClick={onDelete} type="button">삭제</button>}
+        <button disabled={saving} onClick={() => onSave({ date, time })} type="button">{saving ? "저장 중…" : "저장"}</button>
+      </div>
+    </div>
   );
 }

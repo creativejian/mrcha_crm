@@ -1,0 +1,2 @@
+ALTER TABLE "crm"."customer_schedules" DROP CONSTRAINT "customer_schedules_type_check";--> statement-breakpoint
+ALTER TABLE "crm"."customer_schedules" ADD CONSTRAINT "customer_schedules_type_check" CHECK ("crm"."customer_schedules"."type" IS NULL OR "crm"."customer_schedules"."type" IN ('재연락', '결정확인', '체크', '견적', '안내', '요청', '내부', '심사', '출고'));

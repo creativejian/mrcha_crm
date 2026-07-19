@@ -1,5 +1,6 @@
 import { Check, Trash2 } from "lucide-react";
 
+import { DateTextField } from "@/components/DateTextField";
 import { TASK_CATEGORY_OPTIONS } from "@/data/customers";
 import { checkDueOptions, parseCheckDueDate } from "@/lib/detail-utils";
 import { type CheckItem } from "@/lib/schedule-items";
@@ -48,7 +49,7 @@ export function CustomerChecks({
             {selectedEditingDue === "지정" ? (
               <label className="kim-check-date-field compact">
                 <span>마감 날짜</span>
-                <input defaultValue={parseCheckDueDate(item.due)} name="dueDate" type="date" />
+                <DateTextField defaultValue={parseCheckDueDate(item.due)} name="dueDate" />
               </label>
             ) : null}
           </div>
@@ -191,7 +192,7 @@ export function CustomerChecks({
                 {selectedDue === "지정" ? (
                   <label className="kim-check-date-field">
                     <span>마감 날짜</span>
-                    <input name="dueDate" type="date" />
+                    <DateTextField name="dueDate" />
                   </label>
                 ) : null}
               </div>

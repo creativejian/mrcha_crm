@@ -5,6 +5,7 @@ import { staffActivityAt } from "./activity";
 import { listAdvisorViewedAt } from "./advisor-quotes";
 import { nextCustomerCode } from "./quote-requests";
 import { profiles } from "../public-app";
+import { DELIVERY_SCHEDULE_TYPE, type NextDeliverySchedule } from "../../../client/src/data/customers";
 import {
   consultations,
   customerDocuments,
@@ -17,7 +18,7 @@ import {
 } from "../schema";
 
 // 목록 행 = customers 전체 컬럼 + 상담메모용 최신 미완료 task 1건 body.
-export type CustomerListRow = typeof customers.$inferSelect & { latestTask: string | null };
+export type CustomerListRow = typeof customers.$inferSelect & { latestTask: string | null; nextDeliverySchedule: NextDeliverySchedule | null };
 
 // 상담메모(목업 nextAction): customer_tasks 최신 미완료 1건 body를 상관 서브쿼리로.
 // customer_id 비교는 crm.customers.id로 완전정규화 — 섀도잉 사유는 activity.ts staffActivityAt 주석 참조(동일 버그 클래스).
@@ -29,6 +30,20 @@ const latestTaskBody = sql<string | null>`(
 
 // "마지막 담당자 액션" 파생은 activity.ts로 이동(0706 배치 B) — 업무 AI 도구와 공유하는 SSOT.
 // 파생 집합·완전정규화(섀도잉) 주의사항은 그쪽 주석 참조.
+
+// 출고 콘솔 '출고 예정' 파생(2026-07-19 spec §4): 미완료 '출고' 일정 중 가장 이른 (날짜, 시간) 1건.
+// 날짜 없는 행 제외(표시·정렬 불가) · 같은 날짜의 시간 미지정은 뒤(nulls last) · 과거 날짜도 그대로(콘솔이 "지남" 표시).
+// id는 콘솔 팝오버의 수정/삭제 대상 지정용. customer_id 비교는 crm.customers.id 완전정규화(latestTaskBody와 동일 — 섀도잉 버그 클래스).
+const nextDeliverySchedule = sql<NextDeliverySchedule | null>`(
+  select json_build_object('id', s.id, 'date', s.scheduled_date, 'time', s.scheduled_time)
+  from crm.customer_schedules s
+  where s.customer_id = crm.customers.id
+    and s.type = ${DELIVERY_SCHEDULE_TYPE}
+    and s.done = false
+    and s.scheduled_date is not null
+  order by s.scheduled_date asc, s.scheduled_time asc nulls last, s.created_at asc
+  limit 1
+)`;
 
 // 주 번호 read-through 합성(2026-07-17 spec §3-2): 앱 연결 고객의 주 번호는 profiles.phone_number가
 // 진실 원본(앱에서 바꾸면 다음 조회부터 자동 반영 — viewed_at #159 선례). 수기 고객은 crm phone.
@@ -144,7 +159,7 @@ export async function getCustomerAppUserId(
 
 export async function listCustomers(executor: Executor = getDefaultDb()): Promise<CustomerListRow[]> {
   return executor
-    .select({ ...getTableColumns(customers), phone: composedPhone, latestTask: latestTaskBody, lastActivityAt: staffActivityAt })
+    .select({ ...getTableColumns(customers), phone: composedPhone, latestTask: latestTaskBody, lastActivityAt: staffActivityAt, nextDeliverySchedule })
     .from(customers)
     .leftJoin(profiles, eq(customers.appUserId, profiles.id))
     .orderBy(desc(customers.receivedAt));

@@ -21,7 +21,6 @@ import { ChatPage } from "@/pages/ChatPage";
 import { ConsultationRequestsPage } from "@/pages/ConsultationRequestsPage";
 import { CustomerDetailPage } from "@/pages/CustomerDetailPage";
 import { CustomerManagementPage } from "@/pages/CustomerManagementPage";
-import { DeliveryPage } from "@/pages/DeliveryPage";
 import { FinancePage, type FinanceMode } from "@/pages/FinancePage";
 import { HandoffOperationPage } from "@/pages/HandoffOperationPage";
 import { InsightsPage } from "@/pages/InsightsPage";
@@ -31,7 +30,7 @@ import { OrgMembersPage } from "@/pages/OrgMembersPage";
 import { PartnersPage } from "@/pages/PartnersPage";
 import { PipelinePage } from "@/pages/PipelinePage";
 
-type ViewKey = "advisor-dashboard" | "admin-dashboard" | "chat" | "customers" | "app-requests" | "consultation-requests" | "customer-detail" | "pipeline" | "delivery" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance" | "handoff-operation";
+type ViewKey = "advisor-dashboard" | "admin-dashboard" | "chat" | "customers" | "app-requests" | "consultation-requests" | "customer-detail" | "pipeline" | "insights" | "knowledge-base" | "ai-settings" | "mc-master" | "org-members" | "partners" | "finance" | "handoff-operation";
 
 const VIEW_TO_PATH: Record<ViewKey, string> = {
   "advisor-dashboard": "/",
@@ -42,7 +41,6 @@ const VIEW_TO_PATH: Record<ViewKey, string> = {
   "consultation-requests": "/consultation-requests",
   "customer-detail": "/customer-detail",
   pipeline: "/pipeline",
-  delivery: "/delivery",
   insights: "/insights",
   "knowledge-base": "/knowledge-base",
   "ai-settings": "/ai-settings",
@@ -66,7 +64,6 @@ const viewMeta: Record<Exclude<ViewKey, "customers" | "finance">, [string, strin
   "consultation-requests": ["상담 신청 DB", "앱에서 접수된 상담신청을 유저별로 모아 확인하고, 기존 고객 연결 또는 신규 고객 생성으로 승격합니다."],
   "customer-detail": ["고객 상세", "AI 요약, 상담 메모, 타임라인, 견적, 다음 액션을 한 화면에서 처리합니다."],
   pipeline: ["상담 파이프라인", "상담 진행 단계를 칸반 방식으로 관리하고 상태 변경 로그를 남기는 구조입니다."],
-  delivery: ["계약 / 출고", "계약 이후 출고까지 필요한 상태와 체크리스트를 관리합니다."],
   insights: ["인사이트", "앱 상담 중 적재적소에 연결되는 차선생 인사이트 콘텐츠를 관리합니다."],
   "knowledge-base": ["지식베이스", "차선생 AI 상담의 기준이 되는 내부 지식 학습 포맷을 관리합니다."],
   "ai-settings": ["AI 설정", "차선생의 페르소나, 답변 성향, 상담 전환 기준을 관리합니다."],
@@ -204,6 +201,8 @@ export function App() {
 
   function handleViewChange(view: string) {
     setCustomerDetailEditorOpen(false);
+    // 구 "계약 / 출고" 뷰(알림 목업 이동처) — DeliveryPage 제거 후 출고 큐로 보낸다(2026-07-19 spec §5.6).
+    if (view === "delivery") { navigate(customerListPath("delivery")); return; }
     navigate(VIEW_TO_PATH[view as ViewKey] ?? "/");
   }
 
@@ -326,6 +325,7 @@ export function App() {
               activeCustomerId={isDrawerOpen ? selectedCode : null}
               chanceOverrides={chanceOverrides}
               customers={customers}
+              customersLoaded={customersLoaded}
               mode={customerMode}
               roleTab={roleTab}
               onChanceOverridesChange={setChanceOverrides}
@@ -362,7 +362,6 @@ export function App() {
           }
         />
         <Route path="/pipeline" element={<PipelinePage />} />
-        <Route path="/delivery" element={<DeliveryPage />} />
         <Route path="/insights" element={isAdmin ? <InsightsPage /> : <Navigate to="/" replace />} />
         <Route path="/knowledge-base" element={isAdmin ? <KnowledgeBasePage /> : <Navigate to="/" replace />} />
         <Route path="/ai-settings" element={<AISettingsPage />} />

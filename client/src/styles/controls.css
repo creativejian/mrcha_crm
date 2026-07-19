@@ -128,3 +128,12 @@ table {
   width: 100%;
   border-collapse: collapse;
 }
+
+/* 날짜 입력 SSOT(DateTextField) — 텍스트(년-월-일 고정) + 달력 버튼(native showPicker 하이브리드).
+   숨긴 native input 규칙은 2클래스 결합 셀렉터로 특이성을 올려, 각 화면의 기존 래퍼 셀렉터
+   (예: .kim-check-date-field input — 1클래스+태그)가 이겨서 숨김이 깨지는 걸 구조적으로 방지한다. */
+.date-text-field { position: relative; display: inline-flex; align-items: center; gap: 4px; width: 100%; }
+.date-text-field > input[type="text"] { flex: 1 1 auto; min-width: 0; }
+.date-text-field-picker-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex: 0 0 auto; border: 1px solid #dededb; border-radius: 6px; background: #fff; color: #5f6872; cursor: pointer; box-shadow: 0 1px 1.5px rgba(15, 20, 25, 0.06); }
+.date-text-field-picker-btn:hover { border-color: rgba(88, 54, 255, 0.34); color: #5836ff; }
+.date-text-field > input.date-text-field-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }

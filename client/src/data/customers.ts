@@ -32,6 +32,8 @@ export type Customer = {
   recontacted?: boolean;
   manageStatus?: string | null; // 수동 관리 상태(⑦-① 스누즈) — manageStatusAt >= lastActivityAt일 때만 유효
   manageStatusAt?: string | null;
+  deliveryMethod?: string; // need_delivery_method 표시값 — 출고 콘솔 '인도 방식' 컬럼(편집은 상세 니즈에서)
+  nextDeliverySchedule?: NextDeliverySchedule | null; // 서버 파생 다음 출고 예정(목록 전용 — 상세엔 schedules 원본이 있다)
   settlementStatus?: string;
   fee?: string;
   cost?: string;
@@ -92,8 +94,17 @@ export const SOURCE_LEGACY_AUTOMATIC_OPTIONS: readonly string[] = ["디엘홈페
 // 할일 분류(tasks.category) — 닫힌 6종.
 export const TASK_CATEGORY_OPTIONS: readonly string[] = ["체크", "견적", "안내", "요청", "내부", "심사"];
 
-// 일정 종류(schedules.type) — 닫힌 8종.
-export const SCHEDULE_TYPE_OPTIONS: readonly string[] = ["재연락", "결정확인", "체크", "견적", "안내", "요청", "내부", "심사"];
+// 출고 일정 타입 값 — 출고 콘솔·서버 파생 쿼리가 공유하고, 스프레드로 닫힌 집합
+// (customer_schedules_type_check) 원소임이 구조적으로 보장된다(APP_QUOTE_REQUEST_SOURCE 선례).
+// 값 변경 = CHECK 마이그 동반.
+export const DELIVERY_SCHEDULE_TYPE = "출고";
+
+// 일정 종류(schedules.type) — 닫힌 9종(0035에서 '출고' 추가).
+export const SCHEDULE_TYPE_OPTIONS: readonly string[] = ["재연락", "결정확인", "체크", "견적", "안내", "요청", "내부", "심사", DELIVERY_SCHEDULE_TYPE];
+
+// 목록 파생 '다음 출고 예정' — 서버 listCustomers 서브쿼리 ↔ 클라 표시·팝오버가 공유하는 shape.
+// date = 'YYYY-MM-DD'(plain date, tz 없음), time = 'HH:mm[:ss]' | null. id = 팝오버 수정/삭제 대상.
+export type NextDeliverySchedule = { id: string; date: string; time: string | null };
 
 // 고객 유형(customers.customer_type) — 닫힌 3종. 백엔드 zod·DB CHECK 공유.
 export const CUSTOMER_TYPE_OPTIONS = ["개인", "개인사업자", "법인사업자"] as const;
@@ -141,7 +152,7 @@ export const customerModeMeta: Record<CustomerMode, { title: string; desc: strin
   all: { title: "전체 보기", desc: "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다." },
   consulting: { title: "상담 필요", desc: "계약 전 상담, 견적, 재응대가 필요한 미배정 고객 업무함입니다. 담당자가 배정되면 목록에서 빠집니다." },
   contract: { title: "계약 관리", desc: "심사, 계약 완료, 계약 취소 고객의 계약 실무를 관리합니다." },
-  delivery: { title: "출고 관리", desc: "출고 예정과 출고 완료 전후의 안내 업무를 관리합니다." },
+  delivery: { title: "출고 관리", desc: "계약완료 고객의 발주·배정·출고 일정을 단계별로 처리합니다." },
   settlement: { title: "출고 정산", desc: "출고 완료 이후 수수료, 비용, 마진 정산이 필요한 고객입니다." },
   hold: { title: "보류 / 이탈", desc: "미응답, 미정, 불발, 계약취소 고객의 재컨택 여부를 관리합니다." },
 };

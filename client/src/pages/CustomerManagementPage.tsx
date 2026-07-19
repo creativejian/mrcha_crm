@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers } from "@/data/customers";
+import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
 import { aiHintPlainText, badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
@@ -11,13 +11,18 @@ import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
 import { changeAdvisorBulk } from "@/lib/customer-bulk-advisor";
 import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-delete";
+import { addSchedule, deleteSchedule, updateSchedule } from "@/lib/customer-children";
+import { compareDeliverySchedule, DELIVERY_PILL_IN_PROGRESS, DELIVERY_STAGE_PILLS, deliveryCountLabel, deliveryPillCounts, matchesDeliveryPill, resolveDeliveryScheduleSubmit } from "@/lib/delivery-console";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
-import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
+import { CustomerActionsCell, CustomerChanceCell, CustomerDeliveryScheduleCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
 
 type CustomerManagementPageProps = {
   activeCustomerId?: string | null;
   customers?: Customer[];
+  // 목록 최초 로드 완료 여부(App이 서버 fetch 완료 시 true) — 총 카운트 0 깜빡임 방지(#287 폴리시).
+  // 미전달(스토리·테스트)은 loaded=true 폴백.
+  customersLoaded?: boolean;
   mode: CustomerMode;
   chanceOverrides?: Record<number, CustomerChanceOption>;
   onChanceOverridesChange?: (overrides: Record<number, CustomerChanceOption>) => void;
@@ -52,7 +57,7 @@ const headsByMode: Record<CustomerMode, string[]> = {
   all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
   consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "상담 메모", "담당", "관리"],
   contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "상담 메모", "담당", "관리"],
-  delivery: ["선택", "고객", "차량", "출고 상태", "출고 업무", "담당", "관리"],
+  delivery: ["선택", "고객", "차량", "출고 단계", "출고 예정", "인도 방식", "담당", "관리"],
   settlement: ["선택", "고객", "차종 · 구매방식", "출고일", "수수료", "비용", "마진", "정산 상태", "관리"],
   hold: ["선택", "고객", "차종 · 구매방식", "상태", "이탈 / 보류 요약", "재컨택 액션", "담당", "관리"],
 };
@@ -61,7 +66,7 @@ const tableColumnsByMode: Record<CustomerMode, string[]> = {
   all: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
   consulting: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
   contract: ["select", "customer", "type", "vehicle", "stage", "summary", "action", "advisor", "actions"],
-  delivery: ["select", "customer", "vehicle", "stage", "summary", "advisor", "actions"],
+  delivery: ["select", "customer", "vehicle", "stage", "schedule", "method", "advisor", "actions"],
   settlement: ["select", "customer", "vehicle", "date", "money", "money", "money", "stage", "actions"],
   hold: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
 };
@@ -89,6 +94,7 @@ function filterSelectClass(active: boolean, extraClassName?: string) {
 export function CustomerManagementPage({
   activeCustomerId = null,
   customers: controlledCustomers,
+  customersLoaded,
   mode,
   chanceOverrides: controlledChanceOverrides,
   onChanceOverridesChange,
@@ -99,6 +105,7 @@ export function CustomerManagementPage({
   onWorkflowChange,
   roleTab = "최고관리자",
 }: CustomerManagementPageProps) {
+  const loaded = customersLoaded ?? true;
   const [internalCustomers, setInternalCustomers] = useState(initialCustomers);
   // 담당자 후보/필터 = 직원 디렉토리(profiles CRM 역할) — ADVISOR_NAMES 목업 폐기(#176 후속).
   const { staff: staffDirectory } = useStaffDirectory();
@@ -109,6 +116,8 @@ export function CustomerManagementPage({
   const [advisor, setAdvisor] = useState("");
   const [chanceFilter, setChanceFilter] = useState<"" | ChanceOption>("");
   const [finalUpdateFilter, setFinalUpdateFilter] = useState<"" | FinalUpdateFilterOption>("");
+  // 출고 단계 필터 pill(delivery mode 전용) — 기본 "진행 중"(소진되는 업무함, #260 선례).
+  const [deliveryPill, setDeliveryPill] = useState<string>(DELIVERY_PILL_IN_PROGRESS);
   const [selected, setSelected] = useState<number[]>([]);
   const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(15);
   const [currentPage, setCurrentPage] = useState(1);
@@ -116,6 +125,11 @@ export function CustomerManagementPage({
   const [openChanceFor, setOpenChanceFor] = useState<number | null>(null);
   const [openExtraFor, setOpenExtraFor] = useState<string | null>(null);
   const [openFinalUpdateFor, setOpenFinalUpdateFor] = useState<number | null>(null);
+  // 출고 예정 팝오버(delivery mode 전용, Task 7) — 생성/수정/삭제.
+  const [openDeliveryScheduleFor, setOpenDeliveryScheduleFor] = useState<number | null>(null);
+  const [savingDeliveryFor, setSavingDeliveryFor] = useState<number | null>(null);
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
+  const deliverySchedulePopoverRef = useRef<HTMLDivElement>(null);
   const [internalChanceOverrides, setInternalChanceOverrides] = useState<Record<number, ChanceOption>>({});
   const [finalUpdateOverrides, setFinalUpdateOverrides] = useState<Record<number, FinalUpdateInfo>>({});
   const [editingNextAction, setEditingNextAction] = useState<{ customerNo: number; draft: string } | null>(null);
@@ -173,7 +187,7 @@ export function CustomerManagementPage({
   }
 
   const statuses = statusGroup ? customerStatusGroups[statusGroup] : Object.values(customerStatusGroups).flat();
-  const rows = useMemo(() => {
+  const baseRows = useMemo(() => {
     // 통합검색과 같은 정규화(소문자+공백/하이픈 제거) — 같은 질의가 두 표면에서 다른 결과를 내지 않게
     // (배치 9 A#1). 질의·haystack 양측 동일 삭제라 기존 매칭은 전부 보존(순수 additive).
     const keyword = normalizeSearchValue(search);
@@ -182,6 +196,10 @@ export function CustomerManagementPage({
     // 사라졌다" 혼동을 만들던 것 해소. all 복귀 시 값이 살아 있어 pill로 다시 제어한다(배치 6 A#3).
     const activeChanceFilter = mode === "all" ? chanceFilter : "";
     const activeFinalUpdateFilter = mode === "all" ? finalUpdateFilter : "";
+    // 진행 상태 1차/2차 필터도 delivery mode에선 해제 UI가 없다(단계 pill과 완전 중복이라 숨김) —
+    // 같은 이유로 잔존 값을 적용하지 않는다(A#3 선례 미러). delivery를 벗어나면 pill로 다시 제어.
+    const activeStatusGroup = mode === "delivery" ? "" : statusGroup;
+    const activeStatus = mode === "delivery" ? "" : status;
     return customers.filter((customer) => {
       const searchable = normalizeSearchValue(`${customer.name} ${customer.phone} ${customer.phoneSecondary ?? ""} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${aiHintPlainText(customer)}`);
       const chance = resolveChance(customer, chanceOverrides[customer.no]);
@@ -190,13 +208,21 @@ export function CustomerManagementPage({
       }).status?.label ?? "";
       return modeFilter(mode, customer) &&
         (!keyword || searchable.includes(keyword)) &&
-        (!statusGroup || customer.statusGroup === statusGroup) &&
-        (!status || customer.status === status) &&
+        (!activeStatusGroup || customer.statusGroup === activeStatusGroup) &&
+        (!activeStatus || customer.status === activeStatus) &&
         (!advisor || customer.advisor === advisor) &&
         (!activeChanceFilter || chance === activeChanceFilter) &&
         (!activeFinalUpdateFilter || updateStatus === activeFinalUpdateFilter);
     });
   }, [advisor, chanceFilter, chanceOverrides, customers, finalUpdateFilter, finalUpdateOverrides, mode, search, status, statusGroup]);
+
+  const rows = useMemo(() => {
+    if (mode !== "delivery") return baseRows;
+    // pill 필터 + 예정일 정렬. filter가 새 배열이라 sort in-place 안전, 동률은 sort 안정성으로 baseRows 순서(receivedAt desc) 유지.
+    return baseRows.filter((customer) => matchesDeliveryPill(deliveryPill, customer.status)).sort(compareDeliverySchedule);
+  }, [baseRows, deliveryPill, mode]);
+  // pill 카운트는 pill 적용 전(검색·담당 등 다른 필터는 적용 후) 집합 기준 — 분포와 현재 선택이 함께 보인다.
+  const deliveryCounts = useMemo(() => (mode === "delivery" ? deliveryPillCounts(baseRows.map((c) => c.status)) : null), [baseRows, mode]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const effectivePage = Math.min(currentPage, totalPages);
@@ -252,7 +278,7 @@ export function CustomerManagementPage({
   }, [openPageSize]);
 
   function isTableControlTarget(target: EventTarget | null) {
-    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control"));
+    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .delivery-schedule-wrap"));
   }
 
   useEffect(() => {
@@ -291,6 +317,52 @@ export function CustomerManagementPage({
       document.removeEventListener("keydown", closeStagePickerByKeyboard);
     };
   }, [openStagePicker]);
+
+  useEffect(() => {
+    if (openDeliveryScheduleFor === null) return;
+
+    function closeDeliverySchedule(event: PointerEvent) {
+      if (deliverySchedulePopoverRef.current?.contains(event.target as Node)) return;
+      if (isTableControlTarget(event.target)) return;
+      suppressOutsideClickRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      setOpenDeliveryScheduleFor(null);
+    }
+
+    function suppressOutsideClick(event: globalThis.MouseEvent) {
+      if (!suppressOutsideClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.setTimeout(() => {
+        suppressOutsideClickRef.current = false;
+      }, 0);
+    }
+
+    function closeDeliveryScheduleByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setOpenDeliveryScheduleFor(null);
+    }
+
+    // T13: 팝오버가 position:fixed(콘솔 래퍼 overflow:hidden 클리핑 탈출)로 바뀌어 스크롤을 따라가지
+    // 않는다 — 앵커에서 분리되는 걸 막기 위해 스크롤 발생 시 닫는다.
+    function closeDeliveryScheduleOnScroll() {
+      setOpenDeliveryScheduleFor(null);
+    }
+
+    document.addEventListener("pointerdown", closeDeliverySchedule, true);
+    document.addEventListener("click", suppressOutsideClick, true);
+    document.addEventListener("keydown", closeDeliveryScheduleByKeyboard);
+    // (capture — 테이블 내부 스크롤 포함. 팝오버 내부엔 스크롤 요소가 없어 오탐 없음)
+    document.addEventListener("scroll", closeDeliveryScheduleOnScroll, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeDeliverySchedule, true);
+      document.removeEventListener("click", suppressOutsideClick, true);
+      document.removeEventListener("keydown", closeDeliveryScheduleByKeyboard);
+      document.removeEventListener("scroll", closeDeliveryScheduleOnScroll, true);
+    };
+  }, [openDeliveryScheduleFor]);
 
   useEffect(() => {
     if (openChanceFor === null) return;
@@ -473,6 +545,7 @@ export function CustomerManagementPage({
     setOpenStagePicker(null);
     setOpenChanceFor(null);
     setOpenExtraFor(null);
+    setOpenDeliveryScheduleFor(null);
     setOpenFinalUpdateFor((current) => current === customerNo ? null : customerNo);
   }
 
@@ -610,6 +683,7 @@ export function CustomerManagementPage({
   function toggleChancePopover(customerNo: number) {
     setOpenStagePicker(null);
     setOpenFinalUpdateFor(null);
+    setOpenDeliveryScheduleFor(null);
     setOpenChanceFor((current) => current === customerNo ? null : customerNo);
   }
 
@@ -617,6 +691,7 @@ export function CustomerManagementPage({
     setOpenChanceFor(null);
     setOpenExtraFor(null);
     setOpenFinalUpdateFor(null);
+    setOpenDeliveryScheduleFor(null);
     setOpenStagePicker((current) => current?.customerNo === customerNo && current.level === level ? null : { customerNo, level });
   }
 
@@ -731,7 +806,68 @@ export function CustomerManagementPage({
     setOpenStagePicker(null);
     setOpenChanceFor(null);
     setOpenFinalUpdateFor(null);
+    setOpenDeliveryScheduleFor(null);
     setOpenExtraFor((current) => current === extraId ? null : extraId);
+  }
+
+  function toggleDeliverySchedulePopover(customerNo: number) {
+    setOpenStagePicker(null);
+    setOpenChanceFor(null);
+    setOpenExtraFor(null);
+    setOpenFinalUpdateFor(null);
+    setDeliveryNotice(null);
+    setOpenDeliveryScheduleFor((current) => (current === customerNo ? null : customerNo));
+  }
+
+  // 낙관 갱신 + fail-loud(customer-children이 상세 캐시 무효화를 이미 수행 — 드로어 정합 자동).
+  async function saveDeliverySchedule(customer: Customer, draft: { date: string; time: string }) {
+    const submit = resolveDeliveryScheduleSubmit(customer.nextDeliverySchedule ?? null, draft);
+    if (submit.kind === "invalid") { setDeliveryNotice(submit.reason); return; }
+    if (!customer.id) { setDeliveryNotice("목업 행에는 저장할 수 없습니다."); return; }
+    const cid = customer.id;
+    setSavingDeliveryFor(customer.no);
+    setDeliveryNotice(null);
+    try {
+      let next: NextDeliverySchedule;
+      if (submit.kind === "create") {
+        const created = await addSchedule(cid, submit.body);
+        next = { id: created.id, date: submit.body.scheduledDate, time: submit.body.scheduledTime };
+      } else {
+        await updateSchedule(cid, submit.id, submit.body);
+        next = { id: submit.id, date: submit.body.scheduledDate, time: submit.body.scheduledTime };
+      }
+      // 성공 반영은 서버 리로드 규약(#234 deleteSelected와 동일 — updateCustomers 낙관 경로는
+      // 렌더 클로저 배열 통째 교체라 in-flight 중 다른 행 갱신을 되돌리는 클로버가 있다).
+      // 리로드는 복수 '출고' 일정의 대표 승계(spec §5.4)까지 서버 진실로 해소한다.
+      // 단독(stories/test) 렌더엔 리로드 콜백이 없어 낙관 갱신 폴백(단일 액터라 클로버 무관).
+      if (onCustomerListChanged) await onCustomerListChanged();
+      else updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: next } : c)));
+      // 겹침 간섭 가드: in-flight 중 다른 행 팝오버가 열렸다면 그 팝오버/스피너를 건드리지 않는다.
+      setOpenDeliveryScheduleFor((current) => (current === customer.no ? null : current));
+    } catch {
+      setDeliveryNotice("출고 예정 저장에 실패했습니다. 다시 시도해 주세요.");
+    } finally {
+      setSavingDeliveryFor((current) => (current === customer.no ? null : current));
+    }
+  }
+
+  async function deleteDeliverySchedule(customer: Customer) {
+    const schedule = customer.nextDeliverySchedule;
+    if (!schedule || !customer.id) return;
+    setSavingDeliveryFor(customer.no);
+    setDeliveryNotice(null);
+    try {
+      await deleteSchedule(customer.id, schedule.id);
+      // 대표 1건 통로(spec §5.4): 다른 미완료 '출고' 일정이 있으면 다음 서버 리로드에서 그 행이 대표로 승계.
+      // 성공 반영 = 서버 리로드 규약(#234, saveDeliverySchedule과 동일 근거).
+      if (onCustomerListChanged) await onCustomerListChanged();
+      else updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: null } : c)));
+      setOpenDeliveryScheduleFor((current) => (current === customer.no ? null : current));
+    } catch {
+      setDeliveryNotice("출고 예정 삭제에 실패했습니다. 다시 시도해 주세요.");
+    } finally {
+      setSavingDeliveryFor((current) => (current === customer.no ? null : current));
+    }
   }
 
   function renderRow(customer: Customer) {
@@ -806,6 +942,31 @@ export function CustomerManagementPage({
           <td className="num">{customer.cost}</td>
           <td><strong className="num">{customer.margin}</strong></td>
           <td><span className="badge green">{customer.settlementStatus}</span></td>
+          {actions}
+        </tr>
+      );
+    }
+
+    if (mode === "delivery") {
+      // 출고 단계 셀 = 계약완료 2차 상태 버튼 재사용(secondaryOnly — 1차는 이 큐에서 무의미).
+      return (
+        <tr key={customer.no} {...rowProps}>
+          {check}
+          {customerCell}
+          {vehicleCell}
+          <CustomerStageCell customer={customer} onChangePrimary={changeTwoStepPrimaryStage} onChangeSecondary={changeTwoStepSecondaryStage} onOpenPicker={openTwoStepStagePicker} pickerLevel={twoStepPickerOpen} secondaryOnly stagePickerRef={stagePickerRef} />
+          <CustomerDeliveryScheduleCell
+            customer={customer}
+            notice={openDeliveryScheduleFor === customer.no ? deliveryNotice : null}
+            open={openDeliveryScheduleFor === customer.no}
+            popoverRef={deliverySchedulePopoverRef}
+            saving={savingDeliveryFor === customer.no}
+            onDelete={() => void deleteDeliverySchedule(customer)}
+            onSave={(draft) => void saveDeliverySchedule(customer, draft)}
+            onToggle={() => toggleDeliverySchedulePopover(customer.no)}
+          />
+          <td>{customer.deliveryMethod || "—"}</td>
+          {showAdvisorColumn && <td><strong>{customer.advisor}</strong><span className="table-note">{customer.team}</span></td>}
           {actions}
         </tr>
       );
@@ -905,8 +1066,8 @@ export function CustomerManagementPage({
     <section className="customer-console-page">
       <section className="card customer-console-card">
         <div className="customer-console-control-rail" ref={consoleFilterRailRef}>
-          <div className="toolbar customer-console-toolbar">
-            <div className="total-count">전체 <strong className="num">{rows.length}</strong><span>명</span></div>
+          <div className={mode === "delivery" ? "toolbar customer-console-toolbar customer-console-toolbar--delivery" : "toolbar customer-console-toolbar"}>
+            <div className="total-count">{mode === "delivery" ? deliveryCountLabel(deliveryPill) : "전체"} <strong className="num">{loaded ? rows.length : ""}</strong><span>명</span></div>
             <label className="customer-console-search">
               <Search aria-hidden="true" size={15} strokeWidth={2.4} />
               <input onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
@@ -919,25 +1080,31 @@ export function CustomerManagementPage({
               onChange: setAdvisor,
               extraClassName: "filter-advisor",
             })}
-            {renderConsoleFilter({
-              id: "statusGroup",
-              label: "진행 상태 · 1차",
-              value: statusGroup,
-              items: consoleFilterOptions.statusGroup,
-              onChange: (value) => {
-                setStatusGroup(value);
-                setStatus("");
-              },
-              extraClassName: "filter-stage",
-            })}
-            {renderConsoleFilter({
-              id: "status",
-              label: "진행 상태 · 2차",
-              value: status,
-              items: consoleFilterOptions.status,
-              onChange: setStatus,
-              extraClassName: "filter-stage",
-            })}
+            {/* delivery는 진행 상태 필터를 숨긴다 — 1차는 계약완료 고정 스코프라 무의미, 2차는 단계 pill과
+                완전 중복이라 모순 조합(2차=출고완료 ∧ pill=진행 중 → 상시 0명)만 만든다. 담당자·검색은 공통 유지. */}
+            {mode !== "delivery" && (
+              <>
+                {renderConsoleFilter({
+                  id: "statusGroup",
+                  label: "진행 상태 · 1차",
+                  value: statusGroup,
+                  items: consoleFilterOptions.statusGroup,
+                  onChange: (value) => {
+                    setStatusGroup(value);
+                    setStatus("");
+                  },
+                  extraClassName: "filter-stage",
+                })}
+                {renderConsoleFilter({
+                  id: "status",
+                  label: "진행 상태 · 2차",
+                  value: status,
+                  items: consoleFilterOptions.status,
+                  onChange: setStatus,
+                  extraClassName: "filter-stage",
+                })}
+              </>
+            )}
             <div className="list-view-controls">
               {isAllMode ? (
                 <>
@@ -957,6 +1124,23 @@ export function CustomerManagementPage({
                     onChange: (value) => setFinalUpdateFilter(value as "" | FinalUpdateFilterOption),
                     extraClassName: "view-select filter-compact",
                   })}
+                </>
+              ) : mode === "delivery" ? (
+                <>
+                  {/* 출고 단계 필터 pill — no-op 뷰 select 대체(spec D4·D8). 다른 mode의 mock 뷰는 불변.
+                      filterSelectClass(.select)는 쓰지 않는다 — select 스킨(chevron 배경·고정 100px 폭)을
+                      상속해 드롭다운처럼 보이고 카운트 라벨이 줄바꿈으로 pill 밖으로 샜다(1440px 실측). */}
+                  {DELIVERY_STAGE_PILLS.map((pill) => (
+                    <button
+                      aria-pressed={deliveryPill === pill}
+                      className={deliveryPill === pill ? "delivery-stage-pill active" : "delivery-stage-pill"}
+                      key={pill}
+                      onClick={() => { setDeliveryPill(pill); setCurrentPage(1); }}
+                      type="button"
+                    >
+                      <span>{loaded && deliveryCounts ? `${pill} ${deliveryCounts[pill] ?? 0}` : pill}</span>
+                    </button>
+                  ))}
                 </>
               ) : (
                 <>
