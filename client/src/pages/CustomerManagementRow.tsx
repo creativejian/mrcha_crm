@@ -109,6 +109,7 @@ export function CustomerVehicleCell({
 export function CustomerStageCell({
   customer,
   pickerLevel,
+  secondaryOnly = false,
   stagePickerRef,
   onOpenPicker,
   onChangePrimary,
@@ -116,6 +117,9 @@ export function CustomerStageCell({
 }: {
   customer: Customer;
   pickerLevel: StagePickerLevel | null;
+  // true면 1차 컨트롤+커넥터를 렌더하지 않는다(출고 콘솔 — statusGroup이 이미 "계약완료"로 고정된
+  // 큐라 1차 전이는 무의미. 2차 블록은 무수정 재사용, 옵션은 statusGroup 종속이라 자동으로 계약완료 5종).
+  secondaryOnly?: boolean;
   stagePickerRef: RefObject<HTMLDivElement | null>;
   onOpenPicker: (customerNo: number, level: StagePickerLevel) => void;
   onChangePrimary: (customerNo: number, nextGroup: string) => void;
@@ -126,48 +130,52 @@ export function CustomerStageCell({
   return (
     <td className="stage-cell stage-cell-two-step-preview">
       <div className="stage-two-step-stack" ref={pickerLevel ? stagePickerRef : undefined}>
-        <div className="stage-control">
-          <button
-            aria-expanded={pickerLevel === "primary"}
-            aria-haspopup="listbox"
-            aria-label={`진행 1단계 변경: ${customer.statusGroup}`}
-            className="stage-step-button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenPicker(customer.no, "primary");
-            }}
-            onPointerDown={stopTableControlPointer}
-            type="button"
-          >
-            <span>{customer.statusGroup}</span>
-          </button>
-          {pickerLevel === "primary" && (
-            <div aria-label="진행 1단계 선택" className="stage-two-step-popover level-primary" role="listbox">
-              <div className="stage-two-step-options">
-                {primaryStageOptions.map((value) => {
-                  const selected = value === customer.statusGroup;
-                  return (
-                    <button
-                      aria-selected={selected}
-                      className={selected ? "stage-two-step-option level-primary active" : "stage-two-step-option level-primary"}
-                      key={value}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onChangePrimary(customer.no, value);
-                      }}
-                      role="option"
-                      type="button"
-                    >
-                      <span>{value}</span>
-                      {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
-                    </button>
-                  );
-                })}
-              </div>
+        {!secondaryOnly && (
+          <>
+            <div className="stage-control">
+              <button
+                aria-expanded={pickerLevel === "primary"}
+                aria-haspopup="listbox"
+                aria-label={`진행 1단계 변경: ${customer.statusGroup}`}
+                className="stage-step-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenPicker(customer.no, "primary");
+                }}
+                onPointerDown={stopTableControlPointer}
+                type="button"
+              >
+                <span>{customer.statusGroup}</span>
+              </button>
+              {pickerLevel === "primary" && (
+                <div aria-label="진행 1단계 선택" className="stage-two-step-popover level-primary" role="listbox">
+                  <div className="stage-two-step-options">
+                    {primaryStageOptions.map((value) => {
+                      const selected = value === customer.statusGroup;
+                      return (
+                        <button
+                          aria-selected={selected}
+                          className={selected ? "stage-two-step-option level-primary active" : "stage-two-step-option level-primary"}
+                          key={value}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onChangePrimary(customer.no, value);
+                          }}
+                          role="option"
+                          type="button"
+                        >
+                          <span>{value}</span>
+                          {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <span aria-hidden="true" className="stage-step-connector">›</span>
+            <span aria-hidden="true" className="stage-step-connector">›</span>
+          </>
+        )}
         <div className="stage-control">
           <button
             aria-expanded={pickerLevel === "secondary"}

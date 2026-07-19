@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { initialCustomers } from "@/data/customers";
@@ -455,5 +455,27 @@ describe("CustomerManagementPage", () => {
     await user.click(screen.getByText("박서연"));
     expect(screen.queryByRole("listbox", { name: "가능성 선택" })).not.toBeInTheDocument();
     expect(onOpenCustomer).not.toHaveBeenCalled();
+  });
+});
+
+// 출고 관리(delivery) 콘솔 1단계 — 계약완료 2차 상태를 출고 단계 작업 큐로 재구성.
+// 이 시점(Task 5)은 기본 pill 필터가 아직 없어(Task 6) mode 필터(statusGroup === "계약완료")를
+// 통과한 계약완료 3명(최유진 출고완료·한지훈 배정완료·김도현 딜러사계약중)이 전부 노출된다.
+describe("출고 관리(delivery) 콘솔", () => {
+  it("헤더 = 선택/고객/차량/출고 단계/출고 예정/인도 방식/담당/관리", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    const heads = screen.getAllByRole("columnheader").map((th) => th.textContent);
+    // index 0(선택) 헤더는 텍스트가 아니라 전체선택 체크박스를 렌더한다(기존 all mode 테스트와 동일 관례).
+    expect(heads).toEqual(["", "고객", "차량", "출고 단계", "출고 예정", "인도 방식", "담당", "관리"]);
+  });
+
+  it("출고 단계 셀 = 2차 상태 버튼(1차 버튼 없음), 팝오버 옵션 = 계약완료 2차 5종", async () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    const stageButton = screen.getByRole("button", { name: "진행 2단계 변경: 배정완료" });
+    expect(screen.queryByRole("button", { name: "진행 1단계 변경: 계약완료" })).toBeNull();
+    fireEvent.click(stageButton);
+    const listbox = screen.getByRole("listbox", { name: "진행 2단계 선택" });
+    const options = within(listbox).getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["딜러사계약중", "대리점발주중", "특판발주중", "배정완료", "출고완료"]);
   });
 });

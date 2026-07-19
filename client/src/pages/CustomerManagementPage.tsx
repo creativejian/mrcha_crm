@@ -11,6 +11,7 @@ import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
 import { changeAdvisorBulk } from "@/lib/customer-bulk-advisor";
 import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-delete";
+import { deliveryScheduleLabel } from "@/lib/delivery-console";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -52,7 +53,7 @@ const headsByMode: Record<CustomerMode, string[]> = {
   all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
   consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "상담 메모", "담당", "관리"],
   contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "상담 메모", "담당", "관리"],
-  delivery: ["선택", "고객", "차량", "출고 상태", "출고 업무", "담당", "관리"],
+  delivery: ["선택", "고객", "차량", "출고 단계", "출고 예정", "인도 방식", "담당", "관리"],
   settlement: ["선택", "고객", "차종 · 구매방식", "출고일", "수수료", "비용", "마진", "정산 상태", "관리"],
   hold: ["선택", "고객", "차종 · 구매방식", "상태", "이탈 / 보류 요약", "재컨택 액션", "담당", "관리"],
 };
@@ -61,7 +62,7 @@ const tableColumnsByMode: Record<CustomerMode, string[]> = {
   all: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
   consulting: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
   contract: ["select", "customer", "type", "vehicle", "stage", "summary", "action", "advisor", "actions"],
-  delivery: ["select", "customer", "vehicle", "stage", "summary", "advisor", "actions"],
+  delivery: ["select", "customer", "vehicle", "stage", "schedule", "method", "advisor", "actions"],
   settlement: ["select", "customer", "vehicle", "date", "money", "money", "money", "stage", "actions"],
   hold: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
 };
@@ -806,6 +807,24 @@ export function CustomerManagementPage({
           <td className="num">{customer.cost}</td>
           <td><strong className="num">{customer.margin}</strong></td>
           <td><span className="badge green">{customer.settlementStatus}</span></td>
+          {actions}
+        </tr>
+      );
+    }
+
+    if (mode === "delivery") {
+      // 출고 단계 셀 = 계약완료 2차 상태 버튼 재사용(secondaryOnly — 1차는 이 큐에서 무의미).
+      // 출고 예정 셀은 이 단계에선 표시 전용(팝오버로 생성/수정/삭제하는 것은 Task 7).
+      const scheduleLabel = deliveryScheduleLabel(customer.nextDeliverySchedule, new Date());
+      return (
+        <tr key={customer.no} {...rowProps}>
+          {check}
+          {customerCell}
+          {vehicleCell}
+          <CustomerStageCell customer={customer} onChangePrimary={changeTwoStepPrimaryStage} onChangeSecondary={changeTwoStepSecondaryStage} onOpenPicker={openTwoStepStagePicker} pickerLevel={twoStepPickerOpen} secondaryOnly stagePickerRef={stagePickerRef} />
+          <td>{scheduleLabel ? scheduleLabel.text : <span className="table-note">미지정</span>}</td>
+          <td>{customer.deliveryMethod || "—"}</td>
+          {showAdvisorColumn && <td><strong>{customer.advisor}</strong><span className="table-note">{customer.team}</span></td>}
           {actions}
         </tr>
       );
