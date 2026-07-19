@@ -92,17 +92,5 @@ export function resolveDeliveryScheduleSubmit(
   return { kind: "create", body: { scheduledDate: date, scheduledTime: time, type: DELIVERY_SCHEDULE_TYPE, done: false } };
 }
 
-// 팝오버 fixed 배치 계산(spec §5.4 후속 — 콘솔 래퍼 overflow:hidden 클리핑 탈출).
-// 기본 = 앵커 아래(+6px). 아래가 뷰포트를 넘으면 위로(flip-up), 좌우는 뷰포트 안으로 클램프.
-export function resolveFixedPopoverPosition(
-  anchor: { top: number; bottom: number; left: number },
-  popover: { width: number; height: number },
-  viewport: { width: number; height: number },
-): { top: number; left: number; openUp: boolean } {
-  const MARGIN = 8;
-  const GAP = 6;
-  const openUp = anchor.bottom + GAP + popover.height > viewport.height - MARGIN && anchor.top - GAP - popover.height >= MARGIN;
-  const top = openUp ? anchor.top - GAP - popover.height : anchor.bottom + GAP;
-  const left = Math.max(MARGIN, Math.min(anchor.left, viewport.width - popover.width - MARGIN));
-  return { top, left, openUp };
-}
+// 팝오버 fixed 배치 계산(spec §5.4 후속)은 진행 상태·가능성 팝오버와 공유하게 되며
+// lib/popover-position.ts(중립 모듈)로 이동했다 — 2026-07-19 클리핑 확산 픽스.

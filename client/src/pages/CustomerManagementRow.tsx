@@ -3,11 +3,68 @@
 // 셀별 props는 각 셀이 의존하는 상태/핸들러/ref와 1:1로 대응한다.
 import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
+import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
-import { deliveryScheduleLabel, resolveFixedPopoverPosition } from "@/lib/delivery-console";
+import { deliveryScheduleLabel } from "@/lib/delivery-console";
+import { resolveFixedPopoverPosition } from "@/lib/popover-position";
+
+// 행 팝오버 fixed 배치 공유 훅(2026-07-19 클리핑 확산 픽스) — 콘솔 래퍼
+// `.console-table-scroll{overflow:hidden}`(콘솔 서피스 SSOT·불가침)이 absolute 팝오버를 마지막 행에서
+// 절단하던 결함의 탈출 경로. 팝오버 루트에서 closest(anchorSelector)로 앵커를 찾아 뷰포트 rect 기준
+// 좌표를 계산한다(useLayoutEffect = paint 전 1회 — pos 미확정 구간은 호출부가 visibility:hidden 방어).
+// fixed는 스크롤을 따라가지 않으므로 열림 상태의 스크롤 닫기는 페이지 effect가 담당한다.
+// heightDep: 마운트 후 팝오버 높이를 바꾸는 상태(notice 등)가 있으면 넘겨 재계산한다.
+function useFixedPopoverPosition(rootRef: RefObject<HTMLElement | null>, anchorSelector: string, heightDep?: unknown) {
+  const [pos, setPos] = useState<ReturnType<typeof resolveFixedPopoverPosition> | null>(null);
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    const anchorEl = el?.closest(anchorSelector);
+    if (!el || !anchorEl) return;
+    const anchor = anchorEl.getBoundingClientRect();
+    setPos(resolveFixedPopoverPosition(
+      { top: anchor.top, bottom: anchor.bottom, left: anchor.left },
+      { width: el.offsetWidth, height: el.offsetHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+    ));
+  }, [rootRef, anchorSelector, heightDep]);
+  return pos;
+}
+
+// 진행 상태 1차/2차 팝오버 껍데기 — 레벨 전환은 서로 다른 .stage-control 서브트리라 재마운트되고,
+// 마운트마다 자기 앵커를 새로 측정한다(레벨 전환 앵커 재계산은 이 리마운트가 담당).
+function StageOptionsPopover({ ariaLabel, level, children }: { ariaLabel: string; level: StagePickerLevel; children: ReactNode }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const pos = useFixedPopoverPosition(rootRef, ".stage-control");
+  return (
+    <div
+      aria-label={ariaLabel}
+      className={`stage-two-step-popover level-${level}`}
+      ref={rootRef}
+      role="listbox"
+      style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
+    >
+      <div className="stage-two-step-options">{children}</div>
+    </div>
+  );
+}
+
+function ChanceOptionsPopover({ children }: { children: ReactNode }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const pos = useFixedPopoverPosition(rootRef, ".chance-control");
+  return (
+    <div
+      aria-label="가능성 선택"
+      className="chance-status-popover"
+      ref={rootRef}
+      role="listbox"
+      style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function stopTableControlPointer(event: ReactPointerEvent<HTMLElement>) {
   event.stopPropagation();
@@ -151,29 +208,27 @@ export function CustomerStageCell({
                 <span>{customer.statusGroup}</span>
               </button>
               {pickerLevel === "primary" && (
-                <div aria-label="진행 1단계 선택" className="stage-two-step-popover level-primary" role="listbox">
-                  <div className="stage-two-step-options">
-                    {primaryStageOptions.map((value) => {
-                      const selected = value === customer.statusGroup;
-                      return (
-                        <button
-                          aria-selected={selected}
-                          className={selected ? "stage-two-step-option level-primary active" : "stage-two-step-option level-primary"}
-                          key={value}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onChangePrimary(customer.no, value);
-                          }}
-                          role="option"
-                          type="button"
-                        >
-                          <span>{value}</span>
-                          {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <StageOptionsPopover ariaLabel="진행 1단계 선택" level="primary">
+                  {primaryStageOptions.map((value) => {
+                    const selected = value === customer.statusGroup;
+                    return (
+                      <button
+                        aria-selected={selected}
+                        className={selected ? "stage-two-step-option level-primary active" : "stage-two-step-option level-primary"}
+                        key={value}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onChangePrimary(customer.no, value);
+                        }}
+                        role="option"
+                        type="button"
+                      >
+                        <span>{value}</span>
+                        {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
+                      </button>
+                    );
+                  })}
+                </StageOptionsPopover>
               )}
             </div>
             <span aria-hidden="true" className="stage-step-connector">›</span>
@@ -196,29 +251,27 @@ export function CustomerStageCell({
             {showNewLeadBadge && <span className="stage-new-badge">NEW</span>}
           </button>
           {pickerLevel === "secondary" && (
-            <div aria-label="진행 2단계 선택" className="stage-two-step-popover level-secondary" role="listbox">
-              <div className="stage-two-step-options">
-                {secondaryStageOptions.map((value) => {
-                  const selected = value === customer.status;
-                  return (
-                    <button
-                      aria-selected={selected}
-                      className={[statusButtonClass(value, customer.statusGroup), "stage-two-step-option level-secondary", selected ? "active" : ""].filter(Boolean).join(" ")}
-                      key={value}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onChangeSecondary(customer.no, value);
-                      }}
-                      role="option"
-                      type="button"
-                    >
-                      <span>{value}</span>
-                      {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <StageOptionsPopover ariaLabel="진행 2단계 선택" level="secondary">
+              {secondaryStageOptions.map((value) => {
+                const selected = value === customer.status;
+                return (
+                  <button
+                    aria-selected={selected}
+                    className={[statusButtonClass(value, customer.statusGroup), "stage-two-step-option level-secondary", selected ? "active" : ""].filter(Boolean).join(" ")}
+                    key={value}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onChangeSecondary(customer.no, value);
+                    }}
+                    role="option"
+                    type="button"
+                  >
+                    <span>{value}</span>
+                    {selected && <Check aria-hidden="true" size={13} strokeWidth={2.6} />}
+                  </button>
+                );
+              })}
+            </StageOptionsPopover>
           )}
         </div>
       </div>
@@ -339,7 +392,7 @@ export function CustomerChanceCell({
           </div>
         )}
         {openChanceFor === customer.no && (
-          <div aria-label="가능성 선택" className="chance-status-popover" role="listbox">
+          <ChanceOptionsPopover>
             {CHANCE_OPTIONS.map((value) => {
               const selectedChance = value === chance;
               return (
@@ -359,7 +412,7 @@ export function CustomerChanceCell({
                 </button>
               );
             })}
-          </div>
+          </ChanceOptionsPopover>
         )}
       </div>
     </td>
@@ -551,22 +604,8 @@ function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: 
   const [date, setDate] = useState(initial?.date ?? "");
   const [time, setTime] = useState(initial?.time?.slice(0, 5) ?? "");
   const rootRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<ReturnType<typeof resolveFixedPopoverPosition> | null>(null);
-  const hasNotice = Boolean(notice);
-
-  // layout effect(paint 전) — 마운트 시 1회 계산. notice 등장/소멸로 박스 높이가 바뀔 수 있어
-  // deps에 포함(날짜/시간 타이핑은 높이에 영향 없어 deps 제외 — 과도한 재계산 방지).
-  useLayoutEffect(() => {
-    const el = rootRef.current;
-    const wrap = el?.closest(".delivery-schedule-wrap");
-    if (!el || !wrap) return;
-    const anchor = wrap.getBoundingClientRect();
-    setPos(resolveFixedPopoverPosition(
-      { top: anchor.top, bottom: anchor.bottom, left: anchor.left },
-      { width: el.offsetWidth, height: el.offsetHeight },
-      { width: window.innerWidth, height: window.innerHeight },
-    ));
-  }, [hasNotice]);
+  // notice 등장/소멸로 박스 높이가 바뀔 수 있어 heightDep로 재계산(날짜/시간 타이핑은 높이 무관 — 제외).
+  const pos = useFixedPopoverPosition(rootRef, ".delivery-schedule-wrap", Boolean(notice));
 
   return (
     <div

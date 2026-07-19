@@ -603,3 +603,61 @@ describe("출고 관리(delivery) 콘솔", () => {
     await waitFor(() => expect(reload).toHaveBeenCalled());
   });
 });
+
+// 콘솔 행 팝오버 fixed 배치(2026-07-19 클리핑 확산 픽스) — 진행 상태·가능성 팝오버가
+// .console-table-scroll{overflow:hidden}(콘솔 서피스 SSOT·불가침)에 마지막 행에서 절단되던 결함을
+// 출고 예정 팝오버와 같은 fixed+flip-up 패턴으로 전환. 측정(useLayoutEffect)이 안 돌면 팝오버가
+// visibility:hidden에 갇혀 아예 안 보이므로 "인라인 좌표가 실린다" 단언이 배선 자체를 잠근다.
+describe("콘솔 행 팝오버 fixed 배치(클리핑 확산 픽스)", () => {
+  it("진행 1단계 팝오버는 인라인 fixed 좌표를 받고 visibility:hidden에 갇히지 않는다", async () => {
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="all" />);
+    const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
+    await user.click(within(row).getByRole("button", { name: "진행 1단계 변경: 견적" }));
+    const popover = screen.getByRole("listbox", { name: "진행 1단계 선택" });
+    expect(popover.style.top).not.toBe("");
+    expect(popover.style.visibility).not.toBe("hidden");
+  });
+
+  it("진행 2단계 팝오버(레벨 전환 재마운트)도 인라인 좌표를 받는다", async () => {
+    // 1차 선택 → 2차 자동 오픈 = 다른 앵커(.stage-control)에서 재마운트되는 경로 — 앵커 재계산 잠금.
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="all" />);
+    const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
+    await user.click(within(row).getByRole("button", { name: "진행 1단계 변경: 견적" }));
+    await user.click(within(screen.getByRole("listbox", { name: "진행 1단계 선택" })).getByRole("option", { name: "상담중" }));
+    const popover = screen.getByRole("listbox", { name: "진행 2단계 선택" });
+    expect(popover.style.top).not.toBe("");
+    expect(popover.style.visibility).not.toBe("hidden");
+  });
+
+  it("가능성 팝오버도 인라인 좌표를 받는다", async () => {
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="all" />);
+    const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
+    await user.click(within(row).getByRole("button", { name: "가능성 변경: 높음" }));
+    const popover = screen.getByRole("listbox", { name: "가능성 선택" });
+    expect(popover.style.top).not.toBe("");
+    expect(popover.style.visibility).not.toBe("hidden");
+  });
+
+  it("스크롤이 나면 진행 상태 팝오버를 닫는다(fixed는 앵커를 따라가지 않음 — T13 미러)", async () => {
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="all" />);
+    const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
+    await user.click(within(row).getByRole("button", { name: "진행 1단계 변경: 견적" }));
+    expect(screen.getByRole("listbox", { name: "진행 1단계 선택" })).toBeInTheDocument();
+    fireEvent.scroll(document.body);
+    expect(screen.queryByRole("listbox", { name: "진행 1단계 선택" })).not.toBeInTheDocument();
+  });
+
+  it("스크롤이 나면 가능성 팝오버를 닫는다", async () => {
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="all" />);
+    const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
+    await user.click(within(row).getByRole("button", { name: "가능성 변경: 높음" }));
+    expect(screen.getByRole("listbox", { name: "가능성 선택" })).toBeInTheDocument();
+    fireEvent.scroll(document.body);
+    expect(screen.queryByRole("listbox", { name: "가능성 선택" })).not.toBeInTheDocument();
+  });
+});

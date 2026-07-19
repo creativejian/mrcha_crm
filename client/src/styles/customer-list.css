@@ -746,10 +746,11 @@ th input:focus-visible {
   color: #7d67ff;
 }
 
+/* fixed 배치(2026-07-19 클리핑 확산 픽스) — 콘솔 래퍼 .console-table-scroll{overflow:hidden} 절단 탈출.
+   좌표(top/left)는 StageOptionsPopover가 앵커(.stage-control) rect 기준 계산해 인라인 style로 싣는다
+   (flip-up 포함 — lib/popover-position.ts). 스크롤 시엔 페이지 effect가 팝오버를 닫는다. */
 .stage-two-step-popover {
-  position: absolute;
-  top: calc(100% + 9px);
-  left: 0;
+  position: fixed;
   z-index: 160;
   min-width: 164px;
   border: 1px solid #dededb;
@@ -891,11 +892,10 @@ th input:focus-visible {
   box-shadow: 0 2px 2px rgba(15, 23, 42, 0.1), 0 6px 12px rgba(15, 23, 42, 0.12), 0 0 0 2px rgba(var(--brand-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
-/* 아래 .chance-status-popover 블록이 대부분을 덮지만 position:absolute는 여기서만 온다 — 병합 금지. */
+/* 아래 .chance-status-popover 블록이 대부분을 덮지만 position은 여기서만 온다 — 병합 금지.
+   fixed 배치(2026-07-19 클리핑 확산 픽스) — 좌표는 ChanceOptionsPopover 인라인 style(스테이지 블록 주석 참조). */
 .chance-status-popover {
-  position: absolute;
-  left: -8px;
-  top: calc(100% + 10px);
+  position: fixed;
   z-index: 90;
   width: 236px;
   border: 1px solid var(--line);
@@ -908,9 +908,6 @@ th input:focus-visible {
 }
 
 .chance-status-popover {
-  left: 0;
-  right: auto;
-  top: calc(100% + 9px);
   z-index: 160;
   width: 70px;
   border: 1px solid #dededb;
