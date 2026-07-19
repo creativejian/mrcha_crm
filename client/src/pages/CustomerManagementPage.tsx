@@ -4,6 +4,7 @@ import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOU
 import { aiHintPlainText, badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
+import { normalizeSearchValue } from "@/lib/global-customer-search";
 import { createCustomer, prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
@@ -173,14 +174,16 @@ export function CustomerManagementPage({
 
   const statuses = statusGroup ? customerStatusGroups[statusGroup] : Object.values(customerStatusGroups).flat();
   const rows = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    // 통합검색과 같은 정규화(소문자+공백/하이픈 제거) — 같은 질의가 두 표면에서 다른 결과를 내지 않게
+    // (배치 9 A#1). 질의·haystack 양측 동일 삭제라 기존 매칭은 전부 보존(순수 additive).
+    const keyword = normalizeSearchValue(search);
     // 계약가능성·관리상태 필터는 all mode에만 pill이 있다(다른 mode엔 해제 UI가 없다). state는
     // 유지하되 비-all mode에선 적용하지 않는다 — 잔존 필터가 비-all 목록을 조용히 좁혀 "고객이
     // 사라졌다" 혼동을 만들던 것 해소. all 복귀 시 값이 살아 있어 pill로 다시 제어한다(배치 6 A#3).
     const activeChanceFilter = mode === "all" ? chanceFilter : "";
     const activeFinalUpdateFilter = mode === "all" ? finalUpdateFilter : "";
     return customers.filter((customer) => {
-      const searchable = `${customer.name} ${customer.phone} ${customer.phoneSecondary ?? ""} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${aiHintPlainText(customer)}`.toLowerCase();
+      const searchable = normalizeSearchValue(`${customer.name} ${customer.phone} ${customer.phoneSecondary ?? ""} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${aiHintPlainText(customer)}`);
       const chance = resolveChance(customer, chanceOverrides[customer.no]);
       const updateStatus = resolveUpdateBadge(customer, {
         finalUpdateOverride: finalUpdateOverrides[customer.no],

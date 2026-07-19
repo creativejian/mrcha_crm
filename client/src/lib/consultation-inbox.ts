@@ -66,7 +66,8 @@ export function buildConsultationInboxGroups(
   customers: readonly Customer[],
 ): ConsultationInboxGroup[] {
   // 매칭 후보 인덱스 — id 없는 행(프로토타입 목업)은 link 대상이 될 수 없어 제외.
-  // 같은 키 고객이 여럿이면 첫 고객(표시용 read — findPhoneDuplicate의 first-wins와 동일 규칙).
+  // 같은 키 고객이 여럿이면 byAppUser/byPhone은 첫 고객(first-wins — findPhoneDuplicate와 동일 규칙),
+  // byNameUnlinked는 전원 수집(동명 후보 나열 계약 — 이름 매칭 spec §3, first-wins 미적용).
   const byAppUser = new Map<string, MatchedCustomer>();
   const byPhone = new Map<string, MatchedCustomer>();
   const byNameUnlinked = new Map<string, MatchedCustomer[]>();

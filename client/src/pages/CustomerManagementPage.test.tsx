@@ -119,7 +119,7 @@ describe("CustomerManagementPage", () => {
   });
 
   // 추가 연락처(phoneSecondary)는 검색에 포함된다(2026-07-17 결정 — plan T5).
-  // searchable에는 하이픈 포맷값이 들어가므로(서버 어댑터 formatPhone) 질의도 포맷 기준으로 잠근다.
+  // 하이픈 포맷 질의 케이스 — 배치 9 A#1 정규화 후에도 포맷 질의가 계속 매칭됨을 잠근다(연속 숫자는 아래 테스트).
   it("finds a customer by the hyphen-formatted secondary phone", async () => {
     const user = userEvent.setup();
     const [first, second] = initialCustomers;
@@ -137,6 +137,27 @@ describe("CustomerManagementPage", () => {
 
     expect(screen.getByText("추가연락처보유")).toBeInTheDocument();
     expect(screen.queryByText("추가연락처없음")).not.toBeInTheDocument();
+  });
+
+  // 배치 9 A#1: 목록 검색도 통합검색(normalizeSearchValue)과 같은 정규화 — 연속 숫자 질의가
+  // 하이픈 포맷 phone에 매칭돼야 상단 통합검색과 같은 질의에 같은 결과를 낸다(#281 표면 간 드리프트 해소).
+  it("finds a customer by contiguous digits against the hyphen-formatted phone", async () => {
+    const user = userEvent.setup();
+    const [first, second] = initialCustomers;
+    render(
+      <CustomerManagementPage
+        customers={[
+          { ...first, name: "연속숫자매칭", phone: "010-9588-0812", phoneSecondary: undefined },
+          { ...second, name: "연속숫자무관", phone: "010-3333-5555", phoneSecondary: undefined },
+        ]}
+        mode="all"
+      />,
+    );
+
+    await user.type(screen.getByPlaceholderText("고객명, 연락처, 차종 검색"), "95880812");
+
+    expect(screen.getByText("연속숫자매칭")).toBeInTheDocument();
+    expect(screen.queryByText("연속숫자무관")).not.toBeInTheDocument();
   });
 
   // 목록 병기(주 · 추가)는 값이 있는 항목만 잇는다 — 주 번호 공란 + 추가 연락처만 있으면
