@@ -45,6 +45,10 @@ describe("pill 어휘·매칭·카운트", () => {
     expect(deliveryCountLabel(DELIVERY_PILL_ALL)).toBe("전체");
     expect(deliveryCountLabel("출고완료")).toBe("출고완료");
   });
+  it("빈 배열 카운트 = 7키 전부 0", () => {
+    const counts = deliveryPillCounts([]);
+    expect(Object.values(counts)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
 });
 
 describe("정렬 비교기(spec §5.5)", () => {
@@ -59,6 +63,14 @@ describe("정렬 비교기(spec §5.5)", () => {
     expect(compareDeliverySchedule(at("2026-07-25", null), at("2026-07-25", "09:00"))).toBeGreaterThan(0);
     expect(compareDeliverySchedule(at("2026-07-25", "09:00"), at("2026-07-25", "09:00"))).toBe(0);
   });
+  it("반대칭: compare(b,a) === -compare(a,b) (시간 null 분기 교차 포함)", () => {
+    const pairs: [Customer, Customer][] = [
+      [at("2026-07-25", null), at("2026-07-25", "09:00")],
+      [at("2026-07-20", null), at("2026-07-25", null)],
+      [c({}), at("2026-07-25", null)],
+    ];
+    for (const [a, b] of pairs) expect(compareDeliverySchedule(b, a)).toBe(-compareDeliverySchedule(a, b));
+  });
 });
 
 describe("예정일 라벨(KST 지남 판정 — 브라우저 tz 무관 산술)", () => {
@@ -68,6 +80,9 @@ describe("예정일 라벨(KST 지남 판정 — 브라우저 tz 무관 산술)"
     expect(deliveryScheduleLabel({ id: "s", date: "2026-07-19", time: null }, now)?.overdue).toBe(true);
     expect(deliveryScheduleLabel({ id: "s", date: "2026-07-20", time: null }, now)?.overdue).toBe(false);
     expect(deliveryScheduleLabel({ id: "s", date: "2026-07-21", time: null }, now)?.overdue).toBe(false);
+  });
+  it("비패딩 날짜도 overdue를 정확 판정한다(파싱값 재조립 비교)", () => {
+    expect(deliveryScheduleLabel({ id: "s", date: "2026-7-5", time: null }, now)?.overdue).toBe(true);
   });
   it("표시 = M/D (요일) [HH:mm]", () => {
     expect(deliveryScheduleLabel({ id: "s", date: "2026-07-24", time: "14:00" }, now)?.text).toBe("7/24 (금) 14:00");

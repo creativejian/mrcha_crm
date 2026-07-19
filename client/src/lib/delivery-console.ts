@@ -65,7 +65,10 @@ export function deliveryScheduleLabel(
   if (!y || !m || !d) return null;
   const weekday = "일월화수목금토"[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
   const time = schedule.time ? ` ${schedule.time.slice(0, 5)}` : "";
-  return { text: `${m}/${d} (${weekday})${time}`, overdue: schedule.date < kstTodayDateString(now) };
+  // overdue는 원본이 아니라 파싱값 재조립(영패딩)으로 비교 — 비패딩 입력("2026-7-5")이
+  // 사전식 비교를 조용히 틀리게 내는 것 방어(현 소스는 전부 영패딩이라 도달 불가지만 한 줄 봉쇄).
+  const isoDate = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  return { text: `${m}/${d} (${weekday})${time}`, overdue: isoDate < kstTodayDateString(now) };
 }
 
 // 팝오버 제출 해석: 대표 일정 있으면 그 행 PATCH, 없으면 '출고' 일정 생성. 날짜 필수(fail-loud).
