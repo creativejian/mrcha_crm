@@ -44,4 +44,18 @@ describe("InsightsPage", () => {
 
     await screen.findByText("상세 본문");
   });
+
+  // 리로드 시 총 카운트가 "0"으로 그려졌다가 실제 수로 바뀌던 깜빡임 — 로드 완료 전엔 숫자를 비운다
+  // (0은 "정말 0건"의 의미로만. KnowledgeBasePage 미러 동일).
+  it("does not flash 0 in the total count while the list is loading", async () => {
+    let resolveList: (rows: InsightListItem[]) => void = () => {};
+    vi.mocked(fetchInsights).mockReturnValue(new Promise((resolve) => { resolveList = resolve; }));
+    render(<InsightsPage />);
+
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+
+    resolveList([item]);
+    await screen.findByText("인사이트 하나");
+    expect(screen.getByText("1")).toBeInTheDocument();
+  });
 });
