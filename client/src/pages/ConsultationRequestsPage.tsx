@@ -198,7 +198,9 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
                         <div className="app-req-match-inner">
                           <span className={MATCH_CLASS[g.matchType]}>{g.matchLabel}</span>
                           {g.matchType === "none" && g.canPromote && g.nameMatches.length > 0 && (
-                            <div className="app-req-name-suggest">
+                            /* 라벨·버튼 사이 여백 클릭이 행 펼침 토글로 번지지 않게 wrapper에서 차단
+                               (배치 8 B#3 .app-req-conflict 미러 — 배치 9 B-a) */
+                            <div className="app-req-name-suggest" onClick={stopRowToggle}>
                               <span className="app-req-name-suggest-label">이름이 같은 미연결 고객</span>
                               {g.nameMatches.map((m) => (
                                 <button

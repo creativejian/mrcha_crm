@@ -4,7 +4,7 @@ import { useAssistantThread } from "@/components/ai/useAssistantThread";
 import { type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
 import { signOut } from "@/lib/auth";
-import { filterGlobalCustomerSearch, normalizeSearchValue } from "@/lib/global-customer-search";
+import { filterGlobalCustomerSearch, globalSearchCountLabel, globalSearchEmptyState, normalizeSearchValue } from "@/lib/global-customer-search";
 import { fetchLiveConsulting, saveLiveConsulting } from "@/lib/live-consulting";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
@@ -103,6 +103,8 @@ type TopbarProps = {
   userName: string | null;
   userAvatarUrl: string | null;
   customers: Customer[]; // 상단 통합검색 대상 = App이 로드한 실 고객(목록과 같은 소스·스코프)
+  customersLoaded: boolean; // fetch 완료 여부(실패 포함) — 검색 빈 상태 3분기(배치 9 A#3)
+  customersError: boolean; // 마지막 fetch 실패 여부 — 〃
   onNavigate: (view: string) => void;
   onOpenCustomer: (customer: Customer) => void;
   onToggleSidebar: () => void;
@@ -121,7 +123,7 @@ const notifications = [
   ["정산", "최민석 출고 건 입금 확인 필요", "금융사 수수료 입금 상태를 정산 관리에서 확인하세요.", "어제 17:20"],
 ] as const;
 
-export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, customers, onNavigate, onOpenCustomer, onToggleSidebar, newAppRequestCount, pendingChatCount }: TopbarProps) {
+export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, customers, customersLoaded, customersError, onNavigate, onOpenCustomer, onToggleSidebar, newAppRequestCount, pendingChatCount }: TopbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -178,10 +180,12 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
   const accountScopeLabel = roleTab === "최고관리자" ? "전체 운영 권한" : roleTab === "팀장" ? "팀 상담 관리" : roleTab === "상담사" ? "상담 업무" : "딜러 포털";
   const hasGlobalSearchQuery = normalizeSearchValue(globalSearchQuery).length > 0;
   // 실 고객(customers prop)을 검색한다 — 종전엔 목업 initialCustomers를 필터해 실 데이터가 안 잡혔다.
-  const globalSearchResults = useMemo(
+  const globalSearch = useMemo(
     () => filterGlobalCustomerSearch(customers, globalSearchQuery),
     [customers, globalSearchQuery],
   );
+  // 빈 상태 3분기(배치 9 A#3) — 로딩/로드 실패를 "검색 결과 없음"으로 오도하지 않는다.
+  const globalSearchEmpty = globalSearchEmptyState(customersLoaded, customersError);
 
   function openSettingsMenu() {
     if (settingsCloseTimerRef.current) {
@@ -289,7 +293,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
   // 통합검색: Esc 닫기 + Enter로 첫 결과 열기.
   usePopoverDismiss(globalSearchRef, globalSearchOpen, () => setGlobalSearchOpen(false), {
     onKeyDown: (event) => {
-      if (event.key === "Enter" && globalSearchResults[0]) handleGlobalSearchCustomerOpen(globalSearchResults[0]);
+      if (event.key === "Enter" && globalSearch.hits[0]) handleGlobalSearchCustomerOpen(globalSearch.hits[0]);
     },
   });
 
@@ -384,21 +388,22 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
                       ))}
                     </div>
                   )}
-                  {hasGlobalSearchQuery && globalSearchResults.length > 0 && (
+                  {hasGlobalSearchQuery && globalSearch.hits.length > 0 && (
                     <div className="global-search-query-results">
                       <div className="global-search-section-head">
                         <strong>조회 결과</strong>
-                        <span>{globalSearchResults.length}명</span>
+                        {/* 상한 컷 시 총원 병기("N명 중 6명") — 6건이 전부로 읽히지 않게(배치 9 A#4) */}
+                        <span>{globalSearchCountLabel(globalSearch.total)}</span>
                       </div>
-                      {globalSearchResults.map((customer) => (
+                      {globalSearch.hits.map((customer) => (
                         <CustomerSearchResult customer={customer} key={customer.customerId} onOpen={handleGlobalSearchCustomerOpen} />
                       ))}
                     </div>
                   )}
-                  {hasGlobalSearchQuery && globalSearchResults.length === 0 && (
+                  {hasGlobalSearchQuery && globalSearch.hits.length === 0 && (
                     <div className="global-search-empty">
-                      <strong>검색 결과 없음</strong>
-                      <span>고객명, 연락처, 차량명, 고객번호를 다시 확인해주세요.</span>
+                      <strong>{globalSearchEmpty.title}</strong>
+                      <span>{globalSearchEmpty.hint}</span>
                     </div>
                   )}
                 </div>

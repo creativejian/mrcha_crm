@@ -387,6 +387,8 @@ export function App() {
           userName={auth.name}
           userAvatarUrl={auth.avatarUrl}
           customers={customers}
+          customersLoaded={customersLoaded}
+          customersError={customersError}
           onNavigate={handleViewChange}
           onOpenCustomer={openCustomerDetailPanel}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
