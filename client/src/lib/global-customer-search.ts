@@ -37,6 +37,15 @@ export function filterGlobalCustomerSearch(customers: Customer[], query: string)
   return { hits: matched.slice(0, GLOBAL_SEARCH_LIMIT), total: matched.length };
 }
 
+// 최근 조회 표시 해석(배치 9 A#5) — recent는 클릭 시점 스냅샷이라 그대로 그리면 ①삭제된 고객이 남아
+// 클릭 시 거짓 성공 토스트+드로어 미오픈+dangling URL ②이름/번호 수정이 옛 값으로 보인다. 현재
+// customers에서 id로 재해석해 삭제 고객은 숨기고 표시값은 항상 최신을 따른다(스냅샷은 id만 신뢰).
+export function resolveRecentSearchCustomers(recent: Customer[], customers: Customer[]): Customer[] {
+  return recent
+    .map((snapshot) => customers.find((customer) => customer.customerId === snapshot.customerId))
+    .filter((customer): customer is Customer => customer != null);
+}
+
 // 캡 카운트 어휘(배치 9 A#4) — 상한 컷 후 "{n}명"만 보이면 6건이 총원처럼 읽힌다.
 export function globalSearchCountLabel(total: number): string {
   return total > GLOBAL_SEARCH_LIMIT ? `${total}명 중 ${GLOBAL_SEARCH_LIMIT}명` : `${total}명`;

@@ -4,7 +4,7 @@ import { useAssistantThread } from "@/components/ai/useAssistantThread";
 import { type Customer } from "@/data/customers";
 import { roleAccountMeta, type RoleTab } from "@/data/roles";
 import { signOut } from "@/lib/auth";
-import { filterGlobalCustomerSearch, globalSearchCountLabel, globalSearchEmptyState, normalizeSearchValue } from "@/lib/global-customer-search";
+import { filterGlobalCustomerSearch, globalSearchCountLabel, globalSearchEmptyState, normalizeSearchValue, resolveRecentSearchCustomers } from "@/lib/global-customer-search";
 import { fetchLiveConsulting, saveLiveConsulting } from "@/lib/live-consulting";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
@@ -128,7 +128,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
-  const [recentSearchCustomers, setRecentSearchCustomers] = useState<Customer[]>([]);
+  const [recentSearchClicks, setRecentSearchClicks] = useState<Customer[]>([]);
   const [workAiOpen, setWorkAiOpen] = useState(false);
   const [workAiClosing, setWorkAiClosing] = useState(false);
   const [workAiExpanded, setWorkAiExpanded] = useState(false);
@@ -186,6 +186,11 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
   );
   // 빈 상태 3분기(배치 9 A#3) — 로딩/로드 실패를 "검색 결과 없음"으로 오도하지 않는다.
   const globalSearchEmpty = globalSearchEmptyState(customersLoaded, customersError);
+  // recent 표시 = 현재 customers에서 id 재해석(배치 9 A#5) — 삭제 고객 잔존·스냅샷 stale 표시 차단.
+  const recentSearchCustomers = useMemo(
+    () => resolveRecentSearchCustomers(recentSearchClicks, customers),
+    [recentSearchClicks, customers],
+  );
 
   function openSettingsMenu() {
     if (settingsCloseTimerRef.current) {
@@ -272,7 +277,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
   }
 
   const handleGlobalSearchCustomerOpen = useCallback((customer: Customer) => {
-    setRecentSearchCustomers((current) => [customer, ...current.filter((item) => item.customerId !== customer.customerId)].slice(0, 3));
+    setRecentSearchClicks((current) => [customer, ...current.filter((item) => item.customerId !== customer.customerId)].slice(0, 3));
     onOpenCustomer(customer);
     setGlobalSearchOpen(false);
     setGlobalSearchQuery("");

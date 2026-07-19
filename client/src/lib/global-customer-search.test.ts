@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Customer } from "@/data/customers";
-import { GLOBAL_SEARCH_LIMIT, filterGlobalCustomerSearch, globalSearchCountLabel, globalSearchEmptyState } from "./global-customer-search";
+import { GLOBAL_SEARCH_LIMIT, filterGlobalCustomerSearch, globalSearchCountLabel, globalSearchEmptyState, resolveRecentSearchCustomers } from "./global-customer-search";
 
 function makeCustomer(over: Partial<Customer>): Customer {
   return {
@@ -92,6 +92,33 @@ describe("globalSearchCountLabel", () => {
     expect(globalSearchCountLabel(3)).toBe("3명");
     expect(globalSearchCountLabel(GLOBAL_SEARCH_LIMIT)).toBe(`${GLOBAL_SEARCH_LIMIT}명`);
     expect(globalSearchCountLabel(10)).toBe(`10명 중 ${GLOBAL_SEARCH_LIMIT}명`);
+  });
+});
+
+// 배치 9 A#5: recent는 클릭 시점 스냅샷 — 현재 customers에서 id로 재해석해야 삭제 고객이 숨고
+// (잔존 시 클릭 → 거짓 성공 토스트+드로어 미오픈) 스냅샷 이후 수정도 최신으로 보인다.
+describe("resolveRecentSearchCustomers", () => {
+  const snapA = makeCustomer({ name: "김민준", customerId: "CU-2605-0020" });
+  const snapB = makeCustomer({ name: "박서연", customerId: "CU-2605-0011" });
+
+  it("현재 목록에 없는(삭제된) 고객은 숨긴다", () => {
+    const current = [makeCustomer({ name: "박서연", customerId: "CU-2605-0011" })];
+    expect(resolveRecentSearchCustomers([snapA, snapB], current).map((c) => c.customerId)).toEqual(["CU-2605-0011"]);
+  });
+
+  it("표시값은 스냅샷이 아니라 현재 customers 기준(수정 반영)", () => {
+    const current = [makeCustomer({ name: "김민준(개명)", customerId: "CU-2605-0020", phone: "010-0000-1111" })];
+    const resolved = resolveRecentSearchCustomers([snapA], current);
+    expect(resolved.map((c) => c.name)).toEqual(["김민준(개명)"]);
+    expect(resolved.map((c) => c.phone)).toEqual(["010-0000-1111"]);
+  });
+
+  it("순서는 recent 클릭 순서를 유지한다", () => {
+    const current = [snapB, snapA];
+    expect(resolveRecentSearchCustomers([snapA, snapB], current).map((c) => c.customerId)).toEqual([
+      "CU-2605-0020",
+      "CU-2605-0011",
+    ]);
   });
 });
 
