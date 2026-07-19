@@ -32,6 +32,8 @@ export type Customer = {
   recontacted?: boolean;
   manageStatus?: string | null; // 수동 관리 상태(⑦-① 스누즈) — manageStatusAt >= lastActivityAt일 때만 유효
   manageStatusAt?: string | null;
+  deliveryMethod?: string; // need_delivery_method 표시값 — 출고 콘솔 '인도 방식' 컬럼(편집은 상세 니즈에서)
+  nextDeliverySchedule?: NextDeliverySchedule | null; // 서버 파생 다음 출고 예정(목록 전용 — 상세엔 schedules 원본이 있다)
   settlementStatus?: string;
   fee?: string;
   cost?: string;

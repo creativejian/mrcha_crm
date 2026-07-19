@@ -1,4 +1,4 @@
-import type { Customer } from "@/data/customers";
+import type { Customer, NextDeliverySchedule } from "@/data/customers";
 import { getJson, sendJson, sendVoid } from "./http";
 import type { CustomerDetailQuote } from "./quote-items";
 
@@ -23,6 +23,8 @@ export type CustomerRow = {
   needModel: string | null;
   needTrim: string | null;
   needMethod: string | null;
+  needDeliveryMethod: string | null;
+  nextDeliverySchedule: NextDeliverySchedule | null;
   receivedAt: string | null;
   assignedAt: string | null;
   lastActivityAt: string | null;
@@ -67,6 +69,8 @@ export function toCustomer(row: CustomerRow): Customer {
     vehicle: row.needModel ?? "",
     vehicleTrim: row.needTrim ?? undefined,
     method: row.needMethod ?? "",
+    deliveryMethod: row.needDeliveryMethod ?? "",
+    nextDeliverySchedule: row.nextDeliverySchedule ?? null,
     advisor: row.advisorName ?? "미배정",
     statusGroup: row.statusGroup ?? "",
     status: row.status ?? "",
