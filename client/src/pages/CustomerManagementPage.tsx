@@ -11,7 +11,7 @@ import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
 import { changeAdvisorBulk } from "@/lib/customer-bulk-advisor";
 import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-delete";
-import { deliveryScheduleLabel } from "@/lib/delivery-console";
+import { compareDeliverySchedule, DELIVERY_PILL_IN_PROGRESS, DELIVERY_STAGE_PILLS, deliveryCountLabel, deliveryPillCounts, deliveryScheduleLabel, matchesDeliveryPill } from "@/lib/delivery-console";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -19,6 +19,9 @@ import type { RoleTab } from "@/data/roles";
 type CustomerManagementPageProps = {
   activeCustomerId?: string | null;
   customers?: Customer[];
+  // 목록 최초 로드 완료 여부(App이 서버 fetch 완료 시 true) — 총 카운트 0 깜빡임 방지(#287 폴리시).
+  // 미전달(스토리·테스트)은 loaded=true 폴백.
+  customersLoaded?: boolean;
   mode: CustomerMode;
   chanceOverrides?: Record<number, CustomerChanceOption>;
   onChanceOverridesChange?: (overrides: Record<number, CustomerChanceOption>) => void;
@@ -90,6 +93,7 @@ function filterSelectClass(active: boolean, extraClassName?: string) {
 export function CustomerManagementPage({
   activeCustomerId = null,
   customers: controlledCustomers,
+  customersLoaded,
   mode,
   chanceOverrides: controlledChanceOverrides,
   onChanceOverridesChange,
@@ -100,6 +104,7 @@ export function CustomerManagementPage({
   onWorkflowChange,
   roleTab = "최고관리자",
 }: CustomerManagementPageProps) {
+  const loaded = customersLoaded ?? true;
   const [internalCustomers, setInternalCustomers] = useState(initialCustomers);
   // 담당자 후보/필터 = 직원 디렉토리(profiles CRM 역할) — ADVISOR_NAMES 목업 폐기(#176 후속).
   const { staff: staffDirectory } = useStaffDirectory();
@@ -110,6 +115,8 @@ export function CustomerManagementPage({
   const [advisor, setAdvisor] = useState("");
   const [chanceFilter, setChanceFilter] = useState<"" | ChanceOption>("");
   const [finalUpdateFilter, setFinalUpdateFilter] = useState<"" | FinalUpdateFilterOption>("");
+  // 출고 단계 필터 pill(delivery mode 전용) — 기본 "진행 중"(소진되는 업무함, #260 선례).
+  const [deliveryPill, setDeliveryPill] = useState<string>(DELIVERY_PILL_IN_PROGRESS);
   const [selected, setSelected] = useState<number[]>([]);
   const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(15);
   const [currentPage, setCurrentPage] = useState(1);
@@ -174,7 +181,7 @@ export function CustomerManagementPage({
   }
 
   const statuses = statusGroup ? customerStatusGroups[statusGroup] : Object.values(customerStatusGroups).flat();
-  const rows = useMemo(() => {
+  const baseRows = useMemo(() => {
     // 통합검색과 같은 정규화(소문자+공백/하이픈 제거) — 같은 질의가 두 표면에서 다른 결과를 내지 않게
     // (배치 9 A#1). 질의·haystack 양측 동일 삭제라 기존 매칭은 전부 보존(순수 additive).
     const keyword = normalizeSearchValue(search);
@@ -198,6 +205,14 @@ export function CustomerManagementPage({
         (!activeFinalUpdateFilter || updateStatus === activeFinalUpdateFilter);
     });
   }, [advisor, chanceFilter, chanceOverrides, customers, finalUpdateFilter, finalUpdateOverrides, mode, search, status, statusGroup]);
+
+  const rows = useMemo(() => {
+    if (mode !== "delivery") return baseRows;
+    // pill 필터 + 예정일 정렬. filter가 새 배열이라 sort in-place 안전, 동률은 sort 안정성으로 baseRows 순서(receivedAt desc) 유지.
+    return baseRows.filter((customer) => matchesDeliveryPill(deliveryPill, customer.status)).sort(compareDeliverySchedule);
+  }, [baseRows, deliveryPill, mode]);
+  // pill 카운트는 pill 적용 전(검색·담당 등 다른 필터는 적용 후) 집합 기준 — 분포와 현재 선택이 함께 보인다.
+  const deliveryCounts = useMemo(() => (mode === "delivery" ? deliveryPillCounts(baseRows.map((c) => c.status)) : null), [baseRows, mode]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const effectivePage = Math.min(currentPage, totalPages);
@@ -925,7 +940,7 @@ export function CustomerManagementPage({
       <section className="card customer-console-card">
         <div className="customer-console-control-rail" ref={consoleFilterRailRef}>
           <div className="toolbar customer-console-toolbar">
-            <div className="total-count">전체 <strong className="num">{rows.length}</strong><span>명</span></div>
+            <div className="total-count">{mode === "delivery" ? deliveryCountLabel(deliveryPill) : "전체"} <strong className="num">{loaded ? rows.length : ""}</strong><span>명</span></div>
             <label className="customer-console-search">
               <Search aria-hidden="true" size={15} strokeWidth={2.4} />
               <input onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
@@ -976,6 +991,21 @@ export function CustomerManagementPage({
                     onChange: (value) => setFinalUpdateFilter(value as "" | FinalUpdateFilterOption),
                     extraClassName: "view-select filter-compact",
                   })}
+                </>
+              ) : mode === "delivery" ? (
+                <>
+                  {/* 출고 단계 필터 pill — no-op 뷰 select 대체(spec D4·D8). 다른 mode의 mock 뷰는 불변. */}
+                  {DELIVERY_STAGE_PILLS.map((pill) => (
+                    <button
+                      aria-pressed={deliveryPill === pill}
+                      className={filterSelectClass(deliveryPill === pill, "view-select filter-compact")}
+                      key={pill}
+                      onClick={() => { setDeliveryPill(pill); setCurrentPage(1); }}
+                      type="button"
+                    >
+                      <span>{loaded && deliveryCounts ? `${pill} ${deliveryCounts[pill] ?? 0}` : pill}</span>
+                    </button>
+                  ))}
                 </>
               ) : (
                 <>

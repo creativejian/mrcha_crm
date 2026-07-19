@@ -326,6 +326,7 @@ export function App() {
               activeCustomerId={isDrawerOpen ? selectedCode : null}
               chanceOverrides={chanceOverrides}
               customers={customers}
+              customersLoaded={customersLoaded}
               mode={customerMode}
               roleTab={roleTab}
               onChanceOverridesChange={setChanceOverrides}

@@ -152,7 +152,7 @@ export const customerModeMeta: Record<CustomerMode, { title: string; desc: strin
   all: { title: "전체 보기", desc: "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다." },
   consulting: { title: "상담 필요", desc: "계약 전 상담, 견적, 재응대가 필요한 미배정 고객 업무함입니다. 담당자가 배정되면 목록에서 빠집니다." },
   contract: { title: "계약 관리", desc: "심사, 계약 완료, 계약 취소 고객의 계약 실무를 관리합니다." },
-  delivery: { title: "출고 관리", desc: "출고 예정과 출고 완료 전후의 안내 업무를 관리합니다." },
+  delivery: { title: "출고 관리", desc: "계약완료 고객의 발주·배정·출고 일정을 단계별로 처리합니다." },
   settlement: { title: "출고 정산", desc: "출고 완료 이후 수수료, 비용, 마진 정산이 필요한 고객입니다." },
   hold: { title: "보류 / 이탈", desc: "미응답, 미정, 불발, 계약취소 고객의 재컨택 여부를 관리합니다." },
 };

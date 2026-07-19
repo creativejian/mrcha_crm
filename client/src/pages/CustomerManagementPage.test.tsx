@@ -47,7 +47,6 @@ describe("CustomerManagementPage", () => {
   });
 
   // 5개 비-all mode도 전체 보기와 같은 콘솔 문법(1줄 rail·필터 pill·전체 N명 카운트)을 쓴다.
-  // 뷰 select 3개(담당자별/상담상태별/긴급순)는 renderConsoleFilter로 흡수돼 pill(button)이 된다.
   it.each(["consulting", "contract", "delivery", "settlement", "hold"] as const)(
     "renders the console control rail for %s mode",
     (mode) => {
@@ -58,7 +57,15 @@ describe("CustomerManagementPage", () => {
       expect(screen.getByRole("button", { name: /진행 상태 · 1차/ })).toBeInTheDocument();
       // 카운트는 "전체 N명"(구식 "TOTAL N" 아님)
       expect(screen.queryByText("TOTAL")).not.toBeInTheDocument();
-      // 뷰 select 3개가 pill(button)로 흡수
+    },
+  );
+
+  // 뷰 select 3개(담당자별/상담상태별/긴급순)는 renderConsoleFilter로 흡수돼 pill(button)이 된다.
+  // delivery는 출고 단계 필터 pill로 대체(Task 6) — "출고 관리(delivery) 콘솔" describe에서 별도 검증.
+  it.each(["consulting", "contract", "settlement", "hold"] as const)(
+    "renders the mock view-select pills for %s mode",
+    (mode) => {
+      render(<CustomerManagementPage mode={mode} />);
       expect(screen.getByRole("button", { name: /담당자별 보기/ })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /상담상태별 보기/ })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /긴급순으로 보기/ })).toBeInTheDocument();
@@ -477,5 +484,24 @@ describe("출고 관리(delivery) 콘솔", () => {
     const listbox = screen.getByRole("listbox", { name: "진행 2단계 선택" });
     const options = within(listbox).getAllByRole("option").map((o) => o.textContent);
     expect(options).toEqual(["딜러사계약중", "대리점발주중", "특판발주중", "배정완료", "출고완료"]);
+  });
+
+  it("기본 pill = 진행 중: 출고완료(최유진) 미노출, 배정완료(한지훈) 노출", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    expect(screen.getByText("한지훈")).toBeInTheDocument();
+    expect(screen.queryByText("최유진")).toBeNull();
+  });
+
+  it("출고완료 pill 클릭 시 출고완료만 노출 + 카운트 라벨 전환", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고완료 \d+$/ }));
+    expect(screen.getByText("최유진")).toBeInTheDocument();
+    expect(screen.queryByText("한지훈")).toBeNull();
+    expect(screen.getByText("출고완료", { selector: ".total-count" })).toBeInTheDocument();
+  });
+
+  it("delivery mode에선 mock 뷰 select 3개가 렌더되지 않는다", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    expect(screen.queryByRole("button", { name: /담당자별 보기/ })).toBeNull();
   });
 });
