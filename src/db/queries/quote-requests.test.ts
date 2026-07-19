@@ -53,8 +53,10 @@ test("nameMatches — none 요청에 같은 이름 미연결 고객을 노출", 
 
   // requesterPhone이 고객 phone과 달라 phone 매칭 실패 + userId가 어떤 고객의 appUserId도 아니라
   // app_user 매칭도 실패 → matchType은 "none"이어야 nameMatches가 채워진다.
+  // 프로브 번호는 이 파일 전용 리터럴(배치 9 B-c) — 01011112222는 4파일 공유 픽스처 번호라 타 파일
+  // 잔재가 미연결 고객으로 남으면 이 none 단언이 2차 실패자가 된다(음성 전제는 공유하지 않는다).
   const rows = await buildAppQuoteRequestRows(
-    [baseRow({ requesterName: NAME, requesterPhone: "01011112222" })],
+    [baseRow({ requesterName: NAME, requesterPhone: "01044553311" })],
     db,
   );
   const r = rows.find((x) => x.id === SYNTHETIC_REQUEST_ID);
