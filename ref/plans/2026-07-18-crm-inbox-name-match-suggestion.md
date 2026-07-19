@@ -1,5 +1,7 @@
 # 인박스 이름 매칭 제안 Implementation Plan
 
+> **✅ 전량 실행 완료 — #282 squash `04ee963` 머지(2026-07-18).** 검증 typecheck 0·lint 0·unit 834·server 580·최종 적대 리뷰 정합성 결함 0. 아래 체크박스는 실행 당시 미갱신 상태로 남은 것(배치 9 C#1에서 완료 마커로 동기화 — 개별 체크 대신 이 헤더가 SSOT).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 인박스 두 곳(상담 신청 DB · 앱 견적요청)에서 `none`(신규·미연결) 매칭일 때 같은 이름의 미연결 고객을 제안 노출해, 상담사가 `[고객 생성]` 대신 기존 고객에 `[연결]`하도록 유도(중복 고객 예방).
