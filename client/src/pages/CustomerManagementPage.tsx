@@ -823,12 +823,18 @@ export function CustomerManagementPage({
         await updateSchedule(cid, submit.id, submit.body);
         next = { id: submit.id, date: submit.body.scheduledDate, time: submit.body.scheduledTime };
       }
-      updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: next } : c)));
-      setOpenDeliveryScheduleFor(null);
+      // 성공 반영은 서버 리로드 규약(#234 deleteSelected와 동일 — updateCustomers 낙관 경로는
+      // 렌더 클로저 배열 통째 교체라 in-flight 중 다른 행 갱신을 되돌리는 클로버가 있다).
+      // 리로드는 복수 '출고' 일정의 대표 승계(spec §5.4)까지 서버 진실로 해소한다.
+      // 단독(stories/test) 렌더엔 리로드 콜백이 없어 낙관 갱신 폴백(단일 액터라 클로버 무관).
+      if (onCustomerListChanged) await onCustomerListChanged();
+      else updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: next } : c)));
+      // 겹침 간섭 가드: in-flight 중 다른 행 팝오버가 열렸다면 그 팝오버/스피너를 건드리지 않는다.
+      setOpenDeliveryScheduleFor((current) => (current === customer.no ? null : current));
     } catch {
       setDeliveryNotice("출고 예정 저장에 실패했습니다. 다시 시도해 주세요.");
     } finally {
-      setSavingDeliveryFor(null);
+      setSavingDeliveryFor((current) => (current === customer.no ? null : current));
     }
   }
 
@@ -840,12 +846,14 @@ export function CustomerManagementPage({
     try {
       await deleteSchedule(customer.id, schedule.id);
       // 대표 1건 통로(spec §5.4): 다른 미완료 '출고' 일정이 있으면 다음 서버 리로드에서 그 행이 대표로 승계.
-      updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: null } : c)));
-      setOpenDeliveryScheduleFor(null);
+      // 성공 반영 = 서버 리로드 규약(#234, saveDeliverySchedule과 동일 근거).
+      if (onCustomerListChanged) await onCustomerListChanged();
+      else updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: null } : c)));
+      setOpenDeliveryScheduleFor((current) => (current === customer.no ? null : current));
     } catch {
       setDeliveryNotice("출고 예정 삭제에 실패했습니다. 다시 시도해 주세요.");
     } finally {
-      setSavingDeliveryFor(null);
+      setSavingDeliveryFor((current) => (current === customer.no ? null : current));
     }
   }
 

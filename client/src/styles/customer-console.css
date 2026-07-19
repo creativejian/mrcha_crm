@@ -1007,7 +1007,7 @@
 .delivery-schedule-btn:hover { border-color: rgba(88, 54, 255, 0.34); }
 .delivery-overdue-badge { font-size: 10px; font-weight: 700; }
 .delivery-schedule-popover {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 160;
   display: grid; gap: 8px; min-width: 220px; padding: 12px;
   background: #fff; border: 1px solid var(--line, #dededb); border-radius: 12px;
   box-shadow: 0 12px 28px rgba(15, 20, 25, 0.16);

@@ -556,4 +556,18 @@ describe("출고 관리(delivery) 콘솔", () => {
       expect(updateSchedule).toHaveBeenCalledWith("cid-2", "sch-1", { scheduledDate: "2026-07-31", scheduledTime: "14:00" });
     });
   });
+
+  it("저장 성공 시 onCustomerListChanged(서버 리로드)를 호출한다", async () => {
+    const reload = vi.fn().mockResolvedValue(true);
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-1", no: 90001, customerId: "CU-2605-9001", name: "출고팝오버검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
 });
