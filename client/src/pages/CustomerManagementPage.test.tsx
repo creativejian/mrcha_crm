@@ -574,6 +574,21 @@ describe("출고 관리(delivery) 콘솔", () => {
     });
   });
 
+  it("날짜 텍스트 형식이 틀리면 저장을 막고 안내 문구를 보여준다(년-월-일 고정, 로케일 무관 — 2026-07-19)", async () => {
+    const { addSchedule } = await import("@/lib/customer-children");
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-3", no: 90003, customerId: "CU-2605-9003", name: "출고팝오버형식오류",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "0724" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("년-월-일");
+    expect(addSchedule).not.toHaveBeenCalledWith("cid-3", expect.anything());
+  });
+
   it("저장 성공 시 onCustomerListChanged(서버 리로드)를 호출한다", async () => {
     const reload = vi.fn().mockResolvedValue(true);
     const customers = [{

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { type Customer } from "@/data/customers";
 import { addSchedule, updateSchedule as apiUpdateSchedule, deleteSchedule as apiDeleteSchedule } from "@/lib/customer-children";
 import { type CustomerDetailData } from "@/lib/customers";
+import { normalizeDateText } from "@/lib/datetime-text";
 import { nowMs, scheduleTimeFromFormData } from "@/lib/detail-utils";
 import { sortSchedulesByDateTime, scheduleRecordKey, type ScheduleItem } from "@/lib/schedule-items";
 
@@ -115,17 +116,24 @@ export function useCustomerSchedules({ detail, customer, onToast, markRecentUpda
   function saveSchedule(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    // 날짜는 텍스트 입력(로케일 종속 네이티브 date input 폐기, 2026-07-19) — 유연 정규화 후 YYYY-MM-DD 고정.
+    const rawDate = String(formData.get("date") ?? "").trim();
+    if (!rawDate) {
+      onToast("예정 날짜를 선택해주세요.");
+      return;
+    }
+    const date = normalizeDateText(rawDate);
+    if (!date) {
+      onToast("예정 날짜는 2026-07-19처럼 년-월-일 형식으로 입력해 주세요.");
+      return;
+    }
     const nextSchedule = {
       id: `kim-schedule-${nowMs()}`,
-      date: String(formData.get("date") ?? ""),
+      date,
       time: scheduleTimeFromFormData(formData),
       type: String(formData.get("type") ?? "재연락"),
       memo: String(formData.get("memo") ?? "").trim(),
     };
-    if (!nextSchedule.date) {
-      onToast("예정 날짜를 선택해주세요.");
-      return;
-    }
     if (!nextSchedule.memo) return;
     setSchedules((current) => [...current, nextSchedule]);
     setAddingScheduleItem(false);
@@ -141,14 +149,19 @@ export function useCustomerSchedules({ detail, customer, onToast, markRecentUpda
   function updateSchedule(event: SyntheticEvent<HTMLFormElement>, id: string) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const date = String(formData.get("date") ?? "");
-    const time = scheduleTimeFromFormData(formData);
-    const type = String(formData.get("type") ?? "재연락");
-    const memo = String(formData.get("memo") ?? "").trim();
-    if (!date) {
+    const rawDate = String(formData.get("date") ?? "").trim();
+    if (!rawDate) {
       onToast("예정 날짜를 선택해주세요.");
       return;
     }
+    const date = normalizeDateText(rawDate);
+    if (!date) {
+      onToast("예정 날짜는 2026-07-19처럼 년-월-일 형식으로 입력해 주세요.");
+      return;
+    }
+    const time = scheduleTimeFromFormData(formData);
+    const type = String(formData.get("type") ?? "재연락");
+    const memo = String(formData.get("memo") ?? "").trim();
     if (!memo) return;
     const prevSchedules = schedules;
     setSchedules((current) => current.map((item) => (

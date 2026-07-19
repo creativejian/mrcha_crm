@@ -48,7 +48,7 @@ export function CustomerChecks({
             {selectedEditingDue === "지정" ? (
               <label className="kim-check-date-field compact">
                 <span>마감 날짜</span>
-                <input defaultValue={parseCheckDueDate(item.due)} name="dueDate" type="date" />
+                <input defaultValue={parseCheckDueDate(item.due)} maxLength={10} name="dueDate" placeholder="2026-07-19" type="text" />
               </label>
             ) : null}
           </div>
@@ -191,7 +191,7 @@ export function CustomerChecks({
                 {selectedDue === "지정" ? (
                   <label className="kim-check-date-field">
                     <span>마감 날짜</span>
-                    <input name="dueDate" type="date" />
+                    <input maxLength={10} name="dueDate" placeholder="2026-07-19" type="text" />
                   </label>
                 ) : null}
               </div>

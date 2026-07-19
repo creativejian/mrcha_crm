@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { type Customer } from "@/data/customers";
 import { addTask, updateTask, deleteTask } from "@/lib/customer-children";
 import { type CustomerDetailData } from "@/lib/customers";
+import { normalizeDateText } from "@/lib/datetime-text";
 import { formatShortDateLabel, checkDueOptions, checkDueSelection } from "@/lib/detail-utils";
 import { sortCheckItemsByWorkRule, type CheckItem } from "@/lib/schedule-items";
 
@@ -134,12 +135,21 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate,
     if (!body) return;
     const category = String(formData.get("category") ?? "체크");
     const dueSelection = String(formData.get("due") ?? "오늘");
-    const dueDate = String(formData.get("dueDate") ?? "");
-    if (dueSelection === "지정" && !dueDate) {
-      onToast("마감 날짜를 선택해주세요.");
-      return;
+    // 마감 날짜는 텍스트 입력(로케일 종속 네이티브 date input 폐기, 2026-07-19) — 유연 정규화 후 M/D 라벨로.
+    const dueDateRaw = String(formData.get("dueDate") ?? "").trim();
+    let due = dueSelection;
+    if (dueSelection === "지정") {
+      if (!dueDateRaw) {
+        onToast("마감 날짜를 선택해주세요.");
+        return;
+      }
+      const normalizedDueDate = normalizeDateText(dueDateRaw);
+      if (!normalizedDueDate) {
+        onToast("마감 날짜는 2026-07-19처럼 년-월-일 형식으로 입력해 주세요.");
+        return;
+      }
+      due = formatShortDateLabel(normalizedDueDate);
     }
-    const due = dueSelection === "지정" ? formatShortDateLabel(dueDate) : dueSelection;
     const tempId = `kim-check-${Date.now()}`;
     setCheckItems((current) => [...current, { id: tempId, category, due, body }]);
     setAddingCheckItem(false);
@@ -159,13 +169,25 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate,
     if (!body) return;
     const category = String(formData.get("category") ?? "체크");
     const dueSelection = String(formData.get("due") ?? currentDue);
-    const dueDate = String(formData.get("dueDate") ?? "");
+    const dueDateRaw = String(formData.get("dueDate") ?? "").trim();
     const currentDueIsCustom = !checkDueOptions.includes(currentDue);
-    if (dueSelection === "지정" && !dueDate && !currentDueIsCustom) {
-      onToast("마감 날짜를 선택해주세요.");
-      return;
+    let due = dueSelection;
+    if (dueSelection === "지정") {
+      if (!dueDateRaw) {
+        if (!currentDueIsCustom) {
+          onToast("마감 날짜를 선택해주세요.");
+          return;
+        }
+        due = currentDue;
+      } else {
+        const normalizedDueDate = normalizeDateText(dueDateRaw);
+        if (!normalizedDueDate) {
+          onToast("마감 날짜는 2026-07-19처럼 년-월-일 형식으로 입력해 주세요.");
+          return;
+        }
+        due = formatShortDateLabel(normalizedDueDate);
+      }
     }
-    const due = dueSelection === "지정" ? (dueDate ? formatShortDateLabel(dueDate) : currentDue) : dueSelection;
     const prevCheckItems = checkItems;
     setCheckItems((current) => current.map((item) => (
       item.id === id ? { ...item, category, due, body } : item

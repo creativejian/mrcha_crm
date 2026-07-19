@@ -1,4 +1,5 @@
 import { customerStatusGroups, DELIVERY_SCHEDULE_TYPE, type Customer, type NextDeliverySchedule } from "@/data/customers";
+import { normalizeDateText, normalizeTimeText } from "@/lib/datetime-text";
 
 // ── 출고 작업 큐 파생(2026-07-19 spec §5) — 전부 순수 함수. ──
 
@@ -81,9 +82,12 @@ export function resolveDeliveryScheduleSubmit(
   existing: NextDeliverySchedule | null | undefined,
   draft: { date: string; time: string },
 ): DeliveryScheduleSubmit {
-  const date = draft.date.trim();
-  if (!date) return { kind: "invalid", reason: "날짜를 선택해 주세요." };
-  const time = draft.time.trim() ? draft.time.trim() : null;
+  if (!draft.date.trim()) return { kind: "invalid", reason: "날짜를 선택해 주세요." };
+  const date = normalizeDateText(draft.date);
+  if (!date) return { kind: "invalid", reason: "날짜는 2026-07-19처럼 년-월-일 형식으로 입력해 주세요." };
+  const timeResult = normalizeTimeText(draft.time);
+  if (!timeResult.ok) return { kind: "invalid", reason: "시간은 14:00처럼 24시간 형식으로 입력해 주세요." };
+  const time = timeResult.value;
   if (existing) return { kind: "update", id: existing.id, body: { scheduledDate: date, scheduledTime: time } };
   return { kind: "create", body: { scheduledDate: date, scheduledTime: time, type: DELIVERY_SCHEDULE_TYPE, done: false } };
 }

@@ -92,7 +92,7 @@ describe("예정일 라벨(KST 지남 판정 — 브라우저 tz 무관 산술)"
   });
 });
 
-describe("팝오버 제출 해석(spec §5.4)", () => {
+describe("팝오버 제출 해석(spec §5.4 — 날짜/시간 텍스트 입력, 2026-07-19 유연 정규화)", () => {
   it("날짜 없음 = invalid", () => {
     expect(resolveDeliveryScheduleSubmit(null, { date: " ", time: "" }).kind).toBe("invalid");
   });
@@ -109,5 +109,31 @@ describe("팝오버 제출 해석(spec §5.4)", () => {
     expect(resolveDeliveryScheduleSubmit({ id: "sch-1", date: "2026-07-20", time: null }, { date: "2026-07-24", time: "" })).toEqual({
       kind: "update", id: "sch-1", body: { scheduledDate: "2026-07-24", scheduledTime: null },
     });
+  });
+  it("유연한 날짜 입력(점 구분·무구분)도 YYYY-MM-DD로 정규화해 저장", () => {
+    expect(resolveDeliveryScheduleSubmit(null, { date: "2026.7.24", time: "" })).toMatchObject({
+      body: { scheduledDate: "2026-07-24" },
+    });
+    expect(resolveDeliveryScheduleSubmit(null, { date: "20260724", time: "" })).toMatchObject({
+      body: { scheduledDate: "2026-07-24" },
+    });
+  });
+  it("유연한 시간 입력(무구분 4자리)도 HH:mm으로 정규화", () => {
+    expect(resolveDeliveryScheduleSubmit(null, { date: "2026-07-24", time: "0930" })).toMatchObject({
+      body: { scheduledTime: "09:30" },
+    });
+  });
+  it("날짜 형식이 틀리면 invalid + 안내 문구(년-월-일)", () => {
+    const result = resolveDeliveryScheduleSubmit(null, { date: "0724", time: "" });
+    expect(result.kind).toBe("invalid");
+    expect(result.kind === "invalid" && result.reason).toMatch(/년-월-일/);
+  });
+  it("실존하지 않는 날짜(2026-02-30)는 invalid", () => {
+    expect(resolveDeliveryScheduleSubmit(null, { date: "2026-02-30", time: "" }).kind).toBe("invalid");
+  });
+  it("시간 형식이 틀리면 invalid + 안내 문구(24시간)", () => {
+    const result = resolveDeliveryScheduleSubmit(null, { date: "2026-07-24", time: "14시 30분" });
+    expect(result.kind).toBe("invalid");
+    expect(result.kind === "invalid" && result.reason).toMatch(/24시간/);
   });
 });

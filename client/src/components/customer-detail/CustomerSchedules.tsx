@@ -39,7 +39,7 @@ export function CustomerSchedules({
         <div className="kim-schedule-composer-top">
           <div className="kim-schedule-datetime-group">
             <label className="kim-schedule-date-field">
-              <input aria-label="예정 날짜" autoFocus defaultValue={item?.date ?? formatDateInputValue()} name="date" type="date" />
+              <input aria-label="예정 날짜" autoFocus defaultValue={item?.date ?? formatDateInputValue()} maxLength={10} name="date" placeholder="2026-07-19" type="text" />
             </label>
             <label className="kim-schedule-time-field">
               <span className="kim-schedule-time-picker">
