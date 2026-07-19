@@ -92,8 +92,17 @@ export const SOURCE_LEGACY_AUTOMATIC_OPTIONS: readonly string[] = ["디엘홈페
 // 할일 분류(tasks.category) — 닫힌 6종.
 export const TASK_CATEGORY_OPTIONS: readonly string[] = ["체크", "견적", "안내", "요청", "내부", "심사"];
 
-// 일정 종류(schedules.type) — 닫힌 8종.
-export const SCHEDULE_TYPE_OPTIONS: readonly string[] = ["재연락", "결정확인", "체크", "견적", "안내", "요청", "내부", "심사"];
+// 출고 일정 타입 값 — 출고 콘솔·서버 파생 쿼리가 공유하고, 스프레드로 닫힌 집합
+// (customer_schedules_type_check) 원소임이 구조적으로 보장된다(APP_QUOTE_REQUEST_SOURCE 선례).
+// 값 변경 = CHECK 마이그 동반.
+export const DELIVERY_SCHEDULE_TYPE = "출고";
+
+// 일정 종류(schedules.type) — 닫힌 9종(0035에서 '출고' 추가).
+export const SCHEDULE_TYPE_OPTIONS: readonly string[] = ["재연락", "결정확인", "체크", "견적", "안내", "요청", "내부", "심사", DELIVERY_SCHEDULE_TYPE];
+
+// 목록 파생 '다음 출고 예정' — 서버 listCustomers 서브쿼리 ↔ 클라 표시·팝오버가 공유하는 shape.
+// date = 'YYYY-MM-DD'(plain date, tz 없음), time = 'HH:mm[:ss]' | null. id = 팝오버 수정/삭제 대상.
+export type NextDeliverySchedule = { id: string; date: string; time: string | null };
 
 // 고객 유형(customers.customer_type) — 닫힌 3종. 백엔드 zod·DB CHECK 공유.
 export const CUSTOMER_TYPE_OPTIONS = ["개인", "개인사업자", "법인사업자"] as const;
