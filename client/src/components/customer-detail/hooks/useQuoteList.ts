@@ -206,6 +206,9 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
           // 승격 견적 삭제 시 니즈 카드 배지/버튼과 인박스 캐시를 서버 확정 후 갱신(생성 경로 useQuoteWorkbench와 대칭 —
           // 즉시 갱신하면 서버가 아직 옛 카운트를 반환해 리로딩 전까지 어긋난다).
           if (targetQuote?.sourceQuoteRequestId) { void fetchAppQuoteRequestsCached(true); reloadAppRequests(); }
+          // 삭제도 contractingQuote 파생의 입력(배치 11 B#3) — 미리로드면 저장된 delivery.sourceQuoteId가
+          // 죽은 견적 id로 승계 시드돼 출고 정보 저장이 400에 막힌다(마킹 경로와 동일 관례).
+          onCustomerListChanged?.();
         })
         .catch(() => { setQuotes(prevQuotes); onToast("삭제에 실패했습니다."); });
     }
@@ -256,7 +259,11 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
       return { ...quote, primaryScenarioId: scenarioId, ...flattenPrimaryScenario(next) };
     }));
     if (customer.id && !quoteId.startsWith("kim-")) {
-      void apiUpdateQuote(customer.id, quoteId, { primaryScenarioId: scenarioId }).catch(() => { setQuotes(prevQuotes); onToast("대표 시나리오 저장에 실패했습니다."); });
+      // contracting 견적의 대표 변경 = 목록 contractingQuote.lender 입력(배치 11 B#4 — 마킹 경로 관례).
+      void apiUpdateQuote(customer.id, quoteId, { primaryScenarioId: scenarioId }).then(
+        () => { onCustomerListChanged?.(); },
+        () => { setQuotes(prevQuotes); onToast("대표 시나리오 저장에 실패했습니다."); },
+      );
     }
     markRecentUpdate("견적함");
     onToast("대표 시나리오를 변경했습니다.");

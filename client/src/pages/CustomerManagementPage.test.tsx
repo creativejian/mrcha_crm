@@ -716,6 +716,93 @@ describe("출고 관리(delivery) 콘솔", () => {
     expect(screen.queryByText("니즈차종")).toBeNull();
   });
 
+  // 배치 11 B#1: 팝오버 입력의 Enter keydown이 행까지 버블되면 드로어가 팝오버 위로 열리고 초안이
+  // 묻힌다(행 Enter 핸들러 openCustomerByKeyboard). Enter만 차단 — 무차별 stopPropagation은 dismiss
+  // 훅의 Escape 닫기(document 버블 리스너)를 죽이는 회귀(적대 검증 V2)라 Escape 생존을 함께 잠근다.
+  it("팝오버 입력에서 Enter를 쳐도 드로어가 열리지 않고, Escape 닫기는 살아 있다", () => {
+    const onOpenCustomer = vi.fn();
+    render(<CustomerManagementPage mode="delivery" onOpenCustomer={onOpenCustomer} />);
+    fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:/ })[0]);
+    fireEvent.keyDown(screen.getByLabelText("계약 차량"), { key: "Enter" });
+    expect(onOpenCustomer).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByLabelText("계약 차량"), { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "출고 정보 편집" })).toBeNull();
+  });
+
+  it("출고 예정 팝오버 입력의 Enter도 드로어를 열지 않는다(B#1 동반)", () => {
+    const onOpenCustomer = vi.fn();
+    render(<CustomerManagementPage mode="delivery" onOpenCustomer={onOpenCustomer} />);
+    fireEvent.click(screen.getAllByRole("button", { name: /^출고 예정 입력:/ })[0]);
+    fireEvent.keyDown(screen.getByLabelText("날짜"), { key: "Enter" });
+    expect(onOpenCustomer).not.toHaveBeenCalled();
+  });
+
+  // 배치 11 C#1: 폼형 관례(담당자 변경·고객 삭제·고객 등록 — 전부 가시 타이틀)에 정합 + fixed 팝오버라
+  // 행과 시각 분리될 수 있어 고객명 병기로 오행 편집을 방지한다(spec §6).
+  it("팝오버는 가시 타이틀에 고객명을 병기한다", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 한지훈" }));
+    const dialog = screen.getByRole("dialog", { name: "출고 정보 편집" });
+    expect(within(dialog).getByText("출고 정보 — 한지훈")).toBeInTheDocument();
+  });
+
+  // 배치 11 B#2: delivery 차량 셀은 계약 차량을 표시하므로 검색도 그 텍스트를 매칭해야 한다(표시·검색
+  // 축 정합 — delivery mode 한정 편입·타 mode 검색 불변).
+  it("delivery mode 검색은 계약 차량 텍스트도 매칭한다", () => {
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-9", no: 90009, customerId: "CU-2605-9009", name: "검색축검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null, vehicle: "니즈차종",
+      delivery: { contractVehicle: "계약차량G80", contractDate: null, lender: null, deliveredDate: null, deliveryMemo: null, sourceQuoteId: null },
+      contractingQuote: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    fireEvent.change(screen.getByPlaceholderText(/차종 검색/), { target: { value: "계약차량G80" } });
+    expect(screen.getByText("검색축검증")).toBeInTheDocument();
+  });
+
+  // 배치 11 B#6ⓐ: 저장 성공(리로드 true) 경로의 팝오버 닫힘 — reload false 테스트는 유지 분기만
+  // 잠가서, 성공 닫힘(:762류)이 제거돼도 무증상이던 갭.
+  it("저장 성공(리로드 true)이면 출고 정보 팝오버가 닫힌다", async () => {
+    const reload = vi.fn().mockResolvedValue(true);
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-10", no: 90010, customerId: "CU-2605-9010", name: "성공닫힘검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+      delivery: null, contractingQuote: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 성공닫힘검증" }));
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "출고 정보 편집" })).toBeNull());
+  });
+
+  it("저장 성공(리로드 true)이면 출고 예정 팝오버도 닫힌다(B#6ⓐ 동반)", async () => {
+    const reload = vi.fn().mockResolvedValue(true);
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-11", no: 90011, customerId: "CU-2605-9011", name: "예정닫힘검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+      delivery: null, contractingQuote: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "출고 예정 입력: 예정닫힘검증" }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "출고 예정 편집" })).toBeNull());
+  });
+
+  // 배치 11 B#6ⓒ: fixed 팝오버 스크롤 닫기 — 출고 예정(:560류)만 잠겨 있던 비대칭.
+  it("스크롤이 나면 출고 정보 팝오버를 닫는다(fixed는 앵커를 따라가지 않음)", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:/ })[0]);
+    expect(screen.getByRole("dialog", { name: "출고 정보 편집" })).toBeInTheDocument();
+    fireEvent.scroll(document.body);
+    expect(screen.queryByRole("dialog", { name: "출고 정보 편집" })).toBeNull();
+  });
+
   it("출고 정보 저장값이 있으면 셀에 계약·출고 요약 줄을 보여준다", () => {
     const customers = [{
       ...initialCustomers[4],

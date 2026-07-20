@@ -1094,6 +1094,9 @@
   background: #fff; border: 1px solid var(--line, #dededb); border-radius: 12px;
   box-shadow: 0 12px 28px rgba(15, 20, 25, 0.16);
 }
+.delivery-info-title { font-size: 12px; color: #26313b; }
 .delivery-info-popover label { display: grid; gap: 4px; font-size: 11px; color: #6b7280; }
 .delivery-info-popover input { height: 28px; border: 1px solid #dededb; border-radius: 6px; padding: 0 8px; font-size: 12px; }
-.delivery-info-popover textarea { border: 1px solid #dededb; border-radius: 6px; padding: 6px 8px; font-size: 12px; font: inherit; resize: vertical; }
+/* font: inherit(축약형 — family 정규화: theme.css 컨트롤 규칙이 textarea 미포함)를 **먼저** 두고 크기를
+   뒤에 — 역순이면 축약형이 font-size를 상속 11px로 재설정한다(배치 11 B#5. inherit 삭제는 비권장 박제). */
+.delivery-info-popover textarea { border: 1px solid #dededb; border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 12px; resize: vertical; }
