@@ -6,7 +6,7 @@ const QUOTE: ContractingQuoteSummary = { id: "q-1", brandName: "BMW", modelName:
 const SAVED: CustomerDeliveryInfo = { contractVehicle: "수기 차량", contractDate: "2026-07-15", lender: "수기 금융사", deliveredDate: null, deliveryMemo: null, sourceQuoteId: "q-old" };
 const EMPTY: CustomerDeliveryInfo = { contractVehicle: null, contractDate: null, lender: null, deliveredDate: null, deliveryMemo: null, sourceQuoteId: null };
 
-describe("seedDeliveryInfoDraft (soft pipe — spec §4)", () => {
+describe("seedDeliveryInfoDraft (soft pipe — spec §5.3)", () => {
   it("저장값 없는 필드만 contracting 견적에서 시드한다(차량 dedupe 라벨·금융사)", () => {
     const draft = seedDeliveryInfoDraft(null, QUOTE);
     expect(draft.contractVehicle).toBe("BMW 5 Series 520i");

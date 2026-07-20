@@ -5,9 +5,12 @@ import { customers } from "../schema";
 // "마지막 담당자 액션" 파생 SSOT — 목록/상세(listCustomers 계열)와 업무 AI 도구(stale_customers/
 // delivery_risk)가 공유한다. #171이 이 식을 재선언하며 4번째 자식이 갈렸던(documents↔quotes) 실드리프트
 // 해소(0706 배치 B): 서류만 최근인 고객이 목록 배지 '정상'인데 AI '응답 지연' 리포트에 무활동으로 뜨는
-// 화면 내 모순. 집합 = customers.updated_at + 자식 5테이블 max(created_at) 합집합(memos/tasks/schedules/
-// documents/quotes — 견적 작성·서류 업로드 모두 담당자 액션). 자식 테이블엔 updated_at이 없어 수정은
-// 못 잡는다(허용 근사 — #154와 동일).
+// 화면 내 모순. 집합 = customers.updated_at + 자식 5테이블 max(created_at) + customer_deliveries
+// max(updated_at) 합집합(memos/tasks/schedules/documents/quotes/deliveries — 견적 작성·서류 업로드·
+// 출고 정보 입력 모두 담당자 액션. deliveries는 배치 11 A#1 편입 — 출고 정보를 저장하는 계약완료
+// 모집단이 delivery_risk 리포트 대상 그 자체라, 미편입 시 "방금 출고 정보를 입력한 고객이 장기방치"
+// 자기모순이 났다). 다른 자식 테이블엔 updated_at이 없어 수정은 못 잡는다(허용 근사 — #154와 동일)
+// — deliveries만 upsert 갱신 시각(updated_at)까지 정확히 잡는다.
 // 주의: 상관 서브쿼리 안에서는 반드시 `crm.customers.id`로 완전정규화한다 — 자식 테이블 모두 자기 자신의
 // "id" 컬럼을 갖고 있어, `${customers.id}`(비정규화 "id")를 쓰면 SQL 스코프 규칙상 서브쿼리 자신의 테이블로
 // 섀도잉되어 조건이 사실상 항상 거짓이 된다(greatest가 전부 NULL을 받아 customers.updated_at만 남는
@@ -18,7 +21,8 @@ export const staffActivityAt = sql<Date | null>`greatest(
   (select max(t.created_at) from crm.customer_tasks t where t.customer_id = crm.customers.id),
   (select max(s.created_at) from crm.customer_schedules s where s.customer_id = crm.customers.id),
   (select max(d.created_at) from crm.customer_documents d where d.customer_id = crm.customers.id),
-  (select max(q.created_at) from crm.quotes q where q.customer_id = crm.customers.id)
+  (select max(q.created_at) from crm.quotes q where q.customer_id = crm.customers.id),
+  (select max(dl.updated_at) from crm.customer_deliveries dl where dl.customer_id = crm.customers.id)
 )`;
 
 // 관리 상태 버킷 임계(달력일) — 클라 customer-table.finalUpdateStatus(7/15/30)와 같은 어휘.

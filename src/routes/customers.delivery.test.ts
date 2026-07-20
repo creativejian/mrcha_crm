@@ -36,10 +36,11 @@ async function put(customerId: string, body: unknown, role = "staff"): Promise<R
 
 const FULL = { contractVehicle: "BMW 520i", contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: null, deliveryMemo: "탁송 조율", sourceQuoteId: null };
 
-test("PUT /delivery — 생성 → 갱신 왕복(고객당 1행 upsert) + DB 대조", async () => {
+test("PUT /delivery — 생성 → 갱신 왕복(고객당 1행 upsert) + DB 대조 + updated_at 스탬프", async () => {
   const cid = await seedCustomer();
   const created = await put(cid, FULL);
   expect(created.status).toBe(200);
+  const [createdRow] = await db.select().from(customerDeliveries).where(eq(customerDeliveries.customerId, cid));
   const updated = await put(cid, { ...FULL, deliveredDate: "2026-07-20", deliveryMemo: null });
   expect(updated.status).toBe(200);
   const rows = await db.select().from(customerDeliveries).where(eq(customerDeliveries.customerId, cid));
@@ -47,6 +48,9 @@ test("PUT /delivery — 생성 → 갱신 왕복(고객당 1행 upsert) + DB 대
   expect(rows[0].deliveredDate).toBe("2026-07-20");
   expect(rows[0].deliveryMemo).toBeNull();
   expect(rows[0].contractVehicle).toBe("BMW 520i");
+  // 배치 11 A#5① — 갱신 스탬프 잠금(A#1 활동 파생 편입으로 updated_at이 load-bearing).
+  // `>` 단언은 앱 시계(new Date)·DB 시계(defaultNow) 스큐로 플레이크 가능 — 변화만 단언.
+  expect(rows[0].updatedAt.getTime()).not.toBe(createdRow.updatedAt.getTime());
 });
 
 test("PUT /delivery — 빈 문자열은 null로 정규화(값 지우기 경로)", async () => {
@@ -79,6 +83,20 @@ test("PUT /delivery — 본인 견적 sourceQuoteId는 저장된다", async () =
   expect(res.status).toBe(200);
   const [row] = await db.select().from(customerDeliveries).where(eq(customerDeliveries.customerId, cid));
   expect(row.sourceQuoteId).toBe(q.id);
+});
+
+test("PUT /delivery — 미존재 견적 id sourceQuoteId도 400(배치 11 A#5② — 가드 제거 변이 시 FK 500 강등 차단)", async () => {
+  const cid = await seedCustomer();
+  const res = await put(cid, { ...FULL, sourceQuoteId: crypto.randomUUID() });
+  expect(res.status).toBe(400);
+});
+
+test("PUT /delivery — 달력 비실존 날짜(2026-02-31)는 SQL 원문이 아니라 한글 사유(배치 11 A#2)", async () => {
+  const cid = await seedCustomer();
+  const res = await put(cid, { ...FULL, contractDate: "2026-02-31" });
+  expect(res.status).toBe(500); // zod regex(자릿수)는 통과 — DB 캐스트 실패를 dbErrorMessage가 매핑
+  const body = (await res.json()) as { error: string };
+  expect(body.error).toBe("허용되지 않는 날짜입니다.");
 });
 
 test("PUT /delivery — 미존재 고객 404 · dealer 403(전역 게이트)", async () => {

@@ -70,7 +70,7 @@ export async function deleteCustomer(
   // deleteQuote()가 견적 해체의 SSOT이므로 그대로 쓴다 — 고객당 견적은 한 자릿수라 성능 논거가 없다.
   for (const q of quoteRows) await deleteQuote(customerId, q.id, ex);
 
-  // 자식 6종(메모·할일·일정·서류·상담·임베딩)은 FK CASCADE가 지운다.
+  // 자식 7종(메모·할일·일정·서류·상담·임베딩·출고 정보)은 FK CASCADE가 지운다.
   // 임베딩까지 함께 사라져야 업무 AI가 이 고객을 완전히 잊는다 — 테스트가 잠근다.
   await ex.delete(customers).where(eq(customers.id, customerId));
 

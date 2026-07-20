@@ -13,7 +13,7 @@
 | # | 질문 | 결정 |
 |---|---|---|
 | S1 | 필드 범위 | **코어 5종** — 계약 차량·계약일·금융사·출고 실측일·탁송/정비 메모(+`source_quote_id` provenance). 체크리스트는 항목별 상태 모델이 필요해 "명백 필드"보다 무겁고 이사님 취향 영역 — 제외(§8) |
-| S2 | 테이블 모델 | **고객당 1행** — `customer_id` UNIQUE + upsert. 조인·편집 문법 최단순. 한계 = 재구매(2회차 출고) 이력 미보존 — CT(계약 상위 식별자)·DV 정식 모델 설계 때 재론(§8). 1:N 전환은 unique drop만으로 가능(additive) |
+| S2 | 테이블 모델 | **고객당 1행** — `customer_id` UNIQUE + upsert. 조인·편집 문법 최단순. 한계 = 재구매(2회차 출고) 이력 미보존 — CT(계약 상위 식별자)·DV 정식 모델 설계 때 재론(§8). *(배치 11 A#6 정정: 구 "unique drop만으로 가능(additive)" 서술은 오류 — drop 시 deliveryInfo 스칼라 서브쿼리가 "more than one row"로 목록 전멸·onConflict target이 42P10로 저장 전멸. 1:N 전환은 unique drop + 서브쿼리 order/limit + upsert 충돌 대상 재설계 동반 필수)* |
 | S3 | 편집 표면 | **출고 콘솔 행 팝오버 단일** — 출고 큐가 작업 표면이라는 1단계 의미론 유지. 드로어 무접촉(§8) |
 | S4 | 금융사 입력 | **자유 텍스트 + datalist 제안**(솔루션 8사 라벨은 제안만, 강제 아님). 솔루션 어휘는 "계산 지원 8사"지 "계약 가능 금융사 전집"이 아니라 select 강제는 강결합 |
 | S5 | 견적→출고 파이프 | **소프트 파이프** — 팝오버 오픈 시 contracting 견적에서 차량·금융사 프리필(수기 수정 가능), 저장은 텍스트 스냅샷(견적 사후 수정이 출고 기록을 소급 변경하지 않음). 하드 파이프(FK 파생 표시)는 수기 계약 미수용·발송본 고정 원칙 상충으로 기각 |
@@ -55,7 +55,7 @@ crm.customer_deliveries
 
 ### 4.2 쓰기 — `PUT /api/customers/:id/delivery` (upsert·전체 교체)
 
-- 팝오버가 전체 폼이라 전체 교체 의미론(PUT). body zod: 5필드 + `sourceQuoteId` 전부 nullable, **날짜 2필드는 `YYYY-MM-DD` 포맷 게이트**(배치 10 A#1 일정 CRUD 미러 — text 축 경계 봉쇄), 빈 문자열 → null 정규화.
+- 팝오버가 전체 폼이라 전체 교체 의미론(PUT). body zod: 5필드 + `sourceQuoteId` 전부 nullable, **날짜 2필드는 `YYYY-MM-DD` 포맷 게이트**(배치 10 A#1 일정 CRUD 미러 — text 축 경계 봉쇄), 빈 문자열 → null 정규화 *(배치 11 C#5 각주: 텍스트 3필드만 — 날짜 ""는 regex 불통과 400. 클라 resolveDeliveryInfoSubmit이 빈 날짜를 null로 선정규화해 앱 경로 도달 0·직접 호출 400은 scheduleBody와 정합하는 fail-loud)*.
 - `sourceQuoteId`는 **그 고객 소유 견적인지 검증**(불일치 400 fail-loud — 타 고객 견적 id 주입으로 provenance가 오염되는 경로 차단). FK는 존재·삭제 시 SET NULL만 담당.
 - upsert = `INSERT … ON CONFLICT (customer_id) DO UPDATE`(+`updated_at` 스탬프). 고객 미존재 404. 응답 = 저장된 행.
 - dealer 쓰기는 전역 `dealerWriteGate`(#220)가 자동 403 — 라우트 추가 게이트 불필요.
@@ -82,7 +82,7 @@ crm.customer_deliveries
 - **프리필(소프트 파이프)**: 오픈 시 저장값이 **비어 있는 필드만** contracting 견적에서 시드 — 계약 차량 ← `dedupedModelTrim(brandName·modelName·trimName)` 라벨, 금융사 ← `contractingQuote.lender`. 저장값 있으면 프리필 안 함(수기 우선). contracting 견적 없으면 빈 폼.
 - 저장 payload에 프리필 시드에 쓴 견적 id를 `sourceQuoteId`로 동봉(수기 수정해도 유지 — "이 저장이 참조한 계약 진행 견적" 의미. 시드 없었으면 기존 저장값 유지, 그것도 없으면 null).
 - 저장 성공 → **서버 리로드 규약**(#234 `reloadCustomers`). 리로드 false 반환 시 팝오버 유지+안내(배치 10 B#1 미러 — 무음 stale 금지). 저장 실패(4xx/5xx) → 팝오버 내 에러 문구.
-- 빈 폼 저장 = 전 필드 null 저장(값 지우기 경로). 행 삭제 라우트는 없다 — null 행은 무해(§3).
+- 빈 폼 저장 = 전 필드 null 저장(값 지우기 경로). 행 삭제 라우트는 없다 — null 행은 무해(§3). *(배치 11 A#8 각주: '전 필드'는 표시 5필드 기준 — sourceQuoteId는 위 provenance 자체 규칙("수기 수정에도 유지·기존값 승계")을 따라 잔존할 수 있다. 표시 소비처 0·FK SET NULL·재시드 자연 갱신이라 실해 0. "5필드 null이면 provenance도 null" 코드 변경안은 자체 규칙 명문과 충돌 — 비권장 박제.)*
 - DB 자동 변경 경로 없음 — 저장 버튼을 눌러야만 영속(S6 결합 없음 원칙 정합).
 
 ## 6. 어휘·문구
