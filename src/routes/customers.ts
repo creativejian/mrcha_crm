@@ -268,7 +268,11 @@ const idParam = z.object({ id: z.uuid() });
 const childParam = z.object({ id: z.uuid(), childId: z.uuid() });
 const memoBody = z.object({ body: z.string().nullable().optional() });
 const taskBody = z.object({ category: z.string().nullable().optional(), due: z.string().nullable().optional(), body: z.string().nullable().optional(), done: z.boolean().optional() });
-const scheduleBody = z.object({ scheduledDate: z.string().nullable().optional(), scheduledTime: z.string().nullable().optional(), type: z.string().nullable().optional(), memo: z.string().nullable().optional(), done: z.boolean().optional() });
+// 날짜/시간 포맷 게이트(배치 10 A#1) — scheduled_time은 text 컬럼이라 "9:30"이 verbatim 저장되면
+// 대표 선정(order by text asc 사전식)·클라 정렬이 동시에 틀리고 저장이 영구다. scheduledDate는
+// date 컬럼이라 PG가 정규화하지만 로케일 오배치("02/03/2026")를 무경고 해석하느니 400. 같은
+// body의 type 게이트(validateLookupValue)와 대칭 — null(클리어)은 그대로 허용.
+const scheduleBody = z.object({ scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(), scheduledTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(), type: z.string().nullable().optional(), memo: z.string().nullable().optional(), done: z.boolean().optional() });
 const quoteScenarioBody = z.object({
   scenarioNo: z.number().int().nullable().optional(),
   isSaved: z.boolean().optional(),
