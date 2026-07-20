@@ -18,6 +18,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
   "CU-AITOOL-",     // db/queries/assistant-tools.test.ts
   "CU-CONSULT-",    // db/queries/consultations.test.ts (CU-CONSULT-RT- 도 여기 걸린다)
   "CU-DEL-",        // routes/customers.delete.test.ts
+  "CU-DLVI-",       // db/queries/customer-delivery.test.ts · routes/customers.delivery.test.ts — 출고 정보 2단계
   "CU-DLVR-",       // db/queries/customers.next-delivery.test.ts — 출고 예정 파생
   "CU-EMBRT-",      // routes/customers.embed.test.ts  ← 2026-07-09 유령 행의 출처
   "CU-EMBSRC-",     // db/queries/embed-sources.test.ts
@@ -61,6 +62,7 @@ export const TEST_CONSULTATION_NAMES: readonly string[] = [
 export const TEST_QUOTE_CODE_PREFIXES = [
   "QT-AIHINT-",     // db/queries/ai-hint-sources.test.ts
   "QT-AITOOL-",     // db/queries/assistant-tools.test.ts
+  "QT-DLVI-",       // db/queries/customer-delivery.test.ts · routes/customers.delivery.test.ts — contracting 프리필 소스 견적
   "QT-EMBSRC-",     // db/queries/embed-sources.test.ts — 변수(QUOTE_CODE)로 조립해 눈에 잘 안 띈다
   "QT-TEST-",       // routes/customers.test.ts, db/queries/advisor-quotes.test.ts
 ] as const;
