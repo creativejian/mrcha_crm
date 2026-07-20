@@ -1,5 +1,5 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
-import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
 import { aiHintPlainText, badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
@@ -41,6 +41,78 @@ type CustomerManagementPageProps = {
   ) => void;
   roleTab?: RoleTab;
 };
+
+// 테이블 컨트롤(팝오버 앵커류) 클릭은 "외부 클릭"으로 보지 않는다 — 컨트롤 간 직행 전환 허용
+// (0519 확정 규칙). 순수 판별자라 파일 레벨(아래 공용 훅이 참조).
+function isTableControlTarget(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .delivery-schedule-wrap"));
+}
+
+// suppress형 팝오버 외부닫기 공용 훅(배치 10 B#9 — 유슨생 결정 ①). 콘솔 테이블 팝오버 5종
+// (stage/chance/extra/finalUpdate/delivery)의 "첫 외부 클릭은 닫기 전용 소비(suppress)" 처리가
+// byte-동일 5벌로 복제돼 있던 것을 1벌화. 스코프는 suppress형만 — 단순형 2벌(consoleFilter/
+// pageSize: suppress 불요)·저장형 1벌(nextAction: 닫기가 아니라 저장 실행)은 의미론이 달라 제외
+// (적대 검증 3분화 실측). 기존 usePopoverDismiss(Topbar)는 "첫 클릭 소비 특수 로직 제외" 박제
+// + non-capture라 확장 불가 — 신설이 맞다. finalUpdate의 ai-hint pointerover 특례는 소비처
+// 별도 effect 잔류. onClose는 안정 참조(useCallback [])를 넘겨 열림 중 재구독을 없앤다.
+function useTablePopoverDismiss({ active, containerRef, onClose, suppressRef, closeOnViewportShift = false }: {
+  active: boolean;
+  containerRef: RefObject<HTMLElement | null>;
+  onClose: () => void;
+  suppressRef: { current: boolean };
+  // fixed 팝오버(스크롤·리사이즈를 따라가지 못함 — stage/chance/delivery)만 true(배치 10 B#4).
+  closeOnViewportShift?: boolean;
+}) {
+  useEffect(() => {
+    if (!active) return;
+
+    function closeFromOutside(event: PointerEvent) {
+      if (containerRef.current?.contains(event.target as Node)) return;
+      if (isTableControlTarget(event.target)) return;
+      suppressRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      onClose();
+    }
+
+    function suppressOutsideClick(event: globalThis.MouseEvent) {
+      if (!suppressRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.setTimeout(() => {
+        suppressRef.current = false;
+      }, 0);
+    }
+
+    function closeByKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    function closeOnShift() {
+      onClose();
+    }
+
+    document.addEventListener("pointerdown", closeFromOutside, true);
+    document.addEventListener("click", suppressOutsideClick, true);
+    document.addEventListener("keydown", closeByKeyboard);
+    if (closeOnViewportShift) {
+      // (scroll capture — 테이블 내부 스크롤 포함. 팝오버 내부엔 스크롤 요소가 없어 오탐 없음)
+      document.addEventListener("scroll", closeOnShift, true);
+      window.addEventListener("resize", closeOnShift);
+    }
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside, true);
+      document.removeEventListener("click", suppressOutsideClick, true);
+      document.removeEventListener("keydown", closeByKeyboard);
+      if (closeOnViewportShift) {
+        document.removeEventListener("scroll", closeOnShift, true);
+        window.removeEventListener("resize", closeOnShift);
+      }
+    };
+  }, [active, containerRef, onClose, suppressRef, closeOnViewportShift]);
+}
 
 function modeFilter(mode: CustomerMode, customer: Customer) {
   // 상담필요 = 계약 전 단계의 "미배정" 고객 업무함(2026-07-16 확정) — 배정되면 이 목록에서 빠져
@@ -279,189 +351,20 @@ export function CustomerManagementPage({
     };
   }, [openPageSize]);
 
-  function isTableControlTarget(target: EventTarget | null) {
-    return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .delivery-schedule-wrap"));
-  }
+  // suppress형 외부닫기 5벌 → useTablePopoverDismiss 1벌(배치 10 B#9). fixed 팝오버 3종
+  // (stage/chance/delivery)만 closeOnViewportShift — 스크롤·리사이즈에 앵커를 못 따라가서 닫는다.
+  const closeStagePickerStable = useCallback(() => setOpenStagePicker(null), []);
+  const closeDeliveryScheduleStable = useCallback(() => setOpenDeliveryScheduleFor(null), []);
+  const closeChancePopoverStable = useCallback(() => setOpenChanceFor(null), []);
+  const closeExtraPopoverStable = useCallback(() => setOpenExtraFor(null), []);
+  const closeFinalUpdatePopoverStable = useCallback(() => setOpenFinalUpdateFor(null), []);
+  useTablePopoverDismiss({ active: openStagePicker !== null, containerRef: stagePickerRef, onClose: closeStagePickerStable, suppressRef: suppressOutsideClickRef, closeOnViewportShift: true });
+  useTablePopoverDismiss({ active: openDeliveryScheduleFor !== null, containerRef: deliverySchedulePopoverRef, onClose: closeDeliveryScheduleStable, suppressRef: suppressOutsideClickRef, closeOnViewportShift: true });
+  useTablePopoverDismiss({ active: openChanceFor !== null, containerRef: chancePopoverRef, onClose: closeChancePopoverStable, suppressRef: suppressOutsideClickRef, closeOnViewportShift: true });
+  useTablePopoverDismiss({ active: openExtraFor !== null, containerRef: extraPopoverRef, onClose: closeExtraPopoverStable, suppressRef: suppressOutsideClickRef });
+  useTablePopoverDismiss({ active: openFinalUpdateFor !== null, containerRef: finalUpdatePopoverRef, onClose: closeFinalUpdatePopoverStable, suppressRef: suppressOutsideClickRef });
 
-  useEffect(() => {
-    if (openStagePicker === null) return;
-
-    function closeStagePicker(event: PointerEvent) {
-      if (stagePickerRef.current?.contains(event.target as Node)) return;
-      if (isTableControlTarget(event.target)) return;
-      suppressOutsideClickRef.current = true;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      setOpenStagePicker(null);
-    }
-
-    function suppressOutsideClick(event: globalThis.MouseEvent) {
-      if (!suppressOutsideClickRef.current) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.setTimeout(() => {
-        suppressOutsideClickRef.current = false;
-      }, 0);
-    }
-
-    function closeStagePickerByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpenStagePicker(null);
-    }
-
-    // 팝오버가 position:fixed(콘솔 래퍼 overflow:hidden 클리핑 탈출 — 2026-07-19 확산 픽스)로 바뀌어
-    // 스크롤·리사이즈를 따라가지 않는다 — 앵커에서 분리되는 걸 막기 위해 둘 다 닫는다(T13 미러 +
-    // 배치 10 B#4: absolute 시절엔 앵커-상대라 자동 추종하던 리사이즈가 fixed 전환으로 갭이 됐다).
-    function closeStagePickerOnViewportShift() {
-      setOpenStagePicker(null);
-    }
-
-    document.addEventListener("pointerdown", closeStagePicker, true);
-    document.addEventListener("click", suppressOutsideClick, true);
-    document.addEventListener("keydown", closeStagePickerByKeyboard);
-    document.addEventListener("scroll", closeStagePickerOnViewportShift, true);
-    window.addEventListener("resize", closeStagePickerOnViewportShift);
-    return () => {
-      document.removeEventListener("pointerdown", closeStagePicker, true);
-      document.removeEventListener("click", suppressOutsideClick, true);
-      document.removeEventListener("keydown", closeStagePickerByKeyboard);
-      document.removeEventListener("scroll", closeStagePickerOnViewportShift, true);
-      window.removeEventListener("resize", closeStagePickerOnViewportShift);
-    };
-  }, [openStagePicker]);
-
-  useEffect(() => {
-    if (openDeliveryScheduleFor === null) return;
-
-    function closeDeliverySchedule(event: PointerEvent) {
-      if (deliverySchedulePopoverRef.current?.contains(event.target as Node)) return;
-      if (isTableControlTarget(event.target)) return;
-      suppressOutsideClickRef.current = true;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      setOpenDeliveryScheduleFor(null);
-    }
-
-    function suppressOutsideClick(event: globalThis.MouseEvent) {
-      if (!suppressOutsideClickRef.current) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.setTimeout(() => {
-        suppressOutsideClickRef.current = false;
-      }, 0);
-    }
-
-    function closeDeliveryScheduleByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpenDeliveryScheduleFor(null);
-    }
-
-    // T13: 팝오버가 position:fixed(콘솔 래퍼 overflow:hidden 클리핑 탈출)로 바뀌어 스크롤·리사이즈를
-    // 따라가지 않는다 — 앵커에서 분리되는 걸 막기 위해 둘 다 닫는다(리사이즈는 배치 10 B#4).
-    function closeDeliveryScheduleOnViewportShift() {
-      setOpenDeliveryScheduleFor(null);
-    }
-
-    document.addEventListener("pointerdown", closeDeliverySchedule, true);
-    document.addEventListener("click", suppressOutsideClick, true);
-    document.addEventListener("keydown", closeDeliveryScheduleByKeyboard);
-    // (capture — 테이블 내부 스크롤 포함. 팝오버 내부엔 스크롤 요소가 없어 오탐 없음)
-    document.addEventListener("scroll", closeDeliveryScheduleOnViewportShift, true);
-    window.addEventListener("resize", closeDeliveryScheduleOnViewportShift);
-    return () => {
-      document.removeEventListener("pointerdown", closeDeliverySchedule, true);
-      document.removeEventListener("click", suppressOutsideClick, true);
-      document.removeEventListener("keydown", closeDeliveryScheduleByKeyboard);
-      document.removeEventListener("scroll", closeDeliveryScheduleOnViewportShift, true);
-      window.removeEventListener("resize", closeDeliveryScheduleOnViewportShift);
-    };
-  }, [openDeliveryScheduleFor]);
-
-  useEffect(() => {
-    if (openChanceFor === null) return;
-
-    function closeChancePopover(event: PointerEvent) {
-      if (chancePopoverRef.current?.contains(event.target as Node)) return;
-      if (isTableControlTarget(event.target)) return;
-      suppressOutsideClickRef.current = true;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      setOpenChanceFor(null);
-    }
-
-    function suppressOutsideClick(event: globalThis.MouseEvent) {
-      if (!suppressOutsideClickRef.current) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.setTimeout(() => {
-        suppressOutsideClickRef.current = false;
-      }, 0);
-    }
-
-    function closeChancePopoverByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpenChanceFor(null);
-    }
-
-    // fixed 팝오버는 스크롤·리사이즈를 따라가지 않는다 — 둘 다 닫는다(스테이지 effect 주석 참조).
-    function closeChancePopoverOnViewportShift() {
-      setOpenChanceFor(null);
-    }
-
-    document.addEventListener("pointerdown", closeChancePopover, true);
-    document.addEventListener("click", suppressOutsideClick, true);
-    document.addEventListener("keydown", closeChancePopoverByKeyboard);
-    document.addEventListener("scroll", closeChancePopoverOnViewportShift, true);
-    window.addEventListener("resize", closeChancePopoverOnViewportShift);
-    return () => {
-      document.removeEventListener("pointerdown", closeChancePopover, true);
-      document.removeEventListener("click", suppressOutsideClick, true);
-      document.removeEventListener("keydown", closeChancePopoverByKeyboard);
-      document.removeEventListener("scroll", closeChancePopoverOnViewportShift, true);
-      window.removeEventListener("resize", closeChancePopoverOnViewportShift);
-    };
-  }, [openChanceFor]);
-
-  useEffect(() => {
-    if (openExtraFor === null) return;
-
-    function closeExtraPopover(event: PointerEvent) {
-      if (extraPopoverRef.current?.contains(event.target as Node)) return;
-      if (isTableControlTarget(event.target)) return;
-      suppressOutsideClickRef.current = true;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      setOpenExtraFor(null);
-    }
-
-    function suppressOutsideClick(event: globalThis.MouseEvent) {
-      if (!suppressOutsideClickRef.current) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.setTimeout(() => {
-        suppressOutsideClickRef.current = false;
-      }, 0);
-    }
-
-    function closeExtraPopoverByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpenExtraFor(null);
-    }
-
-    document.addEventListener("pointerdown", closeExtraPopover, true);
-    document.addEventListener("click", suppressOutsideClick, true);
-    document.addEventListener("keydown", closeExtraPopoverByKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeExtraPopover, true);
-      document.removeEventListener("click", suppressOutsideClick, true);
-      document.removeEventListener("keydown", closeExtraPopoverByKeyboard);
-    };
-  }, [openExtraFor]);
-
+  // finalUpdate 전용 특례(공용 훅 밖 잔류): AI 힌트 말풍선과 겹치면 hover 진입만으로 닫는다.
   useEffect(() => {
     if (openFinalUpdateFor === null) return;
 
@@ -471,41 +374,12 @@ export function CustomerManagementPage({
       }
     }
 
-    function closeFinalUpdatePopover(event: PointerEvent) {
-      if (finalUpdatePopoverRef.current?.contains(event.target as Node)) return;
-      if (isTableControlTarget(event.target)) return;
-      suppressOutsideClickRef.current = true;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      setOpenFinalUpdateFor(null);
-    }
-
-    function suppressOutsideClick(event: globalThis.MouseEvent) {
-      if (!suppressOutsideClickRef.current) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.setTimeout(() => {
-        suppressOutsideClickRef.current = false;
-      }, 0);
-    }
-
-    function closeFinalUpdatePopoverByKeyboard(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpenFinalUpdateFor(null);
-    }
-
     document.addEventListener("pointerover", closeFinalUpdatePopoverFromAiHint, true);
-    document.addEventListener("pointerdown", closeFinalUpdatePopover, true);
-    document.addEventListener("click", suppressOutsideClick, true);
-    document.addEventListener("keydown", closeFinalUpdatePopoverByKeyboard);
     return () => {
       document.removeEventListener("pointerover", closeFinalUpdatePopoverFromAiHint, true);
-      document.removeEventListener("pointerdown", closeFinalUpdatePopover, true);
-      document.removeEventListener("click", suppressOutsideClick, true);
-      document.removeEventListener("keydown", closeFinalUpdatePopoverByKeyboard);
     };
   }, [openFinalUpdateFor]);
+
 
   useEffect(() => {
     const textarea = nextActionTextareaRef.current;

@@ -1,6 +1,6 @@
 # 0720 리팩토링 배치 10 — 감사 결과 · 실행 계획
 
-Last updated: 2026-07-20 (유슨생 세션 — 감사·적대 검증·ground-truth 스팟 완료, 이행 착수)
+Last updated: 2026-07-20 (유슨생 세션 — **✅ 전량 이행 완료**: 기준선 #290 + PR-A #291 + PR-B #292 + PR-C #293 squash 머지 · octopus 통합 검증 typecheck 0/lint 0/unit 943/server 584/build/knip 7/9 · **판단 대기 2건 유슨생 결정 → 후속 PR로 이행**(B#9=① suppress형 5벌 공용 훅 `useTablePopoverDismiss` · B#10=ⓐ spec §5.4 정정+date input stale 동반))
 
 **범위**: 배치 9(#281·#282·`9cecddf` 감사 + 실행 산물 #283~#285) 이후 미감사 구간 = **#286(인사이트·지식베이스 캐시+진입점 `ef48280`)·#287(카운트 깜빡임 `d5e0459`)·#288(출고 관리 콘솔 1단계 `6077e3d` — 커밋 19개·코드 33파일 +4,350)·#289(콘솔 팝오버 fixed+flip-up 확산 `1fda751`)**. 코드 37파일. docs [skip ci] 커밋 3건은 코드 아님(범위 밖 누락 코드 커밋 0 — C 실측).
 
@@ -57,9 +57,9 @@ Last updated: 2026-07-20 (유슨생 세션 — 감사·적대 검증·ground-tru
 ### PR-C — 콘텐츠 카운트 (C#1+C#2)
 - 양 페이지 `loading || listError ? "" : items.length` + InsightsPage 에러 테스트 + KnowledgeBasePage.test.tsx 신설(로딩·에러 2건). TDD RED → GREEN.
 
-## 유슨생 판단 대기
-- **B#9** 외부닫기 복제: ①suppress형 5벌 한정 훅 ②suppress 함수만 1벌화 ③현행 유지(명시성).
-- **B#10** spec "취소": ⓐspec 정정(+"date input" stale 동반) ⓑ취소 버튼 추가(폼형 관례 정합).
+## 유슨생 판단 대기 → ✅ 전량 결정·이행 (2026-07-20 후속 PR)
+- **B#9 = ① 채택(유슨생)**: suppress형 5벌 한정 공용 훅 `useTablePopoverDismiss`(CustomerManagementPage 파일 레벨 — 소비처가 이 파일뿐). 옵션 = `closeOnViewportShift`(fixed 3종만 true — 스크롤+리사이즈 닫기). `isTableControlTarget` 파일 레벨 승격 동반. finalUpdate ai-hint pointerover 특례는 별도 effect 잔류. onClose는 useCallback([]) 안정 참조 — 열림 중 재구독 0(구 코드는 stage 레벨 전환마다 재구독하던 것보다 오히려 개선). 단순형 2벌·저장형 1벌은 스코프 밖 유지(검증관 3분화 실측 존중). 행위 무변경 증명 = 기존 페이지 테스트 그물 72(외부닫기·suppress 재오픈·Escape·scroll·resize·extra 전환) 전부 GREEN.
+- **B#10 = ⓐ 채택(유슨생)**: spec §5.4 문구를 구현에 정합(취소 버튼 없음 — 닫기 = 외부 클릭/Esc) + 같은 줄 "date input" stale(DateTextField 전환 미반영) 동반 정정. 재론 트리거(실사용 어색 시 ⓑ 버튼 추가 — 폼형 관례 논거) 각주 박제.
 
 ## 기록만
 - **B#5** z:90 캡핑 잔재(무해 기하 실증 박제 — 다음 dead-CSS 배치에서 스태킹 동치 논증 동반 일괄. 트리거 = 팝오버 폭 확대·행 내 신규 고z 요소).
