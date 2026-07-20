@@ -13,6 +13,7 @@ import {
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
 import { deleteCustomer, quoteStoragePath } from "../db/queries/customer-delete";
+import { upsertCustomerDelivery } from "../db/queries/customer-delivery";
 import { getStaffName } from "../db/queries/staff";
 import { normalizePhoneDigits } from "../lib/customer-phone";
 import { validateLookupValue, validateStatusSelection } from "../lib/lookup-validate";
@@ -491,6 +492,31 @@ customers.delete("/:id/schedules/:childId", zValidator("param", childParam), (c)
     if (row) await cleanupEmbeddingOnDelete("schedule", p.childId, c.var.db);
     return row;
   }, "일정을 찾을 수 없습니다.");
+});
+
+// ── 출고 정보 upsert(출고 2단계 spec §4.2) — 팝오버 전체 폼 = 전체 교체(PUT) ──────
+// 빈 문자열 → null(값 지우기), 날짜는 포맷 게이트(scheduleBody와 동일 사유 — 로케일 오배치 무경고 해석 400).
+// embed/AI 힌트 훅 없음(코퍼스 미편입 — 재료↔트리거 정합, spec §4.2). dealer는 전역 dealerWriteGate가 403.
+const deliveryTextField = z.string().nullable().transform((v) => (v && v.trim() ? v.trim() : null));
+const deliveryDateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
+const deliveryBody = z.object({
+  contractVehicle: deliveryTextField,
+  contractDate: deliveryDateField,
+  lender: deliveryTextField,
+  deliveredDate: deliveryDateField,
+  deliveryMemo: deliveryTextField,
+  sourceQuoteId: z.uuid().nullable(),
+});
+
+customers.put("/:id/delivery", zValidator("param", idParam), zValidator("json", deliveryBody), async (c) => {
+  try {
+    const result = await upsertCustomerDelivery(c.req.valid("param").id, c.req.valid("json"), c.var.db);
+    if (result.kind === "customer_not_found") return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+    if (result.kind === "quote_mismatch") return c.json({ error: "참조한 견적이 이 고객의 견적이 아닙니다." }, 400);
+    return c.json(result.row);
+  } catch (e) {
+    return errorResponse(c, e);
+  }
 });
 
 // ── 견적 생성(composer 견적 작성 → quote + 대표 시나리오 INSERT) ──────
