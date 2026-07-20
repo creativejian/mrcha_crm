@@ -41,6 +41,9 @@ export function compareDeliverySchedule(a: Customer, b: Customer): number {
   if (!sa && !sb) return 0;
   if (!sa) return 1;
   if (!sb) return -1;
+  // raw 사전식 비교(의도적 최소 방어 — 배치 10 A#2 각주): date는 DB date 컬럼+json ISO 렌더가
+  // 타입 수준에서 영패딩을 보장하고, time은 일정 CRUD zod 게이트(A#1)가 경계에서 봉쇄한다.
+  // 여기에 재조립 방어를 복제하면 도달 불가 코드 증식(overdue 라벨의 재조립은 표시 방어로 잔존).
   if (sa.date !== sb.date) return sa.date < sb.date ? -1 : 1;
   if (sa.time === sb.time) return 0;
   if (sa.time == null) return 1;

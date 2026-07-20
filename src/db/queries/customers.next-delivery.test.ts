@@ -10,6 +10,7 @@ const db = getDefaultDb();
 const suffix = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const CODE_WITH = `CU-DLVR-${suffix()}`;
 const CODE_WITHOUT = `CU-DLVR-${suffix()}`;
+const CODE_TIE = `CU-DLVR-${suffix()}`;
 
 describe("listCustomers nextDeliverySchedule (출고 콘솔 spec §4)", () => {
   const ids: string[] = [];
@@ -42,5 +43,28 @@ describe("listCustomers nextDeliverySchedule (출고 콘솔 spec §4)", () => {
     ids.push(row.id);
     const mine = (await listCustomers(db)).find((r) => r.id === row.id);
     expect(mine?.nextDeliverySchedule).toBeNull();
+  });
+
+  // 배치 10 A#4: 3차 tie-break(created_at asc) 잠금 — 대표 id는 팝오버 수정/삭제 대상이라
+  // 동일 (date,time) 2행에서 어느 행이 PATCH되는지가 행위다(드로어 type select에 '출고'가
+  // 있어 중복 생성 경로 실재). created_at은 defaultNow()에 맡기지 않고 명시 주입해
+  // **물리 삽입 순서(heap)와 created_at 순서를 엇갈리게** 한다 — 정렬의 3차 키가 사라지면
+  // 잔여 순서(heap seq scan)가 먼저 삽입된 newer를 뽑아 변이가 검출된다(defaultNow() 의존이면
+  // 삽입 순서 = created_at 순서라 3차 키 제거가 무증상 — 2026-07-20 1차 픽스처에서 실측).
+  // 이 엇갈림 픽스처로 3차 키 제거 변이 검출 실관찰 성공. ⚠️단 잔여 순서가 인덱스
+  // (customer_id, created_at) 스캔을 타면 무증상일 수 있는 플랜 종속 그물임은 유의.
+  test("동일 (date,time) 2행이면 created_at이 오래된 행이 대표(3차 tie-break)", async () => {
+    const [row] = await db.insert(customers).values({ customerCode: CODE_TIE, name: "출고큐파생검증" }).returning({ id: customers.id });
+    ids.push(row.id);
+    const [newerInsertedFirst] = await db.insert(customerSchedules)
+      .values({ customerId: row.id, scheduledDate: "2026-07-28", scheduledTime: "11:00", type: DELIVERY_SCHEDULE_TYPE, done: false, createdAt: new Date("2026-07-20T10:00:00Z") })
+      .returning({ id: customerSchedules.id });
+    const [olderInsertedSecond] = await db.insert(customerSchedules)
+      .values({ customerId: row.id, scheduledDate: "2026-07-28", scheduledTime: "11:00", type: DELIVERY_SCHEDULE_TYPE, done: false, createdAt: new Date("2026-07-20T09:00:00Z") })
+      .returning({ id: customerSchedules.id });
+
+    const mine = (await listCustomers(db)).find((r) => r.id === row.id);
+    expect(mine?.nextDeliverySchedule?.id).toBe(olderInsertedSecond.id);
+    expect(mine?.nextDeliverySchedule?.id).not.toBe(newerInsertedFirst.id);
   });
 });

@@ -1251,6 +1251,28 @@ test("schedule type 검증: 없는 type POST → 400, 유효 → 201", async () 
   await app.request(`/api/customers/${cid}/schedules/${schId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
 });
 
+// 배치 10 A#1: scheduled_time은 text 컬럼이라 "9:30"이 verbatim 저장되면 대표 선정(order by
+// text asc 사전식)·클라 정렬이 동시에 조용히 틀리고 저장이 영구다. 현 UI 3표면(콘솔 팝오버
+// normalize·드로어 시/분 select)은 전부 정규라 잠복 — 같은 body의 type 게이트와 대칭으로
+// 경계(zod)에서 봉쇄한다. scheduledDate는 date 컬럼이라 PG가 정규화하지만 로케일 오배치
+// ("02/03/2026")를 무경고 해석하느니 400이 정중하다.
+test("schedule 날짜/시간 포맷 게이트: 비패딩 time·비ISO date → 400, 정규·null 클리어 → 통과", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
+  const cid = list[0].id;
+  expect((await app.request(`/api/customers/${cid}/schedules`, { method: "POST", headers: h, body: JSON.stringify({ type: "견적", scheduledDate: "2026-06-01", scheduledTime: "9:30" }) })).status).toBe(400);
+  expect((await app.request(`/api/customers/${cid}/schedules`, { method: "POST", headers: h, body: JSON.stringify({ type: "견적", scheduledDate: "02/03/2026" }) })).status).toBe(400);
+  const ok = await app.request(`/api/customers/${cid}/schedules`, { method: "POST", headers: h, body: JSON.stringify({ type: "견적", scheduledDate: "2026-06-01", scheduledTime: "09:30" }) });
+  expect(ok.status).toBe(201);
+  const schId = ((await ok.json()) as { id: string }).id;
+  // PATCH도 같은 스키마 공유 — 비정규 time 400 + null 클리어는 통과를 함께 잠근다.
+  expect((await app.request(`/api/customers/${cid}/schedules/${schId}`, { method: "PATCH", headers: h, body: JSON.stringify({ scheduledTime: "9:30" }) })).status).toBe(400);
+  expect((await app.request(`/api/customers/${cid}/schedules/${schId}`, { method: "PATCH", headers: h, body: JSON.stringify({ scheduledTime: null }) })).status).toBe(200);
+  await app.request(`/api/customers/${cid}/schedules/${schId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+});
+
 test("customerType enum: 잘못된 값 → 400 / 유효 → 200(원복)", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
