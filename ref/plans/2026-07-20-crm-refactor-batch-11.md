@@ -45,4 +45,4 @@
 - [x] PR1 이행 — **#297**(refactor/crm-batch-11-server): A#1 활동 파생 편입(RED 실관찰)·A#2 22008 매핑(RED 실관찰)·A#4 축 분리·A#5 그물 2·각주/문서 7건. 대상 서버 테스트 16 pass·delivery-info 유닛 11 pass
 - [x] PR2 이행 — **#298**(refactor/crm-batch-11-console): B#1 Enter 한정 차단(+Escape 생존 잠금)·B#2 검색 축 정합·B#3/B#4 리로드 2곳·B#5 CSS 순서·B#6 그물 3·B#7 대칭 2줄·C#1 타이틀. RED 실관찰 6종·unit 972 전체 green·build
 - [x] 통합 검증 — 각 브랜치 typecheck 0·lint 0·build. PR2 unit 972 전체. knip = 신규 export 0(감사 C 시점 baseline 7/9 일치). 서버 스위트 전체 재실행은 머지 시(두 PR 파일 겹침 0 — octopus 불필요)
-- [ ] 머지(유슨생 지시 대기 — PR 생성까지)
+- [x] 머지 완료(유슨생 지시 2026-07-20) — #297 `627e789`·#298 `fa25df5` 순차 squash. **머지 후 main 통합 검증 전량 green**: typecheck 0·lint 0·unit **972**·server **597**(+3: A#1 활동 편입·A#2 날짜 매핑·A#5② — 실 master·잔재 0)·build. CF prod 배포 head `fa25df5` Active 실측(skip ci 없음)
