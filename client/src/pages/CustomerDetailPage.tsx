@@ -114,7 +114,7 @@ function CustomerDetailContent({
   // quoteList보다 먼저 선언 — 승격 견적 삭제 시 니즈 카드 배지 갱신(reloadAppRequests)을 quoteList에 주입해야 해서.
   const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor });
   // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 useQuoteWorkbench가 보유.
-  const quoteList = useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests: needs.reloadAppRequests });
+  const quoteList = useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests: needs.reloadAppRequests, onCustomerListChanged });
   const documents = useCustomerDocuments({ detail, customer, onToast, markRecentUpdate });
   // 예정 일정 영역 — setOpenEditor(saveSchedule이 닫음)가 위에서 선언돼야 해서 여기서 호출.
   const schedules = useCustomerSchedules({ detail, customer, onToast, markRecentUpdate, onCloseFloatingEditor: () => setOpenEditor(null) });

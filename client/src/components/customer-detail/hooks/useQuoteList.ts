@@ -16,10 +16,14 @@ type UseQuoteListArgs = {
   onToast: (message: string) => void;
   markRecentUpdate: (section: string) => void; // 부모 소유 — 콜백 주입
   reloadAppRequests: () => void; // 승격 견적 삭제 시 니즈 카드 배지("견적 N건"·견적 보기) 갱신 — 부모(needs) 소유
+  // 목록 리로드(App 소유) — 결정 상태(contracting 등)는 목록 파생 contractingQuote(출고 정보 soft pipe
+  // 프리필 소스, 2026-07-20 2단계)의 입력이라 마킹 성공 시 리프레시해야 같은 세션의 출고 콘솔이 최신
+  // (savePatch의 onCustomerListChanged 관례와 동일 경로).
+  onCustomerListChanged?: () => void;
 };
 
 // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 부모 보유.
-export function useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests }: UseQuoteListArgs) {
+export function useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests, onCustomerListChanged }: UseQuoteListArgs) {
   const [quotes, setQuotes] = useState<QuoteItem[]>(() => detail.quotes.map((q) => toQuoteItem(q, Date.now())));
   const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
   const [confirmingQuoteSendId, setConfirmingQuoteSendId] = useState<string | null>(null);
@@ -234,7 +238,11 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
       quote.id === id ? { ...quote, decisionStatus } : quote
     )));
     if (customer.id && !id.startsWith("kim-") && decisionStatus) {
-      void apiUpdateQuote(customer.id, id, { decisionStatus }).catch(() => { setQuotes(prevQuotes); onToast("저장에 실패했습니다."); });
+      // 2-인자 then — 리로드 자체의 실패(reject 없는 계약이지만)가 롤백 분기로 새지 않게 분리.
+      void apiUpdateQuote(customer.id, id, { decisionStatus }).then(
+        () => { onCustomerListChanged?.(); },
+        () => { setQuotes(prevQuotes); onToast("저장에 실패했습니다."); },
+      );
     }
     markRecentUpdate("견적함");
     onToast(decisionStatus === "contracting" ? "계약 진행 견적으로 표시했습니다." : decisionStatus === "confirmed" ? "고객 확정 견적으로 표시했습니다." : decisionStatus === "considering" ? "최종 고민중 견적으로 표시했습니다." : "견적 확정 상태를 해제했습니다.");
