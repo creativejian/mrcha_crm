@@ -3,7 +3,7 @@ import { isPreActionStatus } from "@/data/customers";
 import { finalUpdateStatus, finalUpdateStatusFromManage, type FinalUpdateInfo, type FinalUpdateStatus, type ManageStatusOption } from "./customer-table";
 
 // 목록 Customer·상세 훅이 구조적 타이핑으로 그대로 넘길 수 있는 최소 입력.
-// lastActivityAt = 서버 파생 GREATEST(customers.updated_at, 자식 max(created_at)) ISO.
+// lastActivityAt = 서버 파생 GREATEST(customers.updated_at, 자식 max(created_at), 출고 정보 max(updated_at)) ISO.
 export type ManageStatusSource = {
   lastActivityAt?: string | null;
   recontacted?: boolean;

@@ -2,7 +2,7 @@ import type { ContractingQuoteSummary, CustomerDeliveryInfo } from "@/data/custo
 import { dedupedModelTrim } from "@/lib/app-card-labels";
 import { normalizeDateText } from "@/lib/datetime-text";
 
-// ── 출고 정보 팝오버 순수 계층(2026-07-20 출고 2단계 spec §4·§5) — 전부 순수 함수 ──
+// ── 출고 정보 팝오버 순수 계층(2026-07-20 출고 2단계 spec §5.1·§5.3) — 전부 순수 함수 ──
 
 export type DeliveryInfoDraft = {
   contractVehicle: string;
@@ -14,7 +14,7 @@ export type DeliveryInfoDraft = {
   sourceQuoteId: string | null;
 };
 
-// 프리필 시드(spec §4): 저장값이 비어 있는 필드만 contracting 견적에서 채운다(수기 우선).
+// 프리필 시드(spec §5.3): 저장값이 비어 있는 필드만 contracting 견적에서 채운다(수기 우선).
 // sourceQuoteId = 프리필이 하나라도 적용됐으면 그 견적 id, 아니면 기존 저장값(없으면 null).
 // DB 자동 변경 경로 아님 — 저장 버튼을 눌러야만 영속(결합 없음 원칙과 정합).
 export function seedDeliveryInfoDraft(
@@ -57,6 +57,9 @@ export function resolveDeliveryInfoSubmit(draft: DeliveryInfoDraft): DeliveryInf
       lender: textOrNull(draft.lender),
       deliveredDate: delivered.value,
       deliveryMemo: textOrNull(draft.deliveryMemo),
+      // provenance는 §5.3 자체 규칙("수기 수정해도 유지·시드 없으면 기존값 승계")을 따른다 — "빈 폼
+      // 저장 = 전 필드 null"의 '전 필드'는 표시 5필드 기준(배치 11 A#8 각주: 5필드 null + sourceQuoteId
+      // 비null 행은 의도된 상태. 표시 소비처 0·FK SET NULL·재시드 자연 갱신이라 실해 0).
       sourceQuoteId: draft.sourceQuoteId,
     },
   };

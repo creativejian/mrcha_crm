@@ -38,7 +38,7 @@ if (!clean) {
   process.exit(1);
 }
 
-// crm.quotes → customers FK는 NO ACTION이라 견적을 먼저 지운다. 자식 5종과 임베딩은 CASCADE.
+// crm.quotes → customers FK는 NO ACTION이라 견적을 먼저 지운다. 자식 6종(출고 정보 포함)과 임베딩은 CASCADE.
 // ⚠️ 이 crm.quotes 직접 DELETE는 deleteQuote()의 임베딩 정리를 우회한다 — 지금은 전 픽스처 견적이
 // 픽스처 고객 소속이라 아래 customers DELETE의 embeddings CASCADE가 흡수하지만, **실고객 소속
 // 픽스처 견적을 만들면 고아 임베딩이 남는다**(금지 — 픽스처 견적은 항상 픽스처 고객에 건다).

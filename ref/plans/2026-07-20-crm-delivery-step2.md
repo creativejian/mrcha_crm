@@ -10,7 +10,7 @@
 
 **Spec:** `ref/specs/2026-07-20-crm-delivery-step2-design.md` (S1~S6 확정 결정이 우선)
 
-**⚠️ 경계(불변)**: DV 채번 미개봉 · 정산(ST)/settlement mode 무접촉 · 드로어 무접촉 · `db:push` 금지 · 머지 금지(PR 생성까지만 — 유슨생 지시 2026-07-20).
+**⚠️ 경계(불변)**: DV 채번 미개봉 · 정산(ST)/settlement mode 무접촉 · 드로어 무접촉 · `db:push` 금지. *(구 "머지 금지" 경계는 이행 시점 지시 — 이후 유슨생 지시로 **머지 완료** `8b54b6f`, 배치 11 C#2 동기화.)*
 
 ## ✅ 진행 상태 (2026-07-20 실행 — PR #296)
 
@@ -24,7 +24,7 @@
 - [x] Task 7: 콘솔 UI + 페이지 테스트 5종(RED 6 fail 실관찰→GREEN 77) (`dbe0f9d`)
 - [x] Task 8: CSS (`4279602`)
 - [x] Task 9: pending 항목 15 등재
-- [x] Task 10: 통합 검증 + **PR #296 생성(머지 보류 — 유슨생 지시)** — typecheck 0·lint 0·unit **961**(+16)·server **594**(+10·실 master·잔재 0)·build·knip 7/9 무드리프트
+- [x] Task 10: 통합 검증 + **PR #296 생성 → 이후 squash 머지 `8b54b6f`**(배치 11 C#2 동기화 — 구 "머지 보류"는 이행 시점 지시) — typecheck 0·lint 0·unit **961**(+16)·server **594**(+10·실 master·잔재 0)·build·knip 7/9 무드리프트
 - [x] Task 11: 격리 스택 브라우저 스모크 **전량 통과**(2026-07-20 — API 8799+vite 5174·magiclink admin·사용자 dev 불가침) — ①김민준 QT-2606-0005(제네시스 G80·우리금융캐피탈) contracting 마킹 → 팝오버 **프리필 실증**(계약 차량 "제네시스 G80 26년형 가솔린 터보 2.5 - 2WD"·금융사 "우리금융캐피탈") ②저장 → psql 대조(source_quote_id까지 정확) ③**차량 컬럼 폴백 실증**(Maybach 니즈 → 계약 차량 표시 전환)·셀 요약("우리금융캐피탈"+"출고 7/20") ④수정 왕복(실측일 추가) → **upsert 1행 유지** ⑤byte-exact 원복(deliveries 전체 0행·decision_status NULL·updated_at 원값·'출고' 일정 0·잔재 0). **관찰 2건(앱 버그 아님·기록)**: ⓐ자동화 CDP 클릭이 스냅샷 사이클에 따라 일과성 무효(hit-test 정상·프로그램 클릭 정상·기출하 출고 예정 팝오버 정상·재시도 정상 — 4중 판별로 앱 결함 배제) ⓑ낮은 뷰포트(~577px)에서는 팝오버 하단 저장 버튼으로 스크롤 시 closeOnViewportShift가 팝오버를 닫음 — 출고 예정 팝오버와 동일 확립 행동이나 이 팝오버가 더 길어 발생 확률↑(실사용 리포트 시 재론 후보)
 
 ---
@@ -937,6 +937,6 @@ import: `saveCustomerDelivery`(customer-children) · `resolveDeliveryInfoSubmit,
 
 ## Self-Review 노트 (plan 작성 시점)
 
-- **Spec 커버리지**: §3=Task 1 · §4.1=Task 3 · §4.2=Task 4 · §4(파이프 규칙)=Task 6 · §5.1/5.3=Task 7·8 · §5.2=Task 7(①) · §7=Task 9 · §9=Task 3~7 테스트+Task 10~11. 누락 없음.
+- **Spec 커버리지**: §3=Task 1 · §4.1=Task 3 · §4.2=Task 4 · §5.3(파이프 규칙)=Task 6 · §5.1/5.3=Task 7·8 · §5.2=Task 7(①) · §7=Task 9 · §9=Task 3~7 테스트+Task 10~11. 누락 없음. *(배치 11 C#3: 구 "§4(파이프 규칙)" 오기 정정 — 프리필 규칙 소재는 §5.3.)*
 - **타입 일관성**: `CustomerDeliveryInfo`(Task 2)를 서버 upsert patch·클라 body·서브쿼리 shape가 공유(별도 재선언 없음). `DeliveryInfoDraft`는 Task 6 정의를 Task 7이 import.
 - **주의**: Step 6.4 — `normalizeDateText`의 실제 유연성(예: "2026.7.5")은 구현 확인 후 테스트 기대값 확정(규약이 SSOT). Step 7.1 프리필 테스트의 `initialCustomers[4]` 스프레드는 기존 B#1 테스트 관례 — 해당 인덱스 고객의 mock 필드가 단언과 충돌하면 명시 필드로 덮는다.

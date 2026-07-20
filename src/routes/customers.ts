@@ -273,7 +273,10 @@ const taskBody = z.object({ category: z.string().nullable().optional(), due: z.s
 // 대표 선정(order by text asc 사전식)·클라 정렬이 동시에 틀리고 저장이 영구다. scheduledDate는
 // date 컬럼이라 PG가 정규화하지만 로케일 오배치("02/03/2026")를 무경고 해석하느니 400. 같은
 // body의 type 게이트(validateLookupValue)와 대칭 — null(클리어)은 그대로 허용.
-const scheduleBody = z.object({ scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(), scheduledTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(), type: z.string().nullable().optional(), memo: z.string().nullable().optional(), done: z.boolean().optional() });
+// 날짜 텍스트 게이트(YYYY-MM-DD 자릿수) — scheduleBody·deliveryBody 공유(배치 11 A#2 상수화).
+// 자릿수만 본다: 달력 실존(2026-02-31)은 PG date 캐스트가 최후 게이트(shared.ts 22008 매핑).
+const DATE_TEXT_RE = /^\d{4}-\d{2}-\d{2}$/;
+const scheduleBody = z.object({ scheduledDate: z.string().regex(DATE_TEXT_RE).nullable().optional(), scheduledTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(), type: z.string().nullable().optional(), memo: z.string().nullable().optional(), done: z.boolean().optional() });
 const quoteScenarioBody = z.object({
   scenarioNo: z.number().int().nullable().optional(),
   isSaved: z.boolean().optional(),
@@ -498,7 +501,7 @@ customers.delete("/:id/schedules/:childId", zValidator("param", childParam), (c)
 // 빈 문자열 → null(값 지우기), 날짜는 포맷 게이트(scheduleBody와 동일 사유 — 로케일 오배치 무경고 해석 400).
 // embed/AI 힌트 훅 없음(코퍼스 미편입 — 재료↔트리거 정합, spec §4.2). dealer는 전역 dealerWriteGate가 403.
 const deliveryTextField = z.string().nullable().transform((v) => (v && v.trim() ? v.trim() : null));
-const deliveryDateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
+const deliveryDateField = z.string().regex(DATE_TEXT_RE).nullable();
 const deliveryBody = z.object({
   contractVehicle: deliveryTextField,
   contractDate: deliveryDateField,
