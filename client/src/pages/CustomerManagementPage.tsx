@@ -128,7 +128,9 @@ export function CustomerManagementPage({
   // 출고 예정 팝오버(delivery mode 전용, Task 7) — 생성/수정/삭제.
   const [openDeliveryScheduleFor, setOpenDeliveryScheduleFor] = useState<number | null>(null);
   const [savingDeliveryFor, setSavingDeliveryFor] = useState<number | null>(null);
-  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
+  // 발생 행에 묶는다(배치 10 B#2) — 단일 스칼라면 A행 in-flight 실패 notice가 그 사이 열린
+  // B행 팝오버에 오귀속된다(:860 겹침 가드가 open/saving만 지키고 notice는 새던 잔여 갭).
+  const [deliveryNotice, setDeliveryNotice] = useState<{ no: number; message: string } | null>(null);
   const deliverySchedulePopoverRef = useRef<HTMLDivElement>(null);
   const [internalChanceOverrides, setInternalChanceOverrides] = useState<Record<number, ChanceOption>>({});
   const [finalUpdateOverrides, setFinalUpdateOverrides] = useState<Record<number, FinalUpdateInfo>>({});
@@ -309,20 +311,23 @@ export function CustomerManagementPage({
     }
 
     // 팝오버가 position:fixed(콘솔 래퍼 overflow:hidden 클리핑 탈출 — 2026-07-19 확산 픽스)로 바뀌어
-    // 스크롤을 따라가지 않는다 — 앵커에서 분리되는 걸 막기 위해 스크롤 발생 시 닫는다(T13 미러).
-    function closeStagePickerOnScroll() {
+    // 스크롤·리사이즈를 따라가지 않는다 — 앵커에서 분리되는 걸 막기 위해 둘 다 닫는다(T13 미러 +
+    // 배치 10 B#4: absolute 시절엔 앵커-상대라 자동 추종하던 리사이즈가 fixed 전환으로 갭이 됐다).
+    function closeStagePickerOnViewportShift() {
       setOpenStagePicker(null);
     }
 
     document.addEventListener("pointerdown", closeStagePicker, true);
     document.addEventListener("click", suppressOutsideClick, true);
     document.addEventListener("keydown", closeStagePickerByKeyboard);
-    document.addEventListener("scroll", closeStagePickerOnScroll, true);
+    document.addEventListener("scroll", closeStagePickerOnViewportShift, true);
+    window.addEventListener("resize", closeStagePickerOnViewportShift);
     return () => {
       document.removeEventListener("pointerdown", closeStagePicker, true);
       document.removeEventListener("click", suppressOutsideClick, true);
       document.removeEventListener("keydown", closeStagePickerByKeyboard);
-      document.removeEventListener("scroll", closeStagePickerOnScroll, true);
+      document.removeEventListener("scroll", closeStagePickerOnViewportShift, true);
+      window.removeEventListener("resize", closeStagePickerOnViewportShift);
     };
   }, [openStagePicker]);
 
@@ -353,9 +358,9 @@ export function CustomerManagementPage({
       if (event.key === "Escape") setOpenDeliveryScheduleFor(null);
     }
 
-    // T13: 팝오버가 position:fixed(콘솔 래퍼 overflow:hidden 클리핑 탈출)로 바뀌어 스크롤을 따라가지
-    // 않는다 — 앵커에서 분리되는 걸 막기 위해 스크롤 발생 시 닫는다.
-    function closeDeliveryScheduleOnScroll() {
+    // T13: 팝오버가 position:fixed(콘솔 래퍼 overflow:hidden 클리핑 탈출)로 바뀌어 스크롤·리사이즈를
+    // 따라가지 않는다 — 앵커에서 분리되는 걸 막기 위해 둘 다 닫는다(리사이즈는 배치 10 B#4).
+    function closeDeliveryScheduleOnViewportShift() {
       setOpenDeliveryScheduleFor(null);
     }
 
@@ -363,12 +368,14 @@ export function CustomerManagementPage({
     document.addEventListener("click", suppressOutsideClick, true);
     document.addEventListener("keydown", closeDeliveryScheduleByKeyboard);
     // (capture — 테이블 내부 스크롤 포함. 팝오버 내부엔 스크롤 요소가 없어 오탐 없음)
-    document.addEventListener("scroll", closeDeliveryScheduleOnScroll, true);
+    document.addEventListener("scroll", closeDeliveryScheduleOnViewportShift, true);
+    window.addEventListener("resize", closeDeliveryScheduleOnViewportShift);
     return () => {
       document.removeEventListener("pointerdown", closeDeliverySchedule, true);
       document.removeEventListener("click", suppressOutsideClick, true);
       document.removeEventListener("keydown", closeDeliveryScheduleByKeyboard);
-      document.removeEventListener("scroll", closeDeliveryScheduleOnScroll, true);
+      document.removeEventListener("scroll", closeDeliveryScheduleOnViewportShift, true);
+      window.removeEventListener("resize", closeDeliveryScheduleOnViewportShift);
     };
   }, [openDeliveryScheduleFor]);
 
@@ -399,20 +406,22 @@ export function CustomerManagementPage({
       if (event.key === "Escape") setOpenChanceFor(null);
     }
 
-    // fixed 팝오버는 스크롤을 따라가지 않는다 — 스크롤 발생 시 닫는다(스테이지 effect 주석 참조).
-    function closeChancePopoverOnScroll() {
+    // fixed 팝오버는 스크롤·리사이즈를 따라가지 않는다 — 둘 다 닫는다(스테이지 effect 주석 참조).
+    function closeChancePopoverOnViewportShift() {
       setOpenChanceFor(null);
     }
 
     document.addEventListener("pointerdown", closeChancePopover, true);
     document.addEventListener("click", suppressOutsideClick, true);
     document.addEventListener("keydown", closeChancePopoverByKeyboard);
-    document.addEventListener("scroll", closeChancePopoverOnScroll, true);
+    document.addEventListener("scroll", closeChancePopoverOnViewportShift, true);
+    window.addEventListener("resize", closeChancePopoverOnViewportShift);
     return () => {
       document.removeEventListener("pointerdown", closeChancePopover, true);
       document.removeEventListener("click", suppressOutsideClick, true);
       document.removeEventListener("keydown", closeChancePopoverByKeyboard);
-      document.removeEventListener("scroll", closeChancePopoverOnScroll, true);
+      document.removeEventListener("scroll", closeChancePopoverOnViewportShift, true);
+      window.removeEventListener("resize", closeChancePopoverOnViewportShift);
     };
   }, [openChanceFor]);
 
@@ -697,6 +706,7 @@ export function CustomerManagementPage({
 
   function toggleChancePopover(customerNo: number) {
     setOpenStagePicker(null);
+    setOpenExtraFor(null); // 형제 토글 5곳과 대칭(배치 10 B#3 — 유일 누락이던 선재 비대칭)
     setOpenFinalUpdateFor(null);
     setOpenDeliveryScheduleFor(null);
     setOpenChanceFor((current) => current === customerNo ? null : customerNo);
@@ -837,8 +847,8 @@ export function CustomerManagementPage({
   // 낙관 갱신 + fail-loud(customer-children이 상세 캐시 무효화를 이미 수행 — 드로어 정합 자동).
   async function saveDeliverySchedule(customer: Customer, draft: { date: string; time: string }) {
     const submit = resolveDeliveryScheduleSubmit(customer.nextDeliverySchedule ?? null, draft);
-    if (submit.kind === "invalid") { setDeliveryNotice(submit.reason); return; }
-    if (!customer.id) { setDeliveryNotice("목업 행에는 저장할 수 없습니다."); return; }
+    if (submit.kind === "invalid") { setDeliveryNotice({ no: customer.no, message: submit.reason }); return; }
+    if (!customer.id) { setDeliveryNotice({ no: customer.no, message: "목업 행에는 저장할 수 없습니다." }); return; }
     const cid = customer.id;
     setSavingDeliveryFor(customer.no);
     setDeliveryNotice(null);
@@ -855,12 +865,21 @@ export function CustomerManagementPage({
       // 렌더 클로저 배열 통째 교체라 in-flight 중 다른 행 갱신을 되돌리는 클로버가 있다).
       // 리로드는 복수 '출고' 일정의 대표 승계(spec §5.4)까지 서버 진실로 해소한다.
       // 단독(stories/test) 렌더엔 리로드 콜백이 없어 낙관 갱신 폴백(단일 액터라 클로버 무관).
-      if (onCustomerListChanged) await onCustomerListChanged();
-      else updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: next } : c)));
+      if (onCustomerListChanged) {
+        // 리로드 실패는 reject가 아니라 false다(App reloadCustomers — 배치 10 B#1). 버리면 저장
+        // 성공+행 stale이 무음 잔존 → 재저장이 create로 해석돼 '출고' 2행 실생성. deleteSelected
+        // 미러(닫고 헤드바 notice)는 불가 — 이 notice는 열린 팝오버 안에만 렌더라 닫으면 안 보인다
+        // → 팝오버 유지+안내(재저장 유도 차단 겸용).
+        const ok = await onCustomerListChanged();
+        if (ok === false) {
+          setDeliveryNotice({ no: customer.no, message: "저장은 완료됐지만 목록을 불러오지 못했습니다. 새로고침해 주세요." });
+          return;
+        }
+      } else updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: next } : c)));
       // 겹침 간섭 가드: in-flight 중 다른 행 팝오버가 열렸다면 그 팝오버/스피너를 건드리지 않는다.
       setOpenDeliveryScheduleFor((current) => (current === customer.no ? null : current));
     } catch {
-      setDeliveryNotice("출고 예정 저장에 실패했습니다. 다시 시도해 주세요.");
+      setDeliveryNotice({ no: customer.no, message: "출고 예정 저장에 실패했습니다. 다시 시도해 주세요." });
     } finally {
       setSavingDeliveryFor((current) => (current === customer.no ? null : current));
     }
@@ -874,12 +893,17 @@ export function CustomerManagementPage({
     try {
       await deleteSchedule(customer.id, schedule.id);
       // 대표 1건 통로(spec §5.4): 다른 미완료 '출고' 일정이 있으면 다음 서버 리로드에서 그 행이 대표로 승계.
-      // 성공 반영 = 서버 리로드 규약(#234, saveDeliverySchedule과 동일 근거).
-      if (onCustomerListChanged) await onCustomerListChanged();
-      else updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: null } : c)));
+      // 성공 반영 = 서버 리로드 규약(#234, saveDeliverySchedule과 동일 근거 — 실패 분기 포함).
+      if (onCustomerListChanged) {
+        const ok = await onCustomerListChanged();
+        if (ok === false) {
+          setDeliveryNotice({ no: customer.no, message: "삭제는 완료됐지만 목록을 불러오지 못했습니다. 새로고침해 주세요." });
+          return;
+        }
+      } else updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, nextDeliverySchedule: null } : c)));
       setOpenDeliveryScheduleFor((current) => (current === customer.no ? null : current));
     } catch {
-      setDeliveryNotice("출고 예정 삭제에 실패했습니다. 다시 시도해 주세요.");
+      setDeliveryNotice({ no: customer.no, message: "출고 예정 삭제에 실패했습니다. 다시 시도해 주세요." });
     } finally {
       setSavingDeliveryFor((current) => (current === customer.no ? null : current));
     }
@@ -972,7 +996,7 @@ export function CustomerManagementPage({
           <CustomerStageCell customer={customer} onChangePrimary={changeTwoStepPrimaryStage} onChangeSecondary={changeTwoStepSecondaryStage} onOpenPicker={openTwoStepStagePicker} pickerLevel={twoStepPickerOpen} secondaryOnly stagePickerRef={stagePickerRef} />
           <CustomerDeliveryScheduleCell
             customer={customer}
-            notice={openDeliveryScheduleFor === customer.no ? deliveryNotice : null}
+            notice={deliveryNotice?.no === customer.no ? deliveryNotice.message : null}
             open={openDeliveryScheduleFor === customer.no}
             popoverRef={deliverySchedulePopoverRef}
             saving={savingDeliveryFor === customer.no}

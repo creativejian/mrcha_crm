@@ -14,8 +14,11 @@ import { resolveFixedPopoverPosition } from "@/lib/popover-position";
 // `.console-table-scroll{overflow:hidden}`(콘솔 서피스 SSOT·불가침)이 absolute 팝오버를 마지막 행에서
 // 절단하던 결함의 탈출 경로. 팝오버 루트에서 closest(anchorSelector)로 앵커를 찾아 뷰포트 rect 기준
 // 좌표를 계산한다(useLayoutEffect = paint 전 1회 — pos 미확정 구간은 호출부가 visibility:hidden 방어).
-// fixed는 스크롤을 따라가지 않으므로 열림 상태의 스크롤 닫기는 페이지 effect가 담당한다.
+// fixed는 스크롤·리사이즈를 따라가지 않으므로 열림 상태의 닫기는 페이지 effect가 담당한다.
 // heightDep: 마운트 후 팝오버 높이를 바꾸는 상태(notice 등)가 있으면 넘겨 재계산한다.
+// ⚠️계약(배치 10 B#8): anchorSelector가 조상에서 안 잡히면 pos가 영구 null = 팝오버가 **무경고로
+// 영구 hidden**(fail-silent — "버튼 눌러도 아무 일 없음"으로 보인다). 재사용 시 팝오버를 반드시
+// 앵커 요소의 서브트리 안에 렌더하고, 셀렉터 오타를 의심할 것(현 3소비처는 전부 앵커 내부라 안전).
 function useFixedPopoverPosition(rootRef: RefObject<HTMLElement | null>, anchorSelector: string, heightDep?: unknown) {
   const [pos, setPos] = useState<ReturnType<typeof resolveFixedPopoverPosition> | null>(null);
   useLayoutEffect(() => {
