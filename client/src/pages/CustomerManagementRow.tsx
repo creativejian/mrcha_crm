@@ -8,6 +8,8 @@ import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliveryS
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
+import { deliveryInfoSummary, seedDeliveryInfoDraft, type DeliveryInfoDraft } from "@/lib/delivery-info";
+import { SOLUTION_LENDERS } from "@/lib/solution-quote";
 import { resolveFixedPopoverPosition } from "@/lib/popover-position";
 
 // 행 팝오버 fixed 배치 공유 훅(2026-07-19 클리핑 확산 픽스) — 콘솔 래퍼
@@ -115,13 +117,25 @@ export function CustomerVehicleCell({
   openExtraFor,
   onToggleExtra,
   extraPopoverRef,
+  contractVehicle = null,
 }: {
   customer: Customer;
   openExtraFor: string | null;
   onToggleExtra: (event: MouseEvent<HTMLButtonElement>, extraId: string) => void;
   extraPopoverRef: RefObject<HTMLButtonElement | null>;
+  /** delivery mode 한정(출고 2단계 spec §5.2): 계약 차량 저장값이 있으면 모델·트림 줄을 대체.
+   * 비교 차종(+N pill)·트림 줄은 미표시 — 계약 확정 맥락이라 "고민 중" 어휘가 오도. 구매방식 줄은 니즈 파생 유지. */
+  contractVehicle?: string | null;
 }) {
   const vehicle = vehicleDisplay(customer);
+  if (contractVehicle) {
+    return (
+      <td>
+        <strong className="vehicle-title"><span className="vehicle-line-text" title={contractVehicle}>{contractVehicle}</span></strong>
+        <span className="vehicle-method"><span className="vehicle-line-text">{vehicle.method}</span></span>
+      </td>
+    );
+  }
   const vehicleExtraId = `${customer.no}:vehicle`;
   const methodExtraId = `${customer.no}:method`;
   return (
@@ -625,6 +639,102 @@ function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: 
       <div className="delivery-schedule-actions">
         {initial && <button className="danger" disabled={saving} onClick={onDelete} type="button">삭제</button>}
         <button disabled={saving} onClick={() => onSave({ date, time })} type="button">{saving ? "저장 중…" : "저장"}</button>
+      </div>
+    </div>
+  );
+}
+
+// 출고 정보 셀(출고 2단계 spec §5.1·§5.3) — 요약 줄 버튼 + 폼형 팝오버(soft pipe 프리필).
+export function CustomerDeliveryInfoCell({
+  customer,
+  notice,
+  open,
+  popoverRef,
+  saving,
+  onSave,
+  onToggle,
+}: {
+  customer: Customer;
+  notice: string | null;
+  open: boolean;
+  popoverRef: RefObject<HTMLDivElement | null>;
+  saving: boolean;
+  onSave: (draft: DeliveryInfoDraft) => void;
+  onToggle: () => void;
+}) {
+  const summary = deliveryInfoSummary(customer.delivery);
+  return (
+    <td className="delivery-info-cell">
+      <div className="delivery-info-wrap" ref={open ? popoverRef : undefined}>
+        <button
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={summary ? `출고 정보: ${customer.name}` : `출고 정보 입력: ${customer.name}`}
+          className={summary ? "delivery-info-btn" : "delivery-info-btn delivery-info-btn-empty"}
+          onClick={(event) => { event.stopPropagation(); onToggle(); }}
+          onPointerDown={stopTableControlPointer}
+          type="button"
+        >
+          {summary ? (
+            <span className="delivery-info-lines">
+              {summary.contractLine && <span>{summary.contractLine}</span>}
+              {summary.deliveredLine && <span>{summary.deliveredLine}</span>}
+              {summary.fallback && <span>{summary.fallback}</span>}
+            </span>
+          ) : (
+            <span>+ 미입력</span>
+          )}
+        </button>
+        {open && (
+          <DeliveryInfoPopover
+            draft={seedDeliveryInfoDraft(customer.delivery ?? null, customer.contractingQuote ?? null)}
+            notice={notice}
+            saving={saving}
+            onCancel={onToggle}
+            onSave={onSave}
+          />
+        )}
+      </div>
+    </td>
+  );
+}
+
+// 출고 정보 팝오버 — 폼형(명시 저장·취소: 담당자 변경/고객 등록 관례. 출고 예정의 무취소·경량형과 다른 분류
+// — spec §5.3·B#10 각주). fixed 배치·notice 높이 재계산·스크롤 닫기는 출고 예정 팝오버(T13)와 동일 기계장치.
+// 팝오버는 열릴 때 마운트되므로 useState(draft) 초기값이 곧 시드 — 재오픈마다 새로 시드된다.
+function DeliveryInfoPopover({ draft: initialDraft, notice, saving, onCancel, onSave }: {
+  draft: DeliveryInfoDraft;
+  notice: string | null;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: (draft: DeliveryInfoDraft) => void;
+}) {
+  const [draft, setDraft] = useState(initialDraft);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const pos = useFixedPopoverPosition(rootRef, ".delivery-info-wrap", Boolean(notice));
+  const set = (patch: Partial<DeliveryInfoDraft>) => setDraft((d) => ({ ...d, ...patch }));
+  return (
+    <div
+      aria-label="출고 정보 편집"
+      className="delivery-info-popover"
+      onClick={(event) => event.stopPropagation()}
+      ref={rootRef}
+      role="dialog"
+      style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
+    >
+      <label><span>계약 차량</span><input onChange={(e) => set({ contractVehicle: e.target.value })} type="text" value={draft.contractVehicle} /></label>
+      <label><span>계약일</span><DateTextField onValueChange={(v) => set({ contractDate: v })} value={draft.contractDate} /></label>
+      <label>
+        <span>금융사</span>
+        <input list="delivery-lender-options" onChange={(e) => set({ lender: e.target.value })} type="text" value={draft.lender} />
+        <datalist id="delivery-lender-options">{SOLUTION_LENDERS.map((l) => <option key={l.code} value={l.label} />)}</datalist>
+      </label>
+      <label><span>출고 실측일</span><DateTextField onValueChange={(v) => set({ deliveredDate: v })} value={draft.deliveredDate} /></label>
+      <label><span>탁송/정비 메모</span><textarea onChange={(e) => set({ deliveryMemo: e.target.value })} rows={3} value={draft.deliveryMemo} /></label>
+      {notice && <p className="delivery-schedule-notice" role="alert">{notice}</p>}
+      <div className="delivery-schedule-actions">
+        <button disabled={saving} onClick={onCancel} type="button">취소</button>
+        <button disabled={saving} onClick={() => onSave(draft)} type="button">{saving ? "저장 중…" : "저장"}</button>
       </div>
     </div>
   );
