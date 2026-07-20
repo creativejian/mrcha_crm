@@ -91,7 +91,8 @@ const financeModes: Array<[FinanceMode, string]> = [
   ["payroll", "급여 관리"],
 ];
 
-// "상담 신청 DB"는 실제 라우트(/consultation-requests — 상담신청 인박스), "실시간 상담 요청"은 아직 스텁(하이라이트만).
+// "상담 신청 DB" = /consultation-requests(상담신청 인박스 #274), "실시간 상담 요청" = 실시간 상담
+// 콘솔(chat) 리라우트(2026-07-20 결정 ① — 마지막 스텁 소진, handleAdvisorAssignmentSelect 주석 참조).
 const advisorAssignmentModes = [
   ["consultation-requests", "상담 신청 DB"],
   ["advisor-assignment-live", "실시간 상담 요청"],
@@ -195,13 +196,13 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
     setAdvisorAssignmentOpen(true);
   }
 
-  // 상담사 배정 서브메뉴 — 상담 신청 DB만 실제 navigate, 나머지(실시간 상담 요청)는 스텁 하이라이트 유지.
+  // 상담사 배정 서브메뉴 — 전 항목 실 navigate(마지막 스텁 소진, 2026-07-20). "실시간 상담 요청"은
+  // 전용 화면이 아니라 실시간 상담 콘솔(chat)로 리라우트한다(유슨생 결정 ① — 상담원 연결 대기 큐가
+  // 이미 그 콘솔에 있어 전용 인박스는 같은 데이터의 중복 표면. 출고 관리 알림 리라우트와 같은 패턴).
+  // 도착 후 active 하이라이트는 "실시간 상담" 메인 메뉴가 갖는 게 정직(도착지가 곧 그 화면).
+  // 메뉴 존폐(중복 진입점 — #286 선례) 판단은 이사님 몫이라 리라우트로 두고 사후 공유.
   function handleAdvisorAssignmentSelect(view: string) {
-    if (view === "consultation-requests") {
-      navigate(view);
-      return;
-    }
-    setSelectedDraftMenu(view);
+    navigate(view === "advisor-assignment-live" ? "chat" : view);
   }
 
   return (
