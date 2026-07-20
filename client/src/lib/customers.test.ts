@@ -23,6 +23,8 @@ const row: CustomerRow = {
   needMethod: "운용리스",
   needDeliveryMethod: null,
   nextDeliverySchedule: null,
+  delivery: null,
+  contractingQuote: null,
   receivedAt: "2026-05-14T12:56:00+09:00",
   assignedAt: "2026-05-14T13:04:00+09:00",
   lastActivityAt: "2026-05-14T14:20:00+09:00",
