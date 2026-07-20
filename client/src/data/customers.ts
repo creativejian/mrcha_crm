@@ -34,6 +34,8 @@ export type Customer = {
   manageStatusAt?: string | null;
   deliveryMethod?: string; // need_delivery_method 표시값 — 출고 콘솔 '인도 방식' 컬럼(편집은 상세 니즈에서)
   nextDeliverySchedule?: NextDeliverySchedule | null; // 서버 파생 다음 출고 예정(목록 전용 — 상세엔 schedules 원본이 있다)
+  delivery?: CustomerDeliveryInfo | null; // 서버 파생 출고 정보(목록 전용 — delivery mode가 소비)
+  contractingQuote?: ContractingQuoteSummary | null; // 출고 정보 프리필 소스(소프트 파이프)
   settlementStatus?: string;
   fee?: string;
   cost?: string;
@@ -105,6 +107,25 @@ export const SCHEDULE_TYPE_OPTIONS: readonly string[] = ["재연락", "결정확
 // 목록 파생 '다음 출고 예정' — 서버 listCustomers 서브쿼리 ↔ 클라 표시·팝오버가 공유하는 shape.
 // date = 'YYYY-MM-DD'(plain date, tz 없음), time = 'HH:mm[:ss]' | null. id = 팝오버 수정/삭제 대상.
 export type NextDeliverySchedule = { id: string; date: string; time: string | null };
+
+// 출고 정보(crm.customer_deliveries) — 목록 파생·팝오버 편집 공유 shape(2026-07-20 출고 2단계 spec §3).
+export type CustomerDeliveryInfo = {
+  contractVehicle: string | null;
+  contractDate: string | null; // YYYY-MM-DD
+  lender: string | null;
+  deliveredDate: string | null; // YYYY-MM-DD
+  deliveryMemo: string | null;
+  sourceQuoteId: string | null;
+};
+
+// 계약 진행(decision_status='contracting') 견적 요약 — 출고 정보 팝오버 프리필 소스(소프트 파이프, spec §4).
+export type ContractingQuoteSummary = {
+  id: string;
+  brandName: string | null;
+  modelName: string | null;
+  trimName: string | null;
+  lender: string | null; // 대표 시나리오(primary_scenario_id)의 금융사
+};
 
 // 고객 유형(customers.customer_type) — 닫힌 3종. 백엔드 zod·DB CHECK 공유.
 export const CUSTOMER_TYPE_OPTIONS = ["개인", "개인사업자", "법인사업자"] as const;
