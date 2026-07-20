@@ -123,7 +123,11 @@ test("linkRequestToCustomer: 대상 고객이 이미 다른 앱 계정에 연결
   await expect(
     db.transaction(async (tx) => {
       await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, req.userId));
-      await tx.update(customers).set({ appUserId: occupyingUser }).where(eq(customers.id, cust.id));
+      // phone: null 동반 — limit(1)이 phone 보유 고객을 뽑으면 app_user_id만 세팅하는 시드가
+      // customers_phone_app_exclusive_check(마이그 0034 — app_user_id ↔ phone 배타)에 거부돼
+      // ConflictError 전에 tx가 죽는다(heap 순서 종속이라 0034 이후 잠복하다 2026-07-20 발현).
+      // 연결 고객 = phone NULL이 소유권 계약 정합 상태이기도 하다(#276). tx 롤백이라 실 DB 불변.
+      await tx.update(customers).set({ appUserId: occupyingUser, phone: null }).where(eq(customers.id, cust.id));
       await expect(linkRequestToCustomer(req.id, cust.id, tx)).rejects.toThrow(ConflictError);
       const [c] = await tx.select({ appUserId: customers.appUserId }).from(customers).where(eq(customers.id, cust.id));
       expect(c.appUserId).toBe(occupyingUser); // 기존 연결 보존
