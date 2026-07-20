@@ -373,3 +373,23 @@ export const customerDeletions = crm.table("customer_deletions", {
   deletedBy: uuid("deleted_by").notNull(), // JWT sub (loose id, public FK 보류 관례)
   deletedAt: timestamp("deleted_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// 출고 도메인 얇은 테이블(2026-07-20 2단계 spec §3) — 고객당 1행(UNIQUE) upsert.
+// CT(계약 상위 식별자)·DV 정식 모델 전까지의 과도기 구조(가역) — 재구매 2회차 출고 이력 미보존(spec S2).
+// DV 채번은 계속 미개봉(합의 경계). 닫힌 어휘 없음 → CHECK 0.
+export const customerDeliveries = crm.table("customer_deliveries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  customerId: uuid("customer_id")
+    .notNull()
+    .unique()
+    .references(() => customers.id, { onDelete: "cascade" }),
+  contractVehicle: text("contract_vehicle"), // 계약 차량 스냅샷(자유 텍스트 — 니즈 '관심 차종'과 구분)
+  contractDate: date("contract_date"),
+  lender: text("lender"), // 금융사 스냅샷(자유 텍스트 — 솔루션 8사 어휘와 의도적 비결합, spec S4)
+  deliveredDate: date("delivered_date"), // 출고 실측일 — 상태 전이와 완전 독립(spec S6, 결합 없음 원칙)
+  deliveryMemo: text("delivery_memo"), // 탁송/정비 메모
+  // 프리필이 참조한 계약 진행 견적(provenance) — 견적 삭제 시 SET NULL. 파생 표시엔 안 쓴다(스냅샷이 진실).
+  sourceQuoteId: uuid("source_quote_id").references(() => quotes.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
