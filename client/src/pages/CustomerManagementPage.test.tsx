@@ -325,6 +325,20 @@ describe("CustomerManagementPage", () => {
     expect(screen.queryByRole("listbox", { name: "가능성 선택" })).not.toBeInTheDocument();
   });
 
+  // 배치 10 B#3: 형제 토글 5곳 중 chance만 +N 말풍선 닫기가 누락이던 비대칭(선재 — 6077e3d^ 실증).
+  // 동시 오픈되면 외부 클릭 1회에 extra만 닫혀(등록 순 stopImmediatePropagation 선점) 닫기 2회 필요.
+  it("chance 팝오버를 열면 열려 있던 +N 말풍선이 닫힌다(형제 토글 대칭)", async () => {
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="all" />);
+    const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
+    const extraBtn = within(row).getByRole("button", { name: /추가 차종 보기/ });
+    await user.click(extraBtn);
+    expect(extraBtn).toHaveAttribute("aria-expanded", "true");
+    await user.click(within(row).getByRole("button", { name: /가능성 변경/ }));
+    expect(screen.getByRole("listbox", { name: "가능성 선택" })).toBeInTheDocument();
+    expect(extraBtn).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("automatically confirms chance when the primary stage becomes contracted", async () => {
     const user = userEvent.setup();
     render(<CustomerManagementPage mode="all" />);
@@ -520,12 +534,53 @@ describe("출고 관리(delivery) 콘솔", () => {
   });
 
   // 진행 상태 1차/2차 필터는 단계 pill과 완전 중복이라 delivery에서 숨긴다(1440px 실측 보강 — 겹침·
-  // 모순 조합 방지). 잔존 statusGroup/status state가 목록을 조용히 좁히지 않는 것은 baseRows의
-  // activeStatusGroup/activeStatus 게이트(A#3 선례 미러)가 담당 — 코드 리뷰로 확인.
+  // 모순 조합 방지). 잔존 statusGroup/status state 미적용 게이트는 아래 rerender 테스트가 기계 잠금
+  // (배치 10 B#6 — 구 "코드 리뷰로 확인" 주석의 승격).
   it("delivery mode에선 진행 상태 1차/2차 필터가 렌더되지 않는다", () => {
     render(<CustomerManagementPage mode="delivery" />);
     expect(screen.queryByRole("button", { name: /진행 상태 · 1차/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /진행 상태 · 2차/ })).toBeNull();
+  });
+
+  // 배치 10 B#6: all에서 1차 필터를 걸고 delivery로 전환해도 잔존 state가 큐를 조용히 좁히면 안 된다
+  // (activeStatusGroup/activeStatus 게이트 — 게이트가 사라지면 "신규" 필터 ∧ 계약완료 큐 = 상시 0명,
+  // 정확히 spec §5.1이 차단하려던 모순 조합이다).
+  it("all에서 1차 필터를 걸고 delivery로 전환해도 계약완료 큐가 좁혀지지 않는다", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<CustomerManagementPage mode="all" />);
+    await user.click(screen.getByRole("button", { name: /진행 상태 · 1차/ }));
+    await user.click(within(screen.getByRole("listbox", { name: "진행 상태 · 1차 선택" })).getByRole("option", { name: "신규" }));
+    rerender(<CustomerManagementPage mode="delivery" />);
+    expect(screen.getByText("한지훈")).toBeInTheDocument(); // 계약완료·배정완료 — 게이트가 새면 사라진다
+  });
+
+  // 배치 10 B#7: 출고 예정 팝오버 스크롤 닫기(T13 원조)를 잠근다 — #289가 stage/chance 미러만
+  // 잠그고 원조는 무테스트였던 비대칭 해소.
+  it("스크롤이 나면 출고 예정 팝오버를 닫는다(fixed는 앵커를 따라가지 않음)", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    fireEvent.click(screen.getAllByRole("button", { name: /^출고 예정/ })[0]);
+    expect(screen.getByRole("dialog", { name: "출고 예정 편집" })).toBeInTheDocument();
+    fireEvent.scroll(document.body);
+    expect(screen.queryByRole("dialog", { name: "출고 예정 편집" })).toBeNull();
+  });
+
+  // 배치 10 B#1: App reloadCustomers는 실패 시 reject가 아니라 false를 반환한다 — 반환값을 버리면
+  // 저장 성공+리로드 실패가 무음으로 "+ 미지정" 잔존 → 재저장이 create로 해석돼 '출고' 2행이 실생성.
+  // 실패 분기는 팝오버를 유지한 채 안내한다(deleteSelected 미러 불가 — notice가 팝오버 안에만 렌더).
+  it("저장 후 리로드 실패(false)면 팝오버를 유지하고 안내를 보여준다", async () => {
+    const reload = vi.fn().mockResolvedValue(false);
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-4", no: 90004, customerId: "CU-2605-9004", name: "출고리로드실패",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
+    fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+    expect(await screen.findByRole("alert")).toHaveTextContent("목록을 불러오지");
+    expect(screen.getByRole("dialog", { name: "출고 예정 편집" })).toBeInTheDocument();
   });
 
   it("행 정렬 = 출고 예정일 오름차순, 미지정은 뒤", () => {
@@ -659,5 +714,17 @@ describe("콘솔 행 팝오버 fixed 배치(클리핑 확산 픽스)", () => {
     expect(screen.getByRole("listbox", { name: "가능성 선택" })).toBeInTheDocument();
     fireEvent.scroll(document.body);
     expect(screen.queryByRole("listbox", { name: "가능성 선택" })).not.toBeInTheDocument();
+  });
+
+  // 배치 10 B#4: fixed 팝오버는 리사이즈도 따라가지 못한다 — 스크롤 닫기와 같은 근거로 닫는다
+  // (absolute 시절엔 앵커-상대라 자동 추종 — fixed 전환이 만든 갭).
+  it("창 리사이즈가 나면 진행 상태 팝오버를 닫는다(스크롤 닫기 미러)", async () => {
+    const user = userEvent.setup();
+    render(<CustomerManagementPage mode="all" />);
+    const row = screen.getByText("김민준").closest("tr") as HTMLTableRowElement;
+    await user.click(within(row).getByRole("button", { name: "진행 1단계 변경: 견적" }));
+    expect(screen.getByRole("listbox", { name: "진행 1단계 선택" })).toBeInTheDocument();
+    fireEvent(window, new Event("resize"));
+    expect(screen.queryByRole("listbox", { name: "진행 1단계 선택" })).not.toBeInTheDocument();
   });
 });
