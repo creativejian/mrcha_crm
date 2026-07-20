@@ -1,3 +1,4 @@
+import type { CustomerDeliveryInfo } from "@/data/customers";
 import { sendJson, sendVoid } from "./http";
 import { invalidateCustomerDetail } from "./customers";
 
@@ -31,3 +32,7 @@ export const deleteTask = (cid: string, id: string) => done(cid, sendVoid(`/api/
 export const addSchedule = (cid: string, v: ScheduleBody) => created(cid, sendJson<ChildCreated>(`/api/customers/${cid}/schedules`, "POST", v));
 export const updateSchedule = (cid: string, id: string, v: ScheduleBody) => done(cid, sendVoid(`/api/customers/${cid}/schedules/${id}`, "PATCH", v));
 export const deleteSchedule = (cid: string, id: string) => done(cid, sendVoid(`/api/customers/${cid}/schedules/${id}`, "DELETE"));
+
+// 출고 정보 upsert(PUT — 전체 교체, 출고 2단계 spec §4.2). 드로어는 출고 정보를 안 보여주지만
+// 캐시 무효화는 관례대로 동반(무해·미래 편입 대비).
+export const saveCustomerDelivery = (cid: string, v: CustomerDeliveryInfo) => done(cid, sendVoid(`/api/customers/${cid}/delivery`, "PUT", v));

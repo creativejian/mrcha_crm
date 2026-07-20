@@ -253,6 +253,13 @@
       "when": 1784434346743,
       "tag": "0035_old_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784538800689,
+      "tag": "0036_opposite_doomsday",
+      "breakpoints": true
     }
   ]
 }

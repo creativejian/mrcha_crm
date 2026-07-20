@@ -5,7 +5,7 @@ import { staffActivityAt } from "./activity";
 import { listAdvisorViewedAt } from "./advisor-quotes";
 import { nextCustomerCode } from "./quote-requests";
 import { profiles } from "../public-app";
-import { DELIVERY_SCHEDULE_TYPE, type NextDeliverySchedule } from "../../../client/src/data/customers";
+import { DELIVERY_SCHEDULE_TYPE, type ContractingQuoteSummary, type CustomerDeliveryInfo, type NextDeliverySchedule } from "../../../client/src/data/customers";
 import {
   consultations,
   customerDocuments,
@@ -17,8 +17,13 @@ import {
   quoteScenarios,
 } from "../schema";
 
-// 목록 행 = customers 전체 컬럼 + 상담메모용 최신 미완료 task 1건 body.
-export type CustomerListRow = typeof customers.$inferSelect & { latestTask: string | null; nextDeliverySchedule: NextDeliverySchedule | null };
+// 목록 행 = customers 전체 컬럼 + 상담메모용 최신 미완료 task 1건 body + 출고 파생 3종.
+export type CustomerListRow = typeof customers.$inferSelect & {
+  latestTask: string | null;
+  nextDeliverySchedule: NextDeliverySchedule | null;
+  delivery: CustomerDeliveryInfo | null;
+  contractingQuote: ContractingQuoteSummary | null;
+};
 
 // 상담메모(목업 nextAction): customer_tasks 최신 미완료 1건 body를 상관 서브쿼리로.
 // customer_id 비교는 crm.customers.id로 완전정규화 — 섀도잉 사유는 activity.ts staffActivityAt 주석 참조(동일 버그 클래스).
@@ -42,6 +47,36 @@ const nextDeliverySchedule = sql<NextDeliverySchedule | null>`(
     and s.done = false
     and s.scheduled_date is not null
   order by s.scheduled_date asc, s.scheduled_time asc nulls last, s.created_at asc
+  limit 1
+)`;
+
+// 출고 정보(2단계 spec §4.1) — 고객당 1행(UNIQUE)이라 서브쿼리가 곧 그 행. 소비는 delivery mode만이나
+// 파생을 mode로 왜곡하지 않는다(nextDeliverySchedule과 동일 원칙). 완전정규화 주의(#154 섀도잉 버그 클래스).
+const deliveryInfo = sql<CustomerDeliveryInfo | null>`(
+  select json_build_object(
+    'contractVehicle', d.contract_vehicle,
+    'contractDate', d.contract_date,
+    'lender', d.lender,
+    'deliveredDate', d.delivered_date,
+    'deliveryMemo', d.delivery_memo,
+    'sourceQuoteId', d.source_quote_id)
+  from crm.customer_deliveries d
+  where d.customer_id = crm.customers.id
+)`;
+
+// 계약 진행 견적 요약(소프트 파이프 프리필 소스, spec §4.1) — contracting 복수 마킹 엣지는 updated_at
+// 최신 1건(id desc 최종 tie-break·결정적). lender는 대표 시나리오(primary_scenario_id) 경유 — 미지정이면 null.
+// confirmed/considering은 소스가 아니다(명시 마킹만 신뢰 — spec §0 "받는 쪽 부재" 해소가 이 서브쿼리).
+const contractingQuoteSummary = sql<ContractingQuoteSummary | null>`(
+  select json_build_object(
+    'id', q.id,
+    'brandName', q.brand_name,
+    'modelName', q.model_name,
+    'trimName', q.trim_name,
+    'lender', (select s.lender from crm.quote_scenarios s where s.id = q.primary_scenario_id))
+  from crm.quotes q
+  where q.customer_id = crm.customers.id and q.decision_status = 'contracting'
+  order by q.updated_at desc, q.id desc
   limit 1
 )`;
 
@@ -159,7 +194,7 @@ export async function getCustomerAppUserId(
 
 export async function listCustomers(executor: Executor = getDefaultDb()): Promise<CustomerListRow[]> {
   return executor
-    .select({ ...getTableColumns(customers), phone: composedPhone, latestTask: latestTaskBody, lastActivityAt: staffActivityAt, nextDeliverySchedule })
+    .select({ ...getTableColumns(customers), phone: composedPhone, latestTask: latestTaskBody, lastActivityAt: staffActivityAt, nextDeliverySchedule, delivery: deliveryInfo, contractingQuote: contractingQuoteSummary })
     .from(customers)
     .leftJoin(profiles, eq(customers.appUserId, profiles.id))
     .orderBy(desc(customers.receivedAt));

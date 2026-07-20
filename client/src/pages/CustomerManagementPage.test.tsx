@@ -8,6 +8,7 @@ vi.mock("@/lib/customer-children", () => ({
   addSchedule: vi.fn().mockResolvedValue({ id: "sch-new", createdAt: "2026-07-19T00:00:00Z" }),
   updateSchedule: vi.fn().mockResolvedValue(undefined),
   deleteSchedule: vi.fn().mockResolvedValue(undefined),
+  saveCustomerDelivery: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("CustomerManagementPage", () => {
@@ -497,11 +498,11 @@ describe("CustomerManagementPage", () => {
 // 기본 pill = "진행 중"(Task 6) — 계약완료 3명(최유진 출고완료·한지훈 배정완료·김도현 딜러사계약중) 중
 // 출고완료(최유진)는 기본 노출에서 빠지고, 진행 중 단계인 한지훈·김도현만 노출된다.
 describe("출고 관리(delivery) 콘솔", () => {
-  it("헤더 = 선택/고객/차량/출고 단계/출고 예정/인도 방식/담당/관리", () => {
+  it("헤더 = 선택/고객/차량/출고 단계/출고 예정/출고 정보/인도 방식/담당/관리", () => {
     render(<CustomerManagementPage mode="delivery" />);
     const heads = screen.getAllByRole("columnheader").map((th) => th.textContent);
     // index 0(선택) 헤더는 텍스트가 아니라 전체선택 체크박스를 렌더한다(기존 all mode 테스트와 동일 관례).
-    expect(heads).toEqual(["", "고객", "차량", "출고 단계", "출고 예정", "인도 방식", "담당", "관리"]);
+    expect(heads).toEqual(["", "고객", "차량", "출고 단계", "출고 예정", "출고 정보", "인도 방식", "담당", "관리"]);
   });
 
   it("출고 단계 셀 = 2차 상태 버튼(1차 버튼 없음), 팝오버 옵션 = 계약완료 2차 5종", async () => {
@@ -656,6 +657,76 @@ describe("출고 관리(delivery) 콘솔", () => {
     fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  // ── 출고 정보 셀·팝오버(2026-07-20 출고 2단계 spec §5) ─────────────────────
+  it("출고 정보 미입력 셀 = '+ 미입력' 버튼, 클릭 시 폼형 팝오버(저장·취소)", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:/ })[0]);
+    const dialog = screen.getByRole("dialog", { name: "출고 정보 편집" });
+    expect(within(dialog).getByRole("button", { name: "저장" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "취소" })).toBeInTheDocument();
+  });
+
+  it("팝오버는 contracting 견적에서 차량·금융사를 프리필한다(soft pipe)", () => {
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-5", no: 90005, customerId: "CU-2605-9005", name: "프리필검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+      delivery: null,
+      contractingQuote: { id: "q-1", brandName: "BMW", modelName: "5 Series", trimName: "520i", lender: "iM캐피탈" },
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 프리필검증" }));
+    expect(screen.getByLabelText("계약 차량")).toHaveValue("BMW 5 Series 520i");
+    expect(screen.getByLabelText("금융사")).toHaveValue("iM캐피탈");
+  });
+
+  it("저장은 정규화 body로 saveCustomerDelivery를 호출하고, 리로드 실패(false)면 팝오버 유지+안내(B#1 미러)", async () => {
+    const { saveCustomerDelivery } = await import("@/lib/customer-children");
+    const reload = vi.fn().mockResolvedValue(false);
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-6", no: 90006, customerId: "CU-2605-9006", name: "출고정보저장검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+      delivery: null, contractingQuote: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 출고정보저장검증" }));
+    fireEvent.change(screen.getByLabelText("계약일"), { target: { value: "2026-07-15" } });
+    fireEvent.change(screen.getByLabelText("금융사"), { target: { value: "iM캐피탈" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(saveCustomerDelivery).toHaveBeenCalledWith("cid-6", {
+      contractVehicle: null, contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: null, deliveryMemo: null, sourceQuoteId: null,
+    }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("목록을 불러오지");
+    expect(screen.getByRole("dialog", { name: "출고 정보 편집" })).toBeInTheDocument();
+  });
+
+  it("delivery mode 차량 셀은 계약 차량 저장값을 우선 표시한다(니즈 파생 대체 — spec §5.2)", () => {
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-7", no: 90007, customerId: "CU-2605-9007", name: "차량폴백검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null, vehicle: "니즈차종",
+      delivery: { contractVehicle: "계약차량 520i", contractDate: null, lender: null, deliveredDate: null, deliveryMemo: null, sourceQuoteId: null },
+      contractingQuote: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    expect(screen.getByText("계약차량 520i")).toBeInTheDocument();
+    expect(screen.queryByText("니즈차종")).toBeNull();
+  });
+
+  it("출고 정보 저장값이 있으면 셀에 계약·출고 요약 줄을 보여준다", () => {
+    const customers = [{
+      ...initialCustomers[4],
+      id: "cid-8", no: 90008, customerId: "CU-2605-9008", name: "출고요약검증",
+      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
+      delivery: { contractVehicle: null, contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: "2026-07-20", deliveryMemo: null, sourceQuoteId: null },
+      contractingQuote: null,
+    }];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    expect(screen.getByText("계약 7/15 · iM캐피탈")).toBeInTheDocument();
+    expect(screen.getByText("출고 7/20")).toBeInTheDocument();
   });
 });
 

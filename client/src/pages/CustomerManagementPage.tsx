@@ -11,10 +11,11 @@ import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
 import { changeAdvisorBulk } from "@/lib/customer-bulk-advisor";
 import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-delete";
-import { addSchedule, deleteSchedule, updateSchedule } from "@/lib/customer-children";
+import { addSchedule, deleteSchedule, saveCustomerDelivery, updateSchedule } from "@/lib/customer-children";
 import { compareDeliverySchedule, DELIVERY_PILL_IN_PROGRESS, DELIVERY_STAGE_PILLS, deliveryCountLabel, deliveryPillCounts, matchesDeliveryPill, resolveDeliveryScheduleSubmit } from "@/lib/delivery-console";
+import { resolveDeliveryInfoSubmit, type DeliveryInfoDraft } from "@/lib/delivery-info";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
-import { CustomerActionsCell, CustomerChanceCell, CustomerDeliveryScheduleCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
+import { CustomerActionsCell, CustomerChanceCell, CustomerDeliveryInfoCell, CustomerDeliveryScheduleCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
 
 type CustomerManagementPageProps = {
@@ -45,7 +46,7 @@ type CustomerManagementPageProps = {
 // 테이블 컨트롤(팝오버 앵커류) 클릭은 "외부 클릭"으로 보지 않는다 — 컨트롤 간 직행 전환 허용
 // (0519 확정 규칙). 순수 판별자라 파일 레벨(아래 공용 훅이 참조).
 function isTableControlTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .delivery-schedule-wrap"));
+  return target instanceof Element && Boolean(target.closest(".stage-control, .chance-control, .extra-count-pill, .final-update-control, .delivery-schedule-wrap, .delivery-info-wrap"));
 }
 
 // suppress형 팝오버 외부닫기 공용 훅(배치 10 B#9 — 유슨생 결정 ①). 콘솔 테이블 팝오버 5종
@@ -129,7 +130,7 @@ const headsByMode: Record<CustomerMode, string[]> = {
   all: ["선택", "고객", "차종 · 구매방식", "진행 상태", "계약 가능성", "상담 메모 · 문의 사항", "접수 · 배정", "관리 상태", "액션"],
   consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "상담 메모", "담당", "관리"],
   contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "상담 메모", "담당", "관리"],
-  delivery: ["선택", "고객", "차량", "출고 단계", "출고 예정", "인도 방식", "담당", "관리"],
+  delivery: ["선택", "고객", "차량", "출고 단계", "출고 예정", "출고 정보", "인도 방식", "담당", "관리"],
   settlement: ["선택", "고객", "차종 · 구매방식", "출고일", "수수료", "비용", "마진", "정산 상태", "관리"],
   hold: ["선택", "고객", "차종 · 구매방식", "상태", "이탈 / 보류 요약", "재컨택 액션", "담당", "관리"],
 };
@@ -138,7 +139,7 @@ const tableColumnsByMode: Record<CustomerMode, string[]> = {
   all: ["select", "customer", "vehicle", "stage", "chance", "action", "operation", "update", "actions"],
   consulting: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
   contract: ["select", "customer", "type", "vehicle", "stage", "summary", "action", "advisor", "actions"],
-  delivery: ["select", "customer", "vehicle", "stage", "schedule", "method", "advisor", "actions"],
+  delivery: ["select", "customer", "vehicle", "stage", "schedule", "deliveryInfo", "method", "advisor", "actions"],
   settlement: ["select", "customer", "vehicle", "date", "money", "money", "money", "stage", "actions"],
   hold: ["select", "customer", "vehicle", "stage", "summary", "action", "advisor", "actions"],
 };
@@ -204,6 +205,11 @@ export function CustomerManagementPage({
   // B행 팝오버에 오귀속된다(:860 겹침 가드가 open/saving만 지키고 notice는 새던 잔여 갭).
   const [deliveryNotice, setDeliveryNotice] = useState<{ no: number; message: string } | null>(null);
   const deliverySchedulePopoverRef = useRef<HTMLDivElement>(null);
+  // 출고 정보 팝오버(delivery mode 전용, 출고 2단계 spec §5.3) — soft pipe 프리필 + upsert.
+  const [openDeliveryInfoFor, setOpenDeliveryInfoFor] = useState<number | null>(null);
+  const [savingDeliveryInfoFor, setSavingDeliveryInfoFor] = useState<number | null>(null);
+  const [deliveryInfoNotice, setDeliveryInfoNotice] = useState<{ no: number; message: string } | null>(null);
+  const deliveryInfoPopoverRef = useRef<HTMLDivElement>(null);
   const [internalChanceOverrides, setInternalChanceOverrides] = useState<Record<number, ChanceOption>>({});
   const [finalUpdateOverrides, setFinalUpdateOverrides] = useState<Record<number, FinalUpdateInfo>>({});
   const [editingNextAction, setEditingNextAction] = useState<{ customerNo: number; draft: string } | null>(null);
@@ -355,11 +361,13 @@ export function CustomerManagementPage({
   // (stage/chance/delivery)만 closeOnViewportShift — 스크롤·리사이즈에 앵커를 못 따라가서 닫는다.
   const closeStagePickerStable = useCallback(() => setOpenStagePicker(null), []);
   const closeDeliveryScheduleStable = useCallback(() => setOpenDeliveryScheduleFor(null), []);
+  const closeDeliveryInfoStable = useCallback(() => setOpenDeliveryInfoFor(null), []);
   const closeChancePopoverStable = useCallback(() => setOpenChanceFor(null), []);
   const closeExtraPopoverStable = useCallback(() => setOpenExtraFor(null), []);
   const closeFinalUpdatePopoverStable = useCallback(() => setOpenFinalUpdateFor(null), []);
   useTablePopoverDismiss({ active: openStagePicker !== null, containerRef: stagePickerRef, onClose: closeStagePickerStable, suppressRef: suppressOutsideClickRef, closeOnViewportShift: true });
   useTablePopoverDismiss({ active: openDeliveryScheduleFor !== null, containerRef: deliverySchedulePopoverRef, onClose: closeDeliveryScheduleStable, suppressRef: suppressOutsideClickRef, closeOnViewportShift: true });
+  useTablePopoverDismiss({ active: openDeliveryInfoFor !== null, containerRef: deliveryInfoPopoverRef, onClose: closeDeliveryInfoStable, suppressRef: suppressOutsideClickRef, closeOnViewportShift: true });
   useTablePopoverDismiss({ active: openChanceFor !== null, containerRef: chancePopoverRef, onClose: closeChancePopoverStable, suppressRef: suppressOutsideClickRef, closeOnViewportShift: true });
   useTablePopoverDismiss({ active: openExtraFor !== null, containerRef: extraPopoverRef, onClose: closeExtraPopoverStable, suppressRef: suppressOutsideClickRef });
   useTablePopoverDismiss({ active: openFinalUpdateFor !== null, containerRef: finalUpdatePopoverRef, onClose: closeFinalUpdatePopoverStable, suppressRef: suppressOutsideClickRef });
@@ -444,6 +452,7 @@ export function CustomerManagementPage({
     setOpenChanceFor(null);
     setOpenExtraFor(null);
     setOpenDeliveryScheduleFor(null);
+    setOpenDeliveryInfoFor(null);
     setOpenFinalUpdateFor((current) => current === customerNo ? null : customerNo);
   }
 
@@ -583,6 +592,7 @@ export function CustomerManagementPage({
     setOpenExtraFor(null); // 형제 토글 5곳과 대칭(배치 10 B#3 — 유일 누락이던 선재 비대칭)
     setOpenFinalUpdateFor(null);
     setOpenDeliveryScheduleFor(null);
+    setOpenDeliveryInfoFor(null);
     setOpenChanceFor((current) => current === customerNo ? null : customerNo);
   }
 
@@ -591,6 +601,7 @@ export function CustomerManagementPage({
     setOpenExtraFor(null);
     setOpenFinalUpdateFor(null);
     setOpenDeliveryScheduleFor(null);
+    setOpenDeliveryInfoFor(null);
     setOpenStagePicker((current) => current?.customerNo === customerNo && current.level === level ? null : { customerNo, level });
   }
 
@@ -706,6 +717,7 @@ export function CustomerManagementPage({
     setOpenChanceFor(null);
     setOpenFinalUpdateFor(null);
     setOpenDeliveryScheduleFor(null);
+    setOpenDeliveryInfoFor(null);
     setOpenExtraFor((current) => current === extraId ? null : extraId);
   }
 
@@ -714,8 +726,45 @@ export function CustomerManagementPage({
     setOpenChanceFor(null);
     setOpenExtraFor(null);
     setOpenFinalUpdateFor(null);
+    setOpenDeliveryInfoFor(null);
     setDeliveryNotice(null);
     setOpenDeliveryScheduleFor((current) => (current === customerNo ? null : customerNo));
+  }
+
+  function toggleDeliveryInfoPopover(customerNo: number) {
+    setOpenStagePicker(null);
+    setOpenChanceFor(null);
+    setOpenExtraFor(null);
+    setOpenFinalUpdateFor(null);
+    setOpenDeliveryScheduleFor(null);
+    setDeliveryInfoNotice(null);
+    setOpenDeliveryInfoFor((current) => (current === customerNo ? null : customerNo));
+  }
+
+  // 성공 반영 = 서버 리로드 규약(#234) + 리로드 false 실패 분기(배치 10 B#1) — saveDeliverySchedule 미러.
+  async function saveDeliveryInfo(customer: Customer, draft: DeliveryInfoDraft) {
+    const submit = resolveDeliveryInfoSubmit(draft);
+    if (submit.kind === "invalid") { setDeliveryInfoNotice({ no: customer.no, message: submit.reason }); return; }
+    if (!customer.id) { setDeliveryInfoNotice({ no: customer.no, message: "목업 행에는 저장할 수 없습니다." }); return; }
+    const cid = customer.id;
+    setSavingDeliveryInfoFor(customer.no);
+    setDeliveryInfoNotice(null);
+    try {
+      await saveCustomerDelivery(cid, submit.body);
+      if (onCustomerListChanged) {
+        const ok = await onCustomerListChanged();
+        if (ok === false) {
+          setDeliveryInfoNotice({ no: customer.no, message: "저장은 완료됐지만 목록을 불러오지 못했습니다. 새로고침해 주세요." });
+          return;
+        }
+      } else updateCustomers((current) => current.map((c) => (c.no === customer.no ? { ...c, delivery: submit.body } : c)));
+      // 겹침 간섭 가드: in-flight 중 다른 행 팝오버가 열렸다면 그 팝오버/스피너를 건드리지 않는다(출고 예정 미러).
+      setOpenDeliveryInfoFor((current) => (current === customer.no ? null : current));
+    } catch {
+      setDeliveryInfoNotice({ no: customer.no, message: "출고 정보 저장에 실패했습니다. 다시 시도해 주세요." });
+    } finally {
+      setSavingDeliveryInfoFor((current) => (current === customer.no ? null : current));
+    }
   }
 
   // 낙관 갱신 + fail-loud(customer-children이 상세 캐시 무효화를 이미 수행 — 드로어 정합 자동).
@@ -862,11 +911,12 @@ export function CustomerManagementPage({
 
     if (mode === "delivery") {
       // 출고 단계 셀 = 계약완료 2차 상태 버튼 재사용(secondaryOnly — 1차는 이 큐에서 무의미).
+      // 차량 셀 = 계약 차량 저장값 우선(출고 2단계 spec §5.2 — 없으면 니즈 파생 폴백, 타 mode 불변).
       return (
         <tr key={customer.no} {...rowProps}>
           {check}
           {customerCell}
-          {vehicleCell}
+          <CustomerVehicleCell contractVehicle={customer.delivery?.contractVehicle ?? null} customer={customer} extraPopoverRef={extraPopoverRef} onToggleExtra={toggleExtraPopover} openExtraFor={openExtraFor} />
           <CustomerStageCell customer={customer} onChangePrimary={changeTwoStepPrimaryStage} onChangeSecondary={changeTwoStepSecondaryStage} onOpenPicker={openTwoStepStagePicker} pickerLevel={twoStepPickerOpen} secondaryOnly stagePickerRef={stagePickerRef} />
           <CustomerDeliveryScheduleCell
             customer={customer}
@@ -877,6 +927,15 @@ export function CustomerManagementPage({
             onDelete={() => void deleteDeliverySchedule(customer)}
             onSave={(draft) => void saveDeliverySchedule(customer, draft)}
             onToggle={() => toggleDeliverySchedulePopover(customer.no)}
+          />
+          <CustomerDeliveryInfoCell
+            customer={customer}
+            notice={deliveryInfoNotice?.no === customer.no ? deliveryInfoNotice.message : null}
+            open={openDeliveryInfoFor === customer.no}
+            popoverRef={deliveryInfoPopoverRef}
+            saving={savingDeliveryInfoFor === customer.no}
+            onSave={(draft) => void saveDeliveryInfo(customer, draft)}
+            onToggle={() => toggleDeliveryInfoPopover(customer.no)}
           />
           <td>{customer.deliveryMethod || "—"}</td>
           {showAdvisorColumn && <td><strong>{customer.advisor}</strong><span className="table-note">{customer.team}</span></td>}

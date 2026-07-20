@@ -1073,3 +1073,27 @@
 .delivery-schedule-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .delivery-schedule-actions button { height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid #dededb; background: #fff; font-size: 12px; cursor: pointer; }
 .delivery-schedule-actions button.danger { color: #c0392b; border-color: #f3c1c1; }
+
+/* 출고 정보 셀(delivery mode) — 요약 줄 버튼 + 5필드 폼형 팝오버 (2026-07-20 출고 2단계 spec §5).
+   notice/actions는 delivery-schedule-* 공용 재사용(복제 0). */
+.delivery-info-wrap { position: relative; display: inline-flex; }
+.delivery-info-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 26px; padding: 3px 9px; border-radius: 6px;
+  border: 1px solid #dededb; background: #fff; font-size: 12px; color: #3f4750;
+  box-shadow: 0 1px 1.5px rgba(15, 20, 25, 0.06); cursor: pointer; text-align: left;
+}
+/* generic 'empty' 금지 — dashboard.css 전역 .empty 캐스케이드 충돌(delivery-schedule-empty 선례) */
+.delivery-info-btn.delivery-info-btn-empty { border-style: dashed; color: #9aa1a9; }
+.delivery-info-btn:hover { border-color: rgba(88, 54, 255, 0.34); }
+.delivery-info-lines { display: grid; gap: 1px; line-height: 1.35; }
+/* fixed 배치 — 콘솔 래퍼 overflow:hidden 클리핑 탈출(delivery-schedule-popover와 동일 사유·기계장치) */
+.delivery-info-popover {
+  position: fixed; z-index: 160;
+  display: grid; gap: 8px; min-width: 260px; padding: 12px;
+  background: #fff; border: 1px solid var(--line, #dededb); border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 20, 25, 0.16);
+}
+.delivery-info-popover label { display: grid; gap: 4px; font-size: 11px; color: #6b7280; }
+.delivery-info-popover input { height: 28px; border: 1px solid #dededb; border-radius: 6px; padding: 0 8px; font-size: 12px; }
+.delivery-info-popover textarea { border: 1px solid #dededb; border-radius: 6px; padding: 6px 8px; font-size: 12px; font: inherit; resize: vertical; }
