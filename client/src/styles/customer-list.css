@@ -405,7 +405,9 @@ th {
 .customer-table tr:has(.chance-status-popover),
 /* 출고 예정 팝오버도 동일 승격 필수 — 행이 z:1 스태킹 컨텍스트라 승격 없이는 뒤 행이 팝오버를
    덮어 마지막 행 외엔 마우스 클릭이 안 닿는다(2026-07-19 스모크 hit-test 실측). */
-.customer-table tr:has(.delivery-schedule-popover) {
+.customer-table tr:has(.delivery-schedule-popover),
+/* 출고 정보 팝오버(2026-07-20 2단계) — fixed여도 조상 스태킹 컨텍스트(z:1 행)에 갇힌다(위와 동일). */
+.customer-table tr:has(.delivery-info-popover) {
   position: relative;
   z-index: 120;
 }
