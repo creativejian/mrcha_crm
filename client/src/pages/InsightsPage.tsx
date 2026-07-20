@@ -51,8 +51,9 @@ export function InsightsPage() {
     <section className="card">
       <div className="list-headbar">
         <div className="list-head-left">
-          {/* 로드 완료 전엔 숫자를 비운다 — 리로드마다 0→실제 수로 깜빡이던 것 방지(0은 "정말 0건"만) */}
-          <div className="total-count">INSIGHTS <strong className="num">{loading ? "" : items.length}</strong></div>
+          {/* 로드 완료 전·실패 시엔 숫자를 비운다 — 리로드 0 깜빡임 방지 + 실패의 0은 "모름"이지
+              "정말 0건"이 아니다(배치 10 C#1 — 본문 에러 문구와 카운트 0이 동시 표시되던 모순). */}
+          <div className="total-count">INSIGHTS <strong className="num">{loading || listError ? "" : items.length}</strong></div>
         </div>
       </div>
       {/* 상세 열기 실패/로딩은 목록과 분리 — 목록을 통째로 대체하지 않는다(배치 6 C#1·C#2). */}

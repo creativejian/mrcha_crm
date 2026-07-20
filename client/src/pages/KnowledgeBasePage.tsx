@@ -51,7 +51,8 @@ export function KnowledgeBasePage() {
       <div className="list-headbar">
         <div className="list-head-left">
           {/* 로드 완료 전엔 숫자를 비운다 — InsightsPage 미러(리로드 0 깜빡임 방지) */}
-          <div className="total-count">KNOWLEDGE <strong className="num">{loading ? "" : items.length}</strong></div>
+          {/* 로드 완료 전·실패 시엔 숫자를 비운다(InsightsPage 미러 — 배치 10 C#1, 0은 "정말 0건"만) */}
+          <div className="total-count">KNOWLEDGE <strong className="num">{loading || listError ? "" : items.length}</strong></div>
         </div>
       </div>
       {/* 상세 열기 실패/로딩은 목록과 분리 — 목록을 통째로 대체하지 않는다(배치 6 C#1·C#2). */}

@@ -46,7 +46,7 @@ describe("InsightsPage", () => {
   });
 
   // 리로드 시 총 카운트가 "0"으로 그려졌다가 실제 수로 바뀌던 깜빡임 — 로드 완료 전엔 숫자를 비운다
-  // (0은 "정말 0건"의 의미로만. KnowledgeBasePage 미러 동일).
+  // (0은 "정말 0건"의 의미로만. KnowledgeBasePage 미러는 KnowledgeBasePage.test.tsx가 잠근다 — 배치 10 C#2).
   it("does not flash 0 in the total count while the list is loading", async () => {
     let resolveList: (rows: InsightListItem[]) => void = () => {};
     vi.mocked(fetchInsights).mockReturnValue(new Promise((resolve) => { resolveList = resolve; }));
@@ -57,5 +57,15 @@ describe("InsightsPage", () => {
     resolveList([item]);
     await screen.findByText("인사이트 하나");
     expect(screen.getByText("1")).toBeInTheDocument();
+  });
+
+  // 배치 10 C#1: 목록 실패(listError) 시에도 카운트를 비운다 — 본문은 "불러오지 못했습니다"인데
+  // 카운트는 삼항 바깥 상시 렌더라 "0"(=정말 0건)을 주장하던 표시 모순(#287 계약 정면 위반).
+  it("does not show 0 in the total count when the list fails to load", async () => {
+    vi.mocked(fetchInsights).mockRejectedValue(new Error("network"));
+    render(<InsightsPage />);
+
+    await screen.findByText(/불러오지 못했습니다/);
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 });
