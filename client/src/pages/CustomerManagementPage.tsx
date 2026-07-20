@@ -281,7 +281,9 @@ export function CustomerManagementPage({
     const activeStatusGroup = mode === "delivery" ? "" : statusGroup;
     const activeStatus = mode === "delivery" ? "" : status;
     return customers.filter((customer) => {
-      const searchable = normalizeSearchValue(`${customer.name} ${customer.phone} ${customer.phoneSecondary ?? ""} ${customer.vehicle} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${aiHintPlainText(customer)}`);
+      // delivery mode는 차량 셀이 계약 차량을 우선 표시하므로 검색도 그 텍스트를 매칭한다(배치 11 B#2 —
+      // 표시·검색 축 정합. delivery 한정 편입이라 타 mode 검색은 불변).
+      const searchable = normalizeSearchValue(`${customer.name} ${customer.phone} ${customer.phoneSecondary ?? ""} ${customer.vehicle} ${mode === "delivery" ? customer.delivery?.contractVehicle ?? "" : ""} ${customer.customerType} ${customer.customerTypeDetail} ${customer.status} ${customer.source} ${customer.advisor} ${aiHintPlainText(customer)}`);
       const chance = resolveChance(customer, chanceOverrides[customer.no]);
       const updateStatus = resolveUpdateBadge(customer, {
         finalUpdateOverride: finalUpdateOverrides[customer.no],
@@ -653,6 +655,10 @@ export function CustomerManagementPage({
     setOpenChanceFor(null);
     setOpenExtraFor(null);
     setOpenFinalUpdateFor(null);
+    // delivery 팝오버 2종은 delivery mode 전용이라 현재 동시 성립 불가(nextAction 셀 = all 전용)이나,
+    // 형제 토글 6곳의 전수 상호 닫기 문법과 대칭을 유지한다(배치 11 B#7 — 셀 재사용·mode 재편 드리프트 예방).
+    setOpenDeliveryScheduleFor(null);
+    setOpenDeliveryInfoFor(null);
     setEditingNextAction({ customerNo: customer.no, draft: customer.nextAction });
   }
 

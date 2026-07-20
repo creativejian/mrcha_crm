@@ -629,6 +629,8 @@ function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: 
       aria-label="출고 예정 편집"
       className="delivery-schedule-popover"
       onClick={(event) => event.stopPropagation()}
+      // Enter만 차단 — 출고 정보 팝오버(배치 11 B#1)와 동일 사유·동일 스코프(Escape는 통과).
+      onKeyDown={(event) => { if (event.key === "Enter") event.stopPropagation(); }}
       ref={rootRef}
       role="dialog"
       style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
@@ -687,6 +689,7 @@ export function CustomerDeliveryInfoCell({
         </button>
         {open && (
           <DeliveryInfoPopover
+            customerName={customer.name}
             draft={seedDeliveryInfoDraft(customer.delivery ?? null, customer.contractingQuote ?? null)}
             notice={notice}
             saving={saving}
@@ -702,7 +705,8 @@ export function CustomerDeliveryInfoCell({
 // 출고 정보 팝오버 — 폼형(명시 저장·취소: 담당자 변경/고객 등록 관례. 출고 예정의 무취소·경량형과 다른 분류
 // — spec §5.3·B#10 각주). fixed 배치·notice 높이 재계산·스크롤 닫기는 출고 예정 팝오버(T13)와 동일 기계장치.
 // 팝오버는 열릴 때 마운트되므로 useState(draft) 초기값이 곧 시드 — 재오픈마다 새로 시드된다.
-function DeliveryInfoPopover({ draft: initialDraft, notice, saving, onCancel, onSave }: {
+function DeliveryInfoPopover({ customerName, draft: initialDraft, notice, saving, onCancel, onSave }: {
+  customerName: string;
   draft: DeliveryInfoDraft;
   notice: string | null;
   saving: boolean;
@@ -718,10 +722,16 @@ function DeliveryInfoPopover({ draft: initialDraft, notice, saving, onCancel, on
       aria-label="출고 정보 편집"
       className="delivery-info-popover"
       onClick={(event) => event.stopPropagation()}
+      // Enter만 차단(배치 11 B#1) — 입력 필드의 Enter keydown이 행까지 버블되면 openCustomerByKeyboard가
+      // 드로어를 팝오버 위로 연다. 무차별 stopPropagation은 dismiss 훅의 Escape 닫기(document 버블
+      // 리스너)를 죽이는 회귀(적대 검증 V2)라 금지.
+      onKeyDown={(event) => { if (event.key === "Enter") event.stopPropagation(); }}
       ref={rootRef}
       role="dialog"
       style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
     >
+      {/* 폼형 관례(담당자 변경·고객 삭제·고객 등록 전부 가시 타이틀) + fixed 분리 대비 고객명 병기(배치 11 C#1·spec §6) */}
+      <strong className="delivery-info-title">출고 정보 — {customerName}</strong>
       <label><span>계약 차량</span><input onChange={(e) => set({ contractVehicle: e.target.value })} type="text" value={draft.contractVehicle} /></label>
       <label><span>계약일</span><DateTextField onValueChange={(v) => set({ contractDate: v })} value={draft.contractDate} /></label>
       <label>
