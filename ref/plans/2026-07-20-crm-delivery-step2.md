@@ -12,20 +12,20 @@
 
 **⚠️ 경계(불변)**: DV 채번 미개봉 · 정산(ST)/settlement mode 무접촉 · 드로어 무접촉 · `db:push` 금지 · 머지 금지(PR 생성까지만 — 유슨생 지시 2026-07-20).
 
-## ✅ 진행 상태
+## ✅ 진행 상태 (2026-07-20 실행 — PR #296)
 
-- [ ] Task 0: 브랜치 + spec/plan 커밋
-- [ ] Task 1: 스키마 + 마이그 0036(실 DB 적용)
-- [ ] Task 2: 공유 타입(data/customers.ts)
-- [ ] Task 3: listCustomers 서브쿼리 2개 (TDD)
-- [ ] Task 4: upsert 쿼리 + PUT 라우트 (TDD)
-- [ ] Task 5: 클라 API 배선(http PUT·CustomerRow·saveCustomerDelivery)
-- [ ] Task 6: 순수 lib delivery-info.ts (TDD)
-- [ ] Task 7: 콘솔 UI(컬럼·셀·팝오버·페이지 배선) + 페이지 테스트
-- [ ] Task 8: CSS
-- [ ] Task 9: pending 항목 15 등재
-- [ ] Task 10: 통합 검증 + PR 생성(머지 금지)
-- [ ] Task 11: 격리 스택 브라우저 스모크(머지 전 필수 — PR 생성 후 수행 가능)
+- [x] Task 0: 브랜치 + spec/plan 커밋 (`db382ea`)
+- [x] Task 1: 스키마 + 마이그 0036(**실 DB 적용 완료** — psql \d 확인) (`a6ad782`)
+- [x] Task 2: 공유 타입(data/customers.ts) (`0eb7d15`)
+- [x] Task 3: listCustomers 서브쿼리 2개 (TDD·RED 실관찰) (`817b9b4`) — ⚠️실행 편차: afterAll이 고객만 지우면 **quotes FK(no action)가 23503** — 견적 먼저 삭제로 수정(plan 초안의 "cascade" 서술 오류·테스트 주석에 박제). 실패 afterAll 잔재는 `check:residue -- --clean`으로 정리(registry 선등록이 정확히 작동)
+- [x] Task 4: upsert 쿼리 + PUT 라우트 (TDD·RED 실관찰, 6종) (`d72cd48`)
+- [x] Task 5: 클라 API 배선(http PUT·CustomerRow·saveCustomerDelivery) (`7f1ac7f`)
+- [x] Task 6: 순수 lib delivery-info.ts (TDD 11·RED 실관찰) (`07344b2`)
+- [x] Task 7: 콘솔 UI + 페이지 테스트 5종(RED 6 fail 실관찰→GREEN 77) (`dbe0f9d`)
+- [x] Task 8: CSS (`4279602`)
+- [x] Task 9: pending 항목 15 등재
+- [x] Task 10: 통합 검증 + **PR #296 생성(머지 보류 — 유슨생 지시)** — typecheck 0·lint 0·unit **961**(+16)·server **594**(+10·실 master·잔재 0)·build·knip 7/9 무드리프트
+- [ ] Task 11: 격리 스택 브라우저 스모크(머지 전 필수)
 
 ---
 
