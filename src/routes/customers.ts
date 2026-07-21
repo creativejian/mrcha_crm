@@ -28,6 +28,7 @@ import { holdWork, type DbVariables } from "../middleware/db";
 import { errorResponse, run } from "./shared";
 import { CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
 import { canWriteQuote, QUOTE_WRITE_DENIED_MESSAGE } from "../../client/src/lib/quote-write-access";
+import { canAssignAdvisor, ADVISOR_ASSIGN_DENIED_MESSAGE } from "../../client/src/lib/advisor-assign-access";
 
 // scopeChecked = customerScopeGate 멱등 플래그(A#3 — 게이트 주석 참조). 이 라우터 전용 요청-로컬 변수.
 export const customers = new Hono<{ Variables: AuthVariables & DbVariables & { scopeChecked?: true } }>();
@@ -283,6 +284,17 @@ customers.patch(
       const target = await getCustomerAppUserId(c.req.valid("param").id, c.var.db);
       if (!target) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
       if (target.appUserId) return c.json({ error: "앱 등록 번호는 수정할 수 없습니다." }, 409);
+    }
+    // 담당자 배정 축(advisorId·advisorName·team)은 admin·manager만 — **필드 단위 게이트**
+    // (라우트 자체는 staff에게 열려 있어야 한다: 진행 상태·메모 등 일상 수정이 여기로 온다).
+    // staff가 담당자를 남으로 바꾸면 #301 스코프상 그 고객이 즉시 본인 목록에서 사라지고 상세도
+    // 404가 되어 스스로는 되돌릴 수 없다(admin 개입 필요) — 되돌릴 수 없는 조작이라 고객 하드
+    // 삭제(#212)와 같은 급으로 잠근다. 서버가 진짜 게이트(클라 배지 비활성은 UX 보조).
+    if (
+      (patch.advisorId !== undefined || patch.advisorName !== undefined || patch.team !== undefined) &&
+      !canAssignAdvisor(c.var.user)
+    ) {
+      return c.json({ error: ADVISOR_ASSIGN_DENIED_MESSAGE }, 403);
     }
     // 담당자 배정(advisorName): 배정시각은 서버가 기록(클라 시각 신뢰 안 함).
     // 담당자가 실제로 바뀔 때만 스탬프 — 동일 담당자 재저장(팀만 변경 등)에 assigned_at을 리셋하면
