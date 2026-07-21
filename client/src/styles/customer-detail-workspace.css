@@ -914,6 +914,9 @@
   line-height: 1.3;
   white-space: normal;
   word-break: keep-all;
+  /* 팝오버 공통 버튼(아이콘 행 좌정렬)과 달리 2줄 라벨은 가운데 — flex/block 어느 상속이든 커버 */
+  justify-content: center;
+  text-align: center;
 }
 
 .kim-quote-delete-inline-confirm {
