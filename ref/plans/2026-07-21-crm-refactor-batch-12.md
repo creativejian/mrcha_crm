@@ -53,4 +53,4 @@
 - [x] 감사 3앵글 + 적대 검증 3명(V1 실변이 5회·V2 실변이 2회·V3 설계 비교) + 오케스트레이터 ground-truth 스팟(C 3건·A#1/A#2 인용·B#5) — 판정 확정
 - [x] PR1 이행 — **#303**(refactor/crm-batch-12-server): K1 라우트 이사(신설 2·폐기 2·소유권 파라미터·클라 시그니처 2·catch 2)+A#3 멱등화+A#6 미러 4+문서 4건. RED 7종·변이 3종 실관찰(소유권 WHERE·DELETE 게이트 배선·dismiss 소유권 — 각각 해당 테스트만 실패). server 630(+8)·unit 989
 - [x] PR2 이행 — refactor/crm-batch-12-client: B#1 구조 클리어(단일 지점 2함수+해제/삭제 클리어+오프너 5곳)+B#3 모달 게이트+B#5 주석+B#6 테스트(넛지 6종+DateTextField detach 1종). unit 995(+6). 변이 4종 실관찰(해제 분기·closeQuoteActionPopover 넛지·deleteQuote·**DateTextField cleanup = V2가 green 실증했던 변이가 RED 전환**)
-- [ ] 통합 검증·머지
+- [x] 통합 검증·머지 — #303 `344dfba`·#304 `98cf3ee` 순차 squash. **머지 후 main 통합 전량 green**: typecheck 0·lint 0·unit **995**·server **630**(실 master·잔재 0)·build·knip 7/9 무드리프트. CF prod 배포 head `98cf3ee` 트리거(skip ci 없음)
