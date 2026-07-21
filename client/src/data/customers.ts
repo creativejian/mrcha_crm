@@ -168,6 +168,11 @@ export const customerStatusGroups: Record<string, string[]> = {
   불발: ["계약취소", "지속적부재", "추후재컨택", "구매철회"],
 };
 
+// 발주 경로 3종 — 견적함 "계약 진행" 마킹 넛지가 전이시킬 계약완료 2차 상태 후보(2026-07-21 이사님 ①ⓑ,
+// delivery-step2 spec §8). 배정완료·출고완료는 발주 이후 단계라 제외. 계약완료 어휘의 부분집합 —
+// customers.test.ts가 드리프트를 잠근다.
+export const CONTRACT_ORDER_PATH_STATUSES: readonly string[] = ["딜러사계약중", "대리점발주중", "특판발주중"];
+
 // 고객 관리 서브메뉴·헤더 타이틀/서브타이틀의 단일 소스. 키 순서 = 사이드바 서브메뉴 순서.
 export const customerModeMeta: Record<CustomerMode, { title: string; desc: string }> = {
   all: { title: "전체 보기", desc: "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다." },

@@ -896,6 +896,29 @@
   color: #3548bc;
 }
 
+/* 계약완료 전이 넛지(delivery-step2 spec §8 ①ⓑ) — 타이포는 공유 confirm 블록 그대로,
+   발주 경로 3버튼만 가로 3칸(유슨생 확정 2026-07-21). 팝오버 폭 214px에서 풀 라벨은 한 줄 불가 —
+   keep-all + JSX <wbr>(어간 분절)로 정확한 지점에서만 2줄 래핑하고 높이 auto로 박스 안에 가둔다.
+   공유 `.kim-quote-send-confirm > div` flex(0,1,1)는 같은 형태 셀렉터로 이긴다(클래스 단독은 진다). */
+.kim-quote-send-confirm > div.kim-quote-stage-nudge-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.kim-quote-stage-nudge-options button {
+  width: 100%;
+  height: auto;
+  min-height: 24px;
+  padding: 4px 2px;
+  line-height: 1.3;
+  white-space: normal;
+  word-break: keep-all;
+  /* 팝오버 공통 버튼(아이콘 행 좌정렬)과 달리 2줄 라벨은 가운데 — flex/block 어느 상속이든 커버 */
+  justify-content: center;
+  text-align: center;
+}
+
 .kim-quote-delete-inline-confirm {
   border-color: rgba(180, 35, 24, 0.18);
   background: rgba(180, 35, 24, 0.045);
