@@ -183,6 +183,18 @@ export async function getCustomerAdvisorName(
   return row ?? null;
 }
 
+// 고객의 advisor_id만 조회 — 견적 쓰기 권한 게이트(canWriteQuote) 입력. 없는 고객은 null(라우트 404).
+export async function getCustomerAdvisorId(
+  id: string,
+  executor: Executor = getDefaultDb(),
+): Promise<{ advisorId: string | null } | null> {
+  const [row] = await executor
+    .select({ advisorId: customers.advisorId })
+    .from(customers)
+    .where(eq(customers.id, id));
+  return row ?? null;
+}
+
 // 고객의 app_user_id만 조회. 없는 고객은 null(라우트 404), 있으면 {appUserId}(null이면 수기 고객).
 export async function getCustomerAppUserId(
   id: string,

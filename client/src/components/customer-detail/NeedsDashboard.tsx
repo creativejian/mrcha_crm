@@ -21,9 +21,11 @@ type NeedsDashboardProps = {
   // 승격 견적 "견적 보기"(부모가 quoteList에서 찾아 openEditQuote, 미발견 시 openWorkbenchForQuoteRequest로 폴백 — 고정 설계 결정 5).
   onViewQuote: (reqId: string, quoteId: string) => void;
   needsHook: ReturnType<typeof useCustomerNeeds>;
+  // 견적 쓰기 권한(2026-07-21 이사님 D-4 ②) — false면 "견적 작성"/"추가 작성" 숨김("견적 보기"는 읽기라 유지).
+  quoteWritable: boolean;
 };
 
-export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, openWorkbenchForQuoteRequest, onViewQuote, needsHook }: NeedsDashboardProps) {
+export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, toggleEditor, editorRef, openWorkbenchForQuoteRequest, onViewQuote, needsHook, quoteWritable }: NeedsDashboardProps) {
   const { needs, appRequests, consultations, handlers } = needsHook;
   const { saveNeeds, dismissConsultation } = handlers;
   // 상담신청 카드 삭제는 되돌리는 UI가 없어(재조회해도 dismissed 제외) 오클릭 방지용 인라인 확인 —
@@ -106,9 +108,11 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                               // 승격 견적 있음: 기본 액션은 중복 작성 방지를 위해 "견적 보기"(최신 승격 견적), "추가 작성"은 보조 액션으로 낮춤.
                               // 가로 한 줄(보조 왼쪽·기본 오른쪽 끝) — 배지+버튼 2줄 유지로 카드 높이 증가 방지.
                               <div className="kim-needs-request-button-row">
-                                <button className="kim-needs-request-create-secondary" onClick={createQuote} type="button">
-                                  추가 작성
-                                </button>
+                                {quoteWritable ? (
+                                  <button className="kim-needs-request-create-secondary" onClick={createQuote} type="button">
+                                    추가 작성
+                                  </button>
+                                ) : null}
                                 <button
                                   className="kim-needs-request-create"
                                   onClick={() => onViewQuote(req.id, req.promotedQuoteIds[0])}
@@ -117,11 +121,11 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                                   견적 보기
                                 </button>
                               </div>
-                            ) : (
+                            ) : quoteWritable ? (
                               <button className="kim-needs-request-create" onClick={createQuote} type="button">
                                 견적 작성
                               </button>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       </div>

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/auth/AuthProvider";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
 import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
+import { canWriteQuote } from "@/lib/quote-write-access";
 import { nowMs } from "@/lib/detail-utils";
 import { type PurchasePopoverFrame, isPurchaseFloatingKind } from "@/lib/popover-frames";
 import { type RecentUpdate, type OpenEditorState } from "@/components/customer-detail/types";
@@ -126,6 +128,12 @@ function CustomerDetailContent({
   // openWorkbenchForQuoteRequest는 니즈 카드 "견적 작성"·?quoteRequest 딥링크가 호출 → 훅이 반환하면 부모가 NeedsDashboard에 중계.
   const workbench = useQuoteWorkbench({ detail, customer, onToast, markRecentUpdate, onQuotesPersisted, quoteList, purchaseFields: purchase.fields, reloadAppRequests: needs.reloadAppRequests });
 
+  // 견적 쓰기 권한(2026-07-21 이사님 D-4 ② — spec 2026-07-21-crm-quote-write-access). 서버 403이 진짜
+  // 게이트고 이 파생은 UX 보조(버튼 숨김). workflow.advisorId = 배정 저장 낙관 최신이라
+  // "본인 배정 → 즉시 견적 작성"이 리로드 없이 성립한다.
+  const { userId, roleClaim } = useAuth();
+  const quoteWritable = canWriteQuote({ id: userId ?? "", role: roleClaim ?? "" }, workflow.advisorId);
+
   // 니즈 카드 "견적 보기": 견적함에서 승격 견적을 찾아 수정 워크벤치로. 캐시 불일치(미발견)면 기존 승격 플로우로 폴백(고정 설계 결정 5).
   function viewPromotedQuote(reqId: string, quoteId: string) {
     const quote = quoteList.quotes.find((q) => q.id === quoteId);
@@ -204,6 +212,7 @@ function CustomerDetailContent({
         openWorkbenchForQuoteRequest={workbench.openWorkbenchForQuoteRequest}
         onViewQuote={viewPromotedQuote}
         needsHook={needs}
+        quoteWritable={quoteWritable}
       />
 
       <section className="kim-workspace-band" aria-label={`${customer.name} 실무 영역`}>
@@ -232,6 +241,7 @@ function CustomerDetailContent({
           onToast={onToast}
           onOpenNewWorkbench={workbench.openNewWorkbench}
           onEditQuote={workbench.openEditQuote}
+          quoteWritable={quoteWritable}
         />
 
         <QuoteWorkbench workbench={workbench} customer={customer} onToast={onToast} />
