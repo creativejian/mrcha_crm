@@ -29,10 +29,11 @@ main 통합 검증 green — typecheck 0 · lint 0 · unit 1038 · server 640 ·
 - **기각 박제**: `GET /api/staff` 차단 — 실시간 상담 콘솔의 채팅 세션 배정이 같은 API를 쓰고 그건 **다른 축**. 완전 차단은 채팅 배정 권한 결정이 선행(별건).
 - spec `ref/specs/2026-07-21-crm-customer-role-scope-design.md` §6
 
+**④ 실시간 상담 콘솔 권한 감사 → CRM 수정 없음.** 채팅 쓰기 4종이 supabase 직결이라 `dealerWriteGate`가 안 닿지만 **RLS가 dealer를 이미 전면 차단**(정책 배열에 dealer 부재). staff의 세션 배정 자유는 넘겨도 계속 보여 복구 가능 → #307과 달리 막지 않는다. 앱 팀 제보 1건(`chat_messages` INSERT가 컬럼 미검증 — `ref/2026-07-21-app-chat-rls-report.md`, 낮은 우선순위·앱 소유). spec §7.
+
 ## 다음 후보
 
 - **배치 13 리팩토링 감사** — 미감사 = `#303`·`#304`·`#305`·`#306`·`#307`. 관례 규모 도달.
-- **채팅 세션 배정 권한** — #307에서 기각한 `GET /api/staff` 차단의 선행 조건.
 - **파트너 Phase B 완료 시** 산은·iM·농협 게이트 자동 점등 → 실기 1회(우리 몫 작업 없음).
 
 ## 대기 (우리 액션 없음)
