@@ -1050,14 +1050,18 @@ export function CustomerManagementPage({
               <Search aria-hidden="true" size={15} strokeWidth={2.4} />
               <input onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="고객명, 연락처, 차종 검색" value={search} />
             </label>
-            {renderConsoleFilter({
-              id: "advisor",
-              label: "담당자",
-              value: advisor,
-              items: consoleFilterOptions.advisor,
-              onChange: setAdvisor,
-              extraClassName: "filter-advisor",
-            })}
+            {/* 담당자 필터는 담당 컬럼과 같은 노출 축(관리자·팀장). staff는 목록 자체가 본인 담당만이라
+                (#301 scope) 필터가 항상 0건 아니면 전체인 죽은 컨트롤이고, 옵션으로 전 직원 이름이
+                노출되기까지 했다(2026-07-21 staff 실기 감사). */}
+            {showAdvisorColumn &&
+              renderConsoleFilter({
+                id: "advisor",
+                label: "담당자",
+                value: advisor,
+                items: consoleFilterOptions.advisor,
+                onChange: setAdvisor,
+                extraClassName: "filter-advisor",
+              })}
             {/* delivery는 진행 상태 필터를 숨긴다 — 1차는 계약완료 고정 스코프라 무의미, 2차는 단계 pill과
                 완전 중복이라 모순 조합(2차=출고완료 ∧ pill=진행 중 → 상시 0명)만 만든다. 담당자·검색은 공통 유지. */}
             {mode !== "delivery" && (

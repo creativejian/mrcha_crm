@@ -53,6 +53,19 @@ describe("CustomerManagementPage", () => {
     expect(screen.queryByRole("columnheader", { name: "담당" })).not.toBeInTheDocument();
   });
 
+  // 담당자 필터도 담당 컬럼과 같은 노출 축 — staff는 목록이 본인 담당만이라(#301 scope) 이 필터가
+  // 죽은 컨트롤이고, 옵션으로 전 직원 이름까지 노출됐다(2026-07-21 staff 실기 감사).
+  it("hides the advisor filter for advisor and dealer roles (same axis as the column)", () => {
+    const { rerender } = render(<CustomerManagementPage mode="all" roleTab="최고관리자" />);
+    expect(screen.getByRole("button", { name: /담당자/ })).toBeInTheDocument();
+
+    rerender(<CustomerManagementPage mode="all" roleTab="상담사" />);
+    expect(screen.queryByRole("button", { name: /^담당자$/ })).not.toBeInTheDocument();
+
+    rerender(<CustomerManagementPage mode="all" roleTab="딜러" />);
+    expect(screen.queryByRole("button", { name: /^담당자$/ })).not.toBeInTheDocument();
+  });
+
   // 5개 비-all mode도 전체 보기와 같은 콘솔 문법(1줄 rail·필터 pill·전체 N명 카운트)을 쓴다.
   it.each(["consulting", "contract", "delivery", "settlement", "hold"] as const)(
     "renders the console control rail for %s mode",
