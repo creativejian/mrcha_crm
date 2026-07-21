@@ -230,3 +230,71 @@ solution.get("/dealers", async (c) => {
     clearTimeout(timer);
   }
 });
+
+// ── 지원집합(리스기간·약정거리) 매트릭스 릴레이 — 제프 external `GET /api/external/quotes/support-matrix`.
+// 계약 확정 2026-07-21(요청 ref/2026-07-21-jeff-support-matrix-request.md · 회신 …-reply.md):
+// 200 {ok:true, matrix:[{lenderCode, productType, leaseTermMonths, annualMileageKm}]}.
+// ⚠️ null(미확정) / [](전부 미지원)은 의미가 정반대다 — 릴레이는 해석하지 않고 그대로 패스스루하고
+// 판정은 클라 SSOT(client/src/lib/support-matrix.ts)가 한다. 쿼리 파라미터 없음(전량 반환).
+// env·인증·타임아웃·에러 매핑은 위 dealers 릴레이와 동일 계약(미러).
+solution.get("/support-matrix", async (c) => {
+  const env = (c.env ?? {}) as { PARTNER_QUOTE_API_URL?: string; PARTNER_QUOTE_API_KEY?: string };
+  const url = env.PARTNER_QUOTE_API_URL ?? process.env.PARTNER_QUOTE_API_URL;
+  const apiKey = env.PARTNER_QUOTE_API_KEY ?? process.env.PARTNER_QUOTE_API_KEY;
+  if (!url) return c.json({ error: "솔루션 연결이 설정되지 않았습니다(PARTNER_QUOTE_API_URL 미설정)" }, 503);
+
+  // calculate URL에서 origin 파생 — 파싱 실패는 운영 오설정이므로 fail-loud(dealers 미러).
+  let origin: string;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    console.error(`[solution] support-matrix PARTNER_QUOTE_API_URL 파싱 실패 — origin 파생 불가`);
+    return c.json({ error: "솔루션 연결 설정이 올바르지 않습니다(PARTNER_QUOTE_API_URL 확인)" }, 503);
+  }
+  const upstreamUrl = `${origin}/api/external/quotes/support-matrix`;
+
+  const requestId = `crm-${crypto.randomUUID()}`;
+  const headers: Record<string, string> = { "X-Request-ID": requestId };
+  if (apiKey) headers["X-API-Key"] = apiKey; // 미설정 = 개발 무인증 단계(calculate 미러)
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), solutionDeps.timeoutMs);
+  const startedAt = Date.now();
+  // ⚠️ 지역 변수 plain call — Workers Illegal invocation 가드(위 calculate 주석·PR #202 참조).
+  const fetchImpl = solutionDeps.fetchImpl;
+  try {
+    const upstream = await fetchImpl(upstreamUrl, { headers, signal: controller.signal });
+    let body: unknown = null;
+    let bodyUnparsable = false;
+    try {
+      body = await upstream.json();
+    } catch {
+      if (controller.signal.aborted) {
+        console.error(`[solution] support-matrix TIMEOUT(body-read) status=${upstream.status} request_id=${requestId}`);
+        return c.json({ error: "계산 서버가 응답하지 않습니다(시간 초과)" }, 504);
+      }
+      bodyUnparsable = true;
+    }
+    console.log(
+      `[solution] support-matrix status=${upstream.status} ${Date.now() - startedAt}ms request_id=${requestId}`,
+    );
+    if (upstream.status === 401 || upstream.status === 403) {
+      console.error(`[solution] AUTH_FAILED(${upstream.status}) request_id=${requestId} — PARTNER_QUOTE_API_KEY 확인 필요`);
+      return c.json({ error: "솔루션 연결 인증이 실패했습니다(운영 설정 확인)" }, 503);
+    }
+    if (!upstream.ok) {
+      const msg = (body as { error?: unknown } | null)?.error;
+      const status = upstream.status >= 500 ? 502 : 400;
+      return c.json({ error: typeof msg === "string" ? msg : "지원집합 조회에 실패했습니다" }, status);
+    }
+    if (bodyUnparsable || body === null) return c.json({ error: "계산 서버 응답을 해석하지 못했습니다" }, 502);
+    return c.json(body as Record<string, unknown>);
+  } catch (e) {
+    const aborted = e instanceof Error && e.name === "AbortError";
+    console.error(`[solution] support-matrix ${aborted ? "TIMEOUT" : "NETWORK_FAIL"} request_id=${requestId}`, e);
+    if (aborted) return c.json({ error: "계산 서버가 응답하지 않습니다(시간 초과)" }, 504);
+    return c.json({ error: "계산 서버에 연결하지 못했습니다" }, 502);
+  } finally {
+    clearTimeout(timer);
+  }
+});
