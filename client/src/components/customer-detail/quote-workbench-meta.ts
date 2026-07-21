@@ -141,7 +141,7 @@ export type ManualCard = {
   dealerName: string;
 };
 export const discountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
-export const manualMileageOptions = [
+const manualMileageOptions = [
   "10,000km / 년",
   "15,000km / 년",
   "20,000km / 년",
@@ -357,8 +357,8 @@ export function createQuoteCode(existingQuotes: QuoteItem[]) {
 // ⚠️ 60개월·20,000km는 파트너 운용리스 5사가 **전부** 지원한다(2026-07-21 실측 매트릭스) —
 // 그래서 어느 금융사로 바꿔도 폴백이 다시 미지원으로 튀지 않는다. 이 전제가 깨지면
 // (파트너가 어느 사에서 60개월/20,000km를 내리면) 폴백이 무의미해지므로 함께 재검토할 것.
-export const GATE_FALLBACK_TERM_MONTHS = 60;
-export const GATE_FALLBACK_MILEAGE_KM = 20000;
+const GATE_FALLBACK_TERM_MONTHS = 60;
+const GATE_FALLBACK_MILEAGE_KM = 20000;
 
 // 이 카드가 게이트 대상인지 — 아니면 null(게이트 해제).
 // ⚠️ **저장된 카드는 제외**한다. 편집 불가라 "잘못 고르는 것"을 막을 목적이 없고, 약정거리 option을
@@ -370,7 +370,7 @@ export function gateProductFor(isConditionSaved: boolean, purchaseMethod: string
 }
 
 // 기간 세그먼트 어휘 — SOLUTION_LEASE_TERMS 파생(계산기와 같은 소스).
-export const leaseTermSegmentOptions = SOLUTION_LEASE_TERMS.map((m) => ({ value: m, label: `${m}개월` }));
+const leaseTermSegmentOptions = SOLUTION_LEASE_TERMS.map((m) => ({ value: m, label: `${m}개월` }));
 
 // 지원집합(null = 미확정 → 게이트 없음)으로 기간 세그먼트 옵션을 만든다.
 // 미지원 값은 `disabled`로만 표시하고 목록에서 빼지 않는다 — 세그먼트는 칸 수가 고정된 UI라

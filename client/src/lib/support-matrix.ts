@@ -13,7 +13,7 @@ import { SOLUTION_LENDERS, type SolutionProductType } from "./solution-quote";
 // CRM은 그 400 문구를 이미 표면화한다. 그래서 조회 실패·스키마 드리프트·미확정·어휘 밖 금융사를
 // 전부 `null`(게이트 없음)로 수렴시킨다(fail-open). 게이트를 잘못 켜서 정상 조합을 막는 것이
 // 안 켜는 것보다 나쁘다.
-export type LenderSupport = { leaseTermMonths: number[] | null; annualMileageKm: number[] | null };
+type LenderSupport = { leaseTermMonths: number[] | null; annualMileageKm: number[] | null };
 export type SupportMatrix = Map<string, LenderSupport>;
 
 // 행 순서에 의존하지 않는다(파트너 권고) — (lenderCode, productType)로만 찾는다.
@@ -59,7 +59,7 @@ export async function fetchSupportMatrix(): Promise<SupportMatrix> {
     })
     .catch(() => {
       console.warn("[workbench] 지원집합 조회 실패 — 기간·약정거리 게이트 비활성(fail-open)");
-      return new Map<string, LenderSupport>();
+      return new Map() as SupportMatrix;
     })
     .finally(() => {
       inflight = null;

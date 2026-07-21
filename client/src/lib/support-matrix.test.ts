@@ -1,12 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getJson } from "./http";
 import {
+  fetchSupportMatrix,
   parseSupportMatrix,
+  resetSupportMatrixCache,
   resolveGateFallback,
   supportedMileagesFor,
   supportedTermsFor,
   type SupportMatrix,
 } from "./support-matrix";
+
+vi.mock("./http", () => ({ getJson: vi.fn() }));
+const getJsonMock = vi.mocked(getJson);
 
 // 제프 첫 응답 구성(회신 문서 2026-07-21 표) 축약 — MG는 확정, 산은은 Phase B 미착수라 null.
 const RAW = {
@@ -121,5 +127,43 @@ describe("resolveGateFallback", () => {
 
   it("전부 미지원([])이면 무변경 — 옮길 곳이 없다(폴백값도 미지원)", () => {
     expect(resolveGateFallback(24, [], 60)).toBeNull();
+  });
+});
+
+describe("fetchSupportMatrix (세션 캐시)", () => {
+  beforeEach(() => {
+    resetSupportMatrixCache();
+    getJsonMock.mockReset();
+  });
+  afterEach(() => {
+    resetSupportMatrixCache();
+  });
+
+  it("성공 응답을 캐시한다 — 2회 호출해도 왕복 1회", async () => {
+    getJsonMock.mockResolvedValue(RAW);
+    const first = await fetchSupportMatrix();
+    const second = await fetchSupportMatrix();
+    expect(getJsonMock).toHaveBeenCalledTimes(1);
+    expect(getJsonMock).toHaveBeenCalledWith("/api/solution/support-matrix");
+    expect(second).toBe(first);
+    expect(first.get("mg-capital::operating_lease")?.leaseTermMonths).toEqual([36, 48, 60]);
+  });
+
+  it("동시 호출은 inflight로 합친다 — 왕복 1회", async () => {
+    getJsonMock.mockResolvedValue(RAW);
+    const [a, b] = await Promise.all([fetchSupportMatrix(), fetchSupportMatrix()]);
+    expect(getJsonMock).toHaveBeenCalledTimes(1);
+    expect(a).toBe(b);
+  });
+
+  it("실패는 빈 Map(fail-open) + 캐시하지 않는다 — 재진입이 재시도", async () => {
+    getJsonMock.mockRejectedValueOnce(new Error("503"));
+    const failed = await fetchSupportMatrix();
+    expect(failed.size).toBe(0);
+
+    getJsonMock.mockResolvedValue(RAW);
+    const retried = await fetchSupportMatrix();
+    expect(getJsonMock).toHaveBeenCalledTimes(2);
+    expect(retried.size).toBeGreaterThan(0);
   });
 });
