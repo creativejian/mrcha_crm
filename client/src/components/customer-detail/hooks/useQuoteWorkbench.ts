@@ -6,7 +6,8 @@ import { type CustomerDetailData } from "@/lib/customers";
 import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
-import { buildSolutionQuoteInput, parseSolutionQuoteResult, solutionLenderOptions, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
+import { buildSolutionQuoteInput, parseSolutionQuoteResult, solutionLenderOptions, solutionProductTypeOf, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
+import { supportedMileagesFor, supportedTermsFor, useSupportMatrix } from "@/lib/support-matrix";
 import { fetchSolutionDealers, type SolutionDealer } from "@/lib/solution-dealers";
 import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solution-ranking";
 import { deriveCardResults, residualAmountOf } from "@/lib/lease-rate";
@@ -31,6 +32,7 @@ import {
   discountLineWon,
   initialQuotePricingResult,
   MILEAGE_BASIC_VALUE,
+  planGateFallback,
   quotePurchaseMethodOptions,
   normalizeQuotePurchaseMethod,
   primaryQuotePurchaseMethod,
@@ -137,6 +139,12 @@ export function useQuoteWorkbench({
   // 값 "failed" = 로드 시도했으나 실패(배치 8 A#2) — 종전엔 실패를 빈 목록(성공 모양)으로 기록해
   // placeholder가 "등록 딜러 없음"(데이터-부재 어휘)으로 오표기했다. 배열 = 로드 성공 목록.
   const [dealerOptionsByCard, setDealerOptionsByCard] = useState<Record<string, SolutionDealer[] | "failed">>({});
+  // 카드별 현재 선택 금융사 라벨 — 지원집합 게이트(기간·약정거리) 렌더 파생용 거울이다.
+  // 금융사 "값"의 진실은 계속 카드 DOM select(uncontrolled 계약 유지 — 딜러와 동일 설계).
+  // 갱신 생명주기도 딜러와 같다: 금융사 변경·조건 복사·초기화.
+  const [lenderByCard, setLenderByCard] = useState<Record<string, string>>({});
+  // 파트너 지원집합 매트릭스(세션 캐시 1회 로드). 미로드·실패·미확정은 전부 빈/null → 게이트 해제.
+  const supportMatrix = useSupportMatrix();
   // (lenderCode, brand) 키 fetch 메모 — 같은 조합 재조회·카드 간 중복 조회 방지(내용 주소형이라 세션 내 유지).
   const dealerFetchCacheRef = useRef(new Map<string, Promise<SolutionDealer[] | "failed">>());
   // 늦은 응답 가드용 브랜드 미러(cardUiRef 패턴) — await 뒤 클로저 브랜드는 stale일 수 있다.
@@ -442,6 +450,9 @@ export function useQuoteWorkbench({
       const dstDealer = targetEl.querySelector<HTMLSelectElement>('select[data-sc-field="dealer"]');
       if (dstDealer) dstDealer.value = sourceDealer;
       setDealerOptionsByCard((prev) => (prev[sourceId] ? { ...prev, [targetId]: prev[sourceId] } : prev));
+      // 게이트 거울도 함께 복사 — 금융사가 복사됐으므로 대상 카드의 기간·거리 게이트도 같은 스코프여야
+      // 한다. 복사되는 조건(cardUi)은 소스에서 이미 지원값이라 폴백은 불필요.
+      setLenderByCard((prev) => ({ ...prev, [targetId]: sourceLender }));
       setManualQuoteCards((cards) => cards.map((c) => (c.id === targetId ? { ...c, dealerName: sourceDealer } : c)));
     }
     patchCardUi(targetId, cardUiOf(cardUi, sourceId));
@@ -613,6 +624,7 @@ export function useQuoteWorkbench({
     setSolutionSnapshots({});
     setSolutionLenderPickerId(null); // 모달 열린 채 워크벤치가 닫힌 경우의 유령 모달 방어
     setDealerOptionsByCard({}); // 딜러 목록도 카드 종속 상태 — 이전 견적 금융사의 목록 잔존 방지(T2)
+    setLenderByCard({}); // 게이트 거울도 카드 종속 — 이전 견적 금융사로 기간·거리가 잘못 막히는 잔상 방지
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -783,8 +795,27 @@ export function useQuoteWorkbench({
     const cardEl = target.closest<HTMLElement>("[data-scenario-card]");
     const condId = cardEl?.dataset.scenarioCard;
     if (!cardEl || !condId) return;
+    setLenderByCard((prev) => ({ ...prev, [condId]: target.value }));
+    applyGateFallback(condId, target.value);
     resetCardDealer(cardEl, condId);
     void loadCardDealers(condId, target.value);
+  }
+
+  // 금융사 변경으로 현재 기간·약정거리가 그 금융사 미취급이 되면 폴백값으로 옮기고 1회 안내한다.
+  // ⚠️ 폴백은 **이 경로(금융사 변경)에서만** 돈다 — 마운트·수정 진입에서 돌리면 상담사가 견적을
+  // 열자마자 저장값이 조용히 바뀐다. 과거 견적의 미취급 조합은 그대로 보여야 정직하고, 그 표시는
+  // 렌더 쪽 "현재 선택값은 목록에서 항상 살린다" 규칙이 지킨다(spec §4.4 폴백 시점).
+  function applyGateFallback(condId: string, lenderLabel: string) {
+    const product = solutionProductTypeOf(solutionWorkbenchPurchaseMethod);
+    if (!product) return; // 금융리스·할부 등 파트너 미구현 = 게이트 대상 아님
+    const plan = planGateFallback(
+      cardUiOf(cardUi, condId),
+      supportedTermsFor(supportMatrix, lenderLabel, product),
+      supportedMileagesFor(supportMatrix, lenderLabel, product),
+    );
+    if (plan.termMonths !== null) setManualTermMonthsFor(condId, plan.termMonths);
+    if (plan.mileageValue !== null) setManualMileageValue(condId, plan.mileageValue);
+    if (plan.moved.length > 0) onToast(`${lenderLabel} 미취급 조건이라 ${plan.moved.join(" · ")}(으)로 변경했습니다`);
   }
 
   // 브랜드 확정/변경 시 카드별 딜러 목록 재적재 — 재진입 복원의 핵심 경로: openEditQuote 시점엔 차량이 아직
@@ -1617,6 +1648,8 @@ export function useQuoteWorkbench({
     manualQuoteCards,
     cardUi,
     dealerOptionsByCard,
+    lenderByCard,
+    supportMatrix,
     solutionLoadingId,
     solutionLenderPickerId,
     editingQuoteId,
