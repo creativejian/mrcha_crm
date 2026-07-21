@@ -1,6 +1,7 @@
 import { asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
+import type { CustomerScope } from "../../lib/assistant-scope";
 import { staffActivityAt } from "./activity";
 import { listAdvisorViewedAt } from "./advisor-quotes";
 import { nextCustomerCode } from "./quote-requests";
@@ -204,12 +205,16 @@ export async function getCustomerAppUserId(
   return row ?? null;
 }
 
-export async function listCustomers(executor: Executor = getDefaultDb()): Promise<CustomerListRow[]> {
-  return executor
+// scope(2026-07-21 role scope spec S-1): "all"=전체(기본값 — 기존 호출부 무영향),
+// { advisorId }=본인 담당만. SSOT는 resolveCustomerScope(assistant-scope.ts) — AI(#176)와
+// 화면의 고객 집합이 같은 판정을 공유한다. 미배정(advisor_id NULL)은 매칭 불가 = 자동 제외(S-4).
+export async function listCustomers(executor: Executor = getDefaultDb(), scope: CustomerScope = "all"): Promise<CustomerListRow[]> {
+  const query = executor
     .select({ ...getTableColumns(customers), phone: composedPhone, latestTask: latestTaskBody, lastActivityAt: staffActivityAt, nextDeliverySchedule, delivery: deliveryInfo, contractingQuote: contractingQuoteSummary })
     .from(customers)
-    .leftJoin(profiles, eq(customers.appUserId, profiles.id))
-    .orderBy(desc(customers.receivedAt));
+    .leftJoin(profiles, eq(customers.appUserId, profiles.id));
+  if (scope !== "all") return query.where(eq(customers.advisorId, scope.advisorId)).orderBy(desc(customers.receivedAt));
+  return query.orderBy(desc(customers.receivedAt));
 }
 
 export type QuoteWithScenarios = Omit<typeof quotes.$inferSelect, "filePath"> & {

@@ -24,7 +24,10 @@ async function seedCustomer(): Promise<string> {
   return row.id;
 }
 
-async function put(customerId: string, body: unknown, role = "staff"): Promise<Response> {
+// admin 고정 — 이 파일의 관심사는 delivery upsert 의미론이지 role이 아니다. staff(랜덤 sub)는
+// customerScopeGate(role scope 2026-07-21)가 미배정 픽스처를 404로 선차단해 전 테스트가 죽는다.
+// staff 스코프 자체는 customers.role-scope.test.ts가 /:id 하위 공통으로 잠근다.
+async function put(customerId: string, body: unknown, role = "admin"): Promise<Response> {
   const { token, keyResolver, issuer } = await makeTestAuth(role, crypto.randomUUID());
   const app = createApp({ keyResolver, issuer });
   return app.request(`/api/customers/${customerId}/delivery`, {

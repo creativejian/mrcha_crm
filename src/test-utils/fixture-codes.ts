@@ -26,6 +26,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
   "CU-MGST-",       // routes/customers.test.ts — 수동 관리 상태 영속(manage_status) 검증
   "CU-QWACC-",      // routes/customers.quote-access.test.ts — 견적 쓰기 권한 게이트(담당자 스코프)
   "CU-ROUTE-",      // routes/customers.test.ts
+  "CU-RSCOPE-",     // routes/customers.role-scope.test.ts — 목록/상세 화면 role scope 게이트
   "CU-RSEND-",      // routes/customers.send.test.ts
   "CU-SEND-",       // db/queries/customer-quotes.send.test.ts
   "CU-SMOKE",       // 사람이 손으로 만든 스모크 고객(브라우저 검증). 끝나면 지운다.

@@ -35,10 +35,10 @@ async function anyProfileId(): Promise<string> {
   return row.id;
 }
 
-async function seedCustomer(appUserId: string | null = null): Promise<string> {
+async function seedCustomer(appUserId: string | null = null, advisorId: string | null = null): Promise<string> {
   const [c] = await db
     .insert(customers)
-    .values({ customerCode: `CU-DEL-${crypto.randomUUID().slice(0, 8)}`, name: "삭제테스트", appUserId })
+    .values({ customerCode: `CU-DEL-${crypto.randomUUID().slice(0, 8)}`, name: "삭제테스트", appUserId, advisorId })
     .returning({ id: customers.id });
   return c.id;
 }
@@ -68,7 +68,7 @@ const baseQuote = {
 // 인증 미들웨어는 CRM_ROLES(staff·manager·admin·dealer) 중 하나면 통과시킨다.
 // 라우트별 역할 검사가 없으면 버튼을 숨겨도 curl 한 번에 뚫린다 — 서버가 진짜 게이트다.
 
-for (const role of ["manager", "staff", "dealer"] as const) {
+for (const role of ["manager", "dealer"] as const) {
   test(`DELETE /api/customers/:id — ${role}는 403 (fail-closed)`, async () => {
     const { token, keyResolver, issuer } = await authed(role);
     const app = createApp({ keyResolver, issuer });
@@ -86,6 +86,25 @@ for (const role of ["manager", "staff", "dealer"] as const) {
     }
   });
 }
+
+// staff는 customerScopeGate(role scope 2026-07-21)가 타 담당을 404로 선차단하므로, admin 전용
+// 게이트 자체를 보려면 **본인 담당** 고객이어야 한다 — 본인 담당이어도 삭제는 admin 전용 403.
+// (타 담당 staff의 404 비노출은 customers.role-scope.test.ts가 /:id 공통으로 잠근다.)
+test("DELETE /api/customers/:id — staff는 본인 담당 고객도 403 (admin 전용)", async () => {
+  const { token, keyResolver, issuer } = await authed("staff");
+  const app = createApp({ keyResolver, issuer });
+  const cid = await seedCustomer(null, DELETED_BY);
+  try {
+    const res = await app.request(`/api/customers/${cid}`, {
+      method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(403);
+    const [alive] = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, cid));
+    expect(alive?.id).toBe(cid);
+  } finally {
+    await cleanup(cid);
+  }
+});
 
 test("DELETE /api/customers/:id — 없는 uuid는 404", async () => {
   const { token, keyResolver, issuer } = await authed("admin");
