@@ -434,3 +434,18 @@ describe("gateProductFor", () => {
     expect(gateProductFor(false, "일시불")).toBeNull();
   });
 });
+
+// 파트너 계약 4) fail-soft가 화면까지 축 독립으로 내려오는지 — 기간만 막히고 거리는 전량 노출.
+describe("항목별 null 강등의 화면 반영", () => {
+  it("기간 확정 + 약정거리 강등이면 기간만 게이트한다", () => {
+    const terms = gatedTermOptions([36, 48, 60]);
+    const mileages = gatedMileageOptions(null, "20,000km / 년");
+    expect(terms.filter((o) => o.disabled).map((o) => o.value)).toEqual([12, 24]);
+    expect(mileages).toHaveLength(7);
+  });
+
+  it("기간 강등 + 약정거리 확정이면 거리만 게이트한다", () => {
+    expect(gatedTermOptions(null).every((o) => !o.disabled)).toBe(true);
+    expect(gatedMileageOptions([10000, 20000, 30000], "20,000km / 년")).toHaveLength(3);
+  });
+});

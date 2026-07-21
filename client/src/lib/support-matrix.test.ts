@@ -167,3 +167,30 @@ describe("fetchSupportMatrix (세션 캐시)", () => {
     expect(retried.size).toBeGreaterThan(0);
   });
 });
+
+// 파트너 계약 4) fail-soft: 200이어도 항목별로 null 강등이 온다(메리츠 mileage는 워크북 DB 파생이라
+// 그쪽 DB 상태에 따라 term은 배열인데 mileage만 null일 수 있다). "200 = 전부 확정"으로 가정 금지 —
+// 축(기간/약정거리)마다 독립 판정해야 한다.
+describe("항목별 null 강등(파트너 fail-soft)", () => {
+  const MIXED = parseSupportMatrix({
+    ok: true,
+    matrix: [
+      {
+        lenderCode: "meritz-capital",
+        productType: "operating_lease",
+        leaseTermMonths: [12, 24, 36, 48, 60], // 확정
+        annualMileageKm: null, // 워크북 DB 이슈로 강등
+      },
+    ],
+  });
+
+  it("같은 금융사에서 기간은 게이트하고 약정거리만 해제한다 — 축 독립", () => {
+    expect(supportedTermsFor(MIXED, "메리츠캐피탈", "operating_lease")).toEqual([12, 24, 36, 48, 60]);
+    expect(supportedMileagesFor(MIXED, "메리츠캐피탈", "operating_lease")).toBeNull();
+  });
+
+  it("강등된 축은 폴백도 돌지 않는다(무변경) — 확정된 축만 폴백", () => {
+    expect(resolveGateFallback(25000, supportedMileagesFor(MIXED, "메리츠캐피탈", "operating_lease"), 20000)).toBeNull();
+    expect(resolveGateFallback(24, supportedTermsFor(MIXED, "메리츠캐피탈", "operating_lease"), 60)).toBeNull();
+  });
+});
