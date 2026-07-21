@@ -160,7 +160,11 @@ test("GET /api/customers/:id/consultations → 없는 고객 id는 404", async (
   expect(res.status).toBe(404);
 });
 
-test("DELETE /api/consultations/:id → 200, CRM 뷰에서 숨겨지지만 public.consultations는 불변", async () => {
+// ── dismiss — customers 라우터 이사(배치 12 K1, V3 안 ②) ─────────────────────
+// 구 DELETE /api/consultations/:id는 #302 인박스 전면 게이트에 걸려 staff의 드로어 상담신청 카드
+// 삭제가 403 롤백으로 죽었다(부수 피해). 이사 후 = DELETE /api/customers/:id/consultations/:consultId
+// — #301 customerScopeGate 자동 편입 + 소유권 검사(상담 user_id의 연결 고객 == URL 고객).
+test("DELETE /api/customers/:id/consultations/:consultId → 200, CRM 뷰에서 숨겨지지만 public.consultations는 불변", async () => {
   // dismissed_by는 uuid 컬럼 — makeTestAuth 기본 sub("test-user")는 uuid가 아니라 insert가 실패하므로
   // 실 uuid sub를 명시 주입한다(me.test.ts/customers.push.test.ts와 동일 관례).
   const { token, keyResolver, issuer } = await makeTestAuth("admin", crypto.randomUUID());
@@ -169,7 +173,7 @@ test("DELETE /api/consultations/:id → 200, CRM 뷰에서 숨겨지지만 publi
   const customerId = await insertCustomer({ appUserId: userId });
   const consultationId = await insertConsultation({ userId, notes: "삭제 테스트 원본" });
   try {
-    const res = await app.request(`/api/consultations/${consultationId}`, {
+    const res = await app.request(`/api/customers/${customerId}/consultations/${consultationId}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -195,9 +199,55 @@ test("DELETE /api/consultations/:id → 200, CRM 뷰에서 숨겨지지만 publi
   }
 });
 
-test("DELETE /api/consultations/:id 무토큰 → 401", async () => {
+test("DELETE dismiss 무토큰 → 401", async () => {
   const { keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const res = await app.request("/api/consultations/00000000-0000-0000-0000-000000000000", { method: "DELETE" });
+  const res = await app.request(
+    `/api/customers/${crypto.randomUUID()}/consultations/${crypto.randomUUID()}`,
+    { method: "DELETE" },
+  );
   expect(res.status).toBe(401);
+});
+
+test("dismiss — 소유권 불일치(타 유저 상담) → 404 + dismissal 행 0(무변이)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin", crypto.randomUUID());
+  const app = createApp({ keyResolver, issuer });
+  const userId = await anyUnlinkedProfileId();
+  const customerId = await insertCustomer({ appUserId: userId });
+  // 상담은 다른(비연결) 유저 소유 — userId null이면 join 불성립이라 소유권 불일치와 동치.
+  const consultationId = await insertConsultation({ userId: null, notes: "소유권 불일치 원본" });
+  try {
+    const res = await app.request(`/api/customers/${customerId}/consultations/${consultationId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: string }).error).toContain("상담신청");
+    const rows = await db.select({ id: consultationDismissals.consultationId }).from(consultationDismissals)
+      .where(eq(consultationDismissals.consultationId, consultationId));
+    expect(rows.length).toBe(0);
+  } finally {
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    await db.delete(customers).where(eq(customers.id, customerId));
+  }
+});
+
+test("dismiss — staff 본인 담당 200(K1-b 회귀 그물)", async () => {
+  const staffSub = crypto.randomUUID();
+  const { token, keyResolver, issuer } = await makeTestAuth("staff", staffSub);
+  const app = createApp({ keyResolver, issuer });
+  const userId = await anyUnlinkedProfileId();
+  const customerId = await insertCustomer({ appUserId: userId, advisorId: staffSub, advisorName: "디스미스담당" });
+  const consultationId = await insertConsultation({ userId, notes: "staff dismiss 원본" });
+  try {
+    const res = await app.request(`/api/customers/${customerId}/consultations/${consultationId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+  } finally {
+    await db.delete(consultationDismissals).where(eq(consultationDismissals.consultationId, consultationId));
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    await db.delete(customers).where(eq(customers.id, customerId));
+  }
 });

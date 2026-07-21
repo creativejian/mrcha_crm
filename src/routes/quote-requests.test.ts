@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { eq, gt, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
@@ -7,7 +7,7 @@ import { getDefaultDb } from "../db/client";
 import { ConflictError, LinkConflictError } from "../lib/errors";
 import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests, listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import { createQuote } from "../db/queries/customer-quotes";
-import { quoteRequests as quoteRequestsTable, quoteRequestOptions as quoteRequestOptionsTable } from "../db/public-app";
+import { profiles, quoteRequests as quoteRequestsTable, quoteRequestOptions as quoteRequestOptionsTable } from "../db/public-app";
 import { customers, quotes } from "../db/schema";
 
 test("GET /api/quote-requests → 200, 배열", async () => {
@@ -202,15 +202,126 @@ test("getQuoteRequestDetail: selected 요청의 외장·내장 컬러 id 반환 
   ).rejects.toThrow("ROLLBACK");
 });
 
-test("GET /api/quote-requests/:id → 200 + detail 형태", async () => {
+// ── 프리필 단건 — customers 라우터 이사(배치 12 K1, V3 안 ②) ──────────────────
+// 구 GET /api/quote-requests/:id는 #302 인박스 전면 게이트에 걸려 staff의 니즈 카드 "견적 작성"
+// (본인 담당 앱 고객)이 403으로 죽었다(부수 피해). 이사 후 = /api/customers/:id/quote-requests/:reqId
+// — #301 customerScopeGate 자동 편입 + 소유권 WHERE(요청 user_id == 그 고객 app_user_id).
+// 소유권 검사는 구 라우트의 잠재 느슨함(열린 드로어와 무관한 임의 요청 id 프리필)까지 닫는다.
+
+const PREFILL_STAFF = "41111111-1111-4111-8111-111111111111";
+
+async function seedPrefillFixture(advisorId: string | null = null) {
+  const db = getDefaultDb();
+  const freed = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(sql`not exists (select 1 from crm.customers c where c.app_user_id = ${profiles.id})`)
+    .limit(2);
+  expect(freed.length).toBe(2);
+  const [ownerUser, otherUser] = freed.map((r) => r.id);
+  const reqId = crypto.randomUUID();
+  const otherReqId = crypto.randomUUID();
+  const reqBase = {
+    trimId: null, paymentMethod: "lease", period: 36, depositType: "deposit",
+    depositRatio: 10, rentalDeposit: 1000000, trimPrice: 30000000, status: "open",
+    createdAt: new Date().toISOString(),
+  };
+  await db.insert(quoteRequestsTable).values([
+    { id: reqId, userId: ownerUser, ...reqBase },
+    { id: otherReqId, userId: otherUser, ...reqBase },
+  ]);
+  const [cust] = await db
+    .insert(customers)
+    .values({
+      customerCode: `CU-QRPF-${crypto.randomUUID().slice(0, 8)}`,
+      name: "프리필이사테스트",
+      appUserId: ownerUser,
+      advisorId,
+      advisorName: advisorId ? "프리필담당" : null,
+    })
+    .returning({ id: customers.id });
+  return {
+    reqId, otherReqId, custId: cust.id,
+    cleanup: async () => {
+      await db.delete(customers).where(eq(customers.id, cust.id));
+      await db.delete(quoteRequestsTable).where(inArray(quoteRequestsTable.id, [reqId, otherReqId]));
+    },
+  };
+}
+
+test("GET /api/customers/:id/quote-requests/:reqId → 200 + detail 형태·deposit 필드 왕복(소유 요청)", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
-  const [req] = await getDefaultDb().select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
-  const res = await app.request(`/api/quote-requests/${req.id}`, { headers: { Authorization: `Bearer ${token}` } });
-  expect(res.status).toBe(200);
-  const body = (await res.json()) as { id: string; trimId: number | null; paymentMethod: string | null; optionIds: number[] };
-  expect(body.id).toBe(req.id);
-  expect(Array.isArray(body.optionIds)).toBe(true);
+  const f = await seedPrefillFixture();
+  try {
+    const res = await app.request(`/api/customers/${f.custId}/quote-requests/${f.reqId}`, { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      id: string; trimId: number | null; paymentMethod: string | null; optionIds: number[];
+      period: number | null; depositType: string | null; depositRatio: number | null; rentalDeposit: number | null;
+    };
+    expect(body.id).toBe(f.reqId);
+    expect(Array.isArray(body.optionIds)).toBe(true);
+    expect(body.period).toBe(36);
+    expect(body.depositType).toBe("deposit");
+    expect(body.depositRatio).toBe(10);
+    expect(body.rentalDeposit).toBe(1000000);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("프리필 — 타 유저 요청(소유권 불일치) → 404 '요청'(임의 요청 id 프리필 봉쇄)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const f = await seedPrefillFixture();
+  try {
+    const res = await app.request(`/api/customers/${f.custId}/quote-requests/${f.otherReqId}`, { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: string }).error).toContain("요청");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("프리필 — 수기 고객(app_user_id 없음) → 404 '요청'", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const db = getDefaultDb();
+  const f = await seedPrefillFixture();
+  const [manual] = await db
+    .insert(customers)
+    .values({ customerCode: `CU-QRPF-${crypto.randomUUID().slice(0, 8)}`, name: "프리필이사테스트" })
+    .returning({ id: customers.id });
+  try {
+    const res = await app.request(`/api/customers/${manual.id}/quote-requests/${f.reqId}`, { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: string }).error).toContain("요청");
+  } finally {
+    await db.delete(customers).where(eq(customers.id, manual.id));
+    await f.cleanup();
+  }
+});
+
+test("프리필 — staff 본인 담당 200(K1-a 회귀 그물) / 타 담당 staff 404 '고객'(스코프 선행)", async () => {
+  const f = await seedPrefillFixture(PREFILL_STAFF);
+  try {
+    const own = await makeTestAuth("staff", PREFILL_STAFF);
+    const ownRes = await createApp({ keyResolver: own.keyResolver, issuer: own.issuer }).request(
+      `/api/customers/${f.custId}/quote-requests/${f.reqId}`,
+      { headers: { Authorization: `Bearer ${own.token}` } },
+    );
+    expect(ownRes.status).toBe(200);
+    const other = await makeTestAuth("staff", crypto.randomUUID());
+    const otherRes = await createApp({ keyResolver: other.keyResolver, issuer: other.issuer }).request(
+      `/api/customers/${f.custId}/quote-requests/${f.reqId}`,
+      { headers: { Authorization: `Bearer ${other.token}` } },
+    );
+    expect(otherRes.status).toBe(404);
+    expect(((await otherRes.json()) as { error: string }).error).toContain("고객");
+  } finally {
+    await f.cleanup();
+  }
 });
 
 test("listQuoteRequests: source가 붙은 견적이 있으면 promotedQuoteCount 증가 (tx 롤백)", async () => {
@@ -245,36 +356,8 @@ test("listQuoteRequestsByUser: 없는 user → 빈 배열", async () => {
   expect(result).toEqual([]);
 });
 
-test("GET /api/quote-requests/:id → deposit_ratio>0 실데이터로 period/depositType/depositRatio/rentalDeposit 왕복", async () => {
-  const { token, keyResolver, issuer } = await makeTestAuth("admin");
-  const app = createApp({ keyResolver, issuer });
-  const db = getDefaultDb();
-  const [row] = await db
-    .select({
-      id: quoteRequestsTable.id,
-      period: quoteRequestsTable.period,
-      depositType: quoteRequestsTable.depositType,
-      depositRatio: quoteRequestsTable.depositRatio,
-      rentalDeposit: quoteRequestsTable.rentalDeposit,
-    })
-    .from(quoteRequestsTable)
-    .where(gt(quoteRequestsTable.depositRatio, 0))
-    .limit(1);
-  // 스펙 실측(2026-07-04, deposit_ratio>0 61건) 기준 실데이터에 존재해야 함 — 없으면 테스트 전제 붕괴.
-  expect(row).toBeDefined();
-  const res = await app.request(`/api/quote-requests/${row.id}`, { headers: { Authorization: `Bearer ${token}` } });
-  expect(res.status).toBe(200);
-  const body = (await res.json()) as {
-    period: number | null;
-    depositType: string | null;
-    depositRatio: number | null;
-    rentalDeposit: number | null;
-  };
-  expect(body.period).toBe(row.period);
-  expect(body.depositType).toBe(row.depositType);
-  expect(body.depositRatio).toBe(row.depositRatio);
-  expect(body.rentalDeposit).toBe(row.rentalDeposit);
-});
+// (구 "GET /api/quote-requests/:id deposit 왕복" 테스트는 위 프리필 이사 테스트에 병합 —
+//  시드 픽스처가 deposit 4필드를 결정적으로 제어해 실데이터 존재 전제도 함께 제거됐다.)
 
 test("GET /api/quote-requests → 승격 견적 2건 생성 시 promotedQuoteIds 최신순(desc) + promotedQuoteCount +2 (실 insert, finally 삭제)", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");

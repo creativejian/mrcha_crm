@@ -184,7 +184,9 @@ export type QuoteRequestPrefill = {
   interiorColorId: number | null;
 };
 
-export async function fetchQuoteRequestDetail(id: string): Promise<QuoteRequestPrefill> {
+// customerId 동봉(배치 12 K1): 프리필 라우트가 customers 하위로 이사 — #302 인박스 게이트에 드로어
+// 흐름이 걸리던 부수 피해 해소 + 서버가 "그 고객 소유 요청"만 반환(소유권 WHERE).
+export async function fetchQuoteRequestDetail(customerId: string, id: string): Promise<QuoteRequestPrefill> {
   const d = await getJson<{
     id: string;
     trimId: number | null;
@@ -196,7 +198,7 @@ export async function fetchQuoteRequestDetail(id: string): Promise<QuoteRequestP
     rentalDeposit: number | null;
     exteriorColorId?: number | null;
     interiorColorId?: number | null;
-  }>(`/api/quote-requests/${id}`);
+  }>(`/api/customers/${customerId}/quote-requests/${id}`);
   return {
     id: d.id,
     trimId: d.trimId,

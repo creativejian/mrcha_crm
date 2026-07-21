@@ -6,7 +6,7 @@
 
 ## 1. 현행 실측 (2026-07-21)
 
-- `GET /api/customers`(목록)는 `listCustomers(db)` 무조건 전체 반환. `/:id` 하위 28개 라우트
+- `GET /api/customers`(목록)는 `listCustomers(db)` 무조건 전체 반환. `/:id` 하위 전 라우트(#301 당시 26개 — 구 서술 "28"은 라우터 등록 전체 수(루트 GET/POST 2 포함)의 오라벨, 배치 12 C#3 정정. K1 이사로 +2)
   (상세·메모·할일·일정·서류·견적·출고·quote-requests·consultations)도 role 무관 전부 접근 가능.
   staff JWT만 있으면 타 담당 고객의 모든 것을 읽고 쓸 수 있다(견적 쓰기만 #300이 403).
 - scope SSOT는 기존재: `resolveCustomerScope`(`src/lib/assistant-scope.ts`, #176 — AI 전용 소비).
@@ -21,11 +21,11 @@
 | # | 결정 | 근거 |
 |---|------|------|
 | S-1 | 목록 = `listCustomers(executor, scope)` 파라미터 — staff면 `advisor_id = 본인` WHERE | scope SSOT `resolveCustomerScope` 재사용 → AI(#176)와 화면의 고객 집합 자동 정합 |
-| S-2 | 상세+자식 = **customers 라우터 미들웨어 한 겹**(`/:id`·`/:id/*`) — 라우트별 게이트 없음 | 28라우트 개별 배선은 드리프트 표면. 한 곳이면 신규 라우트도 자동 커버 |
+| S-2 | 상세+자식 = **customers 라우터 미들웨어 한 겹**(`/:id`·`/:id/*`) — 라우트별 게이트 없음 | 수십 라우트 개별 배선은 드리프트 표면. 한 곳이면 신규 라우트도 자동 커버 |
 | S-3 | 차단 응답 = **404 + 미존재와 byte-동일 문구**("고객을 찾을 수 없습니다.") — 403 아님 | 존재 비노출. 목록에서 안 보이는 고객이 URL 추측에 403을 받으면 "존재는 한다"가 샌다. AI 선례(#176 조회 결과 없음) 미러 |
 | S-4 | 미배정 고객 = staff에게 비노출(404·목록 제외) | D-3① 미러(상담사는 본인 배정부터). 부작용: staff의 "상담필요" 업무함(미배정 큐)은 항상 빈다 — 의도 |
 | S-5 | dealer 등 그 외 role = fail-closed(빈 목록·전 상세 404) | resolveCustomerScope 기존 의미론 그대로. dealer 화면 미설계·실계정 0 — #220(쓰기 차단)의 읽기 확장이지만 안전 기본값 |
-| S-6 | 불변: 수기 등록 POST /(staff = 본인 자동 배정 #215라 스코프 정합)·고객 DELETE(admin 기존)·일괄 담당자 변경(admin/manager 기존) | 기존 게이트와 모순 없음 |
+| S-6 | 불변: 수기 등록 POST /(staff = 본인 자동 배정 #215라 스코프 정합)·고객 DELETE(admin 기존)·일괄 담당자 변경(admin/manager 기존) | 기존 게이트와 모순 없음. ⚠️각주(배치 12 A#4): 자동 배정은 조건부다 — `getStaffName` null(full_name 공란)이면 fail-open으로 **미배정 생성**되고, 그 고객은 등록한 staff에게 무음 미오픈(목록에 없어 드로어 fetch 자체 미발생). 실 DB CRM 롤 전원 full_name 보유(2026-07-21 실측)라 현재 도달 0. 해소 재료: 스코프 키는 advisorId(이름 아님)라 `advisor = { id: 등록자, name: staffName ?? 대체표기 }`로 분리하면 fail-open과 정합 동시 충족 — 대체표기 어휘는 제품 판단이라 도달 사례 발생 시 이행 |
 | S-7 | #300 견적 403 게이트는 **안쪽 그물로 잔존** — staff 타담당은 이제 스코프 404가 선행해 403 도달 불가 | 스코프 게이트가 회귀(제거)되면 견적 라우트는 403이 받아준다(fail-closed 이중 겹). quote-access 테스트는 기대값 403→404로 개정(주석 박제) |
 
 ## 3. 구현

@@ -1,4 +1,4 @@
-import { desc, eq, inArray, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 
 import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
 import { APP_QUOTE_REQUEST_SOURCE } from "../../../client/src/data/customers";
@@ -277,9 +277,12 @@ export type QuoteRequestDetail = {
 };
 
 // prefill용 단건 조회. 요청 1행 + 옵션(trim_option_id) 배열. 없으면 null.
+// ownerUserId(배치 12 K1): 소유권 WHERE — 전달 시 그 유저의 요청만 반환(불일치 = null = 라우트 404).
+// 프리필 라우트가 customers 하위로 이사하면서 "그 고객 소유 요청"만 프리필되게 계약을 좁혔다.
 export async function getQuoteRequestDetail(
   requestId: string,
   executor: Executor = getDefaultDb(),
+  ownerUserId?: string,
 ): Promise<QuoteRequestDetail | null> {
   const [req] = await executor
     .select({
@@ -294,7 +297,11 @@ export async function getQuoteRequestDetail(
       interiorColorId: quoteRequests.interiorColorId,
     })
     .from(quoteRequests)
-    .where(eq(quoteRequests.id, requestId));
+    .where(
+      ownerUserId === undefined
+        ? eq(quoteRequests.id, requestId)
+        : and(eq(quoteRequests.id, requestId), eq(quoteRequests.userId, ownerUserId)),
+    );
   if (!req) return null;
   const opts = await executor
     .select({ optId: quoteRequestOptions.trimOptionId })

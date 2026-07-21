@@ -211,7 +211,9 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
         .then(() => {
           // 승격 견적 삭제 시 니즈 카드 배지/버튼과 인박스 캐시를 서버 확정 후 갱신(생성 경로 useQuoteWorkbench와 대칭 —
           // 즉시 갱신하면 서버가 아직 옛 카운트를 반환해 리로딩 전까지 어긋난다).
-          if (targetQuote?.sourceQuoteRequestId) { void fetchAppQuoteRequestsCached(true); reloadAppRequests(); }
+          // 인박스 캐시 갱신은 admin·manager 전용 API(#302) — staff(본인 승격 견적 삭제)는 403이
+          // 정상이라 무음 처리(배치 12 K1-c: 무catch면 unhandled rejection 노이즈. prefetch 관례 미러).
+          if (targetQuote?.sourceQuoteRequestId) { void fetchAppQuoteRequestsCached(true).catch(() => {}); reloadAppRequests(); }
           // 삭제도 contractingQuote 파생의 입력(배치 11 B#3) — 미리로드면 저장된 delivery.sourceQuoteId가
           // 죽은 견적 id로 승계 시드돼 출고 정보 저장이 400에 막힌다(마킹 경로와 동일 관례).
           onCustomerListChanged?.();

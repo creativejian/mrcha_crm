@@ -10,7 +10,7 @@ import { customerMemos, customers } from "../db/schema";
 // 2026-07-21 이사님 A-3 원칙의 나머지 반쪽(spec 2026-07-21-crm-customer-role-scope):
 // admin·manager = 전체 / staff = 본인 담당(advisor_id 일치)만 / 미배정·dealer 등 = fail-closed.
 // 차단은 403이 아니라 **404 + 미존재와 byte-동일 문구**(존재 비노출 — AI #176 "조회 결과 없음" 미러).
-// 목록은 listCustomers scope WHERE, 상세+자식 28라우트는 라우터 미들웨어 한 겹이 커버한다.
+// 목록은 listCustomers scope WHERE, 상세+자식은 /:id 하위 전 라우트를 미들웨어 한 겹이 커버한다.
 
 const db = getDefaultDb();
 
