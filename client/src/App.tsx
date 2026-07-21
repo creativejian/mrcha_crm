@@ -95,6 +95,9 @@ export function App() {
   // RequireAuth가 App 렌더 전에 roleTab null(권한 없음)을 막으므로 이 폴백은 프로덕션에선 도달 불가(타입 안전용).
   const auth = useAuth();
   const roleTab = auth.roleTab ?? "상담사";
+  // 인박스 2종(앱 견적요청·상담 신청 DB) = admin·manager 전용(2026-07-21 유슨생 결정 — pending
+  // 항목 16). 서버 403이 진짜 게이트(requireRoles)·여기는 UX 보조(라우트 홈 폴백 + 배지 구독 생략).
+  const canViewInbox = roleTab === "최고관리자" || roleTab === "팀장";
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersError, setCustomersError] = useState(false);
   const [customersLoaded, setCustomersLoaded] = useState(false);
@@ -169,7 +172,9 @@ export function App() {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (!auth.authed) return;
+    // 인박스 비노출 role(staff·dealer)은 구독 자체를 생략 — 배지·토스트가 무의미하고,
+    // 토스트 라벨용 fetchAppQuoteRequests가 서버 게이트 403 노이즈만 만든다.
+    if (!auth.authed || !canViewInbox) return;
     return subscribeNewQuoteRequests(() => {
       // 인박스 자동갱신은 항상 트리거.
       setAppRequestSignal((s) => s + 1);
@@ -182,7 +187,7 @@ export function App() {
         )
         .catch(() => showToast("새 앱 견적요청이 도착했습니다"));
     });
-  }, [auth.authed, showToast]);
+  }, [auth.authed, canViewInbox, showToast]);
 
   useEffect(() => {
     if (!auth.authed) return;
@@ -337,9 +342,9 @@ export function App() {
             />
           }
         />
-        <Route path="/app-requests" element={<AppRequestsPage signal={appRequestSignal} onRead={markAppRequestsRead} onToast={showToast} onCustomerListChanged={reloadCustomers} />} />
-        {/* 상담 신청 DB 인박스 — 게이트는 견적요청 인박스와 동일 수준(라우트 무게이트, 서버 읽기는 auth만). */}
-        <Route path="/consultation-requests" element={<ConsultationRequestsPage customers={customers} onToast={showToast} onCustomerListChanged={reloadCustomers} />} />
+        <Route path="/app-requests" element={canViewInbox ? <AppRequestsPage signal={appRequestSignal} onRead={markAppRequestsRead} onToast={showToast} onCustomerListChanged={reloadCustomers} /> : <Navigate to="/" replace />} />
+        {/* 상담 신청 DB 인박스 — 앱 견적요청과 같은 admin·manager 게이트(canViewInbox 주석 참조). */}
+        <Route path="/consultation-requests" element={canViewInbox ? <ConsultationRequestsPage customers={customers} onToast={showToast} onCustomerListChanged={reloadCustomers} /> : <Navigate to="/" replace />} />
         <Route path="/customer-detail" element={<Navigate to="/customers" replace />} />
         <Route
           path="/customer-detail/:code"
