@@ -462,7 +462,11 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               <p>견적은 계약 진행으로 표시됐지만 고객 진행 상태({customer.statusGroup} · {customer.status})는 그대로라 출고 관리 큐에 잡히지 않습니다. 발주 경로를 선택하면 계약완료로 변경됩니다.</p>
               <div className="kim-quote-stage-nudge-options">
                 {CONTRACT_ORDER_PATH_STATUSES.map((status) => (
-                  <button key={status} className="primary" type="button" onClick={() => applyContractStageNudge(status)}>{status}</button>
+                  // 어휘 3종 전부 3자 접미(계약중/발주중) — 분절은 표시 전용(<wbr> = 칸이 좁을 때만
+                  // 이 지점에서 꺾임). 저장값은 status 원문 그대로.
+                  <button key={status} className="primary" type="button" onClick={() => applyContractStageNudge(status)}>
+                    {status.slice(0, -3)}<wbr />{status.slice(-3)}
+                  </button>
                 ))}
               </div>
               <div>
