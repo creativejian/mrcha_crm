@@ -43,8 +43,10 @@ export function parseSupportMatrix(raw: unknown): SupportMatrix {
 
 // 세션 캐시 + inflight dedupe(staff.ts 선례). TTL 없음 — 매트릭스는 파트너 워크북 갱신 주기로만
 // 바뀌고 새로고침이 갱신 트리거다. 실패는 캐시하지 않는다(재진입이 재시도).
-// 메리츠 mileage는 파트너 DB 파생이라 장애 시 그 필드만 null로 강등된 200이 온다(파트너 회신) —
-// 같은 금융사의 집합이 응답마다 다를 수 있다는 뜻이라 영구 보관하지 않는다.
+// ⚠️ 파트너 계약: 이 엔드포인트는 그쪽 DB 문제에도 500이 아니라 **200 + 영향받는 항목만 null 강등**을
+// 준다(fail-soft). "200 = 전부 확정"으로 가정하면 안 되고 **항상 항목(금융사×축)별로 null을 본다**.
+// 어느 사가 워크북 DB 파생인지는 파트너 내부 사정이라 여기 열거하지 않는다(2026-07-21 시점 메리츠
+// mileage가 그 예). 같은 금융사의 집합이 응답마다 달라질 수 있다는 뜻이라 캐시를 영구 보관하지 않는다.
 let cache: SupportMatrix | null = null;
 let inflight: Promise<SupportMatrix> | null = null;
 
