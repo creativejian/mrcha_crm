@@ -16,7 +16,10 @@ import { discountLabelOptions, type DiscountUnit } from "@/components/customer-d
 export type MoneyInputProps = ComponentPropsWithoutRef<"input"> & Record<`data-${string}`, string | undefined>;
 export type ValueSelectProps = ComponentPropsWithoutRef<"select"> & Record<`data-${string}`, string | undefined>;
 
-export type SegmentOption<T extends string | number> = { value: T; label: string };
+// `disabled`는 지원집합 게이트(client/src/lib/support-matrix.ts 소비처)용 additive 확장이다.
+// 워크벤치·계산기가 물리 공유하는 프리미티브라 **미전달 시 종전과 동일**해야 한다(#265 워크벤치
+// DOM 기준 계약) — 기본값을 넣거나 필수로 승격하지 말 것. 계산기는 이 필드를 넘기지 않는다.
+export type SegmentOption<T extends string | number> = { value: T; label: string; disabled?: boolean };
 // 취득세 4모드 라벨 어휘는 quote-workbench-meta.ACQUISITION_TAX_MODE_LABELS(어휘 SSOT의 집 —
 // react-refresh 규칙상 컴포넌트 파일에 상수 export 불가).
 
@@ -40,7 +43,7 @@ export function SegmentGroup<T extends string | number>({
         <button
           key={option.value}
           className={value === option.value ? "active" : ""}
-          disabled={disabled}
+          disabled={disabled || option.disabled}
           onClick={onSelect ? () => onSelect(option.value) : undefined}
           type="button"
         >
