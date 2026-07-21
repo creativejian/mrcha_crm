@@ -20,16 +20,20 @@ type UseQuoteListArgs = {
   // 프리필 소스, 2026-07-20 2단계)의 입력이라 마킹 성공 시 리프레시해야 같은 세션의 출고 콘솔이 최신
   // (savePatch의 onCustomerListChanged 관례와 동일 경로).
   onCustomerListChanged?: () => void;
+  // 진행 상태 전이(App.updateCustomerWorkflow) — 계약 진행 마킹 넛지(delivery-step2 spec §8 ①ⓑ)가
+  // 수락 시 호출. 낙관 반영·chance 확정 동기·PATCH·실패 롤백 전부 부모 경로 승계(신규 저장 경로 0).
+  onWorkflowChange?: (customerNo: number, next: { statusGroup?: string; status?: string }) => void;
 };
 
 // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 부모 보유.
-export function useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests, onCustomerListChanged }: UseQuoteListArgs) {
+export function useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests, onCustomerListChanged, onWorkflowChange }: UseQuoteListArgs) {
   const [quotes, setQuotes] = useState<QuoteItem[]>(() => detail.quotes.map((q) => toQuoteItem(q, Date.now())));
   const [confirmingQuoteDeleteId, setConfirmingQuoteDeleteId] = useState<string | null>(null);
   const [confirmingQuoteSendId, setConfirmingQuoteSendId] = useState<string | null>(null);
   const [confirmingQuoteContractId, setConfirmingQuoteContractId] = useState<string | null>(null);
   const [confirmingQuoteContractEditId, setConfirmingQuoteContractEditId] = useState<string | null>(null);
   const [confirmingQuoteContractDowngrade, setConfirmingQuoteContractDowngrade] = useState<{ id: string; status: "confirmed" | "considering" } | null>(null);
+  const [contractStageNudgeQuoteId, setContractStageNudgeQuoteId] = useState<string | null>(null);
   const [openQuoteActionId, setOpenQuoteActionId] = useState<string | null>(null);
   const [quoteActionFrame, setQuoteActionFrame] = useState<QuoteActionFrame | null>(null);
   const [hoveredQuoteStatus, setHoveredQuoteStatus] = useState<QuoteStatusTooltip | null>(null);
@@ -86,6 +90,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
       setConfirmingQuoteContractId(null);
       setConfirmingQuoteContractEditId(null);
       setConfirmingQuoteContractDowngrade(null);
+      setContractStageNudgeQuoteId(null); // 외부 클릭 = 넛지 거절과 동치(전이 없음 — spec §8 계약 3)
     }
 
     function closeQuoteActionByKeyboard(event: globalThis.KeyboardEvent) {
@@ -97,6 +102,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
       setConfirmingQuoteContractId(null);
       setConfirmingQuoteContractEditId(null);
       setConfirmingQuoteContractDowngrade(null);
+      setContractStageNudgeQuoteId(null);
     }
 
     document.addEventListener("pointerdown", closeQuoteAction, true);
@@ -251,6 +257,30 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     onToast(decisionStatus === "contracting" ? "계약 진행 견적으로 표시했습니다." : decisionStatus === "confirmed" ? "고객 확정 견적으로 표시했습니다." : decisionStatus === "considering" ? "최종 고민중 견적으로 표시했습니다." : "견적 확정 상태를 해제했습니다.");
   }
 
+  // "최종 계약 진행" 확인창 확정 — 마킹/해제 공통 진입. 신규 마킹 ∧ 비계약완료 고객이면 계약완료 전이
+  // 넛지를 연다(2026-07-21 이사님 ①ⓑ, delivery-step2 spec §8). 넛지는 마킹 확정과 동시 노출 —
+  // 마킹 PATCH와 상태 전이 PATCH는 독립 낙관 2건(각자 롤백·토스트, spec §8 계약 4).
+  function confirmContractDecision(id: string, currentDecisionStatus: QuoteItem["decisionStatus"]) {
+    const marking = currentDecisionStatus !== "contracting";
+    updateQuoteDecisionStatus(id, marking ? "contracting" : "none");
+    if (marking && customer.statusGroup !== "계약완료") setContractStageNudgeQuoteId(id);
+  }
+
+  // 넛지 수락(발주 경로 선택) — 전이는 부모 App.updateCustomerWorkflow 경로 그대로(chance 확정 동기 포함).
+  function applyContractStageNudge(status: string) {
+    setContractStageNudgeQuoteId(null);
+    setOpenQuoteActionId(null);
+    setQuoteActionFrame(null);
+    onWorkflowChange?.(customer.no, { statusGroup: "계약완료", status });
+    markRecentUpdate("진행 상태");
+    onToast(`진행 상태를 계약완료 · ${status}으로 변경했습니다.`);
+  }
+
+  // 넛지 거절 — 견적 마킹만 남기고 진행 상태는 그대로(팝오버는 유지).
+  function dismissContractStageNudge() {
+    setContractStageNudgeQuoteId(null);
+  }
+
   function setPrimaryScenario(quoteId: string, scenarioId: string) {
     const prevQuotes = quotes;
     setQuotes((current) => current.map((quote) => {
@@ -280,7 +310,8 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     confirmingQuoteSendId !== null ||
     confirmingQuoteContractId !== null ||
     confirmingQuoteContractEditId !== null ||
-    confirmingQuoteContractDowngrade !== null;
+    confirmingQuoteContractDowngrade !== null ||
+    contractStageNudgeQuoteId !== null;
 
   return {
     quotes,
@@ -293,6 +324,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     confirmingQuoteContractId,
     confirmingQuoteContractEditId,
     confirmingQuoteContractDowngrade,
+    contractStageNudgeQuoteId,
     openQuoteActionId,
     quoteActionFrame,
     pinnedQuoteStatus,
@@ -329,6 +361,9 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
       deleteQuote,
       sendQuoteToApp,
       updateQuoteDecisionStatus,
+      confirmContractDecision,
+      applyContractStageNudge,
+      dismissContractStageNudge,
       setPrimaryScenario,
       removeQuoteOriginal,
     },

@@ -1,6 +1,6 @@
 import { BriefcaseBusiness, Calculator, Check, ChevronDown, Download, Eye, FilePlus2, FileText, FileUp, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Send, Star, Trash2, UserRound, X } from "lucide-react";
 
-import { type Customer } from "@/data/customers";
+import { CONTRACT_ORDER_PATH_STATUSES, type Customer } from "@/data/customers";
 import { downPaymentRowLabelOf, formatMonthly, formatScenarioMoneyMode, trimWithoutModelPrefix, viewedBadgeOf, type QuoteItem } from "@/lib/quote-items";
 import { formatMoney } from "@/lib/quote-pricing";
 import { formatFileSize, isDocumentFileDrag, documentFileKind, quoteValidClass } from "@/lib/detail-utils";
@@ -50,6 +50,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
     confirmingQuoteContractDowngrade,
     confirmingQuoteContractId,
     confirmingQuoteDeleteId,
+    contractStageNudgeQuoteId,
   } = quoteList;
   const {
     setQuoteDropTargetId,
@@ -70,6 +71,9 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
     deleteQuote,
     sendQuoteToApp,
     updateQuoteDecisionStatus,
+    confirmContractDecision,
+    applyContractStageNudge,
+    dismissContractStageNudge,
     setPrimaryScenario,
   } = quoteList.handlers;
 
@@ -446,9 +450,23 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               <div>
                 <button type="button" onClick={() => setConfirmingQuoteContractId(null)}>취소</button>
                 <button className="primary" type="button" onClick={() => {
-                  updateQuoteDecisionStatus(openQuoteAction.id, openQuoteAction.decisionStatus === "contracting" ? "none" : "contracting");
+                  confirmContractDecision(openQuoteAction.id, openQuoteAction.decisionStatus);
                   setConfirmingQuoteContractId(null);
                 }}>확정</button>
+              </div>
+            </div>
+          ) : null}
+          {contractStageNudgeQuoteId === openQuoteAction.id ? (
+            <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm kim-quote-stage-nudge" role="dialog" aria-label="진행 상태 계약완료 변경 확인">
+              <strong>진행 상태도 계약완료로 바꿀까요?</strong>
+              <p>견적은 계약 진행으로 표시됐지만 고객 진행 상태({customer.statusGroup} · {customer.status})는 그대로라 출고 관리 큐에 잡히지 않습니다. 발주 경로를 선택하면 계약완료로 변경됩니다.</p>
+              <div className="kim-quote-stage-nudge-options">
+                {CONTRACT_ORDER_PATH_STATUSES.map((status) => (
+                  <button key={status} className="primary" type="button" onClick={() => applyContractStageNudge(status)}>{status}</button>
+                ))}
+              </div>
+              <div>
+                <button type="button" onClick={() => dismissContractStageNudge()}>진행 상태 유지</button>
               </div>
             </div>
           ) : null}

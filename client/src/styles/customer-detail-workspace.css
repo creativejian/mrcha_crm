@@ -896,6 +896,16 @@
   color: #3548bc;
 }
 
+/* 계약완료 전이 넛지(delivery-step2 spec §8 ①ⓑ) — 발주 경로 3버튼은 팝오버 폭에서 한 줄 불가라 세로 스택 */
+.kim-quote-stage-nudge-options {
+  display: grid;
+  gap: 5px;
+}
+
+.kim-quote-stage-nudge-options button {
+  width: 100%;
+}
+
 .kim-quote-delete-inline-confirm {
   border-color: rgba(180, 35, 24, 0.18);
   background: rgba(180, 35, 24, 0.045);
