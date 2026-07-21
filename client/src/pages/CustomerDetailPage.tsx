@@ -249,7 +249,7 @@ function CustomerDetailContent({
         <CustomerDocuments {...documents} />
         </section>
       </section>
-      <QuotePreviewModals quoteList={quoteList} onDownloadOriginal={documents.handlers.download} />
+      <QuotePreviewModals quoteList={quoteList} onDownloadOriginal={documents.handlers.download} quoteWritable={quoteWritable} />
     </div>
   );
 }

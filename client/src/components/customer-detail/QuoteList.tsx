@@ -61,8 +61,8 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
     setHoveredQuoteStatus,
     setPinnedQuoteStatus,
     setExpandedQuoteId,
-    setOpenQuoteActionId,
-    setQuoteActionFrame,
+    closeQuoteActionPopover,
+    openQuoteActionPopover,
     setConfirmingQuoteDeleteId,
     setConfirmingQuoteSendId,
     setConfirmingQuoteContractId,
@@ -261,19 +261,11 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                       aria-label={`${quote.title} 견적 작업 열기`}
                       className={openQuoteActionId === quote.id ? "is-active" : undefined}
                       onClick={(event) => {
-                        const nextFrame = calculateQuoteActionFrame(event.currentTarget);
-                        setConfirmingQuoteDeleteId(null);
-                        setConfirmingQuoteSendId(null);
-                        setConfirmingQuoteContractId(null);
-                        setConfirmingQuoteContractEditId(null);
-                        setOpenQuoteActionId((current) => {
-                          if (current === quote.id) {
-                            setQuoteActionFrame(null);
-                            return null;
-                          }
-                          setQuoteActionFrame(nextFrame);
-                          return quote.id;
-                        });
+                        // 토글 닫기/행 전환 = 팝오버-내부 상태(확인 5종·넛지) 동반 클리어(배치 12 B#1 —
+                        // 산개 setter 대신 훅의 단일 지점 2함수. 닫기가 넛지를 남기면 editorOpen 잔존으로
+                        // 드로어 Escape가 무음 차단되고 리스너도 해제돼 회복 불가였다).
+                        if (openQuoteActionId === quote.id) { closeQuoteActionPopover(); return; }
+                        openQuoteActionPopover(quote.id, calculateQuoteActionFrame(event.currentTarget));
                       }}
                       type="button"
                     >
@@ -321,11 +313,10 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               setConfirmingQuoteContractId(null);
               setConfirmingQuoteDeleteId(null);
               setConfirmingQuoteContractEditId(null);
+              dismissContractStageNudge(); // 다른 확인 열기 = 넛지 암묵 거절(B#1)
               if (openQuoteAction.appStatus === "sent") {
                 setPreviewSentQuoteId(openQuoteAction.id);
-                setOpenQuoteActionId(null);
-                setQuoteActionFrame(null);
-                setConfirmingQuoteSendId(null);
+                closeQuoteActionPopover();
               } else {
                 setConfirmingQuoteSendId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
               }
@@ -342,9 +333,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                 <button type="button" onClick={() => setConfirmingQuoteSendId(null)}>취소</button>
                 <button className="primary" type="button" onClick={() => {
                   sendQuoteToApp(openQuoteAction.id);
-                  setOpenQuoteActionId(null);
-                  setQuoteActionFrame(null);
-                  setConfirmingQuoteSendId(null);
+                  closeQuoteActionPopover();
                 }}>발송</button>
               </div>
             </div>
@@ -368,8 +357,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
           {openQuoteAction.fileName ? (
             <button type="button" onClick={() => {
               setPreviewQuoteId(openQuoteAction.id);
-              setOpenQuoteActionId(null);
-              setQuoteActionFrame(null);
+              closeQuoteActionPopover();
             }}>
               <Eye size={13} strokeWidth={2.3} />
               견적 원본 보기
@@ -380,8 +368,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               견적 원본 첨부
               <input accept="image/*,.pdf" onChange={(event) => {
                 attachQuoteFile(event, openQuoteAction.id);
-                setOpenQuoteActionId(null);
-                setQuoteActionFrame(null);
+                closeQuoteActionPopover();
               }} type="file" />
             </label>
           ) : null}
@@ -391,6 +378,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               setConfirmingQuoteDeleteId(null);
               setConfirmingQuoteContractId(null);
               setConfirmingQuoteContractEditId(null);
+              dismissContractStageNudge(); // B#1 미러
               if (openQuoteAction.decisionStatus === "contracting") {
                 setConfirmingQuoteContractDowngrade((current) => (current?.id === openQuoteAction.id && current.status === "considering" ? null : { id: openQuoteAction.id, status: "considering" }));
                 return;
@@ -422,6 +410,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               setConfirmingQuoteDeleteId(null);
               setConfirmingQuoteContractId(null);
               setConfirmingQuoteContractEditId(null);
+              dismissContractStageNudge(); // B#1 미러
               if (openQuoteAction.decisionStatus === "contracting") {
                 setConfirmingQuoteContractDowngrade((current) => (current?.id === openQuoteAction.id && current.status === "confirmed" ? null : { id: openQuoteAction.id, status: "confirmed" }));
                 return;
@@ -453,6 +442,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               setConfirmingQuoteDeleteId(null);
               setConfirmingQuoteContractEditId(null);
               setConfirmingQuoteContractDowngrade(null);
+              dismissContractStageNudge(); // 넛지 열린 채 재클릭 시 해제 확인과 동시 표시되던 V2 시나리오 (b) 차단
               setConfirmingQuoteContractId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
             }}>
               <BriefcaseBusiness size={13} strokeWidth={2.25} />
@@ -497,6 +487,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               setConfirmingQuoteContractId(null);
               setConfirmingQuoteContractEditId(null);
               setConfirmingQuoteContractDowngrade(null);
+              dismissContractStageNudge(); // B#1 미러
               setConfirmingQuoteDeleteId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
             }}>
               <Trash2 size={13} strokeWidth={2.3} />
@@ -521,8 +512,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                   <button type="button" onClick={() => setConfirmingQuoteDeleteId(null)}>취소</button>
                   <button className="danger" type="button" onClick={() => {
                     deleteQuote(openQuoteAction.id);
-                    setOpenQuoteActionId(null);
-                    setQuoteActionFrame(null);
+                    closeQuoteActionPopover();
                   }}>삭제</button>
                 </div>
               </div>
@@ -541,9 +531,13 @@ type QuotePreviewModalsProps = {
   quoteList: ReturnType<typeof useQuoteList>;
   // 견적 원본 다운로드 — 부모가 documents.handlers.download을 중계(9a가 서류 훅과 결합되지 않게).
   onDownloadOriginal: (url: string, fileName: string) => void;
+  // 견적 쓰기 권한(배치 12 B#3) — "견적 원본 보기"는 읽기라 readonly에도 열리는데(의도), 모달 안
+  // 삭제 버튼이 미게이트로 딸려와 #300 "쓰기 진입점 숨김"의 유일 잔존이었다. 서버 403 fail-closed라
+  // 데이터 피해는 없었고 UX 모순(성공 토스트 → 롤백)만.
+  quoteWritable: boolean;
 };
 
-export function QuotePreviewModals({ quoteList, onDownloadOriginal }: QuotePreviewModalsProps) {
+export function QuotePreviewModals({ quoteList, onDownloadOriginal, quoteWritable }: QuotePreviewModalsProps) {
   const { previewSentQuote, previewQuote, activePreviewQuoteUrl } = quoteList;
   const { setPreviewSentQuoteId, setPreviewQuoteId, removeQuoteOriginal } = quoteList.handlers;
 
@@ -588,7 +582,7 @@ export function QuotePreviewModals({ quoteList, onDownloadOriginal }: QuotePrevi
               </div>
               <div className="kim-document-preview-head-actions">
                 <button aria-label="견적 원본 다운로드" disabled={!activePreviewQuoteUrl} onClick={() => { if (activePreviewQuoteUrl) onDownloadOriginal(activePreviewQuoteUrl, previewQuote.fileName ?? "quote"); }} type="button"><Download size={15} strokeWidth={2.3} /></button>
-                <button aria-label="견적 원본 삭제" onClick={() => removeQuoteOriginal(previewQuote.id)} type="button"><Trash2 size={15} strokeWidth={2.3} /></button>
+                {quoteWritable ? <button aria-label="견적 원본 삭제" onClick={() => removeQuoteOriginal(previewQuote.id)} type="button"><Trash2 size={15} strokeWidth={2.3} /></button> : null}
                 <button aria-label="견적 원본 미리보기 닫기" onClick={() => setPreviewQuoteId(null)} type="button"><X size={15} strokeWidth={2.4} /></button>
               </div>
             </div>

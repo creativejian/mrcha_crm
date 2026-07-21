@@ -77,32 +77,46 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     return () => window.cancelAnimationFrame(frame);
   }, [quotes.length]);
 
+  // 팝오버 닫힘/행 전환의 단일 지점(배치 12 B#1) — 팝오버-내부 상태(확인 5종·넛지)를 동반 클리어한다.
+  // 트리거 토글·"보기" 계열이 팝오버만 닫고 넛지를 남기면 ①editorOpen OR 잔존 → App Escape 드로어
+  // 닫기 무음 차단(외부클릭/Escape 리스너도 openQuoteActionId 게이트라 함께 해제돼 회복 불가)
+  // ②같은 행 재오픈 시 스테일 넛지 재등장(V2 시나리오 a·c 실측). 닫힘 = 넛지 암묵 거절(spec §8
+  // 외부클릭 거절과 동치·전이 없음). 클리어 지점을 산개 추가하는 대신 이 두 함수만 쓴다.
+  function closeQuoteActionPopover() {
+    setOpenQuoteActionId(null);
+    setQuoteActionFrame(null);
+    setConfirmingQuoteSendId(null);
+    setConfirmingQuoteDeleteId(null);
+    setConfirmingQuoteContractId(null);
+    setConfirmingQuoteContractEditId(null);
+    setConfirmingQuoteContractDowngrade(null);
+    setContractStageNudgeQuoteId(null);
+  }
+
+  // 행 전환 오픈 — 이전 행의 잔존 확인·넛지를 청소하고 연다(트리거 onClick 전용).
+  function openQuoteActionPopover(quoteId: string, frame: QuoteActionFrame | null) {
+    setConfirmingQuoteSendId(null);
+    setConfirmingQuoteDeleteId(null);
+    setConfirmingQuoteContractId(null);
+    setConfirmingQuoteContractEditId(null);
+    setConfirmingQuoteContractDowngrade(null);
+    setContractStageNudgeQuoteId(null);
+    setQuoteActionFrame(frame);
+    setOpenQuoteActionId(quoteId);
+  }
+
   useEffect(() => {
     if (!openQuoteActionId) return;
 
     function closeQuoteAction(event: PointerEvent) {
       const target = event.target as HTMLElement;
       if (target.closest(".kim-quote-action-popover") || target.closest(".kim-quote-row-actions")) return;
-      setOpenQuoteActionId(null);
-      setQuoteActionFrame(null);
-      setConfirmingQuoteSendId(null);
-      setConfirmingQuoteDeleteId(null);
-      setConfirmingQuoteContractId(null);
-      setConfirmingQuoteContractEditId(null);
-      setConfirmingQuoteContractDowngrade(null);
-      setContractStageNudgeQuoteId(null); // 외부 클릭 = 넛지 거절과 동치(전이 없음 — spec §8 계약 3)
+      closeQuoteActionPopover(); // 외부 클릭 = 넛지 거절과 동치(전이 없음 — spec §8 계약 3)
     }
 
     function closeQuoteActionByKeyboard(event: globalThis.KeyboardEvent) {
       if (event.key !== "Escape") return;
-      setOpenQuoteActionId(null);
-      setQuoteActionFrame(null);
-      setConfirmingQuoteSendId(null);
-      setConfirmingQuoteDeleteId(null);
-      setConfirmingQuoteContractId(null);
-      setConfirmingQuoteContractEditId(null);
-      setConfirmingQuoteContractDowngrade(null);
-      setContractStageNudgeQuoteId(null);
+      closeQuoteActionPopover();
     }
 
     document.addEventListener("pointerdown", closeQuoteAction, true);
@@ -206,6 +220,9 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     setPreviewQuoteId((current) => (current === id ? null : current));
     setConfirmingQuoteDeleteId(null);
     setConfirmingQuoteContractId(null);
+    // 삭제된 견적의 넛지 잔존 차단(B#1) — 죽은 id를 가리키면 렌더 불가인데 editorOpen만 true로 남아
+    // 드로어 Escape가 영구 차단된다(V2 시나리오 b 후반 실증).
+    setContractStageNudgeQuoteId((current) => (current === id ? null : current));
     if (customer.id && !id.startsWith("kim-")) {
       void apiDeleteQuote(customer.id, id)
         .then(() => {
@@ -266,13 +283,14 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     const marking = currentDecisionStatus !== "contracting";
     updateQuoteDecisionStatus(id, marking ? "contracting" : "none");
     if (marking && customer.statusGroup !== "계약완료") setContractStageNudgeQuoteId(id);
+    // 해제 = 열려 있던 넛지 무효(배치 12 B#1 시나리오 b) — 안 지우면 "contracting 견적 0인데
+    // 발주 경로 클릭 → 계약완료 전이"라는 마킹 없는 전이가 성립한다(V2 라인 단위 실증).
+    else if (!marking) setContractStageNudgeQuoteId(null);
   }
 
   // 넛지 수락(발주 경로 선택) — 전이는 부모 App.updateCustomerWorkflow 경로 그대로(chance 확정 동기 포함).
   function applyContractStageNudge(status: string) {
-    setContractStageNudgeQuoteId(null);
-    setOpenQuoteActionId(null);
-    setQuoteActionFrame(null);
+    closeQuoteActionPopover(); // 넛지·팝오버·잔존 확인 동반 닫힘(B#1 단일 지점)
     onWorkflowChange?.(customer.no, { statusGroup: "계약완료", status });
     markRecentUpdate("진행 상태");
     onToast(`진행 상태를 계약완료 · ${status}으로 변경했습니다.`);
@@ -351,6 +369,8 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
       setConfirmingQuoteContractDowngrade,
       setOpenQuoteActionId,
       setQuoteActionFrame,
+      closeQuoteActionPopover,
+      openQuoteActionPopover,
       setHoveredQuoteStatus,
       setPinnedQuoteStatus,
       setQuoteDropTargetId,

@@ -907,7 +907,8 @@
 
 /* 계약완료 전이 넛지(delivery-step2 spec §8 ①ⓑ) — 타이포는 공유 confirm 블록 그대로,
    발주 경로 3버튼만 가로 3칸(유슨생 확정 2026-07-21). 팝오버 폭 214px에서 풀 라벨은 한 줄 불가 —
-   keep-all + JSX <wbr>(어간 분절)로 정확한 지점에서만 2줄 래핑하고 높이 auto로 박스 안에 가둔다.
+   JSX <br />(어간 항상 2줄 강제 분절 — 구 <wbr> 시안은 #299 4차 이터레이션에서 교체, 배치 12 B#5 주석
+   동기)로 2줄 고정하고 높이 auto로 박스 안에 가둔다. keep-all은 잔여 자연 래핑 방어.
    공유 `.kim-quote-send-confirm > div` flex(0,1,1)는 같은 형태 셀렉터로 이긴다(클래스 단독은 진다). */
 .kim-quote-send-confirm > div.kim-quote-stage-nudge-options {
   display: grid;
