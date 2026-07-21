@@ -151,4 +151,18 @@ describe("DateTextField — 달력 아이콘 재클릭 토글", () => {
     fireEvent.click(btn);
     expect(showPicker).toHaveBeenCalledTimes(2);
   });
+
+  it("픽커 열린 채 언마운트 = dismiss 리스너 해제(배치 12 B#6③ — 제거 변이가 green이던 누수 사각)", async () => {
+    const addSpy = vi.spyOn(document, "addEventListener");
+    const removeSpy = vi.spyOn(document, "removeEventListener");
+    const { btn, unmount } = await setupWithPicker();
+    fireEvent.click(btn); // 열림 → document pointerdown 리스너 부착
+    const added = addSpy.mock.calls.filter(([type]) => type === "pointerdown").map(([, fn]) => fn);
+    expect(added.length).toBeGreaterThan(0);
+    unmount();
+    const removed = removeSpy.mock.calls.filter(([type]) => type === "pointerdown").map(([, fn]) => fn);
+    for (const fn of added) expect(removed).toContain(fn); // 부착된 핸들러 전부 해제돼야 한다
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
 });
