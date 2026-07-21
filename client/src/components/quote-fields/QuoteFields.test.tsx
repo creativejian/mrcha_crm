@@ -32,6 +32,42 @@ describe("SegmentGroup", () => {
     expect(onSelect).toHaveBeenCalledWith("percent");
   });
 
+  // 옵션별 disabled는 지원집합 게이트용 additive 확장(2026-07-21). 워크벤치·계산기가 물리 공유하는
+  // 프리미티브라, 기존 호출부(미전달)가 종전과 byte-동일하게 렌더되는 것이 계약이다.
+  it("option.disabled 미전달 = 종전 그대로 활성 — 공유 프리미티브 기존 호출부 무변경", () => {
+    render(<SegmentGroup value={60} options={[{ value: 12, label: "12개월" }, { value: 60, label: "60개월" }]} onSelect={() => {}} />);
+    expect(screen.getByRole("button", { name: "12개월" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "60개월" })).not.toBeDisabled();
+  });
+
+  it("option.disabled=true면 그 버튼만 비활성 — 그룹 disabled와 독립", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <SegmentGroup
+        value={60}
+        options={[{ value: 12, label: "12개월", disabled: true }, { value: 60, label: "60개월" }]}
+        onSelect={onSelect}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "12개월" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "60개월" })).not.toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "12개월" }));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("그룹 disabled는 option.disabled=false를 덮는다(전체 잠금 우선 — 저장된 카드)", () => {
+    render(
+      <SegmentGroup
+        value={60}
+        options={[{ value: 12, label: "12개월", disabled: false }, { value: 60, label: "60개월" }]}
+        disabled
+        onSelect={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "12개월" })).toBeDisabled();
+  });
+
   it("onSelect 미전달 = 장식 세그먼트(클릭 무동작 — 워크벤치 공채/탁송료/부대비용 현행)", async () => {
     const user = userEvent.setup();
     render(<SegmentGroup value="included" options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} />);

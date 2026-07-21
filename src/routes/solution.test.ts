@@ -381,3 +381,84 @@ test("dealers env URL이 origin 파생 불가(비 URL 문자열) → 503 fail-lo
   expect(body.error).toContain("설정");
   expect(calls).toHaveLength(0);
 });
+
+// ── GET /support-matrix 릴레이(지원집합 UI 게이트 T1) — 제프 external quotes/support-matrix 미러 ──
+// 계약: 200 {ok:true, matrix:[{lenderCode, productType, leaseTermMonths, annualMileageKm}]}.
+// null(미확정) / [](전부 미지원) 구분은 릴레이가 해석하지 않고 그대로 패스스루한다(클라 판정 SSOT).
+
+function getSupportMatrix() {
+  return app.request("/api/solution/support-matrix", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+const MATRIX_FIXTURE = {
+  ok: true,
+  matrix: [
+    { lenderCode: "mg-capital", productType: "operating_lease", leaseTermMonths: [36, 48, 60], annualMileageKm: [10000, 20000, 30000] },
+    { lenderCode: "kdbc-capital", productType: "operating_lease", leaseTermMonths: null, annualMileageKm: null },
+  ],
+};
+
+function captureMatrixRequests() {
+  const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+  solutionDeps.fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), headers: Object.fromEntries(new Headers(init?.headers).entries()) });
+    return new Response(JSON.stringify(MATRIX_FIXTURE), { status: 200 });
+  }) as typeof fetch;
+  return calls;
+}
+
+test("support-matrix 성공 패스스루(null 보존) + URL 조립 + X-API-Key/X-Request-ID", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/api/external/quotes/calculate";
+  process.env.PARTNER_QUOTE_API_KEY = "test-key-123";
+  const calls = captureMatrixRequests();
+
+  const res = await getSupportMatrix();
+  expect(res.status).toBe(200);
+  // null=미확정 / []=전부 미지원 구분이 릴레이를 통과해도 살아있어야 한다(클라가 해석하는 계약).
+  expect(await res.json()).toEqual(MATRIX_FIXTURE);
+
+  expect(calls).toHaveLength(1);
+  expect(calls[0].url).toBe("https://partner.test/api/external/quotes/support-matrix");
+  expect(calls[0].headers["x-api-key"]).toBe("test-key-123");
+  expect(calls[0].headers["x-request-id"]).toMatch(/^crm-[0-9a-f-]{36}$/);
+});
+
+test("support-matrix env URL 미설정 → 503(업스트림 미호출)", async () => {
+  delete process.env.PARTNER_QUOTE_API_URL;
+  const calls = captureMatrixRequests();
+
+  const res = await getSupportMatrix();
+  expect(res.status).toBe(503);
+  expect(calls).toHaveLength(0);
+});
+
+test("support-matrix 파트너 401 → 503 + 인증 실패 문구(dealers 미러)", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/api/external/quotes/calculate";
+  solutionDeps.fetchImpl = (async () =>
+    new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 })) as unknown as typeof fetch;
+
+  const res = await getSupportMatrix();
+  expect(res.status).toBe(503);
+  expect(((await res.json()) as { error: string }).error).toContain("인증");
+});
+
+test("support-matrix 업스트림 5xx → 502", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/api/external/quotes/calculate";
+  solutionDeps.fetchImpl = (async () =>
+    new Response(JSON.stringify({ ok: false, error: "boom" }), { status: 500 })) as unknown as typeof fetch;
+
+  expect((await getSupportMatrix()).status).toBe(502);
+});
+
+test("support-matrix 업스트림 무응답(abort) → 504", async () => {
+  process.env.PARTNER_QUOTE_API_URL = "https://partner.test/api/external/quotes/calculate";
+  solutionDeps.timeoutMs = 5;
+  solutionDeps.fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
+    })) as unknown as typeof fetch;
+
+  expect((await getSupportMatrix()).status).toBe(504);
+});

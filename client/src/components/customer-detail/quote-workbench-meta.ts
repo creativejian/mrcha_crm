@@ -6,7 +6,8 @@ import { type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } f
 import { type QuoteGuidance } from "@/data/quote-guidance";
 import { computePricing, formatMoney, percentToWon, type PricingInputs } from "@/lib/quote-pricing";
 import { type ScenarioCardSeed } from "@/lib/quote-request-seed";
-import { parseSolutionQuoteResult, type SolutionSnapshot } from "@/lib/solution-quote";
+import { parseSolutionQuoteResult, solutionMileageOf, solutionProductTypeOf, SOLUTION_LEASE_TERMS, type SolutionProductType, type SolutionSnapshot } from "@/lib/solution-quote";
+import { resolveGateFallback } from "@/lib/support-matrix";
 
 export type DiscountUnit = "amount" | "percent";
 export type DiscountLine = { id: string; label: string; amount: string; unit: DiscountUnit };
@@ -140,7 +141,7 @@ export type ManualCard = {
   dealerName: string;
 };
 export const discountLabelOptions = ["재구매 할인", "법인 추가 할인", "기타"] as const;
-export const manualMileageOptions = [
+const manualMileageOptions = [
   "10,000km / 년",
   "15,000km / 년",
   "20,000km / 년",
@@ -350,4 +351,74 @@ export function createQuoteCode(existingQuotes: QuoteItem[]) {
     return Math.max(max, Number(match[1]));
   }, 0) + 1;
   return `QT-${yearMonth}-${String(nextSequence).padStart(4, "0")}`;
+}
+
+// 지원집합 게이트(spec 2026-07-21-crm-support-matrix-gate-design) 폴백값.
+// ⚠️ 60개월·20,000km는 파트너 운용리스 5사가 **전부** 지원한다(2026-07-21 실측 매트릭스) —
+// 그래서 어느 금융사로 바꿔도 폴백이 다시 미지원으로 튀지 않는다. 이 전제가 깨지면
+// (파트너가 어느 사에서 60개월/20,000km를 내리면) 폴백이 무의미해지므로 함께 재검토할 것.
+const GATE_FALLBACK_TERM_MONTHS = 60;
+const GATE_FALLBACK_MILEAGE_KM = 20000;
+
+// 이 카드가 게이트 대상인지 — 아니면 null(게이트 해제).
+// ⚠️ **저장된 카드는 제외**한다. 편집 불가라 "잘못 고르는 것"을 막을 목적이 없고, 약정거리 option을
+// 지우면 저장된 값이 목록에 없어 select 표시가 빈칸으로 깨진다(과거 MG+25,000km 견적을 열었을 때).
+// 파트너 미구현 구매방식(금융리스·할부·일시불)도 게이트 대상이 아니다.
+export function gateProductFor(isConditionSaved: boolean, purchaseMethod: string): SolutionProductType | null {
+  if (isConditionSaved) return null;
+  return solutionProductTypeOf(purchaseMethod);
+}
+
+// 기간 세그먼트 어휘 — SOLUTION_LEASE_TERMS 파생(계산기와 같은 소스).
+const leaseTermSegmentOptions = SOLUTION_LEASE_TERMS.map((m) => ({ value: m, label: `${m}개월` }));
+
+// 지원집합(null = 미확정 → 게이트 없음)으로 기간 세그먼트 옵션을 만든다.
+// 미지원 값은 `disabled`로만 표시하고 목록에서 빼지 않는다 — 세그먼트는 칸 수가 고정된 UI라
+// 빼면 레이아웃이 흔들리고, 어떤 기간이 왜 안 되는지도 안 보인다.
+export function gatedTermOptions(supported: number[] | null): { value: number; label: string; disabled?: boolean }[] {
+  if (supported === null) return leaseTermSegmentOptions.map((o) => ({ ...o }));
+  return leaseTermSegmentOptions.map((o) => ({ ...o, disabled: !supported.includes(o.value) }));
+}
+
+// 약정거리는 select라 미지원 값을 목록에서 제거한다(유슨생 결정).
+// ⚠️ `current`(현재 선택값)는 미지원이어도 항상 살린다 — 폴백은 금융사 변경에서만 돌기 때문에
+// 수정 진입 시 과거 미취급 값이 목록에서 사라지면 select 표시가 빈칸으로 깨진다.
+export function gatedMileageOptions(supported: number[] | null, current: string): readonly string[] {
+  if (supported === null) return manualMileageOptions;
+  return manualMileageOptions.filter((option) => {
+    if (option === current) return true;
+    const km = solutionMileageOf(option);
+    return km !== null && supported.includes(km);
+  });
+}
+
+// 금융사 변경 시 미취급이 된 조건을 폴백값으로 옮기는 "계획". 실제 setState·토스트는 훅이 한다
+// (여기는 순수 — 무엇을 어디로 옮기고 뭐라 안내할지만 결정).
+export type GateFallbackPlan = { termMonths: number | null; mileageValue: string | null; moved: string[] };
+
+export function planGateFallback(
+  ui: CardUiState,
+  supportedTerms: number[] | null,
+  supportedMileages: number[] | null,
+): GateFallbackPlan {
+  const plan: GateFallbackPlan = { termMonths: null, mileageValue: null, moved: [] };
+
+  const nextTerm = resolveGateFallback(ui.termMonths, supportedTerms, GATE_FALLBACK_TERM_MONTHS);
+  if (nextTerm !== null) {
+    plan.termMonths = nextTerm;
+    plan.moved.push(`기간 ${nextTerm}개월`);
+  }
+
+  // 약정거리 상태값은 표시 문자열("20,000km / 년")이라 km 왕복이 필요하다.
+  const currentKm = solutionMileageOf(effectiveMileageValue(ui));
+  if (currentKm !== null) {
+    const nextKm = resolveGateFallback(currentKm, supportedMileages, GATE_FALLBACK_MILEAGE_KM);
+    const nextLabel = nextKm === null ? undefined : manualMileageOptions.find((o) => solutionMileageOf(o) === nextKm);
+    if (nextLabel) {
+      plan.mileageValue = nextLabel;
+      plan.moved.push(`약정거리 ${nextLabel}`);
+    }
+  }
+
+  return plan;
 }

@@ -10,6 +10,10 @@ import {
   cardUiOf,
   DEFAULT_CARD_UI,
   dealerSelectPlaceholder,
+  gatedMileageOptions,
+  gatedTermOptions,
+  gateProductFor,
+  planGateFallback,
   discountLineWon,
   effectiveMileageValue,
   MILEAGE_BASIC_VALUE,
@@ -317,5 +321,116 @@ describe("cardUiFromSeed", () => {
   it("보증금·선수금 모드를 덮어쓴다(값 문자열은 카드 표시값이라 여기 없음)", () => {
     expect(cardUiFromSeed({ ...emptySeed, depositMode: "percent", depositValue: "10", downPaymentMode: "amount", downPaymentValue: "3,000,000" }))
       .toEqual({ ...DEFAULT_CARD_UI, depositMode: "percent", downPaymentMode: "amount" });
+  });
+});
+
+// ── 지원집합 게이트(spec 2026-07-21-crm-support-matrix-gate-design) ────────────────
+// null = 미확정(파트너 게이트 미착수) → 게이트 해제. 판정 자체는 lib/support-matrix가 커버하고,
+// 여기서는 "워크벤치 UI로 어떻게 번역되는가"를 잠근다.
+describe("gatedTermOptions", () => {
+  it("미확정(null)이면 5개 기간 전부 활성 — fail-open", () => {
+    const options = gatedTermOptions(null);
+    expect(options.map((o) => o.value)).toEqual([12, 24, 36, 48, 60]);
+    expect(options.every((o) => !o.disabled)).toBe(true);
+  });
+
+  it("MG 지원집합이면 12·24만 비활성 — 목록에서 빼지 않는다(세그먼트 칸 수 고정)", () => {
+    const options = gatedTermOptions([36, 48, 60]);
+    expect(options.map((o) => o.value)).toEqual([12, 24, 36, 48, 60]);
+    expect(options.filter((o) => o.disabled).map((o) => o.value)).toEqual([12, 24]);
+  });
+
+  it("전부 미지원([])이면 전량 비활성", () => {
+    expect(gatedTermOptions([]).every((o) => o.disabled)).toBe(true);
+  });
+});
+
+describe("gatedMileageOptions", () => {
+  it("미확정(null)이면 7개 전량 노출 — fail-open", () => {
+    expect(gatedMileageOptions(null, "20,000km / 년")).toHaveLength(7);
+  });
+
+  it("MG 지원집합이면 10/20/30만 남는다 — select는 목록에서 제거(유슨생 결정)", () => {
+    expect(gatedMileageOptions([10000, 20000, 30000], "20,000km / 년")).toEqual([
+      "10,000km / 년",
+      "20,000km / 년",
+      "30,000km / 년",
+    ]);
+  });
+
+  it("현재 선택값이 미지원이어도 목록에 살린다 — 수정 진입 시 select 표시가 빈칸으로 깨지는 것 방지", () => {
+    const options = gatedMileageOptions([10000, 20000, 30000], "25,000km / 년");
+    expect(options).toContain("25,000km / 년");
+    expect(options).not.toContain("15,000km / 년");
+  });
+});
+
+describe("planGateFallback", () => {
+  const uiWith = (over: Partial<typeof DEFAULT_CARD_UI>) => ({ ...DEFAULT_CARD_UI, ...over });
+
+  it("기간이 미취급이면 60개월로 옮기고 안내 문구를 만든다", () => {
+    const plan = planGateFallback(uiWith({ termMonths: 24 }), [36, 48, 60], [10000, 20000, 30000]);
+    expect(plan.termMonths).toBe(60);
+    expect(plan.mileageValue).toBeNull();
+    expect(plan.moved).toEqual(["기간 60개월"]);
+  });
+
+  it("약정거리가 미취급이면 20,000km로 옮긴다", () => {
+    const plan = planGateFallback(
+      uiWith({ mileageMode: "custom", mileageValue: "25,000km / 년" }),
+      [12, 24, 36, 48, 60],
+      [10000, 20000, 30000],
+    );
+    expect(plan.termMonths).toBeNull();
+    expect(plan.mileageValue).toBe("20,000km / 년");
+    expect(plan.moved).toEqual(["약정거리 20,000km / 년"]);
+  });
+
+  it("둘 다 미취급이면 둘 다 옮기고 한 문구에 병기한다(토스트 1회)", () => {
+    const plan = planGateFallback(
+      uiWith({ termMonths: 12, mileageMode: "custom", mileageValue: "35,000km / 년" }),
+      [36, 48, 60],
+      [10000, 20000, 30000],
+    );
+    expect(plan.termMonths).toBe(60);
+    expect(plan.mileageValue).toBe("20,000km / 년");
+    expect(plan.moved).toHaveLength(2);
+  });
+
+  it("전부 지원이면 무변경", () => {
+    const plan = planGateFallback(uiWith({ termMonths: 60 }), [12, 24, 36, 48, 60], [10000, 20000, 30000]);
+    expect(plan).toEqual({ termMonths: null, mileageValue: null, moved: [] });
+  });
+
+  it("미확정(null)이면 무변경 — 게이트 없는 금융사로 바꿔도 조건을 건드리지 않는다", () => {
+    const plan = planGateFallback(uiWith({ termMonths: 12, mileageMode: "custom", mileageValue: "35,000km / 년" }), null, null);
+    expect(plan).toEqual({ termMonths: null, mileageValue: null, moved: [] });
+  });
+
+  it("기본 모드 약정거리는 실효값(20,000km)으로 판정한다 — mileageValue 잔상에 끌리지 않는다", () => {
+    // mileageMode=basic이면 표시·전송값이 MILEAGE_BASIC_VALUE로 고정된다(effectiveMileageValue).
+    const plan = planGateFallback(
+      uiWith({ mileageMode: "basic", mileageValue: "35,000km / 년" }),
+      [12, 24, 36, 48, 60],
+      [10000, 20000, 30000],
+    );
+    expect(plan.mileageValue).toBeNull();
+  });
+});
+
+describe("gateProductFor", () => {
+  it("저장된 카드는 게이트 제외(null) — option 제거가 저장된 값 표시를 깨뜨리는 것 방지", () => {
+    expect(gateProductFor(true, "운용리스")).toBeNull();
+    expect(gateProductFor(true, "장기렌트")).toBeNull();
+  });
+
+  it("편집 가능한 카드는 구매방식에서 상품 타입을 파생한다", () => {
+    expect(gateProductFor(false, "운용리스")).toBe("operating_lease");
+    expect(gateProductFor(false, "장기렌트")).toBe("long_term_rental");
+  });
+
+  it("파트너 미구현 구매방식은 게이트 대상 아님", () => {
+    expect(gateProductFor(false, "할부")).toBeNull();
+    expect(gateProductFor(false, "일시불")).toBeNull();
   });
 });
