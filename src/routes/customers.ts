@@ -1,8 +1,8 @@
 import { zValidator } from "@hono/zod-validator";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 
-import { createCustomerManual, getCustomer, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
+import { createCustomerManual, getCustomer, getCustomerAdvisorId, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
 import { listConsultationsByUser } from "../db/queries/consultations";
 import { listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import {
@@ -26,6 +26,7 @@ import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
 import { errorResponse, run } from "./shared";
 import { CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
+import { canWriteQuote, QUOTE_WRITE_DENIED_MESSAGE } from "../../client/src/lib/quote-write-access";
 
 export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
 
@@ -36,6 +37,20 @@ function removeOrphanObject(env: StorageEnv, path: string): Promise<void> {
   return removeObject(env, path).catch((err: unknown) => {
     console.error(`Storage remove 실패(고아 객체) path=${path}:`, err);
   });
+}
+
+// 견적 쓰기 권한 게이트(2026-07-21 이사님 D-1①/D-2①/D-3①/D-4② — spec 2026-07-21-crm-quote-write-access).
+// 견적 쓰기 라우트 5곳(생성·수정·삭제·원본 첨부/삭제) 공통 — 서버가 진짜 게이트다(UI 숨김은 UX 보조).
+// 순서: 고객 존재(404) → 권한(403) → 본 처리. 403은 어떤 변이·부수효과(임베딩 스케줄·Storage 업로드)보다
+// 앞서 흔적을 남기지 않는다. 판정 SSOT = canWriteQuote(클라 버튼 숨김과 물리 공유).
+async function quoteWriteGate(
+  c: Context<{ Variables: AuthVariables & DbVariables }>,
+  customerId: string,
+): Promise<Response | null> {
+  const row = await getCustomerAdvisorId(customerId, c.var.db);
+  if (!row) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+  if (!canWriteQuote(c.var.user, row.advisorId)) return c.json({ error: QUOTE_WRITE_DENIED_MESSAGE }, 403);
+  return null;
 }
 
 // 다건판(고객 하드 삭제 — 서류 원본+썸네일+견적 원본이 수십 경로) — 배열 API 1왕복으로 응답 지연이
@@ -525,6 +540,8 @@ customers.put("/:id/delivery", zValidator("param", idParam), zValidator("json", 
 // ── 견적 생성(composer 견적 작성 → quote + 대표 시나리오 INSERT) ──────
 customers.post("/:id/quotes", zValidator("param", idParam), zValidator("json", quoteCreateBody), async (c) => {
   const id = c.req.valid("param").id;
+  const denied = await quoteWriteGate(c, id);
+  if (denied) return denied;
   const body = c.req.valid("json");
   const row = await c.var.db.transaction((tx) => createQuote(id, body, tx));
   // 트랜잭션 resolve(=커밋) 후 스케줄 — 훅의 fresh read가 커밋 전 구값을 보는 것을 방지(스펙 함정).
@@ -534,8 +551,10 @@ customers.post("/:id/quotes", zValidator("param", idParam), zValidator("json", q
 });
 
 // ── 견적 쓰기(기존 견적 메타/시나리오 수정·삭제·상태 토글) ──────────
-customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValidator("json", quotePatchBody), (c) => {
+customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValidator("json", quotePatchBody), async (c) => {
   const p = c.req.valid("param");
+  const denied = await quoteWriteGate(c, p.id);
+  if (denied) return denied;
   const body = c.req.valid("json");
   return run(c, async () => {
     const row = await c.var.db.transaction((tx) => updateQuote(p.id, p.childId, body, tx));
@@ -546,8 +565,10 @@ customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValida
     return row;
   }, "견적을 찾을 수 없습니다.");
 });
-customers.delete("/:id/quotes/:childId", zValidator("param", childParam), (c) => {
+customers.delete("/:id/quotes/:childId", zValidator("param", childParam), async (c) => {
   const p = c.req.valid("param");
+  const denied = await quoteWriteGate(c, p.id);
+  if (denied) return denied;
   // 트랜잭션: 견적 삭제와 advisor_quotes 회수(발송 파이프라인 스펙 결정 7)가 함께 성공/실패해야
   // 앱에 회수 실패한 유령 카드가 남지 않는다.
   return run(c, async () => {
@@ -566,6 +587,8 @@ customers.delete("/:id/quotes/:childId", zValidator("param", childParam), (c) =>
 // ── 견적 원본 파일(#4d — 견적함 행 드롭, 이미지/PDF Storage 영속) ──────
 customers.post("/:id/quotes/:childId/original", zValidator("param", childParam), async (c) => {
   const p = c.req.valid("param");
+  const denied = await quoteWriteGate(c, p.id); // 업로드(Storage 부수효과)보다 먼저
+  if (denied) return denied;
   const body = await c.req.parseBody();
   const file = body["file"];
   if (!(file instanceof File)) return c.json({ error: "파일이 필요합니다." }, 400);
@@ -593,6 +616,8 @@ customers.post("/:id/quotes/:childId/original", zValidator("param", childParam),
 
 customers.delete("/:id/quotes/:childId/original", zValidator("param", childParam), async (c) => {
   const p = c.req.valid("param");
+  const denied = await quoteWriteGate(c, p.id);
+  if (denied) return denied;
   const result = await clearQuoteFile(p.id, p.childId, c.var.db);
   if (!result) return c.json({ error: "견적을 찾을 수 없습니다." }, 404);
   const env = c.env as StorageEnv;

@@ -1,6 +1,7 @@
 import { BriefcaseBusiness, Calculator, Check, ChevronDown, Download, Eye, FilePlus2, FileText, FileUp, MessageSquareText, MoreHorizontal, Paperclip, PencilLine, Send, Star, Trash2, UserRound, X } from "lucide-react";
 
 import { CONTRACT_ORDER_PATH_STATUSES, type Customer } from "@/data/customers";
+import { QUOTE_WRITE_DENIED_MESSAGE } from "@/lib/quote-write-access";
 import { downPaymentRowLabelOf, formatMonthly, formatScenarioMoneyMode, trimWithoutModelPrefix, viewedBadgeOf, type QuoteItem } from "@/lib/quote-items";
 import { formatMoney } from "@/lib/quote-pricing";
 import { formatFileSize, isDocumentFileDrag, documentFileKind, quoteValidClass } from "@/lib/detail-utils";
@@ -31,9 +32,12 @@ type QuoteListProps = {
   // 워크벤치 시드(부모 보유 9b/9d/9e) — seam 콜백. 견적함 "+"=신규, 액션 "견적 수정"=수정.
   onOpenNewWorkbench: () => void;
   onEditQuote: (quote: QuoteItem) => void;
+  // 견적 쓰기 권한(2026-07-21 이사님 D-4 ② — canWriteQuote 파생). false면 쓰기 진입점 숨김.
+  // 서버 403이 진짜 게이트 — 여기 숨김은 UX 보조(고객 삭제 버튼 관례).
+  quoteWritable: boolean;
 };
 
-export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWorkbench, onEditQuote }: QuoteListProps) {
+export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWorkbench, onEditQuote, quoteWritable }: QuoteListProps) {
   const {
     quotes,
     quoteBodyRef,
@@ -87,14 +91,16 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
             <span>{quotes.length}개</span>
             <em>고객에게 나간 조건</em>
           </div>
-          <div className="kim-quote-head-actions">
-            <button
-              aria-label="견적 작성"
-              className="kim-mvp-add-circle kim-quote-head-action kim-quote-solution-entry"
-              onClick={onOpenNewWorkbench}
-              type="button"
-            ><FilePlus2 size={13} strokeWidth={2.35} /></button>
-          </div>
+          {quoteWritable ? (
+            <div className="kim-quote-head-actions">
+              <button
+                aria-label="견적 작성"
+                className="kim-mvp-add-circle kim-quote-head-action kim-quote-solution-entry"
+                onClick={onOpenNewWorkbench}
+                type="button"
+              ><FilePlus2 size={13} strokeWidth={2.35} /></button>
+            </div>
+          ) : null}
         </div>
         <div className="kim-mvp-card-body" ref={quoteBodyRef}>
           <div className="kim-quote-list">
@@ -108,21 +114,21 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                 className={`kim-quote-row app-status-${quote.appStatus}${quoteDropTargetId === quote.id ? " is-file-drop-target" : ""}${openQuoteActionId === quote.id ? " is-action-open" : ""}`}
                 key={quote.id}
                 onMouseEnter={() => { if (quote.trimId) prefetchWorkbenchVehicle(quote.trimId); }}
-                onDragEnter={(event) => {
+                onDragEnter={quoteWritable ? (event) => {
                   if (!isDocumentFileDrag(event)) return;
                   event.preventDefault();
                   setQuoteDropTargetId(quote.id);
-                }}
-                onDragLeave={(event) => {
+                } : undefined}
+                onDragLeave={quoteWritable ? (event) => {
                   const nextTarget = event.relatedTarget;
                   if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
                   if (quoteDropTargetId === quote.id) setQuoteDropTargetId(null);
-                }}
-                onDragOver={(event) => {
+                } : undefined}
+                onDragOver={quoteWritable ? (event) => {
                   if (!isDocumentFileDrag(event)) return;
                   event.preventDefault();
-                }}
-                onDrop={(event) => dropQuoteFile(event, quote.id)}
+                } : undefined}
+                onDrop={quoteWritable ? (event) => dropQuoteFile(event, quote.id) : undefined}
               >
                 <span className="kim-quote-status-stack">
                   {quote.appStatus === "sent" ? (
@@ -223,9 +229,9 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                                     {scenario.lender ? <span className="kim-quote-scenario-lender">{scenario.lender}</span> : null}
                                     {isPrimary ? (
                                       <span className="kim-quote-scenario-star"><Star size={11} strokeWidth={2.6} />대표</span>
-                                    ) : (
+                                    ) : quoteWritable ? (
                                       <button type="button" className="kim-quote-scenario-pick" onClick={() => setPrimaryScenario(quote.id, scenario.id)}>대표로</button>
-                                    )}
+                                    ) : null}
                                   </div>
                                   <div className="kim-quote-scenario-figures">
                                     {monthly ? <strong>{monthly}</strong> : <span>월 납입금 미정</span>}
@@ -309,22 +315,25 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
             <span>{openQuoteAction.quoteCode}</span>
             <b className={openQuoteAction.appStatus === "sent" ? "is-sent" : "is-draft"}>{quoteAppStatusLabel(openQuoteAction.appStatus, openQuoteAction)}</b>
           </div>
-          <button type="button" onClick={() => {
-            setConfirmingQuoteContractId(null);
-            setConfirmingQuoteDeleteId(null);
-            setConfirmingQuoteContractEditId(null);
-            if (openQuoteAction.appStatus === "sent") {
-              setPreviewSentQuoteId(openQuoteAction.id);
-              setOpenQuoteActionId(null);
-              setQuoteActionFrame(null);
-              setConfirmingQuoteSendId(null);
-            } else {
-              setConfirmingQuoteSendId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
-            }
-          }}>
-            {openQuoteAction.appStatus === "sent" ? <Eye size={13} strokeWidth={2.3} /> : <Send size={13} strokeWidth={2.3} />}
-            {openQuoteAction.appStatus === "sent" ? "발송 견적 보기" : "앱 발송"}
-          </button>
+          {/* 발송 견적 보기(읽기)는 항상, 앱 발송(쓰기)은 quoteWritable만 */}
+          {openQuoteAction.appStatus === "sent" || quoteWritable ? (
+            <button type="button" onClick={() => {
+              setConfirmingQuoteContractId(null);
+              setConfirmingQuoteDeleteId(null);
+              setConfirmingQuoteContractEditId(null);
+              if (openQuoteAction.appStatus === "sent") {
+                setPreviewSentQuoteId(openQuoteAction.id);
+                setOpenQuoteActionId(null);
+                setQuoteActionFrame(null);
+                setConfirmingQuoteSendId(null);
+              } else {
+                setConfirmingQuoteSendId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
+              }
+            }}>
+              {openQuoteAction.appStatus === "sent" ? <Eye size={13} strokeWidth={2.3} /> : <Send size={13} strokeWidth={2.3} />}
+              {openQuoteAction.appStatus === "sent" ? "발송 견적 보기" : "앱 발송"}
+            </button>
+          ) : null}
           {confirmingQuoteSendId === openQuoteAction.id ? (
             <div className="kim-quote-send-confirm" role="dialog" aria-label="견적 앱 발송 확인">
               <strong>앱 견적함으로 발송</strong>
@@ -340,10 +349,12 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               </div>
             </div>
           ) : null}
-          <button type="button" onClick={() => onEditQuote(openQuoteAction)}>
-            <PencilLine size={13} strokeWidth={2.3} />
-            견적 수정
-          </button>
+          {quoteWritable ? (
+            <button type="button" onClick={() => onEditQuote(openQuoteAction)}>
+              <PencilLine size={13} strokeWidth={2.3} />
+              견적 수정
+            </button>
+          ) : null}
           {confirmingQuoteContractEditId === openQuoteAction.id ? (
             <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 견적 수정 안내">
               <strong>계약 관리에서 수정</strong>
@@ -363,7 +374,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               <Eye size={13} strokeWidth={2.3} />
               견적 원본 보기
             </button>
-          ) : (
+          ) : quoteWritable ? (
             <label>
               <Paperclip size={13} strokeWidth={2.4} />
               견적 원본 첨부
@@ -373,23 +384,25 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                 setQuoteActionFrame(null);
               }} type="file" />
             </label>
-          )}
-          <button className="is-group-start" type="button" onClick={() => {
-            setConfirmingQuoteSendId(null);
-            setConfirmingQuoteDeleteId(null);
-            setConfirmingQuoteContractId(null);
-            setConfirmingQuoteContractEditId(null);
-            if (openQuoteAction.decisionStatus === "contracting") {
-              setConfirmingQuoteContractDowngrade((current) => (current?.id === openQuoteAction.id && current.status === "considering" ? null : { id: openQuoteAction.id, status: "considering" }));
-              return;
-            }
-            setConfirmingQuoteContractDowngrade(null);
-            updateQuoteDecisionStatus(openQuoteAction.id, openQuoteAction.decisionStatus === "considering" ? "none" : "considering");
-          }}>
-            <MessageSquareText size={13} strokeWidth={2.2} />
-            최종 고민중
-            {openQuoteAction.decisionStatus === "considering" ? <Check className="kim-quote-action-state-check" size={13} strokeWidth={2.6} /> : null}
-          </button>
+          ) : null}
+          {quoteWritable ? (
+            <button className="is-group-start" type="button" onClick={() => {
+              setConfirmingQuoteSendId(null);
+              setConfirmingQuoteDeleteId(null);
+              setConfirmingQuoteContractId(null);
+              setConfirmingQuoteContractEditId(null);
+              if (openQuoteAction.decisionStatus === "contracting") {
+                setConfirmingQuoteContractDowngrade((current) => (current?.id === openQuoteAction.id && current.status === "considering" ? null : { id: openQuoteAction.id, status: "considering" }));
+                return;
+              }
+              setConfirmingQuoteContractDowngrade(null);
+              updateQuoteDecisionStatus(openQuoteAction.id, openQuoteAction.decisionStatus === "considering" ? "none" : "considering");
+            }}>
+              <MessageSquareText size={13} strokeWidth={2.2} />
+              최종 고민중
+              {openQuoteAction.decisionStatus === "considering" ? <Check className="kim-quote-action-state-check" size={13} strokeWidth={2.6} /> : null}
+            </button>
+          ) : null}
           {confirmingQuoteContractDowngrade?.id === openQuoteAction.id && confirmingQuoteContractDowngrade.status === "considering" ? (
             <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 해제 확인">
               <strong>계약 진행 해제</strong>
@@ -403,22 +416,24 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               </div>
             </div>
           ) : null}
-          <button type="button" onClick={() => {
-            setConfirmingQuoteSendId(null);
-            setConfirmingQuoteDeleteId(null);
-            setConfirmingQuoteContractId(null);
-            setConfirmingQuoteContractEditId(null);
-            if (openQuoteAction.decisionStatus === "contracting") {
-              setConfirmingQuoteContractDowngrade((current) => (current?.id === openQuoteAction.id && current.status === "confirmed" ? null : { id: openQuoteAction.id, status: "confirmed" }));
-              return;
-            }
-            setConfirmingQuoteContractDowngrade(null);
-            updateQuoteDecisionStatus(openQuoteAction.id, openQuoteAction.decisionStatus === "confirmed" ? "none" : "confirmed");
-          }}>
-            <UserRound size={13} strokeWidth={2.25} />
-            고객 확정
-            {openQuoteAction.decisionStatus === "confirmed" ? <Check className="kim-quote-action-state-check" size={13} strokeWidth={2.6} /> : null}
-          </button>
+          {quoteWritable ? (
+            <button type="button" onClick={() => {
+              setConfirmingQuoteSendId(null);
+              setConfirmingQuoteDeleteId(null);
+              setConfirmingQuoteContractId(null);
+              setConfirmingQuoteContractEditId(null);
+              if (openQuoteAction.decisionStatus === "contracting") {
+                setConfirmingQuoteContractDowngrade((current) => (current?.id === openQuoteAction.id && current.status === "confirmed" ? null : { id: openQuoteAction.id, status: "confirmed" }));
+                return;
+              }
+              setConfirmingQuoteContractDowngrade(null);
+              updateQuoteDecisionStatus(openQuoteAction.id, openQuoteAction.decisionStatus === "confirmed" ? "none" : "confirmed");
+            }}>
+              <UserRound size={13} strokeWidth={2.25} />
+              고객 확정
+              {openQuoteAction.decisionStatus === "confirmed" ? <Check className="kim-quote-action-state-check" size={13} strokeWidth={2.6} /> : null}
+            </button>
+          ) : null}
           {confirmingQuoteContractDowngrade?.id === openQuoteAction.id && confirmingQuoteContractDowngrade.status === "confirmed" ? (
             <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 해제 확인">
               <strong>계약 진행 해제</strong>
@@ -432,17 +447,19 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               </div>
             </div>
           ) : null}
-          <button type="button" onClick={() => {
-            setConfirmingQuoteSendId(null);
-            setConfirmingQuoteDeleteId(null);
-            setConfirmingQuoteContractEditId(null);
-            setConfirmingQuoteContractDowngrade(null);
-            setConfirmingQuoteContractId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
-          }}>
-            <BriefcaseBusiness size={13} strokeWidth={2.25} />
-            계약 진행
-            {openQuoteAction.decisionStatus === "contracting" ? <Check className="kim-quote-action-state-check" size={13} strokeWidth={2.6} /> : null}
-          </button>
+          {quoteWritable ? (
+            <button type="button" onClick={() => {
+              setConfirmingQuoteSendId(null);
+              setConfirmingQuoteDeleteId(null);
+              setConfirmingQuoteContractEditId(null);
+              setConfirmingQuoteContractDowngrade(null);
+              setConfirmingQuoteContractId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
+            }}>
+              <BriefcaseBusiness size={13} strokeWidth={2.25} />
+              계약 진행
+              {openQuoteAction.decisionStatus === "contracting" ? <Check className="kim-quote-action-state-check" size={13} strokeWidth={2.6} /> : null}
+            </button>
+          ) : null}
           {confirmingQuoteContractId === openQuoteAction.id ? (
             <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="최종 계약 진행 확인">
               <strong>{openQuoteAction.decisionStatus === "contracting" ? "계약 진행 해제" : "최종 계약 진행"}</strong>
@@ -474,16 +491,18 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               </div>
             </div>
           ) : null}
-          <button className="delete is-group-start" type="button" onClick={() => {
-            setConfirmingQuoteSendId(null);
-            setConfirmingQuoteContractId(null);
-            setConfirmingQuoteContractEditId(null);
-            setConfirmingQuoteContractDowngrade(null);
-            setConfirmingQuoteDeleteId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
-          }}>
-            <Trash2 size={13} strokeWidth={2.3} />
-            삭제
-          </button>
+          {quoteWritable ? (
+            <button className="delete is-group-start" type="button" onClick={() => {
+              setConfirmingQuoteSendId(null);
+              setConfirmingQuoteContractId(null);
+              setConfirmingQuoteContractEditId(null);
+              setConfirmingQuoteContractDowngrade(null);
+              setConfirmingQuoteDeleteId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
+            }}>
+              <Trash2 size={13} strokeWidth={2.3} />
+              삭제
+            </button>
+          ) : null}
           {confirmingQuoteDeleteId === openQuoteAction.id ? (
             openQuoteAction.decisionStatus === "contracting" ? (
               <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 견적 삭제 안내">
@@ -508,6 +527,9 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                 </div>
               </div>
             )
+          ) : null}
+          {!quoteWritable ? (
+            <p className="kim-quote-readonly-note">{QUOTE_WRITE_DENIED_MESSAGE}</p>
           ) : null}
         </div>
       ) : null}

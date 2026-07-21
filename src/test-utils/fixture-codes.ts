@@ -24,6 +24,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
   "CU-EMBSRC-",     // db/queries/embed-sources.test.ts
   "CU-EMBTEST-",    // db/queries/embeddings.test.ts
   "CU-MGST-",       // routes/customers.test.ts — 수동 관리 상태 영속(manage_status) 검증
+  "CU-QWACC-",      // routes/customers.quote-access.test.ts — 견적 쓰기 권한 게이트(담당자 스코프)
   "CU-ROUTE-",      // routes/customers.test.ts
   "CU-RSEND-",      // routes/customers.send.test.ts
   "CU-SEND-",       // db/queries/customer-quotes.send.test.ts
