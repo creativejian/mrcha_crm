@@ -12,6 +12,7 @@ import {
   dealerSelectPlaceholder,
   gatedMileageOptions,
   gatedTermOptions,
+  gateProductFor,
   planGateFallback,
   discountLineWon,
   effectiveMileageValue,
@@ -414,5 +415,22 @@ describe("planGateFallback", () => {
       [10000, 20000, 30000],
     );
     expect(plan.mileageValue).toBeNull();
+  });
+});
+
+describe("gateProductFor", () => {
+  it("저장된 카드는 게이트 제외(null) — option 제거가 저장된 값 표시를 깨뜨리는 것 방지", () => {
+    expect(gateProductFor(true, "운용리스")).toBeNull();
+    expect(gateProductFor(true, "장기렌트")).toBeNull();
+  });
+
+  it("편집 가능한 카드는 구매방식에서 상품 타입을 파생한다", () => {
+    expect(gateProductFor(false, "운용리스")).toBe("operating_lease");
+    expect(gateProductFor(false, "장기렌트")).toBe("long_term_rental");
+  });
+
+  it("파트너 미구현 구매방식은 게이트 대상 아님", () => {
+    expect(gateProductFor(false, "할부")).toBeNull();
+    expect(gateProductFor(false, "일시불")).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { Calculator, Check, ChevronDown, ChevronRight, FilePlus2, FileText, File
 
 import { type Customer } from "@/data/customers";
 import { formatMoney } from "@/lib/quote-pricing";
-import { CRM_EXTRA_LENDERS, solutionLenderOptions, solutionProductTypeOf } from "@/lib/solution-quote";
+import { CRM_EXTRA_LENDERS, solutionLenderOptions } from "@/lib/solution-quote";
 import { supportedMileagesFor, supportedTermsFor } from "@/lib/support-matrix";
 import { type SolutionDealer } from "@/lib/solution-dealers";
 import { bindSelect } from "@/lib/select-bind";
@@ -21,6 +21,7 @@ import {
   effectiveMileageValue,
   gatedMileageOptions,
   gatedTermOptions,
+  gateProductFor,
   emptyQuotePricing,
   quotePurchaseMethodOptions,
 } from "./quote-workbench-meta";
@@ -469,7 +470,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                     // ⚠️ 저장된 카드는 게이트에서 **제외**한다. 편집 불가라 잘못 고를 일이 없고, 약정거리
                     // option을 지우면 저장된 값이 목록에 없어 표시가 빈칸으로 깨진다(과거 MG+25,000km 견적).
                     // 미확정(null)·어휘 밖 금융사·매트릭스 미로드는 전부 null → 게이트 해제(fail-open).
-                    const gateProduct = isConditionSaved ? null : solutionProductTypeOf(solutionWorkbenchPurchaseMethod);
+                    const gateProduct = gateProductFor(isConditionSaved, solutionWorkbenchPurchaseMethod);
                     const gateLender = lenderByCard[condition.id] ?? condition.lender;
                     const gateTerms = gateProduct ? supportedTermsFor(supportMatrix, gateLender, gateProduct) : null;
                     const gateMileages = gateProduct ? supportedMileagesFor(supportMatrix, gateLender, gateProduct) : null;

@@ -6,7 +6,7 @@ import { type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } f
 import { type QuoteGuidance } from "@/data/quote-guidance";
 import { computePricing, formatMoney, percentToWon, type PricingInputs } from "@/lib/quote-pricing";
 import { type ScenarioCardSeed } from "@/lib/quote-request-seed";
-import { parseSolutionQuoteResult, solutionMileageOf, SOLUTION_LEASE_TERMS, type SolutionSnapshot } from "@/lib/solution-quote";
+import { parseSolutionQuoteResult, solutionMileageOf, solutionProductTypeOf, SOLUTION_LEASE_TERMS, type SolutionProductType, type SolutionSnapshot } from "@/lib/solution-quote";
 import { resolveGateFallback } from "@/lib/support-matrix";
 
 export type DiscountUnit = "amount" | "percent";
@@ -359,6 +359,15 @@ export function createQuoteCode(existingQuotes: QuoteItem[]) {
 // (파트너가 어느 사에서 60개월/20,000km를 내리면) 폴백이 무의미해지므로 함께 재검토할 것.
 export const GATE_FALLBACK_TERM_MONTHS = 60;
 export const GATE_FALLBACK_MILEAGE_KM = 20000;
+
+// 이 카드가 게이트 대상인지 — 아니면 null(게이트 해제).
+// ⚠️ **저장된 카드는 제외**한다. 편집 불가라 "잘못 고르는 것"을 막을 목적이 없고, 약정거리 option을
+// 지우면 저장된 값이 목록에 없어 select 표시가 빈칸으로 깨진다(과거 MG+25,000km 견적을 열었을 때).
+// 파트너 미구현 구매방식(금융리스·할부·일시불)도 게이트 대상이 아니다.
+export function gateProductFor(isConditionSaved: boolean, purchaseMethod: string): SolutionProductType | null {
+  if (isConditionSaved) return null;
+  return solutionProductTypeOf(purchaseMethod);
+}
 
 // 기간 세그먼트 어휘 — SOLUTION_LEASE_TERMS 파생(계산기와 같은 소스).
 export const leaseTermSegmentOptions = SOLUTION_LEASE_TERMS.map((m) => ({ value: m, label: `${m}개월` }));
