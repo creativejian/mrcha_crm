@@ -896,14 +896,36 @@
   color: #3548bc;
 }
 
-/* 계약완료 전이 넛지(delivery-step2 spec §8 ①ⓑ) — 발주 경로 3버튼은 팝오버 폭에서 한 줄 불가라 세로 스택 */
-.kim-quote-stage-nudge-options {
-  display: grid;
+/* 계약완료 전이 넛지(delivery-step2 spec §8 ①ⓑ) — 전용 밀도(공유 confirm 블록은 불변).
+   발주 경로 3버튼은 팝오버 폭 214px에서 가로 배치 불가 → 세로 스택. 공유 `.kim-quote-send-confirm > div`
+   flex 규칙이 (0,1,1)이라 클래스 단독(0,1,0)으로는 져서 flex 한 줄로 찌그러진다 — 같은 형태로 이긴다. */
+.kim-quote-stage-nudge {
   gap: 5px;
+}
+
+.kim-quote-stage-nudge strong {
+  font-size: 10.5px;
+}
+
+.kim-quote-stage-nudge p {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.kim-quote-stage-nudge button {
+  height: 22px;
+  font-size: 10px;
+  line-height: 20px;
+}
+
+.kim-quote-send-confirm > div.kim-quote-stage-nudge-options {
+  display: grid;
+  gap: 4px;
 }
 
 .kim-quote-stage-nudge-options button {
   width: 100%;
+  white-space: nowrap;
 }
 
 .kim-quote-delete-inline-confirm {
