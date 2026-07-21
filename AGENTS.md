@@ -10,7 +10,7 @@ Default recovery order:
 2. Run:
    - `git status --short --branch`
    - `git log --oneline --decorate --max-count=5`
-3. If the brief is insufficient, read `ref/current-working-state.md`.
+3. If the brief is insufficient, read on demand — durable state `ref/current-working-state.md` / past session history `ref/session-archive.md` / design rationale `ref/specs/*`, `ref/plans/*`.
 4. Read `/Users/jian/.codex/memories/START_HERE_MRCHA.md` only when repo-local context is not enough.
 5. Read original planning files only when the task explicitly touches strategy, roadmap, AI policy, architecture, quote engine, or original product decisions.
 
@@ -22,8 +22,11 @@ When the user asks for an 인계문서, 다음 세션 인계, 이어가기 문�
 
 Default handoff behavior:
 
-1. Update `ref/active-session-brief.md` first.
+1. Update `ref/active-session-brief.md` first — **replace, don't append**.
 2. Keep it short: target 60 lines or fewer unless the user explicitly asks for a detailed handoff.
+   ⚠️ 이 파일은 매 세션 자동 로드된다. 2026-07-21에 누적으로 142k자까지 자라 세션 시작
+   컨텍스트의 14%를 점유했고(전체 자동 로드분의 71%), 이 규칙을 정면으로 어기고 있었다.
+   직전 세션 요약만 남기고 그 이전 블록은 `ref/session-archive.md` 맨 위로 옮긴다.
 3. Include only:
    - current focus
    - files touched
