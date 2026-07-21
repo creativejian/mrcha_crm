@@ -153,7 +153,7 @@ export function useQuoteWorkbench({
   // 앱 견적요청 → 워크벤치 prefill 오픈(차량/구매방식/옵션). 가격은 catalog 계산 보존.
   // 인박스 진입(URL ?quoteRequest=) + 니즈 카드 "견적 작성" 양쪽이 호출. hoisted 함수(useCallback 미사용 — 기존 패턴).
   function openWorkbenchForQuoteRequest(reqId: string): Promise<void> {
-    return fetchQuoteRequestDetail(reqId).then((detail) => {
+    return fetchQuoteRequestDetail(detail.id, reqId).then((prefill) => {
       // 신규 워크벤치 열기와 동일한 리셋(견적함 + 버튼 onClick과 정렬)
       quoteList.handlers.setConfirmingQuoteDeleteId(null);
       setEditingQuoteId(null);
@@ -162,7 +162,7 @@ export function useQuoteWorkbench({
       resetWorkbenchVehicle();
       setGuidance(seedGuidance());
       // 앱 견적요청 조건(기간·보증금/선수금 유형·비율/금액) → 카드1 시드(도메인 규칙: quote-request-seed.ts).
-      const seed = seedScenarioCardFromRequest(detail);
+      const seed = seedScenarioCardFromRequest(prefill);
       // 모드는 아래 setCardUi(cardUiFromSeed)가 담당 — 카드는 표시 금액만 시드한다.
       setManualQuoteCards([
         {
@@ -181,11 +181,11 @@ export function useQuoteWorkbench({
       setSolutionWorkbenchModeMenu(null);
       setSolutionWorkbenchPurchaseMethod(primaryQuotePurchaseMethod(purchaseFields)); // 고객 기본값 먼저(+onClick과 동일)
       // 견적요청 prefill 설정 — 컬러 id는 selected일 때만 non-null(그 외 mode는 서버가 null로 저장). applyTrimToPricing이 소비.
-      setQuoteRequestPrefill({ trimId: detail.trimId, optionIds: detail.optionIds, exteriorColorId: detail.exteriorColorId, interiorColorId: detail.interiorColorId });
+      setQuoteRequestPrefill({ trimId: prefill.trimId, optionIds: prefill.optionIds, exteriorColorId: prefill.exteriorColorId, interiorColorId: prefill.interiorColorId });
       setSourceQuoteRequestId(reqId);
       // purchaseMethod(한글)가 워크벤치 옵션 목록에 있으면 override, 없으면 위 고객 기본값 유지(stale 방지).
-      if (detail.purchaseMethod && quotePurchaseMethodOptions.includes(detail.purchaseMethod as QuotePurchaseMethod)) {
-        setSolutionWorkbenchPurchaseMethod(detail.purchaseMethod as QuotePurchaseMethod);
+      if (prefill.purchaseMethod && quotePurchaseMethodOptions.includes(prefill.purchaseMethod as QuotePurchaseMethod)) {
+        setSolutionWorkbenchPurchaseMethod(prefill.purchaseMethod as QuotePurchaseMethod);
       }
       resetWorkbenchPricing();
       setIsQuoteSolutionWorkbenchOpen(true);
@@ -1400,7 +1400,8 @@ export function useQuoteWorkbench({
             if (send && !id.startsWith("kim-")) {
               void apiUpdateQuote(cid, id, { status: "고객 확인 전", appStatus: "sent", bumpRevision: true }).catch(() => onToast("발송에 실패했습니다."));
             }
-            if (sourceQuoteRequestId) { void fetchAppQuoteRequestsCached(true); reloadAppRequests(); } // 견적요청→견적 INSERT 시 인박스 캐시 + 니즈 카드 배지 갱신
+            // 인박스 캐시는 admin·manager 전용 API(#302) — staff는 403 무음(배치 12 K1-c, useQuoteList 미러).
+            if (sourceQuoteRequestId) { void fetchAppQuoteRequestsCached(true).catch(() => {}); reloadAppRequests(); } // 견적요청→견적 INSERT 시 인박스 캐시 + 니즈 카드 배지 갱신
             onQuotesPersisted?.();
           })
           .catch(() => { quoteList.setQuotes((current) => current.filter((q) => q.id !== tempId)); onToast("저장에 실패했습니다."); });

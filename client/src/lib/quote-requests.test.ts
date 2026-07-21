@@ -148,7 +148,7 @@ describe("colorLabelOf", () => {
 });
 
 describe("fetchQuoteRequestDetail", () => {
-  it("GET /api/quote-requests/:id 호출 + paymentMethod 한글 매핑", async () => {
+  it("GET /api/customers/:id/quote-requests/:reqId 호출 + paymentMethod 한글 매핑", async () => {
     // apiFetch는 fetch(url, { headers }) 형태로 호출하므로 첫 인자(URL)만 검증한다.
     const spy = vi.fn(
       async () =>
@@ -169,8 +169,9 @@ describe("fetchQuoteRequestDetail", () => {
         ),
     );
     vi.stubGlobal("fetch", spy);
-    const d = await fetchQuoteRequestDetail("r1");
-    expect((spy.mock.calls[0] as unknown[])[0]).toBe("/api/quote-requests/r1");
+    const d = await fetchQuoteRequestDetail("c1", "r1");
+    // 배치 12 K1: 프리필은 customers 하위 라우트(스코프·소유권 게이트 자동 편입) — 구 탑레벨 URL 회귀 잠금.
+    expect((spy.mock.calls[0] as unknown[])[0]).toBe("/api/customers/c1/quote-requests/r1");
     expect(d.trimId).toBe(100);
     expect(d.optionIds).toEqual([1, 2]);
     expect(d.purchaseMethod).toBe("운용리스"); // lease → 한글
@@ -191,7 +192,7 @@ describe("fetchQuoteRequestDetail", () => {
         ),
     );
     vi.stubGlobal("fetch", spy);
-    const d = await fetchQuoteRequestDetail("r2");
+    const d = await fetchQuoteRequestDetail("c2", "r2");
     expect(d.exteriorColorId).toBeNull();
     expect(d.interiorColorId).toBeNull();
   });

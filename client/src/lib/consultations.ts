@@ -65,8 +65,10 @@ export function invalidateCustomerConsultations(customerId: string): void {
 }
 
 // CRM 전용 삭제 — 백엔드가 dismissal만 기록(public.consultations는 어떤 경로로도 변경하지 않는다).
-export async function dismissConsultation(consultationId: string): Promise<void> {
-  await sendVoid(`/api/consultations/${consultationId}`, "DELETE");
+// customerId 동봉(배치 12 K1): customers 하위 라우트로 이사 — #302 인박스 게이트에 드로어 흐름이
+// 걸리던 부수 피해 해소 + 서버 소유권 검사(그 고객 연결 상담만).
+export async function dismissConsultation(customerId: string, consultationId: string): Promise<void> {
+  await sendVoid(`/api/customers/${customerId}/consultations/${consultationId}`, "DELETE");
 }
 
 // ── 상담 신청 DB 인박스 ─────────────────────────────────────────────────────────

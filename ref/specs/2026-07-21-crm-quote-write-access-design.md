@@ -35,6 +35,7 @@ canWriteQuote(user: { id: string; role: string }, customerAdvisorId: string | nu
 - 신규 쿼리 `getCustomerAdvisorId(id)` → `{ advisorId } | null`.
 - `src/routes/customers.ts` 견적 쓰기 라우트 5곳 상단에 게이트: 고객 미존재 404 → `canWriteQuote` 실패 403 `"담당 고객의 견적만 처리할 수 있습니다."` → 통과 시 기존 로직. 부수효과(임베딩 스케줄·Storage) 전부 게이트 뒤 — 403은 어떤 변이도 남기지 않는다.
 - 체인 순서 유지: auth(401) → dealerWriteGate(403) → 이 게이트(403) → 404/본 처리.
+  ⚠️개정(같은 날 #301 role scope spec S-7, 배치 12 C#2 각주): customerScopeGate가 staff 타 담당·미배정을 **404(존재 비노출)로 선행 차단**한다 — 아래 "staff 403" 서술들은 이 게이트 단독 기준이고, 실응답은 404다. 이 게이트의 403은 안쪽 그물로 잔존(스코프 게이트 회귀 시 403≠404로 테스트가 잡는다).
 
 ### 2.3 클라 (UX 보조 — 서버가 진짜 게이트)
 

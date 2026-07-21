@@ -77,7 +77,7 @@ export function useCustomerNeeds({
     setConsultations((cur) => cur?.filter((x) => x.id !== consultationId) ?? cur);
     invalidateCustomerConsultations(detail.id);
     onToast("상담신청을 CRM에서 삭제했습니다.");
-    void dismissConsultation(consultationId).catch(() => {
+    void dismissConsultation(detail.id, consultationId).catch(() => {
       setConsultations(prev);
       onToast("상담신청 삭제에 실패했습니다.");
     });

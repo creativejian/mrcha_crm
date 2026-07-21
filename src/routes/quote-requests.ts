@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests } from "../db/queries/quote-requests";
+import { createCustomerFromRequest, linkRequestToCustomer, listQuoteRequests } from "../db/queries/quote-requests";
 import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
 import { schedulePromotionEmbeds } from "../lib/promotion-embeds";
 import type { AuthVariables } from "../middleware/auth";
@@ -19,10 +19,8 @@ const idParam = z.object({ id: z.uuid() });
 
 quoteRequests.get("/", (c) => run(c, () => listQuoteRequests(c.var.db)));
 
-// prefill용 단건(차량·구매방식·옵션ids). 없으면 404.
-quoteRequests.get("/:id", zValidator("param", idParam), (c) =>
-  run(c, () => getQuoteRequestDetail(c.req.valid("param").id, c.var.db), "요청을 찾을 수 없습니다."),
-);
+// (prefill용 단건 GET /:id는 배치 12 K1에서 customers 라우터로 이사 — GET /api/customers/:id/quote-requests/:reqId.
+//  드로어 소비처가 이 라우터의 인박스 전면 게이트에 걸리던 부수 피해 해소. 이 라우터 = 순수 인박스만.)
 
 // 전화 매칭된 기존 고객에 연결(app_user_id set).
 quoteRequests.post(

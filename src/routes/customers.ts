@@ -3,8 +3,8 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { createCustomerManual, getCustomer, getCustomerAdvisorId, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
-import { listConsultationsByUser } from "../db/queries/consultations";
-import { listQuoteRequestsByUser } from "../db/queries/quote-requests";
+import { dismissConsultation, linkedCustomerIdForConsultation, listConsultationsByUser } from "../db/queries/consultations";
+import { getQuoteRequestDetail, listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import {
   addMemo, updateMemo, deleteMemo,
   addTask, updateTask, deleteTask,
@@ -29,7 +29,8 @@ import { errorResponse, run } from "./shared";
 import { CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
 import { canWriteQuote, QUOTE_WRITE_DENIED_MESSAGE } from "../../client/src/lib/quote-write-access";
 
-export const customers = new Hono<{ Variables: AuthVariables & DbVariables }>();
+// scopeChecked = customerScopeGate 멱등 플래그(A#3 — 게이트 주석 참조). 이 라우터 전용 요청-로컬 변수.
+export const customers = new Hono<{ Variables: AuthVariables & DbVariables & { scopeChecked?: true } }>();
 
 // Storage 보상 삭제 — 실패해도 요청 흐름은 계속한다(고아 객체는 수동 정리 대상). 다만 조용히 삼키면
 // 고아 누적이 관측 불가능해지므로 동일 토큰으로 로그해 tail에서 한 번에 grep되게 한다. 같은 실패가
@@ -70,10 +71,14 @@ function removeOrphanObjects(env: StorageEnv, paths: string[]): Promise<void> {
 // 고객이 URL 추측에 403을 받으면 "존재는 한다"가 샌다(AI "조회 결과 없음" 선례 미러).
 // /:id 하위 전 라우트를 미들웨어 한 겹이 커버한다 — 신규 라우트도 자동 편입(라우트별 배선 금지).
 // #300 견적 403 게이트(quoteWriteGate)는 안쪽 그물로 잔존 — 이 게이트가 회귀하면 그쪽이 받아준다.
+// scopeChecked(배치 12 A#3): `/:id`·`/:id/*` 이중 등록은 정확히 `/:id`인 경로에서 둘 다 매칭돼
+// (hono `/*`가 빈 서픽스도 매칭 — V1 프로브 실측) 통과 요청의 advisor SELECT가 2회였다. 요청-로컬
+// 플래그로 멱등화. `use("/:id")` 삭제는 기각 박제(비명시 hono 동작 의존 — 배치 12 plan).
 const customerScopeGate = async (
-  c: Context<{ Variables: AuthVariables & DbVariables }>,
+  c: Context<{ Variables: AuthVariables & DbVariables & { scopeChecked?: true } }>,
   next: () => Promise<void>,
 ): Promise<Response | void> => {
+  if (c.get("scopeChecked")) return next();
   const scope = resolveCustomerScope(c.var.user);
   if (scope === "all") return next();
   // 비-uuid id는 조회하지 않고 통과 — 각 라우트 zValidator가 400을 준다(여기서 조회하면 22P02).
@@ -81,6 +86,7 @@ const customerScopeGate = async (
   if (!id || !z.uuid().safeParse(id).success) return next();
   const row = await getCustomerAdvisorId(id, c.var.db);
   if (!row || row.advisorId !== scope.advisorId) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+  c.set("scopeChecked", true);
   return next();
 };
 customers.use("/:id", customerScopeGate);
@@ -207,6 +213,19 @@ customers.get("/:id/quote-requests", zValidator("param", z.object({ id: z.uuid()
   ),
 );
 
+// 프리필 단건 — 배치 12 K1(V3 안 ②): 구 GET /api/quote-requests/:id에서 이사. #302 인박스 전면
+// 게이트가 드로어 니즈 카드 "견적 작성"(staff 본인 담당 앱 고객)까지 403으로 막던 부수 피해 해소 —
+// customers 라우터라 customerScopeGate 자동 편입 + 소유권 WHERE(요청 user_id == 이 고객 app_user_id)로
+// 구 라우트의 잠재 느슨함(임의 요청 id 프리필)까지 닫는다. 읽기라 quoteWriteGate 불요.
+customers.get("/:id/quote-requests/:reqId", zValidator("param", z.object({ id: z.uuid(), reqId: z.uuid() })), async (c) => {
+  const p = c.req.valid("param");
+  const found = await getCustomerAppUserId(p.id, c.var.db);
+  if (!found) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+  const detail = found.appUserId ? await getQuoteRequestDetail(p.reqId, c.var.db, found.appUserId) : null;
+  if (!detail) return c.json({ error: "요청을 찾을 수 없습니다." }, 404); // 수기 고객·미존재·소유권 불일치 동일 문구
+  return c.json(detail);
+});
+
 // 고객 상세: 그 고객(app_user_id)의 앱 상담신청 목록. 수기 고객은 빈 배열.
 customers.get("/:id/consultations", zValidator("param", z.object({ id: z.uuid() })), (c) =>
   run(
@@ -219,6 +238,23 @@ customers.get("/:id/consultations", zValidator("param", z.object({ id: z.uuid() 
     "고객을 찾을 수 없습니다.",
   ),
 );
+
+// dismiss — 배치 12 K1: 구 DELETE /api/consultations/:id에서 이사(프리필과 동일 부수 피해 축 —
+// 드로어 상담신청 카드 X가 staff에서 403 롤백으로 죽던 것). 소유권 = 상담 user_id의 연결 고객 ==
+// URL 고객(linkedCustomerIdForConsultation 재사용 — 미승격·비로그인(user_id null)은 join 불성립 =
+// 불일치 404). public.consultations는 불변, crm.consultation_dismissals에만 기록.
+customers.delete("/:id/consultations/:consultId", zValidator("param", z.object({ id: z.uuid(), consultId: z.uuid() })), async (c) => {
+  const p = c.req.valid("param");
+  const found = await getCustomerAppUserId(p.id, c.var.db);
+  if (!found) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+  const linked = await linkedCustomerIdForConsultation(p.consultId, c.var.db);
+  if (linked !== p.id) return c.json({ error: "상담신청을 찾을 수 없습니다." }, 404);
+  const row = await dismissConsultation(p.consultId, c.var.user.id, c.var.db);
+  // dismiss가 consultationNote 재료(dismissed 제외 최신 문의)를 바꾼다 — AI 힌트 재생성(구 라우트 미러).
+  // 고객 id를 URL로 이미 알므로 구 라우트의 역해석(linked → customerId) 조건 분기가 필요 없다.
+  scheduleAiHintRefresh(c, p.id);
+  return c.json(row);
+});
 
 customers.patch(
   "/:id",
