@@ -15,6 +15,7 @@ import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, ge
 import { deleteCustomer, quoteStoragePath } from "../db/queries/customer-delete";
 import { upsertCustomerDelivery } from "../db/queries/customer-delivery";
 import { getStaffName } from "../db/queries/staff";
+import { resolveCustomerScope } from "../lib/assistant-scope";
 import { normalizePhoneDigits } from "../lib/customer-phone";
 import { validateLookupValue, validateStatusSelection } from "../lib/lookup-validate";
 import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-validation";
@@ -60,6 +61,30 @@ function removeOrphanObjects(env: StorageEnv, paths: string[]): Promise<void> {
     for (const path of paths) console.error(`Storage remove 실패(고아 객체) path=${path}:`, err);
   });
 }
+
+// ── 고객 role scope 게이트(목록/상세 — 2026-07-21, A-3 원칙의 나머지 반쪽) ──────────
+// spec: ref/specs/2026-07-21-crm-customer-role-scope-design.md
+// admin·manager = 전체 / staff = 본인 담당만 / dealer 등 그 외 = fail-closed —
+// 판정 SSOT는 resolveCustomerScope(#176 AI scope와 물리 공유 = AI·화면 고객 집합 자동 정합).
+// 차단은 403이 아니라 **404 + 미존재와 byte-동일 문구**(존재 비노출) — 목록에서 안 보이는
+// 고객이 URL 추측에 403을 받으면 "존재는 한다"가 샌다(AI "조회 결과 없음" 선례 미러).
+// /:id 하위 전 라우트를 미들웨어 한 겹이 커버한다 — 신규 라우트도 자동 편입(라우트별 배선 금지).
+// #300 견적 403 게이트(quoteWriteGate)는 안쪽 그물로 잔존 — 이 게이트가 회귀하면 그쪽이 받아준다.
+const customerScopeGate = async (
+  c: Context<{ Variables: AuthVariables & DbVariables }>,
+  next: () => Promise<void>,
+): Promise<Response | void> => {
+  const scope = resolveCustomerScope(c.var.user);
+  if (scope === "all") return next();
+  // 비-uuid id는 조회하지 않고 통과 — 각 라우트 zValidator가 400을 준다(여기서 조회하면 22P02).
+  const id = c.req.param("id");
+  if (!id || !z.uuid().safeParse(id).success) return next();
+  const row = await getCustomerAdvisorId(id, c.var.db);
+  if (!row || row.advisorId !== scope.advisorId) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+  return next();
+};
+customers.use("/:id", customerScopeGate);
+customers.use("/:id/*", customerScopeGate);
 
 // 전화번호 필드 서버 정규화(2026-07-17 spec §3-8): 숫자만 저장(하이픈 유입 시 매칭이 조용히 깨지던
 // 잠재 드리프트 해소 — 구 "클라가 숫자만 전송" 관례 의존 제거). null=클리어 유지, 숫자 0개 입력도 클리어.
@@ -112,7 +137,8 @@ const CUSTOMER_PROFILE_EMBED_KEYS = [
   "needContractTerm", "needInitialCost", "needAnnualMileage", "needDeliveryMethod", "needContractFocus",
 ] as const satisfies readonly (keyof z.infer<typeof customerWriteSchema>)[];
 
-customers.get("/", async (c) => c.json(await listCustomers(c.var.db)));
+// 목록도 같은 scope — staff는 본인 담당만(WHERE), admin·manager는 전체(role scope spec S-1).
+customers.get("/", async (c) => c.json(await listCustomers(c.var.db, resolveCustomerScope(c.var.user))));
 
 // ── 고객 수기 등록(전화·소개 유입 — 앱 승격 외 유일한 생성 경로) ────
 // spec: ref/specs/2026-07-10-crm-customer-create-design.md
