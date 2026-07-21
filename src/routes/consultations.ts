@@ -14,9 +14,14 @@ import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
 import { schedulePromotionEmbeds } from "../lib/promotion-embeds";
 import type { AuthVariables } from "../middleware/auth";
 import type { DbVariables } from "../middleware/db";
+import { requireRoles } from "../middleware/role-gate";
 import { run } from "./shared";
 
 export const consultations = new Hono<{ Variables: AuthVariables & DbVariables }>();
+
+// 인박스 전면 게이트(읽기 포함) — admin·manager 전용(2026-07-21 유슨생 결정·pending 항목 16.
+// 근거·위험 서술은 requireRoles 주석과 role scope spec §4). 라우트 선언보다 앞이어야 작동한다.
+consultations.use("*", requireRoles(["admin", "manager"]));
 
 const idParam = z.object({ id: z.uuid() });
 

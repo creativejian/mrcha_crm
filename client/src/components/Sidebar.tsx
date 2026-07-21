@@ -224,7 +224,8 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
                 {collapsed && <SidebarFlyout title="고객 관리" items={customerModes.map(([mode, label]) => ({ active: visibleActiveView === "customers" && customerMode === mode, label, onClick: () => { onCustomerModeChange(mode); navigate("customers"); } }))} />}
               </div>
               <button aria-label="고객 상세" className={navButtonClass(visibleActiveView === "customer-detail")} data-label="고객 상세" onClick={() => navigate("customer-detail")} type="button"><MenuIcon name="detail" /><span>고객 상세</span></button>
-              <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" onMouseEnter={() => prefetchAppQuoteRequests()} onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span>{newAppRequestCount > 0 ? <span className="nav-count num">{newAppRequestCount}</span> : null}</button>
+              {/* 인박스는 admin·manager 전용(2026-07-21 pending 항목 16) — 상담 신청 DB는 아래 canViewTeamMenu 구역에 이미 있고, 이 메뉴만 전 role에 열려 있었다. */}
+              {canViewTeamMenu && <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" onMouseEnter={() => prefetchAppQuoteRequests()} onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span>{newAppRequestCount > 0 ? <span className="nav-count num">{newAppRequestCount}</span> : null}</button>}
               <button aria-label="상담 파이프라인" className={navButtonClass(visibleActiveView === "pipeline")} data-label="상담 파이프라인" onClick={() => navigate("pipeline")} type="button"><MenuIcon name="pipeline" /><span>상담 파이프라인</span></button>
             </>
           )}

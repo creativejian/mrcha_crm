@@ -5,10 +5,15 @@ import { z } from "zod";
 import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests } from "../db/queries/quote-requests";
 import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
 import { schedulePromotionEmbeds } from "../lib/promotion-embeds";
+import type { AuthVariables } from "../middleware/auth";
 import type { DbVariables } from "../middleware/db";
+import { requireRoles } from "../middleware/role-gate";
 import { run } from "./shared";
 
-export const quoteRequests = new Hono<{ Variables: DbVariables }>();
+export const quoteRequests = new Hono<{ Variables: AuthVariables & DbVariables }>();
+
+// 인박스 전면 게이트(읽기 포함) — admin·manager 전용(consultations.ts와 동일 결정·주석 참조).
+quoteRequests.use("*", requireRoles(["admin", "manager"]));
 
 const idParam = z.object({ id: z.uuid() });
 

@@ -36,3 +36,26 @@ describe("Sidebar 상담사 배정 서브메뉴", () => {
     expect(onViewChange).toHaveBeenCalledWith("consultation-requests");
   });
 });
+
+// 인박스 진입점 role 게이트(2026-07-21 유슨생 결정 — pending 항목 16): 인박스 2종(앱 견적요청·
+// 상담 신청 DB)은 admin·manager 전용. 서버 403이 진짜 게이트고 메뉴 숨김은 UX 보조지만,
+// 진입점이 보이면 staff가 눌러 403/홈 폴백을 겪으므로 노출 자체를 잠근다.
+describe("Sidebar 인박스 진입점 role 게이트", () => {
+  it("상담사 — 앱 견적요청 메뉴 미노출", () => {
+    render(<Sidebar {...baseProps} roleTab="상담사" onViewChange={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "앱 견적요청" })).toBeNull();
+  });
+
+  it("상담사 — 상담사 배정 그룹(상담 신청 DB 포함) 미노출(기존 canViewTeamMenu 게이트 잠금)", () => {
+    render(<Sidebar {...baseProps} roleTab="상담사" onViewChange={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "상담사 배정" })).toBeNull();
+  });
+
+  it("최고관리자·팀장 — 앱 견적요청 메뉴 노출", () => {
+    const { unmount } = render(<Sidebar {...baseProps} roleTab="최고관리자" onViewChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "앱 견적요청" })).toBeTruthy();
+    unmount();
+    render(<Sidebar {...baseProps} roleTab="팀장" onViewChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "앱 견적요청" })).toBeTruthy();
+  });
+});
