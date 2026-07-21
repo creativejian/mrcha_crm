@@ -640,6 +640,18 @@
   box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.06);
 }
 
+/* 권한 없는 배지(staff의 담당자) — 정보는 그대로 보이되 편집 신호만 끈다.
+   disabled 속성 대신 이 클래스를 쓰는 이유: 전역 button:disabled 물빠짐이 값까지 흐리게 한다. */
+.kim-status-field.is-readonly {
+  cursor: default;
+}
+
+.kim-status-field.is-readonly:hover .kim-status-icon {
+  border-color: var(--line);
+  color: inherit;
+  box-shadow: none;
+}
+
 .kim-edit-anchor {
   position: relative;
   min-width: 0;

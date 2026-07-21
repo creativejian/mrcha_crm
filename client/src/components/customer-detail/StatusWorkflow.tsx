@@ -19,9 +19,11 @@ type StatusWorkflowProps = {
   toggleEditor: (next: OpenEditorState) => void;
   editorRef: RefObject<HTMLDivElement | null>;
   workflow: ReturnType<typeof useCustomerWorkflow>;
+  // 담당자 배정 권한(admin·manager). false면 배지를 읽기 전용으로 — 서버 403이 진짜 게이트.
+  advisorAssignable: boolean;
 };
 
-export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEditor, editorRef, workflow }: StatusWorkflowProps) {
+export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEditor, editorRef, workflow, advisorAssignable }: StatusWorkflowProps) {
   const { statusValues, phoneLocked, advisorId, stageGroup, stageStatus, chance, manage, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
   const navigate = useNavigate();
   // 앱 채팅 이동은 앱 계정 연결(appUserId)이 전제 — source 어휘만 앱 계열이고 미연결이면 볼 채팅이 없다.
@@ -264,9 +266,17 @@ export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEdit
               </div>
             );
           }
+          // 담당자 배정은 admin·manager만(서버 403이 진짜 게이트) — staff에겐 배지를 읽기 전용으로.
+          // ⚠️ disabled를 쓰지 않는다: 전역 `button:disabled` 물빠짐(opacity)에 걸려 담당자 이름이
+          // 흐려진다. 정보는 그대로 보여야 하므로 클릭 경로만 없애고 커서를 기본으로 되돌린다.
+          const assignLocked = field.key === "advisor" && !advisorAssignable;
           return (
             <div className="kim-edit-anchor" key={field.key} ref={openEditor?.kind === "status" && openEditor.key === field.key ? editorRef : undefined}>
-              <button className="kim-status-field" onClick={() => handlers.openStatusEditor({ kind: "status", key: field.key })} type="button">
+              <button
+                className={`kim-status-field${assignLocked ? " is-readonly" : ""}`}
+                onClick={assignLocked ? undefined : () => handlers.openStatusEditor({ kind: "status", key: field.key })}
+                type="button"
+              >
                 <span className="kim-status-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.9} /></span>
                 <span className="kim-status-copy">
                 <span>{field.label}</span>
