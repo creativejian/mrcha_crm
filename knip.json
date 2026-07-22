@@ -3,7 +3,6 @@
     "src/app.ts",
     "functions/[[path]].ts",
     "client/src/**/*.stories.tsx",
-    "tools/**/*.ts",
     "*.config.ts",
     "drizzle.config.catalog.ts",
     "src/scripts/**/*.ts"

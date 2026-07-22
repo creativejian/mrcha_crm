@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier . --write",
-    "format:check": "prettier --check package.json tsconfig.json \"*.config.{js,ts}\" \".ladle/config.mjs\" \"test/**/*.ts\" \"tools/**/*.ts\" \"client/src/**/*.test.tsx\" \"client/src/**/*.stories.tsx\"",
+    "format:check": "prettier --check package.json tsconfig.json \"*.config.{js,ts}\" \".ladle/config.mjs\" \"test/**/*.ts\" \"client/src/**/*.test.tsx\" \"client/src/**/*.stories.tsx\"",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:server": "EMBED_ON_WRITE=off PUSH_NOTIFY=off AI_HINT_ON_WRITE=off bun test --env-file=.env.local",
