@@ -14,7 +14,7 @@ import { getCustomerAppUserId } from "./customers";
 const SENT_VALID_MS = 7 * 86_400_000;
 
 // 추가 안내 사항(앱 노출용). client/src/data/quote-guidance.ts QuoteGuidance와 동형.
-export type QuoteGuidanceInput = {
+type QuoteGuidanceInput = {
   deliveryComment: string;
   stockNotice: string;
   expectedDelivery: string;
@@ -25,7 +25,7 @@ export type QuoteGuidanceInput = {
 };
 
 // PATCH 바디(라우트 zod와 동형). 전부 optional — 보낸 것만 갱신.
-export type QuoteHeaderPatch = {
+type QuoteHeaderPatch = {
   status?: string | null;
   entryMode?: string | null;
   quoteRound?: string | null;
@@ -61,7 +61,7 @@ export type QuoteHeaderPatch = {
   guidance?: QuoteGuidanceInput | null;
   bumpRevision?: boolean;
 };
-export type QuoteScenarioPatch = {
+type QuoteScenarioPatch = {
   purchaseMethod?: string | null;
   termMonths?: number | null;
   monthlyPayment?: string | null;
@@ -69,7 +69,7 @@ export type QuoteScenarioPatch = {
 };
 export type QuotePatch = QuoteHeaderPatch & { scenario?: QuoteScenarioPatch; scenarios?: ScenarioInput[] };
 // #4c-3a 생성용 시나리오(비교카드 입력 가능 컬럼 + 메타). PATCH는 단수 그대로.
-export type ScenarioInput = QuoteScenarioPatch & {
+type ScenarioInput = QuoteScenarioPatch & {
   scenarioNo?: number | null;
   isSaved?: boolean;
   depositMode?: string | null;
@@ -308,7 +308,7 @@ export async function deleteQuote(
 }
 
 // 다음 견적 코드 QT-YYMM-#### (KST 현재월 기준, 기존 최대 시퀀스 +1). UNIQUE 컬럼이라 서버가 canonical 생성.
-export async function nextQuoteCode(ex: Executor = getDefaultDb()): Promise<string> {
+async function nextQuoteCode(ex: Executor = getDefaultDb()): Promise<string> {
   const prefix = `QT-${yymmKstOf()}-`;
   const rows = await ex.select({ code: quotes.quoteCode }).from(quotes).where(like(quotes.quoteCode, `${prefix}%`));
   return nextSequenceCode(prefix, rows.map((r) => r.code));

@@ -33,9 +33,7 @@ function formEvent(fields: Record<string, string>): SyntheticEvent<HTMLFormEleme
 }
 
 function setup(onToast = vi.fn()) {
-  const hook = renderHook(() =>
-    useCustomerChecks({ detail, customer, onToast, markRecentUpdate: vi.fn() }),
-  );
+  const hook = renderHook(() => useCustomerChecks({ detail, customer, onToast, markRecentUpdate: vi.fn() }));
   return { ...hook, onToast };
 }
 
@@ -65,9 +63,7 @@ describe("useCustomerChecks — 마감 날짜(due='지정') 텍스트 정규화(
     const seeded = {
       tasks: [{ id: "task-1", category: "체크", due: "7/20", body: "기존" }],
     } as unknown as CustomerDetailData;
-    const { result } = renderHook(() =>
-      useCustomerChecks({ detail: seeded, customer, onToast: vi.fn(), markRecentUpdate: vi.fn() }),
-    );
+    const { result } = renderHook(() => useCustomerChecks({ detail: seeded, customer, onToast: vi.fn(), markRecentUpdate: vi.fn() }));
     act(() => {
       result.current.handlers.update(formEvent({ due: "지정", dueDate: "20260731", body: "기존" }), "task-1", "7/20");
     });
@@ -80,9 +76,7 @@ describe("useCustomerChecks — 마감 날짜(due='지정') 텍스트 정규화(
       tasks: [{ id: "task-1", category: "체크", due: "7/20", body: "기존" }],
     } as unknown as CustomerDetailData;
     const onToast = vi.fn();
-    const { result } = renderHook(() =>
-      useCustomerChecks({ detail: seeded, customer, onToast, markRecentUpdate: vi.fn() }),
-    );
+    const { result } = renderHook(() => useCustomerChecks({ detail: seeded, customer, onToast, markRecentUpdate: vi.fn() }));
     act(() => {
       result.current.handlers.update(formEvent({ due: "지정", dueDate: "2026-13-40", body: "기존" }), "task-1", "7/20");
     });

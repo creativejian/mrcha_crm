@@ -217,7 +217,7 @@ export async function listCustomers(executor: Executor = getDefaultDb(), scope: 
   return query.orderBy(desc(customers.receivedAt));
 }
 
-export type QuoteWithScenarios = Omit<typeof quotes.$inferSelect, "filePath"> & {
+type QuoteWithScenarios = Omit<typeof quotes.$inferSelect, "filePath"> & {
   scenarios: (typeof quoteScenarios.$inferSelect)[];
 };
 

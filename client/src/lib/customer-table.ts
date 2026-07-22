@@ -186,7 +186,7 @@ export function firstResponseDisplay(assignedAt: string, updateInfo: FinalUpdate
   return `배정 후 ${days}일`;
 }
 
-export function chanceLabel(customer: Customer): ChanceOption {
+function chanceLabel(customer: Customer): ChanceOption {
   if (customer.statusGroup === "계약완료" || customer.status === "출고완료") return "확정";
   if (customer.statusGroup === "불발" || customer.status === "계약취소") return "낮음";
   if (customer.priority === "긴급" || customer.priority === "높음") return "높음";

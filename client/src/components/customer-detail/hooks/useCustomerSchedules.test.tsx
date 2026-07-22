@@ -48,10 +48,7 @@ describe("useCustomerSchedules — 날짜 텍스트 정규화(2026-07-19, 로케
       result.current.handlers.save(formEvent({ date: "2026.7.24", memo: "메모" }));
     });
     await waitFor(() => expect(addScheduleMock).toHaveBeenCalled());
-    expect(addScheduleMock).toHaveBeenCalledWith(
-      "cust-1",
-      expect.objectContaining({ scheduledDate: "2026-07-24" }),
-    );
+    expect(addScheduleMock).toHaveBeenCalledWith("cust-1", expect.objectContaining({ scheduledDate: "2026-07-24" }));
   });
 
   it("날짜 형식이 틀리면 저장을 막고 안내 문구를 띄운다(addSchedule 미호출)", () => {
@@ -76,11 +73,7 @@ describe("useCustomerSchedules — 날짜 텍스트 정규화(2026-07-19, 로케
       result.current.handlers.update(formEvent({ date: "20260731", memo: "기존" }), "sch-1");
     });
     await waitFor(() => expect(updateScheduleMock).toHaveBeenCalled());
-    expect(updateScheduleMock).toHaveBeenCalledWith(
-      "cust-1",
-      "sch-1",
-      expect.objectContaining({ scheduledDate: "2026-07-31" }),
-    );
+    expect(updateScheduleMock).toHaveBeenCalledWith("cust-1", "sch-1", expect.objectContaining({ scheduledDate: "2026-07-31" }));
   });
 
   it("수정 제출에서 날짜 형식이 틀리면 저장을 막는다(updateSchedule 미호출)", () => {

@@ -175,7 +175,7 @@ function pickPrimaryScenario(q: CustomerDetailQuote): CustomerDetailScenario | n
 // dedupedModelTrim·downPaymentRowLabelOf·formatTerm은 서버 발송 조립기와 물리 공유하는 순수 모듈
 // (app-card-labels.ts — 이 파일은 customers→http 체인이 있어 서버가 직접 import 불가)로 이동.
 // 기존 클라 소비처 호환용 re-export(배치 라벨 공유 2026-07-07).
-export { dedupedModelTrim, downPaymentRowLabelOf, formatTerm } from "./app-card-labels";
+export { dedupedModelTrim, downPaymentRowLabelOf } from "./app-card-labels";
 
 // 분리 렌더용(모델·트림을 각자 칸에 표시): 트림에서 모델명 접두를 걷어낸 나머지("" 가능 — 호출부가 숨김).
 export function trimWithoutModelPrefix(modelName?: string | null, trimName?: string | null): string {

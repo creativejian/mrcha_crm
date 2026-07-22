@@ -48,7 +48,12 @@ vi.mock("./WorkbenchVehiclePickers", () => ({
 const MATRIX_FIXTURE = {
   matrix: [
     { lenderCode: "mg-capital", productType: "operating_lease", leaseTermMonths: [36, 48, 60], annualMileageKm: [10000, 20000, 30000] },
-    { lenderCode: "bnk-capital", productType: "operating_lease", leaseTermMonths: [12, 24, 36, 48, 60], annualMileageKm: [10000, 15000, 20000, 25000, 30000, 35000, 40000] },
+    {
+      lenderCode: "bnk-capital",
+      productType: "operating_lease",
+      leaseTermMonths: [12, 24, 36, 48, 60],
+      annualMileageKm: [10000, 15000, 20000, 25000, 30000, 35000, 40000],
+    },
   ],
 };
 
@@ -64,16 +69,29 @@ const bnkQuote = {
   options: [],
   exteriorColorId: null,
   interiorColorId: null,
-  basePrice: "0", optionTotal: "0", finalDiscount: "0",
-  acquisitionTax: "0", bond: "0", delivery: "0", incidental: "0",
+  basePrice: "0",
+  optionTotal: "0",
+  finalDiscount: "0",
+  acquisitionTax: "0",
+  bond: "0",
+  delivery: "0",
+  incidental: "0",
   guidance: null,
-  scenarios: [{
-    id: "sc-1", scenarioNo: 1, purchaseMethod: "운용리스", lender: "BNK캐피탈",
-    termMonths: 60, monthlyPayment: "1000000",
-    residualMode: "max", residualValue: null,
-    mileageMode: "basic", mileageValue: "20,000km / 년",
-    isSaved: true,
-  }],
+  scenarios: [
+    {
+      id: "sc-1",
+      scenarioNo: 1,
+      purchaseMethod: "운용리스",
+      lender: "BNK캐피탈",
+      termMonths: 60,
+      monthlyPayment: "1000000",
+      residualMode: "max",
+      residualValue: null,
+      mileageMode: "basic",
+      mileageValue: "20,000km / 년",
+      isSaved: true,
+    },
+  ],
 };
 
 const detail = { residence: "인천광역시 · 남동구", quotes: [bnkQuote] } as unknown as CustomerDetailData;
@@ -117,15 +135,17 @@ function setup() {
     ref.current = workbench;
     return <QuoteWorkbench workbench={workbench} customer={customer} onToast={onToast} />;
   }
-  render(<MemoryRouter><Harness /></MemoryRouter>);
+  render(
+    <MemoryRouter>
+      <Harness />
+    </MemoryRouter>,
+  );
   return { onToast, wb: () => ref.current! };
 }
 
 // ── DOM 조회 헬퍼(실 마크업 계약: data-scenario-card / data-sc-field) ─────────────
-const card = (id = "manual-condition-1") =>
-  document.querySelector<HTMLElement>(`[data-scenario-card="${id}"]`)!;
-const lenderSelect = (el: HTMLElement = card()) =>
-  el.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')!;
+const card = (id = "manual-condition-1") => document.querySelector<HTMLElement>(`[data-scenario-card="${id}"]`)!;
+const lenderSelect = (el: HTMLElement = card()) => el.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')!;
 // 기간 세그먼트 = 유일하게 "NN개월" 라벨을 쓰는 버튼 그룹(보증금·잔가 등 다른 SegmentGroup과 구분).
 const termButtons = (el: HTMLElement = card()) =>
   Array.from(el.querySelectorAll<HTMLButtonElement>("button")).filter((b) => /^\d+개월$/.test(b.textContent ?? ""));
@@ -145,11 +165,15 @@ function selectLender(value: string, el: HTMLElement = card()) {
 
 async function flush() {
   // 매트릭스 fetch(목)·딜러 fetch(목)의 마이크로태스크 소진.
-  await act(async () => { await Promise.resolve(); });
+  await act(async () => {
+    await Promise.resolve();
+  });
 }
 
 async function openNewWorkbench(wb: () => Workbench) {
-  await act(async () => { wb().openNewWorkbench(); });
+  await act(async () => {
+    wb().openNewWorkbench();
+  });
   await flush();
   await waitFor(() => expect(card()).toBeTruthy());
 }
@@ -161,7 +185,11 @@ function expectGateFollowsSelectedLender(el: HTMLElement = card()) {
   const lender = lenderSelect(el).value;
   const expectedDisabledTerms = lender === "MG캐피탈" ? ["12개월", "24개월"] : [];
   const expectedMileageCount = lender === "MG캐피탈" ? 3 : 7;
-  expect(termButtons(el).filter((b) => b.disabled).map((b) => b.textContent)).toEqual(expectedDisabledTerms);
+  expect(
+    termButtons(el)
+      .filter((b) => b.disabled)
+      .map((b) => b.textContent),
+  ).toEqual(expectedDisabledTerms);
   expect(mileageOptions(el)).toHaveLength(expectedMileageCount);
 }
 
@@ -182,7 +210,11 @@ describe("QuoteWorkbench 지원집합 게이트 — 렌더·폴백(대조군)", 
     await flush();
 
     expect(termButtons().map((b) => `${b.textContent}:${b.disabled}`)).toEqual([
-      "12개월:true", "24개월:true", "36개월:false", "48개월:false", "60개월:false",
+      "12개월:true",
+      "24개월:true",
+      "36개월:false",
+      "48개월:false",
+      "60개월:false",
     ]);
     expect(mileageOptions()).toEqual(["10,000km / 년", "20,000km / 년", "30,000km / 년"]);
   });
@@ -219,7 +251,15 @@ describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 1
     expect(wb().lenderByCard["manual-condition-1"]).toBe("MG캐피탈");
 
     // ── arrange 핵심: 다른 견적(BNK 저장본) 수정 진입 → 저장 카드라 게이트는 잠시 꺼져 있다.
-    await act(async () => { wb().openEditQuote({ id: "q-bnk", decisionStatus: null, trimId: null, financeType: "운용리스", source: "manual" } as unknown as QuoteItem); });
+    await act(async () => {
+      wb().openEditQuote({
+        id: "q-bnk",
+        decisionStatus: null,
+        trimId: null,
+        financeType: "운용리스",
+        source: "manual",
+      } as unknown as QuoteItem);
+    });
     await flush();
     await waitFor(() => expect(lenderSelect().value).toBe("BNK캐피탈"));
 
@@ -249,7 +289,7 @@ describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 1
     await flush();
 
     expect(lenderSelect().value).toBe("미선택"); // 화면상 아무 금융사도 선택돼 있지 않다
-    expectGateFollowsSelectedLender();          // → 게이트도 걸려 있으면 안 된다(fail-open)
+    expectGateFollowsSelectedLender(); // → 게이트도 걸려 있으면 안 된다(fail-open)
   });
 
   it("초기화 후에도 게이트는 화면 금융사와 일치한다(거울 ≡ DOM)", async () => {
@@ -291,7 +331,9 @@ describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 1
     expect(termButtons().filter((b) => b.disabled)).toHaveLength(0); // 미선택 = 게이트 없음
 
     // ── arrange 핵심: applySolutionResult가 select.value를 **프로그램적으로** 쓴다 → 위임 이벤트가 없다.
-    await act(async () => { wb().handlers.pickRankingEntry("manual-condition-1", mgRankingEntry); });
+    await act(async () => {
+      wb().handlers.pickRankingEntry("manual-condition-1", mgRankingEntry);
+    });
     await flush();
 
     expect(lenderSelect().value).toBe("MG캐피탈");

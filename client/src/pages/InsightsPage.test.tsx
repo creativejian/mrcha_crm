@@ -12,7 +12,13 @@ import { fetchInsight, fetchInsights, type InsightListItem } from "@/lib/content
 import { InsightsPage } from "./InsightsPage";
 
 const item: InsightListItem = {
-  id: "1", title: "인사이트 하나", summary: "요약", category: "시장", status: "published", publishedAt: null, updatedAt: "2026-07-05T00:00:00Z",
+  id: "1",
+  title: "인사이트 하나",
+  summary: "요약",
+  category: "시장",
+  status: "published",
+  publishedAt: null,
+  updatedAt: "2026-07-05T00:00:00Z",
 };
 
 describe("InsightsPage", () => {
@@ -49,7 +55,11 @@ describe("InsightsPage", () => {
   // (0은 "정말 0건"의 의미로만. KnowledgeBasePage 미러는 KnowledgeBasePage.test.tsx가 잠근다 — 배치 10 C#2).
   it("does not flash 0 in the total count while the list is loading", async () => {
     let resolveList: (rows: InsightListItem[]) => void = () => {};
-    vi.mocked(fetchInsights).mockReturnValue(new Promise((resolve) => { resolveList = resolve; }));
+    vi.mocked(fetchInsights).mockReturnValue(
+      new Promise((resolve) => {
+        resolveList = resolve;
+      }),
+    );
     render(<InsightsPage />);
 
     expect(screen.queryByText("0")).not.toBeInTheDocument();

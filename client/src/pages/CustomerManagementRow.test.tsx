@@ -6,9 +6,13 @@ import { CustomerActionsCell } from "./CustomerManagementRow";
 function renderCell(aiSummary: string) {
   const customer = { ...initialCustomers[0], aiSummary };
   render(
-    <table><tbody><tr>
-      <CustomerActionsCell customer={customer} onHintHover={() => {}} />
-    </tr></tbody></table>,
+    <table>
+      <tbody>
+        <tr>
+          <CustomerActionsCell customer={customer} onHintHover={() => {}} />
+        </tr>
+      </tbody>
+    </table>,
   );
 }
 

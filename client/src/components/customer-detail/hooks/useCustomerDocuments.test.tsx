@@ -145,8 +145,13 @@ describe("useCustomerDocuments — AI 분류 파이프라인 경합", () => {
     type UrlResult = Awaited<ReturnType<typeof getDocumentUrlApi>>;
     const urlDeferred = { d1: deferred<UrlResult>(), d2: deferred<UrlResult>() };
     getUrl.mockImplementation((_cid: string, docId: string) => urlDeferred[docId as "d1" | "d2"].promise);
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, blob: async () => new Blob(["x"]) })));
-    const { result } = renderHook(() => useCustomerDocuments({ detail: detailWithDocs, customer, onToast: vi.fn(), markRecentUpdate: vi.fn() }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, blob: async () => new Blob(["x"]) })),
+    );
+    const { result } = renderHook(() =>
+      useCustomerDocuments({ detail: detailWithDocs, customer, onToast: vi.fn(), markRecentUpdate: vi.fn() }),
+    );
 
     let merging!: Promise<void>;
     act(() => {
