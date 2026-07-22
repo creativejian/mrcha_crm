@@ -75,6 +75,16 @@ export function dealerSelectPlaceholder(state: { hasChoices: boolean; vehicleRea
 // 약정거리 "기본" 모드의 고정 표시값 — 화면·추출·복원이 공유하는 유일 리터럴.
 export const MILEAGE_BASIC_VALUE = "20,000km / 년";
 
+// 금융사 "미선택" sentinel — 카드 시드·option 텍스트·게이트 판정·딜러 적재가 공유하는 유일 리터럴.
+// 이 값은 **select option의 표시 텍스트가 곧 값**이라(value 속성 없음) 화면 문구와 판정 기준이 한 몸이다.
+// 그래서 문구만 바꿀 생각으로 손대면 `lender !== 미선택` 류 판정이 조용히 전부 참이 되어 지원집합
+// 게이트·딜러 적재가 풀린다. 여기 한 곳에서만 바꾼다.
+// ⚠️ **색상 쪽 "미선택"과 같은 문자열이지만 다른 도메인이다**(2026-07-22 실측 — 프로덕션 21건이 세
+// 도메인에 겹쳐 있었다). `app-card.ts`·`src/lib/app-card-payload.ts`의 `exteriorColorLabel`/
+// `interiorColorLabel` 폴백은 **앱 발송 payload에 실리는 계약값**이고, `WorkbenchVehiclePickers`의
+// 것은 피커 UI 폴백이다. 셋을 하나로 묶지 말 것 — 한쪽을 바꾸면 다른 쪽이 조용히 깨진다.
+export const LENDER_UNSELECTED = "미선택";
+
 // 비교카드 한 장의 UI 상태. 통합 전에는 속성별 Record 8벌로 흩어져 있었고, 키 누락이
 // 읽는 쪽 폴백(?? 60 등)에 조용히 흡수돼 저장 payload를 오염시켰다(#163). 카드 = 객체 1개가 SSOT.
 export type CardUiState = {
@@ -278,7 +288,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     copyLabel: "",
     // round1도 비교 슬롯(2·3)과 동일한 빈 기본값 — 미입력 시 extractWorkbenchScenarios가 filled로 보지 않아
     // 신규 작성완료 시 가짜 금융 mock이 저장되지 않는다(사용자 입력 시에만 저장). display-only 필드도 0/placeholder.
-    lender: "미선택",
+    lender: LENDER_UNSELECTED,
     monthlyPayment: "0",
     totalReturn: "0",
     totalTakeover: "0",
@@ -297,7 +307,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     title: "견적 작성",
     round: "2",
     copyLabel: "1번 복사",
-    lender: "미선택",
+    lender: LENDER_UNSELECTED,
     monthlyPayment: "0",
     totalReturn: "0",
     totalTakeover: "0",
@@ -316,7 +326,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     title: "견적 작성",
     round: "3",
     copyLabel: "2번 복사",
-    lender: "미선택",
+    lender: LENDER_UNSELECTED,
     monthlyPayment: "0",
     totalReturn: "0",
     totalTakeover: "0",

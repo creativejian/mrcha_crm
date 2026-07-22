@@ -19,10 +19,11 @@ import {
   DEALER_MODE_SEGMENT_OPTIONS,
   dealerSelectPlaceholder,
   effectiveMileageValue,
+  emptyQuotePricing,
   gatedMileageOptions,
   gatedTermOptions,
   gateProductFor,
-  emptyQuotePricing,
+  LENDER_UNSELECTED,
   quotePurchaseMethodOptions,
 } from "./quote-workbench-meta";
 import { type useQuoteWorkbench } from "./hooks/useQuoteWorkbench";
@@ -494,10 +495,10 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                         </header>
                         <div className="kim-manual-compare-body">
                           <CondRow label="금융사" className="select-value"><select data-sc-field="lender" defaultValue={condition.lender} disabled={isConditionSaved}>
-                            <option>미선택</option>
+                            <option>{LENDER_UNSELECTED}</option>
                             {solutionLenders.map((l) => <option key={l.code}>{l.label}</option>)}
                             {CRM_EXTRA_LENDERS.map((label) => <option key={label}>{label}</option>)}
-                            {condition.lender && condition.lender !== "미선택" && !lenderOptionLabels.includes(condition.lender)
+                            {condition.lender && condition.lender !== LENDER_UNSELECTED && !lenderOptionLabels.includes(condition.lender)
                               ? <option>{condition.lender}</option> /* 구 어휘 저장 견적 표시 유지(스펙 결정 1) — 새 선택지는 아님 */
                               : null}
                           </select></CondRow>
