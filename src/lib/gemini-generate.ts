@@ -1,7 +1,19 @@
 import { geminiPost } from "./gemini-post";
 import type { GeminiTarget } from "./gemini-target";
 
-export const GEN_MODEL = "gemini-3.1-flash-lite"; // 앱/crm-analyst 동일.
+// 생성 모델 SSOT — **업무 AI 답변(SSE/논스트림)·도구 라우팅·AI 힌트 3용도가 이 한 상수를 공유**한다.
+// ⚠️ 그래서 이 값을 바꾸면 답변 문장만이 아니라 **라우팅 판단(어떤 질문에 어떤 도구를 부를지)까지
+// 바뀐다**(`assistant-tool-router.ts`가 같은 상수를 쓴다). 자동 테스트는 라우터를 페이크로 주입하므로
+// 이 변화를 못 잡는다(배치 14 K2-d) — 모델을 올릴 때는 **실기 골든 4종**을 눈으로 확인할 것:
+//   "마이바흐 관심 고객이 누구야?" → 라우팅 없음(RAG로 답) · "김지안 견적 몇 개야?" → customer_quotes
+//   "앱으로 들어온 고객 알려줘" → search_customers{source:"앱"} · "오늘 점심 뭐 먹을까?" → 범위 밖 안내
+//
+// **flash-lite 티어를 유지하는 이유**(2026-07-22 검토): ①라우터는 "도구 하나 고르기"라 지능 상한이
+// 낮고, 상위 티어의 thinking은 분류에 지연만 더한다 ②답변은 SSE 스트리밍이라 **TTFB가 UX 핵심**이다
+// (#145~#147에서 데드락으로 고생한 축) ③힌트는 90자 한 줄이다.
+// 서류 vision 분류만 상위 티어로 갈랐다 — `supabase/functions/crm-analyst/gemini.ts` 참조.
+// 임베딩 모델(`gemini-embed.ts`)과 달리 생성은 저장물이 없어 **앱과 달라도 무방**하다(계약 아님).
+export const GEN_MODEL = "gemini-3.5-flash-lite";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 export type GenerateOpts = { history?: ChatTurn[]; fetchImpl?: typeof fetch };

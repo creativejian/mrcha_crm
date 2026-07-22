@@ -25,13 +25,13 @@ Deno.test("allowlist 밖 경로는 404 — 업스트림 fetch 미호출", async 
 Deno.test("허용 3종은 업스트림 URL로 경로·쿼리 보존 전달 (함수 프리픽스 제거)", async () => {
   const urls: string[] = [];
   const fetchImpl = ((u: string | URL | Request) => { urls.push(String(u)); return Promise.resolve(new Response("{}")); }) as unknown as typeof fetch;
-  await relayRequest(post("/v1beta/models/gemini-embedding-001:batchEmbedContents"), fetchImpl);
-  await relayRequest(post("/v1beta/models/gemini-3.1-flash-lite:generateContent"), fetchImpl);
-  await relayRequest(post("/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse"), fetchImpl);
+  await relayRequest(post("/v1beta/models/gemini-embedding-2:batchEmbedContents"), fetchImpl);
+  await relayRequest(post("/v1beta/models/gemini-3.5-flash-lite:generateContent"), fetchImpl);
+  await relayRequest(post("/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse"), fetchImpl);
   assertEquals(urls, [
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse",
   ]);
 });
 
