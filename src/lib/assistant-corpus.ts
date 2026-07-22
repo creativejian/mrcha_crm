@@ -50,7 +50,9 @@ export function stripChunkCustomerPrefix(content: string, customerName: string):
 // 남은 채 새 데이터만 새 모델로 들어간다** = 공간이 섞여 검색이 조용히 죽는다(유사도가 임계값에 못 미침).
 // 모델명을 섞어두면 상수 한 줄 교체가 곧 전 코퍼스 해시 변경 → 백필이 자동으로 전량 재임베딩한다.
 // `embeddings` 테이블에 모델 컬럼이 없어 이 salt가 **혼입 방지 단일 방어선**이다 — 회귀 그물은
-// `assistant-corpus.test.ts`의 스킴 잠금(독립 계산식)이고, 실 DB 불변식은 `check:residue`가 본다.
+// `assistant-corpus.test.ts`의 스킴 잠금(독립 계산식)이고, 실 DB 불변식은
+// `src/test-utils/embedding-model-consistency.test.ts`가 본다(`check:residue`가 아니다 — 그 스크립트는
+// 픽스처 잔재 전용이라 해시 판별식이 0줄이다. 배치 15 M1).
 //
 // ⚠️ **임베딩 밖에서 재사용 금지**(배치 14 K1-a). `#312`가 salt를 넣기 전 이 함수는 이름이 `contentHash`라
 // AI 힌트 캐시 키(`customers.ai_summary_source_hash`)도 같이 쓰고 있었고, 그래서 **임베딩 모델 상수 교체

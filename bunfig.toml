@@ -1,7 +1,9 @@
 # Bun's native test runner (`bun test`) is for backend tests only
 # (Hono routes, domain logic — `import { test } from "bun:test"`).
 # Scoping discovery to ./src keeps it from picking up the frontend
-# vitest/jsdom tests under client/src and the Playwright specs under tools/.
+# vitest/jsdom tests under client/src, and the Deno tests under
+# supabase/functions (`*_test.ts`, run with `deno test` — not wired to npm/CI).
 # Frontend tests run under vitest (see vitest.config.ts).
+# (The old note here pointed at Playwright specs under tools/, deleted in #311.)
 [test]
 root = "src"

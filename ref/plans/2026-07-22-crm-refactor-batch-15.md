@@ -86,11 +86,23 @@
 
 ---
 
-## PR 분할
+## PR 분할 / 이행
 
-- **PR1 문서·계약 정정**: M1 · M2 · M3(pending 경로 등재) · M4 · M6 · M7 · M12 · M13 · M14 **+ GOLDEN-319 한계 박제 + 감사 관례 축소 박제**(아래 메타 결정)
-- **PR2 회귀 그물 보강**: M5(라우터 프롬프트 단언) · M9(조건부 오프너) · M8(주석 한정어)
-- **별건 등재(미착수)**: `test:server` 실 Gemini 9콜 위생 · Deno 테스트 배선(M11) · **Topbar 팝오버 우측 잘림**(별도 제보)
+- [x] **PR1 문서·계약 정정** — 브랜치 `docs/batch-15-pr1-contract-fixes`. 9건 이행:
+  - M1 `assistant-corpus.ts` 반문장을 `embedding-model-consistency.test.ts`로 교체(+ `check:residue`가 아닌 이유 명시)
+  - M2 pending 롤업 2줄을 **열린 10건**으로 갱신(+ 재발 방지 지시 한 줄) · 항목 24를 말미로 이동
+  - M3 백업 **실경로 등재**(`~/Documents/TypeScript/mrcha-crm-local-backups/2026-07-22-ai-hint-319/`) + 레포 미커밋 사유(고객 요약문 전량)
+  - M4 `AGENTS.md`·`gemini-generate.ts` 근거절 정정 — "저장물이 없어서"(거짓) → "**crm 소유라 앱과 공유되지 않아서**" + 모델 교체 시 힌트가 자동 갱신되지 않는다는 사실과 클리어→백필 절차
+  - M6 work-ai spec 상단 배너(구 모델값 무효 · 현행 SSOT는 `AGENTS.md`)
+  - M7 "자동 테스트는 페이크 주입" → "**골든은 페이크, 라우트 테스트는 실 라우터지만 결과 비의존**"으로 한정 복원(+ `test:server` 9콜 실측)
+  - M12 batch-14 plan의 `assistant.ts:196-201` → 식별자 참조
+  - M13 `bunfig.toml` 주석에서 삭제된 Playwright 경로 제거 → Deno `*_test.ts`로 교체
+  - M14 batch-14 plan 마지막 체크박스 종결(머지 SHA 4개 + 641→**650** 정정)
+  - **+ GOLDEN-319 한계 박제**(`AGENTS.md`·`gemini-generate.ts`·pending 24 — 골든 4종은 구 모델도 4/4라 두 모델을 구분 못 한다)
+  - **+ 감사 관례 축소 박제**(`AGENTS.md` Verification Budget에 신설 — 아래 메타 결정)
+  - 검증: typecheck 0 · lint 0 · `assistant-corpus`+`ai-hint` 38 pass(bunfig 변경 후 러너 디스커버리 확인)
+- [ ] **PR2 회귀 그물 보강**: M5(라우터 프롬프트 단언) · M9(조건부 오프너) · M8(주석 한정어)
+- [ ] **별건 등재(미착수)**: `test:server` 실 Gemini 9콜 위생 · Deno 테스트 배선(M11) · **Topbar 팝오버 우측 잘림**(별도 제보)
 
 ---
 
