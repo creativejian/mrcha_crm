@@ -37,13 +37,13 @@ main 통합 검증 green — typecheck 0 · lint 0 · unit **1068** · server **
 
 **⑨ 별건 2종 종결(`#324` `e8ab97c`).** ⓐ**Edge(Deno) 테스트 26건을 배선**(`test:edge` 스크립트 + CI 단계 + 로컬 `test`) — 실행은 되는데 어디에도 안 걸려 수동 의존이었다(M11). 외부 호출 0(전부 `fetchImpl` 페이크)이라 권한 플래그도 불필요. **CI 로그에서 26 passed 실측 확인** ⓑ**`test:server`의 실 Gemini 9콜 제거**(M7) — 원인은 **한 줄**이었다: `ragFakes`가 다른 dep은 "실 조회 차단" 주석까지 달아 막아두고 **`routeAssistantTool`만 빠뜨려** override 없는 테스트가 실 라우터를 탔다. 격리 worktree 전/후 대조 = **7.39s → 181ms(41배), 결과는 41 tests·104 expect·0 fail로 완전 동일** = 외부 호출 소멸의 증거.
 
-**⑩ CI 위생 잠금(`#325` `e3adc14`) + 배치 13 별건 1종(`#326` `490d63b`).** ⓐ**knip 16 → 0 · format 20 → 0**으로 정리하고 CI에 추가 — 이제 7단계(`typecheck→lint→**knip**→**format**→unit→build→edge`)가 잠근다. knip 16건은 전부 "같은 파일에서만 쓰는데 export가 붙은" 경우라 키워드만 제거(기능 0). 예외 = **`DEALER_WRITE_ALLOWLIST`는 의도적 확장점이라 삭제 대신 내부화**(밖으로 열려 있으면 다른 모듈이 런타임에 딜러 게이트를 넓힐 수 있다 — 사유는 코드 주석) ⓑ**`dealerOptionsByCard` stale 수정** — 구매방식 전환이 이벤트 없이 금융사를 "미선택"으로 되돌리는데 딜러 목록은 이벤트 경로에서만 갱신돼 **이전 금융사 딜러가 계속 제시**됐다. K1 재동기화 effect를 딜러까지 확장해 닫았다. ⚠️ **배치 13 서술이 틀렸음을 재현 중 발견해 정정**(구 기록 "placeholder가 '금융사 먼저 선택' 거짓 표시" → 실제는 **반대**: stale 때문에 `hasChoices`가 참이라 placeholder는 "선택"인 채 딜러가 노출). 🟡 **pending 항목 25 등재**(사후 공유).
+**⑩ CI 위생 잠금(`#325`) + 배치 13 별건 2종(`#326`·`#327`) + 금융사 sentinel 상수화(`#328`).** ⓐ**knip 16 → 0 · format 20 → 0**으로 정리하고 CI에 추가 — 이제 7단계(`typecheck→lint→**knip**→**format**→unit→build→edge`)가 잠근다. knip 16건은 전부 "같은 파일에서만 쓰는데 export가 붙은" 경우라 키워드만 제거(기능 0). 예외 = **`DEALER_WRITE_ALLOWLIST`는 의도적 확장점이라 삭제 대신 내부화**(밖으로 열려 있으면 다른 모듈이 런타임에 딜러 게이트를 넓힐 수 있다 — 사유는 코드 주석) ⓑ**`dealerOptionsByCard` stale 수정** — 구매방식 전환이 이벤트 없이 금융사를 "미선택"으로 되돌리는데 딜러 목록은 이벤트 경로에서만 갱신돼 **이전 금융사 딜러가 계속 제시**됐다. K1 재동기화 effect를 딜러까지 확장해 닫았다. ⚠️ **배치 13 서술이 틀렸음을 재현 중 발견해 정정**(구 기록 "placeholder가 '금융사 먼저 선택' 거짓 표시" → 실제는 **반대**: stale 때문에 `hasChoices`가 참이라 placeholder는 "선택"인 채 딜러가 노출). 🟡 **pending 항목 25 등재**(사후 공유). ⓒ**초기화가 금융사 DOM을 안 지우던 것**도 닫았다(`#327`) — 실측으로 범위를 좁혔다: 보증금·선수금·잔존가치·보조금은 이미 정상 초기화되고 **금융사만** 살아남아, 카드 리마운트가 아니라 금융사 select만 DOM 클리어(거울은 K1-d 원칙대로 effect에 위임). ⚠️ 시행착오 = `key={`lender-${condition.lender}`}` 리마운트는 **무효**(uncontrolled라 사용자 선택이 state에 안 남아 key 불변). 🟡 **pending 항목 26**. ⓓ**금융사 `"미선택"` sentinel 상수화**(`#328`) — ⚠️**단순 치환은 위험했다**: 프로덕션 21건이 **세 도메인에 겹쳐** 있었다(금융사 sentinel / **색상 라벨 = 앱 payload 계약값** / 피커 UI 폴백). 금융사 축 12건만 `LENDER_UNSELECTED`로 모으고 색상은 무접촉. ⓔ**CI 허점 발견**: `bun run lint`가 warning에 exit 0이라 **불필요한 eslint-disable이 조용히 머지됐다**(#326). 레포 규칙은 "0 problems"이므로 `lint` 스크립트를 `--max-warnings 0`으로 강화 — 로컬·CI가 같은 기준을 쓴다.
 
 ## ▶ 다음 작업 (미확정 — 후보)
 
-1. **배치 13 잔여 별건 2종** — `resetQuoteWorkbench` DOM 미청소(**행위 변경**이라 이사님 확인 대상일 수 있음) · `K1 안 ②c` controlled 전환(DOM 쓰기 6경로 + 저장 payload 회귀 재검증 = **별도 사이클**)
-2. **이사님 회신 대기** — pending **열린 11건**(항목 25 신설), 특히 **21·22는 묶어서** 여쭙는 게 효율적. ⚠️ **NO_HITS 문구+sources 동시 렌더는 21·22 결정과 얽혀 보류 중**(지금 고치면 결정 후 두 번 고친다).
-3. **"미선택" 리터럴 상수화(소형·선택)** — 금융사 미선택 값이 8곳 이상에 리터럴로 흩어져 있다(`quote-workbench-meta.ts`·`QuoteWorkbench.tsx`·`useQuoteWorkbench.ts`·이번 수정 포함). 레포 관례("계산·재사용 값은 named const")에 어긋나며, 오타 하나가 게이트를 조용히 풀 수 있다.
+1. **배치 13 잔여 별건 1종** — `K1 안 ②c` controlled 전환(DOM 쓰기 6경로 + 저장 payload 회귀 재검증 = **별도 사이클**). 오늘 uncontrolled 함정을 두 번 밟았으므로(팝오버 리마운트 키 무효 · 초기화 DOM 잔존) 근본 해결 가치는 오르는 중.
+2. **이사님 회신 대기** — pending **열린 12건**(항목 25·26 신설), 특히 **21·22는 묶어서** 여쭙는 게 효율적. ⚠️ **NO_HITS 문구+sources 동시 렌더는 21·22 결정과 얽혀 보류 중**(지금 고치면 결정 후 두 번 고친다).
+3. **CI 후속(선택)** — 남은 red 게이트 없음. 다음 후보는 `test:server`를 CI에 넣을 방법(전용 테스트 DB가 생기면). 지금은 공유 master라 불가.
 
 ## 대기 (우리 액션 없음)
 

@@ -26,16 +26,17 @@ import {
   cardUiMapFromScenarios,
   cardUiOf,
   createQuoteCode,
+  discountLineWon,
   effectiveMileageValue,
   emptyQuoteConditionCards,
   emptyQuotePricing,
-  discountLineWon,
   initialQuotePricingResult,
+  LENDER_UNSELECTED,
   MILEAGE_BASIC_VALUE,
-  planGateFallback,
-  quotePurchaseMethodOptions,
   normalizeQuotePurchaseMethod,
+  planGateFallback,
   primaryQuotePurchaseMethod,
+  quotePurchaseMethodOptions,
   residualDisplayFromSnapshot,
   restoreDiscountLines,
   solutionSnapshotsFromScenarios,
@@ -389,7 +390,7 @@ export function useQuoteWorkbench({
       if (!sc) return base;
       return {
         ...base,
-        lender: sc.lender || "미선택",
+        lender: sc.lender || LENDER_UNSELECTED,
         monthlyPayment: sc.monthlyPayment ? formatMoney(Number(sc.monthlyPayment)) : "0",
         // 모드는 cardUi(setCardUi ← cardUiMapFromScenarios)가 갖는다. 여기선 표시 금액 포맷에만 쓴다.
         depositValue: sc.depositMode === "percent" ? sc.depositValue : (sc.depositValue ? formatMoney(Number(sc.depositValue)) : "0"),
@@ -438,7 +439,7 @@ export function useQuoteWorkbench({
     const sourceEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${sourceId}"]`);
     const targetEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${targetId}"]`);
     if (!sourceEl || !targetEl) return;
-    const sourceLender = sourceEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value ?? "미선택";
+    const sourceLender = sourceEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value ?? LENDER_UNSELECTED;
     const targetLender = targetEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]');
     // 대상 select에 없는 값 대입은 선택을 비워버린다(selectedIndex -1) — 구 어휘 금융사(수정 재진입 견적의
     // "표시 유지" option)는 대상 카드에 렌더되지 않으므로, option 존재를 확인하고 없으면 건드리지 않는다.
@@ -848,7 +849,7 @@ export function useQuoteWorkbench({
       if (!cardEl) continue;
       if (prevBrand && prevBrand !== workbenchBrand) resetCardDealer(cardEl, card.id);
       const lender = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value;
-      if (lender && lender !== "미선택") void loadCardDealers(card.id, lender);
+      if (lender && lender !== LENDER_UNSELECTED) void loadCardDealers(card.id, lender);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 브랜드 변경 시점에만 재적재(카드 금융사는 그 시점 DOM이 최신 — uncontrolled 계약)
   }, [workbenchBrand]);
@@ -1076,7 +1077,7 @@ export function useQuoteWorkbench({
   function handleSolutionQueryClick(condId: string) {
     const cardEl = quoteDetailFormRef.current?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
     const lender = cardEl?.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value ?? "";
-    if (!lender || lender === "미선택") {
+    if (!lender || lender === LENDER_UNSELECTED) {
       // 모달 오픈 전 사전 검증(금융사 외 공통 조건 — 차량/MC코드/가격/기간/약정거리): 전 금융사가 같은 사유로
       // 실패할 모달 대신 기존 fail-loud 토스트. 프로브 금융사 = 지원 목록 1번(목록에서 뽑아 금융사 게이트는 항상 통과).
       const options = solutionLenderOptions(solutionWorkbenchPurchaseMethod);
@@ -1131,7 +1132,7 @@ export function useQuoteWorkbench({
       const cardEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
       const fieldVal = (f: string) => cardEl?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? null;
       const lenderRaw = fieldVal("lender");
-      const lender = lenderRaw && lenderRaw !== "미선택" ? lenderRaw : null;
+      const lender = lenderRaw && lenderRaw !== LENDER_UNSELECTED ? lenderRaw : null;
       const monthlyPayment = parseMonthlyPayment(fieldVal("monthly") ?? "");
       const isFilled = savedManualQuoteConditionIds.includes(condId) || lender !== null || (monthlyPayment !== null && Number(monthlyPayment) > 0);
       if (!isFilled) continue; // 빈 슬롯 제외(저장도 채워짐도 아님)
@@ -1300,9 +1301,8 @@ export function useQuoteWorkbench({
     // 판매사 select가 지금 고를 수 없는 딜러를 계속 제시했다(무음 오계산 입구 — 실측 재현).
     // 거울이 자가치유되는 바로 이 지점에서 함께 정리한다. 금융사가 다시 선택되면 브랜드 도착
     // effect·이벤트 경로가 재적재하므로 지워도 잃는 게 없다.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 위와 같은 파생 정리(조기 반환 뒤에만 도달)
     setDealerOptionsByCard((prev) => {
-      const stale = Object.keys(prev).filter((id) => !next[id] || next[id] === "미선택");
+      const stale = Object.keys(prev).filter((id) => !next[id] || next[id] === LENDER_UNSELECTED);
       if (stale.length === 0) return prev;
       const kept = { ...prev };
       for (const id of stale) delete kept[id];
@@ -1524,7 +1524,7 @@ export function useQuoteWorkbench({
     // ⚠️ 거울(lenderByCard)은 여기서 건드리지 않는다 — DOM이 진실이고 재동기화 effect가 파생을
     // 맞춘다(배치 13 K1-d: 거울만 비우면 "거울 ≠ 화면"이 된다). 순서도 그래서 상관없다.
     for (const select of quoteDetailFormRef.current?.querySelectorAll<HTMLSelectElement>('[data-scenario-card] select[data-sc-field="lender"]') ?? []) {
-      select.value = "미선택";
+      select.value = LENDER_UNSELECTED;
     }
     setSolutionWorkbenchPurchaseMethod(primaryQuotePurchaseMethod(purchaseFields));
     setSolutionWorkbenchEntryMode("manual");
@@ -1608,7 +1608,7 @@ export function useQuoteWorkbench({
     const dq = detail.quotes.find((q) => q.id === quote.id);
     const editScenarios: EditScenario[] = (dq?.scenarios ?? []).map((s) => ({
       scenarioNo: s.scenarioNo ?? 1,
-      lender: s.lender ?? "미선택",
+      lender: s.lender ?? LENDER_UNSELECTED,
       monthlyPayment: s.monthlyPayment ?? "",
       termMonths: s.termMonths ?? 60,
       depositMode: (s.depositMode as ManualDepositMode) ?? "none",
