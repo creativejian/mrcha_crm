@@ -46,6 +46,14 @@ export const HANDOFF_MODE_LABELS: Record<HandoffMode, string> = {
   force_off: "강제 OFF",
 };
 
+// 운영시간 판정 기준 타임존. **저장 시 반드시 명시 전달한다**(update_human_handoff_settings의
+// `p_timezone`) — DB에 DEFAULT 'Asia/Seoul'이 있지만 그건 편의 장치이지 계약이 아니다.
+// 이 값은 단순 저장값이 아니라 앱의 `private.handoff_availability_at`이 `AT TIME ZONE s.timezone`으로
+// 쓰는 **판정 기준 시각**이라, DEFAULT가 흘러 UTC로 바뀐 상태에서 우리가 인자를 생략하면
+// 그 값이 컬럼에 덮여 운영시간 판정이 통째로 9시간 밀린다(에러 없이 조용히 — 2026-07-22 앱 팀 확인).
+// 명시 전달하면 앱 쪽 DEFAULT 사고와 무관해진다.
+export const HANDOFF_TIMEZONE = "Asia/Seoul";
+
 // schedule JSONB 키(계약: 정확히 7개·휴무일 null·"HH:MM"). 표시 순서는 월요일 시작.
 export const HANDOFF_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 export type HandoffDayKey = (typeof HANDOFF_DAY_KEYS)[number];

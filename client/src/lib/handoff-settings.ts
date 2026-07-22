@@ -2,7 +2,7 @@
 // 계약 SSOT = ref/specs/2026-07-11-crm-handoff-operation-settings-design.md (앱 이슈 #582,
 // 앱 마이그 20260711170000). 쓰기는 update_human_handoff_settings RPC 단일 경로 —
 // 테이블 직접 쓰기는 REVOKE돼 있고(admin 검사+감사 기록이 RPC 안에서 원자), CRM 서버 경유도 없다.
-import { HANDOFF_DAY_KEYS, HANDOFF_DAY_LABELS, HANDOFF_MODE_LABELS, type HandoffDayKey, type HandoffMode } from "@/data/chat";
+import { HANDOFF_DAY_KEYS, HANDOFF_DAY_LABELS, HANDOFF_MODE_LABELS, HANDOFF_TIMEZONE, type HandoffDayKey, type HandoffMode } from "@/data/chat";
 import { supabase } from "./supabase";
 
 export type DaySchedule = { start: string; end: string } | null;
@@ -169,6 +169,10 @@ export async function saveHandoffSettings(
       p_force_message: draft.forceMessage,
       p_outside_hours_message: draft.outsideHoursMessage,
       p_reason: reason,
+      // DB DEFAULT에 기대지 않고 명시 전달한다(2026-07-22 앱 팀 권고 수용). timezone은 앱의
+      // 운영시간 판정(private.handoff_availability_at의 AT TIME ZONE)이 쓰는 기준 시각이라,
+      // DEFAULT가 흘리면 저장 한 번에 판정이 통째로 밀린다. 명시하면 그 사고와 무관해진다.
+      p_timezone: HANDOFF_TIMEZONE,
     })
     .single<SettingsRow>();
   if (error) {
