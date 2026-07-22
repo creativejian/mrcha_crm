@@ -48,15 +48,10 @@ jobs:
       # 더미값(시크릿 아님) — 위 주석의 근거 참조.
       VITE_SUPABASE_URL: https://ci-dummy.supabase.co
       VITE_SUPABASE_PUBLISHABLE_KEY: ci-dummy-publishable-key
-      # GitHub 러너는 UTC다. 날짜 포맷을 검증하는 테스트 3건이 로컬 타임존을 그대로 쓰기 때문에
-      # UTC에서는 9시간 어긋나 깨진다(CI 첫 실행이 실제로 잡아냈다: `app-card` · `manage-status` ·
-      # `build-timeline-rows`, "expected '26/04/16 09:07' to be '26/04/16 18:07'").
-      # 이 제품은 한국 전용 CRM이고 KST가 도메인 기준이므로(`HANDOFF_TIMEZONE = 'Asia/Seoul'`,
-      # AGENTS.md) **CI를 실제 환경에 맞춘다** — UTC로 두면 아무도 쓰지 않는 조건에서 검증하게 된다.
-      # 🚫 **그 3건을 타임존 독립으로 고치지 않기로 했다(2026-07-22 유슨생 결정)** — 팀·사용자·서버
-      #    기준이 전부 KST 하나라 독립화의 실익이 없다. 재제안하지 말 것. 다른 타임존 참여자가
-      #    생기면 그때 재검토한다(그 전까지 이 한 줄이 유일한 대응이다).
-      TZ: Asia/Seoul
+      # ⚠️ **여기에 `TZ`를 두지 말 것.** 테스트 타임존 고정은 `vitest.config.ts`의 `test.env.TZ`가
+      #    단독 소유한다(두 곳에 두면 한쪽만 고쳐 어긋난다). 그래야 CI뿐 아니라 **모든 개발자
+      #    로컬에서도** 같은 결과가 나온다. 경위: CI 첫 실행이 UTC 러너에서 날짜 테스트 3건의
+      #    로컬 타임존 의존을 잡아냈고(9시간 차), 처음엔 여기에 `TZ`를 넣었다가 vitest 쪽으로 옮겼다.
 
     steps:
       - uses: actions/checkout@v4
