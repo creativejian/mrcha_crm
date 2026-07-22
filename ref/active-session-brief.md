@@ -9,10 +9,10 @@ Last updated: 2026-07-22
 
 ## 지금 상태
 
-**배치 15 전량 종결 + Topbar 팝오버 수정 + CI 도입까지 완료. 진행 중인 미완 작업 없음.**
+**배치 15 종결 + Topbar 팝오버 수정 + CI 도입 + 별건 2종까지 완료. 진행 중인 미완 작업 없음.**
 
-최근 머지: `2460d55`(PR1 `#320` 계약 근거절 정정·감사 관례 축소 박제) · `b8a12a8`(PR2 `#321` 회귀 그물 3건, 변이로 RED 실증) · `35c068b`(`#322` 상단바 팝오버 우측 잘림) · `342c70f`(`#323` **CI 도입**).
-main 통합 검증 green — typecheck 0 · lint 0 · unit **1067** · server **651** · build · knip 7/9 · 픽스처 잔재 0. **이제 push·PR마다 CI가 4종을 자동 검증한다**(server 제외).
+최근 머지: `2460d55`(PR1 `#320` 계약 근거절 정정·감사 관례 축소 박제) · `b8a12a8`(PR2 `#321` 회귀 그물 3건, 변이로 RED 실증) · `35c068b`(`#322` 상단바 팝오버 우측 잘림) · `342c70f`(`#323` **CI 도입**) · `e8ab97c`(`#324` Edge 배선·실 Gemini 호출 제거).
+main 통합 검증 green — typecheck 0 · lint 0 · unit **1067** · server **651** · build · knip 7/9 · 픽스처 잔재 0. **이제 push·PR마다 CI가 5종(typecheck·lint·unit·build·**edge**)을 자동 검증한다**(server만 로컬).
 판정 14건 중 **이행 12 · 조치 불요 2**. SSOT = `ref/plans/2026-07-22-crm-refactor-batch-15.md`(종결 절 포함).
 ⚠️ **다음 배치부터 풀 감사는 트리거 기반 경량형**이다 — 근거·규칙은 `AGENTS.md` Verification Budget 절에 박제됐다.
 
@@ -35,11 +35,13 @@ main 통합 검증 green — typecheck 0 · lint 0 · unit **1067** · server **
 **⑧ CI 도입(`#323` `342c70f`) — 레포 최초의 자동 검증 그물.** push(main)·PR마다 **typecheck·lint·test:unit·build** 4종. ⚠️ **`test:server`는 CI 금지**(공유 master DB 실접속 = 픽스처 행·운영 알림·실 Gemini 9콜) · **knip·format:check도 제외**(도입 시점부터 red인 선재 상태 — 기준선 0으로 만든 뒤에 넣는다). env는 `VITE_*` 더미만(시크릿 0).
 **도입 첫날 실제 결함 2건을 잡았다.** ⓐ**내 실측 오류**: `env -i`는 환경변수만 지우고 `.env.local`은 남겨 vite가 읽는다 → "env 없이 통과"가 거짓이었다. **CI 조건 재현은 깨끗한 worktree로** 할 것 ⓑ**날짜 테스트 3건이 실행 환경 타임존에 의존**(UTC 러너에서 9시간 어긋남 — 팀 로컬이 전원 KST라 아무도 몰랐다). → **`vitest.config.ts`의 `test.env.TZ`가 타임존 고정의 단독 소유자**(CI에 중복 금지 — 그래야 로컬도 결정론적). 🚫 앱이 뷰어 로컬 타임존으로 표시하는 것(층 2)은 **제품 동작 문제이고 고치지 않기로 결정**(전원 KST·재제안 금지, 근거는 `vitest.config.ts` 주석).
 
+**⑨ 별건 2종 종결(`#324` `e8ab97c`).** ⓐ**Edge(Deno) 테스트 26건을 배선**(`test:edge` 스크립트 + CI 단계 + 로컬 `test`) — 실행은 되는데 어디에도 안 걸려 수동 의존이었다(M11). 외부 호출 0(전부 `fetchImpl` 페이크)이라 권한 플래그도 불필요. **CI 로그에서 26 passed 실측 확인** ⓑ**`test:server`의 실 Gemini 9콜 제거**(M7) — 원인은 **한 줄**이었다: `ragFakes`가 다른 dep은 "실 조회 차단" 주석까지 달아 막아두고 **`routeAssistantTool`만 빠뜨려** override 없는 테스트가 실 라우터를 탔다. 격리 worktree 전/후 대조 = **7.39s → 181ms(41배), 결과는 41 tests·104 expect·0 fail로 완전 동일** = 외부 호출 소멸의 증거.
+
 ## ▶ 다음 작업 (미확정 — 후보)
 
-1. **별건** — `test:server` 실 Gemini 9콜 위생(배치 15 M7) · Deno 테스트 배선(M11) · NO_HITS 문구+sources 동시 렌더(표시 정책과 함께) · 배치 13 별건 3종(`resetQuoteWorkbench` DOM 미청소 등)
+1. **배치 13 별건** — `dealerOptionsByCard`(구매방식 전환 시 stale + "금융사 먼저 선택" **거짓 표시** = 실사용 가시 버그, 가치 높음) · `resetQuoteWorkbench` DOM 미청소(**행위 변경**이라 이사님 확인 대상일 수 있음) · `K1 안 ②c` controlled 전환(DOM 쓰기 6경로 + 저장 payload 회귀 재검증 = **별도 사이클**)
 2. **CI 후속(선택)** — knip·format:check **기준선을 0으로 만든 뒤** CI에 추가(현재 knip 7/9 · format warn 20건). 하면 위생이 자동으로 잠긴다.
-3. **이사님 회신 대기** — pending 열린 10건, 특히 **21·22는 묶어서** 여쭙는 게 효율적
+3. **이사님 회신 대기** — pending 열린 10건, 특히 **21·22는 묶어서** 여쭙는 게 효율적. ⚠️ **NO_HITS 문구+sources 동시 렌더는 21·22 결정과 얽혀 보류 중**(지금 고치면 결정 후 두 번 고친다).
 
 ## 대기 (우리 액션 없음)
 
