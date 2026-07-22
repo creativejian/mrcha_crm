@@ -227,6 +227,12 @@ test("dismiss — 소유권 불일치(타 유저 상담) → 404 + dismissal 행
       .where(eq(consultationDismissals.consultationId, consultationId));
     expect(rows.length).toBe(0);
   } finally {
+    // 이 테스트는 "행 0"이 전제라 평소엔 no-op이다. 그런데 소유권 게이트를 변이시켜 검증할 때는
+    // 실제로 200이 나며 dismissal이 INSERT되고, 상담 원본을 지우면 그게 고아로 남는다
+    // (배치 12 변이 검증 때 실제로 1건 잔류 — 배치 13 A#4에서 발견·정리). 잔재 스캐너는 이 테이블을
+    // 훑지 않으므로(고아 dismissal은 상관 서브쿼리라 질의 결과에 무해 = 확장 시 오탐만 늘어 기각)
+    // 원천에서 지운다. fixture-codes.ts의 "403/404 전제 픽스처도 변이 중 실 행을 만든다" 교훈과 같은 축.
+    await db.delete(consultationDismissals).where(eq(consultationDismissals.consultationId, consultationId));
     await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
     await db.delete(customers).where(eq(customers.id, customerId));
   }

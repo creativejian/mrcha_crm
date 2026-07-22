@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { formatActivity } from "./customers";
 import {
   createCustomerFromConsultation,
+  dismissConsultation,
   fetchCustomerConsultations,
   fetchPendingConsultations,
   linkConsultationToCustomer,
@@ -66,6 +67,20 @@ describe("fetchCustomerConsultations", () => {
     vi.stubGlobal("fetch", spy);
     const list = await fetchCustomerConsultations("cust-2");
     expect(list).toEqual([]);
+  });
+});
+
+describe("dismissConsultation", () => {
+  // 배치 12 K1: dismiss는 인박스 탑레벨에서 customers 하위로 이사했다(#302 게이트에 드로어 흐름이
+  // 걸리던 부수 피해 해소). 쌍둥이 fetchQuoteRequestDetail에만 URL 잠금이 있던 비대칭을 메운다 —
+  // 되돌아가면 staff의 상담 카드 삭제가 403으로 다시 조용히 죽는다(그때 아무도 몰랐던 이유 = staff 실계정 부재).
+  // 두 인자가 모두 string이라 순서 교환도 typecheck를 통과하므로 URL 자체를 단언한다.
+  it("DELETE /api/customers/:id/consultations/:consultId 호출(K1 이사 URL 회귀 잠금)", async () => {
+    const spy = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", spy);
+    await dismissConsultation("cust-1", "consult-9");
+    expect((spy.mock.calls[0] as unknown[])[0]).toBe("/api/customers/cust-1/consultations/consult-9");
+    expect((spy.mock.calls[0] as unknown[])[1]).toMatchObject({ method: "DELETE" });
   });
 });
 
