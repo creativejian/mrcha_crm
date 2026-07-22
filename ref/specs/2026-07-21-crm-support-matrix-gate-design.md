@@ -132,6 +132,19 @@ resolveGateFallback(current, supported, fallback): number | null      // 폴백 
 - `clearCardUiState` → 초기화
 - 수정 진입(`openEditQuote`) → 시나리오 lender로 시드
 
+> **⚠️ 위 4지점 목록은 틀렸다 — 2026-07-22 배치 13(K1)에서 폐기됨.** 실측 결과 ①구매방식 전환(option 목록에서
+> 선택지가 빠지면 `select.value`가 **change/input 발화 0으로** "미선택"이 된다)과 ②저장 카드 "수정"(잠금 해제)이
+> 목록에 없었고, 무엇보다 ③`clearCardUiState`의 클리어는 **DOM select는 그대로 둔 채 거울만 비워** 어긋남을
+> 오히려 만들었다(초기화 후 게이트 전면 해제 실측 — 섹션 key가 신규→신규 불변이라 리마운트가 없고, React는
+> non-multiple select의 `defaultValue` 갱신을 무시한다).
+>
+> **현행 계약 = "거울은 DOM의 파생 · 재동기화 1지점"**: 금융사 값의 진실은 카드 DOM select(uncontrolled)이고,
+> `useQuoteWorkbench.ts`의 **dep 없는 `useLayoutEffect` 하나**가 매 커밋 카드별 select를 읽어 거울을 재동기화한다
+> (`sameStringMap` bail-out과 **한 쌍** — 없으면 무한 렌더로 즉사한다, 변이 실증). 사용자 선택 경로의
+> `syncDealerOnLenderChange` 갱신만 유지되는데, 이는 카드 미filled 시 커밋 자체를 보장하는 load-bearing이다.
+> **동기화 지점을 사람이 열거하는 방식은 재제안 금지** — 그 구조가 이 결함군의 원인이었다.
+> 근거·비교표: `ref/plans/2026-07-22-crm-refactor-batch-13.md` K1.
+
 **UI 적용**
 
 기간 세그먼트에는 **공유 프리미티브 확장이 선행된다.** `SegmentGroup`(`quote-fields/QuoteFields.tsx`)은 현재 **그룹 단위 `disabled`만** 받고, `SegmentOption = { value, label }`에 옵션 단위 개념이 없다.
@@ -171,8 +184,9 @@ export type SegmentOption<T> = { value: T; label: string; disabled?: boolean };
 | 방어 파싱 | 유닛 — 배열 아님·숫자 아님·필드 누락 → `null` 강등 |
 | 릴레이 | 서버 테스트 — 200 패스스루·업스트림 4xx/5xx 매핑·env 미설정 503·타임아웃 |
 | `SegmentGroup` additive | 유닛 — `option.disabled` 미전달 시 기존과 동일(속성 부재)·전달 시 해당 버튼만 비활성. **공유 프리미티브라 계산기 회귀 방지선** |
-| 게이트 렌더 | 워크벤치 유닛 — 목 매트릭스 주입 후 MG 선택 시 12·24 disabled, 마일리지 옵션 3개 |
-| 폴백 | 유닛 — 24개월+MG → 60개월 이동·토스트 1회 |
+| 게이트 렌더 | 워크벤치 유닛 — 목 매트릭스 주입 후 MG 선택 시 12·24 disabled, 마일리지 옵션 3개 → **✅ 이행(배치 13) `QuoteWorkbench.gate.test.tsx` 케이스 1** |
+| 폴백 | 유닛 — 24개월+MG → 60개월 이동·토스트 ~~1회~~ **문구 단언**(⚠️ 횟수 단언 금지 — select는 `input`+`change`를 모두 쏴 `applyGateFallback`이 2회 돈다. 멱등이고 `showToast`가 단일 슬롯 교체라 사용자에겐 1회) → **✅ 이행(배치 13) 케이스 2** |
+| **거울 ≡ 화면 금융사(배치 13 신설)** | 워크벤치 유닛 — 수정 진입 잔상·구매방식 왕복·초기화·조건 복사·랭킹 선택 5경로에서 `expectGateFollowsSelectedLender` 불변식(케이스 3~7). **arrange로 실 생명주기 전이를 재현해야 그물이 된다**(단언만 얹으면 오늘도 green) |
 | fail-open | 유닛 — 빈 Map·`null`이면 전량 노출 |
 
 **브라우저 스모크는 제프 배포 전까지 제한적이다.** 실 API가 없으므로 ①fail-open 경로(게이트 없음 = 현행과 동일)는 실화면 확인 가능 ②게이트 경로는 목 응답 주입으로 확인. 제프 배포 후 실 API 스모크를 별도로 1회 수행한다.
