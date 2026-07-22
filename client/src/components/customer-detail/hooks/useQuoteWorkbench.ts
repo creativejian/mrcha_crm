@@ -1562,10 +1562,11 @@ export function useQuoteWorkbench({
 
   // 견적 "수정" seam — detail.quotes에서 시나리오/비교카드/맵 복원(9b/9d/9e 상태). 9a 액션 팝오버가 호출.
   function openEditQuote(quote: QuoteItem) {
+    // 계약 진행 견적은 워크벤치 대신 안내 다이얼로그로 — 팝오버를 열어 둔 채여야 렌더된다(QuoteList의
+    // 유일 렌더 지점이 팝오버 내부라, 여기서 closeQuoteActionPopover를 부르면 안내가 통째로 사라진다).
+    // 동반 클리어는 호출부인 "견적 수정" 오프너가 단일 소유(배치 13 K2-a) — 여기 중복 setter를 두면
+    // 클리어가 caller/callee로 쪼개져 오프너 6곳 관례가 다시 어긋난다.
     if (quote.decisionStatus === "contracting") {
-      quoteList.handlers.setConfirmingQuoteSendId(null);
-      quoteList.handlers.setConfirmingQuoteDeleteId(null);
-      quoteList.handlers.setConfirmingQuoteContractId(null);
       quoteList.handlers.setConfirmingQuoteContractEditId((current) => (current === quote.id ? null : quote.id));
       return;
     }
@@ -1650,11 +1651,10 @@ export function useQuoteWorkbench({
     setSolutionLenderPickerId(null); // clearCardUiState 미경유 경로 — 유령 모달 방어(#163 부류)
     setRecognizedQuoteFile(null);
     setIsQuoteSolutionWorkbenchOpen(true);
-    quoteList.handlers.setOpenQuoteActionId(null);
-    quoteList.handlers.setQuoteActionFrame(null);
-    quoteList.handlers.setConfirmingQuoteSendId(null);
-    quoteList.handlers.setConfirmingQuoteDeleteId(null);
-    quoteList.handlers.setConfirmingQuoteContractId(null);
+    // 수정 진입 = 팝오버 닫힘 → 단일 지점(배치 12 B#1). 산개 setter 5줄은 넛지·downgrade를 안 지워서,
+    // 마킹 PATCH 롤백으로 넛지만 남은 견적에 수정 진입하면 팝오버가 닫힌 채 넛지가 고아로 남고
+    // (렌더 0 · editorOpen만 true) 드로어 Escape가 무음 차단됐다(배치 13 K2-a 실측 ③).
+    quoteList.handlers.closeQuoteActionPopover();
   }
 
   // 부모 detailOverlayOpen OR용(배경 스크롤 잠금) — 워크벤치 열림.

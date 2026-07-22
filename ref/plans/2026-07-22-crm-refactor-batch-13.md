@@ -85,6 +85,6 @@
 - [x] 기준선 재실측(typecheck 0·lint 0·unit 1038·server 640·build·잔재 0)
 - [x] 4앵글 병렬 감사 + 적대 검증 3명(V1 설계 비교·실측 3종 GREEN 전환 / V2 반박 5프로브 / V3 전수 심사·`visual:crm` 실행) + 오케스트레이터 ground-truth 스팟 — 판정 확정
 - [x] **PR1 이행** — `refactor/crm-batch-13-gate-mirror`: 안 ④(재동기화 effect + bail-out) + 거울 쓰기 2곳 제거 + 회귀 그물 **7종**(요청 6 + V1이 사각 발견해 추가한 "조건 복사" 1) + 스펙 §4.4 폐기·§5 갱신. **변이 3종 실관찰**: M1(픽스 전 완전 원복) 4🔴 · M2(effect만 비활성) 4🔴 · M3(bail-out 무력화) **7🔴 = `Maximum update depth exceeded`**(bail-out이 load-bearing 실증). ⚠️ 케이스 5는 M2를 못 잡고 M1만 잡는다(D4 원인이 effect 부재가 아니라 clear 줄이었으므로) — 그래서 케이스 7이 M2를 잡는다. **제거한 두 setter 각각에 전용 그물 1개씩**. 검증 typecheck 0·lint 0·unit **1045**(+7)
-- [ ] PR2 이행
+- [x] **PR2 이행** — `refactor/crm-batch-13-nudge`: K2-a(견적 수정 오프너 클리어 5종 + 앱 발송 downgrade 1줄 + `openEditQuote` 조기 반환 분기의 중복 3 setter 제거 — 안 지우면 caller/callee 드리프트가 이름만 바뀐 채 존속) + 비-contracting 꼬리 5줄 → `closeQuoteActionPopover()` + K2-b(롤백 클리어 + **"클릭-선행 레이스 잔존(수용)" 주석 박제**) + K2-c(니즈 카드 선검사 3줄). 테스트 **+15**(`QuoteList.opener-clear.test.tsx` 전수 열거형 11 · 롤백 1 · 워크벤치 두 분기 정반대 팝오버 계약 2 · `CustomerDetailPage.promoted-quote.test.tsx` 1). **변이 6종 실관찰**: 6번째 오프너 되돌림·downgrade 1줄·롤백 클리어·선검사·꼬리 산개 복원 각각 해당 케이스만 RED + **M6 = 함정 변이(조기 반환 분기에 `closeQuoteActionPopover` 적용)도 RED**로 회귀 자체가 그물에 걸림. 검증 typecheck 0·lint 0·unit **1060**(+15)
 - [ ] PR3 이행
 - [ ] 통합 검증·머지

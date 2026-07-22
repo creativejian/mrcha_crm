@@ -140,6 +140,7 @@ function quoteListStub() {
       setConfirmingQuoteContractEditId: vi.fn(),
       setOpenQuoteActionId: vi.fn(),
       setQuoteActionFrame: vi.fn(),
+      closeQuoteActionPopover: vi.fn(), // 수정 진입의 팝오버 닫힘 단일 지점(배치 13 K2-a)
       setQuotes: vi.fn(),
     },
   } as unknown as ReturnType<typeof useQuoteList>;
@@ -147,6 +148,8 @@ function quoteListStub() {
 
 function setup() {
   const onToast = vi.fn();
+  // 스텁은 렌더 콜백 밖에서 1벌만 만든다 — 안에서 만들면 재렌더마다 새 vi.fn이라 호출 단언이 스테일해진다.
+  const quoteList = quoteListStub();
   const hook = renderHook(
     () =>
       useQuoteWorkbench({
@@ -154,13 +157,13 @@ function setup() {
         customer,
         onToast,
         markRecentUpdate: vi.fn(),
-        quoteList: quoteListStub(),
+        quoteList,
         purchaseFields: [{ label: "구매방식", value: "운용리스" }],
         reloadAppRequests: vi.fn(),
       }),
     { wrapper: ({ children }: { children: ReactNode }) => <MemoryRouter>{children}</MemoryRouter> },
   );
-  return Object.assign(hook, { onToast });
+  return Object.assign(hook, { onToast, quoteList });
 }
 
 // 이전 세션(수정 진입 등)이 남긴 카드 UI 상태를 주입한다 — 카드 모드·할인 행·취득세 모드.
@@ -272,6 +275,23 @@ describe("useQuoteWorkbench — 오픈/리셋 경로의 카드 UI 상태 잔상 
       { label: "재구매 할인", amount: "500,000", unit: "amount" },
       { label: "프로모션", amount: "1.5", unit: "percent" },
     ]);
+  });
+});
+
+// 수정 진입(openEditQuote)의 행 액션 팝오버 처리 — 배치 13 K2-a.
+// 두 분기의 계약이 정반대라 양쪽을 함께 잠근다(한쪽만 보면 다른 쪽으로 회귀가 샌다).
+describe("useQuoteWorkbench — openEditQuote의 팝오버 계약", () => {
+  it("일반 견적: 팝오버를 단일 지점으로 닫는다 — 산개 setter는 넛지·해제 확인을 고아로 남긴다", () => {
+    const { result, quoteList } = setup();
+    act(() => result.current.openEditQuote({ id: "q-edit-1", decisionStatus: null, trimId: null, financeType: "운용리스", source: "manual" } as unknown as QuoteItem));
+    expect(quoteList.handlers.closeQuoteActionPopover).toHaveBeenCalledTimes(1);
+  });
+
+  it("계약 진행 견적: 팝오버를 닫지 않는다 — 안내 다이얼로그의 유일 렌더 지점이 팝오버 안이라 닫으면 무음 누수가 된다", () => {
+    const { result, quoteList } = setup();
+    act(() => result.current.openEditQuote({ id: "q-edit-1", decisionStatus: "contracting", trimId: null, financeType: "운용리스", source: "manual" } as unknown as QuoteItem));
+    expect(quoteList.handlers.closeQuoteActionPopover).not.toHaveBeenCalled();
+    expect(quoteList.handlers.setConfirmingQuoteContractEditId).toHaveBeenCalledTimes(1);
   });
 });
 

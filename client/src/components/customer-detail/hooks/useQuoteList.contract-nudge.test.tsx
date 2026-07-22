@@ -131,6 +131,22 @@ describe("넛지 상태 클리어 경로 (배치 12 B#1)", () => {
     expect(result.current.contractStageNudgeQuoteId).toBeNull();
   });
 
+  // 배치 13 K2-b — 마킹 PATCH 실패 롤백. 넛지 렌더 조건은 decisionStatus를 보지 않으므로
+  // (contractStageNudgeQuoteId === openQuoteAction.id) 롤백해도 넛지가 그대로 남아, 발주 경로를 누르면
+  // contracting 견적 0인데 계약완료로 전이된다(서버는 status 조합만 검증 — 교차 검증 없음).
+  // ⚠️ 이 테스트가 잠그는 건 "롤백 착지 후" 뿐이다 — 롤백 전에 누르는 클릭-선행 레이스는 잔존(수용).
+  it("마킹 PATCH 실패 롤백 = 넛지 무효(K2-b — 마킹 없는 계약완료 전이 차단)", async () => {
+    updateQuoteMock.mockRejectedValueOnce(new Error("patch failed"));
+    const { result } = setup();
+    act(() => result.current.setQuotes([{ id: "q-1", quoteCode: "QT-1", title: "테스트 견적", meta: "", status: "작성중", source: "manual", appStatus: "draft", decisionStatus: "none" }]));
+    openNudge(result);
+    // 낙관 반영은 contracting
+    expect(result.current.quotes[0].decisionStatus).toBe("contracting");
+    // 롤백 착지 — decisionStatus 원복 + 넛지 동반 무효
+    await waitFor(() => expect(result.current.quotes[0].decisionStatus).toBe("none"));
+    expect(result.current.contractStageNudgeQuoteId).toBeNull();
+  });
+
   it("외부 pointerdown·Escape = 넛지 거절(spec §8 계약 3 — B#6② 리스너 실커버)", () => {
     const { result } = setup();
     openNudge(result);
