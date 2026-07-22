@@ -1,0 +1,83 @@
+name: CI
+
+# 레포 최초의 자동 검증 그물(2026-07-22). 그전까지는 typecheck·lint·test를 매번 사람이 수동으로
+# 돌렸고, 그래서 리팩토링 감사가 반복해서 위생 결함을 발견해야 했다(배치 15 메타 결정 ③).
+#
+# ⚠️ **`test:server`는 여기에 절대 추가하지 말 것.**
+#   그 스위트는 `DATABASE_URL`(공유 master Supabase)에 실제로 붙는다. CI에서 돌리면
+#   ①운영 DB에 픽스처 행이 생기고(중단되면 잔재가 남아 이사님 고객 목록에 유령으로 뜬다)
+#   ②`public.consultations`·`advisor_quotes`·`chat_messages`·`chat_sessions` 트리거가
+#     실제 디스코드 알림·FCM 푸시를 발사하며
+#   ③실 Gemini 라우팅 호출이 매 실행 9건 나간다(배치 15 M7 계측).
+#   서버 테스트는 로컬에서만 돌린다 — 자세한 근거는 AGENTS.md의 알림 트리거·픽스처 절.
+#
+# ⚠️ knip·format:check도 제외했다. 둘 다 도입 시점부터 red인 선재 상태라(knip 7 unused
+#   exports / 9 types, format:check 스타일 warn 20건) 넣으면 CI가 항상 빨갛다. 기준선을
+#   0으로 만든 뒤에 추가할 것 — 그때까지는 red 게이트를 만들지 않는다.
+#
+# `VITE_*`는 **더미값**을 준다(시크릿 아님). `client/src/lib/supabase.ts`가 모듈 로드 시점에
+# 두 값이 없으면 throw하고, `test:unit`의 다수 테스트가 그 모듈을 import 체인으로 끌어온다.
+# 실제 Supabase에 붙지 않는다 — 테스트는 네트워크를 모킹하고, 빌드 산출물은 배포에 쓰이지
+# 않는다(실제 배포 빌드는 Cloudflare Pages가 자기 환경에서 따로 수행한다).
+#
+# ⚠️ **로컬에서 CI 조건을 재현할 때 `env -i`로는 부족하다.** 환경변수만 지울 뿐 `.env.local`
+#   파일은 그대로 남아 vite가 그걸 읽는다. 그 착각으로 "env 없이 4종 통과"라고 잘못 실측해
+#   이 워크플로우의 첫 실행이 깨졌다(2026-07-22). 제대로 재현하려면 `.env.local`이 없는
+#   **깨끗한 worktree**에서 돌릴 것: `git worktree add <tmp> HEAD` + node_modules 심링크.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 같은 브랜치에 연속 push하면 이전 실행을 취소한다(러너 낭비 방지).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: typecheck · lint · unit · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # 더미값(시크릿 아님) — 위 주석의 근거 참조.
+      VITE_SUPABASE_URL: https://ci-dummy.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: ci-dummy-publishable-key
+      # ⚠️ **여기에 `TZ`를 두지 말 것.** 테스트 타임존 고정은 `vitest.config.ts`의 `test.env.TZ`가
+      #    단독 소유한다(두 곳에 두면 한쪽만 고쳐 어긋난다). 그래야 CI뿐 아니라 **모든 개발자
+      #    로컬에서도** 같은 결과가 나온다. 경위: CI 첫 실행이 UTC 러너에서 날짜 테스트 3건의
+      #    로컬 타임존 의존을 잡아냈고(9시간 차), 처음엔 여기에 `TZ`를 넣었다가 vitest 쪽으로 옮겼다.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # 로컬 개발 버전과 일치시킨다(재현성). 올릴 때는 팀 전체가 함께 올린다.
+          bun-version: 1.3.14
+
+      # lockfile이 package.json과 어긋나면 여기서 멈춘다(의존성 드리프트 탐지).
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # 앞 단계가 실패해도 나머지를 계속 돌려 한 번에 전부 보고한다.
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: bun run typecheck
+
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: bun run lint
+
+      - name: Unit tests
+        if: ${{ !cancelled() }}
+        run: bun run test:unit
+
+      - name: Build
+        if: ${{ !cancelled() }}
+        run: bun run build
