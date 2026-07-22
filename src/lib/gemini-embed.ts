@@ -4,7 +4,7 @@ import type { GeminiTarget } from "./gemini-target";
 // 2026-07-22: gemini-embedding-001 → gemini-embedding-2 이관(001은 shutdown 예정).
 // ⚠️ 두 모델의 임베딩 공간은 **호환되지 않는다**. 같은 문장을 각각 임베딩해 코사인을 재보면 **0.03**
 // (거의 직교 — 실측). 섞이면 유사도가 무작위 수준이 되어 SIMILARITY_THRESHOLD(0.75)에 아무것도 안 걸린다.
-// 그래서 모델 교체는 **전량 재임베딩과 원자적으로** 가야 한다 — contentHash가 모델명을 포함하는 이유
+// 그래서 모델 교체는 **전량 재임베딩과 원자적으로** 가야 한다 — embeddingContentHash가 모델명을 포함하는 이유
 // (assistant-corpus.ts). 모델 상수를 바꾸면 전 코퍼스 해시가 달라져 백필이 자동으로 전량 재생성한다.
 export const EMBEDDING_MODEL = "gemini-embedding-2";
 export const EMBEDDING_DIM = 3072; // gemini-embedding-2 네이티브 차원(001과 동일) — schema vector(N)·halfvec 캐스트·테스트 픽스처가 공유. output_dimensionality 미지정.

@@ -1,6 +1,8 @@
 import { test, expect } from "bun:test";
+import { createHash } from "node:crypto";
 
-import { buildAiHintMaterial, sanitizeAiHint, type AiHintMaterialInput } from "./ai-hint";
+import { aiHintSourceHash, buildAiHintMaterial, sanitizeAiHint, type AiHintMaterialInput } from "./ai-hint";
+import { embeddingContentHash } from "./assistant-corpus";
 
 const BASE: AiHintMaterialInput = {
   name: "김민준",
@@ -59,4 +61,14 @@ test("sanitizeAiHint: ** 짝이 안 맞으면 굵게 서식 전체 제거", () =
 
 test("sanitizeAiHint: 빈/공백 출력 → 빈 문자열", () => {
   expect(sanitizeAiHint("  \n  ")).toBe("");
+});
+
+// 해시 네임스페이스 분리(배치 14 K1-a) — 이 해시는 `customers.ai_summary_source_hash`의 캐시 키이고
+// 임베딩 벡터 공간과 아무 관계가 없다. 임베딩용 해시(모델명 salt 포함)를 재사용하면 **모델 상수를
+// 교체하는 것만으로 전 고객 힌트가 무효화돼** 재생성 폭발 + 문구 무음 churn이 난다(#312에서 실제로
+// 발생 — 실측 22/22가 구 스킴 해시를 들고 있었다). 두 도메인은 영원히 분리한다.
+test("aiHintSourceHash: 재료만 해싱한다(임베딩 모델과 무결합)", () => {
+  const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+  expect(aiHintSourceHash("m")).toBe(sha256("m"));
+  expect(aiHintSourceHash("m")).not.toBe(embeddingContentHash("m")); // 임베딩 해시를 다시 끌어다 쓰면 RED
 });

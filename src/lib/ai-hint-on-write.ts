@@ -3,8 +3,7 @@ import type { Context } from "hono";
 import type { Db } from "../db/client";
 import { loadAiHintSource, setCustomerAiHint } from "../db/queries/ai-hint-sources";
 import { holdWork } from "../middleware/db";
-import { AI_HINT_SYSTEM_PROMPT, buildAiHintMaterial, sanitizeAiHint } from "./ai-hint";
-import { contentHash } from "./assistant-corpus";
+import { AI_HINT_SYSTEM_PROMPT, aiHintSourceHash, buildAiHintMaterial, sanitizeAiHint } from "./ai-hint";
 import { generateAnswer } from "./gemini-generate";
 import { resolveGeminiTargetFromRequest, type GeminiTarget } from "./gemini-target";
 
@@ -30,7 +29,7 @@ export async function runAiHintJob(customerId: string, target: GeminiTarget, db:
     }
     return "cleared";
   }
-  const hash = contentHash(material);
+  const hash = aiHintSourceHash(material);
   if (src.sourceHash === hash) return "unchanged"; // 재료 불변 → Gemini 호출 생략(no-op 쓰기·백필 재실행 흡수)
   const hint = sanitizeAiHint(await aiHintDeps.generateAnswer(AI_HINT_SYSTEM_PROMPT, material, target));
   if (!hint) return "empty"; // 빈 출력 — 기존 값 유지. hash도 안 올린다(다음 쓰기가 자연 재시도)
