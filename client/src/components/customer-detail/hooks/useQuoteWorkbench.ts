@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type SyntheticEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type SyntheticEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { type Customer } from "@/data/customers";
@@ -72,6 +72,13 @@ type UseQuoteWorkbenchArgs = {
   // 니즈 훅의 reloadAppRequests — 견적요청→견적 INSERT 성공 시 배지 갱신. 부모 relay.
   reloadAppRequests: () => void;
 };
+
+// 게이트 거울 재동기화 bail-out용 얕은 비교 — 매 커밋 setState가 무한 렌더로 번지지 않게 하는 안전핀.
+function sameStringMap(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  return ka.length === kb.length && ka.every((k) => a[k] === b[k]);
+}
 
 // 견적 워크벤치(9b~9e 통합): 솔루션 워크벤치 모달의 전체 상태/가격패널/비교카드/추가안내/앱카드/PDF원본/영속화.
 // cross-cutting(markRecentUpdate/quoteList/purchaseFields/reloadAppRequests)은 부모 보유 → 인자 주입.
@@ -450,9 +457,8 @@ export function useQuoteWorkbench({
       const dstDealer = targetEl.querySelector<HTMLSelectElement>('select[data-sc-field="dealer"]');
       if (dstDealer) dstDealer.value = sourceDealer;
       setDealerOptionsByCard((prev) => (prev[sourceId] ? { ...prev, [targetId]: prev[sourceId] } : prev));
-      // 게이트 거울도 함께 복사 — 금융사가 복사됐으므로 대상 카드의 기간·거리 게이트도 같은 스코프여야
-      // 한다. 복사되는 조건(cardUi)은 소스에서 이미 지원값이라 폴백은 불필요.
-      setLenderByCard((prev) => ({ ...prev, [targetId]: sourceLender }));
+      // 게이트 거울은 여기서 복사하지 않는다 — 위 :436에서 대상 select DOM에 금융사를 이미 썼고,
+      // 아래 patchCardUi가 커밋을 유발하므로 재동기화 effect가 같은 값을 읽는다(배치 13 K1).
       setManualQuoteCards((cards) => cards.map((c) => (c.id === targetId ? { ...c, dealerName: sourceDealer } : c)));
     }
     patchCardUi(targetId, cardUiOf(cardUi, sourceId));
@@ -624,7 +630,8 @@ export function useQuoteWorkbench({
     setSolutionSnapshots({});
     setSolutionLenderPickerId(null); // 모달 열린 채 워크벤치가 닫힌 경우의 유령 모달 방어
     setDealerOptionsByCard({}); // 딜러 목록도 카드 종속 상태 — 이전 견적 금융사의 목록 잔존 방지(T2)
-    setLenderByCard({}); // 게이트 거울도 카드 종속 — 이전 견적 금융사로 기간·거리가 잘못 막히는 잔상 방지
+    // 게이트 거울(lenderByCard)은 여기서 지우지 않는다 — 배치 13 K1-d: 이 자리의 클리어는 DOM select는
+    // 그대로 둔 채 거울만 비워 "거울 ≠ 화면"을 만들었다(초기화 후 게이트 전면 해제 실측). 재동기화 effect가 담당.
   }
 
   async function applyTrimToPricing(selection: VehicleSelection) {
@@ -1251,6 +1258,33 @@ export function useQuoteWorkbench({
     setCardScenario(extractWorkbenchScenarios()[0] ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 아래 dep 변경 시점에만 재추출(extract가 읽는 DOM/내부 state는 그 시점 최신; 함수/객체 dep 추가 시 매 렌더 실행)
   }, [savedManualQuoteConditionIds, manualQuoteCards, cardUi, solutionWorkbenchPurchaseMethod, solutionSnapshots]);
+
+  // ── 지원집합 게이트 거울(lenderByCard) 재동기화 ─────────────────────────────────
+  // 금융사 값의 진실은 카드 DOM select(uncontrolled — spec D6)이고 거울은 그 파생이다.
+  // 사용자 선택은 델리게이션(syncDealerOnLenderChange)이 즉시 갱신하지만, **이벤트 없이** DOM이
+  // 바뀌는 경로가 여럿이라 커밋 후 다시 읽는다(전부 2026-07-22 배치 13 실측):
+  //   ① 구매방식 전환 — option 목록에서 선택지가 빠지면 select.value가 change/input 발화 없이 "미선택"으로 되돌아간다
+  //   ② 수정 진입/신규 오픈/초기화 — 카드 재시드. 리마운트가 없으면 DOM 값은 살아남고(React는 non-multiple
+  //      select의 defaultValue 갱신을 무시한다) 거울만 지워져 반대 방향으로 어긋난다
+  //   ③ 랭킹 모달 선택(applySolutionResult) — 프로그램 쓰기라 이벤트가 없다
+  //   ④ 저장 카드 "수정"(잠금 해제) — 그 순간 게이트가 켜진다
+  // dep을 열거하지 않는 것이 의도다 — "동기화 지점 N개를 사람이 기억"이 이 거울 결함군의 원인이었다
+  // (구 스펙 §4.4의 4지점 목록 자체가 틀렸다: ①④ 누락 + clear 지시는 오히려 DOM과의 어긋남을 만들었다).
+  // useLayoutEffect = paint 전 반영(게이트가 한 프레임 늦게 켜지는 깜빡임 제거).
+  // 무한 갱신은 sameStringMap bail-out이 막는다(같은 값이면 setState가 리렌더를 안 낸다).
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- dep 없이 매 커밋 재동기화가 목적. [manualQuoteCards]를 주면 구매방식 전환(①)처럼 카드 배열이 그대로인 경로에서 다시 어긋난다
+  useLayoutEffect(() => {
+    const form = quoteDetailFormRef.current;
+    const next: Record<string, string> = {};
+    if (form) {
+      for (const card of manualQuoteCards) {
+        const value = form.querySelector<HTMLSelectElement>(`[data-scenario-card="${card.id}"] select[data-sc-field="lender"]`)?.value;
+        if (value) next[card.id] = value;
+      }
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 거울은 커밋된 DOM(진실)의 파생 — 같으면 bail out
+    setLenderByCard((prev) => (sameStringMap(prev, next) ? prev : next));
+  });
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
   // 신규는 첫 INSERT 후 반환 id를 editingQuoteId로 세팅 → 이후 UPDATE(중복 INSERT 방지).
