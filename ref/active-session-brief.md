@@ -9,10 +9,10 @@ Last updated: 2026-07-22
 
 ## 지금 상태
 
-**배치 15 종결 + Topbar 팝오버 수정 + CI 도입 + 별건 2종까지 완료. 진행 중인 미완 작업 없음.**
+**배치 15 종결 + Topbar 팝오버 · CI 도입/위생 잠금 · 별건 3종까지 완료. 진행 중인 미완 작업 없음.**
 
-최근 머지: `2460d55`(PR1 `#320` 계약 근거절 정정·감사 관례 축소 박제) · `b8a12a8`(PR2 `#321` 회귀 그물 3건, 변이로 RED 실증) · `35c068b`(`#322` 상단바 팝오버 우측 잘림) · `342c70f`(`#323` **CI 도입**) · `e8ab97c`(`#324` Edge 배선·실 Gemini 호출 제거).
-main 통합 검증 green — typecheck 0 · lint 0 · unit **1067** · server **651** · build · knip 7/9 · 픽스처 잔재 0. **이제 push·PR마다 CI가 5종(typecheck·lint·unit·build·**edge**)을 자동 검증한다**(server만 로컬).
+최근 머지: `2460d55`(PR1 `#320` 계약 근거절 정정·감사 관례 축소 박제) · `b8a12a8`(PR2 `#321` 회귀 그물 3건, 변이로 RED 실증) · `35c068b`(`#322` 상단바 팝오버 우측 잘림) · `342c70f`(`#323` **CI 도입**) · `e8ab97c`(`#324` Edge 배선·실 Gemini 호출 제거) · `e3adc14`(`#325` knip·format 잠금) · `490d63b`(`#326` stale 딜러 목록).
+main 통합 검증 green — typecheck 0 · lint 0 · unit **1068** · server **651** · edge **26** · build · **knip 0 · format green** · 픽스처 잔재 0. **이제 push·PR마다 CI가 7단계(typecheck·lint·knip·format·unit·build·edge)를 자동 검증한다**(server만 로컬 — 공유 DB).
 판정 14건 중 **이행 12 · 조치 불요 2**. SSOT = `ref/plans/2026-07-22-crm-refactor-batch-15.md`(종결 절 포함).
 ⚠️ **다음 배치부터 풀 감사는 트리거 기반 경량형**이다 — 근거·규칙은 `AGENTS.md` Verification Budget 절에 박제됐다.
 
@@ -37,11 +37,13 @@ main 통합 검증 green — typecheck 0 · lint 0 · unit **1067** · server **
 
 **⑨ 별건 2종 종결(`#324` `e8ab97c`).** ⓐ**Edge(Deno) 테스트 26건을 배선**(`test:edge` 스크립트 + CI 단계 + 로컬 `test`) — 실행은 되는데 어디에도 안 걸려 수동 의존이었다(M11). 외부 호출 0(전부 `fetchImpl` 페이크)이라 권한 플래그도 불필요. **CI 로그에서 26 passed 실측 확인** ⓑ**`test:server`의 실 Gemini 9콜 제거**(M7) — 원인은 **한 줄**이었다: `ragFakes`가 다른 dep은 "실 조회 차단" 주석까지 달아 막아두고 **`routeAssistantTool`만 빠뜨려** override 없는 테스트가 실 라우터를 탔다. 격리 worktree 전/후 대조 = **7.39s → 181ms(41배), 결과는 41 tests·104 expect·0 fail로 완전 동일** = 외부 호출 소멸의 증거.
 
+**⑩ CI 위생 잠금(`#325` `e3adc14`) + 배치 13 별건 1종(`#326` `490d63b`).** ⓐ**knip 16 → 0 · format 20 → 0**으로 정리하고 CI에 추가 — 이제 7단계(`typecheck→lint→**knip**→**format**→unit→build→edge`)가 잠근다. knip 16건은 전부 "같은 파일에서만 쓰는데 export가 붙은" 경우라 키워드만 제거(기능 0). 예외 = **`DEALER_WRITE_ALLOWLIST`는 의도적 확장점이라 삭제 대신 내부화**(밖으로 열려 있으면 다른 모듈이 런타임에 딜러 게이트를 넓힐 수 있다 — 사유는 코드 주석) ⓑ**`dealerOptionsByCard` stale 수정** — 구매방식 전환이 이벤트 없이 금융사를 "미선택"으로 되돌리는데 딜러 목록은 이벤트 경로에서만 갱신돼 **이전 금융사 딜러가 계속 제시**됐다. K1 재동기화 effect를 딜러까지 확장해 닫았다. ⚠️ **배치 13 서술이 틀렸음을 재현 중 발견해 정정**(구 기록 "placeholder가 '금융사 먼저 선택' 거짓 표시" → 실제는 **반대**: stale 때문에 `hasChoices`가 참이라 placeholder는 "선택"인 채 딜러가 노출). 🟡 **pending 항목 25 등재**(사후 공유).
+
 ## ▶ 다음 작업 (미확정 — 후보)
 
-1. **배치 13 별건** — `dealerOptionsByCard`(구매방식 전환 시 stale + "금융사 먼저 선택" **거짓 표시** = 실사용 가시 버그, 가치 높음) · `resetQuoteWorkbench` DOM 미청소(**행위 변경**이라 이사님 확인 대상일 수 있음) · `K1 안 ②c` controlled 전환(DOM 쓰기 6경로 + 저장 payload 회귀 재검증 = **별도 사이클**)
-2. **CI 후속(선택)** — knip·format:check **기준선을 0으로 만든 뒤** CI에 추가(현재 knip 7/9 · format warn 20건). 하면 위생이 자동으로 잠긴다.
-3. **이사님 회신 대기** — pending 열린 10건, 특히 **21·22는 묶어서** 여쭙는 게 효율적. ⚠️ **NO_HITS 문구+sources 동시 렌더는 21·22 결정과 얽혀 보류 중**(지금 고치면 결정 후 두 번 고친다).
+1. **배치 13 잔여 별건 2종** — `resetQuoteWorkbench` DOM 미청소(**행위 변경**이라 이사님 확인 대상일 수 있음) · `K1 안 ②c` controlled 전환(DOM 쓰기 6경로 + 저장 payload 회귀 재검증 = **별도 사이클**)
+2. **이사님 회신 대기** — pending **열린 11건**(항목 25 신설), 특히 **21·22는 묶어서** 여쭙는 게 효율적. ⚠️ **NO_HITS 문구+sources 동시 렌더는 21·22 결정과 얽혀 보류 중**(지금 고치면 결정 후 두 번 고친다).
+3. **"미선택" 리터럴 상수화(소형·선택)** — 금융사 미선택 값이 8곳 이상에 리터럴로 흩어져 있다(`quote-workbench-meta.ts`·`QuoteWorkbench.tsx`·`useQuoteWorkbench.ts`·이번 수정 포함). 레포 관례("계산·재사용 값은 named const")에 어긋나며, 오타 하나가 게이트를 조용히 풀 수 있다.
 
 ## 대기 (우리 액션 없음)
 
