@@ -309,6 +309,27 @@ describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 1
     expect(wb().lenderByCard["manual-condition-1"] ?? "미선택").toBe(lenderSelect().value);
   });
 
+  // 위 케이스가 "별건(제품 결정)"으로 남겨둔 값 축 — 2026-07-22에 **지우는 쪽으로 결정**했다.
+  // 근거: 초기화는 "워크벤치 입력값을 초기화했습니다" 토스트까지 띄우면서 다른 입력(기간·보증금·
+  // 안내문 등)은 전부 비우는데 금융사만 살아남았다. 카드 섹션 key가 `new-…`로 신규→신규 불변이라
+  // 리마운트가 없고, React는 non-multiple select의 defaultValue 갱신을 무시하기 때문이다.
+  // 그 상태에서 다른 값만 비면 "금융사는 골라둔 채 나머지만 초기화된" 어중간한 화면이 남는다.
+  // 판매사 select는 이미 같은 문제를 `key={`dealer-${…}`}` 리마운트로 풀고 있어서 그 패턴을 맞췄다.
+  it("초기화는 금융사 DOM도 '미선택'으로 되돌린다(리마운트 키 — 배치 13 별건)", async () => {
+    const { wb } = setup();
+    await openNewWorkbench(wb);
+    selectLender("MG캐피탈");
+    await flush();
+    expect(lenderSelect().value).toBe("MG캐피탈");
+
+    fireEvent.click(document.querySelector<HTMLButtonElement>("button.kim-quote-workbench-action.ghost")!);
+    await flush();
+
+    expect(lenderSelect().value).toBe("미선택");
+    // 거울도 따라와야 한다 — DOM을 지우면 재동기화 effect가 파생을 맞춘다(K1-d 원칙).
+    expect(wb().lenderByCard["manual-condition-1"] ?? "미선택").toBe("미선택");
+  });
+
   it("조건 복사가 대상 카드 게이트에 반영된다(복사는 select DOM 직접 쓰기 — 위임 이벤트가 없다)", async () => {
     const { wb } = setup();
     await openNewWorkbench(wb);
