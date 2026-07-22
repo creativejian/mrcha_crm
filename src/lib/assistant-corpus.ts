@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { PURCHASE_UNSET_SENTINEL } from "../../client/src/data/customers";
 import { formatMoney, formatTerm, guidanceOf, numOr, stampLabelOf, vehicleTitleOf } from "./app-card-payload";
+import { EMBEDDING_MODEL } from "./gemini-embed";
 import { dateLabelOf, kstDateOf } from "./kst-date";
 import { DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "../../client/src/data/quote-request-labels";
 
@@ -43,8 +44,12 @@ export function stripChunkCustomerPrefix(content: string, customerName: string):
 }
 
 // content 스냅샷 해시(재임베딩 skip 판단용).
+// ⚠️ 모델명을 해시에 **반드시** 섞는다(2026-07-22). 임베딩 모델을 바꾸면 벡터 공간이 통째로 달라지는데
+// (001↔2 코사인 0.03 실측 — 거의 직교), 해시가 content만 보면 기존 행이 전부 skip돼 **구 모델 벡터가
+// 남은 채 새 데이터만 새 모델로 들어간다** = 공간이 섞여 검색이 조용히 죽는다(유사도가 임계값에 못 미침).
+// 모델명을 섞어두면 상수 한 줄 교체가 곧 전 코퍼스 해시 변경 → 백필이 자동으로 전량 재임베딩한다.
 export function contentHash(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
+  return createHash("sha256").update(`${EMBEDDING_MODEL}\n${content}`).digest("hex");
 }
 
 // ── 견적 청크(스펙 2026-07-05 결정 2) ────────────────────────────────────────
