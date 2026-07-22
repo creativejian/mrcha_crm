@@ -69,6 +69,7 @@
 
 ## 별건 (배치 13 범위 밖 — 결정 필요)
 
+- ✅ **종결(2026-07-22, 유슨생 결정 = 폐기)** — spec **3종 전부** 죽어 있음을 실측 확인하고(`screenshot:crm`도 직접 실행해 동일 실패 재현, `customer-detail-screenshot`도 같은 진입 패턴) 스크립트 3개·spec 3개·스냅샷 2장 제거. `AGENTS.md` 검증 예산 문구를 "실화면 눈으로 1회 + magiclink 절차"로 정정하고, `playwright.config.ts`는 재도입 비용 절감용으로 존치하되 **"재도입 시 로그인 처리(storageState)부터"** 주석 박제. knip 7/9 무드리프트 확인. 아래는 발견 당시 기록:
 - **🔴 `visual:crm` 하네스 사망(V3 실증)**: 스냅샷 베이스라인 `88cb460`(2026-05-17) < 카카오 로그인 게이트 `b3df832`(2026-06-18) → **약 2개월간 실행 원천 불가**(로그인 화면에서 멈춤, 비교 도달 0). 베이스라인도 pre-auth UI라 로그인을 붙여도 전량 불일치. **`AGENTS.md` 검증 예산의 "Large visual layout changes: run Playwright screenshot once"가 죽은 도구를 가리킨다.** (a) 되살리기(magiclink storageState + 베이스라인 재촬영) vs (b) 폐기(스크립트·스냅샷 제거) 결정 필요.
 - **K1 안 ②c**(워크벤치 select controlled 전환) — 구조적 정답이나 DOM 쓰기 6경로 전환 + 저장 payload 회귀 재검증이라 별건. Safari 제약상 `bindSelect` 필수.
 - **`resetQuoteWorkbench`가 금융사 DOM을 안 지운다**(V1 인접) — 섹션 key가 신규→신규 불변이라 uncontrolled 값이 살아남는다. "초기화" 의미론과 어긋나나 **행위 변경**이라 별건. 안 ④는 이 정책과 독립적으로 성립.
