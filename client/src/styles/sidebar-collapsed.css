@@ -154,9 +154,12 @@
 .work-ai-panel {
   position: absolute;
   top: calc(100% + 10px);
-  right: -230px;
+  /* 트리거 우측 여유 = 202px(실측 — 뒤따르는 아이콘 4개: 계산기·상담대기·알림·프로필).
+     구 `-230px`은 그 여유를 넘겨 말풍선·전송 버튼이 잘렸다(theme.css 주석). */
+  right: calc(var(--topbar-popover-edge) - 202px);
   z-index: 70;
   width: 460px;
+  max-width: calc(100vw - 32px);
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fff;
