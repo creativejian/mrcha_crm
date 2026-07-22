@@ -36,11 +36,15 @@
 
 | 조치 | 주체 | 상태 |
 |---|---|---|
-| DEFAULT `'Asia/Seoul'` 프리즈 + 변경 시 사전 공유 | 앱 | 확약(한국 단일 시장이라 변경 계획 없음) |
-| 함수 재정의 시 DEFAULT 유실을 잡는 시그니처 회귀 검증 | 앱 | 추가 예정 |
+| DEFAULT `'Asia/Seoul'` 프리즈 + 변경 시 사전 공유 | 앱 | ✅ 확약·계약 파일 명문화(한국 단일 시장이라 변경 계획 없음) |
+| 함수 재정의 시 DEFAULT 유실을 잡는 시그니처 회귀 검증 | 앱 | ✅ **완료(앱 PR #737)** — `scripts/check_db_function_contracts.sh`가 원격 DB의 `pg_get_function_arguments()`를 계약값과 대조해 어긋나면 커밋 차단. DEFAULT 유실을 시뮬레이션해 `exit 1` 실동작 확인. pre-commit은 `supabase/migrations/` 변경 시에만 발동 |
 | **`p_timezone` 명시 전달로 전환** | **CRM** | **✅ 완료** — `HANDOFF_TIMEZONE`(`client/src/data/chat.ts`) 상수화 후 RPC에 전달. 회귀 테스트 1종(`handoff-settings.test.ts`) + **변이 실관찰**(인자 제거 시 해당 케이스만 RED). 화면의 타임존 하드코딩 2곳도 같은 상수로 통일 |
 
 두 조치는 배타적이지 않고 **둘 다 걸어 한쪽이 실수해도 막히는 형태**입니다. 앱 팀 확인대로 인자 6개 호출은 현재 시그니처가 이미 허용하는 정상 경로라 프리즈 위반이 아니며, 값은 `'Asia/Seoul'` 그대로 전달합니다.
+
+**→ 이 축 종결(2026-07-22).** 앱이 `CREATE OR REPLACE`로 DEFAULT를 흘려도 커밋 단계 검증기가 막고, 설령 통과해도 CRM은 명시 전달이라 영향받지 않는다.
+
+⚠️ **시그니처 전체 동결은 그대로 유지된다**(앱 계약 파일 PR #738로 전제 갱신 — "CRM은 DEFAULT 의존" → "CRM PR #314로 명시 전달 전환"). CRM이 명시 전달로 바뀌었다고 해서 DEFAULT가 자유로워진 게 아니다 — `p_timezone`은 여전히 판정 기준 시각이고, **psql 수동 조작이나 향후 다른 소비자가 5개 인자로 호출할 경로가 남아 있다.**
 
 ## 4. 역방향 공유 — 임베딩 모델 `gemini-embedding-001` shutdown → **✅ 앱 팀 해결 완료(2026-07-22 확인, 전달 불필요)**
 
