@@ -1294,6 +1294,20 @@ export function useQuoteWorkbench({
     if (sameStringMap(lenderByCard, next)) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 거울은 커밋된 DOM(진실)의 파생 — 위에서 같으면 조기 반환
     setLenderByCard(next);
+    // 딜러 목록도 같은 결함 클래스다(배치 13 별건). `dealerOptionsByCard`는 **금융사 변경 이벤트**
+    // (syncDealerOnLenderChange)에서만 적재되는데, 위 ①~④는 이벤트 없이 금융사를 바꾼다. 그래서
+    // 구매방식을 전환해 금융사가 "미선택"으로 되돌아가도 **이전 금융사 기준 딜러 목록이 그대로 남아**
+    // 판매사 select가 지금 고를 수 없는 딜러를 계속 제시했다(무음 오계산 입구 — 실측 재현).
+    // 거울이 자가치유되는 바로 이 지점에서 함께 정리한다. 금융사가 다시 선택되면 브랜드 도착
+    // effect·이벤트 경로가 재적재하므로 지워도 잃는 게 없다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 위와 같은 파생 정리(조기 반환 뒤에만 도달)
+    setDealerOptionsByCard((prev) => {
+      const stale = Object.keys(prev).filter((id) => !next[id] || next[id] === "미선택");
+      if (stale.length === 0) return prev;
+      const kept = { ...prev };
+      for (const id of stale) delete kept[id];
+      return kept;
+    });
   });
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
