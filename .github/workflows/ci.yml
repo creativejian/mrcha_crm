@@ -15,9 +15,15 @@ name: CI
 #   exports / 9 types, format:check 스타일 warn 20건) 넣으면 CI가 항상 빨갛다. 기준선을
 #   0으로 만든 뒤에 추가할 것 — 그때까지는 red 게이트를 만들지 않는다.
 #
-# env는 넣지 않는다. 4종 전부 환경변수 없이 통과함을 실측했다(빌드는 `VITE_*`가 없어도
-# 성공한다 — 산출물을 배포에 쓰지 않으므로 무해하다. 실제 배포 빌드는 Cloudflare Pages가
-# 자기 환경에서 따로 수행한다).
+# `VITE_*`는 **더미값**을 준다(시크릿 아님). `client/src/lib/supabase.ts`가 모듈 로드 시점에
+# 두 값이 없으면 throw하고, `test:unit`의 다수 테스트가 그 모듈을 import 체인으로 끌어온다.
+# 실제 Supabase에 붙지 않는다 — 테스트는 네트워크를 모킹하고, 빌드 산출물은 배포에 쓰이지
+# 않는다(실제 배포 빌드는 Cloudflare Pages가 자기 환경에서 따로 수행한다).
+#
+# ⚠️ **로컬에서 CI 조건을 재현할 때 `env -i`로는 부족하다.** 환경변수만 지울 뿐 `.env.local`
+#   파일은 그대로 남아 vite가 그걸 읽는다. 그 착각으로 "env 없이 4종 통과"라고 잘못 실측해
+#   이 워크플로우의 첫 실행이 깨졌다(2026-07-22). 제대로 재현하려면 `.env.local`이 없는
+#   **깨끗한 worktree**에서 돌릴 것: `git worktree add <tmp> HEAD` + node_modules 심링크.
 
 on:
   push:
@@ -37,6 +43,11 @@ jobs:
     name: typecheck · lint · unit · build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # 더미값(시크릿 아님) — 위 주석의 근거 참조.
+    env:
+      VITE_SUPABASE_URL: https://ci-dummy.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: ci-dummy-publishable-key
 
     steps:
       - uses: actions/checkout@v4
