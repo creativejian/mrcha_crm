@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { HANDOFF_DAY_KEYS, HANDOFF_DAY_LABELS, HANDOFF_MODES, HANDOFF_MODE_LABELS, type HandoffMode } from "@/data/chat";
+import { HANDOFF_DAY_KEYS, HANDOFF_DAY_LABELS, HANDOFF_MODES, HANDOFF_MODE_LABELS, HANDOFF_TIMEZONE, type HandoffMode } from "@/data/chat";
 import {
   auditSummary,
   availabilityBadge,
@@ -27,7 +27,7 @@ const DEFAULT_DAY = { start: "09:00", end: "18:00" };
 function formatKst(iso: string): string {
   // 브라우저 로컬이 아니라 KST 명시(#204 계산법 드리프트 교훈 — 표시도 축을 고정).
   return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
+    timeZone: HANDOFF_TIMEZONE,
     month: "long",
     day: "numeric",
     weekday: "short",
@@ -204,7 +204,7 @@ export function HandoffOperationPage({ onToast }: HandoffOperationPageProps) {
       </section>
 
       <section className="card">
-        <div className="panel-head"><h2>운영시간</h2><span className="handoff-op-dim">기준 Asia/Seoul (KST)</span></div>
+        <div className="panel-head"><h2>운영시간</h2><span className="handoff-op-dim">{`기준 ${HANDOFF_TIMEZONE} (KST)`}</span></div>
         <div className="panel-body">
           <div className="handoff-op-days">
             {HANDOFF_DAY_KEYS.map((day) => {

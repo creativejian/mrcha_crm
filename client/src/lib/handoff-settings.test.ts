@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { auditSummary, availabilityBadge, parseWeekSchedule, scheduleDraftErrors, withAppLineBreaks, type WeekSchedule } from "./handoff-settings";
+import { HANDOFF_TIMEZONE } from "@/data/chat";
+import { supabase } from "./supabase";
+
+import { auditSummary, availabilityBadge, parseWeekSchedule, saveHandoffSettings, scheduleDraftErrors, withAppLineBreaks, type WeekSchedule } from "./handoff-settings";
+
+vi.mock("./supabase", () => ({ supabase: { rpc: vi.fn() } }));
 
 // 운영 설정은 공유 master의 singleton 행이고 schedule은 jsonb다. DB CHECK + RPC가 형식을
 // 지키지만, 클라는 "그럼에도 이상한 값이 오면 휴무로 읽는" 방어 파싱을 유지한다 —
@@ -142,5 +147,29 @@ describe("withAppLineBreaks", () => {
 
   it("문단 구분(\\n\\n)은 그대로 보존한다", () => {
     expect(withAppLineBreaks("문단1 첫줄\n문단1 둘째줄\n\n문단2")).toBe("문단1 첫줄  \n문단1 둘째줄\n\n문단2");
+  });
+});
+
+describe("saveHandoffSettings", () => {
+  // p_timezone은 DB에 DEFAULT 'Asia/Seoul'이 있어 생략해도 저장은 된다. 그런데 그 값은 단순
+  // 저장값이 아니라 앱의 운영시간 판정(private.handoff_availability_at의 AT TIME ZONE)이 쓰는
+  // 기준 시각이라, DEFAULT가 흘려 UTC로 바뀐 상태에서 인자를 생략하면 그 값이 컬럼에 덮여
+  // 판정이 통째로 9시간 밀린다 — 에러 없이 조용히. 명시 전달을 계약으로 잠근다(2026-07-22 앱 팀 권고).
+  const ROW = {
+    mode: "automatic", timezone: "Asia/Seoul", schedule: FULL_WEEK,
+    force_message: "강제", outside_hours_message: "시간외", updated_at: "2026-07-22T00:00:00Z",
+  };
+  const DRAFT = { mode: "automatic", schedule: FULL_WEEK, forceMessage: "강제", outsideHoursMessage: "시간외" } as const;
+
+  it("RPC에 p_timezone을 명시 전달한다(DB DEFAULT에 기대지 않는다)", async () => {
+    const rpc = vi.fn(() => ({ single: async () => ({ data: ROW, error: null }) }));
+    (supabase as unknown as { rpc: unknown }).rpc = rpc;
+
+    await saveHandoffSettings(DRAFT, "테스트 사유");
+
+    const [fn, args] = rpc.mock.calls[0] as unknown as [string, Record<string, unknown>];
+    expect(fn).toBe("update_human_handoff_settings");
+    expect(args.p_timezone).toBe(HANDOFF_TIMEZONE);
+    expect(args.p_timezone).toBe("Asia/Seoul"); // 값 자체도 고정 — 앱 판정 기준과 어긋나면 안 된다
   });
 });
