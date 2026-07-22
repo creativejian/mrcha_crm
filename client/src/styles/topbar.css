@@ -110,9 +110,12 @@
 .global-search-panel {
   position: absolute;
   top: calc(100% + 10px);
-  right: -281px;
+  /* 트리거 우측 여유 = 253px(실측 — 뒤따르는 아이콘 5개: 업무 AI·계산기·상담대기·알림·프로필).
+     거기서 edge만큼 물러난 지점이 패널 우측이다. 구 `-281px`은 그 여유를 넘겨 항상 잘렸다. */
+  right: calc(var(--topbar-popover-edge) - 253px);
   z-index: 70;
   width: 430px;
+  max-width: calc(100vw - 32px);
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fff;
@@ -123,7 +126,8 @@
   content: "";
   position: absolute;
   top: -6px;
-  right: 301px;
+  /* 화살표는 패널 우측에서 트리거 중심까지 = 오프셋(253 - edge) + 트리거 중심 보정 20px. */
+  right: calc(253px - var(--topbar-popover-edge) + 20px);
   width: 10px;
   height: 10px;
   border-left: 1px solid var(--line);
