@@ -1516,6 +1516,16 @@ export function useQuoteWorkbench({
   }
 
   function resetQuoteWorkbench() {
+    // 금융사 select만 DOM을 직접 되돌린다(배치 13 별건). 나머지 카드 입력은 state 리셋으로 이미
+    // 초기화되는데(실측: 보증금·선수금·잔존가치·보조금 전부 초기값 복귀) **금융사만 살아남았다** —
+    // 카드 섹션 key가 `new-…`라 신규→신규 초기화에서 불변이고, React는 non-multiple select의
+    // defaultValue 갱신을 무시하기 때문이다. 그래서 "입력값을 초기화했습니다" 토스트가 뜬 뒤에도
+    // 금융사만 골라진 어중간한 화면이 남았다.
+    // ⚠️ 거울(lenderByCard)은 여기서 건드리지 않는다 — DOM이 진실이고 재동기화 effect가 파생을
+    // 맞춘다(배치 13 K1-d: 거울만 비우면 "거울 ≠ 화면"이 된다). 순서도 그래서 상관없다.
+    for (const select of quoteDetailFormRef.current?.querySelectorAll<HTMLSelectElement>('[data-scenario-card] select[data-sc-field="lender"]') ?? []) {
+      select.value = "미선택";
+    }
     setSolutionWorkbenchPurchaseMethod(primaryQuotePurchaseMethod(purchaseFields));
     setSolutionWorkbenchEntryMode("manual");
     setSolutionWorkbenchModeMenu(null);
