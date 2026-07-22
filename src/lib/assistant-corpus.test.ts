@@ -32,8 +32,12 @@ test("embeddingContentHash: 같은 문자열 같은 해시, 다르면 다름", (
 // 방어선**이므로(embeddings 테이블에 모델 컬럼이 없다) 독립 계산식으로 못박는다.
 test("embeddingContentHash: 모델명 salt를 실제로 섞는다(제거 변이가 RED)", () => {
   const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+  // 단언 ① 스킴 전체 잠금 — 구분자(`\n`)와 순서(모델명 → content)까지 못박는다.
+  // ⚠️ 그래서 **구분자만 바꿔도 이 줄이 RED**다(배치 15 M8 실측: `\n`→`|` 변이에서 여기서 실패).
+  // 의도적이다 — 해시 스킴이 곧 코퍼스 호환성이라 형식 변경도 전량 재임베딩을 요구한다.
   expect(embeddingContentHash("x")).toBe(sha256(`${EMBEDDING_MODEL}\nx`));
-  // salt 제거에만 RED — 구분자·순서 리팩터에는 면역이라 형식을 과하게 잠그지 않는다.
+  // 단언 ② 의도 잠금 — **이 줄만은** salt 제거에만 RED이고 구분자·순서 리팩터에는 면역이다.
+  // (구 주석이 이 한정 없이 "구분자·순서에는 면역"이라고만 적어 테스트 전체의 성질로 읽혔다 — M8.)
   expect(embeddingContentHash("x")).not.toBe(sha256("x"));
 });
 

@@ -13,7 +13,13 @@ export type RoutedToolDecision =
   | { kind: "call"; key: AssistantToolKey; params: Record<string, unknown> }
   | { kind: "none" };
 
-const ROUTER_SYSTEM_PROMPT = [
+// ⚠️ 아래 두 하드닝 축(파라미터 날조 금지 · 지원 필터 밖이면 호출 금지)은 도구 description의 같은 두 축과
+// **중복 방어**다(배치 15 실측, 실 Gemini 2회 반복): 어느 한쪽만 제거하면 현행 모델에서 날조가 재현되지
+// 않고, **둘 다 사라져야** "마이바흐 관심 고객이 누구야?" → `search_customers{name:"마이바흐"}`가 살아난다.
+// 그래서 여기가 무너져도 즉시 오작동이 나지는 않지만, 그 상태가 무음으로 통과한 뒤 description 쪽까지
+// 건드리면 방어가 한 번에 사라진다 — `assistant-tools.test.ts`가 양쪽을 각각 잠근다(배치 15 M5).
+// 테스트 노출용 export이며 런타임 소비자는 이 파일뿐이다.
+export const ROUTER_SYSTEM_PROMPT = [
   "당신은 자동차 CRM 업무 어시스턴트의 질문 라우터입니다.",
   "질문이 고객 목록·집계·조건 검색(예: 특정 경로로 들어온 고객, 오늘 할 일, 상태별 고객)이면 가장 적합한 함수를 호출하세요.",
   "질문의 '나/내/제'는 현재 로그인한 사용자입니다 — 담당 고객을 1인칭으로 물으면(예: '내가 계약한 고객') search_customers에 mine=true를 넣고, 사용자 자신이 누구인지 물으면 current_user를 호출하세요.",

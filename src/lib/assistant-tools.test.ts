@@ -1,6 +1,7 @@
 import { test, expect } from "bun:test";
 
 import { CRM_ROLES } from "../auth/verify";
+import { ROUTER_SYSTEM_PROMPT } from "./assistant-tool-router";
 import { ASSISTANT_TOOL_DECLARATIONS, CRM_ROLE_LABELS } from "./assistant-tools";
 
 // 역할 라벨 어휘 tripwire — CRM_ROLES는 Set이라 union 타입 파생이 안 돼 컴파일러가 라벨 누락을 못 잡는다.
@@ -32,4 +33,21 @@ test("search_customers 선언이 오라우팅 억제 문구를 유지한다(#315
   );
   expect(guarded).toEqual(["statusGroup", "purchaseMethod", "source"]);
   expect(params.properties.statusGroup?.description).toContain("추측해 채우지 마라");
+});
+
+// 라우터 프롬프트 쪽 하드닝 잠금(배치 15 M5) — 위 description 잠금과 **같은 두 축**을 프롬프트에서도 잠근다.
+// 왜 둘 다 잠그나: 배치 15가 실 Gemini로 절제 실험을 돌려 두 축이 **중복 방어**임을 확인했다(2회 반복 동일)
+// — 어느 한쪽만 지우면 3/3 안전하고, **둘 다 지워야** `"마이바흐 관심 고객이 누구야?"`에서
+// `search_customers{name:"마이바흐"}` 날조가 재현된다. 그래서 프롬프트 축이 사라져도 **당장은 증상이 없고**,
+// `ef45ebb`가 description만 잠근 상태에서는 이쪽을 통째로 지워도 전 스위트가 GREEN이었다. 무음으로 한 겹이
+// 빠진 뒤 나머지 한 겹까지 건드리면 방어가 한 번에 사라지므로, 두 겹을 각각 잠가 둔다.
+// description 잠금과 같은 원칙: **문구 표현은 튜닝 가능하되 두 축의 핵심 어휘가 사라지면 RED**.
+test("ROUTER_SYSTEM_PROMPT가 오라우팅 억제 2축을 유지한다(배치 15 M5)", () => {
+  // 축 1 — 파라미터 날조 금지.
+  expect(ROUTER_SYSTEM_PROMPT).toContain("지어내지 마세요");
+
+  // 축 2 — 지원 필터로 표현할 수 없는 조건이면 호출 자체를 하지 마라(부정 예시 "관심 차종" 포함이
+  // 실기에서 결정적이었다 — `#315`).
+  expect(ROUTER_SYSTEM_PROMPT).toContain("관심 차종");
+  expect(ROUTER_SYSTEM_PROMPT).toContain("함수를 호출하지 말고");
 });
