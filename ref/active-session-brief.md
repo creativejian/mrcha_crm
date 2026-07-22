@@ -11,8 +11,8 @@ Last updated: 2026-07-22
 
 **리팩토링 배치 13 전량 종결·머지·검증 완료. 진행 중인 미완 작업 없음.**
 
-최근 머지(main): `#308` 게이트 거울 · `#309` 넛지 클러스터 · `#310` 위생·문서 · `#311` 죽은 시각 하네스 폐기 · `#312` 임베딩 모델 이관 · `#313` 유사도 임계값.
-main 통합 검증 green — typecheck 0 · lint 0 · unit **1061** · server **641** · build · knip 7/9 · 픽스처 잔재 0. CF prod head `4a98d57` Active.
+최근 머지(main): `#308` 게이트 거울 · `#309` 넛지 클러스터 · `#310` 위생·문서 · `#311` 죽은 시각 하네스 폐기 · `#312` 임베딩 모델 이관 · `#313` 유사도 임계값 · `#314` handoff `p_timezone` 명시 전달.
+main 통합 검증 green — typecheck 0 · lint 0 · unit **1062** · server **641** · build · knip 7/9 · 픽스처 잔재 0. CF prod head `1de01a2` Active.
 
 ## 직전 세션 요약 (2026-07-22 · 0722-fresh-start)
 
@@ -29,6 +29,8 @@ main 통합 검증 green — typecheck 0 · lint 0 · unit **1061** · server **
 - **`taskType` 제거** — 2는 그 필드를 조용히 무시(DOC/QUERY/생략 코사인 정확히 1.0 실측, 001은 0.911로 구분했다). 응답 개수 검증(요청≠응답 → throw)도 추가.
 - **임계값 0.75 → 0.60**: 구 값은 001 공간 실측치라 새 공간에서 **관련 질문 8종 중 5종이 NO_HITS**였다(버려진 게 정확한 근거였음 — 프로필·서류함·견적요청 청크). 새 실측 = 관련 0.524~0.826 / 무관 0.461~0.540 → 0.60에서 관련 7/8·오탐 0/4. 테스트의 임계값 하드코딩 3곳도 상대값화(리터럴이면 상수 조정 시 의도가 조용히 뒤집힌다).
 - **앱도 같은 날 이관 완료**(2026-07-22 확인) → 두 팀 임베딩 공간 일치. 지금은 CRM이 `crm.embeddings`만 읽어 교차 참조 지점이 없지만, 앞으로 앱 임베딩을 참조하는 기능을 만든다면 **양쪽 모델이 같은지부터 확인**할 것(차원이 같아 겉보기 정상인데 유사도만 무작위가 되는 형태라 알아채기 어렵다).
+
+**⑤ 앱 팀 Security Advisor 공유 → 계약 프리즈 + `p_timezone` 명시 전달(#314).** Advisor 경고 6건은 전부 의도된 상태(baseline = Warnings 4·Info 2)이고, `update_human_handoff_settings`는 **계약 프리즈**(authenticated 세션 호출 확인 완료 — 서버 secret key 경로 0건). 저희가 역제기한 `p_timezone` DEFAULT 의존이 **앱 확인 결과 파급이 컸다** — 그 값은 `private.handoff_availability_at`이 `AT TIME ZONE`으로 쓰는 **운영시간 판정 기준 시각**이라, DEFAULT가 UTC로 흘린 상태에서 5개 인자로 저장하면 **판정이 9시간 밀린다**(에러 없이). → `HANDOFF_TIMEZONE` 상수화 + 명시 전달 + 회귀 테스트(변이 RED 실관찰). 앱도 DEFAULT 프리즈·시그니처 회귀 검증을 걸어 **양쪽 방어**. 계약 = `AGENTS.md`, 경위 = `ref/2026-07-22-app-security-advisor-reply.md`.
 
 ## 다음 후보
 
