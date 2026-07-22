@@ -1,5 +1,10 @@
 # CRM 업무 AI 채팅 — 설계 (슬라이스 B1: RAG 수직 슬라이스)
 
+> ⚠️ **2026-07-02 B1 시점의 기록이다. 모델·임계값 서술은 현행이 아니다.**
+> 이 문서의 `gemini-embedding-001`·`gemini-3.1-flash-lite`·"앱/crm-analyst 동일"은 전부 옛 값이다.
+> **현행 SSOT는 `AGENTS.md`의 임베딩 모델 계약·생성 모델 배치 절**을 본다(임베딩 `gemini-embedding-2`,
+> 생성은 용도별 2분할, 유사도 임계값도 모델과 한 쌍으로 재실측됨). 설계 의도·구조는 여전히 유효하다.
+
 - 작성일: 2026-07-02
 - 상태: 설계 승인 대기 → (승인 시) writing-plans로 구현 플랜
 - 관련: `client/src/components/Topbar.tsx`(현 mock), crm-analyst(`supabase/functions/crm-analyst/` — Gemini 호출·staff JWT 인증 패턴 재사용 참고)
