@@ -169,8 +169,11 @@ export function useQuoteWorkbench({
   // 인박스 진입(URL ?quoteRequest=) + 니즈 카드 "견적 작성" 양쪽이 호출. hoisted 함수(useCallback 미사용 — 기존 패턴).
   function openWorkbenchForQuoteRequest(reqId: string): Promise<void> {
     return fetchQuoteRequestDetail(detail.id, reqId).then((prefill) => {
-      // 신규 워크벤치 열기와 동일한 리셋(견적함 + 버튼 onClick과 정렬)
-      quoteList.handlers.setConfirmingQuoteDeleteId(null);
+      // 워크벤치를 여는 지점은 팝오버-내부 상태(확인 5종·넛지)를 **단일 지점으로** 청소한다
+      // (배치 12 B#1 계약 — `useQuoteList.closeQuoteActionPopover`. 산개해서 setter를 하나씩 부르면
+      // 새 상태가 늘 때마다 여기가 조용히 뒤처진다. 배치 14 K4-b에서 실제로 삭제 확인 1종만 지우고
+      // 있었다). 이 지점은 꼬리라 `#309`가 경고한 "조기 반환 분기에 적용하면 회귀" 함정과 무관하다.
+      quoteList.handlers.closeQuoteActionPopover();
       setEditingQuoteId(null);
       persistedQuoteIdRef.current = null;
       setEditPrefill(null);
@@ -457,7 +460,7 @@ export function useQuoteWorkbench({
       const dstDealer = targetEl.querySelector<HTMLSelectElement>('select[data-sc-field="dealer"]');
       if (dstDealer) dstDealer.value = sourceDealer;
       setDealerOptionsByCard((prev) => (prev[sourceId] ? { ...prev, [targetId]: prev[sourceId] } : prev));
-      // 게이트 거울은 여기서 복사하지 않는다 — 위 :436에서 대상 select DOM에 금융사를 이미 썼고,
+      // 게이트 거울은 여기서 복사하지 않는다 — 위 targetLender.value 대입에서 대상 select DOM에 금융사를 이미 썼고,
       // 아래 patchCardUi가 커밋을 유발하므로 재동기화 effect가 같은 값을 읽는다(배치 13 K1).
       setManualQuoteCards((cards) => cards.map((c) => (c.id === targetId ? { ...c, dealerName: sourceDealer } : c)));
     }
@@ -1271,7 +1274,13 @@ export function useQuoteWorkbench({
   // dep을 열거하지 않는 것이 의도다 — "동기화 지점 N개를 사람이 기억"이 이 거울 결함군의 원인이었다
   // (구 스펙 §4.4의 4지점 목록 자체가 틀렸다: ①④ 누락 + clear 지시는 오히려 DOM과의 어긋남을 만들었다).
   // useLayoutEffect = paint 전 반영(게이트가 한 프레임 늦게 켜지는 깜빡임 제거).
-  // 무한 갱신은 sameStringMap bail-out이 막는다(같은 값이면 setState가 리렌더를 안 낸다).
+  // 무한 갱신은 sameStringMap bail-out이 막는다. ⚠️ bail-out을 **업데이터 안**에 두면(구 형태
+  // `setLenderByCard((prev) => same ? prev : next)`) setState가 매 커밋 호출돼, React가 "렌더 1패스 후
+  // bail out" 경로를 타 **훅 호스트 함수 본문이 커밋당 2회** 실행된다(배치 14 K3-a 실측: 워크벤치
+  // 닫힘에서도 delta 2, 비교카드 입력마다 2). effect는 커밋 후 실행이라 **클로저의 lenderByCard가 곧
+  // 현재 state**이므로, 호출 전에 비교하면 bail-out 강도는 같으면서 그 여분 패스가 사라진다.
+  // ref로 비교하면 안 된다 — 외부가 상태만 비우는 경로(`setLenderByCard({})`)에서 ref판이 고착돼
+  // "거울은 DOM 파생·자가치유"라는 이 effect의 불변식을 판다(V2 프로브 실측).
   // eslint-disable-next-line react-hooks/exhaustive-deps -- dep 없이 매 커밋 재동기화가 목적. [manualQuoteCards]를 주면 구매방식 전환(①)처럼 카드 배열이 그대로인 경로에서 다시 어긋난다
   useLayoutEffect(() => {
     const form = quoteDetailFormRef.current;
@@ -1282,8 +1291,9 @@ export function useQuoteWorkbench({
         if (value) next[card.id] = value;
       }
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 거울은 커밋된 DOM(진실)의 파생 — 같으면 bail out
-    setLenderByCard((prev) => (sameStringMap(prev, next) ? prev : next));
+    if (sameStringMap(lenderByCard, next)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 거울은 커밋된 DOM(진실)의 파생 — 위에서 같으면 조기 반환
+    setLenderByCard(next);
   });
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
@@ -1542,7 +1552,7 @@ export function useQuoteWorkbench({
 
   // 견적함 "+" (신규 작성) seam — 워크벤치 클린 시드(9b/9d/9e 상태). 9a QuoteList의 "+" 버튼이 호출.
   function openNewWorkbench() {
-    quoteList.handlers.setConfirmingQuoteDeleteId(null);
+    quoteList.handlers.closeQuoteActionPopover(); // 팝오버-내부 상태 동반 청소(B#1 단일 지점 — 배치 14 K4-b)
     setEditingQuoteId(null);
     persistedQuoteIdRef.current = null;
     setEditPrefill(null);
