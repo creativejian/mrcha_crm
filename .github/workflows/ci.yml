@@ -44,10 +44,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    # 더미값(시크릿 아님) — 위 주석의 근거 참조.
     env:
+      # 더미값(시크릿 아님) — 위 주석의 근거 참조.
       VITE_SUPABASE_URL: https://ci-dummy.supabase.co
       VITE_SUPABASE_PUBLISHABLE_KEY: ci-dummy-publishable-key
+      # GitHub 러너는 UTC다. 날짜 포맷을 검증하는 테스트 3건이 로컬 타임존을 그대로 쓰기 때문에
+      # UTC에서는 9시간 어긋나 깨진다(CI 첫 실행이 실제로 잡아냈다: `app-card` · `manage-status` ·
+      # `build-timeline-rows`, "expected '26/04/16 09:07' to be '26/04/16 18:07'").
+      # 이 제품은 한국 전용 CRM이고 KST가 도메인 기준이므로(`HANDOFF_TIMEZONE = 'Asia/Seoul'`,
+      # AGENTS.md) **CI를 실제 환경에 맞춘다** — UTC로 두면 아무도 쓰지 않는 조건에서 검증하게 된다.
+      # ⚠️ 근본 해결은 아니다. 그 3건은 여전히 실행 환경 타임존에 의존하며, 다른 타임존 개발자가
+      # 로컬에서 돌리면 깨진다. 테스트를 타임존 독립으로 만드는 것은 별건으로 남긴다.
+      TZ: Asia/Seoul
 
     steps:
       - uses: actions/checkout@v4
