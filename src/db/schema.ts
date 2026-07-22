@@ -317,11 +317,13 @@ const vector3072 = customType<{ data: number[]; driverData: string }>({
   fromDriver(value) { return JSON.parse(value) as number[]; },
 });
 
-// RAG 코퍼스 임베딩 스토어. 청크 1행 = 메모/할일/니즈메모/상담이력 하나.
+// RAG 코퍼스 임베딩 스토어. 청크 1행 = 코퍼스 소스 하나.
+// ⚠️ 모델 컬럼이 없다 — 어느 임베딩 모델이 만든 벡터인지는 `content_hash`에 섞인 모델명 salt로만 안다
+// (`embeddingContentHash`). 불변식 검사는 `test-utils/embedding-model-consistency.test.ts`.
 export const embeddings = crm.table("embeddings", {
   id: uuid("id").defaultRandom().primaryKey(),
-  sourceType: text("source_type").notNull(), // memo|task|need_memo|need_customer_note|need_review_note|consultation|quote
-  sourceId: uuid("source_id").notNull(),      // 원본 행 id (need_*는 customer_id)
+  sourceType: text("source_type").notNull(), // 허용값 = CorpusSourceType(lib/assistant-corpus.ts) — 여기 열거하지 않는다(늘 때마다 갈린다)
+  sourceId: uuid("source_id").notNull(),      // 원본 행 id (고객 단위 소스는 customer_id — need_*·customer_profile·customer_documents)
   customerId: uuid("customer_id")             // scope 필터·고객 메타 조인
     .notNull()
     .references(() => customers.id, { onDelete: "cascade" }),

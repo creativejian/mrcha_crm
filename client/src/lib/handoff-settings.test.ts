@@ -171,5 +171,17 @@ describe("saveHandoffSettings", () => {
     expect(fn).toBe("update_human_handoff_settings");
     expect(args.p_timezone).toBe(HANDOFF_TIMEZONE);
     expect(args.p_timezone).toBe("Asia/Seoul"); // 값 자체도 고정 — 앱 판정 기준과 어긋나면 안 된다
+
+    // 페이로드 **형상 전량** 단언(배치 14 K5-a) — 이 RPC는 계약 프리즈다(AGENTS.md). 인자가 늘거나
+    // 이름이 바뀌거나 빠지면 **RED가 되는 것이 의도**이고, 그때는 앱 팀과 합의 후 이 단언을 고친다.
+    // 프리즈 이전에는 p_timezone 하나만 잠겨 있어 나머지 5개는 자유롭게 드리프트할 수 있었다.
+    expect(args).toEqual({
+      p_mode: "automatic",
+      p_schedule: FULL_WEEK,
+      p_force_message: "강제",
+      p_outside_hours_message: "시간외",
+      p_reason: "테스트 사유",
+      p_timezone: HANDOFF_TIMEZONE,
+    });
   });
 });
