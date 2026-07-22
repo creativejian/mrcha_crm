@@ -202,7 +202,7 @@ export function CustomerManagementPage({
   const [openDeliveryScheduleFor, setOpenDeliveryScheduleFor] = useState<number | null>(null);
   const [savingDeliveryFor, setSavingDeliveryFor] = useState<number | null>(null);
   // 발생 행에 묶는다(배치 10 B#2) — 단일 스칼라면 A행 in-flight 실패 notice가 그 사이 열린
-  // B행 팝오버에 오귀속된다(:860 겹침 가드가 open/saving만 지키고 notice는 새던 잔여 갭).
+  // B행 팝오버에 오귀속된다(아래 겹침 가드가 open/saving만 지키고 notice는 새던 잔여 갭).
   const [deliveryNotice, setDeliveryNotice] = useState<{ no: number; message: string } | null>(null);
   const deliverySchedulePopoverRef = useRef<HTMLDivElement>(null);
   // 출고 정보 팝오버(delivery mode 전용, 출고 2단계 spec §5.3) — soft pipe 프리필 + upsert.

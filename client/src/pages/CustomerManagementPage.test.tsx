@@ -775,7 +775,7 @@ describe("출고 관리(delivery) 콘솔", () => {
   });
 
   // 배치 11 B#6ⓐ: 저장 성공(리로드 true) 경로의 팝오버 닫힘 — reload false 테스트는 유지 분기만
-  // 잠가서, 성공 닫힘(:762류)이 제거돼도 무증상이던 갭.
+  // 잠가서, 성공 닫힘(같은 파일 "저장 성공 시 팝오버 닫힘" 케이스류)이 제거돼도 무증상이던 갭.
   it("저장 성공(리로드 true)이면 출고 정보 팝오버가 닫힌다", async () => {
     const reload = vi.fn().mockResolvedValue(true);
     const customers = [{
@@ -807,7 +807,7 @@ describe("출고 관리(delivery) 콘솔", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "출고 예정 편집" })).toBeNull());
   });
 
-  // 배치 11 B#6ⓒ: fixed 팝오버 스크롤 닫기 — 출고 예정(:560류)만 잠겨 있던 비대칭.
+  // 배치 11 B#6ⓒ: fixed 팝오버 스크롤 닫기 — 출고 예정 팝오버 케이스류만 잠겨 있던 비대칭.
   it("스크롤이 나면 출고 정보 팝오버를 닫는다(fixed는 앵커를 따라가지 않음)", () => {
     render(<CustomerManagementPage mode="delivery" />);
     fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:/ })[0]);
