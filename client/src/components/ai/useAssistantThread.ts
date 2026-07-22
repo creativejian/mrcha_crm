@@ -25,7 +25,7 @@ function compareMessages(a: AssistantMessage, b: AssistantMessage): number {
 }
 
 // id 합집합 + 복합 정렬. 늦게 도착한 초기 스냅샷이 그 사이 append된 새 메시지를 지우지 못한다(replace 금지).
-export function mergeAssistantMessages(current: AssistantMessage[], incoming: AssistantMessage[]): AssistantMessage[] {
+function mergeAssistantMessages(current: AssistantMessage[], incoming: AssistantMessage[]): AssistantMessage[] {
   const byId = new Map(current.map((m) => [m.id, m]));
   for (const m of incoming) byId.set(m.id, m);
   return [...byId.values()].sort(compareMessages);

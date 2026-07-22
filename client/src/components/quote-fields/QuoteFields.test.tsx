@@ -22,7 +22,15 @@ describe("SegmentGroup", () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     const { container } = render(
-      <SegmentGroup value="amount" options={[{ value: "amount", label: "금액" }, { value: "percent", label: "%" }]} onSelect={onSelect} wide />,
+      <SegmentGroup
+        value="amount"
+        options={[
+          { value: "amount", label: "금액" },
+          { value: "percent", label: "%" },
+        ]}
+        onSelect={onSelect}
+        wide
+      />,
     );
     const group = container.firstElementChild as HTMLElement;
     expect(group.className).toBe("kim-jeff-segment wide");
@@ -35,7 +43,16 @@ describe("SegmentGroup", () => {
   // 옵션별 disabled는 지원집합 게이트용 additive 확장(2026-07-21). 워크벤치·계산기가 물리 공유하는
   // 프리미티브라, 기존 호출부(미전달)가 종전과 byte-동일하게 렌더되는 것이 계약이다.
   it("option.disabled 미전달 = 종전 그대로 활성 — 공유 프리미티브 기존 호출부 무변경", () => {
-    render(<SegmentGroup value={60} options={[{ value: 12, label: "12개월" }, { value: 60, label: "60개월" }]} onSelect={() => {}} />);
+    render(
+      <SegmentGroup
+        value={60}
+        options={[
+          { value: 12, label: "12개월" },
+          { value: 60, label: "60개월" },
+        ]}
+        onSelect={() => {}}
+      />,
+    );
     expect(screen.getByRole("button", { name: "12개월" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "60개월" })).not.toBeDisabled();
   });
@@ -46,7 +63,10 @@ describe("SegmentGroup", () => {
     render(
       <SegmentGroup
         value={60}
-        options={[{ value: 12, label: "12개월", disabled: true }, { value: 60, label: "60개월" }]}
+        options={[
+          { value: 12, label: "12개월", disabled: true },
+          { value: 60, label: "60개월" },
+        ]}
         onSelect={onSelect}
       />,
     );
@@ -60,7 +80,10 @@ describe("SegmentGroup", () => {
     render(
       <SegmentGroup
         value={60}
-        options={[{ value: 12, label: "12개월", disabled: false }, { value: 60, label: "60개월" }]}
+        options={[
+          { value: 12, label: "12개월", disabled: false },
+          { value: 60, label: "60개월" },
+        ]}
         disabled
         onSelect={() => {}}
       />,
@@ -70,13 +93,30 @@ describe("SegmentGroup", () => {
 
   it("onSelect 미전달 = 장식 세그먼트(클릭 무동작 — 워크벤치 공채/탁송료/부대비용 현행)", async () => {
     const user = userEvent.setup();
-    render(<SegmentGroup value="included" options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} />);
+    render(
+      <SegmentGroup
+        value="included"
+        options={[
+          { value: "included", label: "포함" },
+          { value: "excluded", label: "불포함" },
+        ]}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "불포함" }));
     expect(screen.getByRole("button", { name: "포함" }).className).toBe("active");
   });
 
   it("disabled가 전 버튼에 전파(카드 저장 상태)", () => {
-    render(<SegmentGroup value={36} options={[{ value: 36, label: "36개월" }, { value: 48, label: "48개월" }]} disabled />);
+    render(
+      <SegmentGroup
+        value={36}
+        options={[
+          { value: 36, label: "36개월" },
+          { value: 48, label: "48개월" },
+        ]}
+        disabled
+      />,
+    );
     expect(screen.getByRole("button", { name: "36개월" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "48개월" })).toBeDisabled();
   });
@@ -88,7 +128,13 @@ describe("MoneyField", () => {
       <MoneyField
         fixed
         suffix="%"
-        inputProps={{ "aria-label": "CM수수료 퍼센트", "data-discount-unit": "percent", "data-sc-field": "cmFeePercent", defaultValue: "1.5", readOnly: true }}
+        inputProps={{
+          "aria-label": "CM수수료 퍼센트",
+          "data-discount-unit": "percent",
+          "data-sc-field": "cmFeePercent",
+          defaultValue: "1.5",
+          readOnly: true,
+        }}
       />,
     );
     const shell = container.firstElementChild as HTMLElement;
@@ -114,7 +160,11 @@ describe("MoneyField", () => {
 
 describe("CondRow / CondCombo / FeeCombo / FormRow", () => {
   it("CondRow = label>span+children, className 분기(select-value 등)", () => {
-    const { container } = render(<CondRow label="기간" className="select-value"><i data-x="1" /></CondRow>);
+    const { container } = render(
+      <CondRow label="기간" className="select-value">
+        <i data-x="1" />
+      </CondRow>,
+    );
     const row = container.firstElementChild as HTMLElement;
     expect(row.tagName).toBe("LABEL");
     expect(row.className).toBe("select-value");
@@ -123,18 +173,35 @@ describe("CondRow / CondCombo / FeeCombo / FormRow", () => {
   });
 
   it("CondRow className 미전달 = class 속성 없음(워크벤치 다수 행 현행)", () => {
-    const { container } = render(<CondRow label="보증금"><i /></CondRow>);
+    const { container } = render(
+      <CondRow label="보증금">
+        <i />
+      </CondRow>,
+    );
     expect((container.firstElementChild as HTMLElement).hasAttribute("class")).toBe(false);
   });
 
   it("콤보 래퍼 클래스", () => {
-    const { container } = render(<><CondCombo><i /></CondCombo><FeeCombo><i /></FeeCombo></>);
+    const { container } = render(
+      <>
+        <CondCombo>
+          <i />
+        </CondCombo>
+        <FeeCombo>
+          <i />
+        </FeeCombo>
+      </>,
+    );
     expect(container.querySelector(".kim-manual-combo")).not.toBeNull();
     expect(container.querySelector(".kim-manual-fee-combo")).not.toBeNull();
   });
 
   it("FormRow = div.kim-jeff-form-row(+변형 클래스)>span+children", () => {
-    const { container } = render(<FormRow label="취득세" className="kim-jeff-acquisition-tax-row"><i /></FormRow>);
+    const { container } = render(
+      <FormRow label="취득세" className="kim-jeff-acquisition-tax-row">
+        <i />
+      </FormRow>,
+    );
     const row = container.firstElementChild as HTMLElement;
     expect(row.className).toBe("kim-jeff-form-row kim-jeff-acquisition-tax-row");
     expect(row.querySelector("span")?.textContent).toBe("취득세");
@@ -169,7 +236,11 @@ describe("PickerTriggerRow", () => {
   it("button.kim-jeff-picker-row 문법 + b 클래스(muted)·클릭", async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();
-    render(<PickerTriggerRow label="제조사" onClick={onClick} bClassName="muted">선택</PickerTriggerRow>);
+    render(
+      <PickerTriggerRow label="제조사" onClick={onClick} bClassName="muted">
+        선택
+      </PickerTriggerRow>,
+    );
     const button = screen.getByRole("button", { name: /제조사/ });
     expect(button.className).toBe("kim-jeff-picker-row");
     expect(button).toHaveAttribute("type", "button");
@@ -181,7 +252,11 @@ describe("PickerTriggerRow", () => {
   });
 
   it("bClassName 기본값 = 빈 class(워크벤치 현행)·disabled", () => {
-    render(<PickerTriggerRow label="모델" disabled onClick={() => {}}>팰리세이드</PickerTriggerRow>);
+    render(
+      <PickerTriggerRow label="모델" disabled onClick={() => {}}>
+        팰리세이드
+      </PickerTriggerRow>,
+    );
     const button = screen.getByRole("button", { name: /모델/ });
     expect(button).toBeDisabled();
     expect(button.querySelector("b")?.getAttribute("class")).toBe("");

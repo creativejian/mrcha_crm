@@ -146,8 +146,6 @@ describe("SolutionLenderRankingModal (개정 2 R4 — 제프 랭킹 UX 미러)",
         onClose={vi.fn()}
       />,
     );
-    await waitFor(() =>
-      expect(container.querySelector(".kim-solution-rank-empty")?.textContent).toContain("카드 조건을 읽지 못했습니다"),
-    );
+    await waitFor(() => expect(container.querySelector(".kim-solution-rank-empty")?.textContent).toContain("카드 조건을 읽지 못했습니다"));
   });
 });

@@ -138,7 +138,20 @@ describe("넛지 상태 클리어 경로 (배치 12 B#1)", () => {
   it("마킹 PATCH 실패 롤백 = 넛지 무효(K2-b — 마킹 없는 계약완료 전이 차단)", async () => {
     updateQuoteMock.mockRejectedValueOnce(new Error("patch failed"));
     const { result } = setup();
-    act(() => result.current.setQuotes([{ id: "q-1", quoteCode: "QT-1", title: "테스트 견적", meta: "", status: "작성중", source: "manual", appStatus: "draft", decisionStatus: "none" }]));
+    act(() =>
+      result.current.setQuotes([
+        {
+          id: "q-1",
+          quoteCode: "QT-1",
+          title: "테스트 견적",
+          meta: "",
+          status: "작성중",
+          source: "manual",
+          appStatus: "draft",
+          decisionStatus: "none",
+        },
+      ]),
+    );
     openNudge(result);
     // 낙관 반영은 contracting
     expect(result.current.quotes[0].decisionStatus).toBe("contracting");
@@ -150,12 +163,16 @@ describe("넛지 상태 클리어 경로 (배치 12 B#1)", () => {
   it("외부 pointerdown·Escape = 넛지 거절(spec §8 계약 3 — B#6② 리스너 실커버)", () => {
     const { result } = setup();
     openNudge(result);
-    act(() => { document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
+    act(() => {
+      document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    });
     expect(result.current.contractStageNudgeQuoteId).toBeNull();
     expect(result.current.openQuoteActionId).toBeNull();
 
     openNudge(result);
-    act(() => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); });
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
     expect(result.current.contractStageNudgeQuoteId).toBeNull();
     expect(result.current.openQuoteActionId).toBeNull();
   });

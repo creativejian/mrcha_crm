@@ -12,7 +12,7 @@ import {
 
 export const CUSTOMER_CODE_REGEX = prefixRegex(TEST_CUSTOMER_CODE_PREFIXES);
 export const QUOTE_CODE_REGEX = prefixRegex(TEST_QUOTE_CODE_PREFIXES);
-export const CONSULTATION_NAME_REGEX = prefixRegex(TEST_CONSULTATION_NAMES);
+const CONSULTATION_NAME_REGEX = prefixRegex(TEST_CONSULTATION_NAMES);
 
 // 고객 잔재 판정 — 코드 접두사 or 등록된 픽스처 이름. 실채번 픽스처(POST 라우트 테스트)는
 // 코드가 CU-YYMM-####라 접두사로 못 잡는다 — 이름이 잡는다. scan과 check-test-residue --clean이 공유.

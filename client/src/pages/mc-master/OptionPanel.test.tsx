@@ -63,7 +63,10 @@ it("캐시 hit: 첫 렌더부터 옵션 리스트(비동기 대기 없이)", asy
 
 it("캐시 miss 로딩 중: summary 카운트로 탭 라벨, 「옵션 없음 확정」 미표시", () => {
   // never-resolve fetch로 loaded=false 상태를 고정
-  vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => new Promise<Response>(() => {})),
+  );
   render(
     <OptionPanel
       trim={{ ...TRIM, id: 8001 }}

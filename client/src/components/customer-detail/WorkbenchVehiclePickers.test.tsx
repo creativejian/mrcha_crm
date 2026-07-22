@@ -12,8 +12,38 @@ import { WorkbenchColorPicker, WorkbenchOptionPicker, WorkbenchVehiclePicker } f
 const BRAND = { id: 1, name: "현대", logoUrl: null, isDomestic: true, isPopular: true, sortOrder: 1, brandCode: 1 };
 const MODEL = { id: 10, brandId: 1, name: "팰리세이드", imageUrl: null, category: null, status: "판매중", sortOrder: 1, modelCode: 1 };
 // mcCode 없는 트림(수기 견적 대상) — 워크벤치는 계산기와 달리 선택을 막지 않는다(행위 보존, plan 함정 7).
-const TRIM = { id: 100, modelId: 10, name: "Exclusive", trimName: "Exclusive", canonicalName: null, price: 50000000, fuelType: null, displacementCc: null, modelYear: null, driveSystem: null, transmissionType: null, bodyStyle: null, seatingCapacity: null, status: "판매중", sortOrder: 1, mcCode: null };
-const TRIM_DETAIL = { ...TRIM, specs: null, financialDiscountAmount: null, partnerDiscountAmount: null, cashDiscountAmount: null, brandId: 1, brandName: "현대", modelName: "팰리세이드", options: [], optionRelations: [], colors: [], noOptions: null };
+const TRIM = {
+  id: 100,
+  modelId: 10,
+  name: "Exclusive",
+  trimName: "Exclusive",
+  canonicalName: null,
+  price: 50000000,
+  fuelType: null,
+  displacementCc: null,
+  modelYear: null,
+  driveSystem: null,
+  transmissionType: null,
+  bodyStyle: null,
+  seatingCapacity: null,
+  status: "판매중",
+  sortOrder: 1,
+  mcCode: null,
+};
+const TRIM_DETAIL = {
+  ...TRIM,
+  specs: null,
+  financialDiscountAmount: null,
+  partnerDiscountAmount: null,
+  cashDiscountAmount: null,
+  brandId: 1,
+  brandName: "현대",
+  modelName: "팰리세이드",
+  options: [],
+  optionRelations: [],
+  colors: [],
+  noOptions: null,
+};
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -22,10 +52,7 @@ beforeEach(() => {
       if (url === "/api/vehicles/brands") return new Response(JSON.stringify([BRAND]), { status: 200 });
       if (url.startsWith("/api/vehicles/models")) return new Response(JSON.stringify([MODEL]), { status: 200 });
       if (url.startsWith("/api/vehicles/workbench")) {
-        return new Response(
-          JSON.stringify({ brands: [BRAND], models: [MODEL], trims: [TRIM], trimDetail: TRIM_DETAIL }),
-          { status: 200 },
-        );
+        return new Response(JSON.stringify({ brands: [BRAND], models: [MODEL], trims: [TRIM], trimDetail: TRIM_DETAIL }), { status: 200 });
       }
       if (url.includes("/api/vehicles/trims/")) return new Response(JSON.stringify(TRIM_DETAIL), { status: 200 });
       if (url.startsWith("/api/vehicles/trims")) return new Response(JSON.stringify([TRIM]), { status: 200 });
@@ -87,7 +114,10 @@ describe("WorkbenchVehiclePicker", () => {
   });
 
   it("브랜드 로드 실패 시 다이얼로그에 '불러오지 못했습니다' 표시(데이터 없음과 구분)", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("err", { status: 500 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("err", { status: 500 })),
+    );
     const user = userEvent.setup();
     render(<WorkbenchVehiclePicker />);
     await user.click(screen.getByRole("button", { name: /제조사/ }));

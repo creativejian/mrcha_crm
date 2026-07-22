@@ -2,7 +2,7 @@ import { getJson, sendJson } from "./http";
 import { apiFetch } from "./api";
 import { createSseParser } from "./assistant-sse";
 
-export type AssistantSource = { customerId: string; customerName: string; sourceType: string; snippet: string };
+type AssistantSource = { customerId: string; customerName: string; sourceType: string; snippet: string };
 export type AssistantMessage = { id: string; role: "user" | "assistant"; content: string; sources: AssistantSource[] | null; createdAt: string };
 export type AssistantAskResult = { messages: AssistantMessage[] };
 

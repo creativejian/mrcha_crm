@@ -22,13 +22,19 @@ vi.mock("@/components/customer-detail/PurchaseConditions", () => ({ PurchaseCond
 vi.mock("@/components/customer-detail/QuoteWorkbench", () => ({ QuoteWorkbench: () => null }));
 vi.mock("@/components/customer-detail/NeedsDashboard", () => ({
   NeedsDashboard: ({ onViewQuote }: { onViewQuote: (reqId: string, quoteId: string) => void }) => (
-    <button type="button" onClick={() => onViewQuote("req-1", "q-1")}>견적 보기</button>
+    <button type="button" onClick={() => onViewQuote("req-1", "q-1")}>
+      견적 보기
+    </button>
   ),
 }));
 // QuoteList/QuotePreviewModals는 같은 모듈 — 견적함 상태를 화면 밖에서 관측하려고 프로브로 노출한다.
 vi.mock("@/components/customer-detail/QuoteList", () => ({
   QuoteList: ({ quoteList }: { quoteList: { confirmingQuoteContractEditId: string | null; editorOpen: boolean } }) => (
-    <div data-testid="quote-list-probe" data-contract-edit-id={quoteList.confirmingQuoteContractEditId ?? ""} data-editor-open={String(quoteList.editorOpen)} />
+    <div
+      data-testid="quote-list-probe"
+      data-contract-edit-id={quoteList.confirmingQuoteContractEditId ?? ""}
+      data-editor-open={String(quoteList.editorOpen)}
+    />
   ),
   QuotePreviewModals: () => null,
 }));
@@ -86,10 +92,20 @@ const detail = {
 } as unknown as CustomerDetailData;
 
 const customer = {
-  id: "d-1", no: 11, name: "김지안", customerId: "CU-1",
-  statusGroup: "견적", status: "발송완료", advisorId: "u-1",
-  source: "앱 문의", receivedAt: "2026-07-01", advisor: "자메스", assignedAt: "2026-07-01",
-  team: "1팀", date: "2026-07-20", nextAction: "-",
+  id: "d-1",
+  no: 11,
+  name: "김지안",
+  customerId: "CU-1",
+  statusGroup: "견적",
+  status: "발송완료",
+  advisorId: "u-1",
+  source: "앱 문의",
+  receivedAt: "2026-07-01",
+  advisor: "자메스",
+  assignedAt: "2026-07-01",
+  team: "1팀",
+  date: "2026-07-20",
+  nextAction: "-",
 } as unknown as Customer;
 
 function probe() {

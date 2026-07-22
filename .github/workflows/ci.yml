@@ -11,9 +11,11 @@ name: CI
 #   ③실 Gemini 라우팅 호출이 매 실행 9건 나간다(배치 15 M7 계측).
 #   서버 테스트는 로컬에서만 돌린다 — 자세한 근거는 AGENTS.md의 알림 트리거·픽스처 절.
 #
-# ⚠️ knip·format:check도 제외했다. 둘 다 도입 시점부터 red인 선재 상태라(knip 7 unused
-#   exports / 9 types, format:check 스타일 warn 20건) 넣으면 CI가 항상 빨갛다. 기준선을
-#   0으로 만든 뒤에 추가할 것 — 그때까지는 red 게이트를 만들지 않는다.
+# knip·format:check는 도입 당시 선재 red라(knip 7 exports / 9 types, format warn 20건)
+# 일단 제외했다가, **기준선을 0으로 만든 뒤 2026-07-22에 추가했다**. 이제 위생이 자동으로
+# 잠긴다 — 미사용 export가 생기거나 포맷이 어긋나면 PR에서 바로 빨개진다.
+# ⚠️ 이 두 게이트는 **0을 유지해야 의미가 있다.** red를 쌓아두고 무시하기 시작하면 아무도
+#   안 보는 신호가 된다. 정당한 예외는 `knip.json`에 등록하고 사유를 남길 것.
 #
 # `VITE_*`는 **더미값**을 준다(시크릿 아님). `client/src/lib/supabase.ts`가 모듈 로드 시점에
 # 두 값이 없으면 throw하고, `test:unit`의 다수 테스트가 그 모듈을 import 체인으로 끌어온다.
@@ -73,6 +75,16 @@ jobs:
       - name: Lint
         if: ${{ !cancelled() }}
         run: bun run lint
+
+      # 미사용 export·타입 탐지. 기준선 0(2026-07-22 정리 완료) — 늘면 여기서 막는다.
+      - name: Knip (unused exports)
+        if: ${{ !cancelled() }}
+        run: bun run knip
+
+      # 포맷. 대상 글롭은 `package.json`의 `format:check` 참조(전체 파일이 아니다).
+      - name: Format check
+        if: ${{ !cancelled() }}
+        run: bun run format:check
 
       - name: Unit tests
         if: ${{ !cancelled() }}

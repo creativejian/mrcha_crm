@@ -67,38 +67,29 @@ describe("CustomerManagementPage", () => {
   });
 
   // 5개 비-all mode도 전체 보기와 같은 콘솔 문법(1줄 rail·필터 pill·전체 N명 카운트)을 쓴다.
-  it.each(["consulting", "contract", "delivery", "settlement", "hold"] as const)(
-    "renders the console control rail for %s mode",
-    (mode) => {
-      render(<CustomerManagementPage mode={mode} />);
-      // 콘솔 검색 래퍼(구식 <input class="input"> 아님)
-      expect(document.querySelector(".customer-console-search")).not.toBeNull();
-      // 카운트는 "전체 N명"(구식 "TOTAL N" 아님)
-      expect(screen.queryByText("TOTAL")).not.toBeInTheDocument();
-    },
-  );
+  it.each(["consulting", "contract", "delivery", "settlement", "hold"] as const)("renders the console control rail for %s mode", (mode) => {
+    render(<CustomerManagementPage mode={mode} />);
+    // 콘솔 검색 래퍼(구식 <input class="input"> 아님)
+    expect(document.querySelector(".customer-console-search")).not.toBeNull();
+    // 카운트는 "전체 N명"(구식 "TOTAL N" 아님)
+    expect(screen.queryByText("TOTAL")).not.toBeInTheDocument();
+  });
 
   // 공통 진행 상태 1차/2차 필터가 pill(button)로 — 구식 네이티브 select 아님. delivery는 제외
   // (Task 6 보강 — 단계 pill과 완전 중복·모순 조합이라 숨김, "출고 관리(delivery) 콘솔" describe에서 별도 검증).
-  it.each(["consulting", "contract", "settlement", "hold"] as const)(
-    "renders the shared stage filter pills for %s mode",
-    (mode) => {
-      render(<CustomerManagementPage mode={mode} />);
-      expect(screen.getByRole("button", { name: /진행 상태 · 1차/ })).toBeInTheDocument();
-    },
-  );
+  it.each(["consulting", "contract", "settlement", "hold"] as const)("renders the shared stage filter pills for %s mode", (mode) => {
+    render(<CustomerManagementPage mode={mode} />);
+    expect(screen.getByRole("button", { name: /진행 상태 · 1차/ })).toBeInTheDocument();
+  });
 
   // 뷰 select 3개(담당자별/상담상태별/긴급순)는 renderConsoleFilter로 흡수돼 pill(button)이 된다.
   // delivery는 출고 단계 필터 pill로 대체(Task 6) — "출고 관리(delivery) 콘솔" describe에서 별도 검증.
-  it.each(["consulting", "contract", "settlement", "hold"] as const)(
-    "renders the mock view-select pills for %s mode",
-    (mode) => {
-      render(<CustomerManagementPage mode={mode} />);
-      expect(screen.getByRole("button", { name: /담당자별 보기/ })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /상담상태별 보기/ })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /긴급순으로 보기/ })).toBeInTheDocument();
-    },
-  );
+  it.each(["consulting", "contract", "settlement", "hold"] as const)("renders the mock view-select pills for %s mode", (mode) => {
+    render(<CustomerManagementPage mode={mode} />);
+    expect(screen.getByRole("button", { name: /담당자별 보기/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /상담상태별 보기/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /긴급순으로 보기/ })).toBeInTheDocument();
+  });
 
   // 상담필요(consulting) = 미배정 고객 업무함(2026-07-16 확정). 담당자가 배정된 고객은
   // 계약 전 단계여도 이 목록에 들어오지 않는다 — 배정되면 담당자 관리 흐름으로 넘어간다.
@@ -199,12 +190,7 @@ describe("CustomerManagementPage", () => {
   // 선행 " · " 없이 추가 연락처만 표시(배치 8 C#9).
   it("omits the separator when only the secondary phone exists", () => {
     const [first] = initialCustomers;
-    render(
-      <CustomerManagementPage
-        customers={[{ ...first, phone: "", phoneSecondary: "010-9876-5432" }]}
-        mode="all"
-      />,
-    );
+    render(<CustomerManagementPage customers={[{ ...first, phone: "", phoneSecondary: "010-9876-5432" }]} mode="all" />);
 
     expect(document.querySelector(".customer-phone")?.textContent).toBe("010-9876-5432");
   });
@@ -223,7 +209,9 @@ describe("CustomerManagementPage", () => {
     expect(primaryStatusFilter).toHaveClass("filter-active");
 
     await user.click(primaryStatusFilter);
-    await user.click(within(screen.getByRole("listbox", { name: "진행 상태 · 1차 선택" })).getByRole("option", { name: "진행 상태 · 1차" }));
+    await user.click(
+      within(screen.getByRole("listbox", { name: "진행 상태 · 1차 선택" })).getByRole("option", { name: "진행 상태 · 1차" }),
+    );
     expect(primaryStatusFilter).not.toHaveClass("filter-active");
 
     const chanceFilter = screen.getByRole("button", { name: /계약 가능성/ });
@@ -524,7 +512,9 @@ describe("출고 관리(delivery) 콘솔", () => {
     expect(screen.queryByRole("button", { name: "진행 1단계 변경: 계약완료" })).toBeNull();
     fireEvent.click(stageButton);
     const listbox = screen.getByRole("listbox", { name: "진행 2단계 선택" });
-    const options = within(listbox).getAllByRole("option").map((o) => o.textContent);
+    const options = within(listbox)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
     expect(options).toEqual(["딜러사계약중", "대리점발주중", "특판발주중", "배정완료", "출고완료"]);
   });
 
@@ -583,11 +573,18 @@ describe("출고 관리(delivery) 콘솔", () => {
   // 실패 분기는 팝오버를 유지한 채 안내한다(deleteSelected 미러 불가 — notice가 팝오버 안에만 렌더).
   it("저장 후 리로드 실패(false)면 팝오버를 유지하고 안내를 보여준다", async () => {
     const reload = vi.fn().mockResolvedValue(false);
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-4", no: 90004, customerId: "CU-2605-9004", name: "출고리로드실패",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-4",
+        no: 90004,
+        customerId: "CU-2605-9004",
+        name: "출고리로드실패",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
     fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
@@ -600,23 +597,57 @@ describe("출고 관리(delivery) 콘솔", () => {
   it("행 정렬 = 출고 예정일 오름차순, 미지정은 뒤", () => {
     const base = initialCustomers[4]; // 한지훈 형태 복제
     const customers = [
-      { ...base, no: 91001, customerId: "CU-2605-9101", name: "출고정렬셋째", statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null },
-      { ...base, no: 91002, customerId: "CU-2605-9102", name: "출고정렬둘째", statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: { id: "s2", date: "2026-08-02", time: null } },
-      { ...base, no: 91003, customerId: "CU-2605-9103", name: "출고정렬첫째", statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: { id: "s1", date: "2026-07-21", time: null } },
+      {
+        ...base,
+        no: 91001,
+        customerId: "CU-2605-9101",
+        name: "출고정렬셋째",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+      },
+      {
+        ...base,
+        no: 91002,
+        customerId: "CU-2605-9102",
+        name: "출고정렬둘째",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: { id: "s2", date: "2026-08-02", time: null },
+      },
+      {
+        ...base,
+        no: 91003,
+        customerId: "CU-2605-9103",
+        name: "출고정렬첫째",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: { id: "s1", date: "2026-07-21", time: null },
+      },
     ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
-    const names = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    const names = screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.textContent ?? "");
     expect(names.findIndex((t) => t.includes("출고정렬첫째"))).toBeLessThan(names.findIndex((t) => t.includes("출고정렬둘째")));
     expect(names.findIndex((t) => t.includes("출고정렬둘째"))).toBeLessThan(names.findIndex((t) => t.includes("출고정렬셋째")));
   });
 
   it("미지정 클릭 → 팝오버에서 날짜 저장 = '출고' 일정 생성 호출", async () => {
     const { addSchedule } = await import("@/lib/customer-children");
-    const customers = [{
-      ...initialCustomers[4], // 한지훈(배정완료) 형태 복제
-      id: "cid-1", no: 90001, customerId: "CU-2605-9001", name: "출고팝오버검증",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4], // 한지훈(배정완료) 형태 복제
+        id: "cid-1",
+        no: 90001,
+        customerId: "CU-2605-9001",
+        name: "출고팝오버검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
     fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
@@ -628,12 +659,18 @@ describe("출고 관리(delivery) 콘솔", () => {
 
   it("대표 일정 있는 행 = 라벨 표시 + 저장 시 그 id PATCH", async () => {
     const { updateSchedule } = await import("@/lib/customer-children");
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-2", no: 90002, customerId: "CU-2605-9002", name: "출고팝오버수정",
-      statusGroup: "계약완료", status: "배정완료",
-      nextDeliverySchedule: { id: "sch-1", date: "2026-07-24", time: "14:00" },
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-2",
+        no: 90002,
+        customerId: "CU-2605-9002",
+        name: "출고팝오버수정",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: { id: "sch-1", date: "2026-07-24", time: "14:00" },
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /^출고 예정 7\/24/ }));
     fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-31" } });
@@ -645,11 +682,18 @@ describe("출고 관리(delivery) 콘솔", () => {
 
   it("날짜 텍스트 형식이 틀리면 저장을 막고 안내 문구를 보여준다(년-월-일 고정, 로케일 무관 — 2026-07-19)", async () => {
     const { addSchedule } = await import("@/lib/customer-children");
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-3", no: 90003, customerId: "CU-2605-9003", name: "출고팝오버형식오류",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-3",
+        no: 90003,
+        customerId: "CU-2605-9003",
+        name: "출고팝오버형식오류",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
     fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "0724" } });
@@ -660,11 +704,18 @@ describe("출고 관리(delivery) 콘솔", () => {
 
   it("저장 성공 시 onCustomerListChanged(서버 리로드)를 호출한다", async () => {
     const reload = vi.fn().mockResolvedValue(true);
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-1", no: 90001, customerId: "CU-2605-9001", name: "출고팝오버검증",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-1",
+        no: 90001,
+        customerId: "CU-2605-9001",
+        name: "출고팝오버검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /^출고 예정 입력:/ }));
     fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
@@ -682,13 +733,20 @@ describe("출고 관리(delivery) 콘솔", () => {
   });
 
   it("팝오버는 contracting 견적에서 차량·금융사를 프리필한다(soft pipe)", () => {
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-5", no: 90005, customerId: "CU-2605-9005", name: "프리필검증",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
-      delivery: null,
-      contractingQuote: { id: "q-1", brandName: "BMW", modelName: "5 Series", trimName: "520i", lender: "iM캐피탈" },
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-5",
+        no: 90005,
+        customerId: "CU-2605-9005",
+        name: "프리필검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+        delivery: null,
+        contractingQuote: { id: "q-1", brandName: "BMW", modelName: "5 Series", trimName: "520i", lender: "iM캐피탈" },
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 프리필검증" }));
     expect(screen.getByLabelText("계약 차량")).toHaveValue("BMW 5 Series 520i");
@@ -698,32 +756,62 @@ describe("출고 관리(delivery) 콘솔", () => {
   it("저장은 정규화 body로 saveCustomerDelivery를 호출하고, 리로드 실패(false)면 팝오버 유지+안내(B#1 미러)", async () => {
     const { saveCustomerDelivery } = await import("@/lib/customer-children");
     const reload = vi.fn().mockResolvedValue(false);
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-6", no: 90006, customerId: "CU-2605-9006", name: "출고정보저장검증",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
-      delivery: null, contractingQuote: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-6",
+        no: 90006,
+        customerId: "CU-2605-9006",
+        name: "출고정보저장검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+        delivery: null,
+        contractingQuote: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 출고정보저장검증" }));
     fireEvent.change(screen.getByLabelText("계약일"), { target: { value: "2026-07-15" } });
     fireEvent.change(screen.getByLabelText("금융사"), { target: { value: "iM캐피탈" } });
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
-    await waitFor(() => expect(saveCustomerDelivery).toHaveBeenCalledWith("cid-6", {
-      contractVehicle: null, contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: null, deliveryMemo: null, sourceQuoteId: null,
-    }));
+    await waitFor(() =>
+      expect(saveCustomerDelivery).toHaveBeenCalledWith("cid-6", {
+        contractVehicle: null,
+        contractDate: "2026-07-15",
+        lender: "iM캐피탈",
+        deliveredDate: null,
+        deliveryMemo: null,
+        sourceQuoteId: null,
+      }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent("목록을 불러오지");
     expect(screen.getByRole("dialog", { name: "출고 정보 편집" })).toBeInTheDocument();
   });
 
   it("delivery mode 차량 셀은 계약 차량 저장값을 우선 표시한다(니즈 파생 대체 — spec §5.2)", () => {
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-7", no: 90007, customerId: "CU-2605-9007", name: "차량폴백검증",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null, vehicle: "니즈차종",
-      delivery: { contractVehicle: "계약차량 520i", contractDate: null, lender: null, deliveredDate: null, deliveryMemo: null, sourceQuoteId: null },
-      contractingQuote: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-7",
+        no: 90007,
+        customerId: "CU-2605-9007",
+        name: "차량폴백검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+        vehicle: "니즈차종",
+        delivery: {
+          contractVehicle: "계약차량 520i",
+          contractDate: null,
+          lender: null,
+          deliveredDate: null,
+          deliveryMemo: null,
+          sourceQuoteId: null,
+        },
+        contractingQuote: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
     expect(screen.getByText("계약차량 520i")).toBeInTheDocument();
     expect(screen.queryByText("니즈차종")).toBeNull();
@@ -762,13 +850,28 @@ describe("출고 관리(delivery) 콘솔", () => {
   // 배치 11 B#2: delivery 차량 셀은 계약 차량을 표시하므로 검색도 그 텍스트를 매칭해야 한다(표시·검색
   // 축 정합 — delivery mode 한정 편입·타 mode 검색 불변).
   it("delivery mode 검색은 계약 차량 텍스트도 매칭한다", () => {
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-9", no: 90009, customerId: "CU-2605-9009", name: "검색축검증",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null, vehicle: "니즈차종",
-      delivery: { contractVehicle: "계약차량G80", contractDate: null, lender: null, deliveredDate: null, deliveryMemo: null, sourceQuoteId: null },
-      contractingQuote: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-9",
+        no: 90009,
+        customerId: "CU-2605-9009",
+        name: "검색축검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+        vehicle: "니즈차종",
+        delivery: {
+          contractVehicle: "계약차량G80",
+          contractDate: null,
+          lender: null,
+          deliveredDate: null,
+          deliveryMemo: null,
+          sourceQuoteId: null,
+        },
+        contractingQuote: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
     fireEvent.change(screen.getByPlaceholderText(/차종 검색/), { target: { value: "계약차량G80" } });
     expect(screen.getByText("검색축검증")).toBeInTheDocument();
@@ -778,12 +881,20 @@ describe("출고 관리(delivery) 콘솔", () => {
   // 잠가서, 성공 닫힘(같은 파일 "저장 성공 시 팝오버 닫힘" 케이스류)이 제거돼도 무증상이던 갭.
   it("저장 성공(리로드 true)이면 출고 정보 팝오버가 닫힌다", async () => {
     const reload = vi.fn().mockResolvedValue(true);
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-10", no: 90010, customerId: "CU-2605-9010", name: "성공닫힘검증",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
-      delivery: null, contractingQuote: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-10",
+        no: 90010,
+        customerId: "CU-2605-9010",
+        name: "성공닫힘검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+        delivery: null,
+        contractingQuote: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 성공닫힘검증" }));
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
@@ -793,12 +904,20 @@ describe("출고 관리(delivery) 콘솔", () => {
 
   it("저장 성공(리로드 true)이면 출고 예정 팝오버도 닫힌다(B#6ⓐ 동반)", async () => {
     const reload = vi.fn().mockResolvedValue(true);
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-11", no: 90011, customerId: "CU-2605-9011", name: "예정닫힘검증",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
-      delivery: null, contractingQuote: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-11",
+        no: 90011,
+        customerId: "CU-2605-9011",
+        name: "예정닫힘검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+        delivery: null,
+        contractingQuote: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomerListChanged={reload} onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "출고 예정 입력: 예정닫힘검증" }));
     fireEvent.change(screen.getByLabelText("날짜"), { target: { value: "2026-07-24" } });
@@ -817,13 +936,27 @@ describe("출고 관리(delivery) 콘솔", () => {
   });
 
   it("출고 정보 저장값이 있으면 셀에 계약·출고 요약 줄을 보여준다", () => {
-    const customers = [{
-      ...initialCustomers[4],
-      id: "cid-8", no: 90008, customerId: "CU-2605-9008", name: "출고요약검증",
-      statusGroup: "계약완료", status: "배정완료", nextDeliverySchedule: null,
-      delivery: { contractVehicle: null, contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: "2026-07-20", deliveryMemo: null, sourceQuoteId: null },
-      contractingQuote: null,
-    }];
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-8",
+        no: 90008,
+        customerId: "CU-2605-9008",
+        name: "출고요약검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+        delivery: {
+          contractVehicle: null,
+          contractDate: "2026-07-15",
+          lender: "iM캐피탈",
+          deliveredDate: "2026-07-20",
+          deliveryMemo: null,
+          sourceQuoteId: null,
+        },
+        contractingQuote: null,
+      },
+    ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
     expect(screen.getByText("계약 7/15 · iM캐피탈")).toBeInTheDocument();
     expect(screen.getByText("출고 7/20")).toBeInTheDocument();

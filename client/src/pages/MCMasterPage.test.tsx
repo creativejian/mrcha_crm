@@ -21,9 +21,7 @@ function renderPage(roleTab: "최고관리자" | "상담사") {
   );
 }
 
-const BRANDS = [
-  { id: 1, name: "현대", logoUrl: null, isDomestic: true, isPopular: true, sortOrder: 1, brandCode: 1 },
-];
+const BRANDS = [{ id: 1, name: "현대", logoUrl: null, isDomestic: true, isPopular: true, sortOrder: 1, brandCode: 1 }];
 const MODELS = [
   {
     id: 10,

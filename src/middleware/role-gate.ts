@@ -15,7 +15,11 @@ export type DealerWriteAllowEntry = { method: string; path: RegExp };
 // (부분 일치로 이웃 라우트가 새는 것 방지 — role-gate.test.ts가 잠금).
 // 확정 예정 1건(2026-07-11 이사님·유슨생): MC 마스터 트림 할인 입력(자사/제휴/타사) —
 // 딜러용 라우트 신설 시 { method, path: /^\/api\/catalog\/…$/ } 형태로 추가.
-export const DEALER_WRITE_ALLOWLIST: DealerWriteAllowEntry[] = [];
+// ⚠️ **의도적으로 export하지 않는다**(2026-07-22): 개방은 이 배열에 한 줄 추가하는 것이고
+// 그건 이 파일 안에서 하는 일이다. 밖으로 열면 다른 모듈이 런타임에 게이트를 넓힐 수 있어
+// "여기 한 곳이 딜러 쓰기의 유일한 관문"이라는 성질이 깨진다. 주입이 필요한 테스트는
+// `isDealerWriteAllowed(method, path, allowlist)`가 allowlist를 인자로 받으므로 그걸 쓴다.
+const DEALER_WRITE_ALLOWLIST: DealerWriteAllowEntry[] = [];
 
 export function isDealerWriteAllowed(
   method: string,

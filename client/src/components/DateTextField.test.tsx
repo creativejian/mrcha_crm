@@ -47,9 +47,7 @@ describe("DateTextField — uncontrolled(name/defaultValue → FormData)", () =>
 
   it("uncontrolled여도 onValueChange가 있으면 픽 값으로 호출한다", () => {
     const onValueChange = vi.fn();
-    const { container } = render(
-      <DateTextField ariaLabel="날짜" defaultValue="2026-07-01" name="date" onValueChange={onValueChange} />,
-    );
+    const { container } = render(<DateTextField ariaLabel="날짜" defaultValue="2026-07-01" name="date" onValueChange={onValueChange} />);
     fireEvent.change(hiddenNativeInput(container), { target: { value: "2026-07-24" } });
     expect(onValueChange).toHaveBeenCalledWith("2026-07-24");
   });

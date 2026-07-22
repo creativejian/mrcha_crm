@@ -5,7 +5,7 @@
 import { HANDOFF_DAY_KEYS, HANDOFF_DAY_LABELS, HANDOFF_MODE_LABELS, HANDOFF_TIMEZONE, type HandoffDayKey, type HandoffMode } from "@/data/chat";
 import { supabase } from "./supabase";
 
-export type DaySchedule = { start: string; end: string } | null;
+type DaySchedule = { start: string; end: string } | null;
 export type WeekSchedule = Record<HandoffDayKey, DaySchedule>;
 
 export type HandoffSettings = {
@@ -17,7 +17,7 @@ export type HandoffSettings = {
   updatedAt: string;
 };
 
-export type HandoffReason = "available" | "force_off" | "outside_hours";
+type HandoffReason = "available" | "force_off" | "outside_hours";
 
 export type HandoffAvailability = {
   available: boolean;
