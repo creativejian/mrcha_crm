@@ -18,6 +18,12 @@ type RagSeen = { inserted: unknown[][]; updated?: { id: string; content: string 
 function ragFakes(seen: RagSeen, overrides: Partial<AssistantDeps> = {}) {
   assistantDeps.listRecentMessages = async () => [];
   assistantDeps.getStaffName = async () => "테스트직원"; // 프롬프트 사용자 컨텍스트 — 실 profiles 조회 차단
+  // ⚠️ 라우터 기본 스텁 — 이게 없으면 override하지 않은 테스트가 **실 Gemini를 호출한다**.
+  // 다른 dep은 전부 차단해 두고 라우터만 빠져 있어서, `test:server` 1회가 실제로
+  // `generateContent` 요청 9건을 발사하고 있었다(배치 15 M7 계측). 결과에 의존하는 테스트는
+  // 없었으므로(업스트림을 죽여도 전량 통과) 동작은 그대로이고 외부 의존·비용만 사라진다.
+  // `null` = 라우팅 실패 폴백이며, 도구 경로를 검증하는 테스트는 각자 override로 명시한다.
+  assistantDeps.routeAssistantTool = async () => null;
   assistantDeps.embedTexts = async (texts: string[]) => texts.map(() => Array.from({ length: EMBEDDING_DIM }, () => 0.01));
   assistantDeps.searchEmbeddings = async () => [{ id: "e1", sourceType: "memo", sourceId: "s1", customerId: "c1", content: "근거", similarity: 1 }];
   assistantDeps.getCustomerMetaByIds = async () => new Map([["c1", { name: "김민준", status: "상담중" }]]);
