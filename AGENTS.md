@@ -53,7 +53,8 @@ Default handoff behavior:
 - DOM or TypeScript changes: run `bun run typecheck`.
 - Any change: keep `bun run lint` at 0 problems (the repo is currently lint-clean).
 - Customer management logic changes: run `bun run test:unit client/src/pages/CustomerManagementPage.test.tsx`.
-- Large visual layout changes: run Playwright screenshot once, not after every minor tweak.
+- Large visual layout changes: 실화면을 **눈으로 1회** 확인한다(매 미세 조정마다 하지 않는다). 로그인이 카카오 OAuth뿐이라 브라우저를 띄우려면 아래 "로컬 브라우저 스모크 로그인 우회"의 magiclink 절차를 쓴다.
+  ⚠️ **자동 스크린샷/픽셀 비교 하네스는 폐기됐다**(2026-07-22 배치 13). 구 `visual:crm`·`screenshot:crm`과 spec 3종은 전부 `page.goto("/")` 직후 CRM 화면을 기대해, 2026-06-18 로그인 게이트(#36) 도입 후 **약 두 달간 실행 자체가 불가능**했는데도 이 문구가 계속 그 도구를 가리키고 있었다(= 아무도 안 돌리는 규칙). `playwright.config.ts`만 재도입용으로 남겼다 — 되살릴 때는 **로그인 처리(storageState)부터** 붙일 것.
 - **커밋 메시지 `[skip ci]` 토큰 주의**: feature 브랜치 커밋(spec/plan/brief 포함)에 넣으면 GitHub squash가 본문에 합쳐 **CF Pages 배포가 스킵**된다(2026-06-19 #51·#53서 2회 사고). 그 토큰은 머지와 무관한 **main 직접 docs 커밋에만** 사용. 스킵됐으면 마커 없는 빈 커밋 push 또는 CF 대시보드 수동 빌드로 보정.
 
 ## Current UI Focus
