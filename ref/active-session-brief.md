@@ -9,10 +9,10 @@ Last updated: 2026-07-22
 
 ## 지금 상태
 
-**배치 15 전량 종결 + Topbar 팝오버 잘림 수정까지 완료. 진행 중인 미완 작업 없음.**
+**배치 15 전량 종결 + Topbar 팝오버 수정 + CI 도입까지 완료. 진행 중인 미완 작업 없음.**
 
-최근 머지: `2460d55`(PR1 `#320` 계약 근거절 정정·감사 관례 축소 박제) · `b8a12a8`(PR2 `#321` 회귀 그물 3건, 변이로 RED 실증) · `35c068b`(`#322` 상단바 팝오버 우측 잘림).
-main 통합 검증 green — typecheck 0 · lint 0 · unit **1067** · server **651** · build · knip 7/9 · 픽스처 잔재 0.
+최근 머지: `2460d55`(PR1 `#320` 계약 근거절 정정·감사 관례 축소 박제) · `b8a12a8`(PR2 `#321` 회귀 그물 3건, 변이로 RED 실증) · `35c068b`(`#322` 상단바 팝오버 우측 잘림) · `342c70f`(`#323` **CI 도입**).
+main 통합 검증 green — typecheck 0 · lint 0 · unit **1067** · server **651** · build · knip 7/9 · 픽스처 잔재 0. **이제 push·PR마다 CI가 4종을 자동 검증한다**(server 제외).
 판정 14건 중 **이행 12 · 조치 불요 2**. SSOT = `ref/plans/2026-07-22-crm-refactor-batch-15.md`(종결 절 포함).
 ⚠️ **다음 배치부터 풀 감사는 트리거 기반 경량형**이다 — 근거·규칙은 `AGENTS.md` Verification Budget 절에 박제됐다.
 
@@ -32,10 +32,13 @@ main 통합 검증 green — typecheck 0 · lint 0 · unit **1067** · server **
 
 **⑦ Topbar 팝오버 우측 잘림 해소(`#322` `35c068b`).** 검색·업무 AI가 뷰포트를 **항상 15px씩** 넘고 있었다(상단바가 우측 정렬이라 트리거 우측 여유는 창 크기와 무관 — 즉 상시 결함). **정답 레퍼런스는 레포 안에 있었다**: `.notifications-panel`만 원래부터 올바르게 동작(우측이 뷰포트에서 22px 안쪽 + `max-width: calc(100vw - 32px)`)해서 거기 정렬했다. 실브라우저 검증 = 4패널 전부 우측 22px·잘림 0·화살표 오차 0. ⚠️ **트리거 우측 여유는 CSS가 계산 불가**(아이콘 수·구분선 폭 의존)라 실측값을 박았다 — **상단바 아이콘 구성이 바뀌면 세 패널 오프셋 재실측**(지시는 `theme.css` 주석). ⚠️ **시행착오 기록**: 먼저 `right: 0`(트리거 우측 정렬)을 넣었다가 디자인 의도를 깨 유슨생이 실화면으로 잡았다 — 레포에 이미 있던 정상 사례를 먼저 보지 않은 것이 원인이다.
 
+**⑧ CI 도입(`#323` `342c70f`) — 레포 최초의 자동 검증 그물.** push(main)·PR마다 **typecheck·lint·test:unit·build** 4종. ⚠️ **`test:server`는 CI 금지**(공유 master DB 실접속 = 픽스처 행·운영 알림·실 Gemini 9콜) · **knip·format:check도 제외**(도입 시점부터 red인 선재 상태 — 기준선 0으로 만든 뒤에 넣는다). env는 `VITE_*` 더미만(시크릿 0).
+**도입 첫날 실제 결함 2건을 잡았다.** ⓐ**내 실측 오류**: `env -i`는 환경변수만 지우고 `.env.local`은 남겨 vite가 읽는다 → "env 없이 통과"가 거짓이었다. **CI 조건 재현은 깨끗한 worktree로** 할 것 ⓑ**날짜 테스트 3건이 실행 환경 타임존에 의존**(UTC 러너에서 9시간 어긋남 — 팀 로컬이 전원 KST라 아무도 몰랐다). → **`vitest.config.ts`의 `test.env.TZ`가 타임존 고정의 단독 소유자**(CI에 중복 금지 — 그래야 로컬도 결정론적). 🚫 앱이 뷰어 로컬 타임존으로 표시하는 것(층 2)은 **제품 동작 문제이고 고치지 않기로 결정**(전원 KST·재제안 금지, 근거는 `vitest.config.ts` 주석).
+
 ## ▶ 다음 작업 (미확정 — 후보)
 
-1. **CI 도입**(위 ⑤ⓒ · 가장 값어치 있는 후보) — Actions에 typecheck·lint·test:unit·build. ⚠️ `test:server`는 공유 master DB라 **CI 불가**(로컬 유지).
-2. **별건** — `test:server` 실 Gemini 9콜 위생(배치 15 M7) · Deno 테스트 배선(M11) · NO_HITS 문구+sources 동시 렌더(표시 정책과 함께) · 배치 13 별건 3종(`resetQuoteWorkbench` DOM 미청소 등)
+1. **별건** — `test:server` 실 Gemini 9콜 위생(배치 15 M7) · Deno 테스트 배선(M11) · NO_HITS 문구+sources 동시 렌더(표시 정책과 함께) · 배치 13 별건 3종(`resetQuoteWorkbench` DOM 미청소 등)
+2. **CI 후속(선택)** — knip·format:check **기준선을 0으로 만든 뒤** CI에 추가(현재 knip 7/9 · format warn 20건). 하면 위생이 자동으로 잠긴다.
 3. **이사님 회신 대기** — pending 열린 10건, 특히 **21·22는 묶어서** 여쭙는 게 효율적
 
 ## 대기 (우리 액션 없음)
