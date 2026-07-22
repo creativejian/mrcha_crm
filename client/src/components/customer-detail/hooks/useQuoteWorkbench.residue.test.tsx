@@ -724,6 +724,45 @@ describe("useQuoteWorkbench — 판매사(딜러) 조회 payload·영속·리셋
     pricingRoot.remove();
     compareForm.remove();
   });
+
+  // 구매방식 전환은 금융사 option 목록을 갈아끼우고, 빠진 선택지는 **change/input 발화 없이**
+  // select.value를 "미선택"으로 되돌린다(배치 13 K1 ①). 그런데 딜러 목록(dealerOptionsByCard)은
+  // 이벤트 경로(syncDealerOnLenderChange)에서만 갱신돼 **이전 금융사 기준 목록이 그대로 남는다**.
+  // 그 결과 판매사 select가 지금 선택할 수 없는 금융사의 딜러를 계속 제시한다(무음 오계산 입구).
+  // 거울(lenderByCard)은 재동기화 effect가 이미 자가치유하므로, 같은 지점에서 딜러 목록도 함께 정리한다.
+  it("구매방식 전환(이벤트 없는 금융사 리셋): 딜러 목록도 함께 정리된다(배치 13 별건)", async () => {
+    const { result } = setup();
+    const { pricingRoot, compareForm } = await setupSolutionDom(result); // 브랜드 = BMW
+    const card = buildCardDom("manual-condition-1", { lender: "미선택", dealer: "" });
+    compareForm.append(card);
+    fetchDealers.mockClear();
+    fetchDealers.mockResolvedValue([{ dealerName: "바바리안모터스", baseIrrRate: 0.0681 }]);
+    const lenderSelect = card.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')!;
+
+    // arrange — 금융사를 골라 딜러 목록을 적재한다(사용자 이벤트 경로).
+    lenderSelect.value = "iM캐피탈";
+    await act(async () => {
+      result.current.handlers.handleManualCardFieldEdit({ target: lenderSelect } as unknown as SyntheticEvent<HTMLElement>);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(result.current.dealerOptionsByCard["manual-condition-1"]).toHaveLength(1);
+    expect(result.current.lenderByCard["manual-condition-1"]).toBe("iM캐피탈");
+
+    // act — 구매방식 전환을 재현한다: option에서 빠진 값이라 브라우저가 조용히 되돌리는 상황.
+    //       이벤트는 발화하지 않는다(그게 이 결함의 전제다).
+    await act(async () => {
+      lenderSelect.value = "미선택";
+      result.current.handlers.setSolutionWorkbenchPurchaseMethod("할부");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // assert — 거울은 원래 자가치유된다("미선택"은 실제 option 값이라 그대로 담긴다).
+    // 딜러 목록은 이전 금융사(iM캐피탈) 기준이라 stale이므로 함께 비워져야 한다.
+    expect(result.current.lenderByCard["manual-condition-1"]).toBe("미선택");
+    expect(result.current.dealerOptionsByCard["manual-condition-1"]).toBeUndefined();
+    pricingRoot.remove();
+    compareForm.remove();
+  });
 });
 
 // 승격 컬러 프리필(2026-07-14): selected 요청 → 워크벤치 외장/내장 프리필. applyTrimToPricing이 catalog

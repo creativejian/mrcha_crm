@@ -73,7 +73,7 @@
 - **🔴 `visual:crm` 하네스 사망(V3 실증)**: 스냅샷 베이스라인 `88cb460`(2026-05-17) < 카카오 로그인 게이트 `b3df832`(2026-06-18) → **약 2개월간 실행 원천 불가**(로그인 화면에서 멈춤, 비교 도달 0). 베이스라인도 pre-auth UI라 로그인을 붙여도 전량 불일치. **`AGENTS.md` 검증 예산의 "Large visual layout changes: run Playwright screenshot once"가 죽은 도구를 가리킨다.** (a) 되살리기(magiclink storageState + 베이스라인 재촬영) vs (b) 폐기(스크립트·스냅샷 제거) 결정 필요.
 - **K1 안 ②c**(워크벤치 select controlled 전환) — 구조적 정답이나 DOM 쓰기 6경로 전환 + 저장 payload 회귀 재검증이라 별건. Safari 제약상 `bindSelect` 필수.
 - **`resetQuoteWorkbench`가 금융사 DOM을 안 지운다**(V1 인접) — 섹션 key가 신규→신규 불변이라 uncontrolled 값이 살아남는다. "초기화" 의미론과 어긋나나 **행위 변경**이라 별건. 안 ④는 이 정책과 독립적으로 성립.
-- **`dealerOptionsByCard`가 K1과 동일 결함 클래스**(V1 인접) — 구매방식 전환 시 stale + placeholder가 "금융사 먼저 선택"으로 거짓 표시. 안 ④의 effect를 딜러까지 확장하면 같은 방식으로 닫힘.
+- ✅ **종결(2026-07-22)** — `dealerOptionsByCard`가 K1과 동일 결함 클래스(V1 인접). 제안대로 **안 ④ effect를 딜러까지 확장**해 닫았다(재동기화 지점에서 금융사가 없거나 "미선택"인 카드의 딜러 엔트리 제거). 재현 테스트로 증상을 먼저 확정했다 — ⚠️ **당시 서술 정정**: placeholder가 "금융사 먼저 선택"으로 거짓 표시되는 게 아니라 **반대**였다. stale 목록이 남아 `hasChoices`가 참이 되므로 placeholder는 "선택"인 채 **이전 금융사의 딜러가 계속 선택지로 제시**된다(무음 오계산 입구). 행위 변경이라 pending 항목 25 등재.
 
 ## PR 분할 (PR1·PR2는 `useQuoteWorkbench.ts` 겹침 → 순차. PR3는 독립·병렬 가능)
 
