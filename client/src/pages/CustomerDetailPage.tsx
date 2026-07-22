@@ -141,6 +141,10 @@ function CustomerDetailContent({
   // 니즈 카드 "견적 보기": 견적함에서 승격 견적을 찾아 수정 워크벤치로. 캐시 불일치(미발견)면 기존 승격 플로우로 폴백(고정 설계 결정 5).
   function viewPromotedQuote(reqId: string, quoteId: string) {
     const quote = quoteList.quotes.find((q) => q.id === quoteId);
+    // 계약 진행 견적은 openEditQuote가 안내 다이얼로그로 우회하는데, 그 다이얼로그의 유일한 렌더 지점이
+    // 견적함 행 액션 팝오버 안이다 → 니즈 카드 경로에선 아무것도 안 보이고 확인 상태만 남아
+    // editorOpen이 true로 잠긴다(드로어 Escape 무음 차단). 여기서 먼저 걸러 상태를 아예 안 만든다(K2-c).
+    if (quote?.decisionStatus === "contracting") { onToast("계약 진행 중인 견적은 계약 관리 창에서 수정할 수 있습니다."); return; }
     if (quote) workbench.openEditQuote(quote);
     else void workbench.openWorkbenchForQuoteRequest(reqId).catch(() => onToast("견적요청 정보를 불러오지 못했습니다."));
   }

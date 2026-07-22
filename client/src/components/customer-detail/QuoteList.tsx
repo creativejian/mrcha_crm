@@ -313,6 +313,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               setConfirmingQuoteContractId(null);
               setConfirmingQuoteDeleteId(null);
               setConfirmingQuoteContractEditId(null);
+              setConfirmingQuoteContractDowngrade(null); // 배치 13 K2-a: 유일하게 빠져 발송 확인창과 해제 확인창이 겹쳤다
               dismissContractStageNudge(); // 다른 확인 열기 = 넛지 암묵 거절(B#1)
               if (openQuoteAction.appStatus === "sent") {
                 setPreviewSentQuoteId(openQuoteAction.id);
@@ -339,7 +340,18 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
             </div>
           ) : null}
           {quoteWritable ? (
-            <button type="button" onClick={() => onEditQuote(openQuoteAction)}>
+            // 오프너 관례(B#1 미러) — 배치 12는 오프너 5곳만 손대 이 6번째가 빠졌고, 그래서 넛지가 열린 채
+            // "견적 수정"을 누르면 안내 다이얼로그와 넛지가 같은 팝오버에 동시 렌더됐다(배치 13 K2-a 실측).
+            // 클리어는 여기(오프너)가 단일 소유 — openEditQuote 안에 caller/callee로 쪼개 두면 다시 드리프트한다.
+            // 토글 대상인 ContractEditId만 제외한다(openEditQuote가 계약 진행 견적에서 토글).
+            <button type="button" onClick={() => {
+              setConfirmingQuoteSendId(null);
+              setConfirmingQuoteDeleteId(null);
+              setConfirmingQuoteContractId(null);
+              setConfirmingQuoteContractDowngrade(null);
+              dismissContractStageNudge();
+              onEditQuote(openQuoteAction);
+            }}>
               <PencilLine size={13} strokeWidth={2.3} />
               견적 수정
             </button>

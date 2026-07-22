@@ -83,6 +83,7 @@ function quoteListStub() {
       setConfirmingQuoteContractEditId: vi.fn(),
       setOpenQuoteActionId: vi.fn(),
       setQuoteActionFrame: vi.fn(),
+      closeQuoteActionPopover: vi.fn(), // 수정 진입의 팝오버 닫힘 단일 지점(배치 13 K2-a)
       setQuotes: vi.fn(),
     },
   } as unknown as ReturnType<typeof useQuoteList>;

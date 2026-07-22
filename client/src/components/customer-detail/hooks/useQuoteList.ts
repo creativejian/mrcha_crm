@@ -269,7 +269,17 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
       // 2-인자 then — 리로드 자체의 실패(reject 없는 계약이지만)가 롤백 분기로 새지 않게 분리.
       void apiUpdateQuote(customer.id, id, { decisionStatus }).then(
         () => { onCustomerListChanged?.(); },
-        () => { setQuotes(prevQuotes); onToast("저장에 실패했습니다."); },
+        () => {
+          setQuotes(prevQuotes);
+          // 롤백 = 마킹 무효 → 넛지도 무효(배치 13 K2-b, deleteQuote 선례와 동일 패턴). 안 지우면 넛지
+          // 렌더 조건이 decisionStatus를 안 보므로("contractStageNudgeQuoteId === openQuoteAction.id")
+          // 실패 토스트가 뜬 팝오버에 넛지가 그대로 남고, 발주 경로를 누르면 contracting 견적 0인데
+          // 계약완료로 전이된다(서버는 status 조합만 검증 — 교차 검증 없음).
+          // ⚠️ 이 클리어는 창을 좁힐 뿐 불변식 보증이 아니다 — 롤백이 착지하기 "전에" 발주 경로를 누르면
+          //    같은 결과가 나온다(클릭-선행 레이스는 잔존·수용). 낙관 쓰기 관례상 클라만으로는 못 닫는다.
+          setContractStageNudgeQuoteId((current) => (current === id ? null : current));
+          onToast("저장에 실패했습니다.");
+        },
       );
     }
     markRecentUpdate("견적함");
