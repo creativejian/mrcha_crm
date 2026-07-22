@@ -163,6 +163,13 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
         console.log(`[assistant] 도구 라우팅: ${routed.key}`, JSON.stringify(routed.params));
         // 도구 실행만은 라우터 결과에 의존하므로 병렬 슬롯에 넣을 수 없다(골든이 순서를 잠근다).
         tool = await assistantDeps.runAssistantTool(routed.key, routed.params, scope, c.var.user, c.var.db);
+        // 오라우팅 구제(2026-07-22 실기) — 도구가 0건인데 RAG 근거는 있으면 도구 선택이 틀렸을 확률이
+        // 높다. 라우팅 우선 게이트가 그 근거를 버려 "정보가 없습니다"로 답하던 것을 RAG로 되돌린다.
+        // 도구가 1건이라도 냈으면 기존 계약(도구 우선 = 집계 정확)이 그대로다.
+        if (tool.lines.length === 0 && hits.length > 0) {
+          console.log(`[assistant] 도구 0건 → RAG 폴백(근거 ${hits.length}건)`);
+          tool = null;
+        }
       } else if (routed?.kind === "none" && hits.length === 0) {
         console.log("[assistant] 도구 라우팅: 해당 없음(범위 밖 판단 — 안내 문구)");
         outOfScope = true;
