@@ -14,7 +14,7 @@ import {
   QUOTE_CHUNK_COLUMNS, QUOTE_REQUEST_CHUNK_COLUMNS, QUOTE_SCENARIO_CHUNK_COLUMNS, SCHEDULE_CHUNK_COLUMNS,
   quoteChunkTextOf, quoteRequestChunkTextOf,
 } from "../db/queries/embed-sources";
-import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildScheduleChunkText, contentHash, type CorpusRow, type DocumentChunkDocument } from "../lib/assistant-corpus";
+import { buildChunkContent, buildCustomerDocumentsChunkText, buildCustomerProfileChunkText, buildScheduleChunkText, embeddingContentHash, type CorpusRow, type DocumentChunkDocument } from "../lib/assistant-corpus";
 import { embedTexts } from "../lib/gemini-embed";
 import { resolveGeminiTarget } from "../lib/gemini-target";
 
@@ -174,7 +174,7 @@ async function main() {
 
   const rows = await gather();
   const contents = rows.map(buildChunkContent);
-  const hashes = contents.map(contentHash);
+  const hashes = contents.map(embeddingContentHash);
 
   // hash skip(스펙 결정 4): 기존 행과 content가 같으면 재임베딩하지 않는다 — 재실행 비용 절감.
   const existing = await db

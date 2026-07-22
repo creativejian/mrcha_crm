@@ -34,10 +34,10 @@ test("runEmbedJob: 변경된 콘텐츠 → 임베딩+upsert, outcome embedded", 
 
 test("runEmbedJob: hash 동일 → Gemini 미호출 skip, outcome unchanged", async () => {
   // 실제 콘텐츠의 해시를 기존 해시로 넣어 동일성 재현
-  const { buildChunkContent, contentHash } = await import("./assistant-corpus");
+  const { buildChunkContent, embeddingContentHash } = await import("./assistant-corpus");
   const snap = { customerId: "c1", customerName: "김민준", text: "같은 메모" };
   const content = buildChunkContent({ sourceType: "memo", sourceId: "s1", customerId: "c1", customerName: "김민준", text: "같은 메모" });
-  const calls = arm({ snap, existingHash: contentHash(content) });
+  const calls = arm({ snap, existingHash: embeddingContentHash(content) });
   expect(await runEmbedJob(JOB, TARGET, DB)).toBe("unchanged");
   expect(calls).toEqual({ embed: 0, upsert: 0, del: 0 });
 });

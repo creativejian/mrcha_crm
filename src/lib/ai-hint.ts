@@ -2,6 +2,8 @@
 // 생성 오케스트레이션은 lib/ai-hint-on-write, 클라 파서는 client/src/lib/customer-table.ts.
 // 스펙: ref/specs/2026-07-12-crm-ai-hint-datafication-design.md (목업 20문장 역설계 — 단계별 관점).
 
+import { createHash } from "node:crypto";
+
 export type AiHintMaterialInput = {
   name: string;
   statusGroup: string | null;
@@ -85,4 +87,17 @@ export function sanitizeAiHint(raw: string): string {
     .trim();
   if ((hint.match(/\*\*/g) ?? []).length % 2 !== 0) hint = hint.replaceAll("**", "");
   return hint;
+}
+
+// AI 힌트 재료 스냅샷 해시 — `customers.ai_summary_source_hash`에 저장돼 "재료가 그대로면 Gemini를 다시
+// 부르지 않는다"를 판정한다(`ai-hint-on-write.ts`). **재료 바이트 외에는 아무것도 섞지 않는다.**
+//
+// ⚠️ 임베딩용 `embeddingContentHash`를 재사용하지 말 것(배치 14 K1-a로 분리). 그 해시는 임베딩 모델명을
+// salt로 섞는데, 힌트는 임베딩과 무관한 도메인이라 **모델 상수 교체 한 줄이 전 고객 힌트를 무효화**한다
+// (`#312`에서 실제로 발생 — 22/22 고객이 구 스킴 해시를 든 채 재생성 대기 상태였고, 발화했다면
+// flash-lite 22콜 + 힌트 문구 22건 무음 churn이었다).
+// 역으로 **프롬프트·생성 모델을 바꿔도 이 해시는 변하지 않는다** — 그건 의도된 선재 속성이고,
+// 그때는 "프롬프트 수정 → hash 클리어 → 백필 재실행" 수동 절차를 쓴다(스펙 2026-07-12).
+export function aiHintSourceHash(material: string): string {
+  return createHash("sha256").update(material).digest("hex");
 }

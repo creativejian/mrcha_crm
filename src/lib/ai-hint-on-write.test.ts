@@ -2,9 +2,8 @@ import { test, expect, beforeEach, afterAll } from "bun:test";
 
 import type { Db } from "../db/client";
 import type { AiHintSourceSnapshot } from "../db/queries/ai-hint-sources";
-import { buildAiHintMaterial, type AiHintMaterialInput } from "./ai-hint";
+import { aiHintSourceHash, buildAiHintMaterial, type AiHintMaterialInput } from "./ai-hint";
 import { aiHintDeps, runAiHintJob, scheduleAiHintRefresh } from "./ai-hint-on-write";
-import { contentHash } from "./assistant-corpus";
 import type { GeminiTarget } from "./gemini-target";
 
 const ORIGINAL = { ...aiHintDeps };
@@ -33,12 +32,12 @@ test("runAiHintJob: 재료 신규 → 생성 1회 + sanitize된 힌트·재료 h
   const calls = arm({ snap: SNAP, answer: '- "**X3** 상담 중"\n부연' });
   expect(await runAiHintJob("c1", TARGET, DB)).toBe("generated");
   const material = buildAiHintMaterial(MATERIAL_INPUT);
-  expect(calls.set).toEqual([{ aiSummary: "**X3** 상담 중", sourceHash: contentHash(material ?? "") }]);
+  expect(calls.set).toEqual([{ aiSummary: "**X3** 상담 중", sourceHash: aiHintSourceHash(material ?? "") }]);
 });
 
 test("runAiHintJob: 재료 hash 동일 → Gemini 미호출 skip, outcome unchanged", async () => {
   const material = buildAiHintMaterial(MATERIAL_INPUT);
-  const calls = arm({ snap: { ...SNAP, sourceHash: contentHash(material ?? "") } });
+  const calls = arm({ snap: { ...SNAP, sourceHash: aiHintSourceHash(material ?? "") } });
   expect(await runAiHintJob("c1", TARGET, DB)).toBe("unchanged");
   expect(calls.generate).toBe(0);
   expect(calls.set).toEqual([]);

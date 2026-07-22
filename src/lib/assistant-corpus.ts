@@ -43,12 +43,21 @@ export function stripChunkCustomerPrefix(content: string, customerName: string):
   return content.startsWith(prefix) ? content.slice(prefix.length) : content;
 }
 
-// content 스냅샷 해시(재임베딩 skip 판단용).
+// 임베딩 content 스냅샷 해시 — **소비자는 임베딩 2경로뿐**이다(`embed-on-write.ts` 증분 훅,
+// `backfill-embeddings.ts` 백필). `crm.embeddings.content_hash`에만 저장된다.
 // ⚠️ 모델명을 해시에 **반드시** 섞는다(2026-07-22). 임베딩 모델을 바꾸면 벡터 공간이 통째로 달라지는데
 // (001↔2 코사인 0.03 실측 — 거의 직교), 해시가 content만 보면 기존 행이 전부 skip돼 **구 모델 벡터가
 // 남은 채 새 데이터만 새 모델로 들어간다** = 공간이 섞여 검색이 조용히 죽는다(유사도가 임계값에 못 미침).
 // 모델명을 섞어두면 상수 한 줄 교체가 곧 전 코퍼스 해시 변경 → 백필이 자동으로 전량 재임베딩한다.
-export function contentHash(content: string): string {
+// `embeddings` 테이블에 모델 컬럼이 없어 이 salt가 **혼입 방지 단일 방어선**이다 — 회귀 그물은
+// `assistant-corpus.test.ts`의 스킴 잠금(독립 계산식)이고, 실 DB 불변식은 `check:residue`가 본다.
+//
+// ⚠️ **임베딩 밖에서 재사용 금지**(배치 14 K1-a). `#312`가 salt를 넣기 전 이 함수는 이름이 `contentHash`라
+// AI 힌트 캐시 키(`customers.ai_summary_source_hash`)도 같이 쓰고 있었고, 그래서 **임베딩 모델 상수 교체
+// 한 줄이 임베딩과 무관한 전 고객 힌트를 무효화**했다(실측 22/22가 구 스킴 해시 보유 = 재생성 대기).
+// 힌트용은 `aiHintSourceHash`(순수 sha256, `ai-hint.ts`)로 분리돼 있다. 새 소비자가 생기면 그 도메인의
+// 해시를 따로 만들 것 — 이 함수의 salt는 **임베딩 벡터 공간의 버전**이지 범용 콘텐츠 지문이 아니다.
+export function embeddingContentHash(content: string): string {
   return createHash("sha256").update(`${EMBEDDING_MODEL}\n${content}`).digest("hex");
 }
 

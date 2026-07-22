@@ -4,7 +4,7 @@ import type { Db } from "../db/client";
 import { loadCorpusSource, type WritableCorpusSourceType } from "../db/queries/embed-sources";
 import { deleteEmbeddingBySource, getEmbeddingHash, upsertEmbedding } from "../db/queries/embeddings";
 import { holdWork } from "../middleware/db";
-import { buildChunkContent, contentHash } from "./assistant-corpus";
+import { buildChunkContent, embeddingContentHash } from "./assistant-corpus";
 import { embedTexts } from "./gemini-embed";
 import { resolveGeminiTargetFromRequest, type GeminiTarget } from "./gemini-target";
 
@@ -37,7 +37,7 @@ export async function runEmbedJob(job: EmbedOnWriteJob, target: GeminiTarget, db
     sourceType: job.sourceType, sourceId: job.sourceId,
     customerId: snap.customerId, customerName: snap.customerName, text: snap.text,
   });
-  const hash = contentHash(content);
+  const hash = embeddingContentHash(content);
   if ((await embedOnWriteDeps.getEmbeddingHash(job.sourceType, job.sourceId, db)) === hash) return "unchanged"; // Gemini 호출 생략(스펙 결정 4)
   const [vector] = await embedOnWriteDeps.embedTexts([content], target);
   await embedOnWriteDeps.upsertEmbedding(
