@@ -27,8 +27,10 @@ import {
 } from "./quote-workbench-meta";
 import { type useQuoteWorkbench } from "./hooks/useQuoteWorkbench";
 
-// 세그먼트 어휘 — 취득세는 라벨 SSOT zip(계산기도 같은 소스에서
-// 파생 — 값 타입만 화면 상태 계약을 따름: 워크벤치 number/normal ↔ 계산기 string/none).
+// 취득세 세그먼트 어휘 — 라벨 SSOT(ACQUISITION_TAX_MODE_LABELS) zip.
+// 모드 value는 화면별 상태 계약이라 각자 zip한다(워크벤치 normal ↔ 계산기 none).
+// (기간 축은 #306에서 quote-workbench-meta.ts로 이관 — 구 주석의 "워크벤치 number" 서술은
+//  그 축을 가리키던 것이라 스테일이었다. 남은 취득세는 양쪽 다 string.)
 const acquisitionTaxModeOptions = (["normal", "hybrid", "electric", "manual"] as const).map((value, i) => ({ value, label: ACQUISITION_TAX_MODE_LABELS[i] }));
 
 // 딜러 option 라벨 — % 병기(계산기 미러). ⚠ %의 의미는 금융사별로 다르다(BNK=기준 IRR / 우리=합산
