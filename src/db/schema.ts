@@ -307,7 +307,9 @@ export const quoteScenarios = crm.table("quote_scenarios", {
 }, (t) => [check("quote_scenarios_purchase_method_check", inListCheck(t.purchaseMethod, PURCHASE_METHOD_OPTIONS))]);
 
 // ── RAG 임베딩 (업무 AI 채팅) ─────────────────────────────────────────────────
-// pgvector EMBEDDING_DIM(3072)차원. gemini-embedding-001 네이티브. 앱 관례(public.*.embedding vector(3072))와 동일.
+// pgvector EMBEDDING_DIM(3072)차원. gemini-embedding-2 네이티브(구 001과 차원은 같아 스키마 무변경).
+// 앱 관례(public.*.embedding vector(3072))와 동일하지만 **공간은 별개다** — 앱이 아직 001을 쓴다면
+// 두 테이블의 벡터를 서로 비교하면 안 된다(001↔2 코사인 0.03 실측). CRM은 crm.embeddings만 읽는다.
 // toDriver: number[] → '[a,b,c]' 문자열(pgvector 입력 포맷). fromDriver: 그 역.
 const vector3072 = customType<{ data: number[]; driverData: string }>({
   dataType() { return `vector(${EMBEDDING_DIM})`; },

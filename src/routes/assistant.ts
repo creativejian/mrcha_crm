@@ -38,6 +38,10 @@ const TOP_K = 8;
 // (잡담/일반지식) 최고 0.61~0.72. 갭(0.757↔0.765) 하단에 마진을 두고 0.75 — 재현율 우선(더 올리면 약한
 // 질의가 통째로 NO_HITS로 떨어진다). 전부 미달이면 기존 hits 0건 경로(NO_HITS_ANSWER, Gemini 미호출).
 // prod 재조정은 아래 필터 로그(tail)로 컷 분포를 보고 한다.
+// ⚠️ 이 값은 **gemini-embedding-001 코퍼스에서 뽑은 실측치다**. 2026-07-22에 임베딩 모델을
+// gemini-embedding-2로 이관했고 두 모델의 벡터 공간은 호환되지 않으므로(코사인 0.03 실측),
+// 위 분포 수치는 새 모델에서 그대로 성립한다는 보장이 없다. 백필 완료 후 같은 방법으로
+// 컷 분포를 재실측해 유지/조정을 결정할 것(재조정은 이 상수 한 줄).
 export const SIMILARITY_THRESHOLD = 0.75;
 const HISTORY_LIMIT = 10; // 멀티턴 컨텍스트로 넣을 최근 메시지 수(앱과 동일)
 export const DISPLAY_LIMIT = 30; // 패널 진입 시 로드할 최근 메시지 수 — 클라 AI_HISTORY_PAGE와 파리티(테스트 가드)
@@ -115,7 +119,7 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     const retrievalPromise = toolKey
       ? assistantDeps.runAssistantTool(toolKey, {}, scope, c.var.user, c.var.db)
           .then((tool) => ({ hits: [] as Awaited<ReturnType<typeof searchEmbeddings>>, tool }))
-      : assistantDeps.embedTexts([question], target, "RETRIEVAL_QUERY")
+      : assistantDeps.embedTexts([question], target)
           .then(([queryVec]) => assistantDeps.searchEmbeddings(queryVec, scope, TOP_K, c.var.db))
           .then((all) => {
             const kept = all.filter((h) => h.similarity >= SIMILARITY_THRESHOLD);

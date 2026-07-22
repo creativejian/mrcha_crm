@@ -184,7 +184,7 @@ async function main() {
   const pendingIdx = rows.map((_, i) => i).filter((i) => hashByKey.get(`${rows[i].sourceType}/${rows[i].sourceId}`) !== hashes[i]);
   console.log(`코퍼스 ${rows.length}청크 수집 — ${pendingIdx.length} 임베딩 대상, ${rows.length - pendingIdx.length} skip(hash 동일)`);
 
-  const vectors = await embedTexts(pendingIdx.map((i) => contents[i]), geminiTarget, "RETRIEVAL_DOCUMENT");
+  const vectors = await embedTexts(pendingIdx.map((i) => contents[i]), geminiTarget);
   // 임베딩 개수가 대상 수와 다르면 인덱스 매핑이 어긋나므로 중단(부분 응답 방어).
   if (vectors.length !== pendingIdx.length) throw new Error(`임베딩 개수(${vectors.length}) != 대상 청크 수(${pendingIdx.length}) — 매핑 불일치`);
   let ok = 0;

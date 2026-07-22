@@ -39,7 +39,7 @@ export async function runEmbedJob(job: EmbedOnWriteJob, target: GeminiTarget, db
   });
   const hash = contentHash(content);
   if ((await embedOnWriteDeps.getEmbeddingHash(job.sourceType, job.sourceId, db)) === hash) return "unchanged"; // Gemini 호출 생략(스펙 결정 4)
-  const [vector] = await embedOnWriteDeps.embedTexts([content], target, "RETRIEVAL_DOCUMENT");
+  const [vector] = await embedOnWriteDeps.embedTexts([content], target);
   await embedOnWriteDeps.upsertEmbedding(
     { sourceType: job.sourceType, sourceId: job.sourceId, customerId: snap.customerId, content, contentHash: hash, embedding: vector },
     db,
