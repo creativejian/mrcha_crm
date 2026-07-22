@@ -35,9 +35,11 @@ export const CRM_ROLE_LABELS: Record<string, string> = {
 export type AssistantToolResult = { label: string; lines: string[] };
 
 // ── PR2: 자유 질문 모델 라우팅용 함수 선언(Gemini functionDeclarations) ────────────────────────────
-// RAG 근거 0건(기존 NO_HITS 지점)에서만 라우팅 호출에 동봉된다 — 근거로 답할 수 있는 질문은 라우팅
-// 자체가 없어(RAG 우선) 오라우팅이 구조적으로 불가능하다. description은 모델의 유일한 선택 근거 —
-// 도구 의미가 바뀌면 여기도 갱신.
+// 자유 질문마다 라우팅 호출에 동봉된다(2026-07-07 라우팅 우선 게이트 이후 — 구 "근거 0건에서만
+// 동봉되므로 오라우팅이 구조적으로 불가능" 서술은 **2026-07-22 실기로 반증됐다**: "마이바흐 관심
+// 고객"에 없던 statusGroup을 지어내 부르고, "박서연이 원하는 조건"에 상담신청 0건으로 "정보 없음"을
+// 냈다. 지금은 라우터 프롬프트가 미지원 필터 조작을 막고, 라우트가 0건+근거 있음이면 RAG로 되돌린다).
+// description은 모델의 유일한 선택 근거 — 도구 의미가 바뀌면 여기도 갱신.
 // Record<AssistantToolKey, …>로 선언(LABELS와 동일 패턴, 배치 C) — 새 도구를 KEYS에 추가하고 선언을
 // 빠뜨리면(라우팅 영원 불가) 또는 name 오타(화이트리스트 무음 드롭)면 컴파일 에러로 잡힌다.
 type ToolDeclarationDef = { description: string; parameters?: Record<string, unknown> };
@@ -48,14 +50,14 @@ const TOOL_DECLARATION_DEFS: Record<AssistantToolKey, ToolDeclarationDef> = {
   quote_ready: { description: "견적을 보내야 할 고객(진행 상태가 견적 단계이거나 작성 중 견적 보유) 목록을 조회한다." },
   delivery_risk: { description: "계약완료 단계인데 최근 활동이 없어 출고/정산 확인이 필요한 고객 목록을 조회한다." },
   search_customers: {
-    description: "조건으로 고객을 검색해 목록을 조회한다. 이름·진행 상태·구매방식·상담경로(유입 경로)·내 담당 여부 필터를 조합할 수 있다.",
+    description: "조건으로 고객을 검색해 목록을 조회한다. 이름·진행 상태·구매방식·상담경로(유입 경로)·내 담당 여부 **다섯 가지 필터로만** 검색할 수 있다. 관심 차종(예 '마이바흐 관심 고객')·예산·지역처럼 이 필터에 없는 조건으로 고객을 찾는 질문에는 이 함수를 호출하지 마라 — 아래 파라미터를 임의로 채워 부르면 질문과 무관한 목록이 나온다.",
     parameters: {
       type: "object",
       properties: {
-        name: { type: "string", description: "고객 이름 부분 일치" },
-        statusGroup: { type: "string", description: "진행 상태 1차: 신규/상담중/견적/차량체크/심사서류/관리중/상담완료/계약완료/불발" },
-        purchaseMethod: { type: "string", description: "구매방식 부분 일치: 운용리스/장기렌트/할부/금융리스/일시불 등" },
-        source: { type: "string", description: "상담경로(유입 경로) 부분 일치: 예 '앱'(앱 견적요청·앱 상담원 연결 포함), '유튜브', '카카오'" },
+        name: { type: "string", description: "고객 이름 부분 일치 — 질문에 이름이 나온 경우에만 넣는다" },
+        statusGroup: { type: "string", description: "진행 상태 1차: 신규/상담중/견적/차량체크/심사서류/관리중/상담완료/계약완료/불발 — 질문이 이 상태를 명시한 경우에만 넣는다(추측해 채우지 마라)" },
+        purchaseMethod: { type: "string", description: "구매방식 부분 일치: 운용리스/장기렌트/할부/금융리스/일시불 등 — 질문이 구매방식을 명시한 경우에만 넣는다" },
+        source: { type: "string", description: "상담경로(유입 경로) 부분 일치: 예 '앱'(앱 견적요청·앱 상담원 연결 포함), '유튜브', '카카오' — 질문이 유입 경로를 명시한 경우에만 넣는다" },
         mine: { type: "boolean", description: "'내/제 담당', '내가 계약한'처럼 1인칭으로 물으면 true — 현재 로그인 사용자가 담당자인 고객으로 좁힌다" },
       },
     },

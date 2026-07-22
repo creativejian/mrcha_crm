@@ -559,6 +559,43 @@ test("POST /ask 근거 있어도 라우터 call이면 도구로 답한다(집계
   expect((await res.json() as { messages: { content: string }[] }).messages[1].content).toBe("견적 1개(쏘렌토)");
 });
 
+// 오라구팅 구제(2026-07-22 실기 발견): 라우터가 도구를 골랐는데 **0건**이고 RAG 근거는 있으면,
+// 도구 선택이 틀렸을 확률이 높다(실측 2건 — "박서연이 원하는 조건" → customer_consultations 0건인데
+// 프로필 청크는 코퍼스에 있었고, 화면엔 "정보가 없습니다"가 떴다). 라우팅 우선 게이트가 그 근거를
+// 통째로 버리던 것을 되돌린다. 도구가 1건이라도 냈으면 기존 계약(도구 우선) 그대로다.
+test("POST /ask 라우팅 도구가 0건 + 근거 있음 → RAG 폴백(오라우팅 구제)", async () => {
+  ragFakes({ inserted: [] }, {
+    routeAssistantTool: async () => ({ kind: "call", key: "customer_consultations", params: { name: "박서연" } }),
+    runAssistantTool: async () => ({ label: "고객 상담신청 목록(이름 박서연)", lines: [] }), // 0건
+    generateAnswer: async (_s: string, u: string) => (u.includes("근거") ? "RAG 근거 기반 답변" : "도구 0건으로 답함"),
+  });
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await askJson(app, token, { question: "박서연 고객이 원하는 조건이 뭐야?" });
+  const saved = (await res.json() as { messages: { content: string; sources?: { sourceType: string }[] }[] }).messages[1];
+  expect(saved.content).toBe("RAG 근거 기반 답변");
+  expect(saved.sources?.[0]?.sourceType).toBe("memo"); // 근거 표시도 도구("tool")가 아니라 RAG 청크
+});
+
+// 반대 방향 가드 — 근거도 0건이면 폴백할 곳이 없다. 도구 경로를 유지해 "조회 결과 없음"을 모델이
+// 정리하게 한다(NO_HITS 고정 답변으로 새면 리포트 질문에 "데이터를 못 찾았다"는 오답이 된다).
+test("POST /ask 라우팅 도구 0건 + 근거도 0건 → 도구 경로 유지(조회 결과 없음)", async () => {
+  ragFakes({ inserted: [] }, {
+    searchEmbeddings: async () => [],
+    routeAssistantTool: async () => ({ kind: "call", key: "customer_consultations", params: { name: "박서연" } }),
+    runAssistantTool: async () => ({ label: "고객 상담신청 목록(이름 박서연)", lines: [] }),
+    generateAnswer: async (_s: string, u: string) => (u.includes("조회 결과 없음") ? "상담신청 내역이 없습니다" : "엉뚱한 경로"),
+  });
+
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await askJson(app, token, { question: "박서연 상담신청 뭐 했어?" });
+  const saved = (await res.json() as { messages: { content: string; sources?: { sourceType: string }[] }[] }).messages[1];
+  expect(saved.content).toBe("상담신청 내역이 없습니다");
+  expect(saved.sources?.[0]?.sourceType).toBe("tool");
+});
+
 // 사용자 컨텍스트(2026-07-07): 시스템 프롬프트에 현재 사용자(이름·역할)를 주입 — "내/제 담당" 1인칭 해석 기준.
 test("POST /ask 시스템 프롬프트에 현재 사용자 컨텍스트(이름·역할) 주입", async () => {
   let sys = "";
