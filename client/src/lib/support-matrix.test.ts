@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getJson } from "./http";
+import { SOLUTION_LENDERS } from "./solution-quote";
 import {
   fetchSupportMatrix,
   parseSupportMatrix,
@@ -192,5 +193,68 @@ describe("항목별 null 강등(파트너 fail-soft)", () => {
   it("강등된 축은 폴백도 돌지 않는다(무변경) — 확정된 축만 폴백", () => {
     expect(resolveGateFallback(25000, supportedMileagesFor(MIXED, "메리츠캐피탈", "operating_lease"), 20000)).toBeNull();
     expect(resolveGateFallback(24, supportedTermsFor(MIXED, "메리츠캐피탈", "operating_lease"), 60)).toBeNull();
+  });
+});
+
+// ── 금융사 SSOT 드리프트 런타임 그물(2026-07-23) ────────────────────────────────
+// `SOLUTION_LENDERS`는 파트너 목록의 하드코딩 미러라 조용히 낡을 수 있다. 매트릭스 응답이 파트너
+// lender SSOT를 그대로 싣고 오므로(파라미터 없이 전량 반환) 워크벤치가 그걸 받을 때 1회 대조해
+// 흔적을 남긴다. 판정 자체는 순수 모듈(solution-quote.detectLenderDrift)이 소유 — 여기선 **배선**만 잠근다.
+// ⚠️ 화면 동작은 바꾸지 않는다(fail-open 유지) — 경고는 기록일 뿐 게이트가 아니다.
+// 의도적 점검은 `bun run check:lenders`(파트너 직접 조회)가 담당한다.
+describe("fetchSupportMatrix — 금융사 SSOT 드리프트 경고", () => {
+  const rowsFor = (codes: readonly string[]) =>
+    codes.map((code) => ({
+      lenderCode: code,
+      productType: "operating_lease",
+      leaseTermMonths: [36, 48, 60],
+      annualMileageKm: [10000, 20000, 30000],
+    }));
+  const ALL_CODES = SOLUTION_LENDERS.map((l) => l.code);
+  const driftWarnings = () =>
+    warnSpy.mock.calls.filter((call: unknown[]) => String(call[0]).includes("드리프트"));
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    resetSupportMatrixCache();
+    getJsonMock.mockReset();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    resetSupportMatrixCache();
+    warnSpy.mockRestore();
+  });
+
+  it("파트너 목록이 현행 어휘와 같으면 조용하다", async () => {
+    getJsonMock.mockResolvedValue({ matrix: rowsFor(ALL_CODES) });
+    await fetchSupportMatrix();
+    expect(driftWarnings()).toHaveLength(0);
+  });
+
+  it("파트너에 새 금융사가 생기면 경고한다(그 사는 CRM에서 선택 불가 = 기능 누락)", async () => {
+    getJsonMock.mockResolvedValue({ matrix: rowsFor([...ALL_CODES, "new-capital"]) });
+    await fetchSupportMatrix();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("new-capital"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("check:lenders")); // 다음 행동을 문구가 지시한다
+  });
+
+  it("파트너에서 금융사가 빠지면 경고한다(고를 수 있는데 계산이 거부되는 상태)", async () => {
+    getJsonMock.mockResolvedValue({ matrix: rowsFor(ALL_CODES.filter((c) => c !== "nh-capital")) });
+    await fetchSupportMatrix();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("nh-capital"));
+  });
+
+  it("조회 실패(빈 매트릭스)는 드리프트로 오탐하지 않는다 — fail-open 경로 보호", async () => {
+    // 이 가드가 없으면 파트너가 잠깐 죽을 때마다 "8사가 전부 사라졌다"가 뜬다(늑대소년).
+    getJsonMock.mockRejectedValueOnce(new Error("503"));
+    await fetchSupportMatrix();
+    expect(driftWarnings()).toHaveLength(0);
+  });
+
+  it("두 번 호출해도 경고는 1회 — 세션 캐시가 재파싱을 막는다", async () => {
+    getJsonMock.mockResolvedValue({ matrix: rowsFor([...ALL_CODES, "new-capital"]) });
+    await fetchSupportMatrix();
+    await fetchSupportMatrix();
+    expect(driftWarnings()).toHaveLength(1);
   });
 });

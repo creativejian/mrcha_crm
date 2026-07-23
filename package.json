@@ -18,6 +18,7 @@
     "test:server": "EMBED_ON_WRITE=off PUSH_NOTIFY=off AI_HINT_ON_WRITE=off bun test --env-file=.env.local",
     "test:edge": "deno test supabase/functions",
     "check:residue": "bun run --env-file=.env.local src/scripts/check-test-residue.ts",
+    "check:lenders": "bun run --env-file=.env.local src/scripts/check-lender-parity.ts",
     "knip": "knip --no-config-hints",
     "test": "bun run test:server && bun run test:unit && bun run test:edge",
     "db:generate": "drizzle-kit generate",

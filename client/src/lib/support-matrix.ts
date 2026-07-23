@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getJson } from "./http";
-import { SOLUTION_LENDERS, type SolutionProductType } from "./solution-quote";
+import { detectLenderDrift, hasLenderDrift, SOLUTION_LENDERS, type SolutionProductType } from "./solution-quote";
 
 // 파트너(제프) 지원집합 매트릭스 — `GET /api/solution/support-matrix` 릴레이.
 // 계약 확정 2026-07-21(요청 ref/2026-07-21-jeff-support-matrix-request.md · 회신 …-reply.md).
@@ -41,6 +41,34 @@ export function parseSupportMatrix(raw: unknown): SupportMatrix {
   return out;
 }
 
+// 매트릭스 키(`code::product`)에서 파트너가 실어 보낸 금융사 코드 집합을 뽑는다 — 드리프트 대조 입력.
+// lenderCode에 "::"가 없다는 전제(파트너 code 어휘 = kebab-case)라 첫 구분자까지가 코드다.
+// 비-export: 이 파일의 경고 배선 전용이다. `check:lenders` 스크립트는 파트너 raw 응답에서 직접 뽑으므로
+// (Map을 거치지 않는다) 밖으로 열 이유가 없다 — 열어 두면 서버가 이 React 체인 모듈을 import하려 든다.
+function lenderCodesOf(matrix: SupportMatrix): string[] {
+  const codes = new Set<string>();
+  for (const key of matrix.keys()) codes.add(key.slice(0, key.indexOf("::")));
+  return [...codes];
+}
+
+// 금융사 SSOT 드리프트 1회 경고(세션당) — 하드코딩 미러가 조용히 낡는 것을 막는 런타임 그물.
+// 판정은 순수 모듈(solution-quote.detectLenderDrift)이 소유하고 `bun run check:lenders`와 공유한다.
+// 여기서 화면 동작을 바꾸지는 않는다(fail-open 원칙 유지) — 어긋남을 **기록**만 한다.
+let lenderDriftWarned = false;
+
+function warnLenderDrift(matrix: SupportMatrix): void {
+  if (lenderDriftWarned) return;
+  const drift = detectLenderDrift(lenderCodesOf(matrix));
+  if (!hasLenderDrift(drift)) return;
+  lenderDriftWarned = true;
+  console.warn(
+    "[workbench] 금융사 SSOT 드리프트 — 파트너 목록과 SOLUTION_LENDERS가 어긋납니다." +
+      (drift.onlyPartner.length > 0 ? ` 파트너에만 있음(선택 불가): ${drift.onlyPartner.join(", ")}.` : "") +
+      (drift.onlyCrm.length > 0 ? ` CRM에만 있음(계산 거부됨): ${drift.onlyCrm.join(", ")}.` : "") +
+      " 확인: bun run check:lenders",
+  );
+}
+
 // 세션 캐시 + inflight dedupe(staff.ts 선례). TTL 없음 — 매트릭스는 파트너 워크북 갱신 주기로만
 // 바뀌고 새로고침이 갱신 트리거다. 실패는 캐시하지 않는다(재진입이 재시도).
 // ⚠️ 파트너 계약: 이 엔드포인트는 그쪽 DB 문제에도 500이 아니라 **200 + 영향받는 항목만 null 강등**을
@@ -56,6 +84,7 @@ export async function fetchSupportMatrix(): Promise<SupportMatrix> {
   inflight = getJson<unknown>("/api/solution/support-matrix")
     .then((raw) => {
       const parsed = parseSupportMatrix(raw);
+      warnLenderDrift(parsed); // 하드코딩 금융사 미러가 낡았는지 여기서 1회 기록(화면 동작은 불변)
       cache = parsed;
       return parsed;
     })
@@ -69,10 +98,11 @@ export async function fetchSupportMatrix(): Promise<SupportMatrix> {
   return inflight;
 }
 
-// 테스트 전용 — 모듈 캐시 초기화(케이스 간 오염 방지).
+// 테스트 전용 — 모듈 캐시 초기화(케이스 간 오염 방지). 드리프트 경고 1회 플래그도 함께 푼다.
 export function resetSupportMatrixCache(): void {
   cache = null;
   inflight = null;
+  lenderDriftWarned = false;
 }
 
 // 컴포넌트용: 마운트 시 1회 로드. 실패도 빈 Map이라 에러 상태가 없다(전 호출부 fail-open).

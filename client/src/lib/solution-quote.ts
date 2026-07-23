@@ -23,6 +23,36 @@ export type SolutionLenderCode = (typeof SOLUTION_LENDERS)[number]["code"];
 // 금융사 select에 노출되지만 계산기는 미취급 경고(R1-3)를 낸다 — 파트너 미지원사의 수기 견적용.
 export const CRM_EXTRA_LENDERS: readonly string[] = [];
 
+// ── 금융사 SSOT 드리프트 판정(2026-07-23) ──────────────────────────────────────
+// `SOLUTION_LENDERS`는 파트너 목록의 **하드코딩 미러**다. 실시간 fetch로 바꾸지 않는 이유:
+// ①`SolutionLenderCode`가 이 상수에서 파생된 **컴파일타임 타입**이라 런타임 값으로는 못 만든다
+// ②딜러 조회·지원집합·`RENTAL_LENDER_CODES`가 전부 이 code에 키되고, label은 저장 견적
+// (`crm.quotes.lender`)에 박히는 데이터 계약이다 ③`CRM_EXTRA_LENDERS`로 CRM이 **상위집합**을
+// 소유하는 설계라 파트너 목록을 그대로 덮으면 그 확장점이 죽는다 ④파트너가 죽어도 금융사
+// 드롭다운은 떠야 한다(계산·딜러·매트릭스만 파트너 의존).
+// 대신 **드리프트는 시끄럽게** 잡는다 — 파트너 support-matrix 응답이 그쪽 lender SSOT를 그대로
+// 싣고 오므로(회신 `ref/2026-07-21-jeff-support-matrix-reply.md`: 파라미터 없이 전량 반환) 그
+// 코드 집합과 여기를 양방향 대조한다. 런타임(`fetchSupportMatrix` 경고)과 `bun run check:lenders`가
+// 이 한 벌을 공유한다.
+// ⚠️ **label(한글 표시명) 드리프트는 이걸로 못 잡는다** — 매트릭스가 code만 싣는다(개명 시 표시만
+// 낡고 계산은 code 기준이라 안 깨짐). 요청문 = `ref/2026-07-23-jeff-lender-name-request.md`.
+export type LenderDrift = { onlyPartner: string[]; onlyCrm: string[] };
+
+export function detectLenderDrift(partnerCodes: readonly string[]): LenderDrift {
+  // 빈 입력 = 조회 실패·미확정(fail-open 경로) — 전 금융사가 "사라진" 것처럼 보이는 오탐을 막는다.
+  if (partnerCodes.length === 0) return { onlyPartner: [], onlyCrm: [] };
+  const partner = new Set(partnerCodes);
+  const crm = new Set<string>(SOLUTION_LENDERS.map((l) => l.code));
+  return {
+    onlyPartner: [...partner].filter((code) => !crm.has(code)).sort(), // 파트너에 새로 생김 → 우리가 못 고름(기능 누락)
+    onlyCrm: [...crm].filter((code) => !partner.has(code)).sort(), // 파트너에서 사라짐 → 고를 수 있는데 계산이 거부됨
+  };
+}
+
+export function hasLenderDrift(drift: LenderDrift): boolean {
+  return drift.onlyPartner.length > 0 || drift.onlyCrm.length > 0;
+}
+
 // 장기렌트 취급 3사 — 파트너 app.ts의 long_term_rental dispatch 게이트 미러.
 const RENTAL_LENDER_CODES: readonly SolutionLenderCode[] = ["mg-capital", "meritz-capital", "im-capital"];
 

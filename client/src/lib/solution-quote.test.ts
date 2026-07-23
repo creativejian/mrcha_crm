@@ -4,6 +4,8 @@ import { describe, expect, test } from "vitest";
 import {
   SOLUTION_LENDERS,
   buildSolutionQuoteInput,
+  detectLenderDrift,
+  hasLenderDrift,
   parseSolutionQuoteResult,
   solutionLenderOptions,
   solutionProductTypeOf,
@@ -220,4 +222,43 @@ describe("parseSolutionQuoteResult", () => {
   });
 
   // (solutionDisplayRatePct 케이스는 개정 1로 제거 — 카드 금리는 lease-rate.ts 실질 금리 파생이 담당.)
+});
+
+// ── 금융사 SSOT 드리프트 판정(2026-07-23) ──────────────────────────────────────
+// `SOLUTION_LENDERS`는 파트너 목록의 하드코딩 미러라 조용히 낡을 수 있다. 이 판정을
+// 런타임 경고(fetchSupportMatrix)와 `bun run check:lenders`가 공유한다 — 한 벌만 검증한다.
+describe("detectLenderDrift — 파트너 금융사 SSOT 대조", () => {
+  const ALL_CODES = SOLUTION_LENDERS.map((l) => l.code);
+
+  test("현행 어휘와 같으면 드리프트 없음", () => {
+    const drift = detectLenderDrift(ALL_CODES);
+    expect(drift).toEqual({ onlyPartner: [], onlyCrm: [] });
+    expect(hasLenderDrift(drift)).toBe(false);
+  });
+
+  test("순서가 달라도 드리프트가 아니다 — 집합 비교(파트너도 순서 의존 금지를 권고)", () => {
+    expect(hasLenderDrift(detectLenderDrift([...ALL_CODES].reverse()))).toBe(false);
+  });
+
+  test("파트너가 금융사를 추가하면 onlyPartner로 잡힌다(우리 화면에선 고를 수 없는 상태)", () => {
+    const drift = detectLenderDrift([...ALL_CODES, "new-capital"]);
+    expect(drift.onlyPartner).toEqual(["new-capital"]);
+    expect(drift.onlyCrm).toEqual([]);
+    expect(hasLenderDrift(drift)).toBe(true);
+  });
+
+  test("파트너가 금융사를 빼면 onlyCrm으로 잡힌다(고를 수 있는데 계산이 거부되는 상태)", () => {
+    const drift = detectLenderDrift(ALL_CODES.filter((c) => c !== "nh-capital"));
+    expect(drift.onlyCrm).toEqual(["nh-capital"]);
+    expect(drift.onlyPartner).toEqual([]);
+  });
+
+  test("빈 입력(조회 실패·미확정)은 드리프트로 보지 않는다 — 전 금융사 오탐 차단", () => {
+    // fail-open 경로에서 빈 매트릭스가 오는데, 이걸 드리프트로 치면 매번 "8사 전부 사라짐"이 뜬다.
+    expect(detectLenderDrift([])).toEqual({ onlyPartner: [], onlyCrm: [] });
+  });
+
+  test("중복 코드(productType별 다중 행)는 집합으로 접힌다", () => {
+    expect(hasLenderDrift(detectLenderDrift([...ALL_CODES, ...ALL_CODES]))).toBe(false);
+  });
 });
