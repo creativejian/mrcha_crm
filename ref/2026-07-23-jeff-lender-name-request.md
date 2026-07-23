@@ -2,6 +2,12 @@
 
 작성 2026-07-23 · 관련 회신 `ref/2026-07-21-jeff-support-matrix-reply.md`
 
+> **상태: 🔵 전달 완료 · 제프 작업 중**(2026-07-23 착수 확인).
+> **도착 후 CRM 후속**(작업 대기 중): ①`check-lender-parity.ts`가 행에서 `lenderName`도 뽑아
+> label 대조 추가 ②런타임 경고(`support-matrix.ts` `warnLenderDrift`)도 같은 축 확장
+> ③판정은 `detectLenderDrift`(solution-quote) **한 벌을 확장**한다 — 두 소비처가 공유하는 구조 유지.
+> 배포 순서 제약은 없다(우리 파서가 모르는 필드를 무시하므로 제프가 먼저 나가도 무해).
+
 ## 요약
 
 `GET /api/external/quotes/support-matrix` 잘 쓰고 있습니다. 특히 **파라미터 없이 전량 반환** + 행이 그쪽 lender SSOT 순서로 온다는 계약 덕에, **별도 lenders API 없이도** 저희 금융사 목록이 제프와 어긋났는지 이 응답 하나로 대조할 수 있게 됐습니다(오늘 그 가드를 붙였습니다). 감사합니다.
