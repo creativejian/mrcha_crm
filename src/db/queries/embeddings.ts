@@ -18,10 +18,10 @@ export type UpsertEmbeddingInput = {
 export async function upsertEmbedding(input: UpsertEmbeddingInput, executor: Executor = getDefaultDb()): Promise<void> {
   await executor
     .insert(embeddings)
-    .values({ ...input, updatedAt: new Date() })
+    .values({ ...input, updatedAt: sql`now()` })
     .onConflictDoUpdate({
       target: [embeddings.sourceType, embeddings.sourceId],
-      set: { content: input.content, contentHash: input.contentHash, embedding: input.embedding, customerId: input.customerId, updatedAt: new Date() },
+      set: { content: input.content, contentHash: input.contentHash, embedding: input.embedding, customerId: input.customerId, updatedAt: sql`now()` },
     });
 }
 

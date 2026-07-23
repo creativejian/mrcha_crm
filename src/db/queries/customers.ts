@@ -130,13 +130,18 @@ export async function updateCustomer(
   executor: Executor = getDefaultDb(),
 ): Promise<{ id: string } | null> {
   // 수동 관리 상태(스누즈)의 유효 규칙이 manage_status_at >= staffActivityAt(= updated_at 포함 GREATEST)라서,
-  // 스탬프를 updated_at과 **같은 now**로 찍어야 설정 직후에 유효하다(별도 new Date()면 ms 차이로 즉시 만료).
-  const now = new Date();
+  // 두 스탬프가 **같은 시각**이어야 설정 직후에 유효하다(어긋나면 켜자마자 만료).
+  // ⚠️ **DB 시계로 찍는다**(2026-07-23 — `#334`와 같은 축). `now()`는 **트랜잭션 시작 시각**이라
+  // 한 statement 안에서 몇 번을 써도 같은 값이다(PostgreSQL 보장 — `updated-at-clock-guard.test.ts`가
+  // 실측으로 잠근다). 그래서 변수로 묶지 않고 각각 인라인으로 둔다.
+  // 왜 앱 시계(`new Date()`)면 안 되나: staffActivityAt의 greatest()에는 자식 테이블의 `created_at`이
+  // 들어가고 그건 전부 DB `defaultNow()`다 — manage_status_at만 앱 시계면 앱이 뒤처진 만큼
+  // **스누즈를 켜자마자 만료**될 수 있다(직전에 메모·할일이 하나라도 있으면 그 created_at이 더 크다).
   const manageStamp =
-    patch.manageStatus !== undefined ? { manageStatusAt: patch.manageStatus === null ? null : now } : {};
+    patch.manageStatus !== undefined ? { manageStatusAt: patch.manageStatus === null ? null : sql`now()` } : {};
   const [row] = await executor
     .update(customers)
-    .set({ ...patch, ...manageStamp, updatedAt: now })
+    .set({ ...patch, ...manageStamp, updatedAt: sql`now()` })
     .where(eq(customers.id, id))
     .returning({ id: customers.id });
   return row ?? null;

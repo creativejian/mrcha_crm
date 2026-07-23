@@ -102,7 +102,7 @@ type ScenarioInput = QuoteScenarioPatch & {
 
 // 헤더 컬럼만 골라 set 객체로(컬럼 아닌 키 bumpRevision/scenario는 제외).
 function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
-  const set: Record<string, unknown> = { updatedAt: new Date() };
+  const set: Record<string, unknown> = { updatedAt: sql`now()` };
   if (p.status !== undefined) set.status = p.status;
   if (p.entryMode !== undefined) set.entryMode = p.entryMode;
   if (p.quoteRound !== undefined) set.quoteRound = p.quoteRound;
@@ -147,7 +147,7 @@ function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
 }
 
 function scenarioSet(s: QuoteScenarioPatch): Record<string, unknown> {
-  const set: Record<string, unknown> = { updatedAt: new Date() };
+  const set: Record<string, unknown> = { updatedAt: sql`now()` };
   if (s.purchaseMethod !== undefined) set.purchaseMethod = s.purchaseMethod;
   if (s.termMonths !== undefined) set.termMonths = s.termMonths;
   if (s.monthlyPayment !== undefined) set.monthlyPayment = s.monthlyPayment;
@@ -470,7 +470,7 @@ export async function setQuoteFile(
   if (!prev) return null;
   await ex
     .update(quotes)
-    .set({ fileName: file.fileName, fileSize: file.fileSize, fileMime: file.fileMime, filePath: file.filePath, updatedAt: new Date() })
+    .set({ fileName: file.fileName, fileSize: file.fileSize, fileMime: file.fileMime, filePath: file.filePath, updatedAt: sql`now()` })
     .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)));
   return { previousFilePath: prev.filePath };
 }
@@ -487,7 +487,7 @@ export async function clearQuoteFile(
   if (!prev) return null;
   await ex
     .update(quotes)
-    .set({ fileName: null, fileSize: null, fileMime: null, filePath: null, updatedAt: new Date() })
+    .set({ fileName: null, fileSize: null, fileMime: null, filePath: null, updatedAt: sql`now()` })
     .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)));
   return { previousFilePath: prev.filePath };
 }

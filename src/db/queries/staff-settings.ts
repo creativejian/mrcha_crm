@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import { staffSettings } from "../schema";
@@ -16,10 +16,10 @@ export async function getLiveReceiving(userId: string, ex: Executor = getDefault
 export async function setLiveReceiving(userId: string, receiving: boolean, ex: Executor = getDefaultDb()): Promise<boolean> {
   await ex
     .insert(staffSettings)
-    .values({ staffUserId: userId, liveReceiving: receiving, updatedAt: new Date() })
+    .values({ staffUserId: userId, liveReceiving: receiving, updatedAt: sql`now()` })
     .onConflictDoUpdate({
       target: staffSettings.staffUserId,
-      set: { liveReceiving: receiving, updatedAt: new Date() },
+      set: { liveReceiving: receiving, updatedAt: sql`now()` },
     });
   return receiving;
 }
