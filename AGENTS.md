@@ -52,6 +52,7 @@ Default handoff behavior:
 - Small CSS/type/spacing changes: do not run the full test suite after every change. Batch verification.
 - DOM or TypeScript changes: run `bun run typecheck`.
 - Any change: keep `bun run lint` at 0 problems (the repo is currently lint-clean).
+- **export를 추가/제거했으면 `bun run knip`**, **포맷 대상 파일**(`package.json`·`*.config.ts`·`test/**`·`client/src/**/*.test.tsx`·`*.stories.tsx`)**을 건드렸으면 `bun run format:check`.** 둘 다 CI 게이트이고 기준선 0이라, 한 건만 생겨도 PR이 빨개진다(2026-07-23 #333에서 실제로 발생 — 같은 파일 안에서만 쓰는 상수를 export해 knip 1건).
 - Customer management logic changes: run `bun run test:unit client/src/pages/CustomerManagementPage.test.tsx`.
 - Large visual layout changes: 실화면을 **눈으로 1회** 확인한다(매 미세 조정마다 하지 않는다). 로그인이 카카오 OAuth뿐이라 브라우저를 띄우려면 아래 "로컬 브라우저 스모크 로그인 우회"의 magiclink 절차를 쓴다.
   ⚠️ **자동 스크린샷/픽셀 비교 하네스는 폐기됐다**(2026-07-22 배치 13). 구 `visual:crm`·`screenshot:crm`과 spec 3종은 전부 `page.goto("/")` 직후 CRM 화면을 기대해, 2026-06-18 로그인 게이트(#36) 도입 후 **약 두 달간 실행 자체가 불가능**했는데도 이 문구가 계속 그 도구를 가리키고 있었다(= 아무도 안 돌리는 규칙). `playwright.config.ts`만 재도입용으로 남겼다 — 되살릴 때는 **로그인 처리(storageState)부터** 붙일 것.
@@ -64,10 +65,11 @@ Default handoff behavior:
 - **근거(실측)**: 배치 14는 87표를 써서 **상 0·중 0·하 14**, 배치 15는 48 에이전트·5.39M 토큰으로 **상 0·중 5·하 9·행위 변경 0**을 냈다 — **두 배치 연속 사용자 가시 오작동 0건**. `ADJUSTED` 비중이 압도적인 것은 결함을 그만큼 찾았다는 뜻이 아니라 **앵글의 과장을 검증이 되돌린 횟수**다(파이프라인 상당분이 자기 노이즈 청소). 반면 그때까지 레포엔 `.github`·`.husky`가 없어 **자동 그물이 0**이었고(→ ③으로 해소), 감사 자체가 사고를 냈다(배치 14 워킹트리 오염 5건·실 DB 픽스처 잔재·main 직접 푸시).
 - **① 트리거 기반**: 누적 건수로 착수하지 않는다. ⓐ실 데이터를 변형하는 변경 ⓑ외부 계약(앱팀·DB·모델)을 건드리는 변경 ⓒ검증 없이 급히 나간 변경 — **이 중 하나가 포함될 때만** 풀 감사.
 - **② 기본형은 경량**: 2앵글(정합성·회귀그물) + **실측 렌즈 1개**. 적대 검증은 **심각도 상/중에만** 붙인다(하는 기록만).
-- **③ CI 도입이 감사보다 값어치 있다** → ✅ **완료(2026-07-22, `.github/workflows/ci.yml`)**. push(main)·PR마다 **typecheck · lint · test:unit · build** 4종이 자동으로 돈다. 앞 단계가 실패해도 나머지를 계속 돌려 한 번에 전부 보고한다.
+- **③ CI 도입이 감사보다 값어치 있다** → ✅ **완료(2026-07-22, `.github/workflows/ci.yml`)**. push(main)·PR마다 **7단계**가 자동으로 돈다 — **typecheck · lint · knip · format:check · test:unit · build · test:edge**(Deno, Edge Function 26건). 앞 단계가 실패해도 나머지를 계속 돌려 한 번에 전부 보고한다.
+  - ⚠️ **잡 이름(`typecheck · lint · unit · build`)은 4종만 말하지만 실제로는 위 7단계다.** `gh pr checks`에도 그 이름으로 나와 **knip·format:check·edge가 안 보인다** — 2026-07-23에 그 이름과 아래 구 서술을 믿고 로컬 knip을 건너뛰었다가 CI가 빨개졌다(#333, unused export 1건). 실제 목록은 항상 `ci.yml`의 steps로 확인할 것.
   - ⚠️ **`test:server`를 CI에 추가하지 말 것** — 공유 master DB에 실제로 붙어 픽스처 행·운영 알림·실 Gemini 9콜이 나간다(로컬 전용). 워크플로우 주석에 같은 경고를 박아뒀다.
-  - ⚠️ **knip·format:check도 제외** — 둘 다 도입 시점부터 red인 선재 상태라(knip 7/9 · format:check 스타일 warn 20건) 넣으면 CI가 항상 빨갛다. **기준선을 0으로 만든 뒤에** 추가한다.
-  - CI는 env를 쓰지 않는다(4종 전부 환경변수 없이 통과 실측). 실제 배포 빌드는 Cloudflare Pages가 자기 환경에서 따로 수행하므로 CI 산출물과 무관하다.
+  - ~~knip·format:check도 제외~~ **⚠️ 구 서술(정정 2026-07-23): 둘 다 이미 CI에 있다.** 도입 시점엔 선재 red라(knip 7/9 · format warn 20건) 제외했지만 **기준선을 0으로 만든 뒤 2026-07-22에 추가됐고**, 실측으로 지금도 **둘 다 0**이다(`bun run knip` · `bun run format:check` 통과). 즉 **미사용 export 하나·포맷 어긋남 하나로 PR이 빨개진다** → 로컬 검증에 포함할 것(아래 "검증 예산" 참조). 정당한 예외는 `knip.json`에 사유와 함께 등록한다.
+  - CI는 시크릿을 쓰지 않는다(`VITE_*` 더미값 2개만 — `client/src/lib/supabase.ts`가 모듈 로드 시점에 요구해서다). 실제 배포 빌드는 Cloudflare Pages가 자기 환경에서 따로 수행하므로 CI 산출물과 무관하다.
 - **풀 감사를 돌릴 때 유지할 것**: 에이전트별 **worktree 격리** + 변이 **5단계 자가검증**(전 GREEN 확인 → 주입 → 재실행 → 원복 → `git status` clean). 배치 15에서 41개 에이전트 전원이 원복해 **메인 워킹트리 무손상**을 확인했다(배치 14 오염의 재발 0).
 - 판정 SSOT는 `ref/plans/YYYY-MM-DD-crm-refactor-batch-N.md`에 남긴다.
 
