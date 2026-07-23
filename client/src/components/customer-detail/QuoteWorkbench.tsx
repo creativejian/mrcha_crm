@@ -60,7 +60,6 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     manualQuoteCards,
     cardUi,
     dealerOptionsByCard,
-    lenderByCard,
     supportMatrix,
     solutionLoadingId,
     solutionLenderPickerId,
@@ -120,6 +119,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     saveManualQuoteCondition,
     editManualQuoteCondition,
     copyManualQuoteCondition,
+    setManualLender,
+    setManualDealer,
     setManualDepositMode,
     setManualDownPaymentMode,
     setManualResidualMode,
@@ -474,7 +475,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                     // option을 지우면 저장된 값이 목록에 없어 표시가 빈칸으로 깨진다(과거 MG+25,000km 견적).
                     // 미확정(null)·어휘 밖 금융사·매트릭스 미로드는 전부 null → 게이트 해제(fail-open).
                     const gateProduct = gateProductFor(isConditionSaved, solutionWorkbenchPurchaseMethod);
-                    const gateLender = lenderByCard[condition.id] ?? condition.lender;
+                    const gateLender = condition.lender; // 금융사 값의 진실 = 카드 state(②c — 구 거울 lenderByCard 폐기)
                     const gateTerms = gateProduct ? supportedTermsFor(supportMatrix, gateLender, gateProduct) : null;
                     const gateMileages = gateProduct ? supportedMileagesFor(supportMatrix, gateLender, gateProduct) : null;
                     const termOptions = gatedTermOptions(gateTerms);
@@ -494,12 +495,15 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           </div>
                         </header>
                         <div className="kim-manual-compare-body">
-                          <CondRow label="금융사" className="select-value"><select data-sc-field="lender" defaultValue={condition.lender} disabled={isConditionSaved}>
+                          {/* controlled select — 금융사 값의 진실 = 카드 state(②c). Safari onChange 유실 함정으로 bindSelect(onChange+onInput 병행) 필수. */}
+                          <CondRow label="금융사" className="select-value"><select data-sc-field="lender" disabled={isConditionSaved} {...bindSelect(condition.lender, (v) => setManualLender(condition.id, v))}>
                             <option>{LENDER_UNSELECTED}</option>
                             {solutionLenders.map((l) => <option key={l.code}>{l.label}</option>)}
                             {CRM_EXTRA_LENDERS.map((label) => <option key={label}>{label}</option>)}
-                            {condition.lender && condition.lender !== LENDER_UNSELECTED && !lenderOptionLabels.includes(condition.lender)
-                              ? <option>{condition.lender}</option> /* 구 어휘 저장 견적 표시 유지(스펙 결정 1) — 새 선택지는 아님 */
+                            {/* 구 어휘 저장 견적 표시 유지(스펙 결정 1) — 원천은 라이브 lender가 아니라 seed(②b 회피): 다른
+                                금융사를 골라도 이 option이 살아 있어야 되돌아갈 수 있다. 현행 어휘 밖일 때만 렌더(중복 방지). */}
+                            {condition.lenderSeed && condition.lenderSeed !== LENDER_UNSELECTED && !lenderOptionLabels.includes(condition.lenderSeed)
+                              ? <option>{condition.lenderSeed}</option>
                               : null}
                           </select></CondRow>
                           <CondRow label="기간"><SegmentGroup wide value={ui.termMonths} options={termOptions} disabled={isConditionSaved} onSelect={(m) => setManualTermMonthsFor(condition.id, m)} /></CondRow>
@@ -511,22 +515,22 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
                           <CondRow label="자동차세"><SegmentGroup value={carTaxOn ? "on" : "off"} options={[{ value: "off", label: "불포함" }, { value: "on", label: "포함" }]} disabled={isConditionSaved} onSelect={(v) => setManualCarTaxFor(condition.id, v === "on")} /></CondRow>
                           <CondRow label="보조금"><CondCombo><SegmentGroup value={subsidyOn ? "on" : "off"} options={[{ value: "off", label: "비해당" }, { value: "on", label: "해당" }]} disabled={isConditionSaved} onSelect={(v) => setManualSubsidyFor(condition.id, v === "on")} /><MoneyField fixed={!subsidyOn} suffix="원" inputProps={{ "aria-label": "보조금 금액", "data-sc-field": "subsidy", defaultValue: condition.subsidyAmount, disabled: isConditionSaved, readOnly: !subsidyOn }} /></CondCombo></CondRow>
                           {/* 판매사(T2 — 계산기 판매사 행 미러, 스코프는 카드의 선택 금융사 단일): 목록 = 훅 dealerOptionsByCard
-                              (금융사 변경·브랜드 도착 시 재적재), 값 = uncontrolled select(data-sc-field 추출 계약 — 금융사 select 문법).
+                              (금융사 변경·브랜드 도착 시 재적재), 값 = controlled select(카드 state — ②c, 금융사 select 미러).
                               저장값(condition.dealerName)은 목록 fetch 도착 전에도 option으로 상시 렌더(구 어휘 금융사 "표시 유지" 미러)
-                              + 리마운트 키(재진입/복사/리셋 재시드). 단일 금융사 목록이라 계산기와 달리 lender 접두·합성값 없음.
+                              — controlled라 현재 값이 항상 option에 있어야 한다(그 렌더가 그걸 보장). 단일 금융사 목록이라 계산기와 달리 lender 접두·합성값 없음.
                               세그먼트 어휘·폭 = 표준 행과 통일(DEALER_MODE_SEGMENT_OPTIONS — 구 자연폭 변형 폐기, #265 그리드). */}
                           <CondRow label="판매사">
                             <CondCombo>
                               <SegmentGroup value={dealerMode} options={DEALER_MODE_SEGMENT_OPTIONS} disabled={isConditionSaved} onSelect={(m) => setManualDealerMode(condition.id, m)} />
                               <ValueSelect
-                                key={`dealer-${condition.dealerName}`}
                                 fixed={dealerMode === "nonAffiliated"}
                                 selectProps={{
                                   "aria-label": "판매사",
                                   "data-sc-field": "dealer",
-                                  defaultValue: condition.dealerName,
                                   // 금융사 미선택·브랜드 미선택·해당 사 딜러 0건 = 목록 없음(저장 표시값도 없으면) → 비활성.
                                   disabled: isConditionSaved || dealerMode === "nonAffiliated" || (dealerList.length === 0 && !condition.dealerName),
+                                  // controlled(bindSelect) — Safari onChange 유실 함정. 값 진실 = 카드 state.
+                                  ...bindSelect(condition.dealerName, (v) => setManualDealer(condition.id, v)),
                                 }}
                               >
                                 {/* 빈 목록 placeholder = 이유 표면화(차량/금융사 먼저·등록 딜러 없음·로드 실패) — 죽은 select 오인 방지.

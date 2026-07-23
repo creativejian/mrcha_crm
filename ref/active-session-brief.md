@@ -9,7 +9,9 @@ Last updated: 2026-07-22
 
 ## 지금 상태
 
-**배치 15 종결 + Topbar 팝오버 · CI 도입/위생 잠금 · 별건 3종까지 완료. 진행 중인 미완 작업 없음.**
+**배치 13 잔여 별건 = 워크벤치 select controlled 전환(②c) 이행 완료 — PR 대기.** 그 전엔 배치 15 종결 + Topbar 팝오버 · CI 도입/위생 잠금 · 별건까지 완료된 상태였다.
+
+**②c(2026-07-23, 브랜치 `refactor/crm-workbench-select-controlled`):** 워크벤치 금융사·판매사 select를 uncontrolled DOM → **카드 controlled state**로 승격. 거울 `lenderByCard`·재동기화 `useLayoutEffect` 폐기(state가 진실). `lenderSeed` 신설(②b 회피 = 레거시 금융사 되돌아오기)·`manualQuoteCardsRef`(늦은 응답 stale 가드). **K1-c 신 정책**: 구매방식 전환으로 미취급이 된 금융사를 조용히 리셋하던 것 → **리셋+토스트**(🟡 행위 변경 = pending 항목 27). 검증 green(typecheck 0·lint 0·unit **1071**·build·knip 0·format) + **변이 3종 RED 실증**(seed·D4·onInput). SSOT = `ref/plans/2026-07-22-crm-workbench-select-controlled.md`. ⚠️ 실 Safari 눈확인은 자동화 재현 불가라 유슨생 몫.
 
 최근 머지: `2460d55`(PR1 `#320` 계약 근거절 정정·감사 관례 축소 박제) · `b8a12a8`(PR2 `#321` 회귀 그물 3건, 변이로 RED 실증) · `35c068b`(`#322` 상단바 팝오버 우측 잘림) · `342c70f`(`#323` **CI 도입**) · `e8ab97c`(`#324` Edge 배선·실 Gemini 호출 제거) · `e3adc14`(`#325` knip·format 잠금) · `490d63b`(`#326` stale 딜러 목록).
 main 통합 검증 green — typecheck 0 · lint 0 · unit **1068** · server **651** · edge **26** · build · **knip 0 · format green** · 픽스처 잔재 0. **이제 push·PR마다 CI가 7단계(typecheck·lint·knip·format·unit·build·edge)를 자동 검증한다**(server만 로컬 — 공유 DB).
@@ -39,9 +41,9 @@ main 통합 검증 green — typecheck 0 · lint 0 · unit **1068** · server **
 
 **⑩ CI 위생 잠금(`#325`) + 배치 13 별건 2종(`#326`·`#327`) + 금융사 sentinel 상수화(`#328`).** ⓐ**knip 16 → 0 · format 20 → 0**으로 정리하고 CI에 추가 — 이제 7단계(`typecheck→lint→**knip**→**format**→unit→build→edge`)가 잠근다. knip 16건은 전부 "같은 파일에서만 쓰는데 export가 붙은" 경우라 키워드만 제거(기능 0). 예외 = **`DEALER_WRITE_ALLOWLIST`는 의도적 확장점이라 삭제 대신 내부화**(밖으로 열려 있으면 다른 모듈이 런타임에 딜러 게이트를 넓힐 수 있다 — 사유는 코드 주석) ⓑ**`dealerOptionsByCard` stale 수정** — 구매방식 전환이 이벤트 없이 금융사를 "미선택"으로 되돌리는데 딜러 목록은 이벤트 경로에서만 갱신돼 **이전 금융사 딜러가 계속 제시**됐다. K1 재동기화 effect를 딜러까지 확장해 닫았다. ⚠️ **배치 13 서술이 틀렸음을 재현 중 발견해 정정**(구 기록 "placeholder가 '금융사 먼저 선택' 거짓 표시" → 실제는 **반대**: stale 때문에 `hasChoices`가 참이라 placeholder는 "선택"인 채 딜러가 노출). 🟡 **pending 항목 25 등재**(사후 공유). ⓒ**초기화가 금융사 DOM을 안 지우던 것**도 닫았다(`#327`) — 실측으로 범위를 좁혔다: 보증금·선수금·잔존가치·보조금은 이미 정상 초기화되고 **금융사만** 살아남아, 카드 리마운트가 아니라 금융사 select만 DOM 클리어(거울은 K1-d 원칙대로 effect에 위임). ⚠️ 시행착오 = `key={`lender-${condition.lender}`}` 리마운트는 **무효**(uncontrolled라 사용자 선택이 state에 안 남아 key 불변). 🟡 **pending 항목 26**. ⓓ**금융사 `"미선택"` sentinel 상수화**(`#328`) — ⚠️**단순 치환은 위험했다**: 프로덕션 21건이 **세 도메인에 겹쳐** 있었다(금융사 sentinel / **색상 라벨 = 앱 payload 계약값** / 피커 UI 폴백). 금융사 축 12건만 `LENDER_UNSELECTED`로 모으고 색상은 무접촉. ⓔ**CI 허점 발견**: `bun run lint`가 warning에 exit 0이라 **불필요한 eslint-disable이 조용히 머지됐다**(#326). 레포 규칙은 "0 problems"이므로 `lint` 스크립트를 `--max-warnings 0`으로 강화 — 로컬·CI가 같은 기준을 쓴다.
 
-## ▶ 다음 작업 (미확정 — 후보)
+## ▶ 다음 작업
 
-1. **배치 13 잔여 별건 1종** — `K1 안 ②c` controlled 전환(DOM 쓰기 6경로 + 저장 payload 회귀 재검증 = **별도 사이클**). 오늘 uncontrolled 함정을 두 번 밟았으므로(팝오버 리마운트 키 무효 · 초기화 DOM 잔존) 근본 해결 가치는 오르는 중.
+1. ✅ **배치 13 잔여 별건 = `K1 안 ②c` 워크벤치 select controlled 전환 — 이행 완료(PR 대기/머지).** SSOT = `ref/plans/2026-07-22-crm-workbench-select-controlled.md`(이행 요약·변이 실증 포함). **머지 후**: pending 항목 27(K1-c 리셋+토스트) 이사님 사후 공유 · 실 Safari 눈확인(유슨생).
 2. **이사님 회신 대기** — pending **열린 12건**(항목 25·26 신설), 특히 **21·22는 묶어서** 여쭙는 게 효율적. ⚠️ **NO_HITS 문구+sources 동시 렌더는 21·22 결정과 얽혀 보류 중**(지금 고치면 결정 후 두 번 고친다).
 3. **CI 후속(선택)** — 남은 red 게이트 없음. 다음 후보는 `test:server`를 CI에 넣을 방법(전용 테스트 DB가 생기면). 지금은 공유 master라 불가.
 
