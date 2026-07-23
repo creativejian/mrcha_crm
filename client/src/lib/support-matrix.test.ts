@@ -199,18 +199,20 @@ describe("항목별 null 강등(파트너 fail-soft)", () => {
 // ── 금융사 SSOT 드리프트 런타임 그물(2026-07-23) ────────────────────────────────
 // `SOLUTION_LENDERS`는 파트너 목록의 하드코딩 미러라 조용히 낡을 수 있다. 매트릭스 응답이 파트너
 // lender SSOT를 그대로 싣고 오므로(파라미터 없이 전량 반환) 워크벤치가 그걸 받을 때 1회 대조해
-// 흔적을 남긴다. 판정 자체는 순수 모듈(solution-quote.detectLenderDrift)이 소유 — 여기선 **배선**만 잠근다.
+// 흔적을 남긴다. 판정 자체는 순수 모듈(solution-quote)이 소유 — 여기선 **배선**만 잠근다.
+// ⚠️ 파싱된 Map이 아니라 **raw 응답**을 봐야 한다(개명 축 `lenderName`이 게이트 데이터가 아니라
+// parseSupportMatrix 결과에 남지 않는다) — 그 배선이 실제로 raw를 보는지도 여기서 잠근다.
 // ⚠️ 화면 동작은 바꾸지 않는다(fail-open 유지) — 경고는 기록일 뿐 게이트가 아니다.
-// 의도적 점검은 `bun run check:lenders`(파트너 직접 조회)가 담당한다.
 describe("fetchSupportMatrix — 금융사 SSOT 드리프트 경고", () => {
-  const rowsFor = (codes: readonly string[]) =>
-    codes.map((code) => ({
-      lenderCode: code,
+  const rowsFor = (lenders: readonly { code: string; name?: string }[]) =>
+    lenders.map((l) => ({
+      lenderCode: l.code,
+      ...(l.name ? { lenderName: l.name } : {}),
       productType: "operating_lease",
       leaseTermMonths: [36, 48, 60],
       annualMileageKm: [10000, 20000, 30000],
     }));
-  const ALL_CODES = SOLUTION_LENDERS.map((l) => l.code);
+  const CURRENT = SOLUTION_LENDERS.map((l) => ({ code: l.code as string, name: l.label as string }));
   const driftWarnings = () =>
     warnSpy.mock.calls.filter((call: unknown[]) => String(call[0]).includes("드리프트"));
   let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -225,23 +227,39 @@ describe("fetchSupportMatrix — 금융사 SSOT 드리프트 경고", () => {
     warnSpy.mockRestore();
   });
 
-  it("파트너 목록이 현행 어휘와 같으면 조용하다", async () => {
-    getJsonMock.mockResolvedValue({ matrix: rowsFor(ALL_CODES) });
+  it("파트너 목록·표시명이 현행 어휘와 같으면 조용하다", async () => {
+    getJsonMock.mockResolvedValue({ matrix: rowsFor(CURRENT) });
     await fetchSupportMatrix();
     expect(driftWarnings()).toHaveLength(0);
   });
 
   it("파트너에 새 금융사가 생기면 경고한다(그 사는 CRM에서 선택 불가 = 기능 누락)", async () => {
-    getJsonMock.mockResolvedValue({ matrix: rowsFor([...ALL_CODES, "new-capital"]) });
+    getJsonMock.mockResolvedValue({ matrix: rowsFor([...CURRENT, { code: "hana-capital", name: "하나캐피탈" }]) });
     await fetchSupportMatrix();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("new-capital"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("hana-capital"));
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("check:lenders")); // 다음 행동을 문구가 지시한다
   });
 
   it("파트너에서 금융사가 빠지면 경고한다(고를 수 있는데 계산이 거부되는 상태)", async () => {
-    getJsonMock.mockResolvedValue({ matrix: rowsFor(ALL_CODES.filter((c) => c !== "nh-capital")) });
+    getJsonMock.mockResolvedValue({ matrix: rowsFor(CURRENT.filter((l) => l.code !== "nh-capital")) });
     await fetchSupportMatrix();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("nh-capital"));
+  });
+
+  it("표시명이 바뀌면 경고한다 — raw를 봐야만 잡힌다(파싱 Map엔 lenderName이 없다)", async () => {
+    getJsonMock.mockResolvedValue({
+      matrix: rowsFor(CURRENT.map((l) => (l.code === "im-capital" ? { ...l, name: "아이엠캐피탈" } : l))),
+    });
+    await fetchSupportMatrix();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("아이엠캐피탈"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("화면 표기만 낡음")); // 심각도를 문구가 구분한다
+  });
+
+  it("lenderName 미탑재 응답(파트너 배포 전)은 조용하다 — 개명 축만 보류", async () => {
+    // 이 가드가 없으면 제프 배포 전까지 열 때마다 "8사 전부 개명됨"이 뜬다.
+    getJsonMock.mockResolvedValue({ matrix: rowsFor(CURRENT.map((l) => ({ code: l.code }))) });
+    await fetchSupportMatrix();
+    expect(driftWarnings()).toHaveLength(0);
   });
 
   it("조회 실패(빈 매트릭스)는 드리프트로 오탐하지 않는다 — fail-open 경로 보호", async () => {
@@ -252,7 +270,7 @@ describe("fetchSupportMatrix — 금융사 SSOT 드리프트 경고", () => {
   });
 
   it("두 번 호출해도 경고는 1회 — 세션 캐시가 재파싱을 막는다", async () => {
-    getJsonMock.mockResolvedValue({ matrix: rowsFor([...ALL_CODES, "new-capital"]) });
+    getJsonMock.mockResolvedValue({ matrix: rowsFor([...CURRENT, { code: "hana-capital", name: "하나캐피탈" }]) });
     await fetchSupportMatrix();
     await fetchSupportMatrix();
     expect(driftWarnings()).toHaveLength(1);

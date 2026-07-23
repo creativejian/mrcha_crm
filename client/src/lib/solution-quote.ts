@@ -32,25 +32,62 @@ export const CRM_EXTRA_LENDERS: readonly string[] = [];
 // 드롭다운은 떠야 한다(계산·딜러·매트릭스만 파트너 의존).
 // 대신 **드리프트는 시끄럽게** 잡는다 — 파트너 support-matrix 응답이 그쪽 lender SSOT를 그대로
 // 싣고 오므로(회신 `ref/2026-07-21-jeff-support-matrix-reply.md`: 파라미터 없이 전량 반환) 그
-// 코드 집합과 여기를 양방향 대조한다. 런타임(`fetchSupportMatrix` 경고)과 `bun run check:lenders`가
-// 이 한 벌을 공유한다.
-// ⚠️ **label(한글 표시명) 드리프트는 이걸로 못 잡는다** — 매트릭스가 code만 싣는다(개명 시 표시만
-// 낡고 계산은 code 기준이라 안 깨짐). 요청문 = `ref/2026-07-23-jeff-lender-name-request.md`.
-export type LenderDrift = { onlyPartner: string[]; onlyCrm: string[] };
+// 응답과 여기를 대조한다. 런타임(`fetchSupportMatrix` 경고)과 `bun run check:lenders`가 이 한 벌을 공유한다.
+// **축 3개**: 추가(onlyPartner) · 삭제(onlyCrm) · **개명(renamed)**.
+// 개명 축은 제프가 요청 수락 후 `lenderName`을 실어 주면서 열렸다(요청 `…-request.md` / 회신
+// `ref/2026-07-23-jeff-lender-name-reply.md`). 제프 쪽도 대칭 가드를 세웠다 — 라우트 테스트에 8사
+// 표시명을 **리터럴로 박아** 그쪽이 개명하는 순간 그쪽 CI가 먼저 빨개진다(회신 문서).
+// ⚠️ `lenderName`이 없는 응답(배포 전·구 캐시)에서는 **개명 축만 조용히 건너뛴다**(오탐 방지).
+export type PartnerLender = { code: string; name: string | null };
 
-export function detectLenderDrift(partnerCodes: readonly string[]): LenderDrift {
+export type LenderDrift = {
+  onlyPartner: string[];
+  onlyCrm: string[];
+  /** 코드는 같은데 표시명이 다른 사 — 파트너가 `lenderName`을 실어 보낼 때만 판정한다. */
+  renamed: { code: string; partner: string; crm: string }[];
+};
+
+// 파트너 support-matrix 응답에서 금융사 (code, 표시명) 쌍을 뽑는다. productType별로 같은 code가 여러 행에
+// 오므로 code 기준으로 접는다(제프 계약: 행마다 같은 값 반복).
+// ⚠️ `lenderName`은 2026-07-23 추가분이라 **없을 수 있다**(제프 배포 전·캐시된 구 응답) → null로 받고
+// 그 사의 label 판정만 건너뛴다. code 축은 그대로 돈다 — 배포 순서 제약 0(회신 문서 명시).
+export function extractPartnerLenders(raw: unknown): PartnerLender[] {
+  const rows = (raw as { matrix?: unknown } | null)?.matrix;
+  if (!Array.isArray(rows)) return [];
+  const byCode = new Map<string, string | null>();
+  for (const row of rows) {
+    if (typeof row !== "object" || row === null) continue;
+    const { lenderCode, lenderName } = row as Record<string, unknown>;
+    if (typeof lenderCode !== "string" || lenderCode === "") continue;
+    const name = typeof lenderName === "string" && lenderName !== "" ? lenderName : null;
+    const prev = byCode.get(lenderCode);
+    // 먼저 온 이름을 유지하되, 이름 없는 행이 선행했으면 뒤의 실명으로 채운다(행 순서 무관).
+    if (prev === undefined || (prev === null && name !== null)) byCode.set(lenderCode, name);
+  }
+  return [...byCode].map(([code, name]) => ({ code, name }));
+}
+
+export function detectLenderDrift(partner: readonly PartnerLender[]): LenderDrift {
   // 빈 입력 = 조회 실패·미확정(fail-open 경로) — 전 금융사가 "사라진" 것처럼 보이는 오탐을 막는다.
-  if (partnerCodes.length === 0) return { onlyPartner: [], onlyCrm: [] };
-  const partner = new Set(partnerCodes);
-  const crm = new Set<string>(SOLUTION_LENDERS.map((l) => l.code));
+  if (partner.length === 0) return { onlyPartner: [], onlyCrm: [], renamed: [] };
+  const partnerByCode = new Map(partner.map((l) => [l.code, l.name] as const));
+  const crmByCode = new Map(SOLUTION_LENDERS.map((l) => [l.code as string, l.label as string] as const));
+  const renamed: LenderDrift["renamed"] = [];
+  for (const [code, crmLabel] of crmByCode) {
+    const partnerName = partnerByCode.get(code);
+    // undefined = 그 코드가 파트너에 아예 없음(onlyCrm이 잡는다) / null = lenderName 미탑재(판정 보류).
+    if (partnerName == null) continue;
+    if (partnerName !== crmLabel) renamed.push({ code, partner: partnerName, crm: crmLabel });
+  }
   return {
-    onlyPartner: [...partner].filter((code) => !crm.has(code)).sort(), // 파트너에 새로 생김 → 우리가 못 고름(기능 누락)
-    onlyCrm: [...crm].filter((code) => !partner.has(code)).sort(), // 파트너에서 사라짐 → 고를 수 있는데 계산이 거부됨
+    onlyPartner: [...partnerByCode.keys()].filter((code) => !crmByCode.has(code)).sort(), // 파트너에 새로 생김 → 우리가 못 고름(기능 누락)
+    onlyCrm: [...crmByCode.keys()].filter((code) => !partnerByCode.has(code)).sort(), // 파트너에서 사라짐 → 고를 수 있는데 계산이 거부됨
+    renamed: renamed.sort((a, b) => a.code.localeCompare(b.code)), // 개명 → 계산은 되는데 화면 표시명만 낡음
   };
 }
 
 export function hasLenderDrift(drift: LenderDrift): boolean {
-  return drift.onlyPartner.length > 0 || drift.onlyCrm.length > 0;
+  return drift.onlyPartner.length > 0 || drift.onlyCrm.length > 0 || drift.renamed.length > 0;
 }
 
 // 장기렌트 취급 3사 — 파트너 app.ts의 long_term_rental dispatch 게이트 미러.
