@@ -1,6 +1,17 @@
 import { kstDateLabel } from "./kst-date";
 
-export type PromptChunk = { customerName: string; customerStatus: string; content: string };
+// customerContact = 헤더에 병기할 연락처 축(옵션 — 도구 경로는 고객이 아니라 리포트 1청크라 없다).
+// 값은 formatContactAxis가 조립한다(라벨 어휘 SSOT).
+export type PromptChunk = { customerName: string; customerStatus: string; content: string; customerContact?: string };
+
+// 근거 헤더의 연락처 축 문자열. 도구 경로(assistant-tools.ts searchCustomers, `#332`)와 **같은 어휘**를
+// 쓴다 — 같은 질문이 경로에 따라 다른 표현으로 답하면 사용자가 다른 데이터로 읽는다.
+// ⚠️ 주 번호가 null이어도 축을 지우지 않고 "미입력"으로 남긴다 — 근거에 안 실린 것과 고객에게 번호가
+// 없는 것을 모델이 구분할 수 있어야 한다(그러지 않으면 실기에서 본 "근거에 연락처 정보가 없습니다"가
+// 미입력 고객에게도 그대로 나가 사용자는 버그인지 사실인지 알 수 없다).
+export function formatContactAxis(phone: string | null, phoneSecondary: string | null): string {
+  return `연락처 ${phone ?? "미입력"}${phoneSecondary ? ` · 추가 연락처 ${phoneSecondary}` : ""}`;
+}
 
 // "근거 없음" 응답 문구 SSOT — 라우트의 직접 반환(hits 0건)과 SYSTEM_PROMPT의 모델 지시가 공유한다.
 // 갈라지면 같은 상황의 답변이 경로(직접 반환 vs 모델 생성)별로 달라진다.
@@ -18,10 +29,21 @@ export const NO_HITS_ANSWER = "관련 CRM 데이터를 찾지 못했습니다.";
 // 금지")은 유효하나 `none` 경로에서는 그 원칙이 자동으로 지켜지지 않는다.
 export const OUT_OF_SCOPE_ANSWER = "CRM 업무 질문에 답하는 어시스턴트입니다. 고객·견적·일정·서류 등 업무 관련 질문을 해 주세요.";
 
+// 묻지 않은 연락처 억제(2026-07-23) — 연락처가 근거 헤더(메타 병기)와 고객 검색 리포트(`#332`)에
+// **상시** 실리게 되면서, 연락처를 묻지 않은 질문의 답변 표면에 번호가 덧붙는 것이 실측됐다
+// (`"마이바흐 관심 고객이 누구야?"` → `"관련 고객: 김민준 (연락처: 010…)"`).
+// **양 경로(RAG·도구)가 같은 문장을 공유한다** — 한쪽만 넣으면 같은 질문이 경로에 따라 다르게 답하는
+// 상태로 되돌아간다(그게 이 슬라이스가 고친 결함 자체다).
+// ⚠️ 근거에서 연락처를 빼는 게 아니다 — 물으면 답해야 하므로 **실어두되 쓰지 말라**는 지시다.
+// (export하지 않는다 — 두 프롬프트 상수가 이 파일 안에서 합성해 쓰고, 테스트도 합성 결과를 본다.)
+const CONTACT_DISCLOSURE_RULE =
+  "연락처(전화번호)는 질문이 연락처를 물었을 때만 답에 포함하세요 — 근거나 조회 결과에 함께 실려 있어도 다른 질문의 답에는 쓰지 마세요.";
+
 export const SYSTEM_PROMPT = [
   "당신은 자동차 CRM 상담사를 돕는 한국어 업무 어시스턴트입니다.",
   "아래에 제공된 근거(고객 메모·상담이력·니즈)만 사용해 답하세요. 근거에 없는 내용은 추측하지 마세요.",
   "답변은 간결한 한국어로, 관련 고객과 근거를 함께 제시하세요.",
+  CONTACT_DISCLOSURE_RULE,
   `관련 근거가 없으면 '${NO_HITS_ANSWER}'라고만 답하세요.`,
 ].join("\n");
 
@@ -33,6 +55,9 @@ export const TOOL_SYSTEM_PROMPT = [
   "아래에 제공된 리포트 조회 결과를 사용해 질문에 답하세요. 결과에 없는 내용은 추측하지 마세요.",
   // "빠짐없이"는 실측 대응(2026-07-07): 계약완료 7건 조회에 모델이 5명만 나열 — 요약하며 항목을 떨어뜨림.
   "답변은 간결한 한국어로, 목록은 조회 결과의 항목을 빠짐없이 나열하세요.",
+  // "빠짐없이"와 충돌하지 않는다 — 나열 대상은 **항목(고객)**이고, 이 줄이 제한하는 것은 각 항목에
+  // 딸린 **연락처 필드**다. 연락처를 물은 질문에서는 그대로 답한다(실기 12/12로 확인).
+  CONTACT_DISCLOSURE_RULE,
   "조회 결과가 '조회 결과 없음'이면 해당하는 고객/항목이 없다고 답하세요.",
 ].join("\n");
 
@@ -53,9 +78,13 @@ export function withCurrentUserContext(prompt: string, userLabel: string): strin
 }
 
 // 검색된 청크를 번호 매긴 근거 블록으로.
+// 헤더 축은 있는 것만 이어 붙인다 — 연락처는 옵션이고, customerStatus도 메타 조회 실패 시 ""가 될 수 있다.
+// ⚠️ 한 고객이 여러 청크(프로필·상담이력·견적…)를 가지면 연락처가 청크 수만큼 반복된다. 의도한 것이다 —
+// 이름 기준으로 중복을 제거하면 동명이인의 두 번째 고객 번호가 통째로 빠지고(청크에 customerId가 없다),
+// 프롬프트에 이미 실린 이상 반복 횟수가 노출 여부를 바꾸지도 않는다(추가 비용은 청크당 ~20자).
 export function buildContextBlock(chunks: PromptChunk[]): string {
   return chunks
-    .map((c, i) => `[${i + 1}] (${c.customerName} · ${c.customerStatus}) ${c.content}`)
+    .map((c, i) => `[${i + 1}] (${[c.customerName, c.customerStatus, c.customerContact].filter(Boolean).join(" · ")}) ${c.content}`)
     .join("\n");
 }
 

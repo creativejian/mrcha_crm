@@ -35,6 +35,25 @@ test("search_customers 선언이 오라우팅 억제 문구를 유지한다(#315
   expect(params.properties.statusGroup?.description).toContain("추측해 채우지 마라");
 });
 
+// 필터(입력) ↔ 묻는 값(출력) 구분 잠금(2026-07-23 D2). 실기에서 `"제임스 연락처?"`가 어미에 따라
+// 4가지로 갈렸다 — 검색 **조건**으로 보면 `name=제임스`(지원 필터)라 불러야 하고, **묻는 값**으로 보면
+// 필터 목록 밖이라 부르지 말아야 해서 경계에 정확히 걸렸다. 위 `#315` 억제 문구는 "필터 밖 조건이면
+// 부르지 마라"만 말하고 "속성을 묻는 질문은 이름으로 검색하면 답할 수 있다"를 말하지 않아, 억제가
+// 정당한 호출까지 삼켰다. 두 축은 **양립**한다 — 억제 문구를 약화시키지 않고 구분을 덧붙인다.
+// ⚠️ description의 반환 명세에 **관심 차종을 넣지 말 것** — 실제 반환에 없을뿐더러(searchCustomers는
+// 이름·연락처·상담경로·진행·구매방식만 싣는다) 넣는 순간 `"마이바흐 관심 고객"`이 다시 도구로 샌다.
+test("search_customers 선언이 고객 속성(연락처) 질문도 받는다고 명시한다(2026-07-23 D2)", () => {
+  const decl = ASSISTANT_TOOL_DECLARATIONS.find((d) => d.name === "search_customers");
+  expect(decl!.description).toContain("연락처"); // 반환 명세 — 라우터가 "이 도구가 번호를 준다"를 알 유일한 근거
+  expect(decl!.description).toContain("속성");
+  expect(decl!.description).not.toContain("관심 차종·예산·지역 등도 반환"); // 위 ⚠️ 방향의 오작성 가드
+});
+
+test("ROUTER_SYSTEM_PROMPT가 필터는 검색 조건이지 답의 내용이 아님을 명시한다(2026-07-23 D2)", () => {
+  expect(ROUTER_SYSTEM_PROMPT).toContain("검색 조건");
+  expect(ROUTER_SYSTEM_PROMPT).toContain("연락처");
+});
+
 // 라우터 프롬프트 쪽 하드닝 잠금(배치 15 M5) — 위 description 잠금과 **같은 두 축**을 프롬프트에서도 잠근다.
 // 왜 둘 다 잠그나: 배치 15가 실 Gemini로 절제 실험을 돌려 두 축이 **중복 방어**임을 확인했다(2회 반복 동일)
 // — 어느 한쪽만 지우면 3/3 안전하고, **둘 다 지워야** `"마이바흐 관심 고객이 누구야?"`에서
