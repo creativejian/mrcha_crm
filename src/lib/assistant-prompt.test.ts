@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 
-import { buildContextBlock, buildUserPrompt, formatContactAxis, NO_HITS_ANSWER, SYSTEM_PROMPT, withTodayContext, type PromptChunk } from "./assistant-prompt";
+import { buildContextBlock, buildUserPrompt, formatContactAxis, NO_HITS_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withTodayContext, type PromptChunk } from "./assistant-prompt";
 
 const chunks: PromptChunk[] = [
   { customerName: "김민준", content: "고객 김민준 상담메모: GLC 재고 문의", customerStatus: "견적·발송완료" },
@@ -48,6 +48,17 @@ test("SYSTEM_PROMPT: 근거 기반·모르면 모른다 지침 포함", () => {
   expect(SYSTEM_PROMPT).toContain("근거");
   expect(SYSTEM_PROMPT).toContain("찾지 못");
   expect(SYSTEM_PROMPT).not.toContain("마크다운 기호"); // 평문 강제 제거됨(마크다운 렌더 도입)
+});
+
+// 묻지 않은 연락처 억제(2026-07-23) — 근거·리포트에 연락처가 상시 실리게 된 뒤, 연락처를 묻지 않은
+// 질문("마이바흐 관심 고객이 누구야?")의 답변 표면에 번호가 덧붙는 것이 실측됐다. **양 경로에 같은
+// 지시**를 넣는다 — 한쪽만 넣으면 이 PR이 고친 "경로에 따라 답이 갈린다"가 다시 생긴다.
+// ⚠️ LLM 행위라 이 잠금은 문구 존재만 보증한다. 실제 억제는 실기(전/후 대조)로만 확인 가능하다.
+test("SYSTEM_PROMPT·TOOL_SYSTEM_PROMPT: 묻지 않은 연락처를 답에 쓰지 말라는 지시(양 경로 동일)", () => {
+  for (const prompt of [SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT]) {
+    expect(prompt).toContain("연락처");
+    expect(prompt).toContain("물었을 때만");
+  }
 });
 
 // SSOT 가드 — 보간을 리터럴로 되돌리면 라우트 직접 반환(hits 0건)과 모델 지시 문구가 다시 갈라진다.
