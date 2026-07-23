@@ -10,8 +10,8 @@ Last updated: 2026-07-23
 ## 지금 상태
 
 **main 전량 green. 진행 중인 미완 작업 없음.**
-오늘 머지 **12건** — 오전 5건(`#329`~`#332` + docs 2) · 오후 7건: `8799def`(`#333` 업무 AI 연락처 라우팅) · `6d8845b`·`67f26f6`(CI 서술·잡 이름) · `366b5bd`(`#334` updated_at 시계) · `bb2b6ed`(`#335` 전량 통일 + tripwire) · `c17e521`(`#336` 연락처 하이픈 표기) · `996fd37`(`#337` 표기 유지 지시).
-검증: typecheck 0 · lint 0 · knip 0 · format 0 · unit **1086** · build · edge · server **669** pass · 잔재 0.
+오늘 머지 **14건** — 오전 5건(`#329`~`#332` + docs 2) · 오후 7건: `8799def`(`#333` 업무 AI 연락처 라우팅) · `6d8845b`·`67f26f6`(CI 서술·잡 이름) · `366b5bd`(`#334` updated_at 시계) · `bb2b6ed`(`#335` 전량 통일 + tripwire) · `c17e521`(`#336` 연락처 하이픈 표기) · `996fd37`(`#337` 표기 유지 지시) · `fc5a3ec`(`#338` 변이 커버리지 실측).
+검증: typecheck 0 · lint 0 · knip 0 · format 0 · unit **1086** · build · edge · server **670** pass · 잔재 0.
 
 ## 직전 세션 요약 (2026-07-23 오후 · 0723-customer-meta)
 
@@ -29,6 +29,7 @@ Last updated: 2026-07-23
 - ⚠️ **테스트가 왜 못 잡았나** — 구 단언은 두 실패 모드 사이에 끼어 있었다: `>`는 스큐가 크면 깨지고(그래서 `not.toBe`로 완화됨), `not.toBe`는 스큐 ~0에서 두 호출이 같은 ms에 떨어지면 깨진다(JS Date는 ms 절삭 = "전체 실행에서만 실패"의 정체). **통과하는 쪽이 오히려 시계가 더 틀어진 상태였다.** → 비교를 **DB 안으로**(`updated_at > created_at`, 마이크로초).
 - **`#335`에서 9곳 전량 통일** + 소스 스캔 tripwire(`src/db/updated-at-clock-guard.test.ts` — **변수 우회도 fail-closed**). 가장 미묘한 축은 **스누즈**: 유효 규칙 `manage_status_at >= staffActivityAt`의 greatest에 자식 `created_at`(DB 시계)이 들어가는데 `manage_status_at`만 앱 시계라 **켜자마자 만료**될 수 있었다. `updateCustomer`는 인라인 `sql\`now()\`` 2회로 바꾸고 "한 statement의 now()는 동일"을 **실 DB 테스트로 잠갔다**.
 - **실 데이터 역전 0건**(customers 22 · quotes 8 · deliveries 0) — **prod 손상 없음**. 2.08초는 이 개발 머신 실측이고 **prod 스큐는 미측정**이다. 계약은 `AGENTS.md`에 박제.
+- **표적 확인(`#338`)** — 전체 스위트 통과는 "그 라인이 검증됐다"를 뜻하지 않아 **12곳 전부에 변이**(`now() - interval '1 hour'`, 형태 유지라 tripwire 아닌 **동작 테스트**만 측정)를 주입했다. **잡힘 3 / 안 잡힘 9.** ⚠️ **9곳 무커버를 그대로 위험으로 읽으면 틀린다** — 8곳은 그 `updated_at`을 **읽는 코드가 아예 없어서**(실측) 안 깨지는 게 정상이고, 억지 테스트는 "아무도 안 보는 값"을 잠그는 비용만 남는다(형태는 tripwire가 잠근다). **진짜 구멍은 `app-user-link` 하나**였다(`customers.updated_at` = 활동 파생 load-bearing) → 테스트 추가·변이 RED 확인. **판단 기준 = "그 컬럼을 읽기 시작하면 그때 동작 테스트"**, tripwire 주석에 박제(같은 조사 반복 방지).
 
 **④ CI 서술 스테일 정정(`6d8845b`·`67f26f6`).** AGENTS.md·CLAUDE.md가 CI를 "4종(typecheck·lint·unit·build)"으로 적고 **"knip·format:check은 제외"**라고 못 박고 있었으나, 둘 다 기준선 0으로 정리된 뒤 2026-07-22에 **이미 추가돼 있었다**(실제 **7단계**: +knip·format·edge). 그 서술과 **잡 이름**이 겹쳐 `#333`에서 로컬 knip을 건너뛰었고 unused export 1건으로 CI가 한 번 빨개졌다. → 문서 정정 + **잡 이름을 실제 7단계로 교체**(`typecheck · lint · knip · format · unit · build · edge`) + `ci.yml`에 "step 추가·제거 시 이름도 함께 고친다" 규칙 명시.
 
