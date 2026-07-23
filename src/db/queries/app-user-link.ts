@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 
 import { resolvePhoneOnLink } from "../../lib/customer-phone";
 import { ConflictError, LinkConflictError } from "../../lib/errors";
@@ -63,7 +63,7 @@ export async function applyAppUserLink(
   const [row] = await ex
     .update(customers)
     // phone=NULL은 CHECK 불변식(app_user_id ↔ phone 배타) 성립 조건 — 전이 규칙과 무관하게 항상.
-    .set({ appUserId: userId, phone: null, phoneSecondary: transition.phoneSecondary, updatedAt: new Date() })
+    .set({ appUserId: userId, phone: null, phoneSecondary: transition.phoneSecondary, updatedAt: sql`now()` })
     .where(eq(customers.id, customerId))
     .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
   return row ? { ...row, appUserId: userId, droppedPhone: transition.droppedPhone } : null;
