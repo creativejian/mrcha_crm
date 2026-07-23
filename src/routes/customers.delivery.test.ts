@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
@@ -43,7 +43,12 @@ test("PUT /delivery — 생성 → 갱신 왕복(고객당 1행 upsert) + DB 대
   const cid = await seedCustomer();
   const created = await put(cid, FULL);
   expect(created.status).toBe(200);
-  const [createdRow] = await db.select().from(customerDeliveries).where(eq(customerDeliveries.customerId, cid));
+  // 생성 직후: 두 스탬프가 같은 statement의 now()라 동일 — 아래 "갱신 후 전진"의 대조군.
+  const [createdStamp] = await db
+    .select({ same: sql<boolean>`${customerDeliveries.updatedAt} = ${customerDeliveries.createdAt}` })
+    .from(customerDeliveries)
+    .where(eq(customerDeliveries.customerId, cid));
+  expect(createdStamp.same).toBe(true);
   const updated = await put(cid, { ...FULL, deliveredDate: "2026-07-20", deliveryMemo: null });
   expect(updated.status).toBe(200);
   const rows = await db.select().from(customerDeliveries).where(eq(customerDeliveries.customerId, cid));
@@ -52,8 +57,16 @@ test("PUT /delivery — 생성 → 갱신 왕복(고객당 1행 upsert) + DB 대
   expect(rows[0].deliveryMemo).toBeNull();
   expect(rows[0].contractVehicle).toBe("BMW 520i");
   // 배치 11 A#5① — 갱신 스탬프 잠금(A#1 활동 파생 편입으로 updated_at이 load-bearing).
-  // `>` 단언은 앱 시계(new Date)·DB 시계(defaultNow) 스큐로 플레이크 가능 — 변화만 단언.
-  expect(rows[0].updatedAt.getTime()).not.toBe(createdRow.updatedAt.getTime());
+  // ⚠️ **비교는 DB 안에서 한다**(2026-07-23 정정). JS Date로 꺼내 비교하던 구 단언은 두 실패
+  // 모드 사이에 끼어 있었다 — `>`는 앱↔DB 시계 스큐가 크면 깨지고(그래서 `not.toBe`로 완화됐다),
+  // `not.toBe`는 스큐가 ~0일 때 두 호출이 같은 ms에 떨어지면 깨진다(JS Date는 ms 절삭 — 전체
+  // 실행에서만 실패하던 정체가 이것이다). **즉 통과하는 쪽이 오히려 시계가 더 틀어진 상태였다.**
+  // DB의 timestamptz는 마이크로초 해상도라 이 비교는 두 축 모두에 무관하다.
+  const [stamp] = await db
+    .select({ bumped: sql<boolean>`${customerDeliveries.updatedAt} > ${customerDeliveries.createdAt}` })
+    .from(customerDeliveries)
+    .where(eq(customerDeliveries.customerId, cid));
+  expect(stamp.bumped).toBe(true);
 });
 
 test("PUT /delivery — 빈 문자열은 null로 정규화(값 지우기 경로)", async () => {

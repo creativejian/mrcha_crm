@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import { customerDeliveries, customers, quotes } from "../schema";
@@ -29,7 +29,14 @@ export async function upsertCustomerDelivery(
   const [row] = await ex
     .insert(customerDeliveries)
     .values({ customerId, ...patch })
-    .onConflictDoUpdate({ target: customerDeliveries.customerId, set: { ...patch, updatedAt: new Date() } })
+    // ⚠️ **`updatedAt`은 DB 시계로 찍는다 — `new Date()`(앱 시계)를 쓰면 안 된다**(2026-07-23 실측 수정).
+    // INSERT 경로의 `updated_at`은 스키마 `defaultNow()` = DB `now()`인데 UPDATE만 앱 시계로 찍고
+    // 있어서, 앱↔DB 시계가 어긋난 만큼 **갱신할 때마다 스탬프가 과거로 되돌아갔다**(로컬 실측:
+    // 앱이 2.08초 뒤처져 12/12 역전 — `updated_at < created_at`).
+    // 이 컬럼은 `staffActivityAt`(queries/activity.ts)의 greatest() 항목이라 load-bearing이다 —
+    // 목록의 "마지막 활동"·무활동 일수·`stale_customers`/`delivery_risk` 리포트·수동 관리 상태
+    // 유효 판정이 전부 이 값을 본다. 뒤로 가면 "방금 저장했는데 더 오래 방치된 것"으로 읽힌다.
+    .onConflictDoUpdate({ target: customerDeliveries.customerId, set: { ...patch, updatedAt: sql`now()` } })
     .returning();
   return { kind: "saved", row };
 }
