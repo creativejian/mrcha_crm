@@ -42,7 +42,11 @@ permissions:
 
 jobs:
   verify:
-    name: typecheck · lint · unit · build
+    # ⚠️ **이 이름은 아래 steps와 동기화한다.** `gh pr checks`·PR 체크 목록에는 이 문자열만 보이므로,
+    #    실제보다 적게 적으면 사람이 로컬에서 그 검증을 건너뛴다 — 구 이름(`typecheck · lint · unit ·
+    #    build`)이 knip·format·edge를 가려 2026-07-23 #333에서 실제로 그 일이 났다. step을 추가·제거하면
+    #    여기도 함께 고칠 것.
+    name: typecheck · lint · knip · format · unit · build · edge
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

@@ -66,7 +66,7 @@ Default handoff behavior:
 - **① 트리거 기반**: 누적 건수로 착수하지 않는다. ⓐ실 데이터를 변형하는 변경 ⓑ외부 계약(앱팀·DB·모델)을 건드리는 변경 ⓒ검증 없이 급히 나간 변경 — **이 중 하나가 포함될 때만** 풀 감사.
 - **② 기본형은 경량**: 2앵글(정합성·회귀그물) + **실측 렌즈 1개**. 적대 검증은 **심각도 상/중에만** 붙인다(하는 기록만).
 - **③ CI 도입이 감사보다 값어치 있다** → ✅ **완료(2026-07-22, `.github/workflows/ci.yml`)**. push(main)·PR마다 **7단계**가 자동으로 돈다 — **typecheck · lint · knip · format:check · test:unit · build · test:edge**(Deno, Edge Function 26건). 앞 단계가 실패해도 나머지를 계속 돌려 한 번에 전부 보고한다.
-  - ⚠️ **잡 이름(`typecheck · lint · unit · build`)은 4종만 말하지만 실제로는 위 7단계다.** `gh pr checks`에도 그 이름으로 나와 **knip·format:check·edge가 안 보인다** — 2026-07-23에 그 이름과 아래 구 서술을 믿고 로컬 knip을 건너뛰었다가 CI가 빨개졌다(#333, unused export 1건). 실제 목록은 항상 `ci.yml`의 steps로 확인할 것.
+  - **잡 이름 = `typecheck · lint · knip · format · unit · build · edge`**(2026-07-23 정정). 구 이름은 `typecheck · lint · unit · build`라 4종만 말했고, `gh pr checks` 출력에 그 문자열만 보이는 탓에 **knip·format:check·edge가 사람 눈에서 가려졌다** — 그 이름과 당시 스테일했던 아래 서술이 겹쳐 #333에서 로컬 knip을 건너뛰었고 unused export 1건으로 CI가 빨개졌다. ⚠️ **step을 추가·제거하면 잡 이름도 함께 고친다**(워크플로우 주석에 같은 경고를 박아뒀다).
   - ⚠️ **`test:server`를 CI에 추가하지 말 것** — 공유 master DB에 실제로 붙어 픽스처 행·운영 알림·실 Gemini 9콜이 나간다(로컬 전용). 워크플로우 주석에 같은 경고를 박아뒀다.
   - ~~knip·format:check도 제외~~ **⚠️ 구 서술(정정 2026-07-23): 둘 다 이미 CI에 있다.** 도입 시점엔 선재 red라(knip 7/9 · format warn 20건) 제외했지만 **기준선을 0으로 만든 뒤 2026-07-22에 추가됐고**, 실측으로 지금도 **둘 다 0**이다(`bun run knip` · `bun run format:check` 통과). 즉 **미사용 export 하나·포맷 어긋남 하나로 PR이 빨개진다** → 로컬 검증에 포함할 것(아래 "검증 예산" 참조). 정당한 예외는 `knip.json`에 사유와 함께 등록한다.
   - CI는 시크릿을 쓰지 않는다(`VITE_*` 더미값 2개만 — `client/src/lib/supabase.ts`가 모듈 로드 시점에 요구해서다). 실제 배포 빌드는 Cloudflare Pages가 자기 환경에서 따로 수행하므로 CI 산출물과 무관하다.
