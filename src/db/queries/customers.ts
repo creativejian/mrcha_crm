@@ -84,7 +84,11 @@ const contractingQuoteSummary = sql<ContractingQuoteSummary | null>`(
 // 주 번호 read-through 합성(2026-07-17 spec §3-2): 앱 연결 고객의 주 번호는 profiles.phone_number가
 // 진실 원본(앱에서 바꾸면 다음 조회부터 자동 반영 — viewed_at #159 선례). 수기 고객은 crm phone.
 // 저장·동기화 없음 — CHECK 불변식(app_user_id ↔ phone 배타)이 두 소스의 공존을 막는다.
-const composedPhone = sql<string | null>`coalesce(${profiles.phoneNumber}, ${customers.phone})`;
+// export — 업무 AI 도구(assistant-tools.searchCustomers)도 같은 합성을 써야 한다. 손으로 복제하면
+// `customers.phone`만 읽는 판이 생기고, 앱 연결 고객은 그 컬럼이 **항상 NULL**이라 화면엔 번호가
+// 보이는데 AI만 "연락처 없음"이라 답하는 어긋남이 난다(2026-07-23 실제 발생). 쓰는 쪽은 반드시
+// `.leftJoin(profiles, eq(customers.appUserId, profiles.id))`를 함께 건다.
+export const composedPhone = sql<string | null>`coalesce(${profiles.phoneNumber}, ${customers.phone})`;
 
 // 쓰기 가능한 customers 컬럼만(고객 쓰기 #1 범위). 값 enum 검증은 추후.
 export type CustomerWritePatch = Partial<
