@@ -23,7 +23,7 @@ import { resolveGeminiTargetFromRequest, type GeminiTarget } from "../lib/gemini
 import { ASSISTANT_TOOL_KEYS, CRM_ROLE_LABELS } from "../lib/assistant-tools";
 import { routeAssistantTool } from "../lib/assistant-tool-router";
 import { stripChunkCustomerPrefix } from "../lib/assistant-corpus";
-import { buildContextBlock, buildUserPrompt, NO_HITS_ANSWER, OUT_OF_SCOPE_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withCurrentUserContext, withTodayContext } from "../lib/assistant-prompt";
+import { buildContextBlock, buildUserPrompt, formatContactAxis, NO_HITS_ANSWER, OUT_OF_SCOPE_ANSWER, SYSTEM_PROMPT, TOOL_SYSTEM_PROMPT, withCurrentUserContext, withTodayContext, type PromptChunk } from "../lib/assistant-prompt";
 import { finalizeStreamedAnswer } from "../lib/assistant-stream";
 import { createSseLiveness } from "../lib/sse-liveness";
 import type { AuthVariables } from "../middleware/auth";
@@ -212,8 +212,16 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     const promptChunks = tool
       ? [{ customerName: tool.label, customerStatus: "리포트", content: tool.lines.length ? tool.lines.join("\n") : "조회 결과 없음" }]
       : hits.map((h) => {
-          const name = metaById.get(h.customerId)?.name ?? "고객";
-          return { customerName: name, customerStatus: metaById.get(h.customerId)?.status ?? "", content: stripChunkCustomerPrefix(h.content, name) };
+          const meta = metaById.get(h.customerId);
+          const name = meta?.name ?? "고객";
+          // 연락처는 메타가 실제로 조회된 경우에만 축을 만든다 — 메타 자체가 없는데 "미입력"을 실으면
+          // 모델이 "번호 없는 고객"으로 단정한다(조회 실패와 미입력은 다른 사실이다).
+          return {
+            customerName: name,
+            customerStatus: meta?.status ?? "",
+            customerContact: meta ? formatContactAxis(meta.phone, meta.phoneSecondary) : undefined,
+            content: stripChunkCustomerPrefix(h.content, name),
+          };
         });
     const sources = tool
       ? [{ customerId: "", customerName: "리포트", sourceType: "tool", snippet: `${tool.label} — ${tool.lines.length}건 조회` }]
@@ -270,7 +278,8 @@ type StreamAskArgs = {
   staffUserId: string;
   target: GeminiTarget;
   history: { role: "user" | "assistant"; content: string }[];
-  promptChunks: { customerName: string; customerStatus: string; content: string }[];
+  promptChunks: PromptChunk[]; // 구조 인라인 복제였음 — 연락처 축(2026-07-23)이 여기서 조용히 떨어져 SSOT로 교체
+
   sources: unknown;
   systemPrompt: string; // RAG(SYSTEM_PROMPT) vs 도구 리포트(TOOL_SYSTEM_PROMPT) — 호출부가 선택
   emptyAnswer: string; // promptChunks 0건일 때의 고정 답변(NO_HITS vs 범위 밖 안내) — 호출부가 선택

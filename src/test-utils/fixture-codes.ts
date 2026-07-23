@@ -16,6 +16,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
   "CU-ADVID-",      // routes/customers.test.ts — advisorId 배정 키
   "CU-AIHINT-",     // db/queries/ai-hint-sources.test.ts · routes/customers.ai-hint.test.ts
   "CU-AITOOL-",     // db/queries/assistant-tools.test.ts
+  "CU-CMETA-",      // db/queries/embeddings-meta.test.ts — 근거 헤더 메타(연락처 합성)
   "CU-CONSULT-",    // db/queries/consultations.test.ts (CU-CONSULT-RT- 도 여기 걸린다)
   "CU-DEL-",        // routes/customers.delete.test.ts
   "CU-DLVI-",       // db/queries/customer-delivery.test.ts · routes/customers.delivery.test.ts — 출고 정보 2단계

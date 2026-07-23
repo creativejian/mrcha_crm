@@ -1,6 +1,17 @@
 import { kstDateLabel } from "./kst-date";
 
-export type PromptChunk = { customerName: string; customerStatus: string; content: string };
+// customerContact = 헤더에 병기할 연락처 축(옵션 — 도구 경로는 고객이 아니라 리포트 1청크라 없다).
+// 값은 formatContactAxis가 조립한다(라벨 어휘 SSOT).
+export type PromptChunk = { customerName: string; customerStatus: string; content: string; customerContact?: string };
+
+// 근거 헤더의 연락처 축 문자열. 도구 경로(assistant-tools.ts searchCustomers, `#332`)와 **같은 어휘**를
+// 쓴다 — 같은 질문이 경로에 따라 다른 표현으로 답하면 사용자가 다른 데이터로 읽는다.
+// ⚠️ 주 번호가 null이어도 축을 지우지 않고 "미입력"으로 남긴다 — 근거에 안 실린 것과 고객에게 번호가
+// 없는 것을 모델이 구분할 수 있어야 한다(그러지 않으면 실기에서 본 "근거에 연락처 정보가 없습니다"가
+// 미입력 고객에게도 그대로 나가 사용자는 버그인지 사실인지 알 수 없다).
+export function formatContactAxis(phone: string | null, phoneSecondary: string | null): string {
+  return `연락처 ${phone ?? "미입력"}${phoneSecondary ? ` · 추가 연락처 ${phoneSecondary}` : ""}`;
+}
 
 // "근거 없음" 응답 문구 SSOT — 라우트의 직접 반환(hits 0건)과 SYSTEM_PROMPT의 모델 지시가 공유한다.
 // 갈라지면 같은 상황의 답변이 경로(직접 반환 vs 모델 생성)별로 달라진다.
@@ -53,9 +64,13 @@ export function withCurrentUserContext(prompt: string, userLabel: string): strin
 }
 
 // 검색된 청크를 번호 매긴 근거 블록으로.
+// 헤더 축은 있는 것만 이어 붙인다 — 연락처는 옵션이고, customerStatus도 메타 조회 실패 시 ""가 될 수 있다.
+// ⚠️ 한 고객이 여러 청크(프로필·상담이력·견적…)를 가지면 연락처가 청크 수만큼 반복된다. 의도한 것이다 —
+// 이름 기준으로 중복을 제거하면 동명이인의 두 번째 고객 번호가 통째로 빠지고(청크에 customerId가 없다),
+// 프롬프트에 이미 실린 이상 반복 횟수가 노출 여부를 바꾸지도 않는다(추가 비용은 청크당 ~20자).
 export function buildContextBlock(chunks: PromptChunk[]): string {
   return chunks
-    .map((c, i) => `[${i + 1}] (${c.customerName} · ${c.customerStatus}) ${c.content}`)
+    .map((c, i) => `[${i + 1}] (${[c.customerName, c.customerStatus, c.customerContact].filter(Boolean).join(" · ")}) ${c.content}`)
     .join("\n");
 }
 
