@@ -23,6 +23,19 @@ import { expect, test } from "bun:test";
 //
 // 정규식을 좁혀 회피하지 말 것 — 앱 시계가 정말 필요한 자리가 생기면 여기 명시 등록해서
 // "언제 누가 왜 열었는지"가 커밋에 남게 한다(profiles-write-guard와 같은 관례).
+//
+// ## 왜 `updatedAt`만 잠그나 (2026-07-23 전수 조사 — 같은 조사를 반복하지 않도록 결론을 남긴다)
+//
+// 다른 시각 컬럼도 앱 `new Date()`로 찍지만 **같은 결함이 아니다.** 이 버그의 정체는
+// "앱 시계를 쓴 것" 자체가 아니라 **한 컬럼에 두 시계가 섞인 것**이고, 섞이는 조건은
+// 스키마에 `defaultNow()`가 있어서 INSERT만 DB 시계로 가는 경우다.
+//  - `received_at`·`assigned_at`·`sent_at`·`valid_until`·`saved_at` → **`defaultNow()`가 없다.**
+//    INSERT·UPDATE 모두 앱이 명시 지정하므로 자기들끼리 일관이고, 역전이 원리적으로 생기지 않는다.
+//  - `assistant_messages.created_at` → `defaultNow()`는 있지만 **모든 삽입이 명시 지정**한다
+//    (단일 진입점 `routes/assistant.ts` insertTurn). 게다가 그 값은 user/assistant 두 행에
+//    **의도적으로 1ms 차이**를 주는 순서 장치라(정렬 `desc(created_at), desc(id)`이고 id는 uuid라
+//    2차 키가 순서를 못 잡는다) **DB `now()`로 바꾸면 같은 값이 되어 순서가 무너진다.**
+//    = 앱 시계가 정당한 자리다. 바꾸지 말 것.
 const SCAN_ROOTS = ["src", "functions", "scripts"];
 const SELF = "src/db/updated-at-clock-guard.test.ts";
 

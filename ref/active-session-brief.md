@@ -10,8 +10,8 @@ Last updated: 2026-07-23
 ## 지금 상태
 
 **main 전량 green. 진행 중인 미완 작업 없음.**
-오늘 머지 8건 — 오전 5건(`#329`~`#332` + docs 2) · 오후 3건: `8799def`(`#333` 업무 AI 연락처 라우팅 종결) · `6d8845b`(CI 서술 정정) · `67f26f6`(CI 잡 이름 정정).
-검증: typecheck 0 · lint 0 · knip 0 · format 0 · unit **1086** · build · edge · server **666** pass · 잔재 0.
+오늘 머지 **10건** — 오전 5건(`#329`~`#332` + docs 2) · 오후 5건: `8799def`(`#333` 업무 AI 연락처 라우팅 종결) · `6d8845b`·`67f26f6`(CI 서술·잡 이름 정정) · `366b5bd`(`#334` updated_at 시계) · `bb2b6ed`(`#335` 전량 통일 + tripwire).
+검증: typecheck 0 · lint 0 · knip 0 · format 0 · unit **1086** · build · edge · server **668** pass · 잔재 0.
 
 ## 직전 세션 요약 (2026-07-23 오후 · 0723-customer-meta)
 
@@ -23,13 +23,18 @@ Last updated: 2026-07-23
 
 **② 실기 방법이 재사용 자산이다.** 브라우저 대신 magiclink 토큰 + `POST /api/assistant/ask` 직접 호출로 **반복 횟수를 벌었다**(스크립트: 스크래치패드 `probe.sh`/`probe2.sh` — 세션 소멸성이라 필요하면 재작성). ⚠️ **매 요청 후 `crm.assistant_messages` 삭제 필수** — 라우터가 history를 함께 넘겨서 안 지우면 2회차부터 1회차 답에 끌려가 독립 시행이 아니게 된다. BEFORE는 유슨생이 띄워둔 dev 서버(8788)가 **변경 전 코드 그대로**여서 그대로 썼고(`dev:api`는 watch 없음), AFTER는 8789에 따로 띄워 대조했다.
 
-**③ CI 서술 스테일 정정(`6d8845b`·`67f26f6`).** AGENTS.md·CLAUDE.md가 CI를 "4종(typecheck·lint·unit·build)"으로 적고 **"knip·format:check은 제외"**라고 못 박고 있었으나, 둘 다 기준선 0으로 정리된 뒤 2026-07-22에 **이미 추가돼 있었다**(실제 **7단계**: +knip·format·edge). 그 서술과 **잡 이름**이 겹쳐 `#333`에서 로컬 knip을 건너뛰었고 unused export 1건으로 CI가 한 번 빨개졌다. → 문서 정정 + **잡 이름을 실제 7단계로 교체**(`typecheck · lint · knip · format · unit · build · edge`) + `ci.yml`에 "step 추가·제거 시 이름도 함께 고친다" 규칙 명시.
+**③ "선재 플레이크"가 실제 결함이었다(`#334`·`#335`).** 별건으로 미뤄둔 `customers.delivery.test.ts` 플레이크를 유슨생이 되짚어 봐서 잡았다. `updated_at`을 **INSERT는 `defaultNow()`(DB 시계)·UPDATE만 `new Date()`(앱 시계)**로 찍고 있어 **갱신할 때마다 스탬프가 과거로 되돌아갔다**(실측: 앱이 2.08초 뒤처져 upsert **12/12 역전**).
+- ⚠️ **테스트가 왜 못 잡았나** — 구 단언은 두 실패 모드 사이에 끼어 있었다: `>`는 스큐가 크면 깨지고(그래서 `not.toBe`로 완화됨), `not.toBe`는 스큐 ~0에서 두 호출이 같은 ms에 떨어지면 깨진다(JS Date는 ms 절삭 = "전체 실행에서만 실패"의 정체). **통과하는 쪽이 오히려 시계가 더 틀어진 상태였다.** → 비교를 **DB 안으로**(`updated_at > created_at`, 마이크로초).
+- **`#335`에서 9곳 전량 통일** + 소스 스캔 tripwire(`src/db/updated-at-clock-guard.test.ts` — **변수 우회도 fail-closed**). 가장 미묘한 축은 **스누즈**: 유효 규칙 `manage_status_at >= staffActivityAt`의 greatest에 자식 `created_at`(DB 시계)이 들어가는데 `manage_status_at`만 앱 시계라 **켜자마자 만료**될 수 있었다. `updateCustomer`는 인라인 `sql\`now()\`` 2회로 바꾸고 "한 statement의 now()는 동일"을 **실 DB 테스트로 잠갔다**.
+- **실 데이터 역전 0건**(customers 22 · quotes 8 · deliveries 0) — **prod 손상 없음**. 2.08초는 이 개발 머신 실측이고 **prod 스큐는 미측정**이다. 계약은 `AGENTS.md`에 박제.
+
+**④ CI 서술 스테일 정정(`6d8845b`·`67f26f6`).** AGENTS.md·CLAUDE.md가 CI를 "4종(typecheck·lint·unit·build)"으로 적고 **"knip·format:check은 제외"**라고 못 박고 있었으나, 둘 다 기준선 0으로 정리된 뒤 2026-07-22에 **이미 추가돼 있었다**(실제 **7단계**: +knip·format·edge). 그 서술과 **잡 이름**이 겹쳐 `#333`에서 로컬 knip을 건너뛰었고 unused export 1건으로 CI가 한 번 빨개졌다. → 문서 정정 + **잡 이름을 실제 7단계로 교체**(`typecheck · lint · knip · format · unit · build · edge`) + `ci.yml`에 "step 추가·제거 시 이름도 함께 고친다" 규칙 명시.
 
 ## ▶ 다음 작업
 
 1. **이사님 회신 대기** — pending **열린 14건**. **21·22는 묶어서** 여쭙는 게 효율적. 항목 **28은 범위가 좁아졌다** — 부작용(묻지 않은 노출)은 D4로 닫혔고 남은 질문은 **"연락처를 물어본 대화 기록에 번호가 남는다"** 하나다. ⚠️ **NO_HITS 문구+sources 동시 렌더**는 21·22 결정과 얽혀 보류(지금 고치면 두 번 고친다).
 2. **🔵 하나캐피탈 통보 대기** — 파트너가 배선 착수 전 통보 약속. 오면 `SOLUTION_LENDERS`에 `{code,label}` 한 줄 추가(`code`가 컴파일타임 타입이라 자동 반영 안 됨. 가드도 `onlyPartner`로 잡는다).
-3. **선재 플레이크 정리(선택)** — `customers.delivery.test.ts:56` 타임스탬프 동등성. 오늘 2회 실행에서는 통과해 **간헐성 확인**(어제 전체 실행에서만 1회 실패). 고칠 거면 동등성 → 허용 오차 단언.
+3. ~~선재 플레이크 정리~~ → **`#334`·`#335`로 종결**(위 ③ — 플레이크가 아니라 실제 결함이었다).
 
 ## 대기 (우리 액션 없음)
 
