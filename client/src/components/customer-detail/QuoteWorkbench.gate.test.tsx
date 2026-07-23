@@ -14,19 +14,18 @@ import type { useQuoteList } from "./hooks/useQuoteList";
 
 // ── 지원집합 게이트(spec 2026-07-21) 배선 회귀 그물 ─────────────────────────────────
 // 순수 판정층(support-matrix.test.ts)·옵션 조립층(quote-workbench-meta.test.ts)은 이미 촘촘한데,
-// **훅 ↔ 컴포넌트 배선층**(게이트 거울 lenderByCard의 생명주기)이 무테스트였다. 배치 13 K1에서
-// 거기서만 결함 4종이 나왔다(수정 진입 잔상·구매방식 전환·초기화·랭킹 선택).
+// **훅 ↔ 컴포넌트 배선층**(금융사 값 생명주기)이 무테스트였다. 배치 13 K1에서 거기서만 결함 4종이
+// 나왔다(수정 진입 잔상·구매방식 전환·초기화·랭킹 선택).
 //
-// 그래서 이 파일은 훅 단독(renderHook)이 아니라 **실 컴포넌트를 렌더**한다 — 결함이 사는 층이 거기다.
-// 케이스 3~6은 "단언 추가"로는 절대 잡히지 않는다. 각각 **실 생명주기 전이를 arrange로 재현**해야
-// RED가 된다(배치 12 교훈). 재동기화 effect를 주석 처리하면 **3·4·6·7이 RED**, 1·2·5는 green
-// (배치 14 K3-b 실측 — `#308` 헤더의 "3·4·5·6" 표기는 양방향으로 틀렸다. 5(초기화)는 다른 경로가
-// 값을 세워 green이고, 7이 실제로는 RED다).
+// ⚠️ **배치 13 별건 ②c 이후**: 금융사 값의 진실이 구 거울(lenderByCard) + 매 커밋 재동기화 effect에서
+// **카드 controlled state(manualQuoteCards[].lender)**로 옮겨졌다. 거울·effect는 폐기됐고, select는
+// bindSelect로 controlled다. 그래서 이 스위트는 "거울 ≡ DOM"이 아니라 "게이트 ≡ 화면 금융사(=state)"를
+// 잠근다. 아래 케이스가 여전히 유효한 이유: 게이트 결함군은 "화면 금융사와 게이트가 어긋난다"는 관계
+// 결함이라, 진실이 거울이든 state든 그 관계 불변식은 그대로다(정책이 바뀌어도 유지된다).
 //
-// ⚠️ 제거된 두 거울 setter(clear 복원·copy 복원)는 **되살려도 이 스위트가 잡지 못한다** — 각각
-// 복원해 유닛 1062 전량 green을 실측했다. dep 없는 effect가 paint 전에 DOM에서 재파생하므로 그
-// 부활은 원리적으로 관측 불가능하다. `#308` PR 본문의 "제거한 두 setter 각각에 전용 그물 1개씩 —
-// 한 줄만 되살아나도 잡힌다"는 거짓이었다. 되살리지 말 것(테스트가 아니라 이 주석이 근거다).
+// 그래서 이 파일은 훅 단독(renderHook)이 아니라 **실 컴포넌트를 렌더**한다 — 결함이 사는 배선층이 거기고,
+// controlled select의 bindSelect·구매방식 전환 D4 정리도 실 컴포넌트에서만 관측된다. 각 케이스는 실
+// 생명주기 전이를 arrange로 재현한다(단언 추가만으로는 안 잡힌다 — 배치 12 교훈).
 
 vi.mock("@/lib/quote-requests", () => ({
   fetchQuoteRequestDetail: vi.fn(),
@@ -94,7 +93,15 @@ const bnkQuote = {
   ],
 };
 
-const detail = { residence: "인천광역시 · 남동구", quotes: [bnkQuote] } as unknown as CustomerDetailData;
+// 레거시 어휘 금융사(현행 solutionLenderOptions·CRM_EXTRA 어디에도 없음)를 저장한 견적 — ②b 회피 검증용.
+// 수정 재진입하면 그 값이 카드 lenderSeed로 시드돼 "구 어휘 표시 유지" option의 원천이 된다.
+const legacyQuote = {
+  ...bnkQuote,
+  id: "q-legacy",
+  scenarios: [{ ...bnkQuote.scenarios[0], id: "sc-legacy", lender: "구캐피탈" }],
+};
+
+const detail = { residence: "인천광역시 · 남동구", quotes: [bnkQuote, legacyQuote] } as unknown as CustomerDetailData;
 const customer = { id: "cust-1", customerId: "CU-TEST-0001", name: "테스트" } as Customer;
 
 function quoteListStub() {
@@ -155,8 +162,8 @@ const mileageSelect = (el: HTMLElement = card()) =>
 const mileageOptions = (el: HTMLElement = card()) => Array.from(mileageSelect(el).options).map((o) => o.value);
 
 // 금융사 선택 = 실제 브라우저 발화 순서 재현(input → change). Safari는 controlled select에서 이 순서 때문에
-// 선택이 유실되지만(select-bind.ts), 이 select는 uncontrolled라 폼 컨테이너 위임이 양쪽을 받는다.
-// ⚠️ 그래서 위임 핸들러는 **항상 2회** 돈다(멱등 설계) — 토스트 "횟수" 단언을 넣으면 실동작과 어긋난다.
+// 선택이 유실되지만(select-bind.ts), 이 select는 bindSelect(onInput+onChange 병행)라 양쪽을 받는다(②c).
+// ⚠️ 그래서 커밋 핸들러(setManualLender)는 **항상 2회** 돈다(setState 멱등) — 토스트 "횟수" 단언 금지.
 function selectLender(value: string, el: HTMLElement = card()) {
   const select = lenderSelect(el);
   fireEvent.input(select, { target: { value } });
@@ -178,8 +185,8 @@ async function openNewWorkbench(wb: () => Workbench) {
   await waitFor(() => expect(card()).toBeTruthy());
 }
 
-// ★ 불변식 — 게이트는 **화면 select가 실제로 보여주는 금융사**를 따라야 한다(거울 ≡ DOM).
-// 케이스 3·4·5가 공유한다. 값이 아니라 "관계"를 단언하는 게 핵심이다: "초기화가 금융사를 지워야 하는가"
+// ★ 불변식 — 게이트는 **화면 select가 실제로 보여주는 금융사(=controlled state)**를 따라야 한다.
+// 값이 아니라 "관계"를 단언하는 게 핵심이다: 진실이 거울이든 state든, "초기화가 금융사를 지워야 하는가"
 // 같은 별건 정책 결정과 무관하게 성립해야 하고, 정책이 바뀌어도 이 그물은 계속 유효하다.
 function expectGateFollowsSelectedLender(el: HTMLElement = card()) {
   const lender = lenderSelect(el).value;
@@ -242,13 +249,13 @@ describe("QuoteWorkbench 지원집합 게이트 — 렌더·폴백(대조군)", 
   });
 });
 
-describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 13 K1 회귀 그물)", () => {
+describe("QuoteWorkbench 지원집합 게이트 — 금융사 값 생명주기(배치 13 K1 회귀 그물 · ②c state 전환)", () => {
   it("수정 진입은 이전 세션 금융사 잔상을 물려받지 않는다(잠금 해제 직후 게이트는 저장본 금융사를 따른다)", async () => {
     const { wb } = setup();
     await openNewWorkbench(wb);
     selectLender("MG캐피탈"); // 이전 세션: 신규 작성에서 MG를 골랐다
     await flush();
-    expect(wb().lenderByCard["manual-condition-1"]).toBe("MG캐피탈");
+    expect(lenderSelect().value).toBe("MG캐피탈"); // 금융사 = controlled state(②c) — select가 곧 진실
 
     // ── arrange 핵심: 다른 견적(BNK 저장본) 수정 진입 → 저장 카드라 게이트는 잠시 꺼져 있다.
     await act(async () => {
@@ -263,11 +270,11 @@ describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 1
     await flush();
     await waitFor(() => expect(lenderSelect().value).toBe("BNK캐피탈"));
 
-    // "수정" 클릭 = 잠금 해제 → 이 순간 게이트가 켜진다. 거울이 잔상이면 MG 제약이 BNK 카드에 걸린다.
+    // "수정" 클릭 = 잠금 해제 → 이 순간 게이트가 켜진다. 잔상이 남으면 MG 제약이 BNK 카드에 걸린다.
     fireEvent.click(within(card()).getByRole("button", { name: "수정" }));
     await flush();
 
-    expect(wb().lenderByCard["manual-condition-1"]).toBe("BNK캐피탈");
+    expect(lenderSelect().value).toBe("BNK캐피탈"); // 저장본 금융사 = 카드 state로 복원
     expectGateFollowsSelectedLender();
     // BNK가 취급하는데 MG 잔상이면 사라지는 값들 — 소실 방향을 직접 잠근다(fail-closed 검출).
     expect(mileageOptions()).toContain("40,000km / 년");
@@ -292,30 +299,26 @@ describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 1
     expectGateFollowsSelectedLender(); // → 게이트도 걸려 있으면 안 된다(fail-open)
   });
 
-  it("초기화 후에도 게이트는 화면 금융사와 일치한다(거울 ≡ DOM)", async () => {
+  it("초기화 후에도 게이트는 화면 금융사와 일치한다(미선택 = fail-open)", async () => {
     const { wb } = setup();
     await openNewWorkbench(wb);
     selectLender("MG캐피탈");
     await flush();
 
-    // ── arrange 핵심: 초기화 버튼. 카드 섹션 key가 그대로라 리마운트가 없고, React는 non-multiple
-    //    select의 defaultValue 갱신을 무시한다 → 금융사 DOM은 살아남는다. 거울만 지우면 어긋난다.
+    // ── arrange 핵심: 초기화 버튼. controlled state를 emptyQuoteConditionCards로 되돌리면 금융사도 미선택으로
+    //    함께 초기화된다(구 uncontrolled에서 금융사만 살아남던 #327 함정이 구조적으로 사라졌다).
     fireEvent.click(document.querySelector<HTMLButtonElement>("button.kim-quote-workbench-action.ghost")!);
     await flush();
 
-    // 값이 아니라 관계를 단언한다 — "초기화가 금융사를 지워야 하는가"는 별건(제품 결정)이고,
-    // 그 결정이 어느 쪽이 되든 이 불변식은 계속 유효해야 한다.
+    // 값이 아니라 관계를 단언한다 — 게이트는 언제나 화면 금융사(=미선택 → fail-open)를 따른다.
+    expect(lenderSelect().value).toBe("미선택");
     expectGateFollowsSelectedLender();
-    expect(wb().lenderByCard["manual-condition-1"] ?? "미선택").toBe(lenderSelect().value);
   });
 
-  // 위 케이스가 "별건(제품 결정)"으로 남겨둔 값 축 — 2026-07-22에 **지우는 쪽으로 결정**했다.
-  // 근거: 초기화는 "워크벤치 입력값을 초기화했습니다" 토스트까지 띄우면서 다른 입력(기간·보증금·
-  // 안내문 등)은 전부 비우는데 금융사만 살아남았다. 카드 섹션 key가 `new-…`로 신규→신규 불변이라
-  // 리마운트가 없고, React는 non-multiple select의 defaultValue 갱신을 무시하기 때문이다.
-  // 그 상태에서 다른 값만 비면 "금융사는 골라둔 채 나머지만 초기화된" 어중간한 화면이 남는다.
-  // 판매사 select는 이미 같은 문제를 `key={`dealer-${…}`}` 리마운트로 풀고 있어서 그 패턴을 맞췄다.
-  it("초기화는 금융사 DOM도 '미선택'으로 되돌린다(리마운트 키 — 배치 13 별건)", async () => {
+  // ②c 이후: 초기화는 controlled state를 되돌려 금융사·판매사까지 함께 비운다. 구 별건(#327)의 "금융사만
+  // DOM에 살아남던" 함정은 uncontrolled의 증상이었고, state가 진실이 되면서 그 자체가 소멸했다. DOM(controlled
+  // 렌더)과 state(진실)를 둘 다 잠가, 초기화가 두 축을 모두 미선택으로 되돌리는지 확인한다.
+  it("초기화는 금융사를 state·화면 둘 다 '미선택'으로 되돌린다(②c)", async () => {
     const { wb } = setup();
     await openNewWorkbench(wb);
     selectLender("MG캐피탈");
@@ -325,19 +328,18 @@ describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 1
     fireEvent.click(document.querySelector<HTMLButtonElement>("button.kim-quote-workbench-action.ghost")!);
     await flush();
 
-    expect(lenderSelect().value).toBe("미선택");
-    // 거울도 따라와야 한다 — DOM을 지우면 재동기화 effect가 파생을 맞춘다(K1-d 원칙).
-    expect(wb().lenderByCard["manual-condition-1"] ?? "미선택").toBe("미선택");
+    expect(lenderSelect().value).toBe("미선택"); // controlled 렌더
+    expect(wb().manualQuoteCards.find((c) => c.id === "manual-condition-1")!.lender).toBe("미선택"); // 진실(state)
   });
 
-  it("조건 복사가 대상 카드 게이트에 반영된다(복사는 select DOM 직접 쓰기 — 위임 이벤트가 없다)", async () => {
+  it("조건 복사가 대상 카드 게이트에 반영된다(복사는 대상 카드 state에 금융사를 직접 세팅 — 이벤트 없음)", async () => {
     const { wb } = setup();
     await openNewWorkbench(wb);
     selectLender("MG캐피탈");
     await flush();
 
-    // ── arrange 핵심: "1번 복사"는 대상 select에 값을 **직접 대입**한다(이벤트 없음).
-    //    거울 쓰기를 복사 함수에서 걷어내고 재동기화에 위임했으므로, 그 위임이 실제로 도는지 잠근다.
+    // ── arrange 핵심: "1번 복사"는 대상 카드 state에 금융사를 직접 세팅한다(select 이벤트 없음 · ②c).
+    //    controlled라 그 state가 select 렌더·게이트로 곧장 반영되는지 잠근다(구 거울 위임 경로는 폐기).
     fireEvent.click(within(card("manual-condition-2")).getByRole("button", { name: "1번 복사" }));
     await flush();
 
@@ -351,7 +353,7 @@ describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 1
     await openNewWorkbench(wb);
     expect(termButtons().filter((b) => b.disabled)).toHaveLength(0); // 미선택 = 게이트 없음
 
-    // ── arrange 핵심: applySolutionResult가 select.value를 **프로그램적으로** 쓴다 → 위임 이벤트가 없다.
+    // ── arrange 핵심: applySolutionResult가 카드 state에 금융사를 **프로그램적으로** 세팅한다(이벤트 없음 · ②c).
     await act(async () => {
       wb().handlers.pickRankingEntry("manual-condition-1", mgRankingEntry);
     });
@@ -359,6 +361,58 @@ describe("QuoteWorkbench 지원집합 게이트 — 거울 생명주기(배치 1
 
     expect(lenderSelect().value).toBe("MG캐피탈");
     expectGateFollowsSelectedLender();
+  });
+});
+
+// ②c 고유 계약 — controlled 전환이 새로 확보/방어하는 것(구 uncontrolled에선 성립하지 않았거나 무의미).
+describe("QuoteWorkbench 금융사 controlled 전환(배치 13 별건 ②c)", () => {
+  const lenderOptions = () => Array.from(lenderSelect().options).map((o) => o.value);
+
+  it("금융사 select는 onInput 단독 발화만으로도 선택이 반영된다(Safari controlled 함정 — bindSelect 병행 바인딩)", async () => {
+    const { wb } = setup();
+    await openNewWorkbench(wb);
+
+    // Safari는 controlled select에서 input→React 복원→change(구값) 순서라 onChange만 들으면 선택이 유실된다.
+    // bindSelect(onChange+onInput 병행)가 onInput에서 커밋하므로 change 없이 input만으로도 반영돼야 한다.
+    // (jsdom은 Safari 복원을 재현하지 못하므로 이건 "bindSelect가 onInput에 배선됐다"의 배선 잠금이다.)
+    fireEvent.input(lenderSelect(), { target: { value: "MG캐피탈" } });
+    await flush();
+
+    expect(lenderSelect().value).toBe("MG캐피탈");
+    expectGateFollowsSelectedLender(); // 선택이 실제로 state에 반영됐는지 게이트로 교차 확인
+  });
+
+  it("레거시 어휘 금융사는 타사를 골랐다가 되돌아올 수 있다(seed가 option을 살려 둠 — ②b 회피)", async () => {
+    const { wb } = setup();
+    await openNewWorkbench(wb);
+    await act(async () => {
+      wb().openEditQuote({
+        id: "q-legacy",
+        decisionStatus: null,
+        trimId: null,
+        financeType: "운용리스",
+        source: "manual",
+      } as unknown as QuoteItem);
+    });
+    await flush();
+    await waitFor(() => expect(lenderSelect().value).toBe("구캐피탈"));
+    fireEvent.click(within(card()).getByRole("button", { name: "수정" })); // 잠금 해제(편집 가능)
+    await flush();
+
+    // 레거시 option이 렌더돼 있다(seed 원천).
+    expect(lenderOptions()).toContain("구캐피탈");
+
+    // 현행 어휘 금융사(MG)로 바꾼다 — 라이브 lender는 MG가 되지만…
+    selectLender("MG캐피탈");
+    await flush();
+    expect(lenderSelect().value).toBe("MG캐피탈");
+    // …seed 기반이라 레거시 option은 그대로 살아 있어야 한다(구 안 ②b가 여기서 값을 잃었다).
+    expect(lenderOptions()).toContain("구캐피탈");
+
+    // 되돌아갈 수 있다.
+    selectLender("구캐피탈");
+    await flush();
+    expect(lenderSelect().value).toBe("구캐피탈");
   });
 });
 

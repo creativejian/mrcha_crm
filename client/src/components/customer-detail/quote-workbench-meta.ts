@@ -136,7 +136,13 @@ export function cardUiFromSeed(seed: ScenarioCardSeed): CardUiState {
 // 모드(보증금/선수금/잔존가치)는 여기 두지 않는다 — CardUiState가 단일 소스.
 export type ManualCard = {
   id: string; title: string; round: string; copyLabel: string;
-  lender: string; monthlyPayment: string;
+  // 금융사(T2와 대칭). controlled select의 라이브 값(배치 13 별건 ②c) — bindSelect가 커밋한다.
+  lender: string;
+  // 시드 시점 금융사 스냅샷 — "구 어휘 저장 견적 표시 유지" option의 원천(스펙 결정 1). lender와 분리하는
+  // 이유: lender를 라이브화하면(구 안 ②b) 다른 금융사를 고르는 순간 레거시 값이 목록에서 사라져 되돌아갈
+  // 수 없다. seed는 사용자 선택으로 바뀌지 않으므로 그 option이 항상 살아 있다(②b 기각 사유 회피).
+  lenderSeed: string;
+  monthlyPayment: string;
   totalReturn: string; totalTakeover: string; dueAtDelivery: string; interestRate: string;
   depositValue: string;
   downPaymentValue: string;
@@ -289,6 +295,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     // round1도 비교 슬롯(2·3)과 동일한 빈 기본값 — 미입력 시 extractWorkbenchScenarios가 filled로 보지 않아
     // 신규 작성완료 시 가짜 금융 mock이 저장되지 않는다(사용자 입력 시에만 저장). display-only 필드도 0/placeholder.
     lender: LENDER_UNSELECTED,
+    lenderSeed: LENDER_UNSELECTED,
     monthlyPayment: "0",
     totalReturn: "0",
     totalTakeover: "0",
@@ -308,6 +315,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     round: "2",
     copyLabel: "1번 복사",
     lender: LENDER_UNSELECTED,
+    lenderSeed: LENDER_UNSELECTED,
     monthlyPayment: "0",
     totalReturn: "0",
     totalTakeover: "0",
@@ -327,6 +335,7 @@ export const emptyQuoteConditionCards: ManualCard[] = [
     round: "3",
     copyLabel: "2번 복사",
     lender: LENDER_UNSELECTED,
+    lenderSeed: LENDER_UNSELECTED,
     monthlyPayment: "0",
     totalReturn: "0",
     totalTakeover: "0",

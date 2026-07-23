@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type SyntheticEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type SyntheticEvent, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { type Customer } from "@/data/customers";
@@ -6,7 +6,7 @@ import { type CustomerDetailData } from "@/lib/customers";
 import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
-import { buildSolutionQuoteInput, parseSolutionQuoteResult, solutionLenderOptions, solutionProductTypeOf, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
+import { buildSolutionQuoteInput, CRM_EXTRA_LENDERS, parseSolutionQuoteResult, solutionLenderOptions, solutionProductTypeOf, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
 import { supportedMileagesFor, supportedTermsFor, useSupportMatrix } from "@/lib/support-matrix";
 import { fetchSolutionDealers, type SolutionDealer } from "@/lib/solution-dealers";
 import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solution-ranking";
@@ -74,13 +74,6 @@ type UseQuoteWorkbenchArgs = {
   reloadAppRequests: () => void;
 };
 
-// 게이트 거울 재동기화 bail-out용 얕은 비교 — 매 커밋 setState가 무한 렌더로 번지지 않게 하는 안전핀.
-function sameStringMap(a: Record<string, string>, b: Record<string, string>): boolean {
-  const ka = Object.keys(a);
-  const kb = Object.keys(b);
-  return ka.length === kb.length && ka.every((k) => a[k] === b[k]);
-}
-
 // 견적 워크벤치(9b~9e 통합): 솔루션 워크벤치 모달의 전체 상태/가격패널/비교카드/추가안내/앱카드/PDF원본/영속화.
 // cross-cutting(markRecentUpdate/quoteList/purchaseFields/reloadAppRequests)은 부모 보유 → 인자 주입.
 export function useQuoteWorkbench({
@@ -102,6 +95,15 @@ export function useQuoteWorkbench({
   const [isQuoteDraftDirty, setIsQuoteDraftDirty] = useState(false);
   const [savedManualQuoteConditionIds, setSavedManualQuoteConditionIds] = useState<string[]>([]);
   const [manualQuoteCards, setManualQuoteCards] = useState<ManualCard[]>(() => [...emptyQuoteConditionCards]);
+  // 카드 배열 미러(cardUiRef 패턴) — 금융사·판매사가 controlled state로 승격된 뒤(배치 13 별건 ②c), await
+  // 뒤 클로저(manualQuoteCards)는 stale일 수 있다: applySolutionResult가 늦은 응답에서 "직전 금융사"를
+  // 읽어 딜러 리셋 여부를 판정한다(#163 잔상 부류). ref는 항상 커밋된 최신값을 준다.
+  const manualQuoteCardsRef = useRef(manualQuoteCards);
+  manualQuoteCardsRef.current = manualQuoteCards;
+  // 저장(잠금) 카드 id 미러 — 구매방식 전환 정리(D4) effect가 dep 없이 최신 저장 집합을 읽어 저장 카드를
+  // 건드리지 않게 한다. dep에 savedIds를 넣으면 "수정" 잠금 해제에도 effect가 돌아 저장값을 조용히 바꾼다.
+  const savedManualQuoteConditionIdsRef = useRef(savedManualQuoteConditionIds);
+  savedManualQuoteConditionIdsRef.current = savedManualQuoteConditionIds;
   // 비교카드 UI 상태(카드 id → CardUiState). 통합 전 속성별 Record 8벌 — 카드 하나를 다루는 모든
   // 동작이 8곳을 건드려야 했고 키 누락을 컴파일러가 못 잡았다(#163 저장 payload 오염).
   const [cardUi, setCardUi] = useState<Record<string, CardUiState>>({});
@@ -142,15 +144,13 @@ export function useQuoteWorkbench({
   const [selectedWorkbenchOptionIds, setSelectedWorkbenchOptionIds] = useState<number[]>([]);
   // 판매사(딜러) 목록 — 카드별, 스코프 = (카드의 선택 금융사, 워크벤치 브랜드) (T2). 계산기의 전사 union과
   // 다른 설계: 비교카드는 단일 금융사 조건이라 그 금융사 딜러만 노출하고, 저장값도 plain dealer_name
-  // (금융사는 카드 lender 컬럼이 보유 — `lenderCode::dealerName` 합성 불필요). 딜러 "선택값"은 state가
-  // 아니라 카드 DOM select(uncontrolled — 금융사 select 계약 미러)에 산다.
+  // (금융사는 카드 lender 컬럼이 보유 — `lenderCode::dealerName` 합성 불필요). 딜러 "선택값"은 카드
+  // state(manualQuoteCards[].dealerName)에 산다(controlled — 금융사 select 계약 미러, 배치 13 별건 ②c).
   // 값 "failed" = 로드 시도했으나 실패(배치 8 A#2) — 종전엔 실패를 빈 목록(성공 모양)으로 기록해
   // placeholder가 "등록 딜러 없음"(데이터-부재 어휘)으로 오표기했다. 배열 = 로드 성공 목록.
   const [dealerOptionsByCard, setDealerOptionsByCard] = useState<Record<string, SolutionDealer[] | "failed">>({});
-  // 카드별 현재 선택 금융사 라벨 — 지원집합 게이트(기간·약정거리) 렌더 파생용 거울이다.
-  // 금융사 "값"의 진실은 계속 카드 DOM select(uncontrolled 계약 유지 — 딜러와 동일 설계).
-  // 갱신 생명주기도 딜러와 같다: 금융사 변경·조건 복사·초기화.
-  const [lenderByCard, setLenderByCard] = useState<Record<string, string>>({});
+  // 금융사 "값"의 진실은 이제 카드 state(manualQuoteCards[].lender)다 — 지원집합 게이트는 그걸 직접 읽는다
+  // (배치 13 별건 ②c: 구 거울 lenderByCard + 재동기화 effect 폐기. 딜러도 함께 controlled로 승격).
   // 파트너 지원집합 매트릭스(세션 캐시 1회 로드). 미로드·실패·미확정은 전부 빈/null → 게이트 해제.
   const supportMatrix = useSupportMatrix();
   // (lenderCode, brand) 키 fetch 메모 — 같은 조합 재조회·카드 간 중복 조회 방지(내용 주소형이라 세션 내 유지).
@@ -391,6 +391,9 @@ export function useQuoteWorkbench({
       return {
         ...base,
         lender: sc.lender || LENDER_UNSELECTED,
+        // seed = 저장값 스냅샷. 이 카드의 "구 어휘 표시 유지" option 원천이자 구매방식 전환 시
+        // "되돌아갈 수 있는 자기 값"(D4 드롭 예외). lender가 사용자 선택으로 바뀌어도 seed는 불변.
+        lenderSeed: sc.lender || LENDER_UNSELECTED,
         monthlyPayment: sc.monthlyPayment ? formatMoney(Number(sc.monthlyPayment)) : "0",
         // 모드는 cardUi(setCardUi ← cardUiMapFromScenarios)가 갖는다. 여기선 표시 금액 포맷에만 쓴다.
         depositValue: sc.depositMode === "percent" ? sc.depositValue : (sc.depositValue ? formatMoney(Number(sc.depositValue)) : "0"),
@@ -427,47 +430,52 @@ export function useQuoteWorkbench({
     onToast(`${conditionRound}번 조건을 수정할 수 있습니다.`);
   }
 
+  // 카드 자신이 렌더하는 금융사 option 집합(QuoteWorkbench.tsx 렌더 :498-503 미러) — 미선택 + 현행 어휘
+  // + 그 카드의 레거시 seed(현행 어휘 밖일 때만). 복사 가능 판정(대상에 없는 값 대입 방지)과 D4 드롭
+  // 판정("현재 lender가 아직 이 카드에서 선택 가능한가")이 이 집합을 공유한다.
+  function selectableLenderSet(card: ManualCard): Set<string> {
+    const current = [...solutionLenderOptions(solutionWorkbenchPurchaseMethod).map((l) => l.label), ...CRM_EXTRA_LENDERS];
+    const set = new Set<string>([LENDER_UNSELECTED, ...current]);
+    if (card.lenderSeed !== LENDER_UNSELECTED && !current.includes(card.lenderSeed)) set.add(card.lenderSeed);
+    return set;
+  }
+
   // N번 복사(비교카드 헤더): 직전 카드의 조건 — 금융사·기간·보증금·선수금·잔존가치·약정거리·자동차세·보조금
   // (모드+입력값) — 을 이 카드로 복사한다. 월납입·결과 4필드·솔루션 스냅샷은 조회 파생값이라 복사하지 않는다
-  // (조건만 — 복사 후 계산기 재조회가 채운다). 값은 uncontrolled DOM 직접 쓰기(applySolutionResult 관례),
-  // 모드는 patchCardUi — cardUi 변경이 파생·미리보기 effect를 발화시켜 별도 refresh 호출이 없다.
+  // (조건만 — 복사 후 계산기 재조회가 채운다). 금융사·판매사는 controlled state 복사(②c), 금액 input은
+  // uncontrolled라 DOM 직접 쓰기, 모드는 patchCardUi — cardUi 변경이 파생·미리보기 effect를 발화시킨다.
   function copyManualQuoteCondition(targetId: string, targetRound: string) {
     if (savedManualQuoteConditionIds.includes(targetId)) return; // 저장(잠금) 카드 보호 — 버튼 disabled 미러
     const sourceRound = Number(targetRound) - 1;
     const sourceId = cardIdOfScenarioNo(sourceRound);
+    const cards = manualQuoteCardsRef.current;
+    const source = cards.find((c) => c.id === sourceId);
+    const target = cards.find((c) => c.id === targetId);
+    if (!source || !target) return;
+    // 대상 카드가 렌더하지 못하는 금융사(대상 자신의 seed가 아닌 구 어휘)는 복사에서 제외 — controlled에서
+    // 없는 값을 세우면 select가 빈칸이 된다(구 uncontrolled의 selectedIndex -1 회피와 같은 취지).
+    const lenderCopyable = selectableLenderSet(target).has(source.lender);
+    const lenderExcluded = source.lender !== LENDER_UNSELECTED && !lenderCopyable;
+    // 금융사가 복사되면 (금융사, 브랜드) 딜러 목록·선택값도 대상에 그대로 유효 → 함께 복사. 미복사면 딜러도
+    // 그대로 둔다(딜러는 금융사 귀속 — 구 어휘 금융사 제외 시 그 딜러도 제외). 모드는 아래 patchCardUi가 담당.
+    if (lenderCopyable) {
+      setManualQuoteCards((cs) => cs.map((c) => (c.id === targetId ? { ...c, lender: source.lender, dealerName: source.dealerName } : c)));
+      setDealerOptionsByCard((prev) => (prev[sourceId] ? { ...prev, [targetId]: prev[sourceId] } : prev));
+    }
+    // 금액 input(보증금·선수금·잔가·보조금·수수료 %)은 uncontrolled — DOM 직접 복사 유지(추출과 동일 관례).
     const compareForm = quoteDetailFormRef.current;
     const sourceEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${sourceId}"]`);
     const targetEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${targetId}"]`);
-    if (!sourceEl || !targetEl) return;
-    const sourceLender = sourceEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value ?? LENDER_UNSELECTED;
-    const targetLender = targetEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]');
-    // 대상 select에 없는 값 대입은 선택을 비워버린다(selectedIndex -1) — 구 어휘 금융사(수정 재진입 견적의
-    // "표시 유지" option)는 대상 카드에 렌더되지 않으므로, option 존재를 확인하고 없으면 건드리지 않는다.
-    const lenderCopyable = targetLender != null && Array.from(targetLender.options).some((o) => o.value === sourceLender);
-    if (targetLender && lenderCopyable) targetLender.value = sourceLender;
-    for (const field of ["deposit", "downPayment", "residual", "subsidy", "cmFeePercent", "agFeePercent"]) {
-      const src = sourceEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
-      const dst = targetEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
-      if (src && dst) dst.value = src.value;
-    }
-    // 판매사(T2): 금융사가 함께 복사되므로 (금융사, 브랜드) 딜러 목록도 대상에 그대로 유효 — 목록 state 복사 +
-    // ManualCard.dealerName 재시드(딜러 select 리마운트 키)로 "대상 select에 option이 아직 없는" 타이밍을
-    // 우회한다(딜러 option은 비동기 fetch 산물이라 직접 DOM 쓰기는 option 부재 시 무음 no-op — 정적 어휘인
-    // 금융사 select와 다른 지점). DOM 쓰기는 option 기존재 시 즉시 반영(빈값 "" 포함 — 소스가 미선택이면
-    // 대상 선택도 청소). 금융사가 복사에서 제외됐으면(구 어휘) 그 금융사 귀속인 딜러도 함께 제외.
-    // 모드(dealerMode)는 아래 patchCardUi(cardUi 통째 복사)가 담당.
-    if (lenderCopyable) {
-      const sourceDealer = sourceEl.querySelector<HTMLSelectElement>('select[data-sc-field="dealer"]')?.value ?? "";
-      const dstDealer = targetEl.querySelector<HTMLSelectElement>('select[data-sc-field="dealer"]');
-      if (dstDealer) dstDealer.value = sourceDealer;
-      setDealerOptionsByCard((prev) => (prev[sourceId] ? { ...prev, [targetId]: prev[sourceId] } : prev));
-      // 게이트 거울은 여기서 복사하지 않는다 — 위 targetLender.value 대입에서 대상 select DOM에 금융사를 이미 썼고,
-      // 아래 patchCardUi가 커밋을 유발하므로 재동기화 effect가 같은 값을 읽는다(배치 13 K1).
-      setManualQuoteCards((cards) => cards.map((c) => (c.id === targetId ? { ...c, dealerName: sourceDealer } : c)));
+    if (sourceEl && targetEl) {
+      for (const field of ["deposit", "downPayment", "residual", "subsidy", "cmFeePercent", "agFeePercent"]) {
+        const src = sourceEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
+        const dst = targetEl.querySelector<HTMLInputElement>(`input[data-sc-field="${field}"]`);
+        if (src && dst) dst.value = src.value;
+      }
     }
     patchCardUi(targetId, cardUiOf(cardUi, sourceId));
-    onToast(targetLender != null && !lenderCopyable
-      ? `${sourceRound}번 조건을 복사했습니다. (금융사 "${sourceLender}"은 지원 목록에 없어 제외)`
+    onToast(lenderExcluded
+      ? `${sourceRound}번 조건을 복사했습니다. (금융사 "${source.lender}"은 지원 목록에 없어 제외)`
       : `${sourceRound}번 조건을 복사했습니다.`);
   }
 
@@ -783,33 +791,28 @@ export function useQuoteWorkbench({
       dealerFetchCacheRef.current.set(key, pending);
     }
     const list = await pending;
-    // 늦은 응답 가드(#163 부류): 응답 시점 카드의 금융사·브랜드가 요청과 다르면 버린다(카드 detach 포함).
+    // 늦은 응답 가드(#163 부류): 응답 시점 카드의 금융사·브랜드가 요청과 다르면 버린다. 금융사는 이제
+    // state가 진실(②c) — ref로 최신값을 읽는다(controlled라 DOM도 같지만 state가 SSOT). detach는 DOM으로.
     const cardEl = quoteDetailFormRef.current?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
-    const liveLender = cardEl?.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value;
+    const liveLender = manualQuoteCardsRef.current.find((c) => c.id === condId)?.lender;
     if (!cardEl?.isConnected || liveLender !== lenderLabel || workbenchBrandRef.current !== brand) return;
     setDealerOptionsByCard((prev) => ({ ...prev, [condId]: list }));
   }
 
-  // 금융사/브랜드 전환 시 딜러 선택 청소 — 타사(타 브랜드) 딜러 잔존은 무음 오계산(T1 useMultiQuote 스코프
-  // 가드와 같은 근거). DOM 값 + 저장 표시 option 원천(ManualCard.dealerName — 지우면 select 리마운트) 양쪽.
-  function resetCardDealer(cardEl: HTMLElement, condId: string) {
-    const dealerSelect = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="dealer"]');
-    if (dealerSelect) dealerSelect.value = "";
-    setManualQuoteCards((cards) => cards.map((c) => (c.id === condId && c.dealerName ? { ...c, dealerName: "" } : c)));
+  // 금융사 select(controlled, bindSelect) 커밋 핸들러 — 구 델리게이션 syncDealerOnLenderChange를 대체한다.
+  // 라이브 값이 곧 진실(카드 state)이므로 거울 갱신은 불필요. 금융사가 바뀌면 딜러는 금융사 귀속이라 청소하고
+  // 새 (금융사, 브랜드) 딜러 목록을 재적재한다. 같은 값 재선택(bindSelect 멱등)은 setState 변화가 없어 무해.
+  // onInput+onChange 이중 발화(Safari 병행)도 setState 멱등이라 무해. 미리보기·dirty 표시는 폼 델리게이션
+  // (handleManualCardFieldEdit)이 버블 이벤트로 계속 담당한다.
+  function setManualLender(condId: string, value: string) {
+    setManualQuoteCards((cards) => cards.map((c) => (c.id === condId ? { ...c, lender: value, dealerName: "" } : c)));
+    applyGateFallback(condId, value);
+    void loadCardDealers(condId, value);
   }
 
-  // 델리게이션(handleManualCardFieldEdit) 경유 금융사 select 변경 감지. uncontrolled select의 change/input은
-  // 실제 값 변경에서만 발화하므로(같은 값 재선택 = 무이벤트) 이벤트 자체가 "금융사가 바뀌었다"는 신호다.
-  // onInput+onChange 이중 발화(Safari 병행 바인딩 관례)는 리셋·적재 모두 멱등이라 무해.
-  function syncDealerOnLenderChange(target: EventTarget | null) {
-    if (!(target instanceof HTMLSelectElement) || target.dataset.scField !== "lender") return;
-    const cardEl = target.closest<HTMLElement>("[data-scenario-card]");
-    const condId = cardEl?.dataset.scenarioCard;
-    if (!cardEl || !condId) return;
-    setLenderByCard((prev) => ({ ...prev, [condId]: target.value }));
-    applyGateFallback(condId, target.value);
-    resetCardDealer(cardEl, condId);
-    void loadCardDealers(condId, target.value);
+  // 판매사 select(controlled, bindSelect) 커밋 핸들러 — 값만 state에 반영. 미리보기·dirty는 델리게이션 담당.
+  function setManualDealer(condId: string, value: string) {
+    setManualQuoteCards((cards) => cards.map((c) => (c.id === condId ? { ...c, dealerName: value } : c)));
   }
 
   // 금융사 변경으로 현재 기간·약정거리가 그 금융사 미취급이 되면 폴백값으로 옮기고 1회 안내한다.
@@ -843,15 +846,16 @@ export function useQuoteWorkbench({
       setDealerOptionsByCard({});
       return;
     }
-    const compareForm = quoteDetailFormRef.current;
-    for (const card of manualQuoteCards) {
-      const cardEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${card.id}"]`);
-      if (!cardEl) continue;
-      if (prevBrand && prevBrand !== workbenchBrand) resetCardDealer(cardEl, card.id);
-      const lender = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]')?.value;
-      if (lender && lender !== LENDER_UNSELECTED) void loadCardDealers(card.id, lender);
+    // 카드 금융사는 이제 state(controlled) — ref로 최신값을 읽는다. 브랜드 전환이면 구 브랜드 딜러 선택 청소.
+    const brandSwitched = prevBrand != null && prevBrand !== workbenchBrand;
+    if (brandSwitched) {
+      // 브랜드 전환 시 구 브랜드 딜러 선택 청소(딜러=금융사·브랜드 귀속)
+      setManualQuoteCards((cards) => cards.map((c) => (c.dealerName ? { ...c, dealerName: "" } : c)));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 브랜드 변경 시점에만 재적재(카드 금융사는 그 시점 DOM이 최신 — uncontrolled 계약)
+    for (const card of manualQuoteCardsRef.current) {
+      if (card.lender && card.lender !== LENDER_UNSELECTED) void loadCardDealers(card.id, card.lender);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 브랜드 변경 시점에만 재적재(카드 금융사는 manualQuoteCardsRef가 그 시점 최신)
   }, [workbenchBrand]);
 
   function validateQuoteDetailDraft() {
@@ -996,19 +1000,13 @@ export function useQuoteWorkbench({
     // 워크벤치 전환/닫힘 후 늦은 응답/지연 선택 가드 — 카드 key(`${editingQuoteId ?? "new"}-${condId}`) 리마운트
     // 구조상 detach가 완전한 판별자. 없으면 stale 스냅샷 병합 + dirty 마킹이 다음 견적 저장 payload를 오염(#163 잔상 부류).
     if (!cardEl.isConnected) return;
-    // 금융사 select 세팅(uncontrolled DOM) — 모달 선택 경로의 확정, 직접 계산 경로는 이미 그 값(멱등).
-    const lenderSelect = cardEl.querySelector<HTMLSelectElement>('select[data-sc-field="lender"]');
-    if (lenderSelect) {
-      // 프로그램적 쓰기는 델리게이션 이벤트가 없다 — 금융사가 실제로 바뀐 경로(랭킹 모달 선택)만 여기서
-      // 딜러 리셋 + 목록 재적재. 무조건 리셋하면 직접 계산(동일 값 멱등)이 사용자가 고른 딜러를 지운다
-      // (조회가 제 입력을 파괴 — 그 딜러가 방금 계산 입력이었는데도).
-      const lenderChanged = lenderSelect.value !== lenderLabel;
-      lenderSelect.value = lenderLabel;
-      if (lenderChanged) {
-        resetCardDealer(cardEl, condId);
-        void loadCardDealers(condId, lenderLabel);
-      }
-    }
+    // 금융사 확정(controlled state) — 모달 선택 경로가 여기서 세운다. 직접 계산 경로는 이미 그 값(멱등).
+    // "직전 금융사"는 ref로 읽는다 — 이 함수는 ~1s await 뒤에도 불릴 수 있어(늦은 응답) 클로저는 stale.
+    // 금융사가 실제로 바뀐 경우만 딜러 리셋 + 재적재(무조건 리셋하면 직접 계산이 사용자가 고른 딜러를 파괴).
+    const prevLender = manualQuoteCardsRef.current.find((c) => c.id === condId)?.lender ?? LENDER_UNSELECTED;
+    const lenderChanged = prevLender !== lenderLabel;
+    setManualQuoteCards((cards) => cards.map((c) => (c.id === condId ? { ...c, lender: lenderLabel, ...(lenderChanged ? { dealerName: "" } : {}) } : c)));
+    if (lenderChanged) void loadCardDealers(condId, lenderLabel);
     const setField = (f: string, v: string) => {
       const el = cardEl.querySelector<HTMLInputElement>(`input[data-sc-field="${f}"]`);
       if (el) el.value = v;
@@ -1131,8 +1129,9 @@ export function useQuoteWorkbench({
       const condId = card.id;
       const cardEl = compareForm?.querySelector<HTMLElement>(`[data-scenario-card="${condId}"]`);
       const fieldVal = (f: string) => cardEl?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-sc-field="${f}"]`)?.value ?? null;
-      const lenderRaw = fieldVal("lender");
-      const lender = lenderRaw && lenderRaw !== LENDER_UNSELECTED ? lenderRaw : null;
+      // 금융사·판매사는 controlled state가 진실(②c) — DOM이 아니라 카드에서 읽는다(D6: 저장 payload 계약
+      // 중 이 두 축만 state로 이관, 나머지 uncontrolled input은 계속 fieldVal DOM 추출).
+      const lender = card.lender && card.lender !== LENDER_UNSELECTED ? card.lender : null;
       const monthlyPayment = parseMonthlyPayment(fieldVal("monthly") ?? "");
       const isFilled = savedManualQuoteConditionIds.includes(condId) || lender !== null || (monthlyPayment !== null && Number(monthlyPayment) > 0);
       if (!isFilled) continue; // 빈 슬롯 제외(저장도 채워짐도 아님)
@@ -1164,8 +1163,8 @@ export function useQuoteWorkbench({
         agFeePercent: parseInterestRate(fieldVal("agFeePercent") ?? ""),
         // 판매사(T2) — plain dealer_name 저장(금융사는 lender 컬럼이 보유 — 계산기 합성값과 다른 근거).
         // 비제휴 모드·미선택(빈 문자열 저장 금지)·금융사 없음(딜러는 금융사 귀속 값 — 구매방식 전환으로
-        // 금융사만 리셋된 잔존 포함)은 null.
-        dealerName: ui.dealerMode === "input" && lender !== null ? (fieldVal("dealer") || null) : null,
+        // 금융사만 리셋된 잔존 포함)은 null. 값은 controlled state에서 읽는다(②c, 금융사와 동일 축).
+        dealerName: ui.dealerMode === "input" && lender !== null ? (card.dealerName || null) : null,
         // 솔루션 조회 스냅샷 동봉(조회한 카드만 키 존재) — 서버 시나리오 저장이 전체 교체(delete→insert)라
         // 미동봉 재저장은 저장된 스냅샷을 null로 덮는다. 수정 재진입 시드(openEditQuote)와 한 쌍.
         ...(solutionSnapshots[condId] ?? {}),
@@ -1244,18 +1243,16 @@ export function useQuoteWorkbench({
     setCardScenario(extractWorkbenchScenarios()[0] ?? null);
   }
 
-  // 카드 입력(금융사 select·월납입/보증금 등 input)이 바뀌면 미리보기 즉시 갱신 + draft dirty 표시.
-  // 폼 컨테이너 onInput/onChange가 카드 텍스트/select 변경을 위임 캐치(QuoteWorkbench.tsx). 저장 여부와 무관하게 갱신.
-  function handleManualCardFieldEdit(event?: SyntheticEvent<HTMLElement>) {
-    // 금융사 select 변경(델리게이션 이벤트)은 딜러 리셋 + 목록 재적재를 동반한다(T2). 프로그램적 변경은
-    // 이벤트가 없어 여기로 안 온다 — applySolutionResult(랭킹 선택)·copy(조건 복사)가 각자 처리.
-    if (event) syncDealerOnLenderChange(event.target);
+  // 카드 입력(월납입/보증금 등 uncontrolled input)이 바뀌면 미리보기 즉시 갱신 + draft dirty 표시.
+  // 폼 컨테이너 onInput/onChange가 위임 캐치(QuoteWorkbench.tsx). 금융사·판매사 select도 controlled지만
+  // 버블 이벤트가 여기로 와 함께 미리보기를 새로고침한다(그 선택의 state 반영은 setManualLender/Dealer가 담당).
+  function handleManualCardFieldEdit() {
     refreshCardScenarioPreview();
     markQuoteDraftChanged();
   }
 
-  // 저장/수정 클릭(savedIds)·모드/기간/주행/구매방식 등 state 변경 시 미리보기 동기화(state-driven 갱신).
-  // DOM 텍스트/금융사 select 변경은 handleManualCardFieldEdit가 담당(uncontrolled라 state에 없음).
+  // 저장/수정 클릭(savedIds)·모드/기간/주행/구매방식·금융사/판매사 등 state 변경 시 미리보기 동기화.
+  // 금융사·판매사가 controlled state로 승격돼(②c) 이 effect가 그 변경도 재추출한다(dep에 manualQuoteCards 포함).
   useEffect(() => {
     deriveAndFillCardResults(); // state-driven 갱신(기간/모드/구매방식 등)도 파생 → 추출 순서 유지(개정 1 R3)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 비교카드 state 변경 시 대표 시나리오 재추출(의도된 동기화 effect)
@@ -1263,52 +1260,29 @@ export function useQuoteWorkbench({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 아래 dep 변경 시점에만 재추출(extract가 읽는 DOM/내부 state는 그 시점 최신; 함수/객체 dep 추가 시 매 렌더 실행)
   }, [savedManualQuoteConditionIds, manualQuoteCards, cardUi, solutionWorkbenchPurchaseMethod, solutionSnapshots]);
 
-  // ── 지원집합 게이트 거울(lenderByCard) 재동기화 ─────────────────────────────────
-  // 금융사 값의 진실은 카드 DOM select(uncontrolled — spec D6)이고 거울은 그 파생이다.
-  // 사용자 선택은 델리게이션(syncDealerOnLenderChange)이 즉시 갱신하지만, **이벤트 없이** DOM이
-  // 바뀌는 경로가 여럿이라 커밋 후 다시 읽는다(전부 2026-07-22 배치 13 실측):
-  //   ① 구매방식 전환 — option 목록에서 선택지가 빠지면 select.value가 change/input 발화 없이 "미선택"으로 되돌아간다
-  //   ② 수정 진입/신규 오픈/초기화 — 카드 재시드. 리마운트가 없으면 DOM 값은 살아남고(React는 non-multiple
-  //      select의 defaultValue 갱신을 무시한다) 거울만 지워져 반대 방향으로 어긋난다
-  //   ③ 랭킹 모달 선택(applySolutionResult) — 프로그램 쓰기라 이벤트가 없다
-  //   ④ 저장 카드 "수정"(잠금 해제) — 그 순간 게이트가 켜진다
-  // dep을 열거하지 않는 것이 의도다 — "동기화 지점 N개를 사람이 기억"이 이 거울 결함군의 원인이었다
-  // (구 스펙 §4.4의 4지점 목록 자체가 틀렸다: ①④ 누락 + clear 지시는 오히려 DOM과의 어긋남을 만들었다).
-  // useLayoutEffect = paint 전 반영(게이트가 한 프레임 늦게 켜지는 깜빡임 제거).
-  // 무한 갱신은 sameStringMap bail-out이 막는다. ⚠️ bail-out을 **업데이터 안**에 두면(구 형태
-  // `setLenderByCard((prev) => same ? prev : next)`) setState가 매 커밋 호출돼, React가 "렌더 1패스 후
-  // bail out" 경로를 타 **훅 호스트 함수 본문이 커밋당 2회** 실행된다(배치 14 K3-a 실측: 워크벤치
-  // 닫힘에서도 delta 2, 비교카드 입력마다 2). effect는 커밋 후 실행이라 **클로저의 lenderByCard가 곧
-  // 현재 state**이므로, 호출 전에 비교하면 bail-out 강도는 같으면서 그 여분 패스가 사라진다.
-  // ref로 비교하면 안 된다 — 외부가 상태만 비우는 경로(`setLenderByCard({})`)에서 ref판이 고착돼
-  // "거울은 DOM 파생·자가치유"라는 이 effect의 불변식을 판다(V2 프로브 실측).
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- dep 없이 매 커밋 재동기화가 목적. [manualQuoteCards]를 주면 구매방식 전환(①)처럼 카드 배열이 그대로인 경로에서 다시 어긋난다
-  useLayoutEffect(() => {
-    const form = quoteDetailFormRef.current;
-    const next: Record<string, string> = {};
-    if (form) {
-      for (const card of manualQuoteCards) {
-        const value = form.querySelector<HTMLSelectElement>(`[data-scenario-card="${card.id}"] select[data-sc-field="lender"]`)?.value;
-        if (value) next[card.id] = value;
-      }
+  // ── 구매방식 전환 시 미취급 금융사 정리(배치 13 별건 ②c = K1-c 신 정책) ──────────────
+  // 금융사가 controlled state가 되면서 결함의 방향이 뒤집혔다: 구 uncontrolled에서는 구매방식 전환으로
+  // option 목록이 바뀌면 브라우저가 select.value를 change/input **발화 0으로** "미선택"으로 되돌렸고(조용한
+  // 유실 — K1-c의 뿌리), 거울만 구값을 유지했다. controlled에서는 state가 그대로라 select가 없는 값을
+  // 붙들어 빈칸이 된다(반대 방향 어긋남). 그래서 전환 시 카드 state를 직접 화면 가능 집합으로 정리한다:
+  // 미저장 카드의 lender가 현행 어휘·자기 seed 어디에도 없으면 "미선택"으로 되돌리고 **토스트 1회**(구 조용한
+  // 유실 → 명시 안내로 승격) + 딜러 청소. 저장 카드는 제외(게이트와 같은 이유 — 잠금·저장값 표시 보존).
+  // seed는 드롭 예외라, 수정 재진입 후 전환해도 그 카드의 원 저장 금융사는 되돌아갈 수 있다.
+  useEffect(() => {
+    const dropped: string[] = [];
+    for (const card of manualQuoteCardsRef.current) {
+      if (savedManualQuoteConditionIdsRef.current.includes(card.id)) continue; // 저장 카드는 잠금 — 건드리지 않는다
+      if (card.lender === LENDER_UNSELECTED) continue;
+      if (selectableLenderSet(card).has(card.lender)) continue; // 아직 이 카드에서 선택 가능 → 유지
+      dropped.push(card.lender);
+      setManualLender(card.id, LENDER_UNSELECTED); // 리셋 + 딜러 청소 + 게이트 재평가
     }
-    if (sameStringMap(lenderByCard, next)) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 거울은 커밋된 DOM(진실)의 파생 — 위에서 같으면 조기 반환
-    setLenderByCard(next);
-    // 딜러 목록도 같은 결함 클래스다(배치 13 별건). `dealerOptionsByCard`는 **금융사 변경 이벤트**
-    // (syncDealerOnLenderChange)에서만 적재되는데, 위 ①~④는 이벤트 없이 금융사를 바꾼다. 그래서
-    // 구매방식을 전환해 금융사가 "미선택"으로 되돌아가도 **이전 금융사 기준 딜러 목록이 그대로 남아**
-    // 판매사 select가 지금 고를 수 없는 딜러를 계속 제시했다(무음 오계산 입구 — 실측 재현).
-    // 거울이 자가치유되는 바로 이 지점에서 함께 정리한다. 금융사가 다시 선택되면 브랜드 도착
-    // effect·이벤트 경로가 재적재하므로 지워도 잃는 게 없다.
-    setDealerOptionsByCard((prev) => {
-      const stale = Object.keys(prev).filter((id) => !next[id] || next[id] === LENDER_UNSELECTED);
-      if (stale.length === 0) return prev;
-      const kept = { ...prev };
-      for (const id of stale) delete kept[id];
-      return kept;
-    });
-  });
+    if (dropped.length > 0) {
+      const uniq = Array.from(new Set(dropped));
+      onToast(`${uniq.join(" · ")}은(는) ${solutionWorkbenchPurchaseMethod} 미취급이라 금융사 선택을 해제했습니다`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 구매방식 전환 시점에만 조정(카드는 manualQuoteCardsRef가 그 시점 최신; savedIds/cards를 dep에 넣으면 "수정" 잠금 해제에도 돌아 저장값을 조용히 바꾼다)
+  }, [solutionWorkbenchPurchaseMethod]);
 
   // 워크벤치 견적 영속. send=false: 작성완료(DB 저장, 발송X, 워크벤치 유지). send=true: 발송(저장+sent, 닫기).
   // 신규는 첫 INSERT 후 반환 id를 editingQuoteId로 세팅 → 이후 UPDATE(중복 INSERT 방지).
@@ -1516,16 +1490,10 @@ export function useQuoteWorkbench({
   }
 
   function resetQuoteWorkbench() {
-    // 금융사 select만 DOM을 직접 되돌린다(배치 13 별건). 나머지 카드 입력은 state 리셋으로 이미
-    // 초기화되는데(실측: 보증금·선수금·잔존가치·보조금 전부 초기값 복귀) **금융사만 살아남았다** —
-    // 카드 섹션 key가 `new-…`라 신규→신규 초기화에서 불변이고, React는 non-multiple select의
-    // defaultValue 갱신을 무시하기 때문이다. 그래서 "입력값을 초기화했습니다" 토스트가 뜬 뒤에도
-    // 금융사만 골라진 어중간한 화면이 남았다.
-    // ⚠️ 거울(lenderByCard)은 여기서 건드리지 않는다 — DOM이 진실이고 재동기화 effect가 파생을
-    // 맞춘다(배치 13 K1-d: 거울만 비우면 "거울 ≠ 화면"이 된다). 순서도 그래서 상관없다.
-    for (const select of quoteDetailFormRef.current?.querySelectorAll<HTMLSelectElement>('[data-scenario-card] select[data-sc-field="lender"]') ?? []) {
-      select.value = LENDER_UNSELECTED;
-    }
+    // 금융사·판매사가 controlled state가 되면서(②c) 아래 setManualQuoteCards 한 줄이 둘 다 초기화한다 —
+    // 구 별건(#327)의 "금융사 select만 DOM으로 되돌리는" 루프는 불필요해져 삭제됐다(그 잔존 자체가
+    // uncontrolled 함정의 증상이었다). 나머지 입력(보증금·선수금 등 uncontrolled)은 카드 리마운트 없이
+    // state 리셋으로 초기화되는 기존 경로 그대로.
     setSolutionWorkbenchPurchaseMethod(primaryQuotePurchaseMethod(purchaseFields));
     setSolutionWorkbenchEntryMode("manual");
     setSolutionWorkbenchModeMenu(null);
@@ -1716,7 +1684,6 @@ export function useQuoteWorkbench({
     manualQuoteCards,
     cardUi,
     dealerOptionsByCard,
-    lenderByCard,
     supportMatrix,
     solutionLoadingId,
     solutionLenderPickerId,
@@ -1781,6 +1748,8 @@ export function useQuoteWorkbench({
       saveManualQuoteCondition,
       editManualQuoteCondition,
       copyManualQuoteCondition,
+      setManualLender,
+      setManualDealer,
       setManualDepositMode,
       setManualDownPaymentMode,
       setManualResidualMode,
