@@ -72,7 +72,8 @@ DOM 읽기는 **항상 최신**이었지만 state는 **클로저 캡처**다. `l
 - [x] 회귀 그물 + 기존 테스트 재조준 (gate 10 · residue 29)
 - [x] **변이 3종 RED 실증**: A(legacy option을 seed→lender로 되돌림) → ②b 되돌아오기 테스트 RED · B(D4 드롭 비활성) → D4 테스트 RED · C(lender bindSelect→onChange only) → Safari onInput 테스트 RED. 각각 복원 후 전량 green 재확인.
 - [x] 검증: typecheck 0 · lint 0 · unit 1071(+3) · build · knip 0 · format green
-- [ ] 🟡 K1-c 행위 변경 pending 등재(항목 27) · 실 Safari 눈확인은 유슨생 몫(자동화 재현 불가 — `safari-select-oninput-required`)
+- [x] 🟡 K1-c 행위 변경 pending 등재(항목 27 — 이사님 사후 공유는 대기)
+- [x] **실 Safari 눈확인 통과(2026-07-23, 유슨생 · prod `crm.mrcha.app`)** — 금융사·판매사 선택 유지 + K1-c 토스트 전부 정상. **이 축은 자동화가 원리적으로 못 본다**(Playwright webkit·jsdom 모두 Safari의 input→복원→change 순서를 재현 못 함 — `safari-select-oninput-required`). 즉 controlled 전환의 **유일한 미검증 리스크가 사람 눈으로 닫혔다**. ⚠️ 앞으로 이 워크벤치에 controlled select를 새로 추가하면 **같은 실 Safari 확인을 1회 반복**할 것(유닛·CI로는 대체 불가).
 
 ## 이행 요약 (실제 변경)
 

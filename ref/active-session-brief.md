@@ -12,7 +12,7 @@ Last updated: 2026-07-22
 **배치 13 잔여 별건(②c) + 금융사 SSOT 드리프트 가드까지 머지 완료. 진행 중인 미완 작업 없음.** 그 전엔 배치 15 종결 + Topbar 팝오버 · CI 도입/위생 잠금 · 별건까지 완료된 상태였다.
 최근 머지: `c11c439`(`#329` ②c controlled 전환) · `30f9272`(`#330` 금융사 드리프트 가드). main 검증 green — typecheck 0 · lint 0 · knip 0 · unit **1082** · build · format.
 
-**①②c(`#329`):** 워크벤치 금융사·판매사 select를 uncontrolled DOM → **카드 controlled state**로 승격. 거울 `lenderByCard`·재동기화 `useLayoutEffect` 폐기(state가 진실). `lenderSeed` 신설(②b 회피 = 레거시 금융사 되돌아오기)·`manualQuoteCardsRef`(늦은 응답 stale 가드). **K1-c 신 정책**: 구매방식 전환으로 미취급이 된 금융사를 조용히 리셋하던 것 → **리셋+토스트**(🟡 행위 변경 = pending 항목 27). **변이 3종 RED 실증**(seed·D4·onInput). SSOT = `ref/plans/2026-07-22-crm-workbench-select-controlled.md`. ⚠️ 실 Safari 눈확인은 자동화 재현 불가라 유슨생 몫.
+**①②c(`#329`):** 워크벤치 금융사·판매사 select를 uncontrolled DOM → **카드 controlled state**로 승격. 거울 `lenderByCard`·재동기화 `useLayoutEffect` 폐기(state가 진실). `lenderSeed` 신설(②b 회피 = 레거시 금융사 되돌아오기)·`manualQuoteCardsRef`(늦은 응답 stale 가드). **K1-c 신 정책**: 구매방식 전환으로 미취급이 된 금융사를 조용히 리셋하던 것 → **리셋+토스트**(🟡 행위 변경 = pending 항목 27). **변이 3종 RED 실증**(seed·D4·onInput). SSOT = `ref/plans/2026-07-22-crm-workbench-select-controlled.md`. **실 Safari 눈확인 통과**(2026-07-23 유슨생·prod) — 자동화가 원리적으로 못 보는 유일한 축이었고 사람 눈으로 닫혔다.
 
 **②금융사 SSOT 드리프트 가드(`#330`):** `SOLUTION_LENDERS`는 파트너 목록의 **하드코딩 미러**인데 감지가 0이었다. **live fetch로 바꾸지 않는다**(컴파일타임 타입·저장 label 계약·CRM 상위집합·파트너 없이도 뜨는 드롭다운 — 근거는 `AGENTS.md`에 박제). 대신 그물 2겹: ⓐ런타임(매트릭스 수신 시 양방향 대조 → 콘솔 경고 1회, **화면 동작 불변**) ⓑ**`bun run check:lenders`**(파트너 직접 조회·exit 1). **제프에 새 API 요청 0** — 기존 support-matrix가 전량 반환이라 그 `lenderCode` 집합이 대조 원천. 실기 확인 = **파트너 8사 = 우리 8사 일치**, 변이로 양방향 드리프트·exit 1 재현 후 복원.
 
@@ -48,8 +48,7 @@ main 통합 검증 green — typecheck 0 · lint 0 · unit **1068** · server **
 
 1. ✅ **금융사 `lenderName` label 축 확장 — 완료(2026-07-23).** 제프가 요청 당일 수락·구현·**배포**까지 마쳐 실기로 확인됐다(`lenderName` 8건 탑재 · 표시명 전량 일치 · label 변이 시 `renamed` 축만 발화). 🔵 **예고 1건**: 파트너가 **하나캐피탈** 추가 검토 중(엔진 빌드 완료·배선 보류) — 배선 시 사전 통보 약속. 우리는 `code`가 컴파일타임 타입이라 **자동 반영 안 됨** → 통보 오면 `SOLUTION_LENDERS`에 한 줄 추가(가드도 `onlyPartner`로 잡는다).
 2. **이사님 회신 대기** — pending **열린 13건**(항목 25·26·**27** 신설 — 27 = ②c의 K1-c 리셋+토스트), 특히 **21·22는 묶어서** 여쭙는 게 효율적. ⚠️ **NO_HITS 문구+sources 동시 렌더는 21·22 결정과 얽혀 보류 중**(지금 고치면 결정 후 두 번 고친다).
-3. **실 Safari 눈확인(유슨생)** — ②c로 금융사·판매사가 controlled가 됐다. `bindSelect`(onInput+onChange 병행)를 썼으니 규칙상 안전하지만, Safari 유실 함정은 **자동화(Playwright webkit·jsdom)가 원리적으로 재현 못 한다** — 실 Safari에서 워크벤치 금융사·판매사 선택 1회만 눈으로 확인.
-4. **CI 후속(선택)** — 남은 red 게이트 없음. 다음 후보는 `test:server`를 CI에 넣을 방법(전용 테스트 DB가 생기면). 지금은 공유 master라 불가.
+3. **CI 후속(선택)** — 남은 red 게이트 없음. 다음 후보는 `test:server`를 CI에 넣을 방법(전용 테스트 DB가 생기면). 지금은 공유 master라 불가.
 
 ## 대기 (우리 액션 없음)
 
