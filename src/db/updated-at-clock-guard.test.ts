@@ -24,6 +24,21 @@ import { expect, test } from "bun:test";
 // 정규식을 좁혀 회피하지 말 것 — 앱 시계가 정말 필요한 자리가 생기면 여기 명시 등록해서
 // "언제 누가 왜 열었는지"가 커밋에 남게 한다(profiles-write-guard와 같은 관례).
 //
+// ## 이 tripwire가 유일한 그물인 지점이 있다 (2026-07-23 변이 실측)
+//
+// 12개 스탬프 지점 전부에 `now() - interval '1 hour'`를 주입해(형태는 `sql\`now()…\``라 이 tripwire는
+// 통과 = 순수하게 **동작 테스트**만 본다) 전체 스위트를 돌린 결과:
+//   🔴 **RED(동작 테스트가 잡음) 4곳** — `customer-delivery`(upsert 스탬프) · `customers`
+//      manage_status_at·updated_at(스누즈 동일 스탬프) · `app-user-link`(**이 실측 뒤 추가**)
+//   ⚪️ **GREEN(안 잡힘) 8곳** — `staff-settings` 2 · `embeddings` 2 · `customer-quotes` 4
+//
+// **8곳이 안 잡히는 건 정상이다.** 그 `updated_at`들은 **읽는 코드가 아예 없어서**(실측) 값이
+// 틀려도 관측 가능한 동작 차이가 없다 — 동작 테스트를 억지로 만들면 "아무도 안 보는 값"을 잠그는
+// 비용만 남는다. 대신 **형태는 이 tripwire가 잠근다**: 앱 시계로 되돌리면 여기서 RED가 된다.
+// ⚠️ 그러니 **누군가 그 컬럼을 읽기 시작하면**(정렬·판정·표시) 그때는 동작 테스트가 필요하다.
+// `app-user-link`가 정확히 그 경우였다 — `customers.updated_at`은 `staffActivityAt`이 읽는데
+// 무커버여서, 이 실측 직후 `app-user-link.test.ts`에 전진 단언을 추가했다.
+//
 // ## 왜 `updatedAt`만 잠그나 (2026-07-23 전수 조사 — 같은 조사를 반복하지 않도록 결론을 남긴다)
 //
 // 다른 시각 컬럼도 앱 `new Date()`로 찍지만 **같은 결함이 아니다.** 이 버그의 정체는
