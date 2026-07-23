@@ -1,3 +1,4 @@
+import { formatPhone } from "../../client/src/lib/phone-format"; // 부작용 0 순수 모듈 — 화면과 표기 SSOT 공유(AGENTS.md 경계)
 import { kstDateLabel } from "./kst-date";
 
 // customerContact = 헤더에 병기할 연락처 축(옵션 — 도구 경로는 고객이 아니라 리포트 1청크라 없다).
@@ -9,8 +10,11 @@ export type PromptChunk = { customerName: string; customerStatus: string; conten
 // ⚠️ 주 번호가 null이어도 축을 지우지 않고 "미입력"으로 남긴다 — 근거에 안 실린 것과 고객에게 번호가
 // 없는 것을 모델이 구분할 수 있어야 한다(그러지 않으면 실기에서 본 "근거에 연락처 정보가 없습니다"가
 // 미입력 고객에게도 그대로 나가 사용자는 버그인지 사실인지 알 수 없다).
+// ⚠️ 표기는 **화면과 같은 하이픈 포맷**(`formatPhone` — 고객 목록·상세가 쓰는 그 함수).
+// 같은 번호가 화면에선 `010-…`, AI 답변에선 `010…`으로 나오면 사용자가 다른 데이터로 읽는다.
+// 저장 형식(digits)은 불변이다 — 표시 시점에만 포맷한다(소유권 계약 `#276`).
 export function formatContactAxis(phone: string | null, phoneSecondary: string | null): string {
-  return `연락처 ${phone ?? "미입력"}${phoneSecondary ? ` · 추가 연락처 ${phoneSecondary}` : ""}`;
+  return `연락처 ${phone ? formatPhone(phone) : "미입력"}${phoneSecondary ? ` · 추가 연락처 ${formatPhone(phoneSecondary)}` : ""}`;
 }
 
 // "근거 없음" 응답 문구 SSOT — 라우트의 직접 반환(hits 0건)과 SYSTEM_PROMPT의 모델 지시가 공유한다.

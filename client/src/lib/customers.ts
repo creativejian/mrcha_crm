@@ -1,5 +1,6 @@
 import type { ContractingQuoteSummary, Customer, CustomerDeliveryInfo, NextDeliverySchedule } from "@/data/customers";
 import { getJson, sendJson, sendVoid } from "./http";
+import { formatPhone } from "./phone-format";
 import type { CustomerDetailQuote } from "./quote-items";
 
 // 백엔드 listCustomers 응답 1행(camelCase, null 가능). 상세는 추가 자식 필드 포함.
@@ -36,14 +37,10 @@ export type CustomerRow = {
   latestTask: string | null;
 };
 
-// 전화번호 표시 포맷. DB엔 숫자만 저장하고, 화면에선 하이픈 포맷으로 보여준다.
-// 입력이 하이픈 포함이어도 먼저 숫자만 추출하므로 digits/hyphen 둘 다 안전(전환기 호환).
-export function formatPhone(raw: string | null): string {
-  const d = (raw ?? "").replace(/\D/g, "");
-  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
-  return raw ?? "";
-}
+// 전화번호 표시 포맷은 `./phone-format`이 단독 소유한다(2026-07-23 분리 — 이 파일은 `./http`를
+// 끌어와 서버가 import할 수 없는데, 업무 AI가 화면과 같은 표기를 쓰려면 서버도 그 함수가 필요했다).
+// 기존 화면 호출부가 `@/lib/customers`에서 계속 가져다 쓰도록 여기서 다시 내보낸다.
+export { formatPhone } from "./phone-format";
 
 // timestamptz → 화면 표시 문자열. 기준일 비교 없이 "YY/MM/DD HH:mm"(읽기 1차 — 상대표현 보류).
 export function formatActivity(ts: string | null): string {
