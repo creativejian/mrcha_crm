@@ -7,6 +7,7 @@ import type { CustomerScope } from "../../lib/assistant-scope";
 import { kstDateOf, kstDayDiff } from "../../lib/kst-date";
 import { manualManageStatusActive, STALE_THRESHOLDS, staffActivityAt } from "./activity";
 import { getDefaultDb, type Executor } from "../client";
+import { composedPhone } from "./customers"; // 주 번호 합성 SSOT — 손 복제 금지(앱 연결 고객은 customers.phone이 항상 NULL)
 import { consultationRequests, profiles } from "../public-app";
 import { consultationDismissals, customers, customerSchedules, customerTasks, quotes } from "../schema";
 import { isPreActionStatus } from "../../../client/src/data/customers"; // 순수 leaf(부작용 0) — 액션 전 상태 게이트 클라 공유
@@ -209,9 +210,22 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       if (f.statusGroup) conds.push(eq(customers.statusGroup, f.statusGroup));
       if (f.purchaseMethod) conds.push(ilike(customers.needMethod, `%${f.purchaseMethod}%`));
       if (f.source) conds.push(ilike(customers.source, `%${f.source}%`));
+      // 연락처 2종을 함께 싣는다(2026-07-23). 주 번호는 **반드시 합성**(composedPhone + profiles 조인) —
+      // 앱 연결 고객은 `customers.phone`이 CHECK로 항상 NULL이라 컬럼만 읽으면 화면엔 번호가 보이는데
+      // AI만 "연락처 없음"이라 답한다(실제 발생: 제임스 CU-2606-0002). 조인은 app_user_id→profiles.id
+      // many-to-one이라 행이 늘지 않는다.
       const rows = await ex
-        .select({ name: customers.name, source: customers.source, statusGroup: customers.statusGroup, status: customers.status, needMethod: customers.needMethod })
+        .select({
+          name: customers.name,
+          phone: composedPhone,
+          phoneSecondary: customers.phoneSecondary,
+          source: customers.source,
+          statusGroup: customers.statusGroup,
+          status: customers.status,
+          needMethod: customers.needMethod,
+        })
         .from(customers)
+        .leftJoin(profiles, eq(customers.appUserId, profiles.id))
         .where(conds.length ? and(...conds) : undefined)
         .limit(30);
       const filterLabel = [
@@ -219,7 +233,11 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         f.purchaseMethod && `구매방식 ${f.purchaseMethod}`, f.source && `상담경로 ${f.source}`,
       ].filter(Boolean).join(" · ") || "전체";
       const lines = rows.map((r) =>
-        `${r.name} — 상담경로 ${r.source ?? "미입력"} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}${r.needMethod ? ` · 구매방식 ${r.needMethod}` : ""}`);
+        // 주 번호와 추가 연락처를 **라벨로 구분**한다 — phone_secondary는 회사·배우자 번호일 수 있어
+        // "본인 번호"로 뭉뚱그리면 안 된다(소유권 계약 #276: 추가 연락처는 매칭 금지 축).
+        // 없으면 "미입력"을 명시 — 침묵하면 모델이 "결과에 없다"와 "고객에게 없다"를 구분하지 못한다.
+        `${r.name} — 연락처 ${r.phone ?? "미입력"}${r.phoneSecondary ? ` · 추가 연락처 ${r.phoneSecondary}` : ""}` +
+        ` · 상담경로 ${r.source ?? "미입력"} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}${r.needMethod ? ` · 구매방식 ${r.needMethod}` : ""}`);
       return { label: `${label}(${filterLabel})`, lines };
     }
 
