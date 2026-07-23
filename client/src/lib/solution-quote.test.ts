@@ -5,6 +5,7 @@ import {
   SOLUTION_LENDERS,
   buildSolutionQuoteInput,
   detectLenderDrift,
+  extractPartnerLenders,
   hasLenderDrift,
   parseSolutionQuoteResult,
   solutionLenderOptions,
@@ -225,40 +226,88 @@ describe("parseSolutionQuoteResult", () => {
 });
 
 // ── 금융사 SSOT 드리프트 판정(2026-07-23) ──────────────────────────────────────
-// `SOLUTION_LENDERS`는 파트너 목록의 하드코딩 미러라 조용히 낡을 수 있다. 이 판정을
-// 런타임 경고(fetchSupportMatrix)와 `bun run check:lenders`가 공유한다 — 한 벌만 검증한다.
-describe("detectLenderDrift — 파트너 금융사 SSOT 대조", () => {
-  const ALL_CODES = SOLUTION_LENDERS.map((l) => l.code);
+// `SOLUTION_LENDERS`는 파트너 목록의 하드코딩 미러라 조용히 낡을 수 있다. 이 판정 한 벌을
+// 런타임 경고(fetchSupportMatrix)와 `bun run check:lenders`가 공유한다.
+// 축 3개: 추가(onlyPartner)·삭제(onlyCrm)·개명(renamed). 개명 축은 제프가 `lenderName`을
+// 실어 주면서 열렸다(회신 `ref/2026-07-23-jeff-lender-name-reply.md`).
+describe("extractPartnerLenders / detectLenderDrift — 파트너 금융사 SSOT 대조", () => {
+  // 파트너 응답 재현: productType별로 같은 code가 여러 행에 온다(제프 계약 — 이름은 같은 값 반복).
+  const rowsOf = (lenders: readonly { code: string; name?: string | null }[]) =>
+    lenders.flatMap((l) =>
+      ["operating_lease", "long_term_rental"].map((productType) => ({
+        lenderCode: l.code,
+        ...(l.name === undefined ? {} : l.name === null ? {} : { lenderName: l.name }),
+        productType,
+        leaseTermMonths: [60],
+        annualMileageKm: [20000],
+      })),
+    );
+  const CURRENT = SOLUTION_LENDERS.map((l) => ({ code: l.code as string, name: l.label as string }));
 
-  test("현행 어휘와 같으면 드리프트 없음", () => {
-    const drift = detectLenderDrift(ALL_CODES);
-    expect(drift).toEqual({ onlyPartner: [], onlyCrm: [] });
+  test("productType별 중복 행을 code 기준으로 접는다 + 표시명을 함께 뽑는다", () => {
+    const got = extractPartnerLenders({ matrix: rowsOf(CURRENT) });
+    expect(got).toHaveLength(SOLUTION_LENDERS.length);
+    expect(got.find((l) => l.code === "im-capital")).toEqual({ code: "im-capital", name: "iM캐피탈" });
+  });
+
+  test("현행 어휘·표시명과 같으면 드리프트 없음(제프 회신 표 대조 = 현시점 실제 상태)", () => {
+    const drift = detectLenderDrift(extractPartnerLenders({ matrix: rowsOf(CURRENT) }));
+    expect(drift).toEqual({ onlyPartner: [], onlyCrm: [], renamed: [] });
     expect(hasLenderDrift(drift)).toBe(false);
   });
 
-  test("순서가 달라도 드리프트가 아니다 — 집합 비교(파트너도 순서 의존 금지를 권고)", () => {
-    expect(hasLenderDrift(detectLenderDrift([...ALL_CODES].reverse()))).toBe(false);
-  });
-
   test("파트너가 금융사를 추가하면 onlyPartner로 잡힌다(우리 화면에선 고를 수 없는 상태)", () => {
-    const drift = detectLenderDrift([...ALL_CODES, "new-capital"]);
-    expect(drift.onlyPartner).toEqual(["new-capital"]);
+    // 제프가 예고한 실제 후보 = 하나캐피탈(운용리스 엔진 빌드됨·배선 보류).
+    const drift = detectLenderDrift(
+      extractPartnerLenders({ matrix: rowsOf([...CURRENT, { code: "hana-capital", name: "하나캐피탈" }]) }),
+    );
+    expect(drift.onlyPartner).toEqual(["hana-capital"]);
     expect(drift.onlyCrm).toEqual([]);
     expect(hasLenderDrift(drift)).toBe(true);
   });
 
   test("파트너가 금융사를 빼면 onlyCrm으로 잡힌다(고를 수 있는데 계산이 거부되는 상태)", () => {
-    const drift = detectLenderDrift(ALL_CODES.filter((c) => c !== "nh-capital"));
+    const drift = detectLenderDrift(
+      extractPartnerLenders({ matrix: rowsOf(CURRENT.filter((l) => l.code !== "nh-capital")) }),
+    );
     expect(drift.onlyCrm).toEqual(["nh-capital"]);
     expect(drift.onlyPartner).toEqual([]);
   });
 
-  test("빈 입력(조회 실패·미확정)은 드리프트로 보지 않는다 — 전 금융사 오탐 차단", () => {
-    // fail-open 경로에서 빈 매트릭스가 오는데, 이걸 드리프트로 치면 매번 "8사 전부 사라짐"이 뜬다.
-    expect(detectLenderDrift([])).toEqual({ onlyPartner: [], onlyCrm: [] });
+  test("표시명만 바뀌면 renamed로 잡힌다 — code는 그대로라 계산은 정상, 화면 표기만 낡는다", () => {
+    const drift = detectLenderDrift(
+      extractPartnerLenders({
+        matrix: rowsOf(CURRENT.map((l) => (l.code === "im-capital" ? { ...l, name: "아이엠캐피탈" } : l))),
+      }),
+    );
+    expect(drift.renamed).toEqual([{ code: "im-capital", partner: "아이엠캐피탈", crm: "iM캐피탈" }]);
+    expect(drift.onlyPartner).toEqual([]); // 추가·삭제 축은 조용해야 한다(축 독립)
+    expect(drift.onlyCrm).toEqual([]);
+    expect(hasLenderDrift(drift)).toBe(true);
   });
 
-  test("중복 코드(productType별 다중 행)는 집합으로 접힌다", () => {
-    expect(hasLenderDrift(detectLenderDrift([...ALL_CODES, ...ALL_CODES]))).toBe(false);
+  test("lenderName이 없는 응답(파트너 배포 전·구 캐시)은 개명 축만 건너뛴다 — code 축은 그대로", () => {
+    // 이 가드가 없으면 제프 배포 전까지 8사 전부가 "개명됨"으로 오탐한다.
+    const noName = { matrix: rowsOf(CURRENT.map((l) => ({ code: l.code }))) };
+    expect(extractPartnerLenders(noName).every((l) => l.name === null)).toBe(true);
+    const drift = detectLenderDrift(extractPartnerLenders(noName));
+    expect(drift.renamed).toEqual([]);
+    expect(hasLenderDrift(drift)).toBe(false);
+    // 이름이 없어도 추가/삭제는 계속 잡힌다.
+    const removed = detectLenderDrift(
+      extractPartnerLenders({ matrix: rowsOf(CURRENT.filter((l) => l.code !== "nh-capital").map((l) => ({ code: l.code }))) }),
+    );
+    expect(removed.onlyCrm).toEqual(["nh-capital"]);
+  });
+
+  test("빈 응답(조회 실패·matrix 부재)은 드리프트로 보지 않는다 — 전 금융사 오탐 차단", () => {
+    expect(extractPartnerLenders(null)).toEqual([]);
+    expect(extractPartnerLenders({})).toEqual([]);
+    expect(detectLenderDrift([])).toEqual({ onlyPartner: [], onlyCrm: [], renamed: [] });
+  });
+
+  test("행 순서에 의존하지 않는다 — 파트너가 순서 비의존을 권고했고 집합 비교라 무관", () => {
+    const reversed = { matrix: rowsOf([...CURRENT].reverse()) };
+    expect(hasLenderDrift(detectLenderDrift(extractPartnerLenders(reversed)))).toBe(false);
   });
 });

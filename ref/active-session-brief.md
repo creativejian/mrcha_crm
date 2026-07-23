@@ -46,7 +46,7 @@ main 통합 검증 green — typecheck 0 · lint 0 · unit **1068** · server **
 
 ## ▶ 다음 작업
 
-1. 🔵 **[제프 대기 → 도착 시 착수] 금융사 `lenderName` label 드리프트 확장.** 제프가 support-matrix 행에 `lenderName` 추가 **작업 중**(2026-07-23 전달·착수 확인). 도착하면 CRM 후속 = `detectLenderDrift`(solution-quote) **한 벌을 label 축까지 확장** → `check-lender-parity.ts`·런타임 경고 두 소비처가 자동으로 따라온다. 배포 순서 제약 없음(우리 파서가 모르는 필드를 무시). 상세 = `ref/2026-07-23-jeff-lender-name-request.md` 상단 상태 블록.
+1. ✅ **금융사 `lenderName` label 축 확장 — 완료(2026-07-23).** 제프가 요청 당일 수락·구현·**배포**까지 마쳐 실기로 확인됐다(`lenderName` 8건 탑재 · 표시명 전량 일치 · label 변이 시 `renamed` 축만 발화). 🔵 **예고 1건**: 파트너가 **하나캐피탈** 추가 검토 중(엔진 빌드 완료·배선 보류) — 배선 시 사전 통보 약속. 우리는 `code`가 컴파일타임 타입이라 **자동 반영 안 됨** → 통보 오면 `SOLUTION_LENDERS`에 한 줄 추가(가드도 `onlyPartner`로 잡는다).
 2. **이사님 회신 대기** — pending **열린 13건**(항목 25·26·**27** 신설 — 27 = ②c의 K1-c 리셋+토스트), 특히 **21·22는 묶어서** 여쭙는 게 효율적. ⚠️ **NO_HITS 문구+sources 동시 렌더는 21·22 결정과 얽혀 보류 중**(지금 고치면 결정 후 두 번 고친다).
 3. **실 Safari 눈확인(유슨생)** — ②c로 금융사·판매사가 controlled가 됐다. `bindSelect`(onInput+onChange 병행)를 썼으니 규칙상 안전하지만, Safari 유실 함정은 **자동화(Playwright webkit·jsdom)가 원리적으로 재현 못 한다** — 실 Safari에서 워크벤치 금융사·판매사 선택 1회만 눈으로 확인.
 4. **CI 후속(선택)** — 남은 red 게이트 없음. 다음 후보는 `test:server`를 CI에 넣을 방법(전용 테스트 DB가 생기면). 지금은 공유 master라 불가.

@@ -2,11 +2,11 @@
 
 작성 2026-07-23 · 관련 회신 `ref/2026-07-21-jeff-support-matrix-reply.md`
 
-> **상태: 🔵 전달 완료 · 제프 작업 중**(2026-07-23 착수 확인).
-> **도착 후 CRM 후속**(작업 대기 중): ①`check-lender-parity.ts`가 행에서 `lenderName`도 뽑아
-> label 대조 추가 ②런타임 경고(`support-matrix.ts` `warnLenderDrift`)도 같은 축 확장
-> ③판정은 `detectLenderDrift`(solution-quote) **한 벌을 확장**한다 — 두 소비처가 공유하는 구조 유지.
-> 배포 순서 제약은 없다(우리 파서가 모르는 필드를 무시하므로 제프가 먼저 나가도 무해).
+> **상태: ✅ 종결(2026-07-23)** — 제프 수락·구현·**배포 완료**, CRM 개명 축 확장도 완료.
+> 회신 = `ref/2026-07-23-jeff-lender-name-reply.md`.
+> **실기 확인**: 파트너 live 응답에 `lenderName` 8건 탑재 → `bun run check:lenders`가
+> `표시명도 전량 일치 ✅`. label만 변이해 재실행하니 `renamed` 축만 발화(code 축 조용) + exit 1.
+> 남은 것 없음. 🔵 후속 예고 1건 = 파트너 **하나캐피탈** 추가 검토(배선 시 사전 통보 약속).
 
 ## 요약
 
