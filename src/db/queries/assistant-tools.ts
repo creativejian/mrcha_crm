@@ -7,6 +7,7 @@ import type { CustomerScope } from "../../lib/assistant-scope";
 import { kstDateOf, kstDayDiff } from "../../lib/kst-date";
 import { manualManageStatusActive, STALE_THRESHOLDS, staffActivityAt } from "./activity";
 import { getDefaultDb, type Executor } from "../client";
+import { formatPhone } from "../../../client/src/lib/phone-format"; // 화면과 같은 표기(부작용 0 순수 모듈)
 import { composedPhone } from "./customers"; // 주 번호 합성 SSOT — 손 복제 금지(앱 연결 고객은 customers.phone이 항상 NULL)
 import { consultationRequests, profiles } from "../public-app";
 import { consultationDismissals, customers, customerSchedules, customerTasks, quotes } from "../schema";
@@ -236,7 +237,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         // 주 번호와 추가 연락처를 **라벨로 구분**한다 — phone_secondary는 회사·배우자 번호일 수 있어
         // "본인 번호"로 뭉뚱그리면 안 된다(소유권 계약 #276: 추가 연락처는 매칭 금지 축).
         // 없으면 "미입력"을 명시 — 침묵하면 모델이 "결과에 없다"와 "고객에게 없다"를 구분하지 못한다.
-        `${r.name} — 연락처 ${r.phone ?? "미입력"}${r.phoneSecondary ? ` · 추가 연락처 ${r.phoneSecondary}` : ""}` +
+        `${r.name} — 연락처 ${r.phone ? formatPhone(r.phone) : "미입력"}${r.phoneSecondary ? ` · 추가 연락처 ${formatPhone(r.phoneSecondary)}` : ""}` +
         ` · 상담경로 ${r.source ?? "미입력"} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}${r.needMethod ? ` · 구매방식 ${r.needMethod}` : ""}`);
       return { label: `${label}(${filterLabel})`, lines };
     }
