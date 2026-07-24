@@ -24,7 +24,10 @@ export type VehicleSelection = { brand?: Brand; model?: Model; trim?: Trim; trim
 
 type Level = "brand" | "model" | "trim";
 
-export function WorkbenchVehiclePicker({ initialTrimId, onChange }: { initialTrimId?: number; onChange?: (selection: VehicleSelection) => void }) {
+// compact = 라벨을 시각적으로 숨기고 값 폭을 넓히는 배치(니즈 폼의 가로 3분할). 라벨이 안 보이므로
+// 빈 상태 문구가 "선택" 대신 "제조사 선택"처럼 무엇을 고르는지 스스로 말해야 한다.
+// 워크벤치(세로 스택)는 기본값 그대로 — 거기선 라벨이 자리를 뺏지 않고 폼 필드로서 필요하다.
+export function WorkbenchVehiclePicker({ initialTrimId, onChange, compact }: { initialTrimId?: number; onChange?: (selection: VehicleSelection) => void; compact?: boolean }) {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [trims, setTrims] = useState<Trim[]>([]);
@@ -164,24 +167,25 @@ export function WorkbenchVehiclePicker({ initialTrimId, onChange }: { initialTri
   const masterTrims = useMemo(() => trims.map((t) => ({ ...toMasterTrim(t), quotable: true })), [trims]);
 
   const editLoading = initialTrimId != null && loading != null && !brand;
+  const placeholder = (level: "제조사" | "모델" | "트림") => (compact ? `${level} 선택` : "선택");
 
   return (
     <div className="kim-vehicle-picker">
       <div className="kim-vehicle-picker-anchor">
         <PickerTriggerRow label="제조사" onClick={() => openLevel("brand")} bClassName={brand ? "" : "muted"}>
-          {editLoading ? <span className="kim-vehicle-skeleton" /> : (brand?.name ?? "선택")}
+          {editLoading ? <span className="kim-vehicle-skeleton" /> : (brand?.name ?? placeholder("제조사"))}
         </PickerTriggerRow>
       </div>
 
       <div className="kim-vehicle-picker-anchor">
         <PickerTriggerRow label="모델" disabled={!brand} onClick={() => openLevel("model")} bClassName={model ? "" : "muted"}>
-          {editLoading ? <span className="kim-vehicle-skeleton" /> : (model?.name ?? "선택")}
+          {editLoading ? <span className="kim-vehicle-skeleton" /> : (model?.name ?? placeholder("모델"))}
         </PickerTriggerRow>
       </div>
 
       <div className="kim-vehicle-picker-anchor">
         <PickerTriggerRow label="트림" disabled={!model} onClick={() => openLevel("trim")} bClassName={trim ? "" : "muted"}>
-          {editLoading ? <span className="kim-vehicle-skeleton" /> : (trim ? trim.trimName ?? trim.name : "선택")}
+          {editLoading ? <span className="kim-vehicle-skeleton" /> : (trim ? trim.trimName ?? trim.name : placeholder("트림"))}
         </PickerTriggerRow>
       </div>
 

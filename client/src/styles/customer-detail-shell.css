@@ -816,9 +816,22 @@
    ⚠️ 팝오버를 min-width로 넓히는 방식은 쓰지 않는다 — absolute+left:0라 화면 오른쪽으로 밀려
    저장 버튼째 잘렸다(2026-07-24 실기). 부모 카드 폭(width:100%) 안에서 해결한다. */
 .kim-needs-vehicle-picker .kim-jeff-picker-row {
-  grid-template-columns: 46px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   padding: 0 12px;
+}
+
+/* 라벨은 **시각적으로만** 숨긴다(유슨생 결정, 2026-07-24) — 46px 고정폭을 값에 돌려주면 "4 Se…"처럼
+   잘리던 값이 살아난다. 순서(제조사→모델→트림)가 고정이고 값 자체가 무엇인지 말하므로 화면에서는
+   군더더기다. display:none이 아닌 이유: 스크린리더에는 남아야 "무엇을 고르는 버튼"인지 알 수 있다.
+   빈 상태 문구는 compact 모드가 "제조사 선택"처럼 스스로 말한다(WorkbenchVehiclePicker). */
+.kim-needs-vehicle-picker .kim-jeff-picker-row > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .kim-needs-vehicle-picker {

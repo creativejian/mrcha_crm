@@ -55,7 +55,7 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
               차종 열·AI 프로필 임베딩 청크로 그대로 흘러간다.
               값은 hidden으로 넘겨 기존 FormData 저장 경로를 그대로 쓴다. */}
           <div className="kim-needs-vehicle-picker">
-            <WorkbenchVehiclePicker initialTrimId={detail.needTrimId ?? undefined} onChange={onVehiclePicked} />
+            <WorkbenchVehiclePicker compact initialTrimId={detail.needTrimId ?? undefined} onChange={onVehiclePicked} />
           </div>
           <input name="model" type="hidden" value={vehiclePick?.model ?? needs.model} />
           <input name="trim" type="hidden" value={vehiclePick?.trim ?? needs.trim} />
