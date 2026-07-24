@@ -34,6 +34,12 @@ export const quoteRequests = pgTable("quote_requests", {
   interiorColorId: bigint("interior_color_id", { mode: "number" }),
   interiorColorName: text("interior_color_name"),
   interiorColorHex: text("interior_color_hex"),
+  // 연간 주행거리(리스/렌트 전용 — 할부·일시불 요청에는 없다). 대표 견적요청 니즈 파생이 읽는다
+  // (2026-07-24 설계 D2). 앱이 제출 전 검증하는 닫힌 집합이라(chat_quote_flow.dart:379 — 렌트
+  // {10000,20000,30000,40000} · 그 외 {10000,20000,30000}) CRM CHECK 8종을 벗어나지 않는다.
+  // 같은 테이블의 annual_mileage_is_minimum·residual_strategy·deposit_input_mode·minimum_driver_age는
+  // CRM이 쓰지 않아 의도적으로 미러하지 않는다.
+  annualMileageKm: integer("annual_mileage_km"),
   // 출고·추가요청 13필드(2026-07-24 앱 마이그 20260724120000, 계약 = ref/2026-07-24-app-delivery-contract-reply.md).
   // 지역은 either/or — 리스/렌트/미정은 delivery_*(인수 지역), 할부/일시불은 registration_*(등록 지역).
   // 소비 분기는 quote-requests.ts deliveryRegionOf가 SSOT. code는 앱 자체 광역 16코드(행정표준코드 아님),

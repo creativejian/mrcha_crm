@@ -1,11 +1,12 @@
 import { test, expect } from "bun:test";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
 import { ConflictError, LinkConflictError } from "../lib/errors";
-import { createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests, listQuoteRequestsByUser } from "../db/queries/quote-requests";
+import { deriveNeedsFromRequest } from "../../client/src/lib/quote-request-needs";
+import { applyFeaturedRequestNeeds, createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests, listQuoteRequestsByUser } from "../db/queries/quote-requests";
 import { createQuote } from "../db/queries/customer-quotes";
 import { profiles, quoteRequests as quoteRequestsTable, quoteRequestOptions as quoteRequestOptionsTable } from "../db/public-app";
 import { customers, quotes } from "../db/schema";
@@ -77,6 +78,105 @@ test("createCustomerFromRequest: 신규 고객 생성 + CU 코드 + app_user_id 
   ).rejects.toThrow("ROLLBACK");
 });
 
+// ── 대표 견적요청 기반 니즈 파생(2026-07-24 설계 D1·D2·D5) ──────────────────
+// 파생 규칙 자체는 client/src/lib/quote-request-needs.test.ts가 잠근다. 여기서는 "쿼리가 그 결과를
+// 그대로 컬럼에 썼는가"와 대표 지정 동작만 본다.
+
+test("applyFeaturedRequestNeeds: 대표 지정 + need_* 7필드 파생 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  // V2 완전체 요청(출고 시기 + 주행거리까지 있는 표본) — 파생 5필드를 전부 검증할 수 있다.
+  const [req] = await db
+    .select({
+      id: quoteRequestsTable.id,
+      paymentMethod: quoteRequestsTable.paymentMethod,
+      period: quoteRequestsTable.period,
+      depositType: quoteRequestsTable.depositType,
+      depositRatio: quoteRequestsTable.depositRatio,
+      rentalDeposit: quoteRequestsTable.rentalDeposit,
+      annualMileageKm: quoteRequestsTable.annualMileageKm,
+      deliveryTimingMode: quoteRequestsTable.deliveryTimingMode,
+      deliveryTimingReferenceMonth: quoteRequestsTable.deliveryTimingReferenceMonth,
+      deliveryTargetMonth: quoteRequestsTable.deliveryTargetMonth,
+    })
+    .from(quoteRequestsTable)
+    .where(and(isNotNull(quoteRequestsTable.deliveryTimingMode), isNotNull(quoteRequestsTable.annualMileageKm), isNotNull(quoteRequestsTable.trimId)))
+    .limit(1);
+  expect(req).toBeDefined();
+  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+
+  await expect(
+    db.transaction(async (tx) => {
+      await applyFeaturedRequestNeeds(cust.id, req.id, tx);
+      const [c] = await tx
+        .select({
+          featuredRequestId: customers.featuredRequestId,
+          needModel: customers.needModel,
+          needTrim: customers.needTrim,
+          needMethod: customers.needMethod,
+          needContractTerm: customers.needContractTerm,
+          needInitialCost: customers.needInitialCost,
+          needAnnualMileage: customers.needAnnualMileage,
+          needTiming: customers.needTiming,
+        })
+        .from(customers)
+        .where(eq(customers.id, cust.id));
+      expect(c.featuredRequestId).toBe(req.id);
+      expect({
+        needMethod: c.needMethod,
+        needContractTerm: c.needContractTerm,
+        needInitialCost: c.needInitialCost,
+        needAnnualMileage: c.needAnnualMileage,
+        needTiming: c.needTiming,
+      }).toEqual(deriveNeedsFromRequest(req));
+      // 차량 2필드는 catalog 조인 결과 — trim_id가 있는 요청을 골랐으므로 채워져야 한다.
+      expect(typeof c.needModel).toBe("string");
+      expect(typeof c.needTrim).toBe("string");
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});
+
+test("createCustomerFromRequest: 신규 생성이면 그 요청이 대표가 된다 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  const [req] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
+  await expect(
+    db.transaction(async (tx) => {
+      // 기존 연결을 풀어 신규 생성 분기를 타게 한다(위 테스트들과 같은 수법, 롤백됨).
+      await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, req.userId));
+      const created = await createCustomerFromRequest(req.id, tx);
+      const [c] = await tx.select({ featuredRequestId: customers.featuredRequestId }).from(customers).where(eq(customers.id, created!.id));
+      expect(c.featuredRequestId).toBe(req.id);
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});
+
+test("createCustomerFromRequest: 이미 대표가 있으면 승격이 되돌리지 않는다 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  // 같은 앱 유저의 요청 2건(요청이 여러 건인 유저에서 뽑는다).
+  const [first] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
+  const [second] = await db
+    .select({ id: quoteRequestsTable.id })
+    .from(quoteRequestsTable)
+    .where(and(eq(quoteRequestsTable.userId, first.userId), sql`${quoteRequestsTable.id} <> ${first.id}`))
+    .limit(1);
+  expect(second).toBeDefined();
+  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+
+  await expect(
+    db.transaction(async (tx) => {
+      await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, first.userId));
+      // 상담사가 second를 대표로 골라 둔 상태를 만든다.
+      await tx.update(customers).set({ appUserId: first.userId, featuredRequestId: second.id }).where(eq(customers.id, cust.id));
+      // 그 상태에서 first 요청으로 승격을 누른다 → 기존 고객 반환 경로.
+      await createCustomerFromRequest(first.id, tx);
+      const [c] = await tx.select({ featuredRequestId: customers.featuredRequestId }).from(customers).where(eq(customers.id, cust.id));
+      expect(c.featuredRequestId).toBe(second.id); // 상담사 선택이 유지된다
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});
+
 test("createCustomerFromRequest: 같은 user 중복 호출은 기존 고객 반환 (tx 롤백)", async () => {
   const db = getDefaultDb();
   const [req] = await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
@@ -90,20 +190,28 @@ test("createCustomerFromRequest: 같은 user 중복 호출은 기존 고객 반�
   ).rejects.toThrow("ROLLBACK");
 });
 
-// 출고 시기 → need_timing 시드 (계약 D3·D4 절대화 + D5 비파괴).
-// V2 요청이 아직 실 DB에 0건이라, 트랜잭션 안에서 timing을 심고 롤백해 경로를 실측한다
-// (quote_requests는 앱 소유 read 원칙이지만 롤백되고, 알림 트리거 4테이블에도 없다).
+// 출고 시기 → need_timing 파생 (계약 D3·D4 절대화 + 2026-07-24 대표 견적요청 설계 D1·D5).
+// 트랜잭션 안에서 timing을 심고 롤백해 경로를 실측한다(quote_requests는 앱 소유 read 원칙이지만
+// 롤백되고, 알림 트리거 4테이블에도 없다).
+// ⚠️ 심는 대상은 **그 유저의 최초 요청**이다 — 대표가 최초 요청이라(설계 D1) 다른 요청에 심으면
+//    파생에 반영되지 않는다.
 async function withSeededTiming<T>(
   fn: (tx: Parameters<Parameters<ReturnType<typeof getDefaultDb>["transaction"]>[0]>[0], reqId: string, userId: string) => Promise<T>,
 ): Promise<void> {
   const db = getDefaultDb();
   const [req] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
+  const [first] = await db
+    .select({ id: quoteRequestsTable.id })
+    .from(quoteRequestsTable)
+    .where(eq(quoteRequestsTable.userId, req.userId))
+    .orderBy(asc(quoteRequestsTable.createdAt))
+    .limit(1);
   await expect(
     db.transaction(async (tx) => {
       await tx
         .update(quoteRequestsTable)
         .set({ deliveryTimingMode: "next_month", deliveryTimingReferenceMonth: "2026-07" })
-        .where(eq(quoteRequestsTable.id, req.id));
+        .where(eq(quoteRequestsTable.id, first.id));
       await fn(tx, req.id, req.userId);
       throw new Error("ROLLBACK");
     }),
@@ -119,30 +227,24 @@ test("createCustomerFromRequest: 신규 고객에 출고 시기를 절대화해 
   });
 });
 
-test("createCustomerFromRequest: 기존 고객이면 need_timing 빈 칸만 채운다 (tx 롤백)", async () => {
+// 대표가 아직 없는 기존 고객(구 데이터·상담신청으로만 연결된 고객)은 승격 때 최초 요청으로 채워진다.
+test("createCustomerFromRequest: 대표가 없는 기존 고객은 최초 요청으로 채운다 (tx 롤백)", async () => {
   await withSeededTiming(async (tx, reqId, userId) => {
     await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, userId));
     const created = await createCustomerFromRequest(reqId, tx);
-    await tx.update(customers).set({ needTiming: null }).where(eq(customers.id, created!.id));
+    // 대표를 지워 "구 데이터" 상태를 만든다(니즈도 함께 비운다).
+    await tx.update(customers).set({ featuredRequestId: null, needTiming: null }).where(eq(customers.id, created!.id));
     await createCustomerFromRequest(reqId, tx); // 두 번째 = 기존 고객 분기
     const [c] = await tx.select({ needTiming: customers.needTiming }).from(customers).where(eq(customers.id, created!.id));
     expect(c.needTiming).toBe("2026년 8월");
   });
 });
 
-// D5의 핵심 — 상담사 수기 입력을 자동 시드가 지우면 안 된다.
-test("createCustomerFromRequest: 기존 고객의 need_timing 수기 값은 덮지 않는다 (tx 롤백)", async () => {
-  await withSeededTiming(async (tx, reqId, userId) => {
-    await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, userId));
-    const created = await createCustomerFromRequest(reqId, tx);
-    await tx.update(customers).set({ needTiming: "상담사가 적은 값" }).where(eq(customers.id, created!.id));
-    await createCustomerFromRequest(reqId, tx);
-    const [c] = await tx.select({ needTiming: customers.needTiming }).from(customers).where(eq(customers.id, created!.id));
-    expect(c.needTiming).toBe("상담사가 적은 값");
-  });
-});
+// ⚠️ 구 계약(D5 "수기 값은 덮지 않는다")을 잠그던 테스트는 삭제했다 — 2026-07-24 설계 D5가 그 규칙을
+// 뒤집었다(대표가 정해지면 파생값이 정본이고 수기값을 덮는다). 새 보호 규칙은 "대표가 이미 있으면
+// 승격이 되돌리지 않는다"이고 위쪽 전용 테스트가 잠근다.
 
-test("linkRequestToCustomer: 연결된 기존 고객의 빈 need_timing을 채운다 (tx 롤백)", async () => {
+test("linkRequestToCustomer: 연결된 기존 고객을 최초 요청으로 채운다 (tx 롤백)", async () => {
   await withSeededTiming(async (tx, reqId, userId) => {
     const [cust] = await tx.select({ id: customers.id }).from(customers).limit(1);
     await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, userId));
