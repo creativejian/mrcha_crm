@@ -102,13 +102,28 @@ function trimmedOrNull(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-export function deliveryVehicleDisplay(customer: Customer): string | null {
+// 계약·출고 화면의 차량 표시 — 전체보기와 같은 2줄(차종 / 트림) 구조로 준다(2026-07-24).
+// 한 덩어리 문자열이던 것을 나눈 이유: "제네시스 G80 26년형 가솔린 터보 2.5 - 2WD"처럼 길면 한 줄에
+// 안 들어가 잘렸는데, 정작 견적에는 브랜드·모델·트림이 **이미 나뉘어** 있었다.
+// trim이 null이면 제목 한 줄만 그린다.
+export type ContractVehicleDisplay = { title: string; trim: string | null };
+
+export function deliveryVehicleDisplay(customer: Customer): ContractVehicleDisplay | null {
   const contract = trimmedOrNull(customer.delivery?.contractVehicle);
-  if (contract) return contract;
   const q = customer.contractingQuote;
-  // 브랜드·모델·트림 결합(각 null 가능 — 전부 비면 견적이 있어도 표시할 게 없다).
-  const quoteLabel = q ? [q.brandName, q.modelName, q.trimName].map(trimmedOrNull).filter(Boolean).join(" ") : "";
-  return quoteLabel || null;
+  const brandModel = q ? [q.brandName, q.modelName].map(trimmedOrNull).filter(Boolean).join(" ") : "";
+  const quoteTrim = trimmedOrNull(q?.trimName);
+  // 견적을 한 줄로 합친 모습 — 저장값이 이것과 같은지 비교하는 데만 쓴다.
+  const quoteLabel = [brandModel, quoteTrim].filter(Boolean).join(" ");
+
+  // 상담사 입력이 정본이다(출고 spec §5.2). 다만 그 값이 견적 합본과 **글자까지 같으면** 견적의 분리
+  // 구조를 써서 차종/트림 2줄로 보여준다 — 같은 정보를 읽기 좋게 나눌 뿐이라 정본 규칙과 어긋나지 않는다
+  // (실측 2026-07-24: 제임스의 저장값이 정확히 그 경우였다). 다르면 상담사가 쓴 그대로 한 줄로 둔다.
+  if (contract && contract !== quoteLabel) return { title: contract, trim: null };
+  if (brandModel) return { title: brandModel, trim: quoteTrim };
+  // 브랜드·모델이 비고 트림만 있는 견적 — 트림을 제목으로 올린다(빈 제목 + 트림 줄은 어색하다).
+  if (quoteTrim) return { title: quoteTrim, trim: null };
+  return contract ? { title: contract, trim: null } : null;
 }
 
 // 구매방식도 같은 규칙 — 니즈를 쓰면 "BMW 3 Series · 장기렌트"처럼 실재하지 않는 조합이 나온다

@@ -104,34 +104,57 @@ describe("aiHintPlainText", () => {
 describe("deliveryVehicleDisplay", () => {
   const base = { vehicle: "기아 레이", vehicleTrim: "26년형 프레스티지" } as Customer;
 
-  it("계약 차량 저장값이 있으면 최우선", () => {
+  it("계약 차량 저장값이 견적과 다르면 그 값을 그대로 한 줄로(상담사 입력이 정본)", () => {
     expect(
       deliveryVehicleDisplay({
         ...base,
         delivery: { contractVehicle: "BMW 3 Series 320i", lender: null, contractDate: null, deliveredDate: null, deliveryMemo: null },
         contractingQuote: { id: "q1", brandName: "제네시스", modelName: "G80", trimName: null, purchaseMethod: null, lender: null },
       } as Customer),
-    ).toBe("BMW 3 Series 320i");
+    ).toEqual({ title: "BMW 3 Series 320i", trim: null });
   });
 
-  it("계약 차량이 없으면 계약 진행 견적(브랜드·모델·트림 결합)", () => {
+  // 실측(2026-07-24): 제임스의 저장값 "BMW 3 Series 320i LCI 2"가 견적 합본과 글자까지 같았다.
+  // 같은 정보를 차종/트림 2줄로 나눠 보여줄 뿐이라 "상담사 입력이 정본" 규칙을 어기지 않는다.
+  it("저장값이 견적 합본과 같으면 견적 구조로 쪼갠다", () => {
+    expect(
+      deliveryVehicleDisplay({
+        ...base,
+        delivery: { contractVehicle: "BMW 3 Series 320i LCI 2", lender: null, contractDate: null, deliveredDate: null, deliveryMemo: null },
+        contractingQuote: { id: "q1", brandName: "BMW", modelName: "3 Series", trimName: "320i LCI 2", purchaseMethod: null, lender: null },
+      } as Customer),
+    ).toEqual({ title: "BMW 3 Series", trim: "320i LCI 2" });
+  });
+
+  it("계약 차량이 없으면 계약 진행 견적을 차종/트림으로 나눈다", () => {
     expect(
       deliveryVehicleDisplay({
         ...base,
         delivery: null,
         contractingQuote: { id: "q1", brandName: "BMW", modelName: "3 Series", trimName: "320i LCI 2", purchaseMethod: null, lender: null },
       } as Customer),
-    ).toBe("BMW 3 Series 320i LCI 2");
+    ).toEqual({ title: "BMW 3 Series", trim: "320i LCI 2" });
   });
 
-  it("견적에 트림이 없으면 브랜드·모델만", () => {
+  it("견적에 트림이 없으면 브랜드·모델만(트림 줄 없음)", () => {
     expect(
       deliveryVehicleDisplay({
         ...base,
         delivery: null,
         contractingQuote: { id: "q1", brandName: "제네시스", modelName: "G80", trimName: null, purchaseMethod: null, lender: null },
       } as Customer),
-    ).toBe("제네시스 G80");
+    ).toEqual({ title: "제네시스 G80", trim: null });
+  });
+
+  // 브랜드·모델이 비고 트림만 있는 견적 — 트림을 제목 줄로 올린다(빈 제목 + 트림 줄은 어색하다).
+  it("트림만 있는 견적은 트림이 제목이 된다", () => {
+    expect(
+      deliveryVehicleDisplay({
+        ...base,
+        delivery: null,
+        contractingQuote: { id: "q1", brandName: null, modelName: null, trimName: "320i LCI 2", purchaseMethod: null, lender: null },
+      } as Customer),
+    ).toEqual({ title: "320i LCI 2", trim: null });
   });
 
   // 니즈가 있어도 무시한다 — 이게 이 함수의 핵심 계약이다.

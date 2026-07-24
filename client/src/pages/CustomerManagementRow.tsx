@@ -127,7 +127,10 @@ export function CustomerVehicleCell({
    * 차량·구매방식 모두 **계약 근거만** 쓴다(deliveryVehicleDisplay·deliveryMethodDisplay) — 니즈는
    * 최초 승격 시드라 계약 실무 화면에선 노이즈이고, 보이면 상담사가 진짜 계약 차량을 안 채운다.
    * 없으면 "미입력"으로 두어 입력을 유도한다(출고 정보의 `+ 미지정` 패턴과 같은 결).
-   * 비교 차종(+N pill)·트림 줄은 미표시 — 계약 확정 맥락이라 "고민 중" 어휘가 오도(트림은 차량 라벨에 포함). */
+   * 비교 차종(+N pill)은 미표시 — 계약 확정 맥락이라 "고민 중" 어휘가 오도한다.
+   * 트림은 **별도 줄**로 그린다(2026-07-24) — 전체보기와 같은 3줄 구조(차종/트림/구매방식). 구 주석의
+   * "트림은 차량 라벨에 포함"은 폐기: 한 줄로 합치면 "제네시스 G80 26년형 가솔린 터보 2.5 - 2WD"처럼
+   * 길어 잘렸는데, 정작 견적에는 브랜드·모델·트림이 이미 나뉘어 있었다. */
   contractContext?: boolean;
 }) {
   const vehicle = vehicleDisplay(customer);
@@ -138,11 +141,14 @@ export function CustomerVehicleCell({
       <td>
         <strong className="vehicle-title">
           {contractVehicle ? (
-            <span className="vehicle-line-text" title={contractVehicle}>{contractVehicle}</span>
+            <span className="vehicle-line-text" title={contractVehicle.title}>{contractVehicle.title}</span>
           ) : (
             <span className="vehicle-line-text vehicle-line-empty">차량 미입력</span>
           )}
         </strong>
+        {/* 트림 줄 — 전체보기와 같은 클래스를 쓴다(차종 굵게 / 트림·구매방식 회색 3줄).
+            견적이 브랜드·모델·트림을 나눠 갖고 있을 때만 생긴다(deliveryVehicleDisplay 참조). */}
+        {contractVehicle?.trim ? <span className="vehicle-trim" title={contractVehicle.trim}>{contractVehicle.trim}</span> : null}
         {contractMethod ? <span className="vehicle-method"><span className="vehicle-line-text">{contractMethod}</span></span> : null}
       </td>
     );
