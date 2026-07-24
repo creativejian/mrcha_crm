@@ -922,7 +922,7 @@ export function CustomerManagementPage({
         <tr key={customer.no} {...rowProps}>
           {check}
           {customerCell}
-          <CustomerVehicleCell contractVehicle={customer.delivery?.contractVehicle ?? null} customer={customer} extraPopoverRef={extraPopoverRef} onToggleExtra={toggleExtraPopover} openExtraFor={openExtraFor} />
+          <CustomerVehicleCell customer={customer} deliveryMode={mode === "delivery"} extraPopoverRef={extraPopoverRef} onToggleExtra={toggleExtraPopover} openExtraFor={openExtraFor} />
           <CustomerStageCell customer={customer} onChangePrimary={changeTwoStepPrimaryStage} onChangeSecondary={changeTwoStepSecondaryStage} onOpenPicker={openTwoStepStagePicker} pickerLevel={twoStepPickerOpen} secondaryOnly stagePickerRef={stagePickerRef} />
           <CustomerDeliveryScheduleCell
             customer={customer}

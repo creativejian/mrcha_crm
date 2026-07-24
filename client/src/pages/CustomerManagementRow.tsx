@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
-import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
+import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
 import { deliveryInfoSummary, seedDeliveryInfoDraft, type DeliveryInfoDraft } from "@/lib/delivery-info";
 import { SOLUTION_LENDERS } from "@/lib/solution-quote";
@@ -117,21 +117,34 @@ export function CustomerVehicleCell({
   openExtraFor,
   onToggleExtra,
   extraPopoverRef,
-  contractVehicle = null,
+  deliveryMode = false,
 }: {
   customer: Customer;
   openExtraFor: string | null;
   onToggleExtra: (event: MouseEvent<HTMLButtonElement>, extraId: string) => void;
   extraPopoverRef: RefObject<HTMLButtonElement | null>;
-  /** delivery mode 한정(출고 2단계 spec §5.2): 계약 차량 저장값이 있으면 모델·트림 줄을 대체.
+  /** delivery mode 한정(출고 2단계 spec §5.2): 계약 맥락 표시로 전환.
+   * 계약 차량 저장값 → 계약 진행 견적 → 니즈 3단 폴백(deliveryVehicleDisplay)이고, 니즈로 내려가면
+   * "관심" 라벨로 구분한다 — 니즈는 최초 승격 때 박힌 관심 차종이라 계약 차량으로 오독되면 안 된다.
    * 비교 차종(+N pill)·트림 줄은 미표시 — 계약 확정 맥락이라 "고민 중" 어휘가 오도. 구매방식 줄은 니즈 파생 유지. */
-  contractVehicle?: string | null;
+  deliveryMode?: boolean;
 }) {
   const vehicle = vehicleDisplay(customer);
-  if (contractVehicle) {
+  if (deliveryMode) {
+    const dv = deliveryVehicleDisplay(customer);
+    const title = dv.kind === "needs" ? (dv.label ? `관심 차종(계약 차량 미입력) — ${dv.label}` : undefined) : (dv.label ?? undefined);
     return (
       <td>
-        <strong className="vehicle-title"><span className="vehicle-line-text" title={contractVehicle}>{contractVehicle}</span></strong>
+        <strong className="vehicle-title">
+          {dv.label ? (
+            <span className="vehicle-line-text" title={title}>
+              {dv.kind === "needs" ? <em className="vehicle-needs-tag">관심</em> : null}
+              {dv.label}
+            </span>
+          ) : (
+            <span className="vehicle-line-text vehicle-line-empty">차량 미입력</span>
+          )}
+        </strong>
         <span className="vehicle-method"><span className="vehicle-line-text">{vehicle.method}</span></span>
       </td>
     );

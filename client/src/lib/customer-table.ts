@@ -87,6 +87,34 @@ export function vehicleDisplay(customer: Customer) {
   };
 }
 
+// 출고 관리(delivery mode) 차량 열의 표시 소스 — 3단 폴백이고 **어느 소스인지가 결과에 남는다**(kind).
+// contract = 상담사가 입력한 계약 차량(정본) · quote = 계약 진행 마킹된 견적 · needs = 니즈(관심 차종).
+//
+// ⚠️ needs를 그냥 보여주면 안 되는 이유: 니즈는 **최초 승격 때 그 요청의 차량으로 한 번 박히고 끝**이다
+// (createCustomerFromRequest 시드 — 이후 요청이 아무리 와도 갱신되지 않고, 앱 연결 고객은 CRM에 편집
+// UI조차 없다). 계약·출고 실무 화면에서 이게 계약 차량인 양 뜨면 오독된다 — 실제로 계약은 BMW인데
+// 목록엔 최초 관심 차종 "기아 레이"가 떠서 혼란이 보고됐다(2026-07-24 유슨생). 그래서 kind를 남겨
+// 렌더가 "관심" 라벨로 구분하게 한다(값을 숨기지는 않는다 — 계약 견적이 없는 고객엔 유일한 단서다).
+export type DeliveryVehicleDisplay = {
+  kind: "contract" | "quote" | "needs";
+  label: string | null; // needs이고 니즈도 비면 null → 렌더가 미입력 처리
+};
+
+function trimmedOrNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+export function deliveryVehicleDisplay(customer: Customer): DeliveryVehicleDisplay {
+  const contract = trimmedOrNull(customer.delivery?.contractVehicle);
+  if (contract) return { kind: "contract", label: contract };
+  const q = customer.contractingQuote;
+  // 브랜드·모델·트림 결합(각 null 가능 — 전부 비면 견적이 있어도 표시할 게 없어 니즈로 내려간다).
+  const quoteLabel = q ? [q.brandName, q.modelName, q.trimName].map(trimmedOrNull).filter(Boolean).join(" ") : "";
+  if (quoteLabel) return { kind: "quote", label: quoteLabel };
+  return { kind: "needs", label: trimmedOrNull(customer.vehicle) };
+}
+
 export function customerMeta(customer: Customer) {
   return [customer.customerType, customer.customerTypeDetail].filter(Boolean).join(" · ");
 }

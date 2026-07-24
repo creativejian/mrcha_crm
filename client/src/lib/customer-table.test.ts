@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Customer } from "@/data/customers";
-import { aiHintDisplay, aiHintPlainText, parseAiHintParts, resolveChance } from "./customer-table";
+import { aiHintDisplay, aiHintPlainText, deliveryVehicleDisplay, parseAiHintParts, resolveChance } from "./customer-table";
 
 // 계약 가능성 판정에 필요한 필드만 채운 최소 고객 팩토리(나머지는 표시값과 무관).
 function makeCustomer(overrides: Partial<Customer>): Customer {
@@ -93,5 +93,60 @@ describe("aiHintDisplay (목업 테이블 폐기 후)", () => {
 describe("aiHintPlainText", () => {
   it("마커 제거 평문(검색·레거시 셀용)", () => {
     expect(aiHintPlainText(makeCustomer({ aiSummary: "**X3** 비교 중" }))).toBe("X3 비교 중");
+  });
+});
+
+// 출고 관리 차량 열 — 계약 차량 저장값 → 계약 진행 견적 → 니즈(관심) 3단 폴백.
+// 니즈는 "최초 승격 때 박힌 관심 차종"이라 계약 차량이 아니다(앱 연결 고객은 편집 UI도 없다) →
+// 계약 맥락 화면에서 그대로 두면 계약 차량으로 오독된다(2026-07-24 실무 혼란 제보).
+describe("deliveryVehicleDisplay", () => {
+  const base = { vehicle: "기아 레이", vehicleTrim: "26년형 프레스티지" } as Customer;
+
+  it("계약 차량 저장값이 있으면 최우선", () => {
+    const r = deliveryVehicleDisplay({
+      ...base,
+      delivery: { contractVehicle: "BMW 3 Series 320i", lender: null, contractDate: null, deliveredDate: null, deliveryMemo: null },
+      contractingQuote: { id: "q1", brandName: "제네시스", modelName: "G80", trimName: null, lender: null },
+    } as Customer);
+    expect(r).toEqual({ kind: "contract", label: "BMW 3 Series 320i" });
+  });
+
+  it("계약 차량이 없으면 계약 진행 견적(브랜드·모델·트림 결합)", () => {
+    const r = deliveryVehicleDisplay({
+      ...base,
+      delivery: null,
+      contractingQuote: { id: "q1", brandName: "BMW", modelName: "3 Series", trimName: "320i LCI 2", lender: null },
+    } as Customer);
+    expect(r).toEqual({ kind: "quote", label: "BMW 3 Series 320i LCI 2" });
+  });
+
+  it("견적에 트림이 없으면 브랜드·모델만", () => {
+    const r = deliveryVehicleDisplay({
+      ...base,
+      delivery: null,
+      contractingQuote: { id: "q1", brandName: "제네시스", modelName: "G80", trimName: null, lender: null },
+    } as Customer);
+    expect(r).toEqual({ kind: "quote", label: "제네시스 G80" });
+  });
+
+  // 둘 다 없으면 니즈로 내려가되 kind로 구분 — 렌더가 "관심" 라벨을 붙여 계약 차량과 섞이지 않게 한다.
+  it("둘 다 없으면 니즈(kind=needs)", () => {
+    const r = deliveryVehicleDisplay({ ...base, delivery: null, contractingQuote: null } as Customer);
+    expect(r).toEqual({ kind: "needs", label: "기아 레이" });
+  });
+
+  it("빈 문자열 저장값·빈 견적은 없는 것으로 본다", () => {
+    expect(
+      deliveryVehicleDisplay({
+        ...base,
+        delivery: { contractVehicle: "   ", lender: null, contractDate: null, deliveredDate: null, deliveryMemo: null },
+        contractingQuote: { id: "q1", brandName: null, modelName: null, trimName: null, lender: null },
+      } as Customer),
+    ).toEqual({ kind: "needs", label: "기아 레이" });
+  });
+
+  it("니즈조차 없으면 label null (렌더가 미입력 처리)", () => {
+    const r = deliveryVehicleDisplay({ vehicle: "", delivery: null, contractingQuote: null } as Customer);
+    expect(r).toEqual({ kind: "needs", label: null });
   });
 });
