@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Customer } from "@/data/customers";
-import { aiHintDisplay, aiHintPlainText, deliveryVehicleDisplay, parseAiHintParts, resolveChance } from "./customer-table";
+import { aiHintDisplay, aiHintPlainText, deliveryMethodDisplay, deliveryVehicleDisplay, parseAiHintParts, resolveChance } from "./customer-table";
 
 // 계약 가능성 판정에 필요한 필드만 채운 최소 고객 팩토리(나머지는 표시값과 무관).
 function makeCustomer(overrides: Partial<Customer>): Customer {
@@ -148,5 +148,35 @@ describe("deliveryVehicleDisplay", () => {
   it("니즈조차 없으면 label null (렌더가 미입력 처리)", () => {
     const r = deliveryVehicleDisplay({ vehicle: "", delivery: null, contractingQuote: null } as Customer);
     expect(r).toEqual({ kind: "needs", label: null });
+  });
+});
+
+// 계약·출고 목록의 구매방식 줄 — 계약 진행 견적이 있으면 그 시나리오 값이 정본.
+// 니즈(need_method)는 최초 승격 시드라 계약과 어긋난다(실측: 계약은 운용리스인데 니즈는 장기렌트).
+describe("deliveryMethodDisplay", () => {
+  it("계약 진행 견적의 구매방식이 니즈보다 우선", () => {
+    expect(
+      deliveryMethodDisplay({
+        method: "장기렌트",
+        contractingQuote: { id: "q1", brandName: "BMW", modelName: "3 Series", trimName: null, purchaseMethod: "운용리스", lender: "iM캐피탈" },
+      } as Customer),
+    ).toBe("운용리스");
+  });
+
+  it("계약 견적이 없으면 니즈 구매방식", () => {
+    expect(deliveryMethodDisplay({ method: "장기렌트", contractingQuote: null } as Customer)).toBe("장기렌트");
+  });
+
+  it("견적에 구매방식이 비어 있으면 니즈로 폴백", () => {
+    expect(
+      deliveryMethodDisplay({
+        method: "장기렌트",
+        contractingQuote: { id: "q1", brandName: "BMW", modelName: "3 Series", trimName: null, purchaseMethod: null, lender: null },
+      } as Customer),
+    ).toBe("장기렌트");
+  });
+
+  it("둘 다 없으면 빈 문자열", () => {
+    expect(deliveryMethodDisplay({ method: "", contractingQuote: null } as Customer)).toBe("");
   });
 });

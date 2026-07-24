@@ -2,9 +2,30 @@ import { describe, expect, it } from "vitest";
 import type { ContractingQuoteSummary, CustomerDeliveryInfo } from "@/data/customers";
 import { deliveryInfoSummary, resolveDeliveryInfoSubmit, seedDeliveryInfoDraft } from "./delivery-info";
 
-const QUOTE: ContractingQuoteSummary = { id: "q-1", brandName: "BMW", modelName: "5 Series", trimName: "520i", lender: "iM캐피탈" };
-const SAVED: CustomerDeliveryInfo = { contractVehicle: "수기 차량", contractDate: "2026-07-15", lender: "수기 금융사", deliveredDate: null, deliveryMemo: null, sourceQuoteId: "q-old" };
-const EMPTY: CustomerDeliveryInfo = { contractVehicle: null, contractDate: null, lender: null, deliveredDate: null, deliveryMemo: null, sourceQuoteId: null };
+const QUOTE: ContractingQuoteSummary = {
+  id: "q-1",
+  brandName: "BMW",
+  modelName: "5 Series",
+  trimName: "520i",
+  purchaseMethod: null,
+  lender: "iM캐피탈",
+};
+const SAVED: CustomerDeliveryInfo = {
+  contractVehicle: "수기 차량",
+  contractDate: "2026-07-15",
+  lender: "수기 금융사",
+  deliveredDate: null,
+  deliveryMemo: null,
+  sourceQuoteId: "q-old",
+};
+const EMPTY: CustomerDeliveryInfo = {
+  contractVehicle: null,
+  contractDate: null,
+  lender: null,
+  deliveredDate: null,
+  deliveryMemo: null,
+  sourceQuoteId: null,
+};
 
 describe("seedDeliveryInfoDraft (soft pipe — spec §5.3)", () => {
   it("저장값 없는 필드만 contracting 견적에서 시드한다(차량 dedupe 라벨·금융사)", () => {
@@ -40,11 +61,28 @@ describe("seedDeliveryInfoDraft (soft pipe — spec §5.3)", () => {
 });
 
 describe("resolveDeliveryInfoSubmit", () => {
-  const DRAFT = { contractVehicle: " BMW 520i ", contractDate: "2026-07-15", lender: "", deliveredDate: "", deliveryMemo: "  ", sourceQuoteId: "q-1" };
+  const DRAFT = {
+    contractVehicle: " BMW 520i ",
+    contractDate: "2026-07-15",
+    lender: "",
+    deliveredDate: "",
+    deliveryMemo: "  ",
+    sourceQuoteId: "q-1",
+  };
 
   it("빈 문자열·공백은 null, 텍스트는 trim, 날짜는 정규화해 body로", () => {
     const submit = resolveDeliveryInfoSubmit(DRAFT);
-    expect(submit).toEqual({ kind: "save", body: { contractVehicle: "BMW 520i", contractDate: "2026-07-15", lender: null, deliveredDate: null, deliveryMemo: null, sourceQuoteId: "q-1" } });
+    expect(submit).toEqual({
+      kind: "save",
+      body: {
+        contractVehicle: "BMW 520i",
+        contractDate: "2026-07-15",
+        lender: null,
+        deliveredDate: null,
+        deliveryMemo: null,
+        sourceQuoteId: "q-1",
+      },
+    });
   });
 
   it("유연 날짜 입력(2026.7.5)을 ISO로 정규화한다(datetime-text 규약)", () => {
@@ -65,8 +103,11 @@ describe("resolveDeliveryInfoSubmit", () => {
 
 describe("deliveryInfoSummary (셀 요약 — spec §5.1)", () => {
   it("계약 줄 = '계약 M/D · 금융사', 실측 줄 = '출고 M/D'", () => {
-    expect(deliveryInfoSummary({ ...EMPTY, contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: "2026-07-20" }))
-      .toEqual({ contractLine: "계약 7/15 · iM캐피탈", deliveredLine: "출고 7/20", fallback: null });
+    expect(deliveryInfoSummary({ ...EMPTY, contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: "2026-07-20" })).toEqual({
+      contractLine: "계약 7/15 · iM캐피탈",
+      deliveredLine: "출고 7/20",
+      fallback: null,
+    });
   });
 
   it("있는 값만 조합한다(금융사만 → 금융사만)", () => {
@@ -76,6 +117,10 @@ describe("deliveryInfoSummary (셀 요약 — spec §5.1)", () => {
   it("전부 비면 null(셀은 + 미입력), 줄 없는 필드만 있으면 fallback '입력됨'", () => {
     expect(deliveryInfoSummary(EMPTY)).toBeNull();
     expect(deliveryInfoSummary(null)).toBeNull();
-    expect(deliveryInfoSummary({ ...EMPTY, deliveryMemo: "탁송 조율" })).toEqual({ contractLine: null, deliveredLine: null, fallback: "입력됨" });
+    expect(deliveryInfoSummary({ ...EMPTY, deliveryMemo: "탁송 조율" })).toEqual({
+      contractLine: null,
+      deliveredLine: null,
+      fallback: "입력됨",
+    });
   });
 });

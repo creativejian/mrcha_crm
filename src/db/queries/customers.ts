@@ -74,6 +74,9 @@ const contractingQuoteSummary = sql<ContractingQuoteSummary | null>`(
     'brandName', q.brand_name,
     'modelName', q.model_name,
     'trimName', q.trim_name,
+    -- 구매방식도 대표 시나리오 경유(lender와 같은 자리) — 계약·출고 목록이 니즈(need_method)를 쓰던 것을
+    -- 계약 기준으로 바꾸기 위해 추가(2026-07-24). 니즈는 최초 승격 시드라 "계약은 운용리스인데 장기렌트"가 났다.
+    'purchaseMethod', (select s.purchase_method from crm.quote_scenarios s where s.id = q.primary_scenario_id),
     'lender', (select s.lender from crm.quote_scenarios s where s.id = q.primary_scenario_id))
   from crm.quotes q
   where q.customer_id = crm.customers.id and q.decision_status = 'contracting'

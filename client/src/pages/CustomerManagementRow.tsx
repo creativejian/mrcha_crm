@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
-import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
+import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
 import { deliveryInfoSummary, seedDeliveryInfoDraft, type DeliveryInfoDraft } from "@/lib/delivery-info";
 import { SOLUTION_LENDERS } from "@/lib/solution-quote";
@@ -117,20 +117,22 @@ export function CustomerVehicleCell({
   openExtraFor,
   onToggleExtra,
   extraPopoverRef,
-  deliveryMode = false,
+  contractContext = false,
 }: {
   customer: Customer;
   openExtraFor: string | null;
   onToggleExtra: (event: MouseEvent<HTMLButtonElement>, extraId: string) => void;
   extraPopoverRef: RefObject<HTMLButtonElement | null>;
-  /** delivery mode 한정(출고 2단계 spec §5.2): 계약 맥락 표시로 전환.
-   * 계약 차량 저장값 → 계약 진행 견적 → 니즈 3단 폴백(deliveryVehicleDisplay)이고, 니즈로 내려가면
+  /** 계약 맥락(contract·delivery mode) 표시로 전환 — 출고 2단계 spec §5.2 확장(2026-07-24).
+   * 차량: 계약 차량 저장값 → 계약 진행 견적 → 니즈 3단 폴백(deliveryVehicleDisplay). 니즈로 내려가면
    * "관심" 라벨로 구분한다 — 니즈는 최초 승격 때 박힌 관심 차종이라 계약 차량으로 오독되면 안 된다.
-   * 비교 차종(+N pill)·트림 줄은 미표시 — 계약 확정 맥락이라 "고민 중" 어휘가 오도. 구매방식 줄은 니즈 파생 유지. */
-  deliveryMode?: boolean;
+   * 구매방식: 계약 진행 견적의 시나리오 값이 정본(deliveryMethodDisplay) — 니즈만 쓰면 "BMW 3 Series ·
+   * 장기렌트"처럼 실재하지 않는 조합이 나온다(계약은 운용리스, 니즈는 장기렌트 — 실측).
+   * 비교 차종(+N pill)·트림 줄은 미표시 — 계약 확정 맥락이라 "고민 중" 어휘가 오도(트림은 차량 라벨에 포함). */
+  contractContext?: boolean;
 }) {
   const vehicle = vehicleDisplay(customer);
-  if (deliveryMode) {
+  if (contractContext) {
     const dv = deliveryVehicleDisplay(customer);
     const title = dv.kind === "needs" ? (dv.label ? `관심 차종(계약 차량 미입력) — ${dv.label}` : undefined) : (dv.label ?? undefined);
     return (
@@ -145,7 +147,7 @@ export function CustomerVehicleCell({
             <span className="vehicle-line-text vehicle-line-empty">차량 미입력</span>
           )}
         </strong>
-        <span className="vehicle-method"><span className="vehicle-line-text">{vehicle.method}</span></span>
+        <span className="vehicle-method"><span className="vehicle-line-text">{deliveryMethodDisplay(customer)}</span></span>
       </td>
     );
   }

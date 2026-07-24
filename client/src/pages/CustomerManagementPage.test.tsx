@@ -744,7 +744,14 @@ describe("출고 관리(delivery) 콘솔", () => {
         status: "배정완료",
         nextDeliverySchedule: null,
         delivery: null,
-        contractingQuote: { id: "q-1", brandName: "BMW", modelName: "5 Series", trimName: "520i", lender: "iM캐피탈" },
+        contractingQuote: {
+          id: "q-1",
+          brandName: "BMW",
+          modelName: "5 Series",
+          trimName: "520i",
+          purchaseMethod: null,
+          lender: "iM캐피탈",
+        },
       },
     ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);

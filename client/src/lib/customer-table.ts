@@ -115,6 +115,13 @@ export function deliveryVehicleDisplay(customer: Customer): DeliveryVehicleDispl
   return { kind: "needs", label: trimmedOrNull(customer.vehicle) };
 }
 
+// 계약·출고 목록의 구매방식 줄 — 차량과 같은 이유로 계약 진행 견적이 니즈보다 우선한다.
+// 실측(2026-07-24): 제임스의 계약 견적은 **운용리스**인데 니즈(need_method)는 장기렌트라, 계약 화면에
+// 차량만 고치면 "BMW 3 Series · 장기렌트"라는 실재하지 않는 조합이 남는다.
+export function deliveryMethodDisplay(customer: Customer): string {
+  return trimmedOrNull(customer.contractingQuote?.purchaseMethod) ?? customer.method;
+}
+
 export function customerMeta(customer: Customer) {
   return [customer.customerType, customer.customerTypeDetail].filter(Boolean).join(" · ");
 }
