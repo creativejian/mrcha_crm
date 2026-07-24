@@ -803,6 +803,18 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* 니즈 폼의 관심 차량 3단 픽커 — 제조사·모델·트림을 **가로 한 줄**로(유슨생 결정, 2026-07-24).
+   워크벤치는 세로 스택 그대로 두므로 여기 래퍼로만 스코프한다. */
+.kim-needs-vehicle-picker .kim-vehicle-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.kim-needs-vehicle-picker {
+  margin-bottom: 9px;
+}
+
 .kim-edit-form label {
   display: grid;
   gap: 6px;

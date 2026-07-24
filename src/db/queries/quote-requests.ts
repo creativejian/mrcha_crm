@@ -393,17 +393,24 @@ const requestNeedsSelect = {
   deliveryTargetMonth: quoteRequests.deliveryTargetMonth,
 } as const;
 
-// 대표 요청의 차량(catalog 조인) — needModel·needTrim. 트림이 없거나 삭제됐으면 둘 다 null.
-async function vehicleNeedsOf(trimId: number | null, ex: Executor): Promise<{ needModel: string | null; needTrim: string | null }> {
-  if (trimId == null) return { needModel: null, needTrim: null };
+// 대표 요청의 차량(catalog 조인) — needTrimId(진짜 링크) + needModel·needTrim(표시용 스냅샷).
+// ⚠️ trim_id를 **버리지 않는다**(2026-07-24): 앱 견적요청은 원래 trim_id를 갖고 오는데 구 구현은
+// 텍스트 2개만 남겨 링크를 잃었다. id가 있어야 니즈 → 견적 프리필·트림명 변경 추종이 된다.
+// 트림이 catalog에서 사라졌으면(조인 실패) 셋 다 null — FK가 SET NULL로 정리하는 것과 같은 결.
+async function vehicleNeedsOf(
+  trimId: number | null,
+  ex: Executor,
+): Promise<{ needTrimId: number | null; needModel: string | null; needTrim: string | null }> {
+  if (trimId == null) return { needTrimId: null, needModel: null, needTrim: null };
   const [t] = await ex
     .select({ trimName: trimsInCatalog.trimName, modelName: modelsInCatalog.name, brandName: brandsInCatalog.name })
     .from(trimsInCatalog)
     .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
     .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
     .where(eq(trimsInCatalog.id, trimId));
-  if (!t) return { needModel: null, needTrim: null };
+  if (!t) return { needTrimId: null, needModel: null, needTrim: null };
   return {
+    needTrimId: trimId,
     needModel: [t.brandName, t.modelName].filter(Boolean).join(" ") || null,
     needTrim: t.trimName,
   };

@@ -267,6 +267,13 @@
       "when": 1784887139277,
       "tag": "0037_dear_goblin_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1784903027804,
+      "tag": "0038_nifty_the_captain",
+      "breakpoints": true
     }
   ]
 }

@@ -116,6 +116,8 @@ export const customerWriteSchema = z.object({
   team: z.string().nullable().optional(),
   needModel: z.string().nullable().optional(),
   needTrim: z.string().nullable().optional(),
+  // 관심 차량 catalog 트림 id — 니즈 폼 픽커가 보낸다(표시 텍스트 2개와 한 벌).
+  needTrimId: z.number().int().nullable().optional(),
   needColors: z.string().nullable().optional(),
   needMethod: z.string().nullable().optional(),
   needTiming: z.string().nullable().optional(),

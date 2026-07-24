@@ -3,6 +3,8 @@ import { useState, type Dispatch, type RefObject, type SetStateAction } from "re
 
 import { type CustomerDetailData } from "@/lib/customers";
 
+import { WorkbenchVehiclePicker, type VehicleSelection } from "./WorkbenchVehiclePickers";
+
 import { NEEDS_COLOR_PLACEHOLDER } from "./needs-meta";
 import { methodOptions } from "./purchase-meta";
 import { type OpenEditorState } from "./types";
@@ -31,20 +33,34 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
   // 상담신청 카드 삭제는 되돌리는 UI가 없어(재조회해도 dismissed 제외) 오클릭 방지용 인라인 확인 —
   // X 한 번은 "삭제/취소" 확인 상태로만 전환, 실제 삭제는 "삭제"를 한 번 더 눌러야 실행.
   const [confirmingConsultId, setConfirmingConsultId] = useState<string | null>(null);
+  // 관심 차량 선택(2026-07-24) — 수기 텍스트 대신 catalog 3단 픽커. null = 이 폼에서 아직 안 골랐음
+  // (기존 detail 값을 그대로 저장한다). 서버 파생(vehicleNeedsOf)과 **같은 형식**으로 만든다:
+  // needModel = "브랜드 모델", needTrim = 트림명. 형식이 갈리면 목록에서 같은 차가 달라 보인다.
+  const [vehiclePick, setVehiclePick] = useState<{ model: string; trim: string; trimId: number | null } | null>(null);
+
+  function onVehiclePicked(sel: VehicleSelection) {
+    setVehiclePick({
+      model: [sel.brand?.name, sel.model?.name].filter(Boolean).join(" "),
+      trim: sel.trim ? (sel.trim.trimName ?? sel.trim.name) : "",
+      trimId: sel.trim?.id ?? null,
+    });
+  }
 
   function renderNeedsEditor() {
     return (
       <div className="kim-edit-popover needs" role="dialog" aria-label="고객 니즈 수정">
         <form className="kim-edit-form needs" onSubmit={saveNeeds}>
+          {/* 관심 차량 = catalog 3단 픽커(제조사·모델·트림 가로). 수기 텍스트를 없앤 이유: 표기가
+              제각각이라 데이터로 못 썼다(실측 2026-07-24: 23건 중 catalog 형식 2건). 그 값이 목록
+              차종 열·AI 프로필 임베딩 청크로 그대로 흘러간다.
+              값은 hidden으로 넘겨 기존 FormData 저장 경로를 그대로 쓴다. */}
+          <div className="kim-needs-vehicle-picker">
+            <WorkbenchVehiclePicker initialTrimId={detail.needTrimId ?? undefined} onChange={onVehiclePicked} />
+          </div>
+          <input name="model" type="hidden" value={vehiclePick?.model ?? needs.model} />
+          <input name="trim" type="hidden" value={vehiclePick?.trim ?? needs.trim} />
+          <input name="trimId" type="hidden" value={vehiclePick ? (vehiclePick.trimId ?? "") : (detail.needTrimId ?? "")} />
           <div className="kim-edit-grid">
-            <label>
-              <span>관심 차종</span>
-              <input autoFocus defaultValue={needs.model} name="model" />
-            </label>
-            <label>
-              <span>트림</span>
-              <input defaultValue={needs.trim} name="trim" />
-            </label>
             <label>
               <span>색상</span>
               <input defaultValue={needs.colors} name="colors" />
@@ -67,7 +83,7 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
             <textarea defaultValue={needs.memo} name="memo" rows={4} />
           </label>
           <div className="kim-edit-actions">
-            <button type="button" onClick={() => setOpenEditor(null)}>취소</button>
+            <button type="button" onClick={() => { setVehiclePick(null); setOpenEditor(null); }}>취소</button>
             <button className="primary" type="submit">저장</button>
           </div>
         </form>

@@ -113,6 +113,7 @@ export type CustomerWritePatch = Partial<
     | "manageStatus"
     | "needModel"
     | "needTrim"
+    | "needTrimId"
     | "needColors"
     | "needMethod"
     | "needTiming"

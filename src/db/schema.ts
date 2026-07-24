@@ -96,6 +96,12 @@ export const customers = crm.table("customers", {
   aiSummarySourceHash: text("ai_summary_source_hash"),
   needModel: text("need_model"),
   needTrim: text("need_trim"),
+  // 관심 차량의 catalog 트림 id(2026-07-24). need_model/need_trim은 **표시용 비정규화 스냅샷**이고
+  // 이 컬럼이 진짜 링크다 — 앱 견적요청은 원래 trim_id를 갖고 오는데 CRM이 텍스트로만 저장해 버리고
+  // 있었고, 수기 입력은 표기가 제각각이었다(실측: 23건 중 catalog 형식이 2건).
+  // → 니즈 → 견적 작성 프리필 · 트림명 변경 추종 · id 기반 집계가 여기서 나온다.
+  // FK는 drizzle이 cross-schema를 산출하지 못해 수기 마이그레이션(0038)에서 건다(quotes.trim_id 선례).
+  needTrimId: bigint("need_trim_id", { mode: "number" }),
   needMethod: text("need_method"),
   needTiming: text("need_timing"),
   needColors: text("need_colors"),

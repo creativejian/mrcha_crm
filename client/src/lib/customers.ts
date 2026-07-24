@@ -119,6 +119,7 @@ export type CustomerDetailResponse = {
   receivedAt: string | null;
   needModel: string | null;
   needTrim: string | null;
+  needTrimId: number | null;
   needColors: string | null;
   needMethod: string | null;
   needTiming: string | null;
@@ -160,6 +161,7 @@ export type CustomerDetailData = Pick<
   | "receivedAt"
   | "needModel"
   | "needTrim"
+  | "needTrimId"
   | "needColors"
   | "needMethod"
   | "needTiming"
@@ -199,6 +201,7 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
     receivedAt: res.receivedAt,
     needModel: res.needModel,
     needTrim: res.needTrim,
+    needTrimId: res.needTrimId,
     needColors: res.needColors,
     needMethod: res.needMethod,
     needTiming: res.needTiming,
@@ -273,6 +276,7 @@ export type CustomerWritePatch = {
 
   needModel?: string | null;
   needTrim?: string | null;
+  needTrimId?: number | null;
   needColors?: string | null;
   needMethod?: string | null;
   needTiming?: string | null;
