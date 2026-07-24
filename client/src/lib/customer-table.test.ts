@@ -96,43 +96,47 @@ describe("aiHintPlainText", () => {
   });
 });
 
-// 출고 관리 차량 열 — 계약 차량 저장값 → 계약 진행 견적 → 니즈(관심) 3단 폴백.
-// 니즈는 "최초 승격 때 박힌 관심 차종"이라 계약 차량이 아니다(앱 연결 고객은 편집 UI도 없다) →
-// 계약 맥락 화면에서 그대로 두면 계약 차량으로 오독된다(2026-07-24 실무 혼란 제보).
+// 계약·출고 관리 차량 열 — 계약 차량 저장값 → 계약 진행 견적 → **없음(null)**.
+// ⚠️ 니즈(need_model)로 폴백하지 않는다(2026-07-24 유슨생 결정). 니즈는 최초 승격 때 한 번 박히고
+// 갱신되지 않는 "계약 전 관심사"라 계약 실무 화면에서는 정보가 아니라 노이즈다. 더 나쁜 건 입력 유도가
+// 죽는 것 — 니즈가 보이면 상담사가 진짜 계약 차량을 안 채운다(실측: 계약완료 8명 전원 계약 차량 미입력).
+// 계약 견적이 없으면 CRM에 계약 차량 기록이 실제로 없는 것이므로, 모른다고 표시하고 채우게 한다.
 describe("deliveryVehicleDisplay", () => {
   const base = { vehicle: "기아 레이", vehicleTrim: "26년형 프레스티지" } as Customer;
 
   it("계약 차량 저장값이 있으면 최우선", () => {
-    const r = deliveryVehicleDisplay({
-      ...base,
-      delivery: { contractVehicle: "BMW 3 Series 320i", lender: null, contractDate: null, deliveredDate: null, deliveryMemo: null },
-      contractingQuote: { id: "q1", brandName: "제네시스", modelName: "G80", trimName: null, lender: null },
-    } as Customer);
-    expect(r).toEqual({ kind: "contract", label: "BMW 3 Series 320i" });
+    expect(
+      deliveryVehicleDisplay({
+        ...base,
+        delivery: { contractVehicle: "BMW 3 Series 320i", lender: null, contractDate: null, deliveredDate: null, deliveryMemo: null },
+        contractingQuote: { id: "q1", brandName: "제네시스", modelName: "G80", trimName: null, purchaseMethod: null, lender: null },
+      } as Customer),
+    ).toBe("BMW 3 Series 320i");
   });
 
   it("계약 차량이 없으면 계약 진행 견적(브랜드·모델·트림 결합)", () => {
-    const r = deliveryVehicleDisplay({
-      ...base,
-      delivery: null,
-      contractingQuote: { id: "q1", brandName: "BMW", modelName: "3 Series", trimName: "320i LCI 2", lender: null },
-    } as Customer);
-    expect(r).toEqual({ kind: "quote", label: "BMW 3 Series 320i LCI 2" });
+    expect(
+      deliveryVehicleDisplay({
+        ...base,
+        delivery: null,
+        contractingQuote: { id: "q1", brandName: "BMW", modelName: "3 Series", trimName: "320i LCI 2", purchaseMethod: null, lender: null },
+      } as Customer),
+    ).toBe("BMW 3 Series 320i LCI 2");
   });
 
   it("견적에 트림이 없으면 브랜드·모델만", () => {
-    const r = deliveryVehicleDisplay({
-      ...base,
-      delivery: null,
-      contractingQuote: { id: "q1", brandName: "제네시스", modelName: "G80", trimName: null, lender: null },
-    } as Customer);
-    expect(r).toEqual({ kind: "quote", label: "제네시스 G80" });
+    expect(
+      deliveryVehicleDisplay({
+        ...base,
+        delivery: null,
+        contractingQuote: { id: "q1", brandName: "제네시스", modelName: "G80", trimName: null, purchaseMethod: null, lender: null },
+      } as Customer),
+    ).toBe("제네시스 G80");
   });
 
-  // 둘 다 없으면 니즈로 내려가되 kind로 구분 — 렌더가 "관심" 라벨을 붙여 계약 차량과 섞이지 않게 한다.
-  it("둘 다 없으면 니즈(kind=needs)", () => {
-    const r = deliveryVehicleDisplay({ ...base, delivery: null, contractingQuote: null } as Customer);
-    expect(r).toEqual({ kind: "needs", label: "기아 레이" });
+  // 니즈가 있어도 무시한다 — 이게 이 함수의 핵심 계약이다.
+  it("둘 다 없으면 null (니즈가 있어도 쓰지 않는다)", () => {
+    expect(deliveryVehicleDisplay({ ...base, delivery: null, contractingQuote: null } as Customer)).toBeNull();
   });
 
   it("빈 문자열 저장값·빈 견적은 없는 것으로 본다", () => {
@@ -140,21 +144,17 @@ describe("deliveryVehicleDisplay", () => {
       deliveryVehicleDisplay({
         ...base,
         delivery: { contractVehicle: "   ", lender: null, contractDate: null, deliveredDate: null, deliveryMemo: null },
-        contractingQuote: { id: "q1", brandName: null, modelName: null, trimName: null, lender: null },
+        contractingQuote: { id: "q1", brandName: null, modelName: null, trimName: null, purchaseMethod: null, lender: null },
       } as Customer),
-    ).toEqual({ kind: "needs", label: "기아 레이" });
-  });
-
-  it("니즈조차 없으면 label null (렌더가 미입력 처리)", () => {
-    const r = deliveryVehicleDisplay({ vehicle: "", delivery: null, contractingQuote: null } as Customer);
-    expect(r).toEqual({ kind: "needs", label: null });
+    ).toBeNull();
   });
 });
 
-// 계약·출고 목록의 구매방식 줄 — 계약 진행 견적이 있으면 그 시나리오 값이 정본.
-// 니즈(need_method)는 최초 승격 시드라 계약과 어긋난다(실측: 계약은 운용리스인데 니즈는 장기렌트).
+// 구매방식도 같은 규칙 — 계약 진행 견적의 시나리오 값만 쓰고 니즈(need_method)는 쓰지 않는다.
+// 실측: 제임스의 계약은 **운용리스**인데 니즈는 장기렌트라, 니즈를 쓰면 "BMW 3 Series · 장기렌트"라는
+// 실재하지 않는 조합이 나온다. 차량을 비우면서 구매방식만 니즈로 남기면 같은 종류의 거짓이 남는다.
 describe("deliveryMethodDisplay", () => {
-  it("계약 진행 견적의 구매방식이 니즈보다 우선", () => {
+  it("계약 진행 견적의 구매방식을 쓴다", () => {
     expect(
       deliveryMethodDisplay({
         method: "장기렌트",
@@ -163,20 +163,16 @@ describe("deliveryMethodDisplay", () => {
     ).toBe("운용리스");
   });
 
-  it("계약 견적이 없으면 니즈 구매방식", () => {
-    expect(deliveryMethodDisplay({ method: "장기렌트", contractingQuote: null } as Customer)).toBe("장기렌트");
+  it("계약 견적이 없으면 null (니즈 구매방식을 쓰지 않는다)", () => {
+    expect(deliveryMethodDisplay({ method: "장기렌트", contractingQuote: null } as Customer)).toBeNull();
   });
 
-  it("견적에 구매방식이 비어 있으면 니즈로 폴백", () => {
+  it("견적에 구매방식이 비어 있어도 null", () => {
     expect(
       deliveryMethodDisplay({
         method: "장기렌트",
         contractingQuote: { id: "q1", brandName: "BMW", modelName: "3 Series", trimName: null, purchaseMethod: null, lender: null },
       } as Customer),
-    ).toBe("장기렌트");
-  });
-
-  it("둘 다 없으면 빈 문자열", () => {
-    expect(deliveryMethodDisplay({ method: "", contractingQuote: null } as Customer)).toBe("");
+    ).toBeNull();
   });
 });

@@ -1090,24 +1090,7 @@ th input:focus-visible {
   white-space: nowrap;
 }
 
-/* 출고 관리 차량 열이 니즈(관심 차종)로 폴백했을 때의 구분 배지 — 계약 차량이 아님을 한눈에.
-   니즈는 최초 승격 때 박힌 값이라 계약 맥락에서 그대로 두면 계약 차량으로 오독된다. */
-.vehicle-needs-tag {
-  flex: none;
-  margin-right: 5px;
-  border: 1px solid #d8dce1;
-  border-radius: 4px;
-  background: #f2f4f6;
-  color: #6b7178;
-  padding: 0 4px;
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 800;
-  line-height: 15px;
-  vertical-align: 1px;
-}
-
-/* 계약 차량·계약 진행 견적·니즈가 전부 없을 때 — 값이 있는 척하지 않는다. */
+/* 계약 근거(계약 차량 저장값·계약 진행 견적)가 없을 때 — 니즈로 채우지 않고 미입력으로 둔다. */
 .vehicle-line-empty {
   color: #a3a9b0;
   font-weight: 700;

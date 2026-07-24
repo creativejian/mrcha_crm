@@ -87,39 +87,35 @@ export function vehicleDisplay(customer: Customer) {
   };
 }
 
-// 출고 관리(delivery mode) 차량 열의 표시 소스 — 3단 폴백이고 **어느 소스인지가 결과에 남는다**(kind).
-// contract = 상담사가 입력한 계약 차량(정본) · quote = 계약 진행 마킹된 견적 · needs = 니즈(관심 차종).
+// 계약·출고 관리(contract·delivery mode)의 차량·구매방식 — **계약 근거만 쓴다**.
+// 계약 차량 저장값(상담사 입력, 정본) → 계약 진행 마킹된 견적 → 없으면 null(렌더가 "미입력").
 //
-// ⚠️ needs를 그냥 보여주면 안 되는 이유: 니즈는 **최초 승격 때 그 요청의 차량으로 한 번 박히고 끝**이다
-// (createCustomerFromRequest 시드 — 이후 요청이 아무리 와도 갱신되지 않고, 앱 연결 고객은 CRM에 편집
-// UI조차 없다). 계약·출고 실무 화면에서 이게 계약 차량인 양 뜨면 오독된다 — 실제로 계약은 BMW인데
-// 목록엔 최초 관심 차종 "기아 레이"가 떠서 혼란이 보고됐다(2026-07-24 유슨생). 그래서 kind를 남겨
-// 렌더가 "관심" 라벨로 구분하게 한다(값을 숨기지는 않는다 — 계약 견적이 없는 고객엔 유일한 단서다).
-export type DeliveryVehicleDisplay = {
-  kind: "contract" | "quote" | "needs";
-  label: string | null; // needs이고 니즈도 비면 null → 렌더가 미입력 처리
-};
-
+// ⚠️ 니즈(need_model·need_method)로 폴백하지 않는다(2026-07-24 유슨생 결정). 니즈는
+// createCustomerFromRequest가 **최초 승격 때 한 번 박고 끝**이라(이후 요청이 아무리 와도 갱신 안 되고,
+// 앱 연결 고객은 CRM에 편집 UI조차 없다) 계약 실무 화면에서는 정보가 아니라 노이즈다. 더 나쁜 건
+// **입력 유도가 죽는 것** — 니즈가 보이면 상담사가 진짜 계약 차량을 안 채운다(실측: 계약완료 8명
+// 전원이 계약 차량 미입력이었다). 계약 견적이 없으면 CRM에 계약 차량 기록이 실제로 없는 것이므로,
+// 모른다고 표시해 채우게 한다. 배지("관심")로 구분하는 안도 검토했으나 여러 행을 훑을 때 배지가
+// 눈에 안 들어와 결국 오독된다는 이유로 기각했다.
 function trimmedOrNull(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
 }
 
-export function deliveryVehicleDisplay(customer: Customer): DeliveryVehicleDisplay {
+export function deliveryVehicleDisplay(customer: Customer): string | null {
   const contract = trimmedOrNull(customer.delivery?.contractVehicle);
-  if (contract) return { kind: "contract", label: contract };
+  if (contract) return contract;
   const q = customer.contractingQuote;
-  // 브랜드·모델·트림 결합(각 null 가능 — 전부 비면 견적이 있어도 표시할 게 없어 니즈로 내려간다).
+  // 브랜드·모델·트림 결합(각 null 가능 — 전부 비면 견적이 있어도 표시할 게 없다).
   const quoteLabel = q ? [q.brandName, q.modelName, q.trimName].map(trimmedOrNull).filter(Boolean).join(" ") : "";
-  if (quoteLabel) return { kind: "quote", label: quoteLabel };
-  return { kind: "needs", label: trimmedOrNull(customer.vehicle) };
+  return quoteLabel || null;
 }
 
-// 계약·출고 목록의 구매방식 줄 — 차량과 같은 이유로 계약 진행 견적이 니즈보다 우선한다.
-// 실측(2026-07-24): 제임스의 계약 견적은 **운용리스**인데 니즈(need_method)는 장기렌트라, 계약 화면에
-// 차량만 고치면 "BMW 3 Series · 장기렌트"라는 실재하지 않는 조합이 남는다.
-export function deliveryMethodDisplay(customer: Customer): string {
-  return trimmedOrNull(customer.contractingQuote?.purchaseMethod) ?? customer.method;
+// 구매방식도 같은 규칙 — 니즈를 쓰면 "BMW 3 Series · 장기렌트"처럼 실재하지 않는 조합이 나온다
+// (실측: 제임스의 계약은 운용리스인데 니즈는 장기렌트). 차량만 비우고 구매방식을 니즈로 남기면
+// 같은 종류의 거짓이 남는다.
+export function deliveryMethodDisplay(customer: Customer): string | null {
+  return trimmedOrNull(customer.contractingQuote?.purchaseMethod);
 }
 
 export function customerMeta(customer: Customer) {
