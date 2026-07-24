@@ -45,10 +45,12 @@
 
 /* 출고 관리 전용 3열(2026-07-24) — 이 열들만 너비 정의가 없어 `table-layout: fixed`가 남은 폭을
    균등 분할했고, 그래서 "계약 7/9 · iM캐피탈"이 줄바꿈될 만큼 출고 정보가 좁았다.
-   최소폭 합산 검산: select 55 + customer 138 + vehicle 140 + stage 170 + schedule 112 +
-   deliveryInfo 186 + method 96 + advisor 118 + actions 124 = 1139 ≤ 테이블 min-width 1160. */
+   ⚠️ 폭은 **빈 상태가 아니라 값이 들어찬 최장 케이스**로 잡는다 — 처음에 `+ 미지정` 버튼만 보고
+   schedule을 112px로 잡았다가 "12/31 (수) 14:00"이 두 줄로 깨졌다(유슨생 실기).
+   최소폭 합산 검산: select 55 + customer 138 + vehicle 140 + stage 170 + schedule 136 +
+   deliveryInfo 186 + method 90 + advisor 118 + actions 124 = 1157 ≤ 테이블 min-width 1160. */
 .customer-table .col-schedule {
-  width: clamp(112px, 7vw, 140px); /* "+ 미지정" 버튼 — 짧아도 된다 */
+  width: clamp(136px, 8vw, 164px); /* "12/31 (수) 14:00" 한 줄(12px 폰트 ~92px + 버튼·셀 패딩 38px) */
 }
 
 .customer-table .col-deliveryInfo {
@@ -56,7 +58,7 @@
 }
 
 .customer-table .col-method {
-  width: clamp(96px, 6vw, 120px); /* 인도 방식 4글자("협의 필요"·"직접 수령") */
+  width: clamp(90px, 5.5vw, 116px); /* 인도 방식 4글자("협의 필요"·"직접 수령") — 48px + 셀 패딩 20px */
 }
 
 .customer-table .col-type,
