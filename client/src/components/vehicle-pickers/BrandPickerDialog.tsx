@@ -93,6 +93,9 @@ export function BrandPickerDialog({
     <div
       /* jeff-ui = 공용 스코프 루트(calculator.css) — 워크벤치 등 계산기 밖 컨텍스트에서도 토큰·가드 성립 */
       className="jeff-ui fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-up"
+      /* 이 다이얼로그는 화면 최상위에 뜨므로, 자신을 연 팝오버(예: 니즈 카드 편집)의 "바깥 클릭 → 닫기"
+         판정에 걸린다. 그 판정이 이 마커를 보고 건너뛴다(CustomerDetailPage closeEditor). */
+      data-picker-dialog=""
       onClick={onClose}
     >
       <div

@@ -691,6 +691,10 @@
   top: 0;
   left: 0;
   width: 100%;
+  /* 관심 차량 3단 픽커(제조사·모델·트림)가 한 줄에 들어가려면 부모 카드 폭만으로는 좁다(2026-07-24).
+     absolute라 부모를 넘어 넓어질 수 있다. 좁은 뷰포트에서는 화면 밖으로 나가지 않도록 상한을 둔다. */
+  min-width: 560px;
+  max-width: calc(100vw - 32px);
 }
 
 .kim-edit-popover.schedule {

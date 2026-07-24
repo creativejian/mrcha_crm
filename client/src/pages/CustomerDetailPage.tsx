@@ -185,6 +185,10 @@ function CustomerDetailContent({
 
     function closeEditor(event: PointerEvent) {
       if (editorRef.current?.contains(event.target as Node)) return;
+      // 차량 선택 다이얼로그는 화면 최상위(모달)에 떠서 editorRef 밖이다 — 그 안의 클릭까지 "바깥"으로
+      // 보면 브랜드/모델을 고르는 순간 팝오버가 닫혀 픽커 state가 통째로 날아간다(2026-07-24 실기:
+      // "저장은 되는데 표기가 안 된다"의 정체). 마커는 vehicle-pickers/*Dialog가 붙인다.
+      if ((event.target as Element | null)?.closest?.("[data-picker-dialog]")) return;
       setOpenEditor(null);
       setPurchasePopoverFrame(null);
     }
