@@ -9,40 +9,47 @@ Last updated: 2026-07-24
 
 ## 지금 상태
 
-**main 전량 green. 코드 변경 없음(이번 세션은 조사·계약 확정만). 우리 액션이 남은 항목 0.**
-07-24 머지 2건 = `2289fb1`(`#339` staff scope 연락처 회귀 그물 + `formatPhone` 서울 02) · `d2d38c8`(앱 V2 출고 계약 회신 문서).
-검증: 직전 세션 기준 typecheck 0 · lint 0 · knip 0 · format 0 · unit **1092** · build · edge · server **671** pass · 잔재 0.
+**main 전량 green. 진행 중인 미완 작업 없음 — 남은 건 V2 샘플 데이터 유입 대기다.**
+07-24 머지 6건 = `2289fb1`(`#339`) · `d2d38c8`·`961ae71`(계약 문서·인계) · **`ba355c9`(`#340`) · `27cfa01`(`#341`) · `0603758`(`#342`)**.
+검증: typecheck 0 · lint 0 · knip 0 · format 0 · unit **1118** · build · edge 26 · server **677** · 잔재 0.
 
 ## 직전 세션 요약 (2026-07-24 · 0724-quote-parity)
 
-**앱 빠른 견적 V2 출고·추가요청 13필드의 저장 계약을 앱과 공동 확정했다.** 코드는 건드리지 않았고 산출물은 회신 문서 1건.
-SSOT = **앱 레포** `reference/design/quote-v2-delivery-crm-data-contract-proposal.md`(v3) · CRM 회신·Phase 2 목록 = `ref/2026-07-24-app-delivery-contract-reply.md`.
+**앱 빠른 견적 V2 출고·추가요청 13필드 계약을 확정하고 CRM 소비를 5/7까지 구현했다.**
+계약 SSOT = **앱 레포** `reference/design/quote-v2-delivery-crm-data-contract-proposal.md`(v3) ·
+CRM 회신·Phase 2 목록 = `ref/2026-07-24-app-delivery-contract-reply.md`(**착수 시 이 파일만 읽으면 된다**).
 
-**① 발단은 컬러 null 정합성 확인이었는데 더 큰 게 나왔다.** 컬러는 정합 확인(mode null 101행 = 마이그 이전 행 · `selected` 6/6이 컬러 채워짐 = "selected일 때만 저장" 계약 실증 · 앱도 CRM도 nullable). 그 과정에서 **앱 V2 출고 정보가 아직 DB에 저장되지 않는다**는 걸 실측했다 — `quote_requests` 컬럼 23개 중 delivery 계열 **0개**, RPC 인자 22개 중 **0개**. 앱이 "마무리"한 건 UI 플로우이고 **저장 계약은 백지**였다.
+**① 컬러 null 확인에서 출발해 더 큰 것을 찾았다.** 컬러는 정합(mode null 101행 = 마이그 이전 · `selected` 6/6 컬러 채워짐). 그 과정에서 **앱 V2 출고 정보가 DB에 저장되지 않음**을 실측했다(컬럼 0 · RPC 인자 0). 앱이 마무리한 건 UI 플로우고 **저장 계약은 백지**였다.
 
-**② 핵심 합의 = 카디널리티 하이브리드.** 유슨생 직관("출고는 견적당이 아니라 고객당")이 정확했고 코드 주석에 이미 그 계약이 있었다(`quote-guidance.ts:33` — 지역은 거주지 파생, 입력 UI 없음). 앱은 요청마다 새로 묻고 제출 시 리셋(`finally { reset() }` → `empty()`, 로컬 영속화·프로필 프리필 **0**)이고 고객당 요청이 **최대 95건**(제임스)이라, 요청당 스냅샷 저장 + **승격 시 고객 필드로 수렴**으로 갈랐다. ⚠️ 견적당 "출고" 칸 3개(`quotes.delivery`=탁송료 금액 · `dueAtDelivery`=출고 전 납입 · `guidance.deliveryComment`/`expectedDelivery`=**상담사→고객 안내 문구**)는 전부 다른 의미다.
+**② 카디널리티 하이브리드로 합의.** 유슨생 직관("출고는 견적당이 아니라 고객당")이 정확했고 코드 주석에 이미 그 계약이 있었다(`quote-guidance.ts:33`). 앱은 요청마다 새로 묻고 제출 시 리셋(`finally { reset() }`, 영속화·프리필 0)이고 고객당 요청이 **최대 95건**이라 → **요청당 스냅샷 저장 + 승격 시 고객 필드로 수렴**. ⚠️ 견적당 "출고" 칸 3개(탁송료 금액 · 출고 전 납입 · **상담사→고객 안내 문구**)는 전부 다른 의미다.
 
-**③ CRM이 제공한 것 = 정정 2 + 논점 4 + 추가 3(전부 계약에 반영됨).** 정정: `need_delivery_method` CHECK는 4값이 아니라 **5값**(5번째는 미입력 센티넬) · `same_as_delivery`는 "예약"이 아니라 **구조적으로 저장 불가**(renderer·fromPayload가 `different`로 재스탬프). 논점: 🔴**임베딩 전량 재백필** · 두 지역 동시 존재 시 소비 규칙 · 거주지 파생 충돌(→D6) · 희망≠실적. 추가: 과거 월 시드는 정상 · `payment_method` null은 V2부터 생기는 새 경로(기존 113건 전부 non-null) · 어휘 변경 사전 통보.
+**③ D1~D6 확정 · D5·D6은 유슨생 승인(pending 미등재).** D1 `text 'YYYY-MM'` · D2 `text[]` · D3 절대화(앵커 없음) · D4 마감형 · D5 **빈 칸만 채우기** · D6 `customerRegion` **3단 폴백**. 우리가 낸 정정 2·논점 4·추가 3이 전부 계약에 반영됐다.
 
-**④ D1~D6 확정 · D5·D6 승인 완료(유슨생).** D1 `text 'YYYY-MM'` · D2 `text[]` · D3 절대화(앵커 병기 안 함) · D4 마감형 · D5 **빈 칸만 채우기**(현행은 기존 고객 무갱신, `quote-requests.ts:373`) · D6 `customerRegion` **3단 폴백**(앱 지역 → 거주지 파생 → "확인 필요"). D6은 실측이 질문을 바꾼 사례 — `customerRegion`은 저장값을 무시하고 **항상 거주지 재파생**하는 단일 소스라(`useQuoteWorkbench.ts:1649`) "우선순위" 개념이 없었다. **승인 완료라 `director-pending-confirmations.md`에는 등재하지 않았다.**
+**④ 구현 3 PR.** `#340` 읽기 파이프(미러 13컬럼 · `quote-delivery.ts` 순수 모듈 신설 = 서버 공용 · 고객 상세 카드) · `#341` 승격 시드(생성·재승격·연결 3경로, **UPDATE WHERE로 비파괴** — 읽고 판단하지 않아 동시 승격에도 원자적) · `#342` 앱카드 지역 3단 폴백(🟡 **고객 노출 문구 변경**).
+
+**⑤ 계획 대비 정정 3건(전부 실측).** ⓐ라벨은 **+36개가 아니라 +6개** — 지역은 앱이 정식명 스냅샷을 보내 해석표 불필요, timing은 절대화에 흡수, priority·method는 예약 필드 ⓑ앱카드 조립기 **3곳 동시 수정 불필요** — 조립기는 저장된 `guidance`를 옮길 뿐이라 파생 1곳만 ⓒ토픽 라벨은 제안서에서 못 가져온다(뒤 3종 괄호가 라벨이 아니라 **적용 조건**) → 앱 `quote_v2_renderer.dart` 실측.
+
+**⑥ 테스트가 잡은 실제 위험 2건.** ⓐ배열 컬럼에 `.default()` 표기를 빼면 drizzle이 INSERT 필수로 봐 기존 픽스처가 전부 깨진다 ⓑ`topicLabels`에 `?? []`가 없으면 **배포 스큐**(캐시된 새 번들 + 구 API 응답)에서 `.map()`이 던져 인박스가 통째로 빈 화면이 된다(캐시 테스트 12건이 잡았다).
+⚠️ **V2 데이터가 0건인데 실 DB 경로를 검증한 방법** = 트랜잭션 안에서 값을 심고 `throw ROLLBACK`(기존 승격 테스트 관례 확장). `quote_requests`는 알림 트리거 4테이블에 없어 안전하다.
 
 ## ▶ 다음 작업
 
-1. **앱 Phase 1 대기** — migration + RPC + 클라 배선. 그 다음 **CRM Phase 2**(회신 문서 §작업 목록 6항목: 미러 갱신·라벨 +36개·지역 분기(**null 테스트 필수**)·승격 시드·`customerRegion` 3단 폴백(**조립기 2벌 + 파리티 테스트 3곳 동시**)·AI 청크 **1회 재백필**). 앱 잔여 = 이사님 구현 착수 승인 1건.
-2. **이사님 회신 대기** — pending **열린 14건**. **21·22는 묶어서**. 항목 **28**은 범위가 좁아져 남은 질문은 "연락처를 물어본 대화 기록에 번호가 남는다" 하나. ⚠️ **NO_HITS 문구+sources 동시 렌더**는 21·22와 얽혀 보류.
-3. **🔵 하나캐피탈 통보 대기** — 오면 `SOLUTION_LENDERS`에 `{code,label}` 한 줄(`code`가 컴파일타임 타입이라 자동 반영 안 됨).
+1. **V2 샘플 유입 대기** — **리스/렌트 1 + 할부/일시불 1 + 구매방식 미정 1**이면 지역 분기 세 갈래가 다 덮인다. 들어오면 ①표시 눈 검증 ②인박스 컬럼(Phase 2-7) 순.
+2. **Phase 2-6(AI 청크 + 재백필)은 의도적으로 미뤘다** — 청크 content 변경 = `embeddingContentHash` 전량 갱신이라 **데이터 0건인 지금 하면 빈 내용으로 한 번, 샘플 들어온 뒤 또 한 번** 태운다. 문구(D3·D4)는 확정본에서 **바꾸지 말 것**(바꿔도 재백필).
+3. **이사님 회신 대기** — pending **열린 14건**. **21·22는 묶어서**. 항목 **28**은 "연락처를 물어본 대화 기록에 번호가 남는다" 하나로 좁혀졌다.
+4. **🔵 하나캐피탈 통보 대기** — 오면 `SOLUTION_LENDERS`에 `{code,label}` 한 줄.
 
 ## 대기 (우리 액션 없음)
 
 `ref/director-pending-confirmations.md` — 항목 14 · 16·17 · 18·19 · 20 · **21·22** · 23 · 24 · 25 · 26 · 27 · **28**.
-**파트너 Phase B 완료 시** 산은·iM·농협 게이트 자동 점등 → 실기 1회(이때 **구매방식 전환 후 기간 상태** 확인).
-실기 협조 2건(FCM 실기기·앱 #582 크로스)은 **애플 개발자 등록 후 재론** — 먼저 밀지 말 것.
+**앱 쪽 잔여** = 이사님 구현 착수 승인 1건(계약서 헤더). **파트너 Phase B 완료 시** 산은·iM·농협 게이트 자동 점등 → 실기 1회.
+실기 협조 2건(FCM 실기기·앱 #582 크로스)은 **애플 개발자 등록 후 재론**.
 
 ## Boot
 
 1. `AGENTS.md` → 이 파일 순으로 읽는다.
 2. `git status --short --branch` · `git log --oneline --decorate --max-count=5`
-3. 더 필요하면: V2 출고 계약 = `ref/2026-07-24-app-delivery-contract-reply.md` / 연락처 라우팅 = `ref/plans/2026-07-23-crm-assistant-contact-routing.md` / 배치 15 판정 = `ref/plans/2026-07-22-crm-refactor-batch-15.md` / 과거 세션 = `ref/session-archive.md` / 장기 상태 = `ref/current-working-state.md` / 설계 근거 = `ref/specs/*`
+3. 더 필요하면: **V2 출고 계약·Phase 2 잔여 = `ref/2026-07-24-app-delivery-contract-reply.md`** / 연락처 라우팅 = `ref/plans/2026-07-23-crm-assistant-contact-routing.md` / 과거 세션 = `ref/session-archive.md` / 장기 상태 = `ref/current-working-state.md` / 설계 근거 = `ref/specs/*`
 
 ## 세션 마무리 규칙
 
