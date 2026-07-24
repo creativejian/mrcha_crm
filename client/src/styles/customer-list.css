@@ -43,6 +43,22 @@
   width: 124px;
 }
 
+/* 출고 관리 전용 3열(2026-07-24) — 이 열들만 너비 정의가 없어 `table-layout: fixed`가 남은 폭을
+   균등 분할했고, 그래서 "계약 7/9 · iM캐피탈"이 줄바꿈될 만큼 출고 정보가 좁았다.
+   최소폭 합산 검산: select 55 + customer 138 + vehicle 140 + stage 170 + schedule 112 +
+   deliveryInfo 186 + method 96 + advisor 118 + actions 124 = 1139 ≤ 테이블 min-width 1160. */
+.customer-table .col-schedule {
+  width: clamp(112px, 7vw, 140px); /* "+ 미지정" 버튼 — 짧아도 된다 */
+}
+
+.customer-table .col-deliveryInfo {
+  width: clamp(186px, 12vw, 240px); /* "계약 M/D · 금융사"가 한 줄에(12px 폰트 + 버튼·셀 패딩 38px) */
+}
+
+.customer-table .col-method {
+  width: clamp(96px, 6vw, 120px); /* 인도 방식 4글자("협의 필요"·"직접 수령") */
+}
+
 .customer-table .col-type,
 .customer-table .col-date {
   width: 120px;
