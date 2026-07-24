@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 
 import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
 import { APP_QUOTE_REQUEST_SOURCE } from "../../../client/src/data/customers";
@@ -371,6 +371,36 @@ export async function listQuoteRequestIdsByUser(appUserId: string, ex: Executor 
   return rows.map((r) => r.id);
 }
 
+// 승격 대상 요청의 출고 시기 3필드 — need_timing 시드 재료(승격 두 경로가 공유하는 select 조각).
+const requestTimingSelect = {
+  deliveryTimingMode: quoteRequests.deliveryTimingMode,
+  deliveryTimingReferenceMonth: quoteRequests.deliveryTimingReferenceMonth,
+  deliveryTargetMonth: quoteRequests.deliveryTargetMonth,
+} as const;
+
+type RequestTiming = {
+  deliveryTimingMode: string | null;
+  deliveryTimingReferenceMonth: string | null;
+  deliveryTargetMonth: string | null;
+};
+
+function needTimingOf(req: RequestTiming): string | null {
+  return deliveryTimingTextOf(req.deliveryTimingMode, req.deliveryTimingReferenceMonth, req.deliveryTargetMonth);
+}
+
+// 기존 고객의 need_timing을 **빈 칸일 때만** 채운다(계약 D5 — 비파괴).
+// 상담사 수기 입력을 자동 시드가 덮으면 안 되므로 WHERE에 빈 값 조건을 건다(읽고 판단하지 않는다 —
+// 동시 승격에서도 UPDATE 한 문장이 원자적으로 판정).
+// 빈 문자열도 빈 칸으로 본다 — 폼에서 지운 값이 ''로 영속될 수 있다(sanitizeQuoteGuidance와 같은 인식).
+async function fillNeedTimingIfEmpty(customerId: string, text: string | null, ex: Executor): Promise<void> {
+  if (!text) return;
+  await ex
+    .update(customers)
+    // updated_at은 DB 시계로만(2026-07-23 #334·#335) — 앱 시계로 찍으면 "마지막 활동"이 과거로 되돌아간다.
+    .set({ needTiming: text, updatedAt: sql`now()` })
+    .where(and(eq(customers.id, customerId), or(isNull(customers.needTiming), eq(customers.needTiming, ""))));
+}
+
 // 요청의 user_id를 대상 고객의 app_user_id에 set(전화 매칭된 기존 고객 연결). 요청/고객 없으면 null.
 // appUserId는 라우트의 요청 청크 임베딩 훅용(응답 JSON에 실려도 무해한 식별자).
 // 가드+전화번호 전이+UPDATE는 applyAppUserLink SSOT(상담신청 link와 완전 공유 — 2026-07-17 spec).
@@ -379,9 +409,15 @@ export async function linkRequestToCustomer(
   customerId: string,
   ex: Executor = getDefaultDb(),
 ): Promise<{ id: string; customerCode: string; name: string; appUserId: string; droppedPhone: string | null } | null> {
-  const [req] = await ex.select({ userId: quoteRequests.userId }).from(quoteRequests).where(eq(quoteRequests.id, requestId));
+  const [req] = await ex
+    .select({ userId: quoteRequests.userId, ...requestTimingSelect })
+    .from(quoteRequests)
+    .where(eq(quoteRequests.id, requestId));
   if (!req) return null;
-  return applyAppUserLink(req.userId, customerId, ex);
+  const linked = await applyAppUserLink(req.userId, customerId, ex);
+  // 연결이 실제로 성립한 뒤에만 시드한다(가드가 막으면 applyAppUserLink가 던지거나 null).
+  if (linked) await fillNeedTimingIfEmpty(linked.id, needTimingOf(req), ex);
+  return linked;
 }
 
 // profiles + 요청 데이터로 신규 customers INSERT(app_user_id 연결). 같은 user로 이미 고객 있으면 기존 반환(중복 방지).
@@ -396,6 +432,7 @@ export async function createCustomerFromRequest(
       trimId: quoteRequests.trimId,
       paymentMethod: quoteRequests.paymentMethod,
       createdAt: quoteRequests.createdAt,
+      ...requestTimingSelect,
     })
     .from(quoteRequests)
     .where(eq(quoteRequests.id, requestId));
@@ -405,7 +442,12 @@ export async function createCustomerFromRequest(
     .select({ id: customers.id, customerCode: customers.customerCode, name: customers.name })
     .from(customers)
     .where(eq(customers.appUserId, req.userId));
-  if (existing) return { ...existing, appUserId: req.userId };
+  // 기존 고객이면 새로 만들지 않는다(중복 방지). 단 need_timing이 비어 있으면 이 요청의 값으로 채운다
+  // — 구 동작은 완전 무갱신이었다(행위 변경, 계약 D5 승인 완료).
+  if (existing) {
+    await fillNeedTimingIfEmpty(existing.id, needTimingOf(req), ex);
+    return { ...existing, appUserId: req.userId };
+  }
 
   const [profile] = await ex
     .select({ fullName: profiles.fullName })
@@ -441,6 +483,8 @@ export async function createCustomerFromRequest(
       needTrim,
       // payment_method 한글 라벨 — 공용 SSOT client/src/data/quote-request-labels(요청 청크 빌더·클라 카드와 공유).
       needMethod: req.paymentMethod ? (PAYMENT_METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod) : null,
+      // 출고 희망 시기 절대화 텍스트(계약 D3·D4). 레거시 요청이면 null이라 기존과 동일하게 빈 칸.
+      needTiming: needTimingOf(req),
       source: APP_QUOTE_REQUEST_SOURCE,
       statusGroup: "신규",
       status: "상담접수",
