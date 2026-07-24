@@ -134,6 +134,15 @@ describe("depositLabelOf", () => {
   it("유형 null: —", () => {
     expect(depositLabelOf({ depositType: null, depositRatio: 0, rentalDeposit: 0 })).toBe("—");
   });
+  // none = 리스/렌트 V2 무보증(2026-07-17 앱 도입). 라벨이 빠져 있어 화면에 raw "none"이 노출됐다.
+  // DB CHECK가 none이면 금액·비율을 0으로 강제하므로(quote_requests_no_deposit_value_check) 유형명만 남는다.
+  it("none: 무보증 (금액·비율 병기 없음)", () => {
+    expect(depositLabelOf({ depositType: "none", depositRatio: 0, rentalDeposit: 0 })).toBe("무보증");
+  });
+  // 앱이 어휘를 늘리면 코드가 그대로 보이지만, 화면이 깨지는 것보다는 낫다(기존 폴백 계약 유지 확인).
+  it("미지의 유형은 코드 그대로 폴백", () => {
+    expect(depositLabelOf({ depositType: "brand_new", depositRatio: 0, rentalDeposit: 0 })).toBe("brand_new");
+  });
 });
 
 describe("colorLabelOf", () => {
