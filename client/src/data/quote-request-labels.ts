@@ -28,3 +28,19 @@ export const COLOR_PREFERENCE_MODE_LABEL: Record<string, string> = {
   selected: "컬러 지정",
   consultation: "희망 컬러 있음",
 };
+
+// 추가 문의 토픽(quote_requests.request_topic_codes, text[]) → 한글 라벨.
+// 앱 Dart SSOT(quote_v2_renderer.dart의 토픽 선택지·요약 매핑)와 어휘 일치 실측 — **임의 변경 금지**.
+// 뒤 3종은 구매방식 조건부로 노출된다(joint_ownership=할부/일시불, transfer_terms=리스/렌트,
+// purchase_method_consultation=미정) — 값 자체는 조건과 무관하니 CRM은 조건을 재현하지 않는다.
+// 미지의 코드는 소비처에서 `?? code`로 폴백한다(앱이 어휘를 늘려도 화면이 안 깨진다).
+// ⚠️ 지역·출고 시기 라벨은 여기 없다 — 지역은 앱이 정식명(`*_region_name`) 스냅샷을 보내주고,
+//    시기는 lib/quote-delivery.ts가 절대화 텍스트로 만든다(코드→라벨 해석표가 필요 없다).
+export const REQUEST_TOPIC_LABEL: Record<string, string> = {
+  trade_in: "보유 차량 처분",
+  business_terms: "사업자 조건",
+  specific_schedule: "특정 출고 일정",
+  joint_ownership: "공동명의 검토",
+  transfer_terms: "승계 조건 확인",
+  purchase_method_consultation: "구매방식 상담",
+};

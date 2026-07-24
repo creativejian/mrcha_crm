@@ -43,12 +43,13 @@
 
 ## CRM Phase 2 작업 목록 (앱 Phase 1 이후 착수)
 
-1. **미러 갱신** — `src/db/public-app.ts`의 `quoteRequests`에 신규 13컬럼. `text[]`는 `.array()`(첫 도입).
-2. **라벨 SSOT 확장** — `client/src/data/quote-request-labels.ts`에 **+36개**(지역 16 · timing 6 · topic 6 · priority 8). 현 11개 → 47개. 앱 값정의서가 canonical이므로 `COLOR_PREFERENCE_MODE_LABEL` 주석과 같은 "임의 변경 금지" 규칙을 단다. 드리프트 가드 도입 여부는 그때 판단(`SOLUTION_LENDERS` 2겹 선례).
-3. **지역 소비** — `payment_method` 분기(`installment`/`cash` → 등록 지역, 그 외 → 인수 지역). ⚠️ **null 케이스 테스트 필수**(V2부터 발생, 기존 데이터엔 없음).
-4. **승격 시드** — `need_timing` 절대화(D3·D4 형식) + `need_delivery_method`(예약 해제 후). **빈 칸만 채우기**. `residence`는 시드하지 않는다.
+1. ✅ **미러 갱신** — `src/db/public-app.ts`의 `quoteRequests`에 신규 13컬럼. 배열 2종은 `.array().notNull().default(sql\`'{}'::text[]\`)` — default 표기가 없으면 INSERT 필수가 되어 기존 픽스처가 전부 깨진다.
+2. ✅ **라벨 SSOT 확장** — ⚠️ **실측으로 +36개가 아니라 +6개였다**(`REQUEST_TOPIC_LABEL`만). 지역 16은 앱이 `*_region_name` 정식명 스냅샷을 보내 해석표가 필요 없고, timing 6은 절대화 텍스트(`deliveryTimingTextOf`)에 흡수되며, priority 8·`delivery_method` 3은 예약 필드라 값이 안 온다. 토픽 라벨은 앱 `quote_v2_renderer.dart` 실측(뒤 3종은 제안서 괄호가 라벨이 아니라 **적용 조건**이었다 — `joint_ownership`=공동명의 검토 · `transfer_terms`=승계 조건 확인).
+3. ✅ **지역 소비** — `deliveryRegionOf`(`client/src/lib/quote-delivery.ts`, 순수 모듈 = 서버 공용)가 `payment_method`로 분기. null 케이스 테스트 포함.
+4. **승격 시드** — `need_timing` 절대화는 `deliveryTimingTextOf`가 이미 SSOT(테스트 16종 완료), 남은 건 `createCustomerFromRequest`에 **빈 칸만 채우기**로 붙이는 것 + `need_delivery_method`(예약 해제 후). `residence`는 시드하지 않는다.
 5. **`customerRegion` 3단 폴백** — ⚠️ 앱카드 payload는 **서버·클라 2벌 조립기 + `app-card-payload-parity.test.ts`** 3곳을 함께 고쳐야 한다.
 6. **AI 청크 반영** — 확정 문구로 **한 번에 묶어 1회 재백필**.
+7. **인박스 테이블 출고 컬럼** — 고객 상세 카드(`NeedsDashboard`)는 붙였으나 인박스(`AppRequestsPage`)는 **테이블이라 컬럼 추가 = 레이아웃 변경**이다. 실데이터가 0건인 상태에서 폭을 정하면 다시 손봐야 해 **샘플 확인 후**로 미뤘다.
 
 ## 주의
 

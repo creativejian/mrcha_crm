@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
 import { APP_QUOTE_REQUEST_SOURCE } from "../../../client/src/data/customers";
 import { PAYMENT_METHOD_LABEL } from "../../../client/src/data/quote-request-labels";
+import { deliveryRegionOf, deliveryTimingTextOf } from "../../../client/src/lib/quote-delivery";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles, quoteRequestOptions, quoteRequests } from "../public-app";
@@ -28,6 +29,12 @@ export type AppQuoteRequestRow = {
   interiorColorId: number | null;
   interiorColorName: string | null;
   interiorColorHex: string | null;
+  // 출고 정보는 **서버에서 파생해 보낸다**(원본 지역 5필드 중 클라는 1개만 쓰고, 같은 파생을 업무 AI 청크도
+  // 쓰기 때문 — quote-delivery.ts가 SSOT). 컬러가 원본 전달인 것과 다른 선택이니 복붙 주의.
+  deliveryRegion: string | null;
+  deliveryTimingText: string | null;
+  requestTopicCodes: string[];
+  additionalRequest: string | null;
   brandName: string | null;
   modelName: string | null;
   trimName: string | null;
@@ -68,6 +75,17 @@ export type QuoteRequestBaseRow = {
   interiorColorId: number | null;
   interiorColorName: string | null;
   interiorColorHex: string | null;
+  // 출고 원본(파생 재료) — 응답에는 파생값만 나간다. registration_region_mode·예약 2필드는
+  // 소비처가 없어 select에서도 뺐다(저장 가능한 값이 'different'|null뿐이라 분기에 못 쓴다).
+  deliveryRegionCode: string | null;
+  deliveryRegionName: string | null;
+  registrationRegionCode: string | null;
+  registrationRegionName: string | null;
+  deliveryTimingMode: string | null;
+  deliveryTimingReferenceMonth: string | null;
+  deliveryTargetMonth: string | null;
+  requestTopicCodes: string[];
+  additionalRequest: string | null;
   requesterName: string | null;
   requesterPhone: string | null;
 };
@@ -194,6 +212,14 @@ export async function buildAppQuoteRequestRows(
       interiorColorId: r.interiorColorId,
       interiorColorName: r.interiorColorName,
       interiorColorHex: r.interiorColorHex,
+      deliveryRegion: deliveryRegionOf(r),
+      deliveryTimingText: deliveryTimingTextOf(
+        r.deliveryTimingMode,
+        r.deliveryTimingReferenceMonth,
+        r.deliveryTargetMonth,
+      ),
+      requestTopicCodes: r.requestTopicCodes,
+      additionalRequest: r.additionalRequest,
       brandName: t?.brandName ?? null,
       modelName: t?.modelName ?? null,
       trimName: t?.trimName ?? null,
@@ -234,6 +260,15 @@ const quoteRequestBaseSelect = {
   interiorColorId: quoteRequests.interiorColorId,
   interiorColorName: quoteRequests.interiorColorName,
   interiorColorHex: quoteRequests.interiorColorHex,
+  deliveryRegionCode: quoteRequests.deliveryRegionCode,
+  deliveryRegionName: quoteRequests.deliveryRegionName,
+  registrationRegionCode: quoteRequests.registrationRegionCode,
+  registrationRegionName: quoteRequests.registrationRegionName,
+  deliveryTimingMode: quoteRequests.deliveryTimingMode,
+  deliveryTimingReferenceMonth: quoteRequests.deliveryTimingReferenceMonth,
+  deliveryTargetMonth: quoteRequests.deliveryTargetMonth,
+  requestTopicCodes: quoteRequests.requestTopicCodes,
+  additionalRequest: quoteRequests.additionalRequest,
   requesterName: profiles.fullName,
   requesterPhone: profiles.phoneNumber,
 } as const;
