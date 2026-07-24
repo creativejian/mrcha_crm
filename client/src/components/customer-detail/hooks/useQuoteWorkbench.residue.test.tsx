@@ -307,7 +307,11 @@ describe("useQuoteWorkbench — openEditQuote의 팝오버 계약", () => {
     expect(quoteList.handlers.closeQuoteActionPopover).toHaveBeenCalledTimes(1);
   });
 
-  it("계약 진행 견적: 팝오버를 닫지 않는다 — 안내 다이얼로그의 유일 렌더 지점이 팝오버 안이라 닫으면 무음 누수가 된다", () => {
+  // 2026-07-24: openEditQuote는 계약 진행 견적을 **특별 취급하지 않는다**. 구 동작은 여기서 안내
+  // 다이얼로그로 우회했는데 그 안내가 가리키는 "계약 관리 창"이 실체 없는 화면이었다(spec
+  // 2026-07-20-crm-delivery-step2-design §113). 경고는 팝오버 오프너가 띄우고, 확인하면 이 함수를
+  // 그대로 부른다 — 가드를 여기 두면 다이얼로그를 못 그리는 경로가 무음으로 잠긴다(K2-c).
+  it("계약 진행 견적도 일반 견적과 동일하게 연다 — 확인 상태를 세우지 않는다", () => {
     const { result, quoteList } = setup();
     act(() =>
       result.current.openEditQuote({
@@ -318,8 +322,8 @@ describe("useQuoteWorkbench — openEditQuote의 팝오버 계약", () => {
         source: "manual",
       } as unknown as QuoteItem),
     );
-    expect(quoteList.handlers.closeQuoteActionPopover).not.toHaveBeenCalled();
-    expect(quoteList.handlers.setConfirmingQuoteContractEditId).toHaveBeenCalledTimes(1);
+    expect(quoteList.handlers.setConfirmingQuoteContractEditId).not.toHaveBeenCalled();
+    expect(quoteList.handlers.closeQuoteActionPopover).toHaveBeenCalledTimes(1);
   });
 });
 
