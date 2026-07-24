@@ -18,6 +18,7 @@ import { deliveryTimingTextOf } from "@/lib/quote-delivery";
 export const DERIVED_NEED_KEYS = [
   "needModel",
   "needTrim",
+  "needTrimId",
   "needMethod",
   "needContractTerm",
   "needInitialCost",

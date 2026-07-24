@@ -803,6 +803,41 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* 니즈 폼의 관심 차량 3단 픽커 — 제조사·모델·트림을 **가로 한 줄**로(유슨생 결정, 2026-07-24).
+   워크벤치는 세로 스택 그대로 두므로 여기 래퍼로만 스코프한다. */
+.kim-needs-vehicle-picker .kim-vehicle-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* 워크벤치 기본값(라벨 80px + 좌우 패딩 20px + gap 16px)은 한 줄에 하나씩 놓일 때 기준이라,
+   3분할하면 값 자리가 눌려 "선택"이 잘린다. 니즈 폼 안에서만 촘촘하게 잡아 값 폭을 확보한다.
+   ⚠️ 팝오버를 min-width로 넓히는 방식은 쓰지 않는다 — absolute+left:0라 화면 오른쪽으로 밀려
+   저장 버튼째 잘렸다(2026-07-24 실기). 부모 카드 폭(width:100%) 안에서 해결한다. */
+.kim-needs-vehicle-picker .kim-jeff-picker-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+/* 라벨은 **시각적으로만** 숨긴다(유슨생 결정, 2026-07-24) — 46px 고정폭을 값에 돌려주면 "4 Se…"처럼
+   잘리던 값이 살아난다. 순서(제조사→모델→트림)가 고정이고 값 자체가 무엇인지 말하므로 화면에서는
+   군더더기다. display:none이 아닌 이유: 스크린리더에는 남아야 "무엇을 고르는 버튼"인지 알 수 있다.
+   빈 상태 문구는 compact 모드가 "제조사 선택"처럼 스스로 말한다(WorkbenchVehiclePicker). */
+.kim-needs-vehicle-picker .kim-jeff-picker-row > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.kim-needs-vehicle-picker {
+  margin-bottom: 9px;
+}
+
 .kim-edit-form label {
   display: grid;
   gap: 6px;

@@ -89,6 +89,7 @@ test("applyFeaturedRequestNeeds: 대표 지정 + need_* 7필드 파생 (tx 롤�
   const [req] = await db
     .select({
       id: quoteRequestsTable.id,
+      trimId: quoteRequestsTable.trimId,
       paymentMethod: quoteRequestsTable.paymentMethod,
       period: quoteRequestsTable.period,
       depositType: quoteRequestsTable.depositType,
@@ -103,6 +104,7 @@ test("applyFeaturedRequestNeeds: 대표 지정 + need_* 7필드 파생 (tx 롤�
     .where(and(isNotNull(quoteRequestsTable.deliveryTimingMode), isNotNull(quoteRequestsTable.annualMileageKm), isNotNull(quoteRequestsTable.trimId)))
     .limit(1);
   expect(req).toBeDefined();
+  const reqTrimId = req.trimId;
   const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
 
   await expect(
@@ -111,6 +113,7 @@ test("applyFeaturedRequestNeeds: 대표 지정 + need_* 7필드 파생 (tx 롤�
       const [c] = await tx
         .select({
           featuredRequestId: customers.featuredRequestId,
+          needTrimId: customers.needTrimId,
           needModel: customers.needModel,
           needTrim: customers.needTrim,
           needMethod: customers.needMethod,
@@ -122,6 +125,9 @@ test("applyFeaturedRequestNeeds: 대표 지정 + need_* 7필드 파생 (tx 롤�
         .from(customers)
         .where(eq(customers.id, cust.id));
       expect(c.featuredRequestId).toBe(req.id);
+      // ⚠️ catalog 링크를 잃지 않는다(2026-07-24) — 앱 요청은 원래 trim_id를 갖고 오는데 구 구현은
+      // 텍스트 2개만 남겼다. id가 있어야 니즈 → 견적 프리필·트림명 변경 추종이 된다.
+      expect(c.needTrimId).toBe(reqTrimId);
       expect({
         needMethod: c.needMethod,
         needContractTerm: c.needContractTerm,

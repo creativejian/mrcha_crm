@@ -108,6 +108,9 @@ export function useCustomerNeeds({
       method: field("method"),
       memo: field("memo"),
     };
+    // 관심 차량 catalog 링크 — 폼의 3단 픽커가 hidden으로 실어 보낸다. 빈 문자열이면 null(미선택).
+    const trimIdRaw = field("trimId");
+    const nextTrimId = trimIdRaw ? Number(trimIdRaw) : null;
     setNeeds(nextNeeds);
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
@@ -117,6 +120,7 @@ export function useCustomerNeeds({
     applyDetailPatch({
       needModel: nextNeeds.model || null,
       needTrim: nextNeeds.trim || null,
+      needTrimId: nextTrimId,
       needColors: nextNeeds.colors || null,
       needMethod: nextNeeds.method || null,
       needMemo: nextNeeds.memo || null,
@@ -127,6 +131,7 @@ export function useCustomerNeeds({
       {
         needModel: nextNeeds.model || null,
         needTrim: nextNeeds.trim || null,
+        needTrimId: nextTrimId,
         needColors: nextNeeds.colors || null,
         needMethod: nextNeeds.method || null,
         needMemo: nextNeeds.memo || null,
@@ -138,6 +143,7 @@ export function useCustomerNeeds({
         applyDetailPatch({
           needModel: detail.needModel,
           needTrim: detail.needTrim,
+          needTrimId: detail.needTrimId,
           needColors: detail.needColors,
           needMethod: detail.needMethod,
           needMemo: detail.needMemo,

@@ -7,7 +7,7 @@
 // ⚠️ 견적요청이 0건인 앱 연결 고객(상담신청으로만 연결)은 대표를 만들 수 없어 건너뛴다 —
 //    그 고객은 파생 소스가 없으므로 수기 입력이 계속 열려 있어야 한다(설계 D2 read-only 조건).
 // 실행 후 AI 프로필 청크가 바뀌므로 backfill-embeddings.ts를 이어서 돌린다.
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { asc, eq, isNotNull } from "drizzle-orm";
 
 import { getDefaultDb } from "../db/client";
 import { quoteRequests } from "../db/public-app";
@@ -17,9 +17,12 @@ import { customers } from "../db/schema";
 async function main() {
   const db = getDefaultDb();
   const targets = await db
-    .select({ id: customers.id, name: customers.name, appUserId: customers.appUserId })
+    .select({ id: customers.id, name: customers.name, appUserId: customers.appUserId, featuredRequestId: customers.featuredRequestId })
     .from(customers)
-    .where(and(isNotNull(customers.appUserId), isNull(customers.featuredRequestId)));
+    // 대표가 이미 있는 고객도 포함한다 — 파생 규칙이 바뀌면(예: 2026-07-24 need_trim_id 추가)
+    // 기존 행도 다시 적용해야 한다. applyFeaturedRequestNeeds는 멱등이라 재실행이 안전하다.
+    // 대표가 있으면 그 대표를 그대로 쓰고(상담사 선택 보존), 없으면 최초 요청으로 정한다.
+    .where(isNotNull(customers.appUserId));
 
   let applied = 0;
   for (const c of targets) {
@@ -30,13 +33,14 @@ async function main() {
       .where(eq(quoteRequests.userId, c.appUserId))
       .orderBy(asc(quoteRequests.createdAt))
       .limit(1);
-    if (!first) {
+    const featured = c.featuredRequestId ?? first?.id ?? null;
+    if (!featured) {
       console.log(`skip ${c.name} — 견적요청 0건(상담신청으로만 연결된 고객)`);
       continue;
     }
-    await applyFeaturedRequestNeeds(c.id, first.id, db);
+    await applyFeaturedRequestNeeds(c.id, featured, db);
     applied += 1;
-    console.log(`ok   ${c.name} — 대표 ${first.id} (${first.createdAt})`);
+    console.log(`ok   ${c.name} — 대표 ${featured}${c.featuredRequestId ? " (기존 유지)" : ` (최초 ${first?.createdAt})`}`);
   }
   console.log(`done: 대상 ${targets.length}명 중 ${applied}명 적용`);
   // DB 커넥션 풀이 열려 있어 명시 종료가 없으면 프로세스가 안 죽는다(backfill-embeddings.ts와 동일).
