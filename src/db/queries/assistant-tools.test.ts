@@ -385,3 +385,27 @@ test("scope {advisorId}: 본인 담당 고객만 — 남의 scope에는 0건", a
   const byConsultations = await runAssistantTool("customer_consultations", { name: "도구테스트" }, { advisorId: OTHER }, USER, db);
   expect(byConsultations.lines).toHaveLength(0); // 상담신청도 customers 조인으로 scope 필터
 });
+
+// 남의 고객 **연락처**가 새지 않는지(2026-07-23 `#332`·`#333` 후속 — prod 실측을 코드로 박제).
+// 위 scope 테스트와 왜 따로 두나: 그건 **행 개수**만 본다(`toHaveLength(0)`). 연락처가 프로젝션에
+// 들어온 건 오늘(`#332`)이라, **행은 0이 아닌데 번호만 새는** 변이(예: scope 조건이 프로젝션 뒤로
+// 밀리거나 name 필터가 scope를 덮어쓰는 형태)를 그 단언은 못 잡는다. 여기선 **출력 문자열에
+// 번호 문자가 있는지**를 직접 본다 — 회귀하면 곧 개인정보 노출이라 별도 그물을 둔다.
+// 실측 근거(prod, staff 실계정 `상담사테스트` 담당 0): "제임스/김지안/오세린 연락처?" 8회 전부
+// "조회 결과 없음" · 번호 노출 0. 같은 질문에 admin은 번호를 받는다.
+// ⚠️ 검출은 **하이픈 형식도 함께** 잡는다 — `#336`부터 출력이 `010-1234-5678`이라 digits만 보면
+// 정상 노출을 놓친다(`#336` 실기에서 실제로 오판했다).
+test("scope {advisorId}: 남의 고객 연락처는 출력에 없다(#332 프로젝션 후 개인정보 축)", async () => {
+  const PHONE_RE = /01\d[- ]?\d{3,4}[- ]?\d{4}/;
+  // 픽스처 2종 = 합성 경로(앱 연결 CUST) · 컬럼 경로(미연결 CONTACT_CUST). 둘 다 OWNER 담당이다.
+  for (const name of ["도구테스트", "연락처도구테스트"] as const) {
+    for (const key of ["search_customers", "customer_quotes", "customer_consultations"] as const) {
+      const other = await runAssistantTool(key, { name }, { advisorId: OTHER }, USER, db);
+      expect(other.lines.join("\n")).not.toMatch(PHONE_RE);
+    }
+  }
+  // 대조군 — 본인 담당 scope에서는 실제로 번호가 나온다(위 단언이 "항상 빈 문자열"이라 통과하는
+  // 공허한 테스트가 아님을 증명한다).
+  const own = await runAssistantTool("search_customers", { name: "연락처도구테스트" }, { advisorId: OWNER }, USER, db);
+  expect(own.lines.join("\n")).toMatch(PHONE_RE);
+});
