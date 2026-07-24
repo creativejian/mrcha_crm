@@ -55,7 +55,7 @@
 
 첫 V2 요청(리스·인천·`within_three_months`)으로 컬러·지역·시기·D6 폴백 **전 경로 정상 확인**. 강남구로 뜨던 건 **Safari 구 번들 캐시**였고(코드·API·번들 3중 실측 후 `bun dev` 재시작으로 인천 확인) 구현 결함 아님.
 
-- **🔵 앱 `specific_month`(특정 월 지정) UI 미노출** — 앱 출고 시기 선택지가 4개뿐(`이번 달`/`다음 달`/`3개월 이내`/`미정`, `quote_v2_renderer.dart:4189~`). `specificMonth`는 options 배열에 없으나 **특정 월 피커 렌더 로직(4202)은 준비돼 있다** = 앱이 진입 버튼만 아직 안 붙였다. **CRM은 대응 완료** — DB CHECK 6값·`deliveryTimingTextOf`의 `specific_month`→`target_month` 처리·테스트 전부 있어 앱이 켜면 **무변경 수용**(예약 필드 `delivery_method`·`quote_priority_codes`와 같은 성격). 의도된 미출시인지 앱 버그인지는 앱팀 판단(이사님 공유).
+- **✅ 앱 출고 시기 2종 UI 미노출 = 의도된 예약(이사님 판정 2026-07-24, 앱 버그 아님)** — 앱 `QuoteDeliveryTimingMode.values`는 6종인데 UI 선택지는 4개(`이번 달`/`다음 달`/`3개월 이내`/`미정`, `quote_v2_renderer.dart:4189~`). ⚠️ **원래 관측 정정**: 빠진 건 `specific_month` 하나가 아니라 **2종** — `as_soon_as_favorable`(좋은 조건 즉시)·`specific_month`(희망 월). 이사님이 **7/17 UX 정리 커밋 `886431de`**("빠른 견적 V2 7단계 경험 정리")에서 이 2개를 **의도적으로 선택지에서 뺐고**, 배관(12개월 피커·검증·복원)은 **예약 상태로 보존**돼 있다. **CRM 대응 불필요** — DB CHECK 6값·`deliveryTimingTextOf`가 `as_soon_as_favorable`→"좋은 조건 즉시"·`specific_month`→`target_month`를 이미 처리(테스트 잠금)해 앱이 켜는 순간 **무변경 수용**(예약 필드 `delivery_method`·`quote_priority_codes`와 같은 성격). 앱 레포 proposal.md §2-2에 이사님이 "현 UI 노출 4종 + 2종 예약(`886431de`)" 주석 추가(로컬, 다음 커밋).
 - **선재 버그 1건 발견·수정**(`#343`) — `deposit_type='none'`(무보증, 앱 07-17 도입) 라벨 누락으로 raw "none" 노출. V2 출고와 별개.
 
 ## 주의
