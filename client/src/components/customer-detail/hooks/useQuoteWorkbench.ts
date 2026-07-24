@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import { type Customer } from "@/data/customers";
 import { type CustomerDetailData } from "@/lib/customers";
 import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
-import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
+import { customerRegionOf, DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { buildSolutionQuoteInput, CRM_EXTRA_LENDERS, parseSolutionQuoteResult, solutionLenderOptions, solutionProductTypeOf, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
 import { supportedMileagesFor, supportedTermsFor, useSupportMatrix } from "@/lib/support-matrix";
@@ -121,8 +121,12 @@ export function useQuoteWorkbench({
   // 신규 작성완료 후 "이후 UPDATE 대상 id". editingQuoteId(=비교카드 key·prefill)를 안 건드려야 카드 리마운트(입력 리셋)를 막는다.
   const persistedQuoteIdRef = useRef<string | null>(null);
   const [guidance, setGuidance] = useState<QuoteGuidance>(DEFAULT_QUOTE_GUIDANCE);
-  // 신규 워크벤치 guidance 시드 — 고객 지역은 거주지에서 파생(미입력이면 "확인 필요", 임의 지역 확정 표기 방지).
-  const seedGuidance = () => ({ ...DEFAULT_QUOTE_GUIDANCE, customerRegion: regionFromResidence(detail.residence) });
+  // 신규 워크벤치 guidance 시드 — 고객 지역은 앱 인수/등록 지역 → 거주지 파생 → "확인 필요" 3단 폴백(계약 D6).
+  // appRegion은 견적요청 승격 경로에서만 온다(수기 작성·기존 견적 수정은 인자 없이 호출 = 거주지 파생).
+  const seedGuidance = (appRegion: string | null = null) => ({
+    ...DEFAULT_QUOTE_GUIDANCE,
+    customerRegion: customerRegionOf(appRegion, detail.residence),
+  });
   const [editPrefill, setEditPrefill] = useState<EditPrefill | null>(null);
   // 앱 견적요청 승격(S3) prefill. editPrefill(수정·가격 포함)과 별개 — 차량/옵션만 채우고 가격은 catalog 계산.
   const [quoteRequestPrefill, setQuoteRequestPrefill] = useState<{ trimId: number | null; optionIds: number[]; exteriorColorId: number | null; interiorColorId: number | null } | null>(null);
@@ -179,7 +183,7 @@ export function useQuoteWorkbench({
       persistedQuoteIdRef.current = null;
       setEditPrefill(null);
       resetWorkbenchVehicle();
-      setGuidance(seedGuidance());
+      setGuidance(seedGuidance(prefill.deliveryRegion));
       // 앱 견적요청 조건(기간·보증금/선수금 유형·비율/금액) → 카드1 시드(도메인 규칙: quote-request-seed.ts).
       const seed = seedScenarioCardFromRequest(prefill);
       // 모드는 아래 setCardUi(cardUiFromSeed)가 담당 — 카드는 표시 금액만 시드한다.
