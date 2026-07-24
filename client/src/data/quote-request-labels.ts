@@ -12,7 +12,10 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   cash: "일시불",
 };
 
+// none = 보증금·선수금 없이 시작(리스/렌트 V2, 2026-07-17 앱 도입). 앱 Dart SSOT(deposit_type.dart)와 어휘 일치.
+// DB CHECK에도 정식 값으로 있다(quote_requests_deposit_type_check) — 빠져 있던 동안 화면에 raw "none"이 노출됐다.
 export const DEPOSIT_TYPE_LABEL: Record<string, string> = {
+  none: "무보증",
   deposit: "보증금",
   advance: "선수금",
   prepayment: "선납금",
