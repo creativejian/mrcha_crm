@@ -1,10 +1,15 @@
 import { supabase } from "./supabase";
 
 // 카카오 OAuth 로그인. 로그인 후 현재 origin으로 복귀(redirect allowlist에 등록 필요).
+// ⚠️ trailing slash 필수 — Supabase redirect allowlist는 `https://crm.mrcha.app/**` 형태로
+// 등록돼 있는데, window.location.origin은 슬래시가 없어(`https://crm.mrcha.app`) `/**`(경로 구분자
+// `/` 요구)에 매칭되지 않는다. 매칭 실패 시 Supabase는 에러 없이 Site URL(=mrcha.app)로 폴백해
+// CRM 로그인이 앱 도메인으로 튄다(2026-07-24 실증, Supabase 공식 문서로 확인). `/`를 붙여
+// `https://crm.mrcha.app/`로 만들면 `/**`에 매칭된다. localhost:5173/**·mrcha.app/** 도 동일 규칙.
 export async function signInWithKakao(): Promise<void> {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "kakao",
-    options: { redirectTo: window.location.origin },
+    options: { redirectTo: `${window.location.origin}/` },
   });
   if (error) throw error;
 }
