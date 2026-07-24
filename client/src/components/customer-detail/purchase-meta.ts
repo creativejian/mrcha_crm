@@ -30,8 +30,9 @@ export const initialCostKindOptions: InitialCostKind[] = ["무보증", "보증�
 export const initialCostUnitOptions: InitialCostUnit[] = ["%", "금액"];
 export const annualMileageOptions = ANNUAL_MILEAGE_OPTIONS;
 export const deliveryMethodOptions = DELIVERY_METHOD_OPTIONS;
-export const timingPresetOptions = ["좋은 조건 즉시", "이번 달", "다음 달", "3개월 이후"];
-export const timingMonthOptions = Array.from({ length: 12 }, (_, index) => `${index + 1}월`);
+// 출고 희망 시기 프리셋은 앱 UI 4종과 어휘를 맞춘다(2026-07-24 설계 D4) — SSOT는 quote-request-needs.
+// 구 5종(좋은 조건 즉시·이번 달·다음 달·3개월 이후·특정 월 12개월 피커)은 앱에 없는 어휘라 폐기했다.
+export { timingPresetOptions } from "@/lib/quote-request-needs";
 export const contractFocusOptions = ["무보증 선호", "월 납입 최소", "총 비용 최소", "반납 확정", "인수 확정", "승계 고려", "빠른 출고", "할인 민감", "승인 여부"];
 export const customerNoteOptions = ["연락 잘 됨", "연락 어려움", "특정 시간 연락", "카톡 선호", "통화 선호", "문자 선호", "가족과 상의", "비교 많음", "결정 빠름", "조건 수용 빠름", "신중함", "진행 잘 따라옴"];
 export const reviewNoteOptions = ["4대보험 확인", "재직 확인 전", "소득 증빙 필요", "신용점수 확인", "기대출 확인", "연체 이력 확인", "사업자 매출 확인", "공동명의 검토", "승인 우선"];
@@ -52,6 +53,31 @@ export function parseInitialCost(value: string) {
 
 // 상세 구매조건 9필드 label → crm.customers 컬럼(camelCase) 매핑.
 // 초기화(detail.need*)와 savePatch가 공유하는 단일 출처. 매핑 없는 label은 영속 대상이 아니다.
+// 대표 견적요청에서 파생되는 구매조건 라벨(2026-07-24 설계 D2). 나머지 4개(인도 방식·계약 포커스·
+// 고객/심사 특이사항)는 앱이 값을 안 보내 상담사 수기 입력으로 남는다.
+// 두 곳이 공유한다: ①대표 변경 후 detail 재동기화(useCustomerPurchase) ②read-only 판정.
+export const DERIVED_PURCHASE_LABELS: ReadonlySet<string> = new Set([
+  "구매방식",
+  "계약기간",
+  "초기비용",
+  "연간 주행거리",
+  "출고 희망 시기",
+]);
+
+// 편집 팝오버 kind → 구매조건 라벨. read-only 판정(useCustomerPurchase.isFieldLocked)이 쓴다.
+// 값은 types.ts의 OpenEditorState kind와 1:1 — 새 kind를 추가하면 여기도 함께 채운다.
+export const PURCHASE_EDITOR_LABEL: Record<string, string> = {
+  purchaseMethod: "구매방식",
+  purchaseTerm: "계약기간",
+  purchaseInitialCost: "초기비용",
+  purchaseAnnualMileage: "연간 주행거리",
+  purchaseDeliveryMethod: "인도 방식",
+  purchaseTiming: "출고 희망 시기",
+  purchaseCostFocus: "계약 포커스",
+  purchaseCustomerNotes: "고객 특이사항",
+  purchaseReviewNotes: "심사 특이사항",
+};
+
 export const PURCHASE_FIELD_KEY: Record<string, keyof CustomerWritePatch> = {
   "구매방식": "needMethod",
   "출고 희망 시기": "needTiming",

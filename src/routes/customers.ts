@@ -2,9 +2,10 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
-import { createCustomerManual, getCustomer, getCustomerAdvisorId, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
+import { createCustomerManual, getCustomer, getCustomerAdvisorId, getCustomerAdvisorName, getCustomerAppUserId, getCustomerFeaturedRequestId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
+import { DERIVED_NEED_KEYS } from "../../client/src/lib/quote-request-needs";
 import { dismissConsultation, linkedCustomerIdForConsultation, listConsultationsByUser } from "../db/queries/consultations";
-import { getQuoteRequestDetail, listQuoteRequestsByUser } from "../db/queries/quote-requests";
+import { getQuoteRequestDetail, listQuoteRequestsByUser, setFeaturedRequest } from "../db/queries/quote-requests";
 import {
   addMemo, updateMemo, deleteMemo,
   addTask, updateTask, deleteTask,
@@ -227,6 +228,25 @@ customers.get("/:id/quote-requests/:reqId", zValidator("param", z.object({ id: z
   return c.json(detail);
 });
 
+// 대표 견적요청 지정(2026-07-24 설계 D1) — need_* 7필드가 이 요청 값으로 갱신된다.
+// ⚠️ quote-requests 라우터가 아니라 여기 두는 이유: 호출부가 드로어의 앱 카드라, 그 라우터의 인박스
+//    전면 게이트(admin·manager)에 걸리면 staff가 못 쓴다(#302 프리필 부수 피해와 정확히 같은 축).
+//    여기 두면 customerScopeGate 자동 편입으로 staff는 본인 담당 고객만 바꾼다.
+// 소유권(요청 user_id == 이 고객 app_user_id)은 setFeaturedRequest가 검증한다 — 파라미터 2개가 서로
+// 무관하게 올 수 있어 쿼리에서 막는다. 견적 쓰기가 아니라 고객 니즈 변경이므로 quoteWriteGate는 불요
+// (같은 값을 PATCH /:id로 바꾸던 경로가 staff에게 열려 있는 것과 동일 수준).
+customers.post("/:id/quote-requests/:reqId/feature", zValidator("param", z.object({ id: z.uuid(), reqId: z.uuid() })), async (c) => {
+  const p = c.req.valid("param");
+  const row = await c.var.db.transaction((tx) => setFeaturedRequest(p.reqId, p.id, tx));
+  // 고객 없음·요청 없음·소유권 불일치를 같은 문구로 묶는다(프리필 라우트와 동일 — 존재 여부가 새지 않는다).
+  if (!row) return c.json({ error: "요청을 찾을 수 없습니다." }, 404);
+  // 프로필 청크 재임베딩 — 파생 7필드 전부가 CUSTOMER_PROFILE_EMBED_KEYS 구성 필드다.
+  // 트랜잭션 커밋 후 스케줄(승격 라우트와 동일 — 훅의 fresh read가 커밋 전 구값을 보는 것 방지).
+  scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: p.id });
+  scheduleAiHintRefresh(c, p.id);
+  return c.json(row);
+});
+
 // 고객 상세: 그 고객(app_user_id)의 앱 상담신청 목록. 수기 고객은 빈 배열.
 customers.get("/:id/consultations", zValidator("param", z.object({ id: z.uuid() })), (c) =>
   run(
@@ -284,6 +304,17 @@ customers.patch(
       const target = await getCustomerAppUserId(c.req.valid("param").id, c.var.db);
       if (!target) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
       if (target.appUserId) return c.json({ error: "앱 등록 번호는 수정할 수 없습니다." }, 409);
+    }
+    // 대표 견적요청에서 파생되는 니즈는 수정 불가(2026-07-24 설계 D7) — UI 비활성화만으로는 우회된다.
+    // ⚠️ 판정 기준은 app_user_id가 아니라 **featured_request_id**다: 상담신청으로만 연결돼 견적요청이
+    //    0건인 앱 고객은 파생 소스가 없으므로 수기 입력이 계속 열려 있어야 한다(설계 D2).
+    // 값을 바꾸려면 대표를 바꾼다(POST /:id/quote-requests/:reqId/feature) — 그게 유일한 쓰기 경로다.
+    if (DERIVED_NEED_KEYS.some((key) => patch[key] !== undefined)) {
+      const featured = await getCustomerFeaturedRequestId(c.req.valid("param").id, c.var.db);
+      if (!featured) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+      if (featured.featuredRequestId) {
+        return c.json({ error: "대표 견적요청에서 자동으로 채워지는 항목이라 수정할 수 없습니다." }, 409);
+      }
     }
     // 담당자 배정 축(advisorId·advisorName·team)은 admin·manager만 — **필드 단위 게이트**
     // (라우트 자체는 staff에게 열려 있어야 한다: 진행 상태·메모 등 일상 수정이 여기로 온다).

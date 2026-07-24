@@ -7,9 +7,23 @@
 // ⚠️ 출력은 need_* 컬럼에 그대로 박히고 AI 프로필 청크 텍스트(buildCustomerProfileChunkText)가 된다 —
 //    형식을 바꾸면 임베딩이 전량 재백필된다(embeddingContentHash 변경).
 
-import { ANNUAL_MILEAGE_OPTIONS } from "@/data/customers";
+import { ANNUAL_MILEAGE_OPTIONS, PURCHASE_UNSET_SENTINEL } from "@/data/customers";
 import { DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "@/data/quote-request-labels";
 import { deliveryTimingTextOf } from "@/lib/quote-delivery";
+
+// 대표 요청에서 파생되는 need_* 컬럼(설계 D2·D7). 대표가 있으면 이 필드들은 read-only다 —
+// 서버 PATCH가 409로 거부하고(routes/customers.ts) 화면도 편집 팝오버를 열지 않는다.
+// 차종 2개(needModel·needTrim)는 catalog 조인이 필요해 서버가 따로 채우지만 "파생이라 수정 불가"라는
+// 성격이 같아 여기 함께 둔다.
+export const DERIVED_NEED_KEYS = [
+  "needModel",
+  "needTrim",
+  "needMethod",
+  "needContractTerm",
+  "needInitialCost",
+  "needAnnualMileage",
+  "needTiming",
+] as const;
 
 export type QuoteRequestNeedsSource = {
   paymentMethod: string | null;
@@ -63,6 +77,25 @@ export function initialCostTextOf(
     return `${name} ${Math.round(amountWon / 10000).toLocaleString("ko-KR")}만원`;
   }
   return name;
+}
+
+// 상세 구매조건 "출고 희망 시기" 프리셋 → 앱 delivery_timing_mode(설계 D4). 앱 UI 4종과 어휘를 맞춘다.
+// ⚠️ 앱의 within_three_months는 "3개월 **이내**"다 — "이후"는 뜻이 반대라 그대로 옮기면 오독된다.
+// 앱이 예약해 둔 2종(as_soon_as_favorable·specific_month)은 UI에 노출하지 않는다(앱과 동일).
+const TIMING_PRESET_MODE: Record<string, string> = {
+  "이번 달": "current_month",
+  "다음 달": "next_month",
+  "3개월 이내": "within_three_months",
+  "미정": "undecided",
+};
+
+export const timingPresetOptions = Object.keys(TIMING_PRESET_MODE);
+
+// 프리셋 선택 → 저장값. 고른 시점(referenceMonth = 'YYYY-MM')을 앵커로 **절대화**한다(설계 D4).
+// 앱 연결 고객은 요청에 참조월이 실려 오지만 수기 입력에는 없어서, 고른 시점을 그 자리에 놓는다.
+// undecided·모르는 프리셋은 deliveryTimingTextOf가 null을 주므로 미입력 센티넬로 떨어진다.
+export function timingTextFromPreset(preset: string, referenceMonth: string): string {
+  return deliveryTimingTextOf(TIMING_PRESET_MODE[preset] ?? null, referenceMonth, null) ?? PURCHASE_UNSET_SENTINEL;
 }
 
 export function deriveNeedsFromRequest(req: QuoteRequestNeedsSource): DerivedNeeds {

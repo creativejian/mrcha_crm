@@ -289,3 +289,12 @@ export async function createCustomerFromRequest(requestId: string): Promise<Prom
   invalidateCustomerDetail(r.id);
   return r;
 }
+
+// 대표 견적요청 지정(2026-07-24 설계 D1) — 서버가 need_* 7필드를 그 요청 값으로 갱신한다.
+// ⚠️ 라우트가 quote-requests가 아니라 customers 밑에 있다(그쪽은 인박스 전면 게이트라 staff가 403).
+// 상세 캐시만 무효화한다 — 요청 카드 자체는 불변이라 인박스/카드 목록은 다시 받을 필요가 없다.
+// (화면 갱신은 호출부가 상세를 재조회해야 한다 — 7필드가 서버에서 한꺼번에 바뀌어 낙관적 갱신이 불가.)
+export async function featureQuoteRequest(customerId: string, requestId: string): Promise<void> {
+  await sendJson(`/api/customers/${customerId}/quote-requests/${requestId}/feature`, "POST");
+  invalidateCustomerDetail(customerId);
+}

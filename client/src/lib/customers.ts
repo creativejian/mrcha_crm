@@ -130,6 +130,9 @@ export type CustomerDetailResponse = {
   needContractFocus: string | null;
   needCustomerNote: string | null;
   needReviewNote: string | null;
+  // 대표 견적요청(2026-07-24 설계 D1). null이 아니면 파생 7필드가 read-only다(D2·D7 — 서버도 409로 막는다).
+  // 앱 카드 star 켜짐 표시에도 쓴다.
+  featuredRequestId: string | null;
   tasks: CustomerDetailTask[];
   schedules: CustomerDetailSchedule[];
   memos: CustomerDetailMemo[];
@@ -168,6 +171,7 @@ export type CustomerDetailData = Pick<
   | "needContractFocus"
   | "needCustomerNote"
   | "needReviewNote"
+  | "featuredRequestId"
   | "tasks"
   | "schedules"
   | "memos"
@@ -206,6 +210,7 @@ export function toCustomerDetail(res: CustomerDetailResponse): CustomerDetailDat
     needContractFocus: res.needContractFocus,
     needCustomerNote: res.needCustomerNote,
     needReviewNote: res.needReviewNote,
+    featuredRequestId: res.featuredRequestId,
     tasks: res.tasks ?? [],
     schedules: res.schedules ?? [],
     memos: res.memos ?? [],

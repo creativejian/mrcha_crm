@@ -1,6 +1,8 @@
-import { useState, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction, type SyntheticEvent } from "react";
+import { useEffect, useState, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction, type SyntheticEvent } from "react";
 
+import { PURCHASE_UNSET_SENTINEL } from "@/data/customers";
 import { formatNumberWithCommas } from "@/lib/detail-utils";
+import { timingTextFromPreset } from "@/lib/quote-request-needs";
 import { calculatePurchasePopoverFrame, type PurchaseFloatingKind, type PurchasePopoverFrame } from "@/lib/popover-frames";
 import { type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 
@@ -9,11 +11,13 @@ import {
   contractFocusOptions,
   contractTermOptions,
   customerNoteOptions,
+  DERIVED_PURCHASE_LABELS,
   methodOptions,
   purchaseFieldScaffold,
   purchaseTagSelectionLimit,
   reviewNoteOptions,
   parseInitialCost,
+  PURCHASE_EDITOR_LABEL,
   PURCHASE_FIELD_KEY,
   type InitialCostKind,
   type InitialCostSelection,
@@ -50,12 +54,43 @@ export function useCustomerPurchase({
       return typeof stored === "string" && stored ? { ...field, value: stored } : field;
     }),
   );
-  const [showTimingMonths, setShowTimingMonths] = useState(false);
+  // 대표 견적요청이 바뀌면(설계 D1) 서버가 파생 5필드를 한꺼번에 갈아끼우고 호출부가 상세를 다시 받는다.
+  // purchaseFields는 useState 초기화 함수로만 detail을 읽어 최초 마운트 값에 고정되므로, 여기서 새 detail을
+  // 따라가지 않으면 "별을 눌렀는데 구매조건이 그대로"가 된다(리로드해야 반영 — 2026-07-24 실기 발견).
+  // ⚠️ 파생 5필드만 동기화한다. 수기 유지 4필드(인도 방식·계약 포커스·고객/심사 특이사항)를 함께 덮으면
+  //    상담사가 방금 편집한 값이 서버 왕복 사이에 되돌아갈 수 있다.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 외부 값(detail) 동기화. 값이 같으면 아래에서 같은 배열을 반환해 리렌더가 멈춘다.
+    setPurchaseFields((current) => {
+      let changed = false;
+      const next = current.map((field) => {
+        if (!DERIVED_PURCHASE_LABELS.has(field.label)) return field;
+        const key = PURCHASE_FIELD_KEY[field.label];
+        const stored = key ? (detail as Record<string, unknown>)[key] : undefined;
+        const value = typeof stored === "string" && stored ? stored : "";
+        if (field.value === value) return field;
+        changed = true;
+        return { ...field, value };
+      });
+      return changed ? next : current;
+    });
+  }, [detail]);
+
   const [initialCostKind, setInitialCostKind] = useState<InitialCostSelection>("보증금");
   const [initialCostUnit, setInitialCostUnit] = useState<InitialCostUnit>("%");
   const [initialCostAmount, setInitialCostAmount] = useState("30");
 
+  // 대표 견적요청이 있으면 파생 5필드는 read-only(설계 D2) — 값의 정본이 그 요청이라 손으로 고칠 수
+  // 없다. 바꾸려면 대표를 바꾼다(앱 카드 star). 서버도 409로 막는다(D7) — 여기는 UX 보조다.
+  // 대표가 없으면(앱 미연결 고객 · 견적요청 0건인 앱 고객) 파생 소스가 없으므로 전부 편집 가능하다.
+  const derivedLocked = detail.featuredRequestId != null;
+  function isFieldLocked(label: string): boolean {
+    return derivedLocked && DERIVED_PURCHASE_LABELS.has(label);
+  }
+
   function openPurchaseFloatingEditor(event: ReactMouseEvent<HTMLButtonElement>, next: Extract<OpenEditorState, { kind: PurchaseFloatingKind }>) {
+    // 잠긴 필드는 팝오버 자체를 열지 않는다 — 셀 버튼도 disabled지만 다른 경로로 불릴 수 있다.
+    if (isFieldLocked(PURCHASE_EDITOR_LABEL[next.kind] ?? "")) return;
     if (openEditor && editorMatches(openEditor, next)) {
       setOpenEditor(null);
       setPurchasePopoverFrame(null);
@@ -116,6 +151,7 @@ export function useCustomerPurchase({
   }
 
   function openPurchaseInitialCostEditor(event: ReactMouseEvent<HTMLButtonElement>) {
+    if (isFieldLocked("초기비용")) return; // 초기비용은 전용 진입점이라 위 가드를 안 탄다
     const nextEditor = { kind: "purchaseInitialCost" } as const;
     if (openEditor && editorMatches(openEditor, nextEditor)) {
       setOpenEditor(null);
@@ -164,34 +200,19 @@ export function useCustomerPurchase({
     savePatch({ needInitialCost: nextValue }, () => setPurchaseFields(prevPurchaseFields));
   }
 
+  // 프리셋을 고른 **시점**을 참조월로 절대화해 저장한다(설계 D4) — 앱 연결 고객이 요청에서 받는 값과
+  // 같은 어휘가 되고, 상대 표현이 컬럼에 남아 시간이 지나며 부패하는 것을 막는다.
+  // 같은 값을 다시 누르면 해제(미입력 센티넬).
   function selectPurchaseTiming(option: string) {
-    if (option === "특정 월") {
-      setShowTimingMonths(true);
-      return;
-    }
     const currentTimingField = purchaseFields.find((field) => field.label === "출고 희망 시기");
-    const nextValue = currentTimingField?.value === option ? "확인 필요" : option;
+    const now = new Date();
+    const referenceMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const nextText = timingTextFromPreset(option, referenceMonth);
+    const nextValue = currentTimingField?.value === nextText ? PURCHASE_UNSET_SENTINEL : nextText;
     const prevPurchaseFields = purchaseFields;
     setPurchaseFields((current) => current.map((field) => (
       field.label === "출고 희망 시기" ? { ...field, value: nextValue } : field
     )));
-    setShowTimingMonths(false);
-    setOpenEditor(null);
-    setPurchasePopoverFrame(null);
-    markRecentUpdate("상세 구매조건");
-    onToast("출고 희망 시기 수정 완료");
-    savePatch({ needTiming: nextValue }, () => setPurchaseFields(prevPurchaseFields));
-  }
-
-  function selectPurchaseTimingMonth(month: string) {
-    const currentTimingField = purchaseFields.find((field) => field.label === "출고 희망 시기");
-    const monthValue = `${month} 출고 희망`;
-    const nextValue = currentTimingField?.value === monthValue ? "확인 필요" : monthValue;
-    const prevPurchaseFields = purchaseFields;
-    setPurchaseFields((current) => current.map((field) => (
-      field.label === "출고 희망 시기" ? { ...field, value: nextValue } : field
-    )));
-    setShowTimingMonths(false);
     setOpenEditor(null);
     setPurchasePopoverFrame(null);
     markRecentUpdate("상세 구매조건");
@@ -298,8 +319,7 @@ export function useCustomerPurchase({
 
   return {
     fields: purchaseFields,
-    showTimingMonths,
-    setShowTimingMonths,
+    isFieldLocked,
     initialCostKind,
     initialCostUnit,
     setInitialCostUnit,
@@ -314,7 +334,6 @@ export function useCustomerPurchase({
       selectInitialCostKind,
       applyPurchaseInitialCost,
       selectPurchaseTiming,
-      selectPurchaseTimingMonth,
       togglePurchaseCostFocus,
       togglePurchaseCustomerNote,
       togglePurchaseReviewNote,

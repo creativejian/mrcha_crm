@@ -86,8 +86,11 @@ test("PATCH /api/customers/:id 구매조건 라운드트립 → 저장·복원",
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
   const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string }>;
-  const cid = list[0].id;
+  const list = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; appUserId: string | null }>;
+  // ⚠️ 대표 견적요청이 있는 고객은 파생 니즈(계약기간·연간 주행거리 포함)가 409로 잠긴다(2026-07-24 설계 D7).
+  // 수기 고객(앱 미연결)은 파생 소스가 없어 대표도 없으므로 이 라운드트립이 유효하다.
+  const cid = list.find((c) => !c.appUserId)?.id;
+  expect(cid).toBeDefined();
   // 저장
   const patched = await app.request(`/api/customers/${cid}`, {
     method: "PATCH",

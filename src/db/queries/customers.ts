@@ -217,6 +217,16 @@ export async function getCustomerAppUserId(
   return row ?? null;
 }
 
+// 고객의 대표 견적요청 id만 조회(2026-07-24 설계 D7 — 파생 니즈 PATCH 거부 판정).
+// 없는 고객은 null(라우트 404), 있으면 {featuredRequestId}(null이면 파생 소스 없음 = 수기 입력 허용).
+export async function getCustomerFeaturedRequestId(
+  id: string,
+  executor: Executor = getDefaultDb(),
+): Promise<{ featuredRequestId: string | null } | null> {
+  const [row] = await executor.select({ featuredRequestId: customers.featuredRequestId }).from(customers).where(eq(customers.id, id));
+  return row ?? null;
+}
+
 // scope(2026-07-21 role scope spec S-1): "all"=전체(기본값 — 기존 호출부 무영향),
 // { advisorId }=본인 담당만. SSOT는 resolveCustomerScope(assistant-scope.ts) — AI(#176)와
 // 화면의 고객 집합이 같은 판정을 공유한다. 미배정(advisor_id NULL)은 매칭 불가 = 자동 제외(S-4).
