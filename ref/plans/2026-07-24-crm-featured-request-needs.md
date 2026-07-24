@@ -175,6 +175,14 @@ Expected: FAIL — `Failed to resolve import "./quote-request-needs"`
 
 - [ ] **Step 3: 모듈을 구현한다**
 
+⚠️ **실행 중 확인된 정정 2건**:
+1. `formatNumberWithCommas`(`detail-utils.ts`)는 **쓰지 않는다** — 그 파일이 `react`에서 타입을
+   import해 "React 체인 없는 순수 모듈" 경계를 흐린다. `toLocaleString("ko-KR")`을 직접 부른다
+   (그 함수 본체도 결국 같은 호출이다).
+2. `DERIVED_NEED_KEYS`·`DerivedNeedKey`는 **이 Task에서 만들지 않는다** — PR ①에는 소비처가 없어
+   knip이 unused export로 잡는다(PR 단위 CI green 유지). 상수는 **Task 7에서 추가**하고,
+   `DerivedNeedKey` 타입은 실제 소비처가 없어 폐기한다(YAGNI).
+
 ```ts
 // client/src/lib/quote-request-needs.ts
 // 앱 견적요청 → crm.customers.need_* 파생 SSOT(2026-07-24 대표 견적요청 설계 D2).
