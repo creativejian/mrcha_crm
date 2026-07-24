@@ -1090,6 +1090,12 @@ th input:focus-visible {
   white-space: nowrap;
 }
 
+/* 계약 근거(계약 차량 저장값·계약 진행 견적)가 없을 때 — 니즈로 채우지 않고 미입력으로 둔다. */
+.vehicle-line-empty {
+  color: #a3a9b0;
+  font-weight: 700;
+}
+
 .extra-count-pill {
   position: relative;
   z-index: 2;

@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
-import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
+import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
 import { deliveryInfoSummary, seedDeliveryInfoDraft, type DeliveryInfoDraft } from "@/lib/delivery-info";
 import { SOLUTION_LENDERS } from "@/lib/solution-quote";
@@ -117,22 +117,33 @@ export function CustomerVehicleCell({
   openExtraFor,
   onToggleExtra,
   extraPopoverRef,
-  contractVehicle = null,
+  contractContext = false,
 }: {
   customer: Customer;
   openExtraFor: string | null;
   onToggleExtra: (event: MouseEvent<HTMLButtonElement>, extraId: string) => void;
   extraPopoverRef: RefObject<HTMLButtonElement | null>;
-  /** delivery mode 한정(출고 2단계 spec §5.2): 계약 차량 저장값이 있으면 모델·트림 줄을 대체.
-   * 비교 차종(+N pill)·트림 줄은 미표시 — 계약 확정 맥락이라 "고민 중" 어휘가 오도. 구매방식 줄은 니즈 파생 유지. */
-  contractVehicle?: string | null;
+  /** 계약 맥락(contract·delivery mode) 표시로 전환 — 출고 2단계 spec §5.2 확장(2026-07-24).
+   * 차량·구매방식 모두 **계약 근거만** 쓴다(deliveryVehicleDisplay·deliveryMethodDisplay) — 니즈는
+   * 최초 승격 시드라 계약 실무 화면에선 노이즈이고, 보이면 상담사가 진짜 계약 차량을 안 채운다.
+   * 없으면 "미입력"으로 두어 입력을 유도한다(출고 정보의 `+ 미지정` 패턴과 같은 결).
+   * 비교 차종(+N pill)·트림 줄은 미표시 — 계약 확정 맥락이라 "고민 중" 어휘가 오도(트림은 차량 라벨에 포함). */
+  contractContext?: boolean;
 }) {
   const vehicle = vehicleDisplay(customer);
-  if (contractVehicle) {
+  if (contractContext) {
+    const contractVehicle = deliveryVehicleDisplay(customer);
+    const contractMethod = deliveryMethodDisplay(customer);
     return (
       <td>
-        <strong className="vehicle-title"><span className="vehicle-line-text" title={contractVehicle}>{contractVehicle}</span></strong>
-        <span className="vehicle-method"><span className="vehicle-line-text">{vehicle.method}</span></span>
+        <strong className="vehicle-title">
+          {contractVehicle ? (
+            <span className="vehicle-line-text" title={contractVehicle}>{contractVehicle}</span>
+          ) : (
+            <span className="vehicle-line-text vehicle-line-empty">차량 미입력</span>
+          )}
+        </strong>
+        {contractMethod ? <span className="vehicle-method"><span className="vehicle-line-text">{contractMethod}</span></span> : null}
       </td>
     );
   }

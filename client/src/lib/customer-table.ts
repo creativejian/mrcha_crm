@@ -87,6 +87,37 @@ export function vehicleDisplay(customer: Customer) {
   };
 }
 
+// 계약·출고 관리(contract·delivery mode)의 차량·구매방식 — **계약 근거만 쓴다**.
+// 계약 차량 저장값(상담사 입력, 정본) → 계약 진행 마킹된 견적 → 없으면 null(렌더가 "미입력").
+//
+// ⚠️ 니즈(need_model·need_method)로 폴백하지 않는다(2026-07-24 유슨생 결정). 니즈는
+// createCustomerFromRequest가 **최초 승격 때 한 번 박고 끝**이라(이후 요청이 아무리 와도 갱신 안 되고,
+// 앱 연결 고객은 CRM에 편집 UI조차 없다) 계약 실무 화면에서는 정보가 아니라 노이즈다. 더 나쁜 건
+// **입력 유도가 죽는 것** — 니즈가 보이면 상담사가 진짜 계약 차량을 안 채운다(실측: 계약완료 8명
+// 전원이 계약 차량 미입력이었다). 계약 견적이 없으면 CRM에 계약 차량 기록이 실제로 없는 것이므로,
+// 모른다고 표시해 채우게 한다. 배지("관심")로 구분하는 안도 검토했으나 여러 행을 훑을 때 배지가
+// 눈에 안 들어와 결국 오독된다는 이유로 기각했다.
+function trimmedOrNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+export function deliveryVehicleDisplay(customer: Customer): string | null {
+  const contract = trimmedOrNull(customer.delivery?.contractVehicle);
+  if (contract) return contract;
+  const q = customer.contractingQuote;
+  // 브랜드·모델·트림 결합(각 null 가능 — 전부 비면 견적이 있어도 표시할 게 없다).
+  const quoteLabel = q ? [q.brandName, q.modelName, q.trimName].map(trimmedOrNull).filter(Boolean).join(" ") : "";
+  return quoteLabel || null;
+}
+
+// 구매방식도 같은 규칙 — 니즈를 쓰면 "BMW 3 Series · 장기렌트"처럼 실재하지 않는 조합이 나온다
+// (실측: 제임스의 계약은 운용리스인데 니즈는 장기렌트). 차량만 비우고 구매방식을 니즈로 남기면
+// 같은 종류의 거짓이 남는다.
+export function deliveryMethodDisplay(customer: Customer): string | null {
+  return trimmedOrNull(customer.contractingQuote?.purchaseMethod);
+}
+
 export function customerMeta(customer: Customer) {
   return [customer.customerType, customer.customerTypeDetail].filter(Boolean).join(" · ");
 }

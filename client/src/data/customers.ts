@@ -124,6 +124,7 @@ export type ContractingQuoteSummary = {
   brandName: string | null;
   modelName: string | null;
   trimName: string | null;
+  purchaseMethod: string | null; // 대표 시나리오의 구매방식 — 계약·출고 목록의 구매방식 줄 정본(니즈보다 우선)
   lender: string | null; // 대표 시나리오(primary_scenario_id)의 금융사
 };
 

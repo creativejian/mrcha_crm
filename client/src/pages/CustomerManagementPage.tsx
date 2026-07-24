@@ -861,7 +861,7 @@ export function CustomerManagementPage({
 
     const check = <CustomerSelectCell checked={selected.includes(customer.no)} onToggle={(checked) => toggleCustomerSelected(customer.no, checked)} />;
     const customerCell = <CustomerInfoCell customer={customer} />;
-    const vehicleCell = <CustomerVehicleCell customer={customer} extraPopoverRef={extraPopoverRef} onToggleExtra={toggleExtraPopover} openExtraFor={openExtraFor} />;
+    const vehicleCell = <CustomerVehicleCell contractContext={mode === "contract"} customer={customer} extraPopoverRef={extraPopoverRef} onToggleExtra={toggleExtraPopover} openExtraFor={openExtraFor} />;
     const stageCell = <CustomerStageCell customer={customer} onChangePrimary={changeTwoStepPrimaryStage} onChangeSecondary={changeTwoStepSecondaryStage} onOpenPicker={openTwoStepStagePicker} pickerLevel={twoStepPickerOpen} stagePickerRef={stagePickerRef} />;
     const chanceCell = <CustomerChanceCell chance={chance} chanceNoticeFor={chanceNoticeFor} chancePopoverRef={chancePopoverRef} customer={customer} onChange={changeCustomerChance} onToggle={toggleChancePopover} openChanceFor={openChanceFor} />;
     const nextActionCell = (
@@ -922,7 +922,7 @@ export function CustomerManagementPage({
         <tr key={customer.no} {...rowProps}>
           {check}
           {customerCell}
-          <CustomerVehicleCell contractVehicle={customer.delivery?.contractVehicle ?? null} customer={customer} extraPopoverRef={extraPopoverRef} onToggleExtra={toggleExtraPopover} openExtraFor={openExtraFor} />
+          <CustomerVehicleCell contractContext customer={customer} extraPopoverRef={extraPopoverRef} onToggleExtra={toggleExtraPopover} openExtraFor={openExtraFor} />
           <CustomerStageCell customer={customer} onChangePrimary={changeTwoStepPrimaryStage} onChangeSecondary={changeTwoStepSecondaryStage} onOpenPicker={openTwoStepStagePicker} pickerLevel={twoStepPickerOpen} secondaryOnly stagePickerRef={stagePickerRef} />
           <CustomerDeliveryScheduleCell
             customer={customer}
