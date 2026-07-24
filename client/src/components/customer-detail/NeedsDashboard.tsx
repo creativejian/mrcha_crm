@@ -51,12 +51,14 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
             </label>
             <label>
               <span>구매방식</span>
-              {/* 첫 옵션 = 빈 값("미정"). 없으면 need_method가 비어 있어도 첫 옵션(장기렌트)이 선택된
-                  것처럼 보이고, 관심 차종만 입력하고 저장해도 구매방식에 장기렌트가 박혔다(2026-07-24).
-                  비어 있음을 고를 수단이자, 잘못 넣은 값을 되돌리는 수단이다. */}
+              {/* 빈 값("미정") 옵션 — 없으면 need_method가 비어 있어도 첫 옵션(장기렌트)이 선택된 것처럼
+                  보이고, 관심 차종만 입력하고 저장해도 구매방식에 장기렌트가 박혔다(2026-07-24).
+                  비어 있음을 고를 수단이자, 잘못 넣은 값을 되돌리는 수단이다.
+                  목록 **맨 아래**에 둔다(유슨생 결정) — 실제 구매방식이 위에 모여야 고르기 쉽다.
+                  위치는 선택 동작과 무관하다: `defaultValue=""`가 value로 매칭되므로 어디 있든 자동 선택된다. */}
               <select defaultValue={needs.method} name="method">
-                <option value="">미정</option>
                 {methodOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                <option value="">미정</option>
               </select>
             </label>
           </div>
