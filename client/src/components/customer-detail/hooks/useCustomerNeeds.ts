@@ -18,7 +18,7 @@ type UseCustomerNeedsArgs = {
   // 상세를 다시 받지 않는다(prod 왕복 2회 = 눈에 띄는 딜레이, 2026-07-24 실기).
   applyDetailPatch: (patch: Partial<CustomerDetailData>) => void;
   // 목록 "차종·구매방식" 열을 그 행만 즉시 갱신 — 서버 응답에 갱신값이 실려 오므로 재페치를 기다리지 않는다.
-  onVehicleChange?: (next: { vehicle: string; vehicleTrim?: string; method: string }) => void;
+  onVehicleChange?: (next: { vehicle?: string; vehicleTrim?: string; method?: string }) => void;
   // 목록 나머지 파생(lastActivity 등) 동기화용 재페치. 배경으로 흘린다 — 눈에 보이는 열은 위가 이미 고쳤다.
   onCustomerListChanged?: () => void;
 };
@@ -93,24 +93,61 @@ export function useCustomerNeeds({
     });
   }
 
+  // ⚠️ 폼 값을 **그대로** 쓴다(2026-07-24). 구 동작은 `입력값 || 기존값` 폴백이라 **한 번 넣은 값을
+  // 지울 수 없었다** — 오타를 고치려 비우고 저장해도 옛 값이 되살아났다. 이제 비우면 비워진다.
+  // 빈 문자열은 null로 보낸다(컬럼에 ""와 null이 섞이면 "빈 칸" 판정이 두 갈래가 된다).
   function saveNeeds(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    const field = (name: string) => String(formData.get(name) ?? "").trim();
     const prevNeeds = needs;
     const nextNeeds = {
-      model: String(formData.get("model") ?? "").trim() || needs.model,
-      trim: String(formData.get("trim") ?? "").trim() || needs.trim,
-      colors: String(formData.get("colors") ?? "").trim() || needs.colors,
-      method: String(formData.get("method") ?? "").trim() || needs.method,
-      memo: String(formData.get("memo") ?? "").trim() || needs.memo,
+      model: field("model"),
+      trim: field("trim"),
+      colors: field("colors"),
+      method: field("method"),
+      memo: field("memo"),
     };
     setNeeds(nextNeeds);
     setOpenEditor(null);
     markRecentUpdate("고객 정보");
     onToast("고객 니즈 수정 완료");
+    // 상세 구매조건의 "구매방식"이 같은 need_method 컬럼이다 — detail을 갱신해야 그쪽 화면도 따라온다
+    // (두 영역이 별도 훅 상태라, 이게 없으면 드로어를 다시 열어야 맞춰졌다).
+    applyDetailPatch({
+      needModel: nextNeeds.model || null,
+      needTrim: nextNeeds.trim || null,
+      needColors: nextNeeds.colors || null,
+      needMethod: nextNeeds.method || null,
+      needMemo: nextNeeds.memo || null,
+    });
+    // 목록 "차종·구매방식" 열도 즉시(전체 재페치를 기다리지 않는다 — #354와 같은 결).
+    onVehicleChange?.({ vehicle: nextNeeds.model, vehicleTrim: nextNeeds.trim || undefined, method: nextNeeds.method });
     savePatch(
-      { needModel: nextNeeds.model, needTrim: nextNeeds.trim, needColors: nextNeeds.colors, needMethod: nextNeeds.method, needMemo: nextNeeds.memo },
-      () => setNeeds(prevNeeds),
+      {
+        needModel: nextNeeds.model || null,
+        needTrim: nextNeeds.trim || null,
+        needColors: nextNeeds.colors || null,
+        needMethod: nextNeeds.method || null,
+        needMemo: nextNeeds.memo || null,
+      },
+      // 저장 실패 롤백 — 낙관 갱신한 detail·목록 행도 함께 되돌린다(폼 상태만 되돌리면 화면 세 곳이
+      // 어긋난 채 남는다). detail은 클로저에 잡힌 저장 이전 값이다.
+      () => {
+        setNeeds(prevNeeds);
+        applyDetailPatch({
+          needModel: detail.needModel,
+          needTrim: detail.needTrim,
+          needColors: detail.needColors,
+          needMethod: detail.needMethod,
+          needMemo: detail.needMemo,
+        });
+        onVehicleChange?.({
+          vehicle: detail.needModel ?? "",
+          vehicleTrim: detail.needTrim ?? undefined,
+          method: detail.needMethod ?? "",
+        });
+      },
     );
   }
 
