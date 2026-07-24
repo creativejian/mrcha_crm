@@ -9,42 +9,32 @@ Last updated: 2026-07-24
 
 ## 지금 상태
 
-**main 전량 green. 진행 중인 미완 작업 없음. 우리 액션이 남은 항목 0 — 남은 건 전부 상대 대기다**(아래 "대기").
-직전 세션(07-23) 머지 14건 = `#329`~`#332` + `#333`(업무 AI 연락처 라우팅) + CI 서술·잡 이름 정정 2 + `#334`·`#335`(updated_at 시계 + tripwire) + `#336`·`#337`(연락처 하이픈 표기) + `#338`(변이 커버리지) + docs.
-**07-24 추가 1건**: `2289fb1`(`#339` staff scope 연락처 회귀 그물 + `formatPhone` 서울 02).
-검증: typecheck 0 · lint 0 · knip 0 · format 0 · unit **1092** · build · edge · server **671** pass · 잔재 0.
+**main 전량 green. 코드 변경 없음(이번 세션은 조사·계약 확정만). 우리 액션이 남은 항목 0.**
+07-24 머지 2건 = `2289fb1`(`#339` staff scope 연락처 회귀 그물 + `formatPhone` 서울 02) · `d2d38c8`(앱 V2 출고 계약 회신 문서).
+검증: 직전 세션 기준 typecheck 0 · lint 0 · knip 0 · format 0 · unit **1092** · build · edge · server **671** pass · 잔재 0.
 
-## 직전 세션 요약 (2026-07-23 오후 · 0723-customer-meta)
+## 직전 세션 요약 (2026-07-24 · 0724-quote-parity)
 
-**① 업무 AI 연락처가 말투에 따라 답이 갈리던 것 종결(`#333`).** 설계 SSOT의 D1·D2를 이행하고 D4를 추가했다. **실측 대조가 이 슬라이스의 핵심** — 변경 전 `제임스 연락처?`/`… 알려줘`/`제임스 연락처`/`김지안 연락처?` **각 3회 = 12/12 전부 실패**(설계 문서가 성공으로 적은 김지안조차 재현 안 됨 = "뽑기" 진단의 재확인) → 변경 후 **12/12 성공**.
-- **D1** `CustomerMeta`에 연락처 병기 — `composedPhone` + `profiles` 조인 **필수**(앱 연결 고객은 `customers.phone`이 CHECK상 항상 NULL). 임베딩 무변경·재임베딩 0. 헤더는 **매 청크 반복**(고객당 1회는 기각 — 청크에 `customerId`가 없어 이름으로 묶으면 동명이인의 두 번째 번호가 빠진다).
-- **D2** 라우터 프롬프트 + `search_customers` description에 "필터는 **검색 조건**이지 답의 내용을 제한하지 않는다". ⚠️ **설계 문서의 "D2는 부"를 정정했다** — D1은 `metaById`를 hits에서 만들어 **hits 0이면 원리적으로 무효**고, 실기 4종 중 2종이 그 상태였다. 변경 후 4종이 전부 `sources: tool` = **닫은 것은 D2**.
-- **D4**(유슨생 지시) 묻지 않은 연락처를 답에 쓰지 않는다 — `CONTACT_DISCLOSURE_RULE`을 **RAG·도구 양쪽 프롬프트가 공유**(한쪽만 넣으면 "경로 따라 갈린다"가 재발). 근거에서 빼는 게 아니라 **실어두되 쓰지 말라**. 재측정: 마이바흐 3/3 노출 0 · `장기렌트 고객 누구야?`(9명) 3/3 노출 0 — **`#332`부터 있던 도구 경로 대량 노출도 함께 닫혔다**.
-- 회귀 무손상: `마이바흐…` 3/3 정상 · `안녕?` 3/3 범위 밖(`none` 생존). **`SIMILARITY_THRESHOLD`는 건드리지 않았다.**
-- ✅ **prod 실기 완료**(`https://mrcha-crm.pages.dev`, 7종 × 3회) — **로컬과 동일 12/12 · 회귀 2종 정상 · 도구 경로 번호 노출 0 · 대화 기록 잔재 0.** prod는 **Gemini 리전 프록시(#144) 경유**라 프롬프트가 같아도 결과가 같다는 보장이 없어서 이 실기가 필요했다.
-- **표기 통일 후속(`#336`·`#337`)**: 같은 번호가 화면은 `010-5486-8279`(`formatPhone`)인데 AI만 raw digits였다. **프롬프트로 시키지 않고 자료 자체를 하이픈으로** 준다 — `client/src/lib/phone-format.ts`를 순수 모듈로 분리해(구 위치 `lib/customers.ts`는 `./http` 체인이라 서버 import 불가) 도구 라인·근거 헤더 양쪽에 적용. **저장은 digits 불변**(계약 #276). ⚠️ 자료만으로는 prod **8/9**였다(모델이 가끔 하이픈을 지운다) → `CONTACT_DISCLOSURE_RULE`에 "표기를 그대로 옮겨라" 한 문장을 얹어 **prod 15/15**. **보증은 아니다**(LLM 행위) — 확정적 방법(클라 후처리)은 "AI 답변 사후 변조"라 기각(유슨생 판단, 근거는 상수 주석).
+**앱 빠른 견적 V2 출고·추가요청 13필드의 저장 계약을 앱과 공동 확정했다.** 코드는 건드리지 않았고 산출물은 회신 문서 1건.
+SSOT = **앱 레포** `reference/design/quote-v2-delivery-crm-data-contract-proposal.md`(v3) · CRM 회신·Phase 2 목록 = `ref/2026-07-24-app-delivery-contract-reply.md`.
 
-**② 실기 방법이 재사용 자산이다.** 브라우저 대신 magiclink 토큰 + `POST /api/assistant/ask` 직접 호출로 **반복 횟수를 벌었다**(스크립트는 스크래치패드에 있었고 세션 소멸성 — 필요하면 재작성). ⚠️ **매 요청 후 `crm.assistant_messages` 삭제 필수** — 라우터가 history를 함께 넘겨서 안 지우면 2회차부터 1회차 답에 끌려가 독립 시행이 아니게 된다. BEFORE는 유슨생이 띄워둔 dev 서버(8788)가 **변경 전 코드 그대로**여서 그대로 썼고(`dev:api`는 watch 없음), AFTER는 8789에 따로 띄워 대조했다. **prod 베이스 URL = `https://mrcha-crm.pages.dev`**(`mrcha.app`은 앱 도메인이라 `/api/assistant/ask`가 405 — 헷갈리기 쉽다). ⚠️ 답변에서 번호를 grep으로 검출할 땐 **하이픈 형식(`010-####-####`)도 함께** 잡을 것 — 안 그러면 정상 답변을 "노출 없음"으로 오판한다(실제로 한 번 겪음).
+**① 발단은 컬러 null 정합성 확인이었는데 더 큰 게 나왔다.** 컬러는 정합 확인(mode null 101행 = 마이그 이전 행 · `selected` 6/6이 컬러 채워짐 = "selected일 때만 저장" 계약 실증 · 앱도 CRM도 nullable). 그 과정에서 **앱 V2 출고 정보가 아직 DB에 저장되지 않는다**는 걸 실측했다 — `quote_requests` 컬럼 23개 중 delivery 계열 **0개**, RPC 인자 22개 중 **0개**. 앱이 "마무리"한 건 UI 플로우이고 **저장 계약은 백지**였다.
 
-**③ "선재 플레이크"가 실제 결함이었다(`#334`·`#335`).** 별건으로 미뤄둔 `customers.delivery.test.ts` 플레이크를 유슨생이 되짚어 봐서 잡았다. `updated_at`을 **INSERT는 `defaultNow()`(DB 시계)·UPDATE만 `new Date()`(앱 시계)**로 찍고 있어 **갱신할 때마다 스탬프가 과거로 되돌아갔다**(실측: 앱이 2.08초 뒤처져 upsert **12/12 역전**).
-- ⚠️ **테스트가 왜 못 잡았나** — 구 단언은 두 실패 모드 사이에 끼어 있었다: `>`는 스큐가 크면 깨지고(그래서 `not.toBe`로 완화됨), `not.toBe`는 스큐 ~0에서 두 호출이 같은 ms에 떨어지면 깨진다(JS Date는 ms 절삭 = "전체 실행에서만 실패"의 정체). **통과하는 쪽이 오히려 시계가 더 틀어진 상태였다.** → 비교를 **DB 안으로**(`updated_at > created_at`, 마이크로초).
-- **`#335`에서 9곳 전량 통일** + 소스 스캔 tripwire(`src/db/updated-at-clock-guard.test.ts` — **변수 우회도 fail-closed**). 가장 미묘한 축은 **스누즈**: 유효 규칙 `manage_status_at >= staffActivityAt`의 greatest에 자식 `created_at`(DB 시계)이 들어가는데 `manage_status_at`만 앱 시계라 **켜자마자 만료**될 수 있었다. `updateCustomer`는 인라인 `sql\`now()\`` 2회로 바꾸고 "한 statement의 now()는 동일"을 **실 DB 테스트로 잠갔다**.
-- **실 데이터 역전 0건**(customers 22 · quotes 8 · deliveries 0) — **prod 손상 없음**. 2.08초는 이 개발 머신 실측이고 **prod 스큐는 미측정**이다. 계약은 `AGENTS.md`에 박제.
-- **표적 확인(`#338`)** — 전체 스위트 통과는 "그 라인이 검증됐다"를 뜻하지 않아 **12곳 전부에 변이**(`now() - interval '1 hour'`, 형태 유지라 tripwire 아닌 **동작 테스트**만 측정)를 주입했다. **잡힘 3 / 안 잡힘 9.** ⚠️ **9곳 무커버를 그대로 위험으로 읽으면 틀린다** — 8곳은 그 `updated_at`을 **읽는 코드가 아예 없어서**(실측) 안 깨지는 게 정상이고, 억지 테스트는 "아무도 안 보는 값"을 잠그는 비용만 남는다(형태는 tripwire가 잠근다). **진짜 구멍은 `app-user-link` 하나**였다(`customers.updated_at` = 활동 파생 load-bearing) → 테스트 추가·변이 RED 확인. **판단 기준 = "그 컬럼을 읽기 시작하면 그때 동작 테스트"**, tripwire 주석에 박제(같은 조사 반복 방지).
+**② 핵심 합의 = 카디널리티 하이브리드.** 유슨생 직관("출고는 견적당이 아니라 고객당")이 정확했고 코드 주석에 이미 그 계약이 있었다(`quote-guidance.ts:33` — 지역은 거주지 파생, 입력 UI 없음). 앱은 요청마다 새로 묻고 제출 시 리셋(`finally { reset() }` → `empty()`, 로컬 영속화·프로필 프리필 **0**)이고 고객당 요청이 **최대 95건**(제임스)이라, 요청당 스냅샷 저장 + **승격 시 고객 필드로 수렴**으로 갈랐다. ⚠️ 견적당 "출고" 칸 3개(`quotes.delivery`=탁송료 금액 · `dueAtDelivery`=출고 전 납입 · `guidance.deliveryComment`/`expectedDelivery`=**상담사→고객 안내 문구**)는 전부 다른 의미다.
 
-**④ CI 서술 스테일 정정(`6d8845b`·`67f26f6`).** AGENTS.md·CLAUDE.md가 CI를 "4종(typecheck·lint·unit·build)"으로 적고 **"knip·format:check은 제외"**라고 못 박고 있었으나, 둘 다 기준선 0으로 정리된 뒤 2026-07-22에 **이미 추가돼 있었다**(실제 **7단계**: +knip·format·edge). 그 서술과 **잡 이름**이 겹쳐 `#333`에서 로컬 knip을 건너뛰었고 unused export 1건으로 CI가 한 번 빨개졌다. → 문서 정정 + **잡 이름을 실제 7단계로 교체**(`typecheck · lint · knip · format · unit · build · edge`) + `ci.yml`에 "step 추가·제거 시 이름도 함께 고친다" 규칙 명시.
+**③ CRM이 제공한 것 = 정정 2 + 논점 4 + 추가 3(전부 계약에 반영됨).** 정정: `need_delivery_method` CHECK는 4값이 아니라 **5값**(5번째는 미입력 센티넬) · `same_as_delivery`는 "예약"이 아니라 **구조적으로 저장 불가**(renderer·fromPayload가 `different`로 재스탬프). 논점: 🔴**임베딩 전량 재백필** · 두 지역 동시 존재 시 소비 규칙 · 거주지 파생 충돌(→D6) · 희망≠실적. 추가: 과거 월 시드는 정상 · `payment_method` null은 V2부터 생기는 새 경로(기존 113건 전부 non-null) · 어휘 변경 사전 통보.
+
+**④ D1~D6 확정 · D5·D6 승인 완료(유슨생).** D1 `text 'YYYY-MM'` · D2 `text[]` · D3 절대화(앵커 병기 안 함) · D4 마감형 · D5 **빈 칸만 채우기**(현행은 기존 고객 무갱신, `quote-requests.ts:373`) · D6 `customerRegion` **3단 폴백**(앱 지역 → 거주지 파생 → "확인 필요"). D6은 실측이 질문을 바꾼 사례 — `customerRegion`은 저장값을 무시하고 **항상 거주지 재파생**하는 단일 소스라(`useQuoteWorkbench.ts:1649`) "우선순위" 개념이 없었다. **승인 완료라 `director-pending-confirmations.md`에는 등재하지 않았다.**
 
 ## ▶ 다음 작업
 
-1. **이사님 회신 대기** — pending **열린 14건**. **21·22는 묶어서** 여쭙는 게 효율적. 항목 **28은 범위가 좁아졌다** — 부작용(묻지 않은 노출)은 D4로 닫혔고 남은 질문은 **"연락처를 물어본 대화 기록에 번호가 남는다"** 하나다. ⚠️ **NO_HITS 문구+sources 동시 렌더**는 21·22 결정과 얽혀 보류(지금 고치면 두 번 고친다).
-2. **🔵 하나캐피탈 통보 대기** — 파트너가 배선 착수 전 통보 약속. 오면 `SOLUTION_LENDERS`에 `{code,label}` 한 줄 추가(`code`가 컴파일타임 타입이라 자동 반영 안 됨. 가드도 `onlyPartner`로 잡는다).
-3. ~~선재 플레이크 정리~~ → **`#334`·`#335`로 종결**(위 ③ — 플레이크가 아니라 실제 결함이었다).
-4. ~~`formatPhone` 10자리 처리~~ → **`#339`로 종결**(서울 02를 2자리로 끊는다 · 전용 테스트 6종 신설 — 분리 전부터 테스트가 0개였다).
-5. ~~staff scope 연락처 회귀 그물~~ → **`#339`로 종결.** prod 실측(staff 실계정 담당 0)으로 **8회 전부 "조회 결과 없음"·번호 노출 0**을 확인했으나 **그걸 지키는 테스트가 없었다**(기존 scope 테스트는 **행 개수**만 봐서, 행은 정상인데 번호만 새는 형태를 못 잡는다). 변이 3종 중 **`search_customers`만 scope 누락** 형태에서 신·구 함께 RED로 값어치 실증. RAG 경로·라우트 배선은 **이미 잠겨 있었다** — 구멍은 도구 프로젝션 하나였다.
+1. **앱 Phase 1 대기** — migration + RPC + 클라 배선. 그 다음 **CRM Phase 2**(회신 문서 §작업 목록 6항목: 미러 갱신·라벨 +36개·지역 분기(**null 테스트 필수**)·승격 시드·`customerRegion` 3단 폴백(**조립기 2벌 + 파리티 테스트 3곳 동시**)·AI 청크 **1회 재백필**). 앱 잔여 = 이사님 구현 착수 승인 1건.
+2. **이사님 회신 대기** — pending **열린 14건**. **21·22는 묶어서**. 항목 **28**은 범위가 좁아져 남은 질문은 "연락처를 물어본 대화 기록에 번호가 남는다" 하나. ⚠️ **NO_HITS 문구+sources 동시 렌더**는 21·22와 얽혀 보류.
+3. **🔵 하나캐피탈 통보 대기** — 오면 `SOLUTION_LENDERS`에 `{code,label}` 한 줄(`code`가 컴파일타임 타입이라 자동 반영 안 됨).
 
 ## 대기 (우리 액션 없음)
 
-`ref/director-pending-confirmations.md` — 항목 14 · 16·17 · 18·19 · 20 · **21·22**(업무 AI 표시 UX — 묶어서 여쭙는 게 효율적) · 23 · 24 · 25 · 26 · 27 · **28**.
+`ref/director-pending-confirmations.md` — 항목 14 · 16·17 · 18·19 · 20 · **21·22** · 23 · 24 · 25 · 26 · 27 · **28**.
 **파트너 Phase B 완료 시** 산은·iM·농협 게이트 자동 점등 → 실기 1회(이때 **구매방식 전환 후 기간 상태** 확인).
 실기 협조 2건(FCM 실기기·앱 #582 크로스)은 **애플 개발자 등록 후 재론** — 먼저 밀지 말 것.
 
@@ -52,10 +42,10 @@ Last updated: 2026-07-24
 
 1. `AGENTS.md` → 이 파일 순으로 읽는다.
 2. `git status --short --branch` · `git log --oneline --decorate --max-count=5`
-3. 더 필요하면: 연락처 라우팅 = `ref/plans/2026-07-23-crm-assistant-contact-routing.md`(이행 결과·실측표 포함) / 배치 15 판정 = `ref/plans/2026-07-22-crm-refactor-batch-15.md` / 과거 세션 = `ref/session-archive.md` / 장기 상태 = `ref/current-working-state.md` / 설계 근거 = `ref/specs/*`
+3. 더 필요하면: V2 출고 계약 = `ref/2026-07-24-app-delivery-contract-reply.md` / 연락처 라우팅 = `ref/plans/2026-07-23-crm-assistant-contact-routing.md` / 배치 15 판정 = `ref/plans/2026-07-22-crm-refactor-batch-15.md` / 과거 세션 = `ref/session-archive.md` / 장기 상태 = `ref/current-working-state.md` / 설계 근거 = `ref/specs/*`
 
 ## 세션 마무리 규칙
 
 - 이 파일은 **교체**한다(누적 금지). 직전 세션 요약만 남기고 그 이전 것은 `ref/session-archive.md` 맨 위로 옮긴다.
-- 행위 변경이 생기면 `ref/director-pending-confirmations.md`에 등재한다(PR 본문 🟡와 병행).
+- 행위 변경이 생기면 `ref/director-pending-confirmations.md`에 등재한다(PR 본문 🟡와 병행). **단 유슨생이 그 자리에서 승인하면 등재하지 않고 결정으로 박제한다**(이번 D5·D6 사례).
 - 지속되는 계약·함정은 `AGENTS.md`에, 설계 근거는 `ref/specs/*`에 — 여기 쌓지 않는다.
