@@ -5,8 +5,9 @@ import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
 import { ConflictError, LinkConflictError } from "../lib/errors";
+import { PAYMENT_METHOD_LABEL } from "../../client/src/data/quote-request-labels";
 import { deriveNeedsFromRequest } from "../../client/src/lib/quote-request-needs";
-import { applyFeaturedRequestNeeds, createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests, listQuoteRequestsByUser } from "../db/queries/quote-requests";
+import { applyFeaturedRequestNeeds, createCustomerFromRequest, getQuoteRequestDetail, linkRequestToCustomer, listQuoteRequests, listQuoteRequestsByUser, setFeaturedRequest } from "../db/queries/quote-requests";
 import { createQuote } from "../db/queries/customer-quotes";
 import { profiles, quoteRequests as quoteRequestsTable, quoteRequestOptions as quoteRequestOptionsTable } from "../db/public-app";
 import { customers, quotes } from "../db/schema";
@@ -146,6 +147,52 @@ test("createCustomerFromRequest: 신규 생성이면 그 요청이 대표가 된
       const created = await createCustomerFromRequest(req.id, tx);
       const [c] = await tx.select({ featuredRequestId: customers.featuredRequestId }).from(customers).where(eq(customers.id, created!.id));
       expect(c.featuredRequestId).toBe(req.id);
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});
+
+test("setFeaturedRequest: 대표를 바꾸면 need_*가 그 요청 값으로 갱신된다 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  // 같은 앱 유저의 요청 2건 — 서로 다른 값이어야 갱신을 관측할 수 있으므로 payment_method가 다른 쌍을 고른다.
+  const [first] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
+  const [second] = await db
+    .select({ id: quoteRequestsTable.id, paymentMethod: quoteRequestsTable.paymentMethod })
+    .from(quoteRequestsTable)
+    .where(and(eq(quoteRequestsTable.userId, first.userId), sql`${quoteRequestsTable.id} <> ${first.id}`))
+    .limit(1);
+  expect(second).toBeDefined();
+  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+
+  await expect(
+    db.transaction(async (tx) => {
+      await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, first.userId));
+      await tx.update(customers).set({ appUserId: first.userId, featuredRequestId: first.id }).where(eq(customers.id, cust.id));
+      const changed = await setFeaturedRequest(second.id, cust.id, tx);
+      expect(changed?.featuredRequestId).toBe(second.id);
+      const [c] = await tx
+        .select({ featuredRequestId: customers.featuredRequestId, needMethod: customers.needMethod })
+        .from(customers)
+        .where(eq(customers.id, cust.id));
+      expect(c.featuredRequestId).toBe(second.id);
+      // 파생 규칙은 유닛 테스트가 잠근다 — 여기서는 "그 요청의 값이 반영됐는가"만 본다.
+      expect(c.needMethod).toBe(second.paymentMethod ? (PAYMENT_METHOD_LABEL[second.paymentMethod] ?? second.paymentMethod) : null);
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});
+
+// 소유권 검증 — 남의 요청으로 니즈를 덮을 수 없어야 한다(라우트가 아니라 쿼리에서 막는다).
+test("setFeaturedRequest: 그 고객의 요청이 아니면 null (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  const [req] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
+  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+  await expect(
+    db.transaction(async (tx) => {
+      // 고객을 그 요청의 유저와 **무관하게** 만든다(앱 미연결).
+      await tx.update(customers).set({ appUserId: null }).where(eq(customers.id, cust.id));
+      const denied = await setFeaturedRequest(req.id, cust.id, tx);
+      expect(denied).toBeNull();
       throw new Error("ROLLBACK");
     }),
   ).rejects.toThrow("ROLLBACK");
@@ -472,6 +519,65 @@ test("GET /api/customers/:id/quote-requests/:reqId → 200 + detail 형태·depo
     expect(body.depositType).toBe("deposit");
     expect(body.depositRatio).toBe(10);
     expect(body.rentalDeposit).toBe(1000000);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+// ── 대표 견적요청 지정 라우트(2026-07-24 설계 D1) ────────────────────────────
+// 프리필과 같은 픽스처를 쓴다 — 라우트도 같은 자리(customers 라우터)에 산다.
+
+test("POST /api/customers/:id/quote-requests/:reqId/feature → 200 + 대표 반영", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const f = await seedPrefillFixture();
+  try {
+    const res = await app.request(`/api/customers/${f.custId}/quote-requests/${f.reqId}/feature`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const [c] = await getDefaultDb()
+      .select({ featuredRequestId: customers.featuredRequestId, needContractTerm: customers.needContractTerm })
+      .from(customers)
+      .where(eq(customers.id, f.custId));
+    expect(c.featuredRequestId).toBe(f.reqId);
+    expect(c.needContractTerm).toBe("36개월"); // 픽스처 period=36
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("대표 지정 — 타 유저 요청(소유권 불일치) → 404 (남의 니즈를 덮을 수 없다)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const f = await seedPrefillFixture();
+  try {
+    const res = await app.request(`/api/customers/${f.custId}/quote-requests/${f.otherReqId}/feature`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(404);
+    const [c] = await getDefaultDb().select({ featuredRequestId: customers.featuredRequestId }).from(customers).where(eq(customers.id, f.custId));
+    expect(c.featuredRequestId).toBeNull(); // 어떤 변이도 남기지 않는다
+  } finally {
+    await f.cleanup();
+  }
+});
+
+// ⚠️ 이 라우트를 quote-requests 라우터가 아니라 customers 라우터에 둔 **핵심 이유**의 회귀 그물 —
+// 저쪽은 인박스 전면 게이트(admin·manager)라 staff의 드로어 조작이 403으로 죽는다(#302 프리필과 같은 축).
+test("대표 지정 — staff(본인 담당)도 지정할 수 있다(인박스 게이트 부수 피해 방지)", async () => {
+  const STAFF_ID = "33333333-3333-4333-8333-333333333333";
+  const { token, keyResolver, issuer } = await makeTestAuth("staff", STAFF_ID);
+  const app = createApp({ keyResolver, issuer });
+  const f = await seedPrefillFixture(STAFF_ID);
+  try {
+    const res = await app.request(`/api/customers/${f.custId}/quote-requests/${f.reqId}/feature`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
   } finally {
     await f.cleanup();
   }

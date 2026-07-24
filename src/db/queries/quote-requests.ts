@@ -439,6 +439,23 @@ export async function applyFeaturedRequestNeeds(customerId: string, requestId: s
     .where(eq(customers.id, customerId));
 }
 
+// 대표 견적요청 지정(설계 D1) — need_* 7필드가 이 요청 값으로 갱신된다.
+// 요청이 그 고객의 것이 아니면 null을 준다: 남의 요청으로 남의 니즈를 덮는 것을 **쿼리에서** 막는다
+// (라우트 파라미터 2개가 서로 무관하게 올 수 있으므로 표현 계층에 맡기지 않는다 —
+//  프리필 라우트가 소유권 WHERE로 구 라우트의 느슨함을 닫은 것과 같은 축).
+export async function setFeaturedRequest(
+  requestId: string,
+  customerId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<{ id: string; featuredRequestId: string } | null> {
+  const [req] = await ex.select({ userId: quoteRequests.userId }).from(quoteRequests).where(eq(quoteRequests.id, requestId));
+  if (!req) return null;
+  const [customer] = await ex.select({ appUserId: customers.appUserId }).from(customers).where(eq(customers.id, customerId));
+  if (!customer || customer.appUserId !== req.userId) return null;
+  await applyFeaturedRequestNeeds(customerId, requestId, ex);
+  return { id: customerId, featuredRequestId: requestId };
+}
+
 // 요청의 user_id를 대상 고객의 app_user_id에 set(전화 매칭된 기존 고객 연결). 요청/고객 없으면 null.
 // appUserId는 라우트의 요청 청크 임베딩 훅용(응답 JSON에 실려도 무해한 식별자).
 // 가드+전화번호 전이+UPDATE는 applyAppUserLink SSOT(상담신청 link와 완전 공유 — 2026-07-17 spec).

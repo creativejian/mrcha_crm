@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { createCustomerManual, getCustomer, getCustomerAdvisorId, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
 import { dismissConsultation, linkedCustomerIdForConsultation, listConsultationsByUser } from "../db/queries/consultations";
-import { getQuoteRequestDetail, listQuoteRequestsByUser } from "../db/queries/quote-requests";
+import { getQuoteRequestDetail, listQuoteRequestsByUser, setFeaturedRequest } from "../db/queries/quote-requests";
 import {
   addMemo, updateMemo, deleteMemo,
   addTask, updateTask, deleteTask,
@@ -225,6 +225,25 @@ customers.get("/:id/quote-requests/:reqId", zValidator("param", z.object({ id: z
   const detail = found.appUserId ? await getQuoteRequestDetail(p.reqId, c.var.db, found.appUserId) : null;
   if (!detail) return c.json({ error: "요청을 찾을 수 없습니다." }, 404); // 수기 고객·미존재·소유권 불일치 동일 문구
   return c.json(detail);
+});
+
+// 대표 견적요청 지정(2026-07-24 설계 D1) — need_* 7필드가 이 요청 값으로 갱신된다.
+// ⚠️ quote-requests 라우터가 아니라 여기 두는 이유: 호출부가 드로어의 앱 카드라, 그 라우터의 인박스
+//    전면 게이트(admin·manager)에 걸리면 staff가 못 쓴다(#302 프리필 부수 피해와 정확히 같은 축).
+//    여기 두면 customerScopeGate 자동 편입으로 staff는 본인 담당 고객만 바꾼다.
+// 소유권(요청 user_id == 이 고객 app_user_id)은 setFeaturedRequest가 검증한다 — 파라미터 2개가 서로
+// 무관하게 올 수 있어 쿼리에서 막는다. 견적 쓰기가 아니라 고객 니즈 변경이므로 quoteWriteGate는 불요
+// (같은 값을 PATCH /:id로 바꾸던 경로가 staff에게 열려 있는 것과 동일 수준).
+customers.post("/:id/quote-requests/:reqId/feature", zValidator("param", z.object({ id: z.uuid(), reqId: z.uuid() })), async (c) => {
+  const p = c.req.valid("param");
+  const row = await c.var.db.transaction((tx) => setFeaturedRequest(p.reqId, p.id, tx));
+  // 고객 없음·요청 없음·소유권 불일치를 같은 문구로 묶는다(프리필 라우트와 동일 — 존재 여부가 새지 않는다).
+  if (!row) return c.json({ error: "요청을 찾을 수 없습니다." }, 404);
+  // 프로필 청크 재임베딩 — 파생 7필드 전부가 CUSTOMER_PROFILE_EMBED_KEYS 구성 필드다.
+  // 트랜잭션 커밋 후 스케줄(승격 라우트와 동일 — 훅의 fresh read가 커밋 전 구값을 보는 것 방지).
+  scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: p.id });
+  scheduleAiHintRefresh(c, p.id);
+  return c.json(row);
 });
 
 // 고객 상세: 그 고객(app_user_id)의 앱 상담신청 목록. 수기 고객은 빈 배열.

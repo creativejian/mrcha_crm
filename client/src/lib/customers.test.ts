@@ -128,6 +128,7 @@ const detailRes: CustomerDetailResponse = {
   needContractFocus: "#월 납입 최소",
   needCustomerNote: "#카톡 선호",
   needReviewNote: null,
+  featuredRequestId: null,
   tasks: [{ id: "t1", category: "체크", due: "오늘", body: "GLC 재고", done: false }],
   schedules: [{ id: "s1", scheduledDate: "2026-05-26", scheduledTime: "16:00", type: "견적", memo: "재발송", done: false }],
   memos: [{ id: "m1", body: "메모1", createdAt: "2026-05-14T13:18:00+09:00" }],
