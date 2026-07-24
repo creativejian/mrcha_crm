@@ -99,9 +99,10 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                             <h3>{req.vehicleLabel}</h3>
                             <p>{req.paymentLabel} · 옵션 {req.optionLabel}{req.colorLabel ? ` · ${req.colorLabel}` : ""}</p>
                             <span>{req.periodLabel} · {req.depositLabel}</span>
-                            {/* 출고·문의는 V2 요청에만 있다 — 레거시 행은 null/빈배열이라 줄 자체가 안 생긴다(카드 높이 유지). */}
+                            {/* 출고·문의·자유문의는 V2 요청에만 있다 — 레거시 행은 null/빈배열이라 줄 자체가 안 생긴다(카드 높이 유지). */}
                             {req.deliveryLabel ? <span>출고 {req.deliveryLabel}</span> : null}
                             {req.topicLabels.length > 0 ? <span>문의 {req.topicLabels.join(", ")}</span> : null}
+                            {req.additionalRequest ? <span className="kim-needs-request-note">“{req.additionalRequest}”</span> : null}
                           </div>
                           <div className="kim-needs-request-actions">
                             {req.promotedQuoteCount > 0 ? (
