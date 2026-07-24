@@ -108,6 +108,13 @@ export const customers = crm.table("customers", {
   needContractFocus: text("need_contract_focus"),
   needCustomerNote: text("need_customer_note"),
   needReviewNote: text("need_review_note"),
+  // 대표 견적요청(2026-07-24 설계 D1) — 이 요청에서 need_* 7필드를 파생한다. 기본값은 최초 요청이고
+  // 상담사가 앱 카드 star로 바꾼다. → public.quote_requests.id (FK 없음 — public은 앱 소유라
+  // crm에서 FK를 걸지 않는 레포 관례. app_user_id·source_consultation_id와 같다).
+  // NULL = 대표 없음(앱 미연결 고객, 또는 상담신청으로만 연결돼 견적요청이 0건인 앱 고객).
+  // ⚠️ 파생 필드 read-only 판정 기준이 app_user_id가 아니라 **이 컬럼**이다(설계 D2) — 요청 0건
+  //    고객이 파생 소스도 없이 수기 입력까지 막혀 영원히 못 채우는 상태가 되는 것을 막는다.
+  featuredRequestId: uuid("featured_request_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [

@@ -260,6 +260,13 @@
       "when": 1784538800689,
       "tag": "0036_opposite_doomsday",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1784887139277,
+      "tag": "0037_dear_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

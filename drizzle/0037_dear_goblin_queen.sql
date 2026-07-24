@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."customers" ADD COLUMN "featured_request_id" uuid;
