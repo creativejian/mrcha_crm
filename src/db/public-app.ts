@@ -34,6 +34,30 @@ export const quoteRequests = pgTable("quote_requests", {
   interiorColorId: bigint("interior_color_id", { mode: "number" }),
   interiorColorName: text("interior_color_name"),
   interiorColorHex: text("interior_color_hex"),
+  // 출고·추가요청 13필드(2026-07-24 앱 마이그 20260724120000, 계약 = ref/2026-07-24-app-delivery-contract-reply.md).
+  // 지역은 either/or — 리스/렌트/미정은 delivery_*(인수 지역), 할부/일시불은 registration_*(등록 지역).
+  // 소비 분기는 quote-requests.ts deliveryRegionOf가 SSOT. code는 앱 자체 광역 16코드(행정표준코드 아님),
+  // name은 정식명 스냅샷이라 표시는 name을 그대로 쓴다(코드 해석표 불필요).
+  deliveryRegionCode: text("delivery_region_code"),
+  deliveryRegionName: text("delivery_region_name"),
+  // 저장 가능한 값은 'different'|null 둘뿐 — 앱 renderer·fromPayload가 same_as_delivery를 different로 재스탬프한다
+  // (CHECK엔 3값이 있으나 현 경로로 도달 불가). 그래서 CRM은 이 값으로 분기하지 않는다.
+  registrationRegionMode: text("registration_region_mode"),
+  registrationRegionCode: text("registration_region_code"),
+  registrationRegionName: text("registration_region_name"),
+  // 상대 3종(current/next/within_three)은 referenceMonth(답변 시점 도장)와 한 쌍, specific_month는 targetMonth와 한 쌍.
+  // 절대화 텍스트 생성은 deliveryTimingTextOf가 SSOT(승격 시드와 카드 표시가 공유).
+  deliveryTimingMode: text("delivery_timing_mode"),
+  deliveryTimingReferenceMonth: text("delivery_timing_reference_month"),
+  deliveryTargetMonth: text("delivery_target_month"),
+  // 배열 2종은 DB가 NOT NULL DEFAULT '{}' — default 표기가 있어야 INSERT에서 생략할 수 있다
+  // (파일 헤더의 id/created_at과 같은 "insert 생략용 타입 전용 default", 마이그레이션 대상 아님).
+  requestTopicCodes: text("request_topic_codes").array().notNull().default(sql`'{}'::text[]`),
+  additionalRequestMode: text("additional_request_mode"),
+  additionalRequest: text("additional_request"),
+  // 예약 2필드 — 앱 UI 미노출이라 당분간 전 행 null/빈배열. 라벨·표시는 예약 해제 시 함께 붙인다.
+  deliveryMethod: text("delivery_method"),
+  quotePriorityCodes: text("quote_priority_codes").array().notNull().default(sql`'{}'::text[]`),
 });
 
 export const quoteRequestOptions = pgTable("quote_request_options", {

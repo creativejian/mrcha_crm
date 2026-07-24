@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { colorLabelOf, depositLabelOf, fetchCustomerQuoteRequests, fetchQuoteRequestDetail, toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
+import { colorLabelOf, deliveryLabelOf, depositLabelOf, fetchCustomerQuoteRequests, fetchQuoteRequestDetail, toAppQuoteRequest, type AppQuoteRequestRow } from "./quote-requests";
 
 // apiFetch(./api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
 vi.mock("./supabase", () => ({
@@ -31,6 +31,10 @@ const base: AppQuoteRequestRow = {
   interiorColorId: null,
   interiorColorName: null,
   interiorColorHex: null,
+  deliveryRegion: null,
+  deliveryTimingText: null,
+  requestTopicCodes: [],
+  additionalRequest: null,
   brandName: "기아",
   modelName: "쏘렌토",
   trimName: "26년형 노블레스",
@@ -144,6 +148,37 @@ describe("colorLabelOf", () => {
   });
   it("미지의 값 → null 방어", () => {
     expect(colorLabelOf("unknown_mode")).toBeNull();
+  });
+});
+
+describe("deliveryLabelOf", () => {
+  it("지역·시기 둘 다 있으면 결합", () => {
+    expect(deliveryLabelOf({ deliveryRegion: "서울특별시", deliveryTimingText: "2026년 10월까지" })).toBe(
+      "서울특별시 · 2026년 10월까지",
+    );
+  });
+  it("한쪽만 있으면 그것만(구분자 잔재 없음)", () => {
+    expect(deliveryLabelOf({ deliveryRegion: "제주특별자치도", deliveryTimingText: null })).toBe("제주특별자치도");
+    expect(deliveryLabelOf({ deliveryRegion: null, deliveryTimingText: "좋은 조건 즉시" })).toBe("좋은 조건 즉시");
+  });
+  it("레거시 행(둘 다 null) → null (카드 줄 숨김)", () => {
+    expect(deliveryLabelOf({ deliveryRegion: null, deliveryTimingText: null })).toBeNull();
+  });
+});
+
+describe("toAppQuoteRequest 출고·문의", () => {
+  it("토픽 코드를 한글 라벨로 옮긴다", () => {
+    const r = toAppQuoteRequest({ ...base, requestTopicCodes: ["trade_in", "joint_ownership"] });
+    expect(r.topicLabels).toEqual(["보유 차량 처분", "공동명의 검토"]);
+  });
+  // 앱이 토픽 어휘를 늘려도 화면이 깨지지 않아야 한다(계약 §5-5 어휘 통보와 별개의 안전망).
+  it("미지의 토픽 코드는 코드 그대로 폴백", () => {
+    const r = toAppQuoteRequest({ ...base, requestTopicCodes: ["brand_new_topic"] });
+    expect(r.topicLabels).toEqual(["brand_new_topic"]);
+  });
+  it("서버 파생값을 그대로 합성한다", () => {
+    const r = toAppQuoteRequest({ ...base, deliveryRegion: "인천광역시", deliveryTimingText: "2026년 8월" });
+    expect(r.deliveryLabel).toBe("인천광역시 · 2026년 8월");
   });
 });
 

@@ -1,4 +1,9 @@
-import { COLOR_PREFERENCE_MODE_LABEL, DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "../data/quote-request-labels";
+import {
+  COLOR_PREFERENCE_MODE_LABEL,
+  DEPOSIT_TYPE_LABEL,
+  PAYMENT_METHOD_LABEL,
+  REQUEST_TOPIC_LABEL,
+} from "../data/quote-request-labels";
 import { formatActivity, invalidateCustomerDetail } from "./customers";
 import { getJson, sendJson } from "./http";
 import { formatPriceRangeKorean } from "./price-format";
@@ -23,6 +28,11 @@ export type AppQuoteRequestRow = {
   interiorColorId: number | null;
   interiorColorName: string | null;
   interiorColorHex: string | null;
+  // 출고 정보는 서버가 파생해서 보낸다(원본 지역 5필드가 아니라 결론 1개) — 사유는 서버 타입 주석 참조.
+  deliveryRegion: string | null;
+  deliveryTimingText: string | null;
+  requestTopicCodes: string[];
+  additionalRequest: string | null;
   brandName: string | null;
   modelName: string | null;
   trimName: string | null;
@@ -56,6 +66,10 @@ export type AppQuoteRequest = {
   trimPriceLabel: string;
   optionLabel: string;
   colorLabel: string | null; // null = 기존 행(mode 없음) → 카드 라벨 숨김
+  // 출고 = 지역 · 시기 합성. null = V2 이전 레거시 요청 → 카드에서 줄째로 숨김(colorLabel과 동형).
+  deliveryLabel: string | null;
+  topicLabels: string[];
+  additionalRequest: string | null;
   statusLabel: string;
   matchLabel: string;
   matchedCustomerId: string | null;
@@ -91,6 +105,13 @@ export function colorLabelOf(mode: string | null): string | null {
   return COLOR_PREFERENCE_MODE_LABEL[mode] ?? null;
 }
 
+// 출고 카드 라벨 = 지역 · 시기. 한쪽만 있으면 그것만, 둘 다 없으면 null(레거시 요청 → 줄 숨김).
+// 지역·시기 파생 자체는 서버(quote-delivery.ts)가 끝냈고 여기는 합성만 한다.
+export function deliveryLabelOf(row: Pick<AppQuoteRequestRow, "deliveryRegion" | "deliveryTimingText">): string | null {
+  const parts = [row.deliveryRegion, row.deliveryTimingText].filter((v): v is string => !!v);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
   const vehicleLabel =
     [row.brandName, row.modelName].filter(Boolean).join(" ") +
@@ -114,6 +135,11 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
     trimPriceLabel: moneyOrDash(row.trimPrice),
     optionLabel: row.optionCount > 0 ? `${row.optionCount}개` : "없음",
     colorLabel: colorLabelOf(row.colorPreferenceMode),
+    deliveryLabel: deliveryLabelOf(row),
+    // ?? 방어는 타입상 불필요해 보이지만 실제로 필요하다 — 배포 스큐(브라우저에 캐시된 새 번들 ↔ 아직
+    // 구버전인 API 응답) 때 이 필드가 통째로 없고, 그러면 .map()이 던져 인박스 전체가 빈 화면이 된다.
+    topicLabels: (row.requestTopicCodes ?? []).map((code) => REQUEST_TOPIC_LABEL[code] ?? code),
+    additionalRequest: row.additionalRequest ?? null,
     statusLabel: row.status ? (STATUS_LABEL[row.status] ?? row.status) : "—",
     matchLabel,
     matchedCustomerId: row.matchedCustomerId,
