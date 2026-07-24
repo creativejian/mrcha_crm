@@ -1,4 +1,4 @@
-import { CarFront, MessageSquareText, X } from "lucide-react";
+import { CarFront, MessageSquareText, Star, X } from "lucide-react";
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { type CustomerDetailData } from "@/lib/customers";
@@ -105,9 +105,23 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                             {req.additionalRequest ? <span className="kim-needs-request-note">“{req.additionalRequest}”</span> : null}
                           </div>
                           <div className="kim-needs-request-actions">
-                            {req.promotedQuoteCount > 0 ? (
-                              <span className="kim-needs-request-badge">견적 {req.promotedQuoteCount}건</span>
-                            ) : null}
+                            {/* 대표 견적요청(설계 D1) — 켜진 카드의 값이 목록 차종·구매방식과 상세 구매조건 5필드가 된다.
+                                해제는 없다(항상 1건). 배지가 없는 카드에서도 star는 늘 보여야 해서 같은 줄로 묶는다. */}
+                            <div className="kim-needs-request-badge-row">
+                              <button
+                                aria-label={req.id === detail.featuredRequestId ? "대표 견적요청" : "대표 견적요청으로 지정"}
+                                aria-pressed={req.id === detail.featuredRequestId}
+                                className={`kim-needs-request-star${req.id === detail.featuredRequestId ? " is-on" : ""}`}
+                                onClick={() => handlers.featureRequest(req.id)}
+                                title={req.id === detail.featuredRequestId ? "대표 견적요청" : "대표 견적요청으로 지정"}
+                                type="button"
+                              >
+                                <Star size={16} strokeWidth={2.1} />
+                              </button>
+                              {req.promotedQuoteCount > 0 ? (
+                                <span className="kim-needs-request-badge">견적 {req.promotedQuoteCount}건</span>
+                              ) : null}
+                            </div>
                             {req.promotedQuoteIds.length > 0 ? (
                               // 승격 견적 있음: 기본 액션은 중복 작성 방지를 위해 "견적 보기"(최신 승격 견적), "추가 작성"은 보조 액션으로 낮춤.
                               // 가로 한 줄(보조 왼쪽·기본 오른쪽 끝) — 배지+버튼 2줄 유지로 카드 높이 증가 방지.

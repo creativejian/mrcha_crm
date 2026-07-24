@@ -2,7 +2,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction, type Synthetic
 
 import { dismissConsultation, fetchCustomerConsultationsCached, invalidateCustomerConsultations, type AppConsultation } from "@/lib/consultations";
 import { type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
-import { fetchCustomerQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
+import { featureQuoteRequest, fetchCustomerQuoteRequestsCached, type AppQuoteRequest } from "@/lib/quote-requests";
 
 import { NEEDS_COLOR_PLACEHOLDER, type NeedsState } from "../needs-meta";
 import { type OpenEditorState } from "../types";
@@ -14,6 +14,8 @@ type UseCustomerNeedsArgs = {
   savePatch: (patch: CustomerWritePatch, rollback: () => void) => void;
   markRecentUpdate: (section: string) => void;
   setOpenEditor: Dispatch<SetStateAction<OpenEditorState | null>>;
+  // 대표 견적요청 변경 후 상세 재조회 — 서버가 need_* 7필드를 한꺼번에 바꿔 낙관적 갱신이 불가하다.
+  reloadDetail: () => void;
 };
 
 export function useCustomerNeeds({
@@ -22,6 +24,7 @@ export function useCustomerNeeds({
   savePatch,
   markRecentUpdate,
   setOpenEditor,
+  reloadDetail,
 }: UseCustomerNeedsArgs) {
   const [needs, setNeeds] = useState<NeedsState>(() => ({
     model: detail.needModel ?? "",
@@ -104,6 +107,20 @@ export function useCustomerNeeds({
     );
   }
 
+  // 대표 견적요청 지정(설계 D1) — 서버가 need_* 7필드를 그 요청 값으로 갱신하므로 성공 후 상세를
+  // 다시 받는다(낙관적 갱신 불가: 차종·트림은 catalog 조인 결과라 클라가 계산할 수 없다).
+  // 이미 대표인 카드를 다시 눌러도 그대로 보낸다 — 서버가 같은 값으로 덮어 결과가 같고(멱등),
+  // 해제 개념이 없어(항상 1건) 토글 분기를 두면 "대표 없음" 상태가 생긴다.
+  function featureRequest(requestId: string) {
+    void featureQuoteRequest(detail.id, requestId)
+      .then(() => {
+        reloadDetail();
+        markRecentUpdate("고객 정보");
+        onToast("대표 견적요청 변경 완료");
+      })
+      .catch(() => onToast("대표 견적요청을 바꾸지 못했습니다."));
+  }
+
   return {
     needs,
     appRequests,
@@ -112,6 +129,7 @@ export function useCustomerNeeds({
     handlers: {
       saveNeeds,
       dismissConsultation: handleDismissConsultation,
+      featureRequest,
     },
   };
 }

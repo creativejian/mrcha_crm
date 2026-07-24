@@ -204,6 +204,36 @@
   gap: 6px;
 }
 
+/* 대표 견적요청 star + 견적 배지 한 줄(설계 D1). 배지가 없는 카드에서도 star는 늘 보인다. */
+.kim-needs-request-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kim-needs-request-star {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: none;
+  padding: 2px;
+  color: #8f969c; /* 카드 보조 텍스트와 같은 회색(.kim-needs-card-copy span) */
+  cursor: pointer;
+}
+
+.kim-needs-request-star:hover {
+  color: rgb(var(--brand-rgb));
+}
+
+.kim-needs-request-star.is-on {
+  color: rgb(var(--brand-rgb));
+}
+
+/* 켜진 별만 채운다 — 테두리만 있는 별과 한눈에 구분되게. */
+.kim-needs-request-star.is-on svg {
+  fill: currentColor;
+}
+
 .kim-needs-request-badge {
   border: 1px solid rgba(var(--brand-rgb), 0.26);
   border-radius: 6px;
