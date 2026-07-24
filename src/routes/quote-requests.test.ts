@@ -583,6 +583,71 @@ test("대표 지정 — staff(본인 담당)도 지정할 수 있다(인박스 �
   }
 });
 
+// ── 파생 니즈 read-only(설계 D7) ─────────────────────────────────────────────
+// UI 비활성화만으로는 우회된다 — 서버가 진짜 게이트다(phone 409·견적 게이트와 같은 원칙).
+// 판정 기준은 app_user_id가 아니라 featured_request_id다: 상담신청으로만 연결돼 견적요청이 0건인
+// 앱 고객은 파생 소스가 없으므로 수기 입력이 열려 있어야 한다.
+
+async function featureVia(app: ReturnType<typeof createApp>, token: string, custId: string, reqId: string) {
+  const res = await app.request(`/api/customers/${custId}/quote-requests/${reqId}/feature`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(res.status).toBe(200);
+}
+
+function patchCustomer(app: ReturnType<typeof createApp>, token: string, custId: string, body: Record<string, unknown>) {
+  return app.request(`/api/customers/${custId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+test("파생 니즈 PATCH — 대표가 있으면 409(변이 0)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const f = await seedPrefillFixture();
+  try {
+    await featureVia(app, token, f.custId, f.reqId);
+    const res = await patchCustomer(app, token, f.custId, { needMethod: "할부" });
+    expect(res.status).toBe(409);
+    const [c] = await getDefaultDb().select({ needMethod: customers.needMethod }).from(customers).where(eq(customers.id, f.custId));
+    expect(c.needMethod).not.toBe("할부"); // 거부는 어떤 변이도 남기지 않는다
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("수기 유지 니즈 PATCH — 대표가 있어도 200(앱이 값을 안 보내는 4필드)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const f = await seedPrefillFixture();
+  try {
+    await featureVia(app, token, f.custId, f.reqId);
+    const res = await patchCustomer(app, token, f.custId, { needDeliveryMethod: "매장 출고" });
+    expect(res.status).toBe(200);
+    const [c] = await getDefaultDb().select({ needDeliveryMethod: customers.needDeliveryMethod }).from(customers).where(eq(customers.id, f.custId));
+    expect(c.needDeliveryMethod).toBe("매장 출고");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("파생 니즈 PATCH — 대표가 없으면 200(파생 소스 없는 고객은 수기 입력)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const f = await seedPrefillFixture(); // feature 호출 안 함 = featured_request_id null
+  try {
+    const res = await patchCustomer(app, token, f.custId, { needMethod: "할부" });
+    expect(res.status).toBe(200);
+    const [c] = await getDefaultDb().select({ needMethod: customers.needMethod }).from(customers).where(eq(customers.id, f.custId));
+    expect(c.needMethod).toBe("할부");
+  } finally {
+    await f.cleanup();
+  }
+});
+
 test("프리필 — 타 유저 요청(소유권 불일치) → 404 '요청'(임의 요청 id 프리필 봉쇄)", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });

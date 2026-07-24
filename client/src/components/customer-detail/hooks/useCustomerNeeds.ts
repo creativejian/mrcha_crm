@@ -16,6 +16,9 @@ type UseCustomerNeedsArgs = {
   setOpenEditor: Dispatch<SetStateAction<OpenEditorState | null>>;
   // 대표 견적요청 변경 후 상세 재조회 — 서버가 need_* 7필드를 한꺼번에 바꿔 낙관적 갱신이 불가하다.
   reloadDetail: () => void;
+  // 목록 "차종·구매방식" 열도 need_model/trim/method라 대표가 바뀌면 목록을 다시 받아야 한다
+  // (목록은 상세와 별도 캐시 — 상세 재조회만으로는 안 바뀐다).
+  onCustomerListChanged?: () => void;
 };
 
 export function useCustomerNeeds({
@@ -25,6 +28,7 @@ export function useCustomerNeeds({
   markRecentUpdate,
   setOpenEditor,
   reloadDetail,
+  onCustomerListChanged,
 }: UseCustomerNeedsArgs) {
   const [needs, setNeeds] = useState<NeedsState>(() => ({
     model: detail.needModel ?? "",
@@ -115,6 +119,8 @@ export function useCustomerNeeds({
     void featureQuoteRequest(detail.id, requestId)
       .then(() => {
         reloadDetail();
+        // 목록 "차종·구매방식" 열이 need_model/trim/method다 — 상세와 별도 캐시라 따로 재페치해야 한다.
+        onCustomerListChanged?.();
         markRecentUpdate("고객 정보");
         onToast("대표 견적요청 변경 완료");
       })

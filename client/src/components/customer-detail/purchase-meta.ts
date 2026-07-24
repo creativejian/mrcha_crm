@@ -52,6 +52,17 @@ export function parseInitialCost(value: string) {
 
 // 상세 구매조건 9필드 label → crm.customers 컬럼(camelCase) 매핑.
 // 초기화(detail.need*)와 savePatch가 공유하는 단일 출처. 매핑 없는 label은 영속 대상이 아니다.
+// 대표 견적요청에서 파생되는 구매조건 라벨(2026-07-24 설계 D2). 나머지 4개(인도 방식·계약 포커스·
+// 고객/심사 특이사항)는 앱이 값을 안 보내 상담사 수기 입력으로 남는다.
+// 두 곳이 공유한다: ①대표 변경 후 detail 재동기화(useCustomerPurchase) ②read-only 판정.
+export const DERIVED_PURCHASE_LABELS: ReadonlySet<string> = new Set([
+  "구매방식",
+  "계약기간",
+  "초기비용",
+  "연간 주행거리",
+  "출고 희망 시기",
+]);
+
 export const PURCHASE_FIELD_KEY: Record<string, keyof CustomerWritePatch> = {
   "구매방식": "needMethod",
   "출고 희망 시기": "needTiming",

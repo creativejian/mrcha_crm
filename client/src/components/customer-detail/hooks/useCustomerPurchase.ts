@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction, type SyntheticEvent } from "react";
+import { useEffect, useState, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction, type SyntheticEvent } from "react";
 
 import { formatNumberWithCommas } from "@/lib/detail-utils";
 import { calculatePurchasePopoverFrame, type PurchaseFloatingKind, type PurchasePopoverFrame } from "@/lib/popover-frames";
@@ -9,6 +9,7 @@ import {
   contractFocusOptions,
   contractTermOptions,
   customerNoteOptions,
+  DERIVED_PURCHASE_LABELS,
   methodOptions,
   purchaseFieldScaffold,
   purchaseTagSelectionLimit,
@@ -50,6 +51,28 @@ export function useCustomerPurchase({
       return typeof stored === "string" && stored ? { ...field, value: stored } : field;
     }),
   );
+  // 대표 견적요청이 바뀌면(설계 D1) 서버가 파생 5필드를 한꺼번에 갈아끼우고 호출부가 상세를 다시 받는다.
+  // purchaseFields는 useState 초기화 함수로만 detail을 읽어 최초 마운트 값에 고정되므로, 여기서 새 detail을
+  // 따라가지 않으면 "별을 눌렀는데 구매조건이 그대로"가 된다(리로드해야 반영 — 2026-07-24 실기 발견).
+  // ⚠️ 파생 5필드만 동기화한다. 수기 유지 4필드(인도 방식·계약 포커스·고객/심사 특이사항)를 함께 덮으면
+  //    상담사가 방금 편집한 값이 서버 왕복 사이에 되돌아갈 수 있다.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 외부 값(detail) 동기화. 값이 같으면 아래에서 같은 배열을 반환해 리렌더가 멈춘다.
+    setPurchaseFields((current) => {
+      let changed = false;
+      const next = current.map((field) => {
+        if (!DERIVED_PURCHASE_LABELS.has(field.label)) return field;
+        const key = PURCHASE_FIELD_KEY[field.label];
+        const stored = key ? (detail as Record<string, unknown>)[key] : undefined;
+        const value = typeof stored === "string" && stored ? stored : "";
+        if (field.value === value) return field;
+        changed = true;
+        return { ...field, value };
+      });
+      return changed ? next : current;
+    });
+  }, [detail]);
+
   const [showTimingMonths, setShowTimingMonths] = useState(false);
   const [initialCostKind, setInitialCostKind] = useState<InitialCostSelection>("보증금");
   const [initialCostUnit, setInitialCostUnit] = useState<InitialCostUnit>("%");

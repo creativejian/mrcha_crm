@@ -11,6 +11,20 @@ import { ANNUAL_MILEAGE_OPTIONS } from "@/data/customers";
 import { DEPOSIT_TYPE_LABEL, PAYMENT_METHOD_LABEL } from "@/data/quote-request-labels";
 import { deliveryTimingTextOf } from "@/lib/quote-delivery";
 
+// 대표 요청에서 파생되는 need_* 컬럼(설계 D2·D7). 대표가 있으면 이 필드들은 read-only다 —
+// 서버 PATCH가 409로 거부하고(routes/customers.ts) 화면도 편집 팝오버를 열지 않는다.
+// 차종 2개(needModel·needTrim)는 catalog 조인이 필요해 서버가 따로 채우지만 "파생이라 수정 불가"라는
+// 성격이 같아 여기 함께 둔다.
+export const DERIVED_NEED_KEYS = [
+  "needModel",
+  "needTrim",
+  "needMethod",
+  "needContractTerm",
+  "needInitialCost",
+  "needAnnualMileage",
+  "needTiming",
+] as const;
+
 export type QuoteRequestNeedsSource = {
   paymentMethod: string | null;
   period: number | null;

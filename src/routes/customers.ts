@@ -2,7 +2,8 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
-import { createCustomerManual, getCustomer, getCustomerAdvisorId, getCustomerAdvisorName, getCustomerAppUserId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
+import { createCustomerManual, getCustomer, getCustomerAdvisorId, getCustomerAdvisorName, getCustomerAppUserId, getCustomerFeaturedRequestId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
+import { DERIVED_NEED_KEYS } from "../../client/src/lib/quote-request-needs";
 import { dismissConsultation, linkedCustomerIdForConsultation, listConsultationsByUser } from "../db/queries/consultations";
 import { getQuoteRequestDetail, listQuoteRequestsByUser, setFeaturedRequest } from "../db/queries/quote-requests";
 import {
@@ -303,6 +304,17 @@ customers.patch(
       const target = await getCustomerAppUserId(c.req.valid("param").id, c.var.db);
       if (!target) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
       if (target.appUserId) return c.json({ error: "앱 등록 번호는 수정할 수 없습니다." }, 409);
+    }
+    // 대표 견적요청에서 파생되는 니즈는 수정 불가(2026-07-24 설계 D7) — UI 비활성화만으로는 우회된다.
+    // ⚠️ 판정 기준은 app_user_id가 아니라 **featured_request_id**다: 상담신청으로만 연결돼 견적요청이
+    //    0건인 앱 고객은 파생 소스가 없으므로 수기 입력이 계속 열려 있어야 한다(설계 D2).
+    // 값을 바꾸려면 대표를 바꾼다(POST /:id/quote-requests/:reqId/feature) — 그게 유일한 쓰기 경로다.
+    if (DERIVED_NEED_KEYS.some((key) => patch[key] !== undefined)) {
+      const featured = await getCustomerFeaturedRequestId(c.req.valid("param").id, c.var.db);
+      if (!featured) return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+      if (featured.featuredRequestId) {
+        return c.json({ error: "대표 견적요청에서 자동으로 채워지는 항목이라 수정할 수 없습니다." }, 409);
+      }
     }
     // 담당자 배정 축(advisorId·advisorName·team)은 admin·manager만 — **필드 단위 게이트**
     // (라우트 자체는 staff에게 열려 있어야 한다: 진행 상태·메모 등 일상 수정이 여기로 온다).

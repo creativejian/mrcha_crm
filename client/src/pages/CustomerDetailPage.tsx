@@ -115,7 +115,7 @@ function CustomerDetailContent({
   const checks = useCustomerChecks({ detail, customer, onToast, markRecentUpdate, onCustomerListChanged });
   // 고객 니즈 영역(앱 견적요청 카드 목록 + 단일 need 카드). savePatch/markRecentUpdate/setOpenEditor는 부모 소유 공유 인프라라 인자로 주입.
   // quoteList보다 먼저 선언 — 승격 견적 삭제 시 니즈 카드 배지 갱신(reloadAppRequests)을 quoteList에 주입해야 해서.
-  const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor, reloadDetail: () => onQuotesPersisted?.() });
+  const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor, reloadDetail: () => onQuotesPersisted?.(), onCustomerListChanged });
   // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 useQuoteWorkbench가 보유.
   const quoteList = useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests: needs.reloadAppRequests, onCustomerListChanged, onWorkflowChange });
   const documents = useCustomerDocuments({ detail, customer, onToast, markRecentUpdate });
