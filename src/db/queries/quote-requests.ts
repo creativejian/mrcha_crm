@@ -443,17 +443,46 @@ export async function applyFeaturedRequestNeeds(customerId: string, requestId: s
 // 요청이 그 고객의 것이 아니면 null을 준다: 남의 요청으로 남의 니즈를 덮는 것을 **쿼리에서** 막는다
 // (라우트 파라미터 2개가 서로 무관하게 올 수 있으므로 표현 계층에 맡기지 않는다 —
 //  프리필 라우트가 소유권 WHERE로 구 라우트의 느슨함을 닫은 것과 같은 축).
+// 응답에 **갱신된 파생값을 그대로 실어 보낸다** — 클라가 상세를 다시 받지 않고 즉시 화면에 반영할 수
+// 있다. prod는 CF Workers → Hyperdrive → Supabase 왕복이라 "지정 POST → 상세 GET" 두 번이 순차로
+// 돌면 1초 넘게 걸려 눈에 띄는 딜레이가 생겼다(로컬은 수십 ms라 안 보였다 — 2026-07-24 유슨생 실기).
+export type FeaturedNeedsResult = {
+  id: string;
+  featuredRequestId: string;
+  needModel: string | null;
+  needTrim: string | null;
+  needMethod: string | null;
+  needContractTerm: string | null;
+  needInitialCost: string | null;
+  needAnnualMileage: string | null;
+  needTiming: string | null;
+};
+
 export async function setFeaturedRequest(
   requestId: string,
   customerId: string,
   ex: Executor = getDefaultDb(),
-): Promise<{ id: string; featuredRequestId: string } | null> {
+): Promise<FeaturedNeedsResult | null> {
   const [req] = await ex.select({ userId: quoteRequests.userId }).from(quoteRequests).where(eq(quoteRequests.id, requestId));
   if (!req) return null;
   const [customer] = await ex.select({ appUserId: customers.appUserId }).from(customers).where(eq(customers.id, customerId));
   if (!customer || customer.appUserId !== req.userId) return null;
   await applyFeaturedRequestNeeds(customerId, requestId, ex);
-  return { id: customerId, featuredRequestId: requestId };
+  // 파생 규칙을 클라에서 재현하지 않고 **UPDATE 결과를 되읽어** 보낸다(같은 트랜잭션이라 방금 쓴 값).
+  // 재현하면 규칙이 두 벌이 되고, 특히 차종·트림은 catalog 조인이라 클라가 계산할 수도 없다.
+  const [row] = await ex
+    .select({
+      needModel: customers.needModel,
+      needTrim: customers.needTrim,
+      needMethod: customers.needMethod,
+      needContractTerm: customers.needContractTerm,
+      needInitialCost: customers.needInitialCost,
+      needAnnualMileage: customers.needAnnualMileage,
+      needTiming: customers.needTiming,
+    })
+    .from(customers)
+    .where(eq(customers.id, customerId));
+  return { id: customerId, featuredRequestId: requestId, ...row };
 }
 
 // 요청의 user_id를 대상 고객의 app_user_id에 set(전화 매칭된 기존 고객 연결). 요청/고객 없으면 null.

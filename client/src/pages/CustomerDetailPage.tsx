@@ -69,6 +69,7 @@ function CustomerDetailContent({
   onWorkflowChange,
   onCustomerListChanged,
   onQuotesPersisted,
+  onDetailPatch,
 }: {
   chanceOverride?: CustomerChanceOption;
   customer: Customer;
@@ -78,6 +79,8 @@ function CustomerDetailContent({
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
   onCustomerListChanged?: CustomerDetailPageProps["onCustomerListChanged"];
   onQuotesPersisted?: () => void;
+  // 서버 응답으로 상세를 부분 갱신(대표 견적요청 지정) — 재조회 왕복을 아낀다.
+  onDetailPatch?: (patch: Partial<CustomerDetailData>) => void;
 }) {
   // 구매조건 영역의 팝업 위치(purchasePopoverFrame)는 부모 소유 — toggleEditor·외부클릭 dismiss effect가 기록한다.
   const [purchasePopoverFrame, setPurchasePopoverFrame] = useState<PurchasePopoverFrame | null>(null);
@@ -115,7 +118,7 @@ function CustomerDetailContent({
   const checks = useCustomerChecks({ detail, customer, onToast, markRecentUpdate, onCustomerListChanged });
   // 고객 니즈 영역(앱 견적요청 카드 목록 + 단일 need 카드). savePatch/markRecentUpdate/setOpenEditor는 부모 소유 공유 인프라라 인자로 주입.
   // quoteList보다 먼저 선언 — 승격 견적 삭제 시 니즈 카드 배지 갱신(reloadAppRequests)을 quoteList에 주입해야 해서.
-  const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor, reloadDetail: () => onQuotesPersisted?.(), onCustomerListChanged });
+  const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor, applyDetailPatch: (patch) => onDetailPatch?.(patch), onCustomerListChanged });
   // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 useQuoteWorkbench가 보유.
   const quoteList = useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests: needs.reloadAppRequests, onCustomerListChanged, onWorkflowChange });
   const documents = useCustomerDocuments({ detail, customer, onToast, markRecentUpdate });
@@ -298,6 +301,12 @@ export function CustomerDetailPage({
     fetchCustomerDetail(customer.id).then((data) => setDetail(data)).catch(() => {});
   }
 
+  // 서버가 갱신 결과를 응답에 실어 주는 액션(대표 견적요청 지정)이 상세를 재조회하지 않고 바로 반영할 때
+  // 쓴다 — prod 왕복 2회(액션 POST → 상세 GET)가 눈에 띄는 딜레이를 냈다(2026-07-24 실기).
+  function applyDetailPatch(patch: Partial<CustomerDetailData>) {
+    setDetail((prev) => (prev ? { ...prev, ...patch } : prev));
+  }
+
   return (
     <div className={`customer-detail-console-page ${drawerMode ? "drawer" : ""} kim-detail-mode`}>
       {detailError ? (
@@ -313,6 +322,7 @@ export function CustomerDetailPage({
           onWorkflowChange={onWorkflowChange}
           onCustomerListChanged={onCustomerListChanged}
           onQuotesPersisted={reloadDetail}
+          onDetailPatch={applyDetailPatch}
         />
       ) : (
         <div className="kim-detail-skeleton" aria-hidden="true" />
