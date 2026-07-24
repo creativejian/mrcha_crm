@@ -17,8 +17,9 @@ type UseCustomerNeedsArgs = {
   // 대표 견적요청 변경 결과를 상세에 즉시 반영 — 서버가 갱신된 파생 7필드를 응답에 실어 주므로
   // 상세를 다시 받지 않는다(prod 왕복 2회 = 눈에 띄는 딜레이, 2026-07-24 실기).
   applyDetailPatch: (patch: Partial<CustomerDetailData>) => void;
-  // 목록 "차종·구매방식" 열도 need_model/trim/method라 대표가 바뀌면 목록을 다시 받아야 한다
-  // (목록은 상세와 별도 캐시 — 상세 재조회만으로는 안 바뀐다).
+  // 목록 "차종·구매방식" 열을 그 행만 즉시 갱신 — 서버 응답에 갱신값이 실려 오므로 재페치를 기다리지 않는다.
+  onVehicleChange?: (next: { vehicle: string; vehicleTrim?: string; method: string }) => void;
+  // 목록 나머지 파생(lastActivity 등) 동기화용 재페치. 배경으로 흘린다 — 눈에 보이는 열은 위가 이미 고쳤다.
   onCustomerListChanged?: () => void;
 };
 
@@ -29,6 +30,7 @@ export function useCustomerNeeds({
   markRecentUpdate,
   setOpenEditor,
   applyDetailPatch,
+  onVehicleChange,
   onCustomerListChanged,
 }: UseCustomerNeedsArgs) {
   const [needs, setNeeds] = useState<NeedsState>(() => ({
@@ -132,8 +134,14 @@ export function useCustomerNeeds({
           needAnnualMileage: result.needAnnualMileage,
           needTiming: result.needTiming,
         });
-        // 목록 "차종·구매방식" 열이 need_model/trim/method다 — 상세와 별도 캐시라 따로 재페치해야 한다.
-        // 이건 배경 작업이라 상세 갱신을 막지 않는다.
+        // 목록 "차종·구매방식" 열도 같은 응답값으로 그 행만 즉시 고친다 — 전체 재페치를 기다리면
+        // prod에서 왕복이 하나 더 붙어 목록만 뒤늦게 바뀐다(2026-07-24 실기).
+        onVehicleChange?.({
+          vehicle: result.needModel ?? "",
+          vehicleTrim: result.needTrim ?? undefined,
+          method: result.needMethod ?? "",
+        });
+        // 나머지 파생(lastActivity 등) 동기화 — 배경으로 흘린다. 도착해도 같은 값이라 깜빡이지 않는다.
         onCustomerListChanged?.();
         markRecentUpdate("고객 정보");
         onToast("대표 견적요청 변경 완료");

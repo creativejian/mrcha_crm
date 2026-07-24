@@ -258,6 +258,17 @@ export function App() {
     });
   }
 
+  // 대표 견적요청 변경 → 목록 "차종 · 구매방식" 열을 그 행만 즉시 갱신한다(2026-07-24).
+  // 서버가 갱신된 파생값을 응답에 실어 주므로(setFeaturedRequest) 목록을 다시 받을 필요가 없다 —
+  // 전체 재페치만 쓰면 prod에서 왕복이 하나 더 붙어 눈에 띄게 느리다(상세는 #352에서 같은 이유로 해소).
+  // 목록 재페치(onCustomerListChanged)는 그대로 두되 배경으로 흘린다 — lastActivity 등 나머지 파생을
+  // 맞추고, 도착해도 같은 값이라 깜빡이지 않는다.
+  function updateCustomerVehicle(customerNo: number, next: { vehicle: string; vehicleTrim?: string; method: string }) {
+    setCustomers((current) => current.map((customer) => (
+      customer.no === customerNo ? { ...customer, ...next } : customer
+    )));
+  }
+
   function updateCustomerWorkflow(customerNo: number, next: WorkflowNext) {
     const target = customers.find((customer) => customer.no === customerNo);
     const prevCustomers = customers;
@@ -356,6 +367,7 @@ export function App() {
                 onBack={() => navigate("/customers")}
                 onToast={showToast}
                 onWorkflowChange={updateCustomerWorkflow}
+                onVehicleChange={updateCustomerVehicle}
                 onCustomerListChanged={reloadCustomers}
                 variant="page"
               />
@@ -431,6 +443,7 @@ export function App() {
               onFullScreen={openCustomerDetailFullScreen}
               onToast={showToast}
               onWorkflowChange={updateCustomerWorkflow}
+              onVehicleChange={updateCustomerVehicle}
               onCustomerListChanged={reloadCustomers}
               variant="drawer"
             />

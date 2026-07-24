@@ -37,6 +37,8 @@ type CustomerDetailPageProps = {
   onWorkflowChange?: (customerNo: number, next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus }) => void;
   // 목록 표시 필드(직군/연락처/상담경로/차종·구매방식/상담메모=최신 미완료 task) 변경 시 호출 → 전체보기 목록 재페치(stale 방지).
   onCustomerListChanged?: () => void;
+  // 대표 견적요청 변경 시 목록 "차종·구매방식" 열만 즉시 갱신(전체 재페치 왕복을 기다리지 않는다).
+  onVehicleChange?: (customerNo: number, next: { vehicle: string; vehicleTrim?: string; method: string }) => void;
   variant?: "page" | "drawer";
 };
 
@@ -68,6 +70,7 @@ function CustomerDetailContent({
   onToast,
   onWorkflowChange,
   onCustomerListChanged,
+  onVehicleChange,
   onQuotesPersisted,
   onDetailPatch,
 }: {
@@ -78,6 +81,8 @@ function CustomerDetailContent({
   onToast: (message: string) => void;
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
   onCustomerListChanged?: CustomerDetailPageProps["onCustomerListChanged"];
+  // customerNo는 부모가 바인딩한다 — 자식은 갱신값만 넘긴다.
+  onVehicleChange?: (next: { vehicle: string; vehicleTrim?: string; method: string }) => void;
   onQuotesPersisted?: () => void;
   // 서버 응답으로 상세를 부분 갱신(대표 견적요청 지정) — 재조회 왕복을 아낀다.
   onDetailPatch?: (patch: Partial<CustomerDetailData>) => void;
@@ -118,7 +123,7 @@ function CustomerDetailContent({
   const checks = useCustomerChecks({ detail, customer, onToast, markRecentUpdate, onCustomerListChanged });
   // 고객 니즈 영역(앱 견적요청 카드 목록 + 단일 need 카드). savePatch/markRecentUpdate/setOpenEditor는 부모 소유 공유 인프라라 인자로 주입.
   // quoteList보다 먼저 선언 — 승격 견적 삭제 시 니즈 카드 배지 갱신(reloadAppRequests)을 quoteList에 주입해야 해서.
-  const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor, applyDetailPatch: (patch) => onDetailPatch?.(patch), onCustomerListChanged });
+  const needs = useCustomerNeeds({ detail, onToast, savePatch, markRecentUpdate, setOpenEditor, applyDetailPatch: (patch) => onDetailPatch?.(patch), onVehicleChange, onCustomerListChanged });
   // 견적함 목록 + 행 액션 + 미리보기 영역(9a). 워크벤치/가격/비교카드/persist(9b~9e)는 useQuoteWorkbench가 보유.
   const quoteList = useQuoteList({ detail, customer, onToast, markRecentUpdate, reloadAppRequests: needs.reloadAppRequests, onCustomerListChanged, onWorkflowChange });
   const documents = useCustomerDocuments({ detail, customer, onToast, markRecentUpdate });
@@ -273,6 +278,7 @@ export function CustomerDetailPage({
   onToast,
   onWorkflowChange,
   onCustomerListChanged,
+  onVehicleChange,
   variant = "page",
 }: CustomerDetailPageProps) {
   const drawerMode = variant === "drawer";
@@ -323,6 +329,7 @@ export function CustomerDetailPage({
           onCustomerListChanged={onCustomerListChanged}
           onQuotesPersisted={reloadDetail}
           onDetailPatch={applyDetailPatch}
+          onVehicleChange={(next) => onVehicleChange?.(customer.no, next)}
         />
       ) : (
         <div className="kim-detail-skeleton" aria-hidden="true" />
