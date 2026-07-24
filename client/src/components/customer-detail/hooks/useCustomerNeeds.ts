@@ -14,8 +14,9 @@ type UseCustomerNeedsArgs = {
   savePatch: (patch: CustomerWritePatch, rollback: () => void) => void;
   markRecentUpdate: (section: string) => void;
   setOpenEditor: Dispatch<SetStateAction<OpenEditorState | null>>;
-  // 대표 견적요청 변경 후 상세 재조회 — 서버가 need_* 7필드를 한꺼번에 바꿔 낙관적 갱신이 불가하다.
-  reloadDetail: () => void;
+  // 대표 견적요청 변경 결과를 상세에 즉시 반영 — 서버가 갱신된 파생 7필드를 응답에 실어 주므로
+  // 상세를 다시 받지 않는다(prod 왕복 2회 = 눈에 띄는 딜레이, 2026-07-24 실기).
+  applyDetailPatch: (patch: Partial<CustomerDetailData>) => void;
   // 목록 "차종·구매방식" 열도 need_model/trim/method라 대표가 바뀌면 목록을 다시 받아야 한다
   // (목록은 상세와 별도 캐시 — 상세 재조회만으로는 안 바뀐다).
   onCustomerListChanged?: () => void;
@@ -27,7 +28,7 @@ export function useCustomerNeeds({
   savePatch,
   markRecentUpdate,
   setOpenEditor,
-  reloadDetail,
+  applyDetailPatch,
   onCustomerListChanged,
 }: UseCustomerNeedsArgs) {
   const [needs, setNeeds] = useState<NeedsState>(() => ({
@@ -111,15 +112,28 @@ export function useCustomerNeeds({
     );
   }
 
-  // 대표 견적요청 지정(설계 D1) — 서버가 need_* 7필드를 그 요청 값으로 갱신하므로 성공 후 상세를
-  // 다시 받는다(낙관적 갱신 불가: 차종·트림은 catalog 조인 결과라 클라가 계산할 수 없다).
+  // 대표 견적요청 지정(설계 D1) — 서버가 need_* 7필드를 그 요청 값으로 갱신하고 **결과를 응답에 실어
+  // 준다**. 그 값으로 상세를 바로 갱신한다: 상세를 다시 받으면 prod에서 왕복이 2회가 되어 눈에 띄게
+  // 느리다(로컬은 수십 ms라 안 보였다 — 2026-07-24 실기).
+  // 낙관적 갱신(응답 전에 미리 그리기)은 하지 않는다 — 차종·트림이 catalog 조인 결과라 클라가 값을
+  // 알 수 없고, 틀린 값을 그렸다가 되돌리면 깜빡인다.
   // 이미 대표인 카드를 다시 눌러도 그대로 보낸다 — 서버가 같은 값으로 덮어 결과가 같고(멱등),
   // 해제 개념이 없어(항상 1건) 토글 분기를 두면 "대표 없음" 상태가 생긴다.
   function featureRequest(requestId: string) {
     void featureQuoteRequest(detail.id, requestId)
-      .then(() => {
-        reloadDetail();
+      .then((result) => {
+        applyDetailPatch({
+          featuredRequestId: result.featuredRequestId,
+          needModel: result.needModel,
+          needTrim: result.needTrim,
+          needMethod: result.needMethod,
+          needContractTerm: result.needContractTerm,
+          needInitialCost: result.needInitialCost,
+          needAnnualMileage: result.needAnnualMileage,
+          needTiming: result.needTiming,
+        });
         // 목록 "차종·구매방식" 열이 need_model/trim/method다 — 상세와 별도 캐시라 따로 재페치해야 한다.
+        // 이건 배경 작업이라 상세 갱신을 막지 않는다.
         onCustomerListChanged?.();
         markRecentUpdate("고객 정보");
         onToast("대표 견적요청 변경 완료");

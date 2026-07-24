@@ -290,11 +290,25 @@ export async function createCustomerFromRequest(requestId: string): Promise<Prom
   return r;
 }
 
-// 대표 견적요청 지정(2026-07-24 설계 D1) — 서버가 need_* 7필드를 그 요청 값으로 갱신한다.
+// 대표 견적요청 지정 후 서버가 돌려주는 갱신 결과(파생 7필드 + 대표 id).
+export type FeaturedNeedsResult = {
+  id: string;
+  featuredRequestId: string;
+  needModel: string | null;
+  needTrim: string | null;
+  needMethod: string | null;
+  needContractTerm: string | null;
+  needInitialCost: string | null;
+  needAnnualMileage: string | null;
+  needTiming: string | null;
+};
+
+// 대표 견적요청 지정(2026-07-24 설계 D1) — 서버가 need_* 7필드를 그 요청 값으로 갱신하고 **그 결과를
+// 응답에 실어 준다**. 호출부는 그것으로 화면을 즉시 갱신한다(상세 재조회 왕복 불필요).
 // ⚠️ 라우트가 quote-requests가 아니라 customers 밑에 있다(그쪽은 인박스 전면 게이트라 staff가 403).
-// 상세 캐시만 무효화한다 — 요청 카드 자체는 불변이라 인박스/카드 목록은 다시 받을 필요가 없다.
-// (화면 갱신은 호출부가 상세를 재조회해야 한다 — 7필드가 서버에서 한꺼번에 바뀌어 낙관적 갱신이 불가.)
-export async function featureQuoteRequest(customerId: string, requestId: string): Promise<void> {
-  await sendJson(`/api/customers/${customerId}/quote-requests/${requestId}/feature`, "POST");
+// 상세 캐시는 무효화한다 — 다음 조회가 fresh해야 한다. 요청 카드 자체는 불변이라 인박스는 안 건드린다.
+export async function featureQuoteRequest(customerId: string, requestId: string): Promise<FeaturedNeedsResult> {
+  const r = await sendJson<FeaturedNeedsResult>(`/api/customers/${customerId}/quote-requests/${requestId}/feature`, "POST");
   invalidateCustomerDetail(customerId);
+  return r;
 }

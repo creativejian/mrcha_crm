@@ -23,6 +23,16 @@
   width: clamp(140px, 9.3vw, 220px);
 }
 
+/* 계약 관리 차종 열(2026-07-24) — 계약 차량 저장값이 "BMW 3 Series 320i LCI 2"처럼 길어 공통 폭
+   (9.3vw ≈ 185px)에서 잘렸다. 이 모드는 트림 줄이 없고 차량명+구매방식 2줄이라 폭을 더 줄 수 있다.
+   ⚠️ 공통 .col-vehicle을 올리지 않는 이유: 출고 모드는 최소폭 합산이 1157/1160이라(#347 검산)
+   여기서 vehicle을 올리면 테이블 min-width를 넘겨 좁은 화면에서 잘린다.
+   계약 모드 검산: select 55 + customer 138 + type 120 + vehicle 190 + stage 170 + advisor 118 +
+   actions 124 = 915, min-width 1160 기준 auto 2열(summary·action)에 245px가 남는다. */
+.customer-table.mode-contract .col-vehicle {
+  width: clamp(190px, 12vw, 280px);
+}
+
 .customer-table .col-operation {
   width: clamp(230px, 12.2vw, 264px);
 }

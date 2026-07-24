@@ -537,12 +537,17 @@ test("POST /api/customers/:id/quote-requests/:reqId/feature → 200 + 대표 반
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(200);
+    // 응답이 갱신된 파생값을 **그대로 실어** 준다 — 클라가 상세를 다시 받지 않고 즉시 그린다
+    // (prod 왕복 2회가 눈에 띄는 딜레이를 냈다, 2026-07-24 실기). 이 계약이 깨지면 화면이 다시 느려진다.
+    const body = (await res.json()) as { featuredRequestId: string; needContractTerm: string | null; needMethod: string | null };
+    expect(body.featuredRequestId).toBe(f.reqId);
+    expect(body.needContractTerm).toBe("36개월"); // 픽스처 period=36
     const [c] = await getDefaultDb()
       .select({ featuredRequestId: customers.featuredRequestId, needContractTerm: customers.needContractTerm })
       .from(customers)
       .where(eq(customers.id, f.custId));
     expect(c.featuredRequestId).toBe(f.reqId);
-    expect(c.needContractTerm).toBe("36개월"); // 픽스처 period=36
+    expect(c.needContractTerm).toBe(body.needContractTerm); // 응답 = DB 저장값
   } finally {
     await f.cleanup();
   }
