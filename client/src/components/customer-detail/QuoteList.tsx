@@ -350,6 +350,13 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
               setConfirmingQuoteContractId(null);
               setConfirmingQuoteContractDowngrade(null);
               dismissContractStageNudge();
+              // 계약 진행 견적은 바로 열지 않고 경고를 먼저(2026-07-24) — 고객 앱에 "진행 중인 계약"으로
+              // 보이는 견적이라 무심코 바꾸면 영향이 크다. 확인하면 그대로 수정할 수 있다(구 동작은
+              // 실체 없는 "계약 관리 창"으로 안내만 하고 수정 자체를 막았다).
+              if (openQuoteAction.decisionStatus === "contracting") {
+                setConfirmingQuoteContractEditId((current) => (current === openQuoteAction.id ? null : openQuoteAction.id));
+                return;
+              }
               onEditQuote(openQuoteAction);
             }}>
               <PencilLine size={13} strokeWidth={2.3} />
@@ -357,12 +364,15 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
             </button>
           ) : null}
           {confirmingQuoteContractEditId === openQuoteAction.id ? (
-            <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 견적 수정 안내">
-              <strong>계약 관리에서 수정</strong>
-              <p>계약 진행 중인 견적은 계약 관리 창에서 수정할 수 있습니다.</p>
+            <div className="kim-quote-send-confirm kim-quote-contract-inline-confirm" role="dialog" aria-label="계약 진행 견적 수정 확인">
+              <strong>계약 진행 중인 견적</strong>
+              <p>고객 앱에 진행 중인 계약으로 표시된 견적입니다. 수정하면 고객이 보는 내용도 함께 바뀝니다.</p>
               <div>
-                <button type="button" onClick={() => setConfirmingQuoteContractEditId(null)}>확인</button>
-                <button className="primary" type="button" onClick={() => onToast("계약 관리 화면 연결 후 이동됩니다.")}>계약 관리로 이동</button>
+                <button type="button" onClick={() => setConfirmingQuoteContractEditId(null)}>취소</button>
+                <button className="primary" type="button" onClick={() => {
+                  setConfirmingQuoteContractEditId(null);
+                  onEditQuote(openQuoteAction);
+                }}>수정</button>
               </div>
             </div>
           ) : null}

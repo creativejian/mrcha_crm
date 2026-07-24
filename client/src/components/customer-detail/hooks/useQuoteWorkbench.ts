@@ -1567,15 +1567,13 @@ export function useQuoteWorkbench({
   }
 
   // 견적 "수정" seam — detail.quotes에서 시나리오/비교카드/맵 복원(9b/9d/9e 상태). 9a 액션 팝오버가 호출.
+  // ⚠️ 계약 진행(contracting) 견적도 **여기서는 막지 않는다**(2026-07-24). 구 동작은 워크벤치 대신
+  // "계약 관리 창에서 수정하세요" 안내를 띄웠는데, 그 화면은 **실체가 없었다**(프로토타입 잔재 —
+  // spec 2026-07-20-crm-delivery-step2-design §113이 stale 문구로 기록). 계약 관리에서 드로어를 열어도
+  // 같은 견적함이라 같은 안내가 다시 떠 순환이었고, "계약 관리로 이동" 버튼은 토스트만 띄웠다.
+  // 지금은 **경고 후 수정 허용**(유슨생 결정 B안) — 경고 다이얼로그는 팝오버 오프너가 띄운다.
+  // 가드를 여기 두면 다이얼로그를 렌더할 수 없는 경로(니즈 카드 "견적 보기")가 무음으로 잠긴다(K2-c).
   function openEditQuote(quote: QuoteItem) {
-    // 계약 진행 견적은 워크벤치 대신 안내 다이얼로그로 — 팝오버를 열어 둔 채여야 렌더된다(QuoteList의
-    // 유일 렌더 지점이 팝오버 내부라, 여기서 closeQuoteActionPopover를 부르면 안내가 통째로 사라진다).
-    // 동반 클리어는 호출부인 "견적 수정" 오프너가 단일 소유(배치 13 K2-a) — 여기 중복 setter를 두면
-    // 클리어가 caller/callee로 쪼개져 오프너 6곳 관례가 다시 어긋난다.
-    if (quote.decisionStatus === "contracting") {
-      quoteList.handlers.setConfirmingQuoteContractEditId((current) => (current === quote.id ? null : quote.id));
-      return;
-    }
     editEntryTrimIdRef.current = quote.trimId ?? undefined; // 진입 trimId 스냅샷 → openQuoteActionTrimId가 반환해 initialTrimId 안정화
     const dq = detail.quotes.find((q) => q.id === quote.id);
     const editScenarios: EditScenario[] = (dq?.scenarios ?? []).map((s) => ({
