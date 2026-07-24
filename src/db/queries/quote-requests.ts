@@ -309,6 +309,9 @@ export type QuoteRequestDetail = {
   // 승격 워크벤치 프리필용 컬러 id(selected일 때만 non-null — DB가 그 경우만 저장). 클라가 catalog에서 id 매칭.
   exteriorColorId: number | null;
   interiorColorId: number | null;
+  // 앱카드 "고객 지역" 1순위 소스(계약 D6). payment_method 분기까지 끝낸 결론 1개 —
+  // 워크벤치는 customerRegionOf(이 값, 거주지)로 3단 폴백을 완성한다.
+  deliveryRegion: string | null;
 };
 
 // prefill용 단건 조회. 요청 1행 + 옵션(trim_option_id) 배열. 없으면 null.
@@ -330,6 +333,10 @@ export async function getQuoteRequestDetail(
       rentalDeposit: quoteRequests.rentalDeposit,
       exteriorColorId: quoteRequests.exteriorColorId,
       interiorColorId: quoteRequests.interiorColorId,
+      deliveryRegionCode: quoteRequests.deliveryRegionCode,
+      deliveryRegionName: quoteRequests.deliveryRegionName,
+      registrationRegionCode: quoteRequests.registrationRegionCode,
+      registrationRegionName: quoteRequests.registrationRegionName,
     })
     .from(quoteRequests)
     .where(
@@ -354,6 +361,7 @@ export async function getQuoteRequestDetail(
     optionIds,
     exteriorColorId: req.exteriorColorId,
     interiorColorId: req.interiorColorId,
+    deliveryRegion: deliveryRegionOf(req),
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, regionFromResidence, sanitizeQuoteGuidance } from "./quote-guidance";
+import { customerRegionOf, DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, regionFromResidence, sanitizeQuoteGuidance } from "./quote-guidance";
 
 describe("normalizeQuoteGuidance", () => {
   it("legacy keyPoint(단일 문자열)를 keyPoints 배열로 변환한다", () => {
@@ -44,5 +44,24 @@ describe("regionFromResidence", () => {
     expect(regionFromResidence("")).toBe("확인 필요");
     expect(regionFromResidence("확인 필요")).toBe("확인 필요");
     expect(regionFromResidence("미정")).toBe("확인 필요");
+  });
+});
+
+// 계약 D6 — 앱 인수/등록 지역 → 거주지 파생 → "확인 필요".
+// 앱 지역이 1순위인 이유: 탁송료·등록비가 붙는 곳은 거주지가 아니라 인수/등록 지역이다.
+describe("customerRegionOf", () => {
+  it("앱 지역이 있으면 거주지보다 우선한다", () => {
+    expect(customerRegionOf("부산광역시", "서울특별시 · 강남구")).toBe("부산광역시");
+  });
+  it("앱 지역이 없으면 거주지에서 파생한다(구 단위 유지)", () => {
+    expect(customerRegionOf(null, "인천광역시 · 남동구")).toBe("인천광역시 남동구");
+  });
+  it("둘 다 없으면 확인 필요", () => {
+    expect(customerRegionOf(null, null)).toBe("확인 필요");
+  });
+  // 앱이 빈 문자열을 보내도 "지역 미상"으로 표시되면 안 된다 — 거주지로 내려간다.
+  it("앱 지역이 빈 문자열·공백이면 없는 것으로 본다", () => {
+    expect(customerRegionOf("", "제주특별자치도")).toBe("제주특별자치도");
+    expect(customerRegionOf("   ", "제주특별자치도")).toBe("제주특별자치도");
   });
 });

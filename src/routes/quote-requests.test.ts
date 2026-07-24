@@ -237,6 +237,32 @@ test("getQuoteRequestDetail: 요청의 trimId·paymentMethod·optionIds 반환",
   expect(detail!.trimId === null || typeof detail!.trimId === "number").toBe(true);
 });
 
+// 프리필 배선 — deliveryRegionOf 자체는 유닛 테스트가 잠갔지만 "프리필 응답까지 흐르는지"는 별개다.
+// 워크벤치가 이 값으로 customerRegion 3단 폴백을 완성한다(계약 D6).
+test("getQuoteRequestDetail: 구매방식 분기에 맞는 지역을 파생해 실어 보낸다 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  const [req] = await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
+  await expect(
+    db.transaction(async (tx) => {
+      await tx
+        .update(quoteRequestsTable)
+        .set({
+          paymentMethod: "lease",
+          deliveryRegionCode: "seoul",
+          deliveryRegionName: "서울특별시",
+          registrationRegionCode: "busan",
+          registrationRegionName: "부산광역시",
+        })
+        .where(eq(quoteRequestsTable.id, req.id));
+      expect((await getQuoteRequestDetail(req.id, tx))?.deliveryRegion).toBe("서울특별시"); // 리스 → 인수 지역
+
+      await tx.update(quoteRequestsTable).set({ paymentMethod: "cash" }).where(eq(quoteRequestsTable.id, req.id));
+      expect((await getQuoteRequestDetail(req.id, tx))?.deliveryRegion).toBe("부산광역시"); // 일시불 → 등록 지역
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});
+
 test("getQuoteRequestDetail: 없는 요청 → null", async () => {
   const detail = await getQuoteRequestDetail("00000000-0000-0000-0000-000000000000");
   expect(detail).toBeNull();

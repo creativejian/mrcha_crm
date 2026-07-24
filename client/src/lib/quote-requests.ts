@@ -208,6 +208,8 @@ export type QuoteRequestPrefill = {
   // id로 TrimColor를 찾아 프리필하므로 name/hex는 프리필에 불필요.
   exteriorColorId: number | null;
   interiorColorId: number | null;
+  // 앱카드 "고객 지역" 1순위 소스(계약 D6) — 서버가 payment_method 분기까지 끝낸 결론.
+  deliveryRegion: string | null;
 };
 
 // customerId 동봉(배치 12 K1): 프리필 라우트가 customers 하위로 이사 — #302 인박스 게이트에 드로어
@@ -224,6 +226,7 @@ export async function fetchQuoteRequestDetail(customerId: string, id: string): P
     rentalDeposit: number | null;
     exteriorColorId?: number | null;
     interiorColorId?: number | null;
+    deliveryRegion?: string | null;
   }>(`/api/customers/${customerId}/quote-requests/${id}`);
   return {
     id: d.id,
@@ -236,6 +239,7 @@ export async function fetchQuoteRequestDetail(customerId: string, id: string): P
     rentalDeposit: d.rentalDeposit,
     exteriorColorId: d.exteriorColorId ?? null,
     interiorColorId: d.interiorColorId ?? null,
+    deliveryRegion: d.deliveryRegion ?? null,
   };
 }
 

@@ -69,6 +69,19 @@ export function regionFromResidence(residence: string | null | undefined): strin
   return raw.replace(/\s*·\s*/g, " "); // "인천광역시 · 남동구" → "인천광역시 남동구"
 }
 
+// 앱카드 "고객 지역" 파생 — 앱 인수/등록 지역 → 거주지 파생 → "확인 필요" 3단 폴백(계약 D6, 2026-07-24).
+// 앱 지역이 1순위인 이유: 탁송료·등록비가 붙는 곳은 거주지가 아니라 인수/등록 지역이다.
+// ⚠️ 앱 지역은 **광역(시도) 단위뿐**이라 폴백으로 내려가면 거주지의 구 단위가 살아난다 — 정밀도가
+//    떨어지는 게 아니라 축이 다르다(어디 사는가 vs 어디서 받는가).
+// 이 값은 발송 시 payload에 박제된다(app-card 조립기는 저장본을 옮길 뿐 재파생하지 않는다).
+export function customerRegionOf(
+  appRegion: string | null | undefined,
+  residence: string | null | undefined,
+): string {
+  const app = appRegion?.trim();
+  return app ? app : regionFromResidence(residence);
+}
+
 // 저장 직전 정리: 동적 입력칸(+)의 빈 줄 제거 + trim (빈 문자열 영속 방지).
 export function sanitizeQuoteGuidance(g: QuoteGuidance): QuoteGuidance {
   return {
