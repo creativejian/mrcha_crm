@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { annualMileageTextOf, contractTermTextOf, deriveNeedsFromRequest, initialCostTextOf } from "./quote-request-needs";
+import { annualMileageTextOf, contractTermTextOf, deriveNeedsFromRequest, initialCostTextOf, timingPresetOptions, timingTextFromPreset } from "./quote-request-needs";
 
 describe("contractTermTextOf", () => {
   it("개월 수를 CRM 어휘로 바꾼다", () => {
@@ -121,5 +121,34 @@ describe("deriveNeedsFromRequest", () => {
       needAnnualMileage: null,
       needTiming: null,
     });
+  });
+});
+
+describe("timingTextFromPreset", () => {
+  // 수기 입력도 절대화해 저장한다(설계 D4) — 상대 표현을 그대로 저장하면 같은 컬럼에 두 어휘가 섞이고,
+  // 시간이 지나면 그 값이 언제 기준인지 알 수 없어져 지금 고치려는 스테일 병이 재발한다.
+  it("고른 시점을 참조월로 절대화한다", () => {
+    expect(timingTextFromPreset("이번 달", "2026-07")).toBe("2026년 7월");
+    expect(timingTextFromPreset("다음 달", "2026-07")).toBe("2026년 8월");
+    expect(timingTextFromPreset("3개월 이내", "2026-07")).toBe("2026년 10월까지");
+  });
+
+  it("연을 넘어가도 절대화가 맞다", () => {
+    expect(timingTextFromPreset("3개월 이내", "2026-11")).toBe("2027년 2월까지");
+  });
+
+  it("미정은 미입력 센티넬로", () => {
+    expect(timingTextFromPreset("미정", "2026-07")).toBe("확인 필요");
+  });
+
+  it("모르는 프리셋도 센티넬로 떨어진다", () => {
+    expect(timingTextFromPreset("좋은 조건 즉시", "2026-07")).toBe("확인 필요");
+  });
+});
+
+describe("timingPresetOptions", () => {
+  // 앱 UI 4종과 어휘를 맞춘다(설계 D4). ⚠️ 앱은 "3개월 이내"다 — "이후"는 뜻이 반대다.
+  it("앱과 같은 4종", () => {
+    expect(timingPresetOptions).toEqual(["이번 달", "다음 달", "3개월 이내", "미정"]);
   });
 });

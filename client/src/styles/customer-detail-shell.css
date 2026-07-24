@@ -900,16 +900,7 @@
   gap: 4px;
 }
 
-.kim-month-options {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 4px;
-  min-width: 318px;
-}
-
-.kim-timing-options button,
-.kim-month-options button,
-.kim-timing-month-trigger {
+.kim-timing-options button {
   height: 28px;
   border: 1px solid #e2e2df;
   border-radius: 6px;
@@ -924,25 +915,8 @@
   transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, color 0.14s ease;
 }
 
-.kim-timing-month-trigger {
-  width: fit-content;
-}
-
-.kim-month-options {
-  border-top: 1px solid #eee;
-  padding-top: 6px;
-}
-
-.kim-month-options button {
-  padding: 0;
-}
-
 .kim-timing-options button:hover,
-.kim-timing-options button.active,
-.kim-timing-month-trigger:hover,
-.kim-timing-month-trigger.active,
-.kim-month-options button:hover,
-.kim-month-options button.active {
+.kim-timing-options button.active {
   border-color: rgba(var(--brand-rgb), 0.36);
   background: #f4f1ff;
   color: var(--brand);

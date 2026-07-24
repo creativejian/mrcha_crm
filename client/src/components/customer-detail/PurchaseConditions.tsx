@@ -3,6 +3,7 @@ import { type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { formatNumberWithCommas, isPurchaseTagField, purchaseTags, purchaseValueClass } from "@/lib/detail-utils";
 import { isPurchaseFloatingKind, type PurchasePopoverFrame } from "@/lib/popover-frames";
+import { timingTextFromPreset } from "@/lib/quote-request-needs";
 
 import {
   annualMileageOptions,
@@ -14,7 +15,6 @@ import {
   initialCostUnitOptions,
   methodOptions,
   reviewNoteOptions,
-  timingMonthOptions,
   timingPresetOptions,
 } from "./purchase-meta";
 import { type OpenEditorState } from "./types";
@@ -33,8 +33,7 @@ type PurchaseConditionsProps = {
 export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorRef, purchasePopoverFrame, purchase }: PurchaseConditionsProps) {
   const {
     fields: purchaseFields,
-    showTimingMonths,
-    setShowTimingMonths,
+    isFieldLocked,
     initialCostKind,
     initialCostUnit,
     setInitialCostUnit,
@@ -51,7 +50,6 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
     selectInitialCostKind,
     applyPurchaseInitialCost,
     selectPurchaseTiming,
-    selectPurchaseTimingMonth,
     togglePurchaseCostFocus,
     togglePurchaseCustomerNote,
     togglePurchaseReviewNote,
@@ -229,51 +227,32 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
 
   function renderPurchaseTimingEditor() {
     const currentTimingField = purchaseFields.find((field) => field.label === "출고 희망 시기");
-    const currentValue = currentTimingField?.value ?? "좋은 조건 즉시";
-    const selectedOption = currentValue.endsWith("출고 희망") ? "특정 월" : currentValue;
-    const selectedMonth = currentValue.endsWith("출고 희망") ? currentValue.replace(" 출고 희망", "") : "";
-    const showMonthPicker = showTimingMonths || selectedOption === "특정 월";
+    const currentValue = currentTimingField?.value ?? "";
+    // ⚠️ 저장값은 절대화 텍스트("2026년 10월까지")라 프리셋 라벨과 직접 비교할 수 없다(설계 D4).
+    // 지금 시점 기준으로 각 프리셋이 만들 값과 대조해 선택 상태를 판정한다 — 그래서 지난달에 고른
+    // 값은 어떤 프리셋과도 안 맞고(정상: 그 답변은 그때 기준이다) 아무것도 선택되지 않은 채 보인다.
+    const now = new Date();
+    const referenceMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
     return (
       <div className="kim-edit-popover purchase-timing" role="dialog" aria-label="출고 희망 시기 수정">
         <div className="kim-timing-picker">
           <div className="kim-timing-options" role="group" aria-label="출고 희망 시기 선택">
-            {timingPresetOptions.map((option) => (
-              <button
-                aria-pressed={selectedOption === option}
-                className={selectedOption === option ? "active" : ""}
-                key={option}
-                onClick={() => selectPurchaseTiming(option)}
-                type="button"
-              >
-                {option}
-              </button>
-            ))}
-            <button
-              aria-expanded={showMonthPicker}
-              aria-pressed={selectedOption === "특정 월"}
-              className={`kim-timing-month-trigger${showMonthPicker ? " active" : ""}`}
-              onClick={() => selectPurchaseTiming("특정 월")}
-              type="button"
-            >
-              특정 월
-            </button>
-          </div>
-          {showMonthPicker ? (
-            <div className="kim-month-options" role="group" aria-label="특정 월 선택">
-              {timingMonthOptions.map((month) => (
+            {timingPresetOptions.map((option) => {
+              const selected = currentValue !== "" && currentValue === timingTextFromPreset(option, referenceMonth);
+              return (
                 <button
-                  aria-pressed={selectedMonth === month}
-                  className={selectedMonth === month ? "active" : ""}
-                  key={month}
-                  onClick={() => selectPurchaseTimingMonth(month)}
+                  aria-pressed={selected}
+                  className={selected ? "active" : ""}
+                  key={option}
+                  onClick={() => selectPurchaseTiming(option)}
                   type="button"
                 >
-                  {month}
+                  {option}
                 </button>
-              ))}
-            </div>
-          ) : null}
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -382,16 +361,20 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
         <div className="kim-purchase-condition-body">
           {purchaseFields.map((field) => {
             const displayValue = field.value || "미정";
+            // 대표 견적요청에서 파생되는 5필드는 편집 불가(설계 D2) — 값의 정본이 그 요청이다.
+            // 바꾸려면 앱 카드의 star로 대표를 옮긴다. 서버도 409로 막는다(D7).
+            const locked = isFieldLocked(field.label);
             const itemButton = (
               <button
                 className="kim-purchase-condition-item"
+                disabled={locked}
+                title={locked ? "대표 견적요청에서 자동으로 채워집니다 — 앱 카드의 별로 대표를 바꾸세요." : undefined}
                 onClick={(event) => {
                   if (field.label === "구매방식") {
                     openPurchaseFloatingEditor(event, { kind: "purchaseMethod" });
                     return;
                   }
                   if (field.label === "출고 희망 시기") {
-                    setShowTimingMonths(field.value.endsWith("출고 희망"));
                     openPurchaseFloatingEditor(event, { kind: "purchaseTiming" });
                     return;
                   }
@@ -440,7 +423,7 @@ export function PurchaseConditions({ onToast, openEditor, setOpenEditor, editorR
 
             return (
               <div
-                className={`kim-purchase-condition-anchor editable${isPurchaseTagField(field.label) ? " judgment" : ""}${(field.label === "구매방식" && openEditor?.kind === "purchaseMethod") || (field.label === "출고 희망 시기" && openEditor?.kind === "purchaseTiming") || (field.label === "계약 포커스" && openEditor?.kind === "purchaseCostFocus") || (field.label === "계약기간" && openEditor?.kind === "purchaseTerm") || (field.label === "초기비용" && openEditor?.kind === "purchaseInitialCost") || (field.label === "연간 주행거리" && openEditor?.kind === "purchaseAnnualMileage") || (field.label === "인도 방식" && openEditor?.kind === "purchaseDeliveryMethod") || (field.label === "고객 특이사항" && openEditor?.kind === "purchaseCustomerNotes") || (field.label === "심사 특이사항" && openEditor?.kind === "purchaseReviewNotes") ? " active" : ""}`}
+                className={`kim-purchase-condition-anchor${locked ? " is-locked" : " editable"}${isPurchaseTagField(field.label) ? " judgment" : ""}${(field.label === "구매방식" && openEditor?.kind === "purchaseMethod") || (field.label === "출고 희망 시기" && openEditor?.kind === "purchaseTiming") || (field.label === "계약 포커스" && openEditor?.kind === "purchaseCostFocus") || (field.label === "계약기간" && openEditor?.kind === "purchaseTerm") || (field.label === "초기비용" && openEditor?.kind === "purchaseInitialCost") || (field.label === "연간 주행거리" && openEditor?.kind === "purchaseAnnualMileage") || (field.label === "인도 방식" && openEditor?.kind === "purchaseDeliveryMethod") || (field.label === "고객 특이사항" && openEditor?.kind === "purchaseCustomerNotes") || (field.label === "심사 특이사항" && openEditor?.kind === "purchaseReviewNotes") ? " active" : ""}`}
                 key={field.label}
               >
                 {itemButton}
