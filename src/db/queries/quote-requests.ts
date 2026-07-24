@@ -1,9 +1,9 @@
-import { and, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 
 import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
 import { APP_QUOTE_REQUEST_SOURCE } from "../../../client/src/data/customers";
-import { PAYMENT_METHOD_LABEL } from "../../../client/src/data/quote-request-labels";
 import { deliveryRegionOf, deliveryTimingTextOf } from "../../../client/src/lib/quote-delivery";
+import { deriveNeedsFromRequest } from "../../../client/src/lib/quote-request-needs";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles, quoteRequestOptions, quoteRequests } from "../public-app";
@@ -379,34 +379,64 @@ export async function listQuoteRequestIdsByUser(appUserId: string, ex: Executor 
   return rows.map((r) => r.id);
 }
 
-// 승격 대상 요청의 출고 시기 3필드 — need_timing 시드 재료(승격 두 경로가 공유하는 select 조각).
-const requestTimingSelect = {
+// 대표 견적요청에서 need_* 파생에 필요한 컬럼(승격 두 경로 + 대표 지정이 공유하는 select 조각).
+// 파생 규칙 자체는 client/src/lib/quote-request-needs.ts가 SSOT다.
+const requestNeedsSelect = {
+  paymentMethod: quoteRequests.paymentMethod,
+  period: quoteRequests.period,
+  depositType: quoteRequests.depositType,
+  depositRatio: quoteRequests.depositRatio,
+  rentalDeposit: quoteRequests.rentalDeposit,
+  annualMileageKm: quoteRequests.annualMileageKm,
   deliveryTimingMode: quoteRequests.deliveryTimingMode,
   deliveryTimingReferenceMonth: quoteRequests.deliveryTimingReferenceMonth,
   deliveryTargetMonth: quoteRequests.deliveryTargetMonth,
 } as const;
 
-type RequestTiming = {
-  deliveryTimingMode: string | null;
-  deliveryTimingReferenceMonth: string | null;
-  deliveryTargetMonth: string | null;
-};
-
-function needTimingOf(req: RequestTiming): string | null {
-  return deliveryTimingTextOf(req.deliveryTimingMode, req.deliveryTimingReferenceMonth, req.deliveryTargetMonth);
+// 대표 요청의 차량(catalog 조인) — needModel·needTrim. 트림이 없거나 삭제됐으면 둘 다 null.
+async function vehicleNeedsOf(trimId: number | null, ex: Executor): Promise<{ needModel: string | null; needTrim: string | null }> {
+  if (trimId == null) return { needModel: null, needTrim: null };
+  const [t] = await ex
+    .select({ trimName: trimsInCatalog.trimName, modelName: modelsInCatalog.name, brandName: brandsInCatalog.name })
+    .from(trimsInCatalog)
+    .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
+    .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
+    .where(eq(trimsInCatalog.id, trimId));
+  if (!t) return { needModel: null, needTrim: null };
+  return {
+    needModel: [t.brandName, t.modelName].filter(Boolean).join(" ") || null,
+    needTrim: t.trimName,
+  };
 }
 
-// 기존 고객의 need_timing을 **빈 칸일 때만** 채운다(계약 D5 — 비파괴).
-// 상담사 수기 입력을 자동 시드가 덮으면 안 되므로 WHERE에 빈 값 조건을 건다(읽고 판단하지 않는다 —
-// 동시 승격에서도 UPDATE 한 문장이 원자적으로 판정).
-// 빈 문자열도 빈 칸으로 본다 — 폼에서 지운 값이 ''로 영속될 수 있다(sanitizeQuoteGuidance와 같은 인식).
-async function fillNeedTimingIfEmpty(customerId: string, text: string | null, ex: Executor): Promise<void> {
-  if (!text) return;
+// 그 앱 유저의 최초 견적요청 id(기본 대표 — 설계 D1). 요청이 0건이면 null(상담신청으로만 연결된 고객).
+async function firstRequestIdOf(appUserId: string, ex: Executor): Promise<string | null> {
+  const [row] = await ex
+    .select({ id: quoteRequests.id })
+    .from(quoteRequests)
+    .where(eq(quoteRequests.userId, appUserId))
+    .orderBy(asc(quoteRequests.createdAt))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+// 고객의 need_* 7필드를 대표 요청 값으로 **덮어쓴다**(설계 D5 — 비파괴 아님).
+// 구 fillNeedTimingIfEmpty("빈 칸일 때만")를 대체한다: read-only 전환(D2·D7) 후에는 남겨둔 수기값을
+// 상담사가 고칠 수 없게 되므로, 대표가 정해지면 파생값이 정본이다.
+// ⚠️ 값이 없는 필드도 null로 덮는다 — 빈 칸이 정상 상태이고(앱은 구매방식·기간·보증금을 건너뛴 채
+//    제출할 수 있다), 이전 대표의 잔값이 남으면 화면에서 출처가 섞인다.
+export async function applyFeaturedRequestNeeds(customerId: string, requestId: string, ex: Executor): Promise<void> {
+  const [req] = await ex
+    .select({ trimId: quoteRequests.trimId, ...requestNeedsSelect })
+    .from(quoteRequests)
+    .where(eq(quoteRequests.id, requestId));
+  if (!req) return;
+  const vehicle = await vehicleNeedsOf(req.trimId, ex);
   await ex
     .update(customers)
     // updated_at은 DB 시계로만(2026-07-23 #334·#335) — 앱 시계로 찍으면 "마지막 활동"이 과거로 되돌아간다.
-    .set({ needTiming: text, updatedAt: sql`now()` })
-    .where(and(eq(customers.id, customerId), or(isNull(customers.needTiming), eq(customers.needTiming, ""))));
+    .set({ ...vehicle, ...deriveNeedsFromRequest(req), featuredRequestId: requestId, updatedAt: sql`now()` })
+    .where(eq(customers.id, customerId));
 }
 
 // 요청의 user_id를 대상 고객의 app_user_id에 set(전화 매칭된 기존 고객 연결). 요청/고객 없으면 null.
@@ -418,13 +448,17 @@ export async function linkRequestToCustomer(
   ex: Executor = getDefaultDb(),
 ): Promise<{ id: string; customerCode: string; name: string; appUserId: string; droppedPhone: string | null } | null> {
   const [req] = await ex
-    .select({ userId: quoteRequests.userId, ...requestTimingSelect })
+    .select({ userId: quoteRequests.userId })
     .from(quoteRequests)
     .where(eq(quoteRequests.id, requestId));
   if (!req) return null;
   const linked = await applyAppUserLink(req.userId, customerId, ex);
-  // 연결이 실제로 성립한 뒤에만 시드한다(가드가 막으면 applyAppUserLink가 던지거나 null).
-  if (linked) await fillNeedTimingIfEmpty(linked.id, needTimingOf(req), ex);
+  // 연결이 실제로 성립한 뒤에만 대표를 정한다(가드가 막으면 applyAppUserLink가 던지거나 null).
+  // ⚠️ 대표는 **그 유저의 최초 요청**이지 지금 연결한 이 요청이 아니다(설계 D1 — 기본 대표 = 최초 요청).
+  if (linked) {
+    const firstId = await firstRequestIdOf(req.userId, ex);
+    if (firstId) await applyFeaturedRequestNeeds(linked.id, firstId, ex);
+  }
   return linked;
 }
 
@@ -435,47 +469,29 @@ export async function createCustomerFromRequest(
   ex: Executor = getDefaultDb(),
 ): Promise<{ id: string; customerCode: string; name: string; appUserId: string } | null> {
   const [req] = await ex
-    .select({
-      userId: quoteRequests.userId,
-      trimId: quoteRequests.trimId,
-      paymentMethod: quoteRequests.paymentMethod,
-      createdAt: quoteRequests.createdAt,
-      ...requestTimingSelect,
-    })
+    .select({ userId: quoteRequests.userId, createdAt: quoteRequests.createdAt })
     .from(quoteRequests)
     .where(eq(quoteRequests.id, requestId));
   if (!req) return null;
 
   const [existing] = await ex
-    .select({ id: customers.id, customerCode: customers.customerCode, name: customers.name })
+    .select({ id: customers.id, customerCode: customers.customerCode, name: customers.name, featuredRequestId: customers.featuredRequestId })
     .from(customers)
     .where(eq(customers.appUserId, req.userId));
-  // 기존 고객이면 새로 만들지 않는다(중복 방지). 단 need_timing이 비어 있으면 이 요청의 값으로 채운다
-  // — 구 동작은 완전 무갱신이었다(행위 변경, 계약 D5 승인 완료).
+  // 기존 고객이면 새로 만들지 않는다(중복 방지). 대표가 **아직 없을 때만** 최초 요청으로 정한다 —
+  // 상담사가 star로 고른 대표를 승격 버튼이 되돌리면 안 된다(설계 D1, 유슨생 확인).
   if (existing) {
-    await fillNeedTimingIfEmpty(existing.id, needTimingOf(req), ex);
-    return { ...existing, appUserId: req.userId };
+    if (!existing.featuredRequestId) {
+      const firstId = await firstRequestIdOf(req.userId, ex);
+      if (firstId) await applyFeaturedRequestNeeds(existing.id, firstId, ex);
+    }
+    return { id: existing.id, customerCode: existing.customerCode, name: existing.name, appUserId: req.userId };
   }
 
   const [profile] = await ex
     .select({ fullName: profiles.fullName })
     .from(profiles)
     .where(eq(profiles.id, req.userId));
-
-  let needModel: string | null = null;
-  let needTrim: string | null = null;
-  if (req.trimId != null) {
-    const [t] = await ex
-      .select({ trimName: trimsInCatalog.trimName, modelName: modelsInCatalog.name, brandName: brandsInCatalog.name })
-      .from(trimsInCatalog)
-      .leftJoin(modelsInCatalog, eq(trimsInCatalog.modelId, modelsInCatalog.id))
-      .leftJoin(brandsInCatalog, eq(modelsInCatalog.brandId, brandsInCatalog.id))
-      .where(eq(trimsInCatalog.id, req.trimId));
-    if (t) {
-      needModel = [t.brandName, t.modelName].filter(Boolean).join(" ") || null;
-      needTrim = t.trimName;
-    }
-  }
 
   const customerCode = await nextCustomerCode(ex);
   const [row] = await ex
@@ -487,17 +503,15 @@ export async function createCustomerFromRequest(
       // 담당한다(복사 스냅샷은 앱에서 번호가 바뀌는 순간 스테일). CHECK 불변식도 이걸 강제.
       phone: null,
       appUserId: req.userId,
-      needModel,
-      needTrim,
-      // payment_method 한글 라벨 — 공용 SSOT client/src/data/quote-request-labels(요청 청크 빌더·클라 카드와 공유).
-      needMethod: req.paymentMethod ? (PAYMENT_METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod) : null,
-      // 출고 희망 시기 절대화 텍스트(계약 D3·D4). 레거시 요청이면 null이라 기존과 동일하게 빈 칸.
-      needTiming: needTimingOf(req),
       source: APP_QUOTE_REQUEST_SOURCE,
       statusGroup: "신규",
       status: "상담접수",
       receivedAt: new Date(req.createdAt),
     })
     .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
+  // 대표 = **그 유저의 최초 요청**이다(설계 D1) — 승격을 누른 이 요청이 아니다. 인박스에서 최신 요청
+  // 카드로 승격할 수도 있어서, 승격 요청을 대표로 삼으면 link·기존 고객 경로와 규칙이 갈린다.
+  // 방금 만든 고객이라 덮을 수기값이 없다(D5 덮어쓰기 주의사항이 여기엔 해당 없음).
+  await applyFeaturedRequestNeeds(row.id, (await firstRequestIdOf(req.userId, ex)) ?? requestId, ex);
   return { ...row, appUserId: req.userId };
 }
