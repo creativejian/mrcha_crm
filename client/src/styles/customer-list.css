@@ -628,8 +628,12 @@ th input:focus-visible {
   z-index: 90;
 }
 
+/* 칩 형태 1벌(2026-07-24) — .badge를 여기 합쳤다. 전에는 목록 모드에 따라 .stage-status-button(입체·
+   radius 7px·800)과 .badge(평면·pill·700)가 갈려 같은 목록인데 배지 모양이 바뀌었다. 형태를 각자
+   두면 또 갈라지므로 한 규칙으로 묶는다 — 색은 각자 변형(.badge.green 등)이 뒤에서 덮는다. */
 .stage-status-button,
-.chance-status-button {
+.chance-status-button,
+.badge {
   min-height: 24px;
   border: 1px solid rgba(255, 255, 255, 0.64);
   border-radius: 7px;
@@ -1391,17 +1395,10 @@ th input:focus-visible {
   bottom: -0.5px;
 }
 
+/* 형태(높이·radius·굵기·그림자)는 위 .stage-status-button 그룹이 소유한다 — 여기는 색만 둔다. */
 .badge {
-  min-height: 22px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 7px;
   background: #eef2f7;
   color: #344054;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .badge.yellow {
