@@ -1,7 +1,7 @@
 # [차선생 CRM → 앱] 빠른 견적 V2 출고·추가요청 데이터 계약 — 회신·확정
 
 작성 2026-07-24 · 원문: 앱 레포 `reference/design/quote-v2-delivery-crm-data-contract-proposal.md` (v3)
-상태: **계약 확정** — D1~D6 전부 확정 · D5·D6 행위 변경 승인 완료(유슨생, 2026-07-24) · 잔여 = 앱 구현 착수 승인 1건
+상태: **계약 확정 · CRM Phase 2 5/7 구현·머지·실기 완료**(`#340`~`#343`) — D1~D6 확정 · D5·D6 승인 완료(유슨생) · 잔여 = Phase 2-6(AI 청크 재백필)·2-7(인박스 컬럼)은 데이터 축적/샘플 후 · 앱 구현 착수 승인 1건
 
 ## 결론
 
@@ -46,10 +46,19 @@
 1. ✅ **미러 갱신** — `src/db/public-app.ts`의 `quoteRequests`에 신규 13컬럼. 배열 2종은 `.array().notNull().default(sql\`'{}'::text[]\`)` — default 표기가 없으면 INSERT 필수가 되어 기존 픽스처가 전부 깨진다.
 2. ✅ **라벨 SSOT 확장** — ⚠️ **실측으로 +36개가 아니라 +6개였다**(`REQUEST_TOPIC_LABEL`만). 지역 16은 앱이 `*_region_name` 정식명 스냅샷을 보내 해석표가 필요 없고, timing 6은 절대화 텍스트(`deliveryTimingTextOf`)에 흡수되며, priority 8·`delivery_method` 3은 예약 필드라 값이 안 온다. 토픽 라벨은 앱 `quote_v2_renderer.dart` 실측(뒤 3종은 제안서 괄호가 라벨이 아니라 **적용 조건**이었다 — `joint_ownership`=공동명의 검토 · `transfer_terms`=승계 조건 확인).
 3. ✅ **지역 소비** — `deliveryRegionOf`(`client/src/lib/quote-delivery.ts`, 순수 모듈 = 서버 공용)가 `payment_method`로 분기. null 케이스 테스트 포함.
-4. **승격 시드** — `need_timing` 절대화는 `deliveryTimingTextOf`가 이미 SSOT(테스트 16종 완료), 남은 건 `createCustomerFromRequest`에 **빈 칸만 채우기**로 붙이는 것 + `need_delivery_method`(예약 해제 후). `residence`는 시드하지 않는다.
-5. **`customerRegion` 3단 폴백** — ⚠️ 앱카드 payload는 **서버·클라 2벌 조립기 + `app-card-payload-parity.test.ts`** 3곳을 함께 고쳐야 한다.
-6. **AI 청크 반영** — 확정 문구로 **한 번에 묶어 1회 재백필**.
-7. **인박스 테이블 출고 컬럼** — 고객 상세 카드(`NeedsDashboard`)는 붙였으나 인박스(`AppRequestsPage`)는 **테이블이라 컬럼 추가 = 레이아웃 변경**이다. 실데이터가 0건인 상태에서 폭을 정하면 다시 손봐야 해 **샘플 확인 후**로 미뤘다.
+4. ✅ **승격 시드**(`#341`) — `createCustomerFromRequest`·`linkRequestToCustomer`에 **빈 칸만 채우기**(UPDATE WHERE로 비파괴, 동시 승격에도 원자적). `need_delivery_method`는 예약(앱 `delivery_method` 미노출). `residence`는 시드하지 않는다.
+5. ✅ **`customerRegion` 3단 폴백**(`#342`) — 앱 지역 → 거주지 파생 → "확인 필요". ⚠️ **회신 당시 "조립기 3곳 동시 수정"이라 적었으나 실측으로 틀렸다** — 조립기(`app-card.ts`)는 저장된 `guidance.customerRegion`을 옮길 뿐 재파생하지 않아 **고칠 곳은 파생 1곳**(`customerRegionOf` + 워크벤치 `seedGuidance`). 파리티 테스트 무변경. **범위는 승격 작성 경로만** — 기존 견적 수정 진입은 `sourceQuoteRequestId`를 버리는 현 설계라 거주지 폴백 유지(되살리면 요청 재연결·completed 전이에 영향, 별건).
+6. **AI 청크 반영** — 확정 문구로 **한 번에 묶어 1회 재백필**. (남음, 데이터 축적 후)
+7. **인박스 테이블 출고 컬럼** — 고객 상세 카드(`NeedsDashboard`)는 붙였으나 인박스(`AppRequestsPage`)는 **테이블이라 컬럼 추가 = 레이아웃 변경**이다. 실데이터가 0건인 상태에서 폭을 정하면 다시 손봐야 해 **샘플 확인 후**로 미뤘다. (남음)
+
+## 실기 관측 (2026-07-24 · 유슨생 · 첫 V2 요청 유입)
+
+첫 V2 요청(리스·인천·`within_three_months`)으로 컬러·지역·시기·D6 폴백 **전 경로 정상 확인**. 강남구로 뜨던 건 **Safari 구 번들 캐시**였고(코드·API·번들 3중 실측 후 `bun dev` 재시작으로 인천 확인) 구현 결함 아님.
+
+- **🔵 앱 `specific_month`(특정 월 지정) UI 미노출** — 앱 출고 시기 선택지가 4개뿐(`이번 달`/`다음 달`/`3개월 이내`/`미정`, `quote_v2_renderer.dart:4189~`). `specificMonth`는 options 배열에 없으나 **특정 월 피커 렌더 로직(4202)은 준비돼 있다** = 앱이 진입 버튼만 아직 안 붙였다. **CRM은 대응 완료** — DB CHECK 6값·`deliveryTimingTextOf`의 `specific_month`→`target_month` 처리·테스트 전부 있어 앱이 켜면 **무변경 수용**(예약 필드 `delivery_method`·`quote_priority_codes`와 같은 성격). 의도된 미출시인지 앱 버그인지는 앱팀 판단(이사님 공유).
+- **선재 버그 1건 발견·수정**(`#343`) — `deposit_type='none'`(무보증, 앱 07-17 도입) 라벨 누락으로 raw "none" 노출. V2 출고와 별개.
+
+## 주의
 
 ## 주의
 
