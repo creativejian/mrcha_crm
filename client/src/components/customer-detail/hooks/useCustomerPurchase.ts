@@ -35,6 +35,9 @@ type UseCustomerPurchaseArgs = {
   markRecentUpdate: (section: string) => void;
   // purchasePopoverFrame 상태는 부모 소유(toggleEditor·외부클릭 dismiss effect가 기록) — 쓰기 setter만 주입.
   setPurchasePopoverFrame: Dispatch<SetStateAction<PurchasePopoverFrame | null>>;
+  // 구매방식은 목록 "차종·구매방식" 열과 같은 need_method 컬럼이다 — 그 행만 즉시 갱신한다
+  // (전체 재페치를 기다리면 목록만 뒤늦게 바뀐다, #354와 같은 결).
+  onVehicleChange?: (next: { vehicle?: string; vehicleTrim?: string; method?: string }) => void;
 };
 
 export function useCustomerPurchase({
@@ -46,6 +49,7 @@ export function useCustomerPurchase({
   savePatch,
   markRecentUpdate,
   setPurchasePopoverFrame,
+  onVehicleChange,
 }: UseCustomerPurchaseArgs) {
   const [purchaseFields, setPurchaseFields] = useState(() =>
     purchaseFieldScaffold.map((field) => {
@@ -128,7 +132,11 @@ export function useCustomerPurchase({
     )));
     markRecentUpdate("상세 구매조건");
     onToast("구매방식 수정 완료");
-    savePatch({ needMethod: nextValue }, () => setPurchaseFields(prevPurchaseFields));
+    onVehicleChange?.({ method: nextValue });
+    savePatch({ needMethod: nextValue }, () => {
+      setPurchaseFields(prevPurchaseFields);
+      onVehicleChange?.({ method: currentMethodField?.value ?? "" }); // 목록 행도 되돌린다
+    });
   }
 
   function togglePurchaseTerm(option: string) {
