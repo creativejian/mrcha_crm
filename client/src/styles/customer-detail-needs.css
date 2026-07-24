@@ -109,6 +109,17 @@
   line-height: 1.28;
 }
 
+/* 고객 자유 문의(V2 additional_request) — 고객이 직접 쓴 문장이라 이탤릭 인용으로 구분.
+   최대 300자라 카드가 늘어나지 않게 2줄로 클램프(전체는 상세에서). */
+.kim-needs-request-note {
+  font-style: italic;
+  color: #6b7178;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .kim-needs-method-badge {
   min-height: 28px;
   border: 1px solid rgba(var(--brand-rgb), 0.26);
