@@ -157,11 +157,11 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                             <h3>{req.vehicleModelLabel}</h3>
                             {req.vehicleTrimLabel ? <p>{req.vehicleTrimLabel}</p> : null}
                             <span>{req.paymentLabel} · 옵션 {req.optionLabel}{req.colorLabel ? ` · ${req.colorLabel}` : ""}</span>
-                            <span>{req.periodLabel} · {req.depositLabel}</span>
-                            {/* 출고·문의·자유문의는 V2 요청에만 있다 — 레거시 행은 null/빈배열이라 줄 자체가 안 생긴다(카드 높이 유지). */}
-                            {req.deliveryLabel ? <span>출고 {req.deliveryLabel}</span> : null}
+                            {/* 계약 조건과 출고는 한 줄로 묶는다(유슨생 결정 2026-07-25) — 둘 다 짧아
+                                각자 한 줄을 쓰면 카드만 길어졌다. 출고·문의는 V2 요청에만 있어 레거시
+                                행에서는 " | 출고:" 자체가 안 붙는다(구분자 잔재 없음). */}
+                            <span>{req.periodLabel} · {req.depositLabel}{req.deliveryLabel ? ` | 출고: ${req.deliveryLabel}` : ""}</span>
                             {req.topicLabels.length > 0 ? <span>문의 {req.topicLabels.join(", ")}</span> : null}
-                            {req.additionalRequest ? <span className="kim-needs-request-note">“{req.additionalRequest}”</span> : null}
                           </div>
                           <div className="kim-needs-request-actions">
                             {/* 대표 견적요청(설계 D1) — 켜진 카드의 값이 목록 차종·구매방식과 상세 구매조건 5필드가 된다.
@@ -205,6 +205,15 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                             ) : null}
                           </div>
                         </div>
+                        {/* 자유문의는 수기 니즈 카드·상담신청 카드와 **같은 하단 블록**으로 낸다(2026-07-25).
+                            구 이탤릭 인용은 본문 줄에 섞여 라벨이 없었다. ⚠️ 값의 의미는 그대로 **요청별**이다
+                            (카드마다 자기 문의) — 수기 카드의 문의사항이 고객 단위인 것과 다르다. */}
+                        {req.additionalRequest ? (
+                          <div className="kim-needs-card-memo">
+                            <span>문의사항</span>
+                            <p>{req.additionalRequest}</p>
+                          </div>
+                        ) : null}
                       </div>
                     );
                     })}
