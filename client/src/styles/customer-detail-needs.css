@@ -102,6 +102,13 @@
   line-height: 1.22;
 }
 
+/* 관심 차량 미입력 안내 — 실제 값이 아니라는 걸 보이게 흐리고 가볍게(보조 텍스트와 같은 회색).
+   카드 전체가 편집 버튼이라 이 자리가 "눌러서 입력하라"는 신호를 겸한다. */
+.kim-needs-card-copy h3.is-placeholder {
+  color: #a6adb4;
+  font-weight: 700;
+}
+
 .kim-needs-card-copy p {
   margin: 5px 0 0;
   color: #5f6872;

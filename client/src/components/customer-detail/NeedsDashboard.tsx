@@ -5,7 +5,7 @@ import { type CustomerDetailData } from "@/lib/customers";
 
 import { WorkbenchVehiclePicker, type VehicleSelection } from "./WorkbenchVehiclePickers";
 
-import { NEEDS_COLOR_PLACEHOLDER } from "./needs-meta";
+import { NEEDS_COLOR_PLACEHOLDER, NEEDS_MODEL_PLACEHOLDER } from "./needs-meta";
 import { methodOptions } from "./purchase-meta";
 import { type OpenEditorState } from "./types";
 import type { useCustomerNeeds } from "./hooks/useCustomerNeeds";
@@ -99,17 +99,23 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
         <button className="kim-needs-floating-card" onClick={() => toggleEditor({ kind: "needs" })} type="button">
           <div className="kim-needs-card-main">
             <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
+            {/* 빈 값은 줄째로 지운다(2026-07-25) — 상담신청만으로 승격된 고객은 니즈 5필드가 전부
+                비어 있어 빈 줄·빈 배지 껍데기·라벨만 남은 문의사항 블록이 그대로 렌더됐고, 카드가
+                고장난 것처럼 보였다. 앱 요청 카드·상담 카드가 이미 "값 있을 때만" 규칙이라 그쪽과도 맞춘다.
+                차종만은 숨기지 않고 안내로 대체한다 — 제목이 통째로 비면 무엇을 누르는 카드인지 사라진다. */}
             <div className="kim-needs-card-copy">
-              <h3>{needs.model}</h3>
-              <p>{needs.trim}</p>
-              <span>{needs.colors}</span>
+              <h3 className={needs.model ? undefined : "is-placeholder"}>{needs.model || NEEDS_MODEL_PLACEHOLDER}</h3>
+              {needs.trim ? <p>{needs.trim}</p> : null}
+              {needs.colors ? <span>{needs.colors}</span> : null}
             </div>
-            <span className="kim-needs-method-badge">{needs.method}</span>
+            {needs.method ? <span className="kim-needs-method-badge">{needs.method}</span> : null}
           </div>
-          <div className="kim-needs-card-memo">
-            <span>문의사항</span>
-            <p>{needs.memo}</p>
-          </div>
+          {needs.memo ? (
+            <div className="kim-needs-card-memo">
+              <span>문의사항</span>
+              <p>{needs.memo}</p>
+            </div>
+          ) : null}
         </button>
         {openEditor?.kind === "needs" ? renderNeedsEditor() : null}
       </div>
