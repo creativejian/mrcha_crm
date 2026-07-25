@@ -91,11 +91,45 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
     );
   }
 
+  // 수기 니즈 카드(편집 진입점). 앱 카드 모드에서도 대표 견적요청이 없으면 이 카드를 쓴다 —
+  // 두 자리가 같은 벌을 공유해야 한판만 고치는 드리프트가 안 생긴다.
+  function renderNeedsCard() {
+    return (
+      <div className="kim-edit-anchor needs" ref={openEditor?.kind === "needs" ? editorRef : undefined}>
+        <button className="kim-needs-floating-card" onClick={() => toggleEditor({ kind: "needs" })} type="button">
+          <div className="kim-needs-card-main">
+            <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
+            <div className="kim-needs-card-copy">
+              <h3>{needs.model}</h3>
+              <p>{needs.trim}</p>
+              <span>{needs.colors}</span>
+            </div>
+            <span className="kim-needs-method-badge">{needs.method}</span>
+          </div>
+          <div className="kim-needs-card-memo">
+            <span>문의사항</span>
+            <p>{needs.memo}</p>
+          </div>
+        </button>
+        {openEditor?.kind === "needs" ? renderNeedsEditor() : null}
+      </div>
+    );
+  }
+
+  // 니즈를 수기로 쓸 수 있는가 = **대표 견적요청이 없는가**(app_user_id 아님 — 설계 D2).
+  // 서버 PATCH 409 게이트(routes/customers.ts)가 쓰는 판정과 같은 기준이어야 한다: 상담신청으로만
+  // 유입돼 견적요청이 0건인 앱 고객은 파생 소스가 없어 수기 입력이 계속 열려 있어야 하는데,
+  // 화면이 app_user_id로 갈라 편집 진입점을 통째로 숨기고 있었다(2026-07-25).
+  const needsEditable = !detail.featuredRequestId;
+
   return (
     <section className={`detail-section kim-needs-dashboard${detail.appUserId ? " is-app" : ""}`}>
       <div className="kim-needs-field">
         {detail.appUserId ? (
           <div className="kim-needs-app">
+            {/* 대표가 없으면(요청 0건 등) 수기 편집 카드를 스택 위에 고정한다. 스크롤 영역 **밖**인
+                이유: 편집 팝오버가 overflow:auto 안에서 잘린다. */}
+            {needsEditable ? <div className="kim-needs-manual-slot">{renderNeedsCard()}</div> : null}
             {/* 카드 목록만 상한 높이 스크롤(overscroll-contain으로 부모 드로어 스크롤 격리) */}
             <div className="kim-needs-request-scroll">
               {(() => {
@@ -118,8 +152,11 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                         <div className="kim-needs-card-main">
                           <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
                           <div className="kim-needs-card-copy">
-                            <h3>{req.vehicleLabel}</h3>
-                            <p>{req.paymentLabel} · 옵션 {req.optionLabel}{req.colorLabel ? ` · ${req.colorLabel}` : ""}</p>
+                            {/* 차량은 모델 줄 · 트림 줄 2줄 — 수기 니즈 카드와 같은 배치다(둘이 한 줄/두 줄로
+                                갈려 있어 같은 화면에서 다른 카드처럼 보였다, 2026-07-25). 트림이 없으면 줄째로 숨긴다. */}
+                            <h3>{req.vehicleModelLabel}</h3>
+                            {req.vehicleTrimLabel ? <p>{req.vehicleTrimLabel}</p> : null}
+                            <span>{req.paymentLabel} · 옵션 {req.optionLabel}{req.colorLabel ? ` · ${req.colorLabel}` : ""}</span>
                             <span>{req.periodLabel} · {req.depositLabel}</span>
                             {/* 출고·문의·자유문의는 V2 요청에만 있다 — 레거시 행은 null/빈배열이라 줄 자체가 안 생긴다(카드 높이 유지). */}
                             {req.deliveryLabel ? <span>출고 {req.deliveryLabel}</span> : null}
@@ -224,8 +261,9 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                 );
               })()}
             </div>
-            {/* 문의사항·관심 색상은 고객 단위(요청별 아님). 값 있을 때만 노출(스크롤 영역 밖 고정). */}
-            {needs.memo.trim() || (needs.colors.trim() && needs.colors !== NEEDS_COLOR_PLACEHOLDER) ? (
+            {/* 문의사항·관심 색상은 고객 단위(요청별 아님). 값 있을 때만 노출(스크롤 영역 밖 고정).
+                수기 편집 카드가 떠 있으면 그 카드가 같은 두 값을 이미 보여주므로 중복을 피해 숨긴다. */}
+            {!needsEditable && (needs.memo.trim() || (needs.colors.trim() && needs.colors !== NEEDS_COLOR_PLACEHOLDER)) ? (
               <div className="kim-needs-customer-meta">
                 {needs.memo.trim() ? (
                   <div className="kim-needs-card-memo">
@@ -243,24 +281,7 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
             ) : null}
           </div>
         ) : (
-          <div className="kim-edit-anchor needs" ref={openEditor?.kind === "needs" ? editorRef : undefined}>
-            <button className="kim-needs-floating-card" onClick={() => toggleEditor({ kind: "needs" })} type="button">
-              <div className="kim-needs-card-main">
-                <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
-                <div className="kim-needs-card-copy">
-                  <h3>{needs.model}</h3>
-                  <p>{needs.trim}</p>
-                  <span>{needs.colors}</span>
-                </div>
-                <span className="kim-needs-method-badge">{needs.method}</span>
-              </div>
-              <div className="kim-needs-card-memo">
-                <span>문의사항</span>
-                <p>{needs.memo}</p>
-              </div>
-            </button>
-            {openEditor?.kind === "needs" ? renderNeedsEditor() : null}
-          </div>
+          renderNeedsCard()
         )}
       </div>
     </section>

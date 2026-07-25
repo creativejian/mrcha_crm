@@ -188,6 +188,18 @@
   max-height: none;
 }
 
+/* 앱 고객인데 대표 견적요청이 없을 때(상담신청만 유입 등) 스택 위에 고정되는 수기 편집 카드.
+   is-app에서 .kim-needs-field의 padding이 0이라(스크롤 영역이 자기 padding을 갖는 구조) 여기서 준다.
+   카드 자체의 max-height(calc(100% - 48px))는 flex 아이템 안에서 카드를 찌그러뜨리므로 해제 —
+   .kim-needs-request-card와 같은 이유다. */
+.kim-needs-manual-slot {
+  padding: 12px 12px 0;
+}
+
+.kim-needs-manual-slot .kim-needs-floating-card {
+  max-height: none;
+}
+
 .kim-needs-request-status {
   margin: 0;
   padding: 18px 10px;

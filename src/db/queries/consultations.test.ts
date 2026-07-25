@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 
 import { ConflictError, LinkConflictError } from "../../lib/errors";
 import { getDefaultDb } from "../client";
-import { consultationRequests, profiles } from "../public-app";
+import { consultationRequests, profiles, quoteRequests } from "../public-app";
 import { consultationDismissals, customers } from "../schema";
 import {
   createCustomerFromConsultation,
@@ -193,6 +193,68 @@ test("linkConsultationToCustomer: appUserId 연결 — 구 '빈 phone 보강' �
   } finally {
     await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
     await db.delete(customers).where(eq(customers.id, customerId));
+  }
+});
+
+// 대표 견적요청 지정은 **연결 경로 양쪽 모두**의 책임이다(설계 D1) — 견적요청 인박스에서 연결하면
+// linkRequestToCustomer가 정해주는데 상담신청 인박스만 빠져 있었다(2026-07-25). 그러면 요청 카드는
+// N건 뜨는데 대표가 없어 ⭐가 어디에도 안 켜지고, 니즈 7필드는 파생되지 않은 옛 수기값이 남는다.
+test("linkConsultationToCustomer: 그 앱 유저의 견적요청이 있으면 **최초 요청**을 대표로 정하고 니즈를 파생한다", async () => {
+  const userId = await anyUnlinkedProfileId();
+  const customerId = await insertCustomer({ phone: null, needMethod: "할부" });
+  const consultationId = await insertConsultation({ userId });
+  // 최초/나중 2건 — 대표는 지금 연결한 요청이 아니라 **createdAt이 가장 이른 것**이어야 한다.
+  const firstRequestId = crypto.randomUUID();
+  const laterRequestId = crypto.randomUUID();
+  await db.insert(quoteRequests).values({ id: firstRequestId, userId, trimId: null, status: "open", paymentMethod: "lease", createdAt: "2026-01-01T00:00:00+00:00" });
+  await db.insert(quoteRequests).values({ id: laterRequestId, userId, trimId: null, status: "open", paymentMethod: "rent", createdAt: "2026-02-01T00:00:00+00:00" });
+  try {
+    const result = await linkConsultationToCustomer(consultationId, customerId, db);
+    expect(result?.appUserId).toBe(userId);
+
+    const [row] = await db.select().from(customers).where(eq(customers.id, customerId));
+    expect(row.featuredRequestId).toBe(firstRequestId);
+    // 파생이 실제로 돌았는지 — 최초 요청의 결제방식(lease)이 니즈에 덮여야 한다(D5 덮어쓰기, 기존 "할부" 아님).
+    expect(row.needMethod).toBe("운용리스");
+  } finally {
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    await db.delete(customers).where(eq(customers.id, customerId));
+    await db.delete(quoteRequests).where(eq(quoteRequests.id, firstRequestId));
+    await db.delete(quoteRequests).where(eq(quoteRequests.id, laterRequestId));
+  }
+});
+
+// 설계 D2의 반대편 — 요청이 0건이면 파생 소스가 없으므로 대표는 null로 남아야 한다(수기 입력이 계속
+// 열려 있어야 하고, 그 판정 기준이 featured_request_id다 — routes/customers.ts PATCH 409 게이트).
+test("linkConsultationToCustomer: 견적요청이 0건이면 대표는 null 유지(수기 입력 계속 허용)", async () => {
+  const userId = await anyUnlinkedProfileId();
+  const customerId = await insertCustomer({ phone: null, needModel: "수기 입력 차종" });
+  const consultationId = await insertConsultation({ userId });
+  try {
+    await linkConsultationToCustomer(consultationId, customerId, db);
+
+    const [row] = await db.select().from(customers).where(eq(customers.id, customerId));
+    expect(row.featuredRequestId).toBeNull();
+    expect(row.needModel).toBe("수기 입력 차종"); // 파생이 없으니 수기값도 그대로
+  } finally {
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    await db.delete(customers).where(eq(customers.id, customerId));
+  }
+});
+
+test("createCustomerFromConsultation: 상담신청만으로 승격된 고객은 대표가 null(요청 0건 — 수기 입력 허용)", async () => {
+  const userId = await anyUnlinkedProfileId();
+  const consultationId = await insertConsultation({ userId, customerName: "상담승격테스트", carModel: "벤츠 GLE" });
+  let customerId: string | null = null;
+  try {
+    const result = await createCustomerFromConsultation(consultationId, db);
+    customerId = result?.id ?? null;
+    const [row] = await db.select().from(customers).where(eq(customers.id, result!.id));
+    expect(row.featuredRequestId).toBeNull();
+    expect(row.needModel).toBe("벤츠 GLE"); // 상담신청 차종이 수기 니즈로 들어가고, 상담사가 고칠 수 있어야 한다
+  } finally {
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    if (customerId) await db.delete(customers).where(eq(customers.id, customerId));
   }
 });
 

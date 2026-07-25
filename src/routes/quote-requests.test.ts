@@ -173,7 +173,10 @@ test("setFeaturedRequest: 대표를 바꾸면 need_*가 그 요청 값으로 갱
   await expect(
     db.transaction(async (tx) => {
       await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, first.userId));
-      await tx.update(customers).set({ appUserId: first.userId, featuredRequestId: first.id }).where(eq(customers.id, cust.id));
+      // phone: null을 함께 넣는다 — 앱 연결 고객은 주 번호를 컬럼에 두지 않는다는 계약을 DB CHECK
+      // (customers_phone_app_exclusive_check)가 강제하므로, 픽스처도 그걸 지켜야 한다. 정렬 없는
+      // limit(1)이 phone 있는 고객을 집으면 세팅 자체가 거부돼 테스트가 깨진다(2026-07-25 실측).
+      await tx.update(customers).set({ appUserId: first.userId, featuredRequestId: first.id, phone: null }).where(eq(customers.id, cust.id));
       const changed = await setFeaturedRequest(second.id, cust.id, tx);
       expect(changed?.featuredRequestId).toBe(second.id);
       const [c] = await tx
@@ -219,8 +222,8 @@ test("createCustomerFromRequest: 이미 대표가 있으면 승격이 되돌리�
   await expect(
     db.transaction(async (tx) => {
       await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, first.userId));
-      // 상담사가 second를 대표로 골라 둔 상태를 만든다.
-      await tx.update(customers).set({ appUserId: first.userId, featuredRequestId: second.id }).where(eq(customers.id, cust.id));
+      // 상담사가 second를 대표로 골라 둔 상태를 만든다(phone: null 이유는 위 setFeaturedRequest 케이스와 동일).
+      await tx.update(customers).set({ appUserId: first.userId, featuredRequestId: second.id, phone: null }).where(eq(customers.id, cust.id));
       // 그 상태에서 first 요청으로 승격을 누른다 → 기존 고객 반환 경로.
       await createCustomerFromRequest(first.id, tx);
       const [c] = await tx.select({ featuredRequestId: customers.featuredRequestId }).from(customers).where(eq(customers.id, cust.id));

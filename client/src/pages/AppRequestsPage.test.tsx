@@ -22,6 +22,8 @@ const PHONE_MATCH_ROW: AppQuoteRequest = {
   id: "req-1",
   createdAt: "26/07/13 10:00",
   requesterName: "김테스트",
+  vehicleModelLabel: "기아 쏘렌토",
+  vehicleTrimLabel: null,
   vehicleLabel: "기아 쏘렌토",
   paymentLabel: "장기렌트",
   periodLabel: "48개월",
