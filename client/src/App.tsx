@@ -384,8 +384,11 @@ export function App() {
         <Route path="/ai-settings" element={<AISettingsPage />} />
         <Route path="/mc-master" element={<MCMasterPage roleTab={roleTab} />} />
         <Route path="/mc-master/:modelId" element={<MCMasterPage roleTab={roleTab} />} />
-        <Route path="/org-members" element={<OrgMembersPage />} />
-        <Route path="/partners" element={<PartnersPage />} />
+        {/* 둘 다 Topbar 메뉴가 isAdminRole일 때만 노출되는 대표 전용 화면인데 라우트 가드만 빠져
+            있었다(2026-07-25) — URL 직접 입력이면 staff·manager·dealer도 껍데기가 열렸다.
+            위 /insights·/finance 등과 같은 규칙을 마저 적용한다(데이터는 API가 이미 admin 전용). */}
+        <Route path="/org-members" element={isAdmin ? <OrgMembersPage /> : <Navigate to="/" replace />} />
+        <Route path="/partners" element={isAdmin ? <PartnersPage /> : <Navigate to="/" replace />} />
         <Route path="/finance" element={isAdmin ? <FinancePage mode={financeMode} /> : <Navigate to="/" replace />} />
         <Route path="/handoff-operation" element={isAdmin ? <HandoffOperationPage onToast={showToast} /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
