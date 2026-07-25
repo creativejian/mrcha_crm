@@ -78,6 +78,16 @@
   place-items: center;
   background: #f4f1ff;
   color: var(--brand);
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+/* 대표 견적요청 카드 — "견적 보기" 버튼과 같은 채움(브랜드 배경 + 흰 아이콘)으로 반전시켜
+   스크롤 스택에서 대표를 한눈에 찾게 한다. **표시 전용**(클릭 손잡이는 star).
+   star 클릭 한 번에 새 대표는 켜지고 이전 대표는 꺼지므로 transition으로 그 이동을 잇는다. */
+.kim-needs-car-icon.is-featured {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
 }
 
 .kim-needs-card-copy {

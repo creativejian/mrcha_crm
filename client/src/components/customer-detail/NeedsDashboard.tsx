@@ -147,10 +147,16 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                     {requestCards.map((req) => {
                       // "견적 작성"/"추가 작성" 공용 핸들러 — 토스트 문구·에러 처리 1벌(한쪽만 고치는 드리프트 방지).
                       const createQuote = () => { void openWorkbenchForQuoteRequest(req.id).catch(() => onToast("견적요청 정보를 불러오지 못했습니다.")); };
+                      // 대표 여부는 아래 4곳(아이콘 반전·star 3속성)이 함께 읽는다 — 표현이 갈리지 않게 한 벌로.
+                      const isFeatured = req.id === detail.featuredRequestId;
                       return (
                       <div className="kim-needs-floating-card kim-needs-request-card" key={req.id}>
                         <div className="kim-needs-card-main">
-                          <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
+                          {/* 대표 카드는 차 아이콘을 반전시킨다(2026-07-25 유슨생 결정) — 16px star만으로는
+                              카드가 여러 장 쌓인 스크롤에서 대표를 찾기 어려웠다. **표시 전용**이고 조작은
+                              계속 star가 맡는다: 큰 아이콘은 어느 카드에서나 장식으로 읽혀(상담신청 카드도
+                              같은 자리·같은 크기로 쓴다) 클릭 손잡이로 삼으면 발견 가능성이 떨어진다. */}
+                          <span className={`kim-needs-car-icon${isFeatured ? " is-featured" : ""}`} aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
                           <div className="kim-needs-card-copy">
                             {/* 차량은 모델 줄 · 트림 줄 2줄 — 수기 니즈 카드와 같은 배치다(둘이 한 줄/두 줄로
                                 갈려 있어 같은 화면에서 다른 카드처럼 보였다, 2026-07-25). 트림이 없으면 줄째로 숨긴다. */}
@@ -168,11 +174,11 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                                 해제는 없다(항상 1건). 배지가 없는 카드에서도 star는 늘 보여야 해서 같은 줄로 묶는다. */}
                             <div className="kim-needs-request-badge-row">
                               <button
-                                aria-label={req.id === detail.featuredRequestId ? "대표 견적요청" : "대표 견적요청으로 지정"}
-                                aria-pressed={req.id === detail.featuredRequestId}
-                                className={`kim-needs-request-star${req.id === detail.featuredRequestId ? " is-on" : ""}`}
+                                aria-label={isFeatured ? "대표 견적요청" : "대표 견적요청으로 지정"}
+                                aria-pressed={isFeatured}
+                                className={`kim-needs-request-star${isFeatured ? " is-on" : ""}`}
                                 onClick={() => handlers.featureRequest(req.id)}
-                                title={req.id === detail.featuredRequestId ? "대표 견적요청" : "대표 견적요청으로 지정"}
+                                title={isFeatured ? "대표 견적요청" : "대표 견적요청으로 지정"}
                                 type="button"
                               >
                                 <Star size={16} strokeWidth={2.1} />
