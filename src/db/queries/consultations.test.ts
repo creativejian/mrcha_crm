@@ -242,6 +242,51 @@ test("linkConsultationToCustomer: 견적요청이 0건이면 대표는 null 유�
   }
 });
 
+// 승격(create) 경로도 연결(link) 경로와 같은 책임을 진다 — 상담신청과 견적요청을 **둘 다** 가진 유저를
+// 상담 인박스에서 승격하면 요청이 있는데도 대표가 없는 고객이 만들어졌다(2026-07-25 실측:
+// CU-2607-0002가 요청 14건 보유·대표 null·니즈 전량 빈값). 요청 인박스 승격(createCustomerFromRequest)은
+// 원래 대표를 정하고 있어 두 승격 경로가 비대칭이었다.
+test("createCustomerFromConsultation: 신규 승격 — 그 유저의 견적요청이 있으면 최초 요청을 대표로 정한다", async () => {
+  const userId = await anyUnlinkedProfileId();
+  const consultationId = await insertConsultation({ userId, customerName: "상담승격테스트", carModel: "벤츠 GLE" });
+  const firstRequestId = crypto.randomUUID();
+  const laterRequestId = crypto.randomUUID();
+  await db.insert(quoteRequests).values({ id: firstRequestId, userId, trimId: null, status: "open", paymentMethod: "lease", createdAt: "2026-01-01T00:00:00+00:00" });
+  await db.insert(quoteRequests).values({ id: laterRequestId, userId, trimId: null, status: "open", paymentMethod: "rent", createdAt: "2026-02-01T00:00:00+00:00" });
+  let customerId: string | null = null;
+  try {
+    const result = await createCustomerFromConsultation(consultationId, db);
+    customerId = result?.id ?? null;
+    const [row] = await db.select().from(customers).where(eq(customers.id, result!.id));
+    expect(row.featuredRequestId).toBe(firstRequestId);
+    // 파생이 돌았으면 상담신청 차종("벤츠 GLE")이 아니라 대표 요청 값이 정본이다(설계 D5 덮어쓰기).
+    expect(row.needMethod).toBe("운용리스");
+  } finally {
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    if (customerId) await db.delete(customers).where(eq(customers.id, customerId));
+    await db.delete(quoteRequests).where(eq(quoteRequests.id, firstRequestId));
+    await db.delete(quoteRequests).where(eq(quoteRequests.id, laterRequestId));
+  }
+});
+
+test("createCustomerFromConsultation: 기존 고객 dedupe — 대표가 없으면 그때 정한다(상담사 선택은 덮지 않음)", async () => {
+  const userId = await anyUnlinkedProfileId();
+  const existingCustomerId = await insertCustomer({ appUserId: userId, source: "앱 견적요청", name: "기존고객", phone: null });
+  const consultationId = await insertConsultation({ userId });
+  const requestId = crypto.randomUUID();
+  await db.insert(quoteRequests).values({ id: requestId, userId, trimId: null, status: "open", paymentMethod: "installment", createdAt: "2026-03-01T00:00:00+00:00" });
+  try {
+    await createCustomerFromConsultation(consultationId, db);
+    const [row] = await db.select().from(customers).where(eq(customers.id, existingCustomerId));
+    expect(row.featuredRequestId).toBe(requestId);
+    expect(row.needMethod).toBe("할부");
+  } finally {
+    await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
+    await db.delete(customers).where(eq(customers.id, existingCustomerId));
+    await db.delete(quoteRequests).where(eq(quoteRequests.id, requestId));
+  }
+});
+
 test("createCustomerFromConsultation: 상담신청만으로 승격된 고객은 대표가 null(요청 0건 — 수기 입력 허용)", async () => {
   const userId = await anyUnlinkedProfileId();
   const consultationId = await insertConsultation({ userId, customerName: "상담승격테스트", carModel: "벤츠 GLE" });
