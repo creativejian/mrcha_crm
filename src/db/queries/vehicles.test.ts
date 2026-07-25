@@ -2,10 +2,14 @@ import { test, expect } from "bun:test";
 
 import { getBrands, getModelsByBrand, getTrimsByModel, getTrimDetail } from "./vehicles";
 
-test("getBrands: 거울 브랜드를 sort_order 순으로 반환", async () => {
+test("getBrands: 브랜드를 sort_order 순으로 반환", async () => {
   const brands = await getBrands();
-  expect(brands.length).toBe(33);
-  expect(brands[0].name).toBe("현대");
+  // 정확 건수(33)·첫 브랜드명("현대") 하드코딩 금지(0725 경량 체크 L5) — 라이브 master catalog는
+  // MC 마스터·앱 팀이 편집하는 데이터라 브랜드 하나만 늘어도 확정 red였다. 성질(비어있지 않음·
+  // sort_order 오름차순 계약)만 잠근다.
+  expect(brands.length).toBeGreaterThan(0);
+  const orders = brands.map((b) => b.sortOrder);
+  expect([...orders].sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual(orders);
 });
 
 test("getModelsByBrand: 해당 브랜드의 모델만 반환", async () => {

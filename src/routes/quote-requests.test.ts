@@ -158,16 +158,31 @@ test("createCustomerFromRequest: 신규 생성이면 그 요청이 대표가 된
   ).rejects.toThrow("ROLLBACK");
 });
 
+// 요청 ≥2건 유저의 최초 요청 2건(createdAt asc)을 결정적으로 고른다 — 정렬 없는 limit(1)이 단일
+// 요청 유저를 집으면 second가 없어 false red(0725 경량 체크 L3 — "phone 있는 고객" CHECK 거부와
+// 같은 '아무 행이나' 부류. 공유 master 데이터가 변하면 코드 무변경에도 깨진다).
+async function twoRequestsOfSameUser() {
+  const db = getDefaultDb();
+  const [grp] = await db
+    .select({ userId: quoteRequestsTable.userId })
+    .from(quoteRequestsTable)
+    .groupBy(quoteRequestsTable.userId)
+    .having(sql`count(*) >= 2`)
+    .orderBy(sql`count(*) desc`, asc(quoteRequestsTable.userId))
+    .limit(1);
+  expect(grp).toBeDefined(); // 요청 2건 유저 상존(실 master 전제) — 사라지면 여기서 명시적으로 죽는다
+  const reqs = await db
+    .select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId, paymentMethod: quoteRequestsTable.paymentMethod })
+    .from(quoteRequestsTable)
+    .where(eq(quoteRequestsTable.userId, grp.userId))
+    .orderBy(asc(quoteRequestsTable.createdAt))
+    .limit(2);
+  return { first: reqs[0], second: reqs[1] };
+}
+
 test("setFeaturedRequest: 대표를 바꾸면 need_*가 그 요청 값으로 갱신된다 (tx 롤백)", async () => {
   const db = getDefaultDb();
-  // 같은 앱 유저의 요청 2건 — 서로 다른 값이어야 갱신을 관측할 수 있으므로 payment_method가 다른 쌍을 고른다.
-  const [first] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
-  const [second] = await db
-    .select({ id: quoteRequestsTable.id, paymentMethod: quoteRequestsTable.paymentMethod })
-    .from(quoteRequestsTable)
-    .where(and(eq(quoteRequestsTable.userId, first.userId), sql`${quoteRequestsTable.id} <> ${first.id}`))
-    .limit(1);
-  expect(second).toBeDefined();
+  const { first, second } = await twoRequestsOfSameUser();
   const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
 
   await expect(
@@ -209,14 +224,8 @@ test("setFeaturedRequest: 그 고객의 요청이 아니면 null (tx 롤백)", a
 
 test("createCustomerFromRequest: 이미 대표가 있으면 승격이 되돌리지 않는다 (tx 롤백)", async () => {
   const db = getDefaultDb();
-  // 같은 앱 유저의 요청 2건(요청이 여러 건인 유저에서 뽑는다).
-  const [first] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
-  const [second] = await db
-    .select({ id: quoteRequestsTable.id })
-    .from(quoteRequestsTable)
-    .where(and(eq(quoteRequestsTable.userId, first.userId), sql`${quoteRequestsTable.id} <> ${first.id}`))
-    .limit(1);
-  expect(second).toBeDefined();
+  // 같은 앱 유저의 요청 2건 — 결정적 선택(위 twoRequestsOfSameUser 주석 참조).
+  const { first, second } = await twoRequestsOfSameUser();
   const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
 
   await expect(
@@ -317,6 +326,19 @@ test("createCustomerFromRequest: 레거시 요청은 need_timing을 건드리지
   const [req] = await db.select({ id: quoteRequestsTable.id, userId: quoteRequestsTable.userId }).from(quoteRequestsTable).limit(1);
   await expect(
     db.transaction(async (tx) => {
+      // 최초 요청(파생 소스)을 tx 안에서 레거시 상태로 만든다 — "임의 유저의 최초 요청엔 timing이
+      // 없다"는 데이터 가정은 V2 요청만 가진 신규 유저가 생기는 순간 깨진다(0725 경량 체크 L4).
+      // withSeededTiming과 대칭: 저쪽은 심고, 여기는 지운다(둘 다 롤백).
+      const [firstReq] = await tx
+        .select({ id: quoteRequestsTable.id })
+        .from(quoteRequestsTable)
+        .where(eq(quoteRequestsTable.userId, req.userId))
+        .orderBy(asc(quoteRequestsTable.createdAt))
+        .limit(1);
+      await tx
+        .update(quoteRequestsTable)
+        .set({ deliveryTimingMode: null, deliveryTimingReferenceMonth: null, deliveryTargetMonth: null })
+        .where(eq(quoteRequestsTable.id, firstReq.id));
       await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, req.userId));
       const created = await createCustomerFromRequest(req.id, tx);
       const [c] = await tx.select({ needTiming: customers.needTiming }).from(customers).where(eq(customers.id, created!.id));
@@ -754,18 +776,24 @@ test("GET /api/quote-requests → 승격 견적 2건 생성 시 promotedQuoteIds
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
   const db = getDefaultDb();
-  const [cust] = await db.select({ id: customers.id }).from(customers).limit(1);
+  // ⚠️ 견적은 **픽스처 고객**에 단다(0725 경량 체크 M2) — 임의 실고객(정렬 없는 limit(1))에 달면
+  // 실행이 끊겼을 때 실채번(QT-YYMM) 유령 견적이 남는데, check-test-residue의 두 그물(QT 접두사
+  // 정규식·픽스처 고객 소속) 모두 못 본다. 픽스처 고객이 앵커면 잔재 스캔·--clean이 함께 잡는다.
+  const [cust] = await db
+    .insert(customers)
+    .values({ customerCode: `CU-QRPF-${crypto.randomUUID().slice(0, 8)}`, name: "프리필이사테스트" })
+    .returning({ id: customers.id });
   const [req] = await db.select({ id: quoteRequestsTable.id }).from(quoteRequestsTable).limit(1);
 
-  const beforeRes = await app.request("/api/quote-requests", { headers: { Authorization: `Bearer ${token}` } });
-  const beforeBody = (await beforeRes.json()) as Array<{ id: string; promotedQuoteCount: number }>;
-  const beforeCount = beforeBody.find((r) => r.id === req.id)?.promotedQuoteCount ?? 0;
-
-  const first = await createQuote(cust.id, { sourceQuoteRequestId: req.id, status: "작성중" });
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  const second = await createQuote(cust.id, { sourceQuoteRequestId: req.id, status: "작성중" });
-
   try {
+    const beforeRes = await app.request("/api/quote-requests", { headers: { Authorization: `Bearer ${token}` } });
+    const beforeBody = (await beforeRes.json()) as Array<{ id: string; promotedQuoteCount: number }>;
+    const beforeCount = beforeBody.find((r) => r.id === req.id)?.promotedQuoteCount ?? 0;
+
+    const first = await createQuote(cust.id, { sourceQuoteRequestId: req.id, status: "작성중" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const second = await createQuote(cust.id, { sourceQuoteRequestId: req.id, status: "작성중" });
+
     const res = await app.request("/api/quote-requests", { headers: { Authorization: `Bearer ${token}` } });
     const body = (await res.json()) as Array<{ id: string; promotedQuoteIds: string[]; promotedQuoteCount: number }>;
     const target = body.find((r) => r.id === req.id);
@@ -774,7 +802,8 @@ test("GET /api/quote-requests → 승격 견적 2건 생성 시 promotedQuoteIds
     expect(target?.promotedQuoteIds.length).toBe(beforeCount + 2);
     expect(target?.promotedQuoteCount).toBe(beforeCount + 2);
   } finally {
-    await db.delete(quotes).where(inArray(quotes.id, [first.id, second.id]));
+    await db.delete(quotes).where(eq(quotes.customerId, cust.id)); // customers FK에 cascade 없음 — 견적 먼저
+    await db.delete(customers).where(eq(customers.id, cust.id));
   }
 });
 

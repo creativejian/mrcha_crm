@@ -275,6 +275,51 @@ test("견적요청 승격(create-customer) → quote_request 임베딩(훅), 정
   }
 });
 
+test("견적요청 link → customer_profile 재임베딩(니즈 파생 반영) + quote_request 임베딩", async () => {
+  // 0725 경량 체크 M1 회귀 그물: link는 featureFirstRequestOf로 need_* 7필드(전부 프로필 청크 구성
+  // 필드)를 덮는다(#357). customerId 동봉 누락 시 프로필 청크가 구값으로 남는 결함의 재발 방지.
+  const app = createApp({ keyResolver: auth.keyResolver, issuer: auth.issuer });
+  const [freeProfile] = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(sql`not exists (select 1 from crm.customers c where c.app_user_id = ${profiles.id})`)
+    .limit(1);
+  expect(freeProfile).toBeDefined();
+
+  const reqId = crypto.randomUUID();
+  await db.insert(quoteRequests).values({
+    id: reqId, userId: freeProfile.id, trimId: null, paymentMethod: "lease", period: 48,
+    depositType: "deposit", depositRatio: 20, rentalDeposit: 2000000, trimPrice: 40000000,
+    status: "open", createdAt: new Date().toISOString(),
+  });
+  // link 대상 픽스처 고객 — 미연결(수기) 상태로 만들어 정방향 link 경로를 탄다.
+  const [linkTarget] = await db
+    .insert(customers)
+    .values({ customerCode: `CU-EMBRT-${crypto.randomUUID().slice(0, 8)}`, name: "링크배선테스트" })
+    .returning({ id: customers.id });
+  try {
+    const res = await app.request(`/api/quote-requests/${reqId}/link`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ customerId: linkTarget.id }),
+    });
+    expect(res.status).toBe(200);
+
+    // 프로필 청크에 link가 파생한 니즈(구매방식·계약기간)가 실려야 한다 — 이게 M1의 본 검증.
+    await until(async () => (await embeddingRow("customer_profile", linkTarget.id)) != null);
+    const profileRow = await embeddingRow("customer_profile", linkTarget.id);
+    expect(profileRow?.content).toContain("구매방식 운용리스");
+    expect(profileRow?.content).toContain("계약기간 48개월");
+
+    // 연결 성립으로 그 유저의 요청 청크도 적재된다(승격 경로와 동일 불변).
+    await until(async () => (await embeddingRow("quote_request", reqId)) != null);
+    expect((await embeddingRow("quote_request", reqId))?.customerId).toBe(linkTarget.id);
+  } finally {
+    await db.delete(customers).where(eq(customers.id, linkTarget.id)); // 임베딩은 FK cascade
+    await db.delete(quoteRequests).where(eq(quoteRequests.id, reqId));
+  }
+});
+
 test("404 경로는 스케줄 안 함 — 없는 메모 PATCH에 임베딩 호출 0", async () => {
   const app = createApp({ keyResolver: auth.keyResolver, issuer: auth.issuer });
   const before = embedCalls;

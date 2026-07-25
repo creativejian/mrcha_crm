@@ -33,7 +33,11 @@ quoteRequests.post(
       async () => {
         const row = await linkRequestToCustomer(c.req.valid("param").id, c.req.valid("json").customerId, c.var.db);
         if (row) {
-          await schedulePromotionEmbeds(c, { appUserId: row.appUserId });
+          // customerId 동봉 — link도 featureFirstRequestOf가 need_* 7필드(전부 프로필 청크 구성
+          // 필드)를 덮으므로 customer_profile 재임베딩이 필요하다(#357 후속 — 0725 경량 체크 M1.
+          // 구 "link는 app_user_id·phone만 바꾼다" 전제는 니즈 파생 추가로 깨졌다). 요청 0건이면
+          // 파생이 no-op이지만 hash skip이 무해하게 흡수한다.
+          await schedulePromotionEmbeds(c, { appUserId: row.appUserId, customerId: c.req.valid("json").customerId });
           scheduleAiHintRefresh(c, c.req.valid("json").customerId); // 상담신청 link와 동일 배선(재료 무변경도 hash skip이 흡수)
         }
         return row;

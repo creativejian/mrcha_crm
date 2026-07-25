@@ -381,7 +381,9 @@ export function App() {
         <Route path="/pipeline" element={<PipelinePage />} />
         <Route path="/insights" element={isAdmin ? <InsightsPage /> : <Navigate to="/" replace />} />
         <Route path="/knowledge-base" element={isAdmin ? <KnowledgeBasePage /> : <Navigate to="/" replace />} />
-        <Route path="/ai-settings" element={<AISettingsPage />} />
+        {/* 같은 admin 메뉴 구역(차선생 앱 설정) 이웃과 동일 게이트 — 구역 5개 중 유일하게 빠져 URL
+            직접 진입이 전 role에 열려 있었다(0725 경량 체크 L1 · 유슨생 승인). 목업이라 실해는 0이었다. */}
+        <Route path="/ai-settings" element={isAdmin ? <AISettingsPage /> : <Navigate to="/" replace />} />
         <Route path="/mc-master" element={<MCMasterPage roleTab={roleTab} />} />
         <Route path="/mc-master/:modelId" element={<MCMasterPage roleTab={roleTab} />} />
         {/* 둘 다 Topbar 메뉴가 isAdminRole일 때만 노출되는 대표 전용 화면인데 라우트 가드만 빠져
