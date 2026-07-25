@@ -85,10 +85,15 @@ export async function createCustomerFromConsultation(
   if (!req || !req.userId) return null;
 
   const [existing] = await ex
-    .select({ id: customers.id, customerCode: customers.customerCode, name: customers.name })
+    .select({ id: customers.id, customerCode: customers.customerCode, name: customers.name, featuredRequestId: customers.featuredRequestId })
     .from(customers)
     .where(eq(customers.appUserId, req.userId));
-  if (existing) return { ...existing, appUserId: req.userId };
+  // 기존 고객이면 새로 만들지 않는다(중복 방지). 대표가 **아직 없을 때만** 최초 요청으로 정한다 —
+  // 상담사가 star로 고른 대표를 승격 버튼이 되돌리면 안 된다(설계 D1, createCustomerFromRequest와 대칭).
+  if (existing) {
+    if (!existing.featuredRequestId) await featureFirstRequestOf(existing.id, req.userId, ex);
+    return { id: existing.id, customerCode: existing.customerCode, name: existing.name, appUserId: req.userId };
+  }
 
   const [profile] = await ex
     .select({ fullName: profiles.fullName })
@@ -114,7 +119,13 @@ export async function createCustomerFromConsultation(
       receivedAt: new Date(req.createdAt),
     })
     .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
-  return row ? { ...row, appUserId: req.userId } : null;
+  if (!row) return null;
+  // 상담신청으로 승격했어도 그 유저가 견적요청을 갖고 있으면 대표가 있어야 한다 — 요청 인박스 승격
+  // (createCustomerFromRequest)과 **같은 함수**를 부른다. 여기가 빠져 있어 요청 14건을 가진 유저를
+  // 상담 인박스에서 승격했더니 ⭐ 미점등 + 니즈 전량 빈값인 고객이 만들어졌다(2026-07-25 CU-2607-0002).
+  // 요청 0건이면 no-op이라 위 needModel(상담신청 차종)이 그대로 남고 수기 입력이 열린다(설계 D2).
+  await featureFirstRequestOf(row.id, req.userId, ex);
+  return { ...row, appUserId: req.userId };
 }
 
 // 상담신청의 user_id를 대상 고객 app_user_id에 set. 요청/고객 없으면 null.
