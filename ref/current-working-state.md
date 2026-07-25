@@ -195,6 +195,28 @@ Last updated: 2026-05-25
 - 견적/계약/상담/출고/정산은 각각 `QT`, `CT`, `CS`, `DV`, `ST`.
 - 상세 기준은 `ref/business-code-system.md`를 따른다.
 
+## DB 인덱스 — 무대응 결정 (2026-07-25, 앱 Performance Advisor 전수 점검 회신)
+
+앱 팀이 Supabase Performance Advisor 결과 중 crm 몫을 전달했고, **전부 무대응으로 판단했다.**
+같은 지적이 다시 올라와도 처음부터 따지지 말 것 — 판단 근거와 되돌아볼 조건은 아래가 전부다.
+
+- **`unindexed_foreign_keys` 8건 = 인덱스 만들지 않는다.** 지적된 FK의 **자식 테이블이 최대 171행**이라
+  (`embeddings` 171 · `customers` 23 · `quote_scenarios` 13 · `quotes` 11 · 나머지 0~4) 플래너가 인덱스를
+  만들어도 seq scan을 택한다 → **안 쓰이면서 INSERT/UPDATE 유지 비용만 는다.** 삭제 규칙도 확인했으나
+  판단은 그대로다: CASCADE 3건(`consultations`·`embeddings`·`quote_scenarios`) · SET NULL 5건
+  (`customer_deliveries.source_quote_id` · `customers.need_trim_id` · `quotes`의 trim·컬러 2) — 부모 삭제 시
+  자식을 스캔하지만 그 대상이 수십 행이다. catalog 참조 4건도 **부모만 크고 스캔 대상(crm)은 작다.**
+  🔵 **재검토 트리거 = 자식 테이블 1만 행.** 실무적으로는 **고객 500명 또는 `embeddings` 5,000행**에서 한 번
+  본다(고객당 약 7.4청크 → 고객 1,300명쯤 1만). 이건 `schemaFilter:["crm"]` 범위라 앱 승인 없이 우리가 한다.
+- **`unused_index` — `embeddings_hnsw_idx`는 삭제 금지.** 171행·3072차원이면 seq scan이 정상이라 "미사용"으로
+  집계될 뿐이다. 지우면 데이터가 커졌을 때 조용히 느려지고 HNSW 재생성은 비싸다(앱 팀도 같은 조언).
+- **`multiple_permissive_policies` 81건 — CRM 몫은 0건.** 앱 팀은 "catalog 24건과 성격이 같아서 무대응"으로
+  봤지만 **근거가 다르다: CRM은 RLS 경로를 아예 안 탄다**(실측 — crm 스키마 RLS 정책 **0건** · RLS 켜진 테이블
+  **0개** · 접속 롤 `postgres`의 `rolbypassrls=true`). catalog read/write도 같은 롤이라 무관하다. 앞으로 RLS
+  계열 지적이 오면 **CRM 몫은 기본 0**으로 보고 시작할 것.
+- 앱이 고친 `catalog` RLS 4건(`models`/`trims` admin update·delete를 `(SELECT auth.uid())` wrap,
+  마이그 `20260725103000`)도 **같은 이유로 CRM 영향 0**이다(behavior-0 표현식 최적화 + postgres 롤).
+
 ## Pending Task
 
 - 상담 접수/배분 화면에서 기존 고객 중복 문의 표시 UI가 필요하다.
