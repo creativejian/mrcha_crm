@@ -1,12 +1,12 @@
 import { useState } from "react";
 
-const members = [
-  ["김지안", "대표 / 최고관리자", "전체", "전체 권한", "운영중"],
-  ["선생님", "CTO / AI 총괄", "기술본부", "AI, 데이터, 개발환경", "운영중"],
-  ["제프", "견적 솔루션 개발", "기술본부", "견적, 금융 로직", "운영중"],
-  ["상담사 A", "상담사", "상담팀", "상담, 고객 관리", "초대 예정"],
-];
+import { ROLE_ACCESS_SUMMARY, roleLabelOf } from "@/data/roles";
+import { useOrgMembers } from "@/lib/org-members";
 
+// ⚠️ 「조직」·「권한」 탭은 아직 목업이다(2026-07-25 유슨생 결정 — 구성원 탭만 실데이터화).
+// DB에 대응하는 것이 없다: `public.profiles`는 id·email·username·role·avatar_url·created_at·
+// full_name·phone_* 10컬럼뿐이라 **팀(소속) 개념이 없고**, 조직도를 담을 테이블도 없다.
+// 실데이터화하려면 스키마 신설이 선행이라 별건으로 남긴다.
 const teams = [
   ["대표실", "사업 방향, 권한 승인, 재무 최종 확인", "1명"],
   ["상담팀", "앱 상담 연결, 고객 응대, 상담 메모", "3명 예정"],
@@ -22,6 +22,7 @@ const permissions = [
 
 export function OrgMembersPage() {
   const [tab, setTab] = useState<"members" | "teams" | "roles">("members");
+  const { members, loading, failed } = useOrgMembers();
 
   return (
     <div className="ops-layout">
@@ -39,16 +40,27 @@ export function OrgMembersPage() {
 
           {tab === "members" && (
             <div className="table-scroll">
+              {/* 컬럼은 **실제로 있는 값**만 낸다(2026-07-25). 구 목업의 "소속"(기술본부·상담팀)과
+                  "상태"(운영중·초대 예정)는 DB에 대응 컬럼이 없어 지어낸 값이었다 — 소속은 담당 고객
+                  수로, 상태는 실시간 상담 수신(crm.staff_settings)으로 바꿨다. */}
               <table>
-                <thead><tr><th>이름</th><th>역할</th><th>소속</th><th>접근 범위</th><th>상태</th></tr></thead>
+                <thead><tr><th>이름</th><th>역할</th><th>담당 고객</th><th>접근 범위</th><th>상담 수신</th></tr></thead>
                 <tbody>
-                  {members.map(([name, role, team, scope, status]) => (
-                    <tr key={name}>
-                      <td><strong>{name}</strong></td>
-                      <td>{role}</td>
-                      <td>{team}</td>
-                      <td>{scope}</td>
-                      <td><span className={status === "운영중" ? "badge green" : "badge yellow"}>{status}</span></td>
+                  {loading && <tr><td colSpan={5}>구성원 불러오는 중…</td></tr>}
+                  {failed && <tr><td colSpan={5}>구성원을 불러오지 못했습니다. (대표 전용 화면입니다)</td></tr>}
+                  {!loading && !failed && members.length === 0 && <tr><td colSpan={5}>구성원이 없습니다.</td></tr>}
+                  {members.map((m) => (
+                    <tr key={m.id}>
+                      <td><strong>{m.name}</strong></td>
+                      <td>{roleLabelOf(m.role)}</td>
+                      <td>{m.assignedCustomers}명</td>
+                      <td>{ROLE_ACCESS_SUMMARY[m.role] ?? "—"}</td>
+                      <td>
+                        {/* 딜러는 담당 고객·실시간 상담 개념이 없다(배정 후보에서도 제외) — 값 자체가 무의미. */}
+                        {m.role === "dealer"
+                          ? <span className="badge">해당 없음</span>
+                          : <span className={m.liveReceiving ? "badge green" : "badge yellow"}>{m.liveReceiving ? "On" : "Off"}</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
