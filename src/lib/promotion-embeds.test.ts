@@ -22,8 +22,9 @@ test("promotionEmbedJobs: 앱 유저의 견적요청 전부를 quote_request job
   expect(jobs).toEqual(ids.map((id) => ({ sourceType: "quote_request", sourceId: id })));
 });
 
-// create-customer는 승격 INSERT가 프로필 청크 구성 필드(needModel/source)를 시드하므로 프로필도 함께.
-// link는 app_user_id·phone만 바꾸는데 그건 customer_profile 청크 구성 필드가 아니라 제외(기존 의도).
+// customerId가 오면 프로필 job이 뒤에 붙는다 — create-customer는 승격 INSERT가 프로필 청크 구성
+// 필드(needModel/source)를 시드하고, link도 featureFirstRequestOf가 need_* 7필드를 덮으므로(#357)
+// 이제 4경로 전부가 customerId를 넘긴다(0725 경량 체크 M1 — 구 "link 제외" 의도 폐기).
 test("promotionEmbedJobs: customerId를 주면 customer_profile job이 뒤에 붙는다", async () => {
   const [req] = await db.select({ userId: quoteRequests.userId }).from(quoteRequests).limit(1);
   const ids = await listQuoteRequestIdsByUser(req.userId, db);

@@ -10,10 +10,11 @@ import { scheduleEmbedOnWrite, type EmbedOnWriteJob } from "./embed-on-write";
 // 인박스가 그 요청에 승격 액션을 더는 노출하지 않으므로(matchType이 app_user로 전환) 여기서 빠뜨리면
 // 백필을 수동 실행하기 전까지 코퍼스에 영구 공백이 남는다 — 상담 승격 라우트가 이걸 빠뜨렸다(0709 감사).
 //
-// customerId는 create-customer에서만 넘긴다: 승격 INSERT가 프로필 청크 구성 필드(needModel/source 등)를
-// 시드하므로 customer_profile 재임베딩이 필요하다. link(applyAppUserLink, 2026-07-17 #276)는
-// app_user_id·phone(CHECK 배타로 NULL 강제)·phone_secondary(전이 보존)를 세팅하는데 셋 다 프로필
-// 청크 구성 필드가 아니라 제외한다(재임베딩 불요 결론 유지).
+// customerId는 4경로 전부 넘긴다(0725 경량 체크 M1): create-customer는 승격 INSERT가 프로필 청크
+// 구성 필드(needModel/source 등)를 시드하고, link도 featureFirstRequestOf가 need_* 7필드(전부 프로필
+// 청크 구성 필드)를 덮는다(#357·#358). 구 "link는 app_user_id·phone만 세팅하니 재임베딩 불요" 결론은
+// 니즈 파생이 link에 붙으면서 깨졌다 — 그 누락으로 link된 고객의 니즈가 코퍼스에서 구값으로 남았다.
+// 요청 0건 link는 파생 no-op이지만 hash skip이 재임베딩을 무해하게 흡수하므로 무조건 전달한다.
 //
 // 이후 앱이 write하는 신규 요청은 CRM 훅이 없어 백필이 보정한다(주기 보정은 CF Cron 검토 보류).
 export async function promotionEmbedJobs(
