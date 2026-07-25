@@ -427,6 +427,17 @@ async function firstRequestIdOf(appUserId: string, ex: Executor): Promise<string
   return row?.id ?? null;
 }
 
+// 그 앱 유저의 **최초 요청**을 대표로 지정하고 니즈를 파생한다(설계 D1의 기본 대표).
+// 요청이 0건이면 아무 것도 하지 않는다 — 파생 소스가 없으니 대표는 null로 남아야 하고, 그래야
+// 상담사가 니즈를 수기로 계속 쓸 수 있다(설계 D2 · PATCH 409 게이트의 판정 기준이 이 컬럼이다).
+// ⚠️ **앱 계정을 고객에 붙이는 모든 경로**가 이걸 불러야 한다 — 견적요청 인박스만 부르고 상담신청
+// 인박스가 빠져 있어, 요청을 가진 유저를 상담신청 쪽에서 연결하면 ⭐가 어디에도 안 켜지고 니즈가
+// 옛 수기값으로 남았다(2026-07-25). 복붙 대신 이 함수를 부를 것.
+export async function featureFirstRequestOf(customerId: string, appUserId: string, ex: Executor): Promise<void> {
+  const firstId = await firstRequestIdOf(appUserId, ex);
+  if (firstId) await applyFeaturedRequestNeeds(customerId, firstId, ex);
+}
+
 // 고객의 need_* 7필드를 대표 요청 값으로 **덮어쓴다**(설계 D5 — 비파괴 아님).
 // 구 fillNeedTimingIfEmpty("빈 칸일 때만")를 대체한다: read-only 전환(D2·D7) 후에는 남겨둔 수기값을
 // 상담사가 고칠 수 없게 되므로, 대표가 정해지면 파생값이 정본이다.
@@ -508,10 +519,7 @@ export async function linkRequestToCustomer(
   const linked = await applyAppUserLink(req.userId, customerId, ex);
   // 연결이 실제로 성립한 뒤에만 대표를 정한다(가드가 막으면 applyAppUserLink가 던지거나 null).
   // ⚠️ 대표는 **그 유저의 최초 요청**이지 지금 연결한 이 요청이 아니다(설계 D1 — 기본 대표 = 최초 요청).
-  if (linked) {
-    const firstId = await firstRequestIdOf(req.userId, ex);
-    if (firstId) await applyFeaturedRequestNeeds(linked.id, firstId, ex);
-  }
+  if (linked) await featureFirstRequestOf(linked.id, req.userId, ex);
   return linked;
 }
 
@@ -534,10 +542,7 @@ export async function createCustomerFromRequest(
   // 기존 고객이면 새로 만들지 않는다(중복 방지). 대표가 **아직 없을 때만** 최초 요청으로 정한다 —
   // 상담사가 star로 고른 대표를 승격 버튼이 되돌리면 안 된다(설계 D1, 유슨생 확인).
   if (existing) {
-    if (!existing.featuredRequestId) {
-      const firstId = await firstRequestIdOf(req.userId, ex);
-      if (firstId) await applyFeaturedRequestNeeds(existing.id, firstId, ex);
-    }
+    if (!existing.featuredRequestId) await featureFirstRequestOf(existing.id, req.userId, ex);
     return { id: existing.id, customerCode: existing.customerCode, name: existing.name, appUserId: req.userId };
   }
 

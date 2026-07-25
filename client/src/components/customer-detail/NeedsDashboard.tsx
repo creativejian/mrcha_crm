@@ -91,11 +91,45 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
     );
   }
 
+  // 수기 니즈 카드(편집 진입점). 앱 카드 모드에서도 대표 견적요청이 없으면 이 카드를 쓴다 —
+  // 두 자리가 같은 벌을 공유해야 한판만 고치는 드리프트가 안 생긴다.
+  function renderNeedsCard() {
+    return (
+      <div className="kim-edit-anchor needs" ref={openEditor?.kind === "needs" ? editorRef : undefined}>
+        <button className="kim-needs-floating-card" onClick={() => toggleEditor({ kind: "needs" })} type="button">
+          <div className="kim-needs-card-main">
+            <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
+            <div className="kim-needs-card-copy">
+              <h3>{needs.model}</h3>
+              <p>{needs.trim}</p>
+              <span>{needs.colors}</span>
+            </div>
+            <span className="kim-needs-method-badge">{needs.method}</span>
+          </div>
+          <div className="kim-needs-card-memo">
+            <span>문의사항</span>
+            <p>{needs.memo}</p>
+          </div>
+        </button>
+        {openEditor?.kind === "needs" ? renderNeedsEditor() : null}
+      </div>
+    );
+  }
+
+  // 니즈를 수기로 쓸 수 있는가 = **대표 견적요청이 없는가**(app_user_id 아님 — 설계 D2).
+  // 서버 PATCH 409 게이트(routes/customers.ts)가 쓰는 판정과 같은 기준이어야 한다: 상담신청으로만
+  // 유입돼 견적요청이 0건인 앱 고객은 파생 소스가 없어 수기 입력이 계속 열려 있어야 하는데,
+  // 화면이 app_user_id로 갈라 편집 진입점을 통째로 숨기고 있었다(2026-07-25).
+  const needsEditable = !detail.featuredRequestId;
+
   return (
     <section className={`detail-section kim-needs-dashboard${detail.appUserId ? " is-app" : ""}`}>
       <div className="kim-needs-field">
         {detail.appUserId ? (
           <div className="kim-needs-app">
+            {/* 대표가 없으면(요청 0건 등) 수기 편집 카드를 스택 위에 고정한다. 스크롤 영역 **밖**인
+                이유: 편집 팝오버가 overflow:auto 안에서 잘린다. */}
+            {needsEditable ? <div className="kim-needs-manual-slot">{renderNeedsCard()}</div> : null}
             {/* 카드 목록만 상한 높이 스크롤(overscroll-contain으로 부모 드로어 스크롤 격리) */}
             <div className="kim-needs-request-scroll">
               {(() => {
@@ -113,29 +147,38 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                     {requestCards.map((req) => {
                       // "견적 작성"/"추가 작성" 공용 핸들러 — 토스트 문구·에러 처리 1벌(한쪽만 고치는 드리프트 방지).
                       const createQuote = () => { void openWorkbenchForQuoteRequest(req.id).catch(() => onToast("견적요청 정보를 불러오지 못했습니다.")); };
+                      // 대표 여부는 아래 4곳(아이콘 반전·star 3속성)이 함께 읽는다 — 표현이 갈리지 않게 한 벌로.
+                      const isFeatured = req.id === detail.featuredRequestId;
                       return (
                       <div className="kim-needs-floating-card kim-needs-request-card" key={req.id}>
                         <div className="kim-needs-card-main">
-                          <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
+                          {/* 대표 카드는 차 아이콘을 반전시킨다(2026-07-25 유슨생 결정) — 16px star만으로는
+                              카드가 여러 장 쌓인 스크롤에서 대표를 찾기 어려웠다. **표시 전용**이고 조작은
+                              계속 star가 맡는다: 큰 아이콘은 어느 카드에서나 장식으로 읽혀(상담신청 카드도
+                              같은 자리·같은 크기로 쓴다) 클릭 손잡이로 삼으면 발견 가능성이 떨어진다. */}
+                          <span className={`kim-needs-car-icon${isFeatured ? " is-featured" : ""}`} aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
                           <div className="kim-needs-card-copy">
-                            <h3>{req.vehicleLabel}</h3>
-                            <p>{req.paymentLabel} · 옵션 {req.optionLabel}{req.colorLabel ? ` · ${req.colorLabel}` : ""}</p>
-                            <span>{req.periodLabel} · {req.depositLabel}</span>
-                            {/* 출고·문의·자유문의는 V2 요청에만 있다 — 레거시 행은 null/빈배열이라 줄 자체가 안 생긴다(카드 높이 유지). */}
-                            {req.deliveryLabel ? <span>출고 {req.deliveryLabel}</span> : null}
+                            {/* 차량은 모델 줄 · 트림 줄 2줄 — 수기 니즈 카드와 같은 배치다(둘이 한 줄/두 줄로
+                                갈려 있어 같은 화면에서 다른 카드처럼 보였다, 2026-07-25). 트림이 없으면 줄째로 숨긴다. */}
+                            <h3>{req.vehicleModelLabel}</h3>
+                            {req.vehicleTrimLabel ? <p>{req.vehicleTrimLabel}</p> : null}
+                            <span>{req.paymentLabel} · 옵션 {req.optionLabel}{req.colorLabel ? ` · ${req.colorLabel}` : ""}</span>
+                            {/* 계약 조건과 출고는 한 줄로 묶는다(유슨생 결정 2026-07-25) — 둘 다 짧아
+                                각자 한 줄을 쓰면 카드만 길어졌다. 출고·문의는 V2 요청에만 있어 레거시
+                                행에서는 " | 출고:" 자체가 안 붙는다(구분자 잔재 없음). */}
+                            <span>{req.periodLabel} · {req.depositLabel}{req.deliveryLabel ? ` | 출고: ${req.deliveryLabel}` : ""}</span>
                             {req.topicLabels.length > 0 ? <span>문의 {req.topicLabels.join(", ")}</span> : null}
-                            {req.additionalRequest ? <span className="kim-needs-request-note">“{req.additionalRequest}”</span> : null}
                           </div>
                           <div className="kim-needs-request-actions">
                             {/* 대표 견적요청(설계 D1) — 켜진 카드의 값이 목록 차종·구매방식과 상세 구매조건 5필드가 된다.
                                 해제는 없다(항상 1건). 배지가 없는 카드에서도 star는 늘 보여야 해서 같은 줄로 묶는다. */}
                             <div className="kim-needs-request-badge-row">
                               <button
-                                aria-label={req.id === detail.featuredRequestId ? "대표 견적요청" : "대표 견적요청으로 지정"}
-                                aria-pressed={req.id === detail.featuredRequestId}
-                                className={`kim-needs-request-star${req.id === detail.featuredRequestId ? " is-on" : ""}`}
+                                aria-label={isFeatured ? "대표 견적요청" : "대표 견적요청으로 지정"}
+                                aria-pressed={isFeatured}
+                                className={`kim-needs-request-star${isFeatured ? " is-on" : ""}`}
                                 onClick={() => handlers.featureRequest(req.id)}
-                                title={req.id === detail.featuredRequestId ? "대표 견적요청" : "대표 견적요청으로 지정"}
+                                title={isFeatured ? "대표 견적요청" : "대표 견적요청으로 지정"}
                                 type="button"
                               >
                                 <Star size={16} strokeWidth={2.1} />
@@ -168,6 +211,15 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                             ) : null}
                           </div>
                         </div>
+                        {/* 자유문의는 수기 니즈 카드·상담신청 카드와 **같은 하단 블록**으로 낸다(2026-07-25).
+                            구 이탤릭 인용은 본문 줄에 섞여 라벨이 없었다. ⚠️ 값의 의미는 그대로 **요청별**이다
+                            (카드마다 자기 문의) — 수기 카드의 문의사항이 고객 단위인 것과 다르다. */}
+                        {req.additionalRequest ? (
+                          <div className="kim-needs-card-memo">
+                            <span>문의사항</span>
+                            <p>{req.additionalRequest}</p>
+                          </div>
+                        ) : null}
                       </div>
                     );
                     })}
@@ -224,8 +276,9 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
                 );
               })()}
             </div>
-            {/* 문의사항·관심 색상은 고객 단위(요청별 아님). 값 있을 때만 노출(스크롤 영역 밖 고정). */}
-            {needs.memo.trim() || (needs.colors.trim() && needs.colors !== NEEDS_COLOR_PLACEHOLDER) ? (
+            {/* 문의사항·관심 색상은 고객 단위(요청별 아님). 값 있을 때만 노출(스크롤 영역 밖 고정).
+                수기 편집 카드가 떠 있으면 그 카드가 같은 두 값을 이미 보여주므로 중복을 피해 숨긴다. */}
+            {!needsEditable && (needs.memo.trim() || (needs.colors.trim() && needs.colors !== NEEDS_COLOR_PLACEHOLDER)) ? (
               <div className="kim-needs-customer-meta">
                 {needs.memo.trim() ? (
                   <div className="kim-needs-card-memo">
@@ -243,24 +296,7 @@ export function NeedsDashboard({ detail, onToast, openEditor, setOpenEditor, tog
             ) : null}
           </div>
         ) : (
-          <div className="kim-edit-anchor needs" ref={openEditor?.kind === "needs" ? editorRef : undefined}>
-            <button className="kim-needs-floating-card" onClick={() => toggleEditor({ kind: "needs" })} type="button">
-              <div className="kim-needs-card-main">
-                <span className="kim-needs-car-icon" aria-hidden="true"><CarFront size={22} strokeWidth={2.1} /></span>
-                <div className="kim-needs-card-copy">
-                  <h3>{needs.model}</h3>
-                  <p>{needs.trim}</p>
-                  <span>{needs.colors}</span>
-                </div>
-                <span className="kim-needs-method-badge">{needs.method}</span>
-              </div>
-              <div className="kim-needs-card-memo">
-                <span>문의사항</span>
-                <p>{needs.memo}</p>
-              </div>
-            </button>
-            {openEditor?.kind === "needs" ? renderNeedsEditor() : null}
-          </div>
+          renderNeedsCard()
         )}
       </div>
     </section>

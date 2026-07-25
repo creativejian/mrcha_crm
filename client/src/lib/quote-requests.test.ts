@@ -87,6 +87,29 @@ describe("toAppQuoteRequest", () => {
     expect(toAppQuoteRequest({ ...base, optionCount: 0 }).optionLabel).toBe("없음");
   });
 
+  // 니즈 카드는 모델·트림을 2줄로 나눠 쓴다(수기 니즈 카드와 같은 배치) — 인박스·토스트가 쓰는
+  // 합성 vehicleLabel과 **같은 재료**에서 나와야 두 화면의 차량 표기가 갈리지 않는다.
+  it("차량 라벨 2줄 분해: 모델 줄 · 트림 줄", () => {
+    const r = toAppQuoteRequest(base);
+    expect(r.vehicleModelLabel).toBe("기아 쏘렌토");
+    expect(r.vehicleTrimLabel).toBe("26년형 노블레스");
+    // 합성본은 기존 형식 그대로(인박스 목록·새 요청 토스트가 계속 쓴다).
+    expect(r.vehicleLabel).toBe("기아 쏘렌토 · 26년형 노블레스");
+  });
+
+  it("차량 라벨 2줄 분해: 트림 없으면 트림 줄 숨김(null)", () => {
+    const r = toAppQuoteRequest({ ...base, trimName: null });
+    expect(r.vehicleModelLabel).toBe("기아 쏘렌토");
+    expect(r.vehicleTrimLabel).toBeNull();
+    expect(r.vehicleLabel).toBe("기아 쏘렌토");
+  });
+
+  it("차량 라벨 2줄 분해: 차량 전부 null → 모델 줄에 미지정, 트림 줄 숨김", () => {
+    const r = toAppQuoteRequest({ ...base, brandName: null, modelName: null, trimName: null });
+    expect(r.vehicleModelLabel).toBe("차량 미지정");
+    expect(r.vehicleTrimLabel).toBeNull();
+  });
+
   it("매칭 3분기", () => {
     expect(toAppQuoteRequest(base).matchLabel).toBe("신규(미연결)");
     expect(toAppQuoteRequest({ ...base, matchType: "phone", matchedCustomerName: "한소희" }).matchLabel).toBe("기존 고객 한소희(추정)");

@@ -6,7 +6,7 @@ import { and, desc, eq, notInArray } from "drizzle-orm";
 
 import { APP_CONSULTATION_SOURCE } from "../../../client/src/data/customers";
 import { applyAppUserLink } from "./app-user-link";
-import { nextCustomerCode } from "./quote-requests";
+import { featureFirstRequestOf, nextCustomerCode } from "./quote-requests";
 import { getDefaultDb, type Executor } from "../client";
 import { consultationRequests, profiles } from "../public-app";
 import { consultationDismissals, customers } from "../schema";
@@ -130,7 +130,12 @@ export async function linkConsultationToCustomer(
     .from(consultationRequests)
     .where(eq(consultationRequests.id, consultationId));
   if (!req || !req.userId) return null;
-  return applyAppUserLink(req.userId, customerId, ex);
+  const linked = await applyAppUserLink(req.userId, customerId, ex);
+  // 연결이 실제로 성립한 뒤에만 대표를 정한다(가드가 막으면 applyAppUserLink가 던지거나 null).
+  // 상담신청으로 연결해도 그 유저가 견적요청을 갖고 있으면 대표가 있어야 한다 — 견적요청 인박스
+  // 경로(linkRequestToCustomer)와 **같은 함수**를 부른다. 요청 0건이면 no-op(설계 D2).
+  if (linked) await featureFirstRequestOf(linked.id, req.userId, ex);
+  return linked;
 }
 
 // CRM 전용 숨김 — public.consultations는 절대 건드리지 않고 dismissal만 기록(idempotent).

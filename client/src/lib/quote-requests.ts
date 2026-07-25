@@ -59,6 +59,11 @@ export type AppQuoteRequest = {
   id: string;
   createdAt: string;
   requesterName: string;
+  // 차량은 **2줄**(모델 줄 · 트림 줄)이 정본이다 — 니즈 카드가 수기 니즈(needModel/needTrim)와 같은
+  // 배치를 쓰기 때문. vehicleLabel은 한 줄이 필요한 곳(인박스 목록·새 요청 토스트)용 합성본이고,
+  // 셋 다 **같은 재료**에서 나온다(따로 조립하면 두 화면의 차량 표기가 갈린다).
+  vehicleModelLabel: string;
+  vehicleTrimLabel: string | null; // null = 트림 미지정 → 카드에서 줄째로 숨김
   vehicleLabel: string;
   paymentLabel: string;
   periodLabel: string;
@@ -113,9 +118,10 @@ export function deliveryLabelOf(row: Pick<AppQuoteRequestRow, "deliveryRegion" |
 }
 
 export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
-  const vehicleLabel =
-    [row.brandName, row.modelName].filter(Boolean).join(" ") +
-    (row.trimName ? ` · ${row.trimName}` : "");
+  // 모델 줄 = "브랜드 모델", 트림 줄 = 트림명. 한 줄 합성본은 이 둘을 " · "로 잇는다(구 형식 유지).
+  const vehicleModelLabel = [row.brandName, row.modelName].filter(Boolean).join(" ");
+  const vehicleTrimLabel = row.trimName || null;
+  const vehicleLabel = [vehicleModelLabel, vehicleTrimLabel].filter(Boolean).join(" · ");
   const matchLabel =
     row.matchType === "app_user"
       ? `연결됨 ${row.matchedCustomerName ?? ""}`.trim()
@@ -128,6 +134,8 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
     id: row.id,
     createdAt: formatActivity(row.createdAt),
     requesterName: row.requesterName ?? "이름없음",
+    vehicleModelLabel: vehicleModelLabel || "차량 미지정",
+    vehicleTrimLabel,
     vehicleLabel: vehicleLabel || "차량 미지정",
     paymentLabel: row.paymentMethod ? (PAYMENT_METHOD_LABEL[row.paymentMethod] ?? row.paymentMethod) : "—",
     periodLabel: row.period != null ? `${row.period}개월` : "—",

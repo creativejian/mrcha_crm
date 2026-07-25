@@ -78,6 +78,16 @@
   place-items: center;
   background: #f4f1ff;
   color: var(--brand);
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+/* 대표 견적요청 카드 — "견적 보기" 버튼과 같은 채움(브랜드 배경 + 흰 아이콘)으로 반전시켜
+   스크롤 스택에서 대표를 한눈에 찾게 한다. **표시 전용**(클릭 손잡이는 star).
+   star 클릭 한 번에 새 대표는 켜지고 이전 대표는 꺼지므로 transition으로 그 이동을 잇는다. */
+.kim-needs-car-icon.is-featured {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
 }
 
 .kim-needs-card-copy {
@@ -107,17 +117,6 @@
   font-size: 11.5px;
   font-weight: 650;
   line-height: 1.28;
-}
-
-/* 고객 자유 문의(V2 additional_request) — 고객이 직접 쓴 문장이라 이탤릭 인용으로 구분.
-   최대 300자라 카드가 늘어나지 않게 2줄로 클램프(전체는 상세에서). */
-.kim-needs-request-note {
-  font-style: italic;
-  color: #6b7178;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .kim-needs-method-badge {
@@ -185,6 +184,18 @@
 }
 
 .kim-needs-request-card {
+  max-height: none;
+}
+
+/* 앱 고객인데 대표 견적요청이 없을 때(상담신청만 유입 등) 스택 위에 고정되는 수기 편집 카드.
+   is-app에서 .kim-needs-field의 padding이 0이라(스크롤 영역이 자기 padding을 갖는 구조) 여기서 준다.
+   카드 자체의 max-height(calc(100% - 48px))는 flex 아이템 안에서 카드를 찌그러뜨리므로 해제 —
+   .kim-needs-request-card와 같은 이유다. */
+.kim-needs-manual-slot {
+  padding: 12px 12px 0;
+}
+
+.kim-needs-manual-slot .kim-needs-floating-card {
   max-height: none;
 }
 
