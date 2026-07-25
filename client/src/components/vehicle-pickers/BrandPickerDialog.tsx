@@ -182,7 +182,9 @@ function BrandGroup({
                   : 'border-border bg-card hover:bg-muted/40'
               }`}
             >
-              <div className="w-8 h-8 rounded-md bg-muted/60 flex items-center justify-center overflow-hidden shrink-0">
+              {/* 로고는 카드 바닥에 바로 얹는다 — 회색 판(bg-muted)을 깔면 투명 배경 로고가 옅게
+                  물들어 브랜드 색이 흐려진다(2026-07-25 유슨생). 박스는 정렬·크기 고정용으로만 남긴다. */}
+              <div className="w-8 h-8 rounded-md flex items-center justify-center overflow-hidden shrink-0">
                 {logo ? (
                   <img src={logo} alt={b.name} className="w-7 h-7 object-contain" loading="lazy" />
                 ) : (

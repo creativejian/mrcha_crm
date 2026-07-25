@@ -118,7 +118,8 @@ export function ModelPickerDialog({
                       : 'border-border bg-card hover:bg-muted/40'
                   }`}
                 >
-                  <div className="w-16 h-10 rounded-md bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
+                  {/* 차량 이미지도 배경 없이(브랜드 로고와 같은 이유) — 박스는 정렬·크기 고정용. */}
+                  <div className="w-16 h-10 rounded-md flex items-center justify-center overflow-hidden shrink-0">
                     {m.imageUrl ? (
                       <img
                         src={m.imageUrl}
