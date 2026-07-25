@@ -4,42 +4,42 @@
 > 과거 세션 로그는 여기 쌓지 말고 `ref/session-archive.md`로 보낸다(2026-07-21에 142k자까지 자랐다).
 > 지속 결정·계약은 `AGENTS.md`, 설계 근거는 `ref/specs/*`, 장기 상태는 `ref/current-working-state.md`.
 
-Last updated: 2026-07-24 (밤)
+Last updated: 2026-07-25 (오전)
 
 ## 지금 상태
 
-**main 전량 green · 브랜치 0 · 미완 작업 없음.** 07-24 머지 **26건**(오전~오후 18 + 밤 8: `#349`~`#356`).
-검증: typecheck 0 · lint 0 · knip 0 · format 0 · unit **1149** · build · edge 26 · server **687** · 잔재 0.
+**main 전량 green · 브랜치 0 · 미완 작업 없음.** 07-25 머지 **1건**(`#357`) · prod 확인 완료.
+검증: typecheck 0 · lint 0 · knip 0 · format 0 · unit **1152** · build · edge 26 · server **690** · 잔재 0.
 
-## 직전 세션 요약 (2026-07-24 밤 · 0724-needs-staleness)
+## 직전 세션 요약 (2026-07-25 오전 · 0725-fresh-start)
 
-**전 세션 1순위였던 고객 니즈(`need_*`) 스테일 문제를 설계부터 구현까지 종결했다.**
-설계 SSOT = `ref/specs/2026-07-24-crm-featured-quote-request-needs-design.md`(D1~D7) ·
-계획 = `ref/plans/2026-07-24-crm-featured-request-needs.md`.
+**"수기 니즈 카드와 앱 승격 카드 디자인이 다른데 SSOT 가능한가"에서 출발해, 디자인 4건 + 그 과정에 드러난 결함 3건을 `#357` 한 PR로 종결했다.**
+두 카드는 CSS 껍데기를 **이미 공유**했고 갈린 건 **필드 배치**뿐이라, 공용 컴포넌트 추출 없이 배치만 맞췄다(같은 파일에 나란히 있어 위험 낮음).
 
-**① 해법은 자동 갱신이 아니라 "대표 견적요청"이다.** 실측이 방향을 뒤집었다 — 제임스는 요청 **98건**,
-**하루에만 서로 다른 차 3대**를 요청했다. "최신 요청 = 현재 관심" 가정이 성립하지 않아, 상담사가 카드의
-**star로 대표 1건을 지정**하고 니즈 7필드를 거기서 파생하는 구조로 갔다. 기본 대표 = 최초 요청.
+**① 디자인 4건.** 차량 **2줄**(모델/트림) 통일 — `toAppQuoteRequest`가 `vehicleModelLabel`·`vehicleTrimLabel`을 내고
+한 줄이 필요한 곳(인박스·토스트)의 `vehicleLabel`은 **같은 재료로 합성** · 자유문의를 수기·상담 카드와 같은 **하단
+문의사항 블록**으로(의미는 그대로 요청별) · 계약+출고 **한 줄 결합** · 대표 카드 **차 아이콘 반전**. 🔴 **아이콘은
+표시 전용·조작은 계속 star** · 🟡 **구매방식 배지는 의도적 미통일**(둘 다 사유는 주석에).
 
-**② `#349`+`#350`.** `featured_request_id` 컬럼 · 파생 순수 모듈(`quote-request-needs.ts`, 서버 공용) ·
-승격 시드 개편(비파괴 → **덮어쓰기**) · 백필 2명 · 대표 지정 API · star UI · 파생 7필드 **PATCH 409** ·
-상세 read-only · 출고 시기 프리셋을 앱 4종(`이번 달`·`다음 달`·**`3개월 이내`**·`미정`)으로.
-⚠️ **read-only 판정은 `app_user_id`가 아니라 `featured_request_id`**(요청 0건 앱 고객은 수기 입력 유지).
+**② 설계 D2가 UI에서만 안 지켜지고 있었다.** 서버 PATCH 409는 **`featured_request_id`**로 판정하는데 화면은
+**`app_user_id`**로 갈라 편집 진입점을 숨겼다 → **상담신청으로만 유입돼 요청 0건인 앱 고객은 니즈를 쓸 방법이 없었다**
+(승격 시 상담 차종이 `need_model`에 들어가 "값은 있는데 못 고침"). 수기 카드를 `renderNeedsCard()` 1벌로 뽑아 공유.
 
-**③ 계획을 실행 중 3번 정정했다(전부 실측 근거).** ⓐ 라우트를 `quote-requests` → **`customers`**로(저쪽은
-인박스 전면 게이트라 드로어 호출부가 staff에서 403 — `#302`와 같은 축) ⓑ 세 승격 경로가 **모두 최초 요청**을
-대표로 ⓒ `detail-utils` 대신 `toLocaleString`(그 파일이 react를 import).
+**③ 연결 경로 비대칭.** `linkRequestToCustomer`만 대표를 정하고 `linkConsultationToCustomer`는 빠져 있어, 요청 가진 유저를 상담 인박스에서 연결하면 ⭐ 미점등 + 니즈가 옛 수기값. **`featureFirstRequestOf`**로 뽑아 세 호출부 공유.
 
-**④ 실기가 즉시반영 버그 2건.** `useCustomerPurchase`가 `detail`을 `useState` 초기화 함수로만 읽어 **최초 마운트 값에 고정**돼 있었다(동기화 effect 추가) · 고객 목록은 **상세와 별도 캐시**라 재페치 배선 필요.
+**④ ⚠️ `test:server` 선재 실패 2건 발견(CI에 없어 아무도 못 잡는 자리).** `routes/quote-requests.test.ts`가 정렬 없는
+`limit(1)`로 집은 고객이 **어제 생긴 `CU-2607-0001`(phone 보유)로 바뀌며** `app_user_id` 세팅이 CHECK에 거부됐다(픽스처
+`phone: null`로 해소). **"server green" 기록은 언제든 스테일 — 실측이 우선.**
 
-**⑤ 부수 3건.** `#351` 배지를 출고 칩과 같은 입체로 통일(`.badge`를 `.stage-status-button` 그룹에 합침 —
-**앱 전체 배지가 커졌다**) · `#352` **prod 딜레이 해소**(왕복 2회 → 갱신값을 응답에 실어 1회) + 계약 차종 열
-폭 · `#353` 차량 셀 2줄(견적에 이미 나뉘어 있던 구조를 합치느라 잘렸다) · `#354`·`#355` **즉시 반영 축 정리**(목록 행·니즈↔구매조건 동기화 + 니즈 폼 `미정` 옵션 — 없어서 관심 차종만 저장해도 `장기렌트`가 박혔고, `입력값 || 기존값` 폴백 탓에 값을 지울 수 없었다) · `#356` **니즈 관심 차량을 catalog 3단 픽커로 + `need_trim_id` 링크**(수기 표기가 23건 중 catalog 형식 2건뿐이었고, 앱 요청은 원래 `trim_id`를 갖고 오는데 CRM이 텍스트만 남기고 버렸다).
+**⑤ prod 배포 확인은 `wrangler pages deployment list`의 Source 해시 대조로.** main push엔 CF가 commit status를 안 붙여
+(PR에만) `gh api .../status`가 늘 `pending`으로 보인다.
 
 ## ▶ 그 다음
 
-1. **prod 눈 검증** — star 토글 · read-only · 프리셋 4종 · `#353` 차량 2줄 · **배지(앱 전체가 커졌으니 대시보드·정산·파트너·AI 설정·채팅도 훑을 것)**.
-2. **이전 세션 잔여** — V2 출고 prod 확인 3건(`#346`~`#348`) · Phase 2-6(AI 청크 재백필 — V2 데이터 3건뿐이라 **의도적 보류**) · 경량 정합성 체크 1회(**풀 감사 안 함**).
+1. **이전 세션 잔여** — V2 출고 prod 확인 3건(`#346`~`#348`) · Phase 2-6(AI 청크 재백필 — V2 데이터 3건뿐이라
+   **의도적 보류**) · 경량 정합성 체크 1회(**풀 감사 안 함**).
+2. **미확인 UI** — 대표 없는 앱 고객의 수기 편집 카드는 **해당 고객 0명이라 화면에서 못 봤다**(요청 0건
+   상담신청 유저 1명 대기 중 — 승격하면 재현).
 3. **이사님 회신 대기** — pending 열린 14건. 🔵 하나캐피탈 통보 오면 `SOLUTION_LENDERS` 한 줄.
 
 ## 대기 (우리 액션 없음)
@@ -49,12 +49,12 @@ Last updated: 2026-07-24 (밤)
 
 ## Boot
 
-1. `AGENTS.md` → 이 파일 순으로 읽는다. 2. `git status --short --branch` · `git log --oneline -5`
-3. 더 필요하면: **니즈 파생 = `ref/specs/2026-07-24-crm-featured-quote-request-needs-design.md`** /
-   V2 출고 = `ref/2026-07-24-app-delivery-contract-reply.md` / 과거 세션 = `ref/session-archive.md`
+1. `AGENTS.md` → 이 파일 순. 2. `git status --short --branch` · `git log --oneline -5`
+3. 더 필요하면: **니즈 파생 = `ref/specs/2026-07-24-crm-featured-quote-request-needs-design.md`** / V2 출고 =
+   `ref/2026-07-24-app-delivery-contract-reply.md` / 과거 세션 = `ref/session-archive.md`
 
 ## 세션 마무리 규칙
 
 - 이 파일은 **교체**한다(누적 금지). 직전 세션 요약만 남기고 이전 것은 `ref/session-archive.md` 맨 위로.
-- 행위 변경은 `ref/director-pending-confirmations.md`에 등재(PR 본문 🟡와 병행). **단 유슨생이 그 자리에서
-  승인하면 등재하지 않고 결정으로 박제한다**(오늘 D1~D7이 그 경우).
+- 행위 변경은 `ref/director-pending-confirmations.md`에 등재(PR 🟡와 병행). **단 유슨생이 그 자리에서 승인하면 등재
+  없이 결정으로 박제**(07-24 D1~D7 · 07-25 니즈 카드 배치·아이콘 반전).
