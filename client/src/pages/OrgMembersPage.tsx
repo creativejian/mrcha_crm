@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useAuth } from "@/auth/AuthProvider";
 import { ROLE_ACCESS_SUMMARY, roleLabelOf } from "@/data/roles";
 import { useOrgMembers } from "@/lib/org-members";
 import { formatPhone } from "@/lib/phone-format";
@@ -24,6 +25,10 @@ const permissions = [
 export function OrgMembersPage() {
   const [tab, setTab] = useState<"members" | "teams" | "roles">("members");
   const { members, loading, failed } = useOrgMembers();
+  // 본인 행 표시 — auth.userId는 session.user.id이고 그게 곧 profiles.id다(같은 Supabase 유저).
+  // 견적 쓰기 권한이 advisor_id를 이 값과 대조하는 것과 같은 축이라 **이름이 아니라 id로** 맞춘다
+  // (구성원 이름은 중복될 수 있다 — 실측: 앱 계정 3개가 전부 full_name "김지안").
+  const { userId } = useAuth();
 
   return (
     <div className="ops-layout">
@@ -44,15 +49,18 @@ export function OrgMembersPage() {
               {/* 컬럼은 **실제로 있는 값**만 낸다(2026-07-25). 구 목업의 "소속"(기술본부·상담팀)과
                   "상태"(운영중·초대 예정)는 DB에 대응 컬럼이 없어 지어낸 값이었다 — 소속은 담당 고객
                   수로, 상태는 실시간 상담 수신(crm.staff_settings)으로 바꿨다. */}
-              <table>
+              <table className="org-members-table">
                 <thead><tr><th>이름</th><th>역할</th><th>연락처</th><th>담당 고객</th><th>접근 범위</th><th>상담 수신</th></tr></thead>
                 <tbody>
                   {loading && <tr><td colSpan={6}>구성원 불러오는 중…</td></tr>}
                   {failed && <tr><td colSpan={6}>구성원을 불러오지 못했습니다. (대표 전용 화면입니다)</td></tr>}
                   {!loading && !failed && members.length === 0 && <tr><td colSpan={6}>구성원이 없습니다.</td></tr>}
                   {members.map((m) => (
-                    <tr key={m.id}>
-                      <td><strong>{m.name}</strong></td>
+                    <tr className={m.id === userId ? "is-me" : undefined} key={m.id}>
+                      <td>
+                        <strong>{m.name}</strong>
+                        {m.id === userId && <span className="org-me-badge">나</span>}
+                      </td>
                       <td>{roleLabelOf(m.role)}</td>
                       {/* 표기는 화면 공통 SSOT(formatPhone) — 고객 목록·상세와 같은 하이픈 포맷.
                           앱 계정에 번호가 없는 구성원이 실제로 있다(실측 6명 중 2명). */}
