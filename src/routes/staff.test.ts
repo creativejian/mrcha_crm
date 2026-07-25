@@ -82,7 +82,7 @@ test("GET /api/staff/org → CRM_ROLES 전부(dealer 포함)·customer 제외 �
   const app = createApp({ keyResolver, issuer });
   const res = await app.request("/api/staff/org", { headers: { Authorization: `Bearer ${token}` } });
   expect(res.status).toBe(200);
-  const rows = (await res.json()) as { id: string; name: string; role: string; assignedCustomers: number; liveReceiving: boolean }[];
+  const rows = (await res.json()) as { id: string; name: string; role: string; phone: string | null; assignedCustomers: number; liveReceiving: boolean }[];
   expect(rows.length).toBeGreaterThan(0);
   for (const r of rows) {
     expect(CRM_ROLES.has(r.role)).toBe(true); // customer는 절대 섞이지 않는다
@@ -90,6 +90,10 @@ test("GET /api/staff/org → CRM_ROLES 전부(dealer 포함)·customer 제외 �
     expect(Number.isInteger(r.assignedCustomers)).toBe(true);
     expect(r.assignedCustomers).toBeGreaterThanOrEqual(0);
     expect(typeof r.liveReceiving).toBe("boolean");
+    // 연락처는 raw(미포맷) 또는 null — 표시 포맷은 클라 phone-format.ts가 담당한다.
+    // 미입력 계정이 실제로 있으므로(실측 6명 중 2명) null을 정상값으로 허용한다.
+    expect(r.phone === null || typeof r.phone === "string").toBe(true);
+    if (r.phone !== null) expect(r.phone).not.toContain("-"); // 포맷은 서버가 하지 않는다
   }
   // 순서 결정성(역할 우선순위 → 이름) — 재조회 동일성으로 잠근다.
   const res2 = await app.request("/api/staff/org", { headers: { Authorization: `Bearer ${token}` } });

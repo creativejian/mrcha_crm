@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { ROLE_ACCESS_SUMMARY, roleLabelOf } from "@/data/roles";
 import { useOrgMembers } from "@/lib/org-members";
+import { formatPhone } from "@/lib/phone-format";
 
 // ⚠️ 「조직」·「권한」 탭은 아직 목업이다(2026-07-25 유슨생 결정 — 구성원 탭만 실데이터화).
 // DB에 대응하는 것이 없다: `public.profiles`는 id·email·username·role·avatar_url·created_at·
@@ -44,15 +45,18 @@ export function OrgMembersPage() {
                   "상태"(운영중·초대 예정)는 DB에 대응 컬럼이 없어 지어낸 값이었다 — 소속은 담당 고객
                   수로, 상태는 실시간 상담 수신(crm.staff_settings)으로 바꿨다. */}
               <table>
-                <thead><tr><th>이름</th><th>역할</th><th>담당 고객</th><th>접근 범위</th><th>상담 수신</th></tr></thead>
+                <thead><tr><th>이름</th><th>역할</th><th>연락처</th><th>담당 고객</th><th>접근 범위</th><th>상담 수신</th></tr></thead>
                 <tbody>
-                  {loading && <tr><td colSpan={5}>구성원 불러오는 중…</td></tr>}
-                  {failed && <tr><td colSpan={5}>구성원을 불러오지 못했습니다. (대표 전용 화면입니다)</td></tr>}
-                  {!loading && !failed && members.length === 0 && <tr><td colSpan={5}>구성원이 없습니다.</td></tr>}
+                  {loading && <tr><td colSpan={6}>구성원 불러오는 중…</td></tr>}
+                  {failed && <tr><td colSpan={6}>구성원을 불러오지 못했습니다. (대표 전용 화면입니다)</td></tr>}
+                  {!loading && !failed && members.length === 0 && <tr><td colSpan={6}>구성원이 없습니다.</td></tr>}
                   {members.map((m) => (
                     <tr key={m.id}>
                       <td><strong>{m.name}</strong></td>
                       <td>{roleLabelOf(m.role)}</td>
+                      {/* 표기는 화면 공통 SSOT(formatPhone) — 고객 목록·상세와 같은 하이픈 포맷.
+                          앱 계정에 번호가 없는 구성원이 실제로 있다(실측 6명 중 2명). */}
+                      <td>{m.phone ? formatPhone(m.phone) : "미입력"}</td>
                       <td>{m.assignedCustomers}명</td>
                       <td>{ROLE_ACCESS_SUMMARY[m.role] ?? "—"}</td>
                       <td>

@@ -10,6 +10,7 @@ export type OrgMemberEntry = {
   id: string;
   name: string;
   role: string;
+  phone: string | null; // raw(미포맷) — 표시는 formatPhone(phone-format.ts). null = 미입력 계정
   assignedCustomers: number;
   liveReceiving: boolean;
 };

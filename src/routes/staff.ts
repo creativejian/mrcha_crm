@@ -52,6 +52,10 @@ staff.get("/org", requireRoles(["admin"]), async (c) => {
       id: profiles.id,
       name: profiles.fullName,
       role: profiles.role,
+      // 연락처는 **raw로 내보내고 표시 포맷은 클라가 한다**(phone-format.ts SSOT). 고객 phone과 달리
+      // 합성 규칙이 없다 — 구성원은 앱 계정 본인이라 profiles.phone_number가 곧 주 번호다.
+      // ⚠️ profiles는 read 전용 계약(앱 소유) — 여기서도 읽기만 한다.
+      phone: profiles.phoneNumber,
       liveReceiving: sql<boolean>`coalesce(${staffSettings.liveReceiving}, true)`,
       // 담당 고객 수 — 조직 화면이 쓰는 유일한 고객 데이터(집계뿐이라 role scope 무관).
       // 상관 서브쿼리를 쓴다: customers를 조인하면 staff_settings 조인과 곱해져 카운트가 부풀고,
