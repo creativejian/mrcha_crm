@@ -10,6 +10,9 @@ name: CI
 #     실제 디스코드 알림·FCM 푸시를 발사하며
 #   ③실 Gemini 라우팅 호출이 매 실행 9건 나간다(배치 15 M7 계측).
 #   서버 테스트는 로컬에서만 돌린다 — 자세한 근거는 AGENTS.md의 알림 트리거·픽스처 절.
+#   단, 그 스위트의 **DB·시크릿 무관 부분집합**은 `pure` step이 돌린다(0725 도입) — 제외
+#   registry(`src/test-utils/db-bound-tests.ts`) 방식이라 새 DB 의존 테스트는 거기 등록해야
+#   pure가 초록이 된다(fail-closed 의도 — 미등록이 조용한 공백이 아니라 시끄러운 red가 되게).
 #
 # knip·format:check는 도입 당시 선재 red라(knip 7 exports / 9 types, format warn 20건)
 # 일단 제외했다가, **기준선을 0으로 만든 뒤 2026-07-22에 추가했다**. 이제 위생이 자동으로
@@ -46,7 +49,7 @@ jobs:
     #    실제보다 적게 적으면 사람이 로컬에서 그 검증을 건너뛴다 — 구 이름(`typecheck · lint · unit ·
     #    build`)이 knip·format·edge를 가려 2026-07-23 #333에서 실제로 그 일이 났다. step을 추가·제거하면
     #    여기도 함께 고칠 것.
-    name: typecheck · lint · knip · format · unit · build · edge
+    name: typecheck · lint · knip · format · unit · pure · build · edge
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -93,6 +96,13 @@ jobs:
       - name: Unit tests
         if: ${{ !cancelled() }}
         run: bun run test:unit
+
+      # 순수 서버 테스트(bun) — test:server 중 DB·시크릿 없이 도는 부분집합(위 헤더 주석 참조).
+      # 계약 tripwire(profiles-write-guard·roles-parity·fixture-codes 드리프트)가 여기서 자동으로
+      # 잠긴다 — 이전엔 로컬 test:server를 돌려야만 검증됐다(0725 경량 정합성 체크 개선 기회).
+      - name: Pure server tests
+        if: ${{ !cancelled() }}
+        run: bun run test:pure
 
       - name: Build
         if: ${{ !cancelled() }}

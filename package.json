@@ -16,6 +16,7 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:server": "EMBED_ON_WRITE=off PUSH_NOTIFY=off AI_HINT_ON_WRITE=off bun test --env-file=.env.local",
+    "test:pure": "bun run src/scripts/run-pure-tests.ts",
     "test:edge": "deno test supabase/functions",
     "check:residue": "bun run --env-file=.env.local src/scripts/check-test-residue.ts",
     "check:lenders": "bun run --env-file=.env.local src/scripts/check-lender-parity.ts",
