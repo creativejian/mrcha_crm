@@ -4,58 +4,57 @@
 > 과거 세션 로그는 여기 쌓지 말고 `ref/session-archive.md`로 보낸다(2026-07-21에 142k자까지 자랐다).
 > 지속 결정·계약은 `AGENTS.md`, 설계 근거는 `ref/specs/*`, 장기 상태는 `ref/current-working-state.md`.
 
-Last updated: 2026-07-26 (오후)
+Last updated: 2026-07-26 (저녁)
 
 ## 지금 상태
 
-**main 전량 green · 브랜치 0 · 미완 작업 없음.** 07-25 밤~07-26 머지 **8건**(`#363`~`#370`) · main `8e86d6a` · 마이그 0건.
-눈 확인: `#365`~`#370` **전부 유슨생 확인 완료**. 남은 실기 1개(비긴급) = 비admin 계정으로
-`/org-members`·`/ai-settings` URL → 홈(게이트는 코드 검증 완료). 검증: typecheck 0 · lint 0 · knip 0 ·
-format 0 · unit **1164** · pure(CI 신설) · build · edge 26 · server 697+(07-25 — "server green"은 언제든 스테일).
+**main 전량 green · 브랜치 0 · 미완 작업 없음.** 07-25 밤~07-26 머지 **9건**(`#363`~`#371`) · main `4c9c5a6` ·
+마이그 0건. 눈 확인: `#365`~`#371` **전부 유슨생 확인 완료**. 검증: typecheck 0 · lint 0 · knip 0 · format 0 ·
+unit **1174** · pure · build · edge 26 · server 697+(07-25 — "server green"은 언제든 스테일).
 
-## 직전 세션 요약 (07-25 밤~07-26 · 0725-fable5-refactoring)
+## 직전 세션 요약 (07-26 저녁 · 0726-mcMaster-scroll)
 
-**전반부(경량 체크 `#363`·CI 8단계 `#364`)는 아카이브 참조** — M1/M2·test:pure registry(fail-closed)·
-bun `.env.local` 자동 로드 함정. **이월 L2**(createCustomerFromRequest 인라인 정리)는 그 파일 수정 때 함께.
-
-**③ 상담 필요/계약 목록 칩 = 계약 가능성(`#365`).** 구 `priority`는 **쓰기 경로 0인 시드 박제 필드**(승격
-신규 고객 전부 빈 칩) → `resolveChance` 한 벌로 드로어와 동축. 하단 글자 = 최신 미완료 할일(불변).
-**④ 상담 메모 인라인 실저장(`#366`).** 목록 `latestTask`에 **id 동봉**(json 한 방) → 있으면 body 수정 /
-없으면 새 할일(오늘·체크) / 빈 값 = 삭제. 활동 스탬프는 **새 할일 INSERT만** 낙관 반영(수정은 서버
-스탬프 불변 — 거짓 "방금 전" 금지). + 드로어 할일 확인 팝오버 fixed 탈출(`lib/use-fixed-popover-position`
-추출 — 고정 높이 스크롤 카드 바디는 absolute가 어느 방향이든 잘린다).
-**⑤ 드로어 첫 로딩 딜레이 해소(`#367`+`#368`).** hover 프리패치 축 교정(source 문자열 → **appUserId**,
-상담 승격 고객이 빠졌었다) + 클릭/URL 진입 시 상세·니즈·상담 **병렬 워밍**(직렬 2왕복 제거) +
-니즈 카드 `content-visibility`(98카드 → 보이는 3~4장만 페인트). 유슨생 실측 "아주 좋아".
-**⑥ 관리 상태 두 층 분리.** 가짜 "정상"(마킹이 pre-action 공백 게이트 우회)은 **버그 → `#369` 픽스**
-(`resolveUpdateBadge` SSOT 게이트). 수동 상태가 진행 상태·계약 가능성 수정에 만료되는 건 **설계**(⑦-①
-스누즈) — "실활동 정의를 좁힐까"를 **항목 29로 이사님 등재**(유슨생·영실 의견 = 좁히기 ⓑ).
-**⑦ 전화번호 중복(`#370`).** 같은 번호 "연결 고객"은 계정·번호 매칭 둘 다 못 잡는 구멍(김지운 분화의
-경위) → **`lib/phone-duplicate.ts` SSOT**(서버 견적요청·클라 상담 인박스 물리 공유, AGENTS 등재)로
-경고 + 생성 2단 재확인(fail-open). 드로어 1차 번호 등록/수정에도 중복 advisory(등록 폼과 대칭).
-secondary는 대조 제외(#276 매칭 금지). ⚠️ **앱 번호 유일성 요청문은 repo 폐기·유슨생 로컬 메모리 보관**
-(이사님 노출 방지 — 휴대폰 로그인 구현 가능 시점에 `git show c483b46:...`로 복원·재실측 후 전달.
-실측: 중복 5계정 전부 이사님 테스트·회수 장치 4층 모두 부재·상담신청 번호 강제는 확인됨).
+**mc-master 브랜드 URL·스크롤 3종 보존(`#371`) — 앱 admin 패리티.** 발단 = 유슨생 관찰("앱 차량 관리는
+다른 페이지 갔다 와도 스크롤이 보존되는데 CRM은 안 된다"). 앱은 **3층**으로 담고 있었다 —
+URL(`context.replace('/admin/vehicles?brand=N')`) + Riverpod provider + 위젯 **`static`** 스크롤
+(`vehicle_list_screen.dart:20` · `vehicle_list/brand_panel.dart:30,98`). CRM은 셋 다 컴포넌트 로컬이라
+라우트 언마운트(=메뉴 이동)에 전부 날아갔다(구 `modelScrollTop` ref 주석대로 **같은 화면 왕복만** 노린 구현).
+- **브랜드 = URL `?brand=` SSOT**(`pages/mc-master/mc-master-route.ts`, 고객 목록 `?view=`와 같은 문법).
+  폴백 = URL → `getBrandIdForModel` → **모듈 lastBrandId** → 첫 브랜드. Topbar 메뉴가 쿼리 없는
+  `/mc-master`를 열기 때문에 모듈 폴백이 **필수**(URL만으로는 구멍) → 복원 후 `replace`로 URL 되맞춤.
+  브랜드 전환도 replace(탭 전환 성격 — push면 뒤로가기가 브랜드 되짚기, 앱과 동일).
+- **트림 뷰도 쿼리 유지**(`/mc-master/:modelId?brand=`) → 🟢 **기존 버그 동시 해소**: 역인덱스는 모델 캐시가
+  채워져야 생겨서 트림 화면 **새로고침 시 비어 있었고**, 사이드바가 엉뚱한 브랜드를 하이라이트했다.
+- **스크롤 3종 = 모듈 스코프**(`pages/mc-master/view-state.ts` = React판 `static`): 모델 목록 · **사이드바**
+  (보존 자체가 없었다) · **트림 목록(모델별 Map)**. 트림을 모델별로 나눈 이유 = 단일 값이면 5 Series를
+  보다 나간 뒤 3 Series가 엉뚱한 위치에서 시작한다(유슨생 세션 중 추가 요구).
+- 캐시 불변 — URL에 brand가 있으면 첫 렌더에서 `getCachedModels` hit(왕복 0 유지), `models` 초기값도 캐시에서.
+- ⚠️ **한계**: 모듈 스코프라 **새로고침하면 스크롤 초기화**(앱 static도 동일). 브랜드는 URL이 살린다.
+  sessionStorage는 앱보다 과해서 뺐다(고지 완료·요청 시 추가).
+- ⚠️ **검증 함정 2**: ①jsdom은 레이아웃이 없어 `scrollTop`이 늘 0 → **스크롤은 유닛 검증 불가**(실기가 유일,
+  브랜드 URL 축만 유닛 4건으로 잠갔다) ②`agent-browser click`은 클릭 전 대상 행을 뷰포트로 스크롤해
+  **저장값을 덮는다**(260→60 오탐 1회) — 스크롤 실기는 JS `element.click()`으로.
 
 ## ▶ 그 다음
 
 1. **requireRole 확산(2/11)** — 이사님 항목 16 답 대기. 2. **항목 29 답** 오면 스누즈 트리거 조정(소형).
-3. 실기 1개(비admin URL — 비긴급) · L2 · pending-tasks 4건(디자인 확정 필요 — 이사님/실무 결정 대기).
+3. 실기 1개(비admin URL·비긴급) · **이월 L2**(createCustomerFromRequest 인라인 정리 — 그 파일 수정 때) ·
+   pending-tasks 4건(디자인 확정 대기).
 
 ## 대기 (우리 액션 없음)
 
-`ref/director-pending-confirmations.md` — 14 · 16~28 · **29(신규: 수동 관리 상태 만료 트리거)**.
+`ref/director-pending-confirmations.md` — 14 · 16~28 · **29(수동 관리 상태 만료 트리거)**.
 **앱 쪽** = 애플 개발자 등록 후 재론(FCM 실기기·앱 #582) · 휴대폰 로그인 전환은 아직 구현 불가(요청문 보류 중).
 
 ## Boot
 
 1. `AGENTS.md` → 이 파일 순. 2. `git status --short --branch` · `git log --oneline -5`
-3. 더 필요하면: 경량 체크 판정 = `ref/plans/2026-07-25-crm-lightweight-consistency-check.md` /
-   니즈 파생 = `ref/specs/2026-07-24-crm-featured-quote-request-needs-design.md` / 과거 세션 = `ref/session-archive.md`
+3. 더 필요하면: 과거 세션 = `ref/session-archive.md` / 경량 체크 = `ref/plans/2026-07-25-crm-lightweight-consistency-check.md`
+   / 니즈 파생 = `ref/specs/2026-07-24-crm-featured-quote-request-needs-design.md`
 
 ## 세션 마무리 규칙
 
 - 이 파일은 **교체**한다(누적 금지). 직전 세션 요약만 남기고 이전 것은 `ref/session-archive.md` 맨 위로.
-- 행위 변경은 `ref/director-pending-confirmations.md`에 등재(PR 🟡와 병행). **단 유슨생이 그 자리에서
-  승인하면 등재 없이 결정으로 박제**(07-26: 칩 축 교체·상담 메모 A안·같은 번호 경고 — 단 이사님 확정
-  설계를 뒤집는 건은 승인 대신 등재했다, 항목 29가 그 사례).
+- 행위 변경은 `ref/director-pending-confirmations.md`에 등재(PR 🟡와 병행). **단 유슨생이 그 자리에서 승인하면
+  등재 없이 박제**(07-26: 칩 축·메모 A안·같은 번호 경고·mc-master URL 문법). 단 이사님 확정 설계를 뒤집는
+  건은 승인 대신 등재(항목 29가 그 사례).
