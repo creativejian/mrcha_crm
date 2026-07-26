@@ -2,7 +2,7 @@
 // CustomerManagementPage.renderRow가 이 셀들을 조립한다.
 // 셀별 props는 각 셀이 의존하는 상태/핸들러/ref와 1:1로 대응한다.
 import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
@@ -10,32 +10,10 @@ import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass,
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
 import { deliveryInfoSummary, seedDeliveryInfoDraft, type DeliveryInfoDraft } from "@/lib/delivery-info";
 import { SOLUTION_LENDERS } from "@/lib/solution-quote";
-import { resolveFixedPopoverPosition } from "@/lib/popover-position";
+import { useFixedPopoverPosition } from "@/lib/use-fixed-popover-position";
 
-// 행 팝오버 fixed 배치 공유 훅(2026-07-19 클리핑 확산 픽스) — 콘솔 래퍼
-// `.console-table-scroll{overflow:hidden}`(콘솔 서피스 SSOT·불가침)이 absolute 팝오버를 마지막 행에서
-// 절단하던 결함의 탈출 경로. 팝오버 루트에서 closest(anchorSelector)로 앵커를 찾아 뷰포트 rect 기준
-// 좌표를 계산한다(useLayoutEffect = paint 전 1회 — pos 미확정 구간은 호출부가 visibility:hidden 방어).
-// fixed는 스크롤·리사이즈를 따라가지 않으므로 열림 상태의 닫기는 페이지 effect가 담당한다.
-// heightDep: 마운트 후 팝오버 높이를 바꾸는 상태(notice 등)가 있으면 넘겨 재계산한다.
-// ⚠️계약(배치 10 B#8): anchorSelector가 조상에서 안 잡히면 pos가 영구 null = 팝오버가 **무경고로
-// 영구 hidden**(fail-silent — "버튼 눌러도 아무 일 없음"으로 보인다). 재사용 시 팝오버를 반드시
-// 앵커 요소의 서브트리 안에 렌더하고, 셀렉터 오타를 의심할 것(현 3소비처는 전부 앵커 내부라 안전).
-function useFixedPopoverPosition(rootRef: RefObject<HTMLElement | null>, anchorSelector: string, heightDep?: unknown) {
-  const [pos, setPos] = useState<ReturnType<typeof resolveFixedPopoverPosition> | null>(null);
-  useLayoutEffect(() => {
-    const el = rootRef.current;
-    const anchorEl = el?.closest(anchorSelector);
-    if (!el || !anchorEl) return;
-    const anchor = anchorEl.getBoundingClientRect();
-    setPos(resolveFixedPopoverPosition(
-      { top: anchor.top, bottom: anchor.bottom, left: anchor.left },
-      { width: el.offsetWidth, height: el.offsetHeight },
-      { width: window.innerWidth, height: window.innerHeight },
-    ));
-  }, [rootRef, anchorSelector, heightDep]);
-  return pos;
-}
+// 행 팝오버 fixed 배치 훅은 lib/use-fixed-popover-position으로 추출(0726 — 드로어 "해야 할 일"
+// 확인 팝오버도 같은 클리핑을 밟아 소비처가 이 파일 밖으로 늘었다). 계약·주의사항은 그쪽 주석 참조.
 
 // 진행 상태 1차/2차 팝오버 껍데기 — 레벨 전환은 서로 다른 .stage-control 서브트리라 재마운트되고,
 // 마운트마다 자기 앵커를 새로 측정한다(레벨 전환 앵커 재계산은 이 리마운트가 담당).

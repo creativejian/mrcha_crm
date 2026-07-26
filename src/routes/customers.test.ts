@@ -1391,7 +1391,7 @@ test("lastActivityAt 파생: 자식(메모) 추가 시각이 customers.updated_a
   }
 });
 
-test("latestTask: 미완료 할일 최신 1건 body가 목록에 실린다 (상관 서브쿼리 정규화 회귀 가드)", async () => {
+test("latestTask: 미완료 할일 최신 1건이 id·body로 목록에 실린다 (상관 서브쿼리 정규화 회귀 가드)", async () => {
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
   const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -1403,8 +1403,10 @@ test("latestTask: 미완료 할일 최신 1건 body가 목록에 실린다 (상�
   const taskId = ((await created.json()) as { id: string }).id;
 
   try {
-    const list2 = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; latestTask: string | null }>;
-    expect(list2.find((c) => c.id === cid)?.latestTask).toBe("latestTask 회귀 가드");
+    // id 동봉(0726 상담 메모 인라인 편집 실저장) — 목록 셀의 수정/삭제 대상 지정용. body와 같은
+    // 서브쿼리 한 방(json_build_object)이라 다른 행의 id가 섞일 수 없다.
+    const list2 = (await (await app.request("/api/customers", { headers: { Authorization: `Bearer ${token}` } })).json()) as Array<{ id: string; latestTask: { id: string; body: string | null } | null }>;
+    expect(list2.find((c) => c.id === cid)?.latestTask).toEqual({ id: taskId, body: "latestTask 회귀 가드" });
   } finally {
     // 정리(공유 master 비파괴) — assert 실패해도 고아 행이 남지 않게 finally에서.
     await app.request(`/api/customers/${cid}/tasks/${taskId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });

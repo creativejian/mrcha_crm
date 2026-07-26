@@ -34,7 +34,7 @@ export type CustomerRow = {
   recontacted: boolean;
   manageStatus: string | null;
   manageStatusAt: string | null;
-  latestTask: string | null;
+  latestTask: { id: string; body: string | null } | null; // 최신 미완료 할일 — id는 목록 인라인 편집(수정/삭제) 대상 지정용(0726)
 };
 
 // 전화번호 표시 포맷은 `./phone-format`이 단독 소유한다(2026-07-23 분리 — 이 파일은 `./http`를
@@ -80,7 +80,8 @@ export function toCustomer(row: CustomerRow): Customer {
     talkCount: "",
     priority: row.priority ?? "",
     chance: row.chance ?? undefined,
-    nextAction: row.latestTask ?? "",
+    nextAction: row.latestTask?.body ?? "",
+    nextActionTaskId: row.latestTask?.id ?? null,
     aiSummary: row.aiSummary ?? "",
     lastActivityAt: row.lastActivityAt,
     recontacted: row.recontacted,

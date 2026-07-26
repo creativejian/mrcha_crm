@@ -31,7 +31,7 @@ const row: CustomerRow = {
   recontacted: false,
   manageStatus: null,
   manageStatusAt: null,
-  latestTask: "GLC 재고 확인",
+  latestTask: { id: "task-glc", body: "GLC 재고 확인" }, // id·body 동봉(0726 인라인 편집 실저장)
   chance: null,
 };
 
@@ -47,6 +47,7 @@ describe("toCustomer", () => {
     expect(c.vehicleTrim).toBe("S 500 4M Long");
     expect(c.method).toBe("운용리스");
     expect(c.nextAction).toBe("GLC 재고 확인");
+    expect(c.nextActionTaskId).toBe("task-glc"); // 인라인 편집(0726)의 수정/삭제 대상 id
   });
   it("needTrim 없으면 vehicleTrim은 undefined(목록은 트림 미확인 폴백)", () => {
     expect(toCustomer({ ...row, needTrim: null }).vehicleTrim).toBeUndefined();
@@ -59,6 +60,7 @@ describe("toCustomer", () => {
     const c = toCustomer({ ...row, latestTask: null, phone: null });
     expect(c.advisor).toBe("미배정");
     expect(c.nextAction).toBe("");
+    expect(c.nextActionTaskId).toBeNull();
     expect(c.phone).toBe("");
   });
   it("advisorName 있으면 advisor는 이름만(team은 별도 컬럼)", () => {

@@ -114,6 +114,21 @@ describe("CustomerManagementPage", () => {
     expect(within(row).queryByText("긴급")).not.toBeInTheDocument();
   });
 
+  // 상담 메모 인라인 편집 실저장 배선(0726 A안) — 저장이 onNextActionSave(App 서버 핸들러: 최신
+  // 미완료 할일 update-or-create·빈 값=삭제)로 흘러야 리로드에도 남는다. 구 프로토타입은 로컬
+  // state만 바꿔 저장되는 척 후 리로드에 사라졌다(김지운 실사고 2026-07-26).
+  it("forwards 상담 메모 saves to onNextActionSave (실저장 배선)", async () => {
+    const user = userEvent.setup();
+    const onNextActionSave = vi.fn();
+    render(<CustomerManagementPage mode="all" onNextActionSave={onNextActionSave} />);
+    await user.click(screen.getByRole("button", { name: "김민준 상담 메모 수정" }));
+    const textarea = screen.getByRole("textbox", { name: "김민준 상담 메모 수정" });
+    await user.clear(textarea);
+    await user.type(textarea, "새 메모");
+    await user.click(screen.getByRole("button", { name: "상담 메모 저장" }));
+    expect(onNextActionSave).toHaveBeenCalledWith(11417, "새 메모");
+  });
+
   // renderRow fallthrough는 priority 셀(action 컬럼 = 상담 메모/재컨택 성격) → advisor 셀(담당) 순으로 그린다.
   // contract만 헤더/컬럼이 담당 → action으로 뒤집혀 있어 헤더 아래에 다른 데이터가 오던 버그(프로토타입).
   // action 컬럼 라벨이 "담당"보다 앞에 오도록 잠근다(consulting/hold는 회귀 가드).

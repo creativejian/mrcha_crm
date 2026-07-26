@@ -6,6 +6,7 @@ import { Topbar } from "@/components/Topbar";
 import { type Customer, type CustomerChanceOption, type CustomerMode, customerModeMeta } from "@/data/customers";
 import { statusGroupByStatus } from "@/lib/customer-table";
 import { applyWorkflowRowUpdate, buildWorkflowPatch, type WorkflowNext } from "@/lib/customer-workflow";
+import { addTask, deleteTask, updateTask } from "@/lib/customer-children";
 import { fetchCustomers, updateCustomer } from "@/lib/customers";
 import { fetchAppQuoteRequests } from "@/lib/quote-requests";
 import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
@@ -306,6 +307,39 @@ export function App() {
     }
   }
 
+  // 상담 메모 인라인 편집 실저장(0726 A안 — 유슨생 승인) — 목록 셀의 읽기 소스(최신 미완료 할일)에
+  // 그대로 쓴다: 있으면 body 수정, 없으면 새 할일(드로어 컴포저 기본값과 동일한 오늘·체크), 빈 값이면
+  // 그 할일 삭제. 구현 전에는 로컬 state만 바꿔 "저장되는 척"하다 리로드에 사라졌다(구 프로토타입 주석).
+  // 텍스트 낙관 반영은 페이지(saveNextAction)가 이미 했다 — 여기는 서버 왕복 + id 동기화 + 실패 롤백만.
+  function updateCustomerNextAction(customerNo: number, body: string) {
+    const target = customers.find((customer) => customer.no === customerNo);
+    if (!target?.id) return; // 실데이터 행만 — id 없는 목업 행은 서버 대상이 없다
+    const prevCustomers = customers; // 페이지 낙관 반영 이전 스냅샷(updateCustomerWorkflow와 동일 패턴)
+    const rollback = () => {
+      setCustomers(prevCustomers);
+      showToast("저장에 실패했습니다");
+    };
+    const patchRow = (patch: Partial<Customer>) =>
+      setCustomers((current) => current.map((customer) => (customer.no === customerNo ? { ...customer, ...patch } : customer)));
+    const taskId = target.nextActionTaskId ?? null;
+    if (!body) {
+      if (!taskId) return; // 원래도 비어 있던 셀 — 지울 대상 없음
+      patchRow({ nextActionTaskId: null });
+      deleteTask(target.id, taskId).catch(rollback);
+    } else if (taskId) {
+      // body 수정은 자식 created_at이 안 바뀌어 서버 활동 스탬프가 그대로다 — lastActivityAt을 만지지 않는다.
+      updateTask(target.id, taskId, { body }).catch(rollback);
+    } else {
+      // 새 할일 INSERT는 서버 staffActivityAt(자식 created_at GREATEST)을 실제로 올린다 — 같은 now로
+      // 낙관 반영해야 관리 상태 스누즈 만료 판정이 리로드와 어긋나지 않는다(updateCustomerWorkflow 동일 원칙).
+      const nowIso = new Date().toISOString();
+      patchRow({ lastActivityAt: nowIso, date: "방금 전" });
+      addTask(target.id, { category: "체크", due: "오늘", body })
+        .then((created) => patchRow({ nextActionTaskId: created.id }))
+        .catch(rollback);
+    }
+  }
+
   useEffect(() => {
     if (!isDrawerOpen) return;
 
@@ -348,6 +382,7 @@ export function App() {
               onCustomerCreated={handleCustomerCreated}
               onCustomerListChanged={reloadCustomers}
               onCustomersChange={setCustomers}
+              onNextActionSave={updateCustomerNextAction}
               onOpenCustomer={openCustomerDetailPanel}
               onWorkflowChange={updateCustomerWorkflow}
             />
