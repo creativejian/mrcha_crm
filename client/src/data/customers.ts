@@ -27,6 +27,8 @@ export type Customer = {
   priority: string;
   chance?: string;
   nextAction: string;
+  // 최신 미완료 할일 id — 상담 메모 인라인 편집(0726 실저장)의 수정/삭제 대상. 실데이터 전용(목업 행 없음).
+  nextActionTaskId?: string | null;
   aiSummary: string;
   lastActivityAt?: string | null; // 서버 파생 최근 담당자 활동(ISO) — 관리 상태 계산 입력
   recontacted?: boolean;

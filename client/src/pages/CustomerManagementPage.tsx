@@ -40,6 +40,9 @@ type CustomerManagementPageProps = {
     customerNo: number,
     next: { statusGroup?: string; status?: string; chance?: CustomerChanceOption; manageStatus?: CustomerManageStatus },
   ) => void;
+  // 상담 메모 인라인 편집 실저장(0726 A안) — App.updateCustomerNextAction이 최신 미완료 할일에
+  // update-or-create·빈 값=삭제로 쓴다. 미전달(단독 렌더)이면 로컬 반영만(구 프로토타입과 동일).
+  onNextActionSave?: (customerNo: number, body: string) => void;
   roleTab?: RoleTab;
 };
 
@@ -175,6 +178,7 @@ export function CustomerManagementPage({
   onOpenCustomer,
   onCustomerCreated,
   onCustomerListChanged,
+  onNextActionSave,
   onWorkflowChange,
   roleTab = "최고관리자",
 }: CustomerManagementPageProps) {
@@ -670,9 +674,11 @@ export function CustomerManagementPage({
     if (editingNextAction?.customerNo !== customerNo) return;
     const nextAction = editingNextAction.draft.trim();
     updateCustomers((current) => current.map((customer) => customer.no === customerNo ? { ...customer, nextAction } : customer));
-    // 상담 메모 인라인 편집은 서버에 저장되지 않는 프로토타입 전용이라 markFinalUpdate를 부르지 않는다.
-    // 진행 상태·계약 가능성은 실제 PATCH(updated_at bump)가 뒷받침하지만, 이 저장은 뒷받침이 없어
-    // "방금 전(정상)" 마킹이 관리 상태 배지를 거짓으로 바꿨다가 리로드하면 사라지던 회귀였다.
+    // 서버 저장(0726 A안) — 최신 미완료 할일 update-or-create·빈 값=삭제는 App 핸들러 소관.
+    // markFinalUpdate("방금 전" 마킹)는 여전히 부르지 않는다: 그 배지는 App이 실제 서버 스탬프가
+    // 움직이는 경로(새 할일 INSERT)에서만 lastActivityAt으로 낙관 반영한다 — body 수정은 서버
+    // 활동 스탬프가 안 바뀌므로 여기서 마킹하면 리로드에 사라지는 거짓이 된다(구 회귀와 같은 축).
+    onNextActionSave?.(customerNo, nextAction);
     setEditingNextAction(null);
   }
 

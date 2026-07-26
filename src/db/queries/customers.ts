@@ -18,9 +18,9 @@ import {
   quoteScenarios,
 } from "../schema";
 
-// 목록 행 = customers 전체 컬럼 + 상담메모용 최신 미완료 task 1건 body + 출고 파생 3종.
+// 목록 행 = customers 전체 컬럼 + 상담메모용 최신 미완료 task 1건(id·body) + 출고 파생 3종.
 export type CustomerListRow = typeof customers.$inferSelect & {
-  latestTask: string | null;
+  latestTask: { id: string; body: string | null } | null;
   nextDeliverySchedule: NextDeliverySchedule | null;
   delivery: CustomerDeliveryInfo | null;
   contractingQuote: ContractingQuoteSummary | null;
@@ -28,8 +28,11 @@ export type CustomerListRow = typeof customers.$inferSelect & {
 
 // 상담메모(목업 nextAction): customer_tasks 최신 미완료 1건 body를 상관 서브쿼리로.
 // customer_id 비교는 crm.customers.id로 완전정규화 — 섀도잉 사유는 activity.ts staffActivityAt 주석 참조(동일 버그 클래스).
-const latestTaskBody = sql<string | null>`(
-  select t.body from crm.customer_tasks t
+// id를 body와 **한 서브쿼리의 json**으로 동봉한다(0726 상담 메모 인라인 편집 실저장) — 목록 셀이
+// 이 할일을 제자리에서 수정/삭제하려면 대상 id가 필요하다. 두 컬럼으로 나누면 같은 정렬이라도
+// 서브쿼리 2회가 되므로 json_build_object 1회로 같은 행임을 구조적으로 보장한다.
+const latestTaskBody = sql<{ id: string; body: string | null } | null>`(
+  select json_build_object('id', t.id, 'body', t.body) from crm.customer_tasks t
   where t.customer_id = crm.customers.id and t.done = false
   order by t.created_at desc limit 1
 )`;

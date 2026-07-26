@@ -131,11 +131,12 @@
   box-shadow: 0 2px 6px rgba(48, 54, 61, 0.18);
 }
 
+/* fixed 탈출(0726) — 카드 바디가 고정 높이 overflow-y:auto라 absolute는 위/아래 어느 방향이든
+   경계에서 잘렸다(항목 1건일 때 구 is-above가 카드 머리에서 절단). 좌표는 useFixedPopoverPosition이
+   인라인 top/left로 준다(목록 행 팝오버들과 동일 패턴 — z-index도 그 대역으로). */
 .kim-check-confirm-popover {
-  position: absolute;
-  top: calc(50% + 18px);
-  right: 14px;
-  z-index: 8;
+  position: fixed;
+  z-index: 160;
   width: 236px;
   border: 1px solid #e4e4e2;
   border-radius: 6px;
@@ -148,11 +149,6 @@
 
 .kim-check-confirm-popover.delete {
   width: 178px;
-}
-
-.kim-check-confirm-popover.is-above {
-  top: auto;
-  bottom: calc(50% + 18px);
 }
 
 .kim-check-confirm-popover p {
