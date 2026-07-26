@@ -1,5 +1,5 @@
-import { type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckSquare, FolderInput, Hash, Plus } from "lucide-react";
 
 import type { RoleTab } from "@/data/roles";
@@ -22,6 +22,7 @@ import {
 import { BrandSidebar } from "./mc-master/BrandSidebar";
 import { prefetchModels, prefetchOptions, prefetchTrims } from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
+import { brandIdFromSearch, mcMasterPath } from "./mc-master/mc-master-route";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
 import { MoveTrimsDialog } from "./mc-master/MoveTrimsDialog";
@@ -31,6 +32,7 @@ import { TrimTable } from "./mc-master/TrimTable";
 import { moveItem } from "./mc-master/reorder";
 import { useMcMasterCatalog } from "./mc-master/useMcMasterCatalog";
 import { useMcMasterSelection } from "./mc-master/useMcMasterSelection";
+import { mcMasterViewState } from "./mc-master/view-state";
 
 type ModelPanelState = { mode: "add" } | { mode: "edit"; model: CatalogModel } | null;
 type TrimPanelState = { mode: "add" } | { mode: "edit"; trim: CatalogTrim } | null;
@@ -40,11 +42,11 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const canEdit = roleTab === "최고관리자";
   const navigate = useNavigate();
   const { modelId } = useParams();
+  const urlBrandId = brandIdFromSearch(useLocation().search);
 
   const {
     brands,
     brandId,
-    setBrandId,
     models,
     setModels,
     trims,
@@ -57,7 +59,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     reloadModels,
     reloadTrims,
     reloadOptionSummary,
-  } = useMcMasterCatalog(modelId);
+  } = useMcMasterCatalog(modelId, urlBrandId);
   const {
     selectMode,
     selected,
@@ -80,7 +82,6 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const [moveOpen, setMoveOpen] = useState(false);
   const [trimTab, setTrimTab] = useState<TrimTab>("list");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const modelScrollTop = useRef(0);
 
   const inTrimView = modelId != null;
   const openModel = useMemo(
@@ -91,29 +92,44 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const isDomestic = brands.find((b) => b.id === brandId)?.isDomestic ?? false;
   const groupedView = inTrimView && isDomestic && trimTab === "list";
 
-  // 모델 목록 스크롤 위치 보존: 트림 뷰로 들어갔다 뒤로 와도 위치 복원.
+  // 선택 브랜드를 URL에 되비춘다 — Topbar 메뉴는 쿼리 없는 /mc-master를 열기 때문에,
+  // 폴백으로 복원한 브랜드를 URL에 replace로 실어야 화면과 주소가 어긋나지 않는다(공유·새로고침).
+  // 모듈 상태에도 남겨 다음 재진입의 폴백으로 쓴다(view-state.ts).
+  useEffect(() => {
+    if (brandId == null) return;
+    mcMasterViewState.brandId = brandId;
+    if (brandId !== urlBrandId) navigate(mcMasterPath(brandId, modelId), { replace: true });
+  }, [brandId, urlBrandId, modelId, navigate]);
+
+  // 스크롤 위치 보존(모델 목록·트림 목록 각각): 트림 뷰 왕복은 물론 다른 메뉴에 갔다 와도 복원.
+  // 트림은 모델별로 나눠 담아 다른 모델에 들어갈 땐 맨 위에서 시작한다(view-state.ts).
   function onScroll() {
-    if (!inTrimView && scrollRef.current) modelScrollTop.current = scrollRef.current.scrollTop;
+    if (!scrollRef.current) return;
+    if (modelId) mcMasterViewState.trimScrollTop.set(modelId, scrollRef.current.scrollTop);
+    else mcMasterViewState.modelScrollTop = scrollRef.current.scrollTop;
   }
+  // 목록이 채워진 뒤(models/trims) 복원해야 한다 — 빈 목록에 scrollTop을 주면 0으로 잘린다.
+  // 그룹 접힘(expandedGroups)·탭 전환은 사용자가 방금 한 조작이라 일부러 deps에 넣지 않는다.
   useLayoutEffect(() => {
-    if (!inTrimView && scrollRef.current) scrollRef.current.scrollTop = modelScrollTop.current;
-  }, [inTrimView, models]);
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTop = modelId ? (mcMasterViewState.trimScrollTop.get(modelId) ?? 0) : mcMasterViewState.modelScrollTop;
+  }, [modelId, models, trims]);
 
   function selectBrand(id: number) {
-    setBrandId(id);
     resetSelect();
-    modelScrollTop.current = 0;
+    mcMasterViewState.modelScrollTop = 0; // 브랜드가 바뀌면 모델 목록은 맨 위부터(앱 admin과 동일).
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-    navigate("/mc-master");
+    // 브랜드 전환은 replace — 탭 전환 성격이라 히스토리에 쌓이면 뒤로가기가 브랜드 되짚기가 된다(앱 admin과 동일).
+    navigate(mcMasterPath(id), { replace: true });
   }
   function openModelView(m: CatalogModel) {
     resetSelect();
     setTrimTab("list");
-    navigate(`/mc-master/${m.id}`);
+    navigate(mcMasterPath(brandId, m.id));
   }
   function backToModels() {
     resetSelect();
-    navigate("/mc-master");
+    navigate(mcMasterPath(brandId));
   }
   function switchTrimTab(tab: TrimTab) {
     setTrimTab(tab);

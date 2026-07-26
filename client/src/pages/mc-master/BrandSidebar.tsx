@@ -1,4 +1,7 @@
+import { useLayoutEffect, useRef } from "react";
+
 import type { CatalogBrand } from "@/lib/catalog";
+import { mcMasterViewState } from "./view-state";
 
 export function BrandSidebar({
   brands,
@@ -14,6 +17,13 @@ export function BrandSidebar({
 }) {
   const domestic = brands.filter((b) => b.isDomestic);
   const imported = brands.filter((b) => !b.isDomestic);
+
+  // 사이드바 자체 스크롤(20여 개 브랜드가 화면 높이를 넘는다) 위치를 화면 재진입 뒤에도 복원한다.
+  // 복원 시점은 brands가 도착해 항목이 그려진 뒤여야 한다(빈 목록에 scrollTop을 주면 0으로 잘린다).
+  const scrollRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = mcMasterViewState.brandScrollTop;
+  }, [brands.length]);
 
   const group = (label: string, list: CatalogBrand[]) => (
     <div className="va-brand-group" key={label}>
@@ -39,7 +49,14 @@ export function BrandSidebar({
   );
 
   return (
-    <nav className="va-brand-sidebar" aria-label="브랜드">
+    <nav
+      className="va-brand-sidebar"
+      aria-label="브랜드"
+      ref={scrollRef}
+      onScroll={(e) => {
+        mcMasterViewState.brandScrollTop = e.currentTarget.scrollTop;
+      }}
+    >
       {domestic.length > 0 && group("국산차", domestic)}
       {imported.length > 0 && group("수입차", imported)}
     </nav>
