@@ -7,6 +7,27 @@
 > 분리 사유: 이 내용이 142k자까지 자라 매 세션 컨텍스트의 14%를 차지했고,
 > AGENTS.md의 "60줄 이하 / 과거 로그 누적 금지" 규칙과도 어긋나 있었다(2026-07-21).
 
+## 세션 0725-fable5-refactoring 전반부 (2026-07-25 밤 · 유슨생) — 경량 정합성 체크 완결·CI 8단계
+
+**① 경량 정합성 체크 1회차 완결(`#363`)** — 배치 폐지 후 새 관례의 첫 실전. **상 0 · 중 2(적대 검증) · 하 5**,
+판정 SSOT = `ref/plans/2026-07-25-crm-lightweight-consistency-check.md`. 실측 렌즈(승격·연결 4경로 ×
+요청 유무 6시나리오 롤백 재현) 전부 설계 일치·잔재 0.
+- **M1(중)**: `#357`이 link에 니즈 파생을 붙였는데 **customer_profile 재임베딩 훅이 안 따라옴**(need_* 7필드
+  전부 프로필 청크 구성 필드) → 4경로 customerId 동봉 + 회귀 그물. 소급 백필 **0/186** 실측(오염 없음).
+- **M2(중)**: promotedQuoteIds 테스트가 실채번(QT-YYMM) 견적을 **임의 실고객**에 실 INSERT — 끊기면
+  `check:residue` 두 그물(QT 접두사·픽스처 앵커) 다 못 보는 유령 → 픽스처 고객 앵커로 전환.
+- L1 `/ai-settings` isAdmin 라우트 게이트(행위 변경 — 유슨생 그 자리 승인 박제) · L3·L4·L5 = 테스트
+  데이터 의존 제거(요청 ≥2건 가정·레거시 최초 요청 가정·catalog 정확 건수 하드코딩).
+- **이월 1건 = L2**: `createCustomerFromRequest` 인라인 재구현 정리 — 기능 동등, 그 파일 다음 수정 때 함께.
+
+**② CI 8단계(`#364`)** — **`test:pure` 신설**: `test:server` 중 DB·시크릿 무관 **32파일**(계약 tripwire
+`profiles-write-guard`·`roles-parity`·`fixture-codes` 포함)이 매 PR·push마다 돈다(246테스트 0.4s).
+- ⚠️ **새 DB 의존 테스트는 `src/test-utils/db-bound-tests.ts`에 등록**(fail-closed — 미등록이면 CI가
+  env 없이 그 파일을 돌려 red가 난다. 새 순수 테스트는 자동 편입).
+- ⚠️ **bun은 `.env.local`을 자동 로드**한다 — 순수 여부 판별은 `.env.local` 없는 worktree에서만 유효.
+  러너(`src/scripts/run-pure-tests.ts`)는 `--env-file=/dev/null`+민감 env 제거로 로컬=CI 동형.
+- 잡 이름 = `typecheck · lint · knip · format · unit · pure · build · edge`(step 추가 시 이름 동기화 — #333 교훈).
+
 ## 세션 0725-fresh-start (2026-07-25 · 유슨생) — 니즈 카드 디자인 SSOT·조직 구성원 실데이터화
 
 **머지 6건(`#357`~`#362`) · 마이그 0건.** "수기 니즈 카드와 앱 승격 카드 디자인이 다른데 SSOT 가능한가"에서
