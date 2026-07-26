@@ -262,6 +262,16 @@ export function chanceButtonClass(value: ChanceOption) {
   return ["chance-status-button", toneByChance[value]].filter(Boolean).join(" ");
 }
 
+// 상담/계약 목록 "상담 메모" 셀의 계약 가능성 칩 톤(0726 유슨생 결정 — 구 priority 칩 대체).
+// badge 팔레트는 yellow/red/green/기본 4종뿐이라(purple 없음 — customer-list.css) chanceButtonClass의
+// 높음=purple을 그대로 못 옮긴다: 기존 칩 시각(높음/보류=노랑)을 유지하는 쪽으로 맞춘다.
+export function chanceBadgeClass(value: ChanceOption) {
+  if (value === "확정") return "badge green";
+  if (value === "낮음") return "badge red";
+  if (value === "높음" || value === "보류") return "badge yellow";
+  return "badge"; // 중간 — 무채색 기본
+}
+
 export function chanceOptionClass(value: ChanceOption, active: boolean) {
   const toneByChance: Record<ChanceOption, string> = {
     높음: "purple",
