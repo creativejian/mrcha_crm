@@ -265,3 +265,38 @@ describe("nameMatches (이름 매칭 제안)", () => {
     expect(g.nameMatches.map((m) => m.code)).toEqual(["CU-2605-0018"]);
   });
 });
+
+// 같은 번호 "연결 고객" 경고(0726 — lib/phone-duplicate.ts SSOT의 상담 인박스 배선).
+// 판정 규칙 자체는 phone-duplicate.test.ts가 잠근다 — 여기는 "합성 phone(연결 고객)로 후보를
+// 만들고 그룹에 실리는가"만 본다.
+describe("sameNumberLinked (같은 번호 연결 고객 경고)", () => {
+  it("연결 고객의 합성 번호와 같은 번호의 다른 계정 상담 → 경고에 실린다", () => {
+    const rows = [row({ userId: "u-new", phoneNumber: "01095880812" })];
+    const customers = [
+      customer({ id: "c-a", name: "김민준", customerId: "CU-2605-0020", appUserId: "user-a", phone: "010-9588-0812" }),
+    ];
+    const [g] = buildConsultationInboxGroups(rows, customers);
+    expect(g.matchType).toBe("none"); // 기존 매칭(계정·미연결 phone)으로는 못 잡는 케이스라는 전제 확인
+    expect(g.sameNumberLinked).toEqual([{ id: "c-a", name: "김민준", code: "CU-2605-0020" }]);
+  });
+
+  it("본인 계정('연결됨' 확정 매칭)의 고객은 경고에 안 실린다", () => {
+    const rows = [row({ userId: "user-a", phoneNumber: "01095880812" })];
+    const customers = [
+      customer({ id: "c-a", name: "김민준", customerId: "CU-2605-0020", appUserId: "user-a", phone: "010-9588-0812" }),
+    ];
+    const [g] = buildConsultationInboxGroups(rows, customers);
+    expect(g.matchType).toBe("app_user");
+    expect(g.sameNumberLinked).toEqual([]);
+  });
+
+  it("미연결 고객의 같은 번호는 경고가 아니라 기존 phone 매칭(연결 제안) 소관", () => {
+    const rows = [row({ userId: "u-new", phoneNumber: "01011112222" })];
+    const customers = [
+      customer({ id: "c-1", name: "박서연", customerId: "CU-2605-0019", appUserId: null, phone: "010-1111-2222" }),
+    ];
+    const [g] = buildConsultationInboxGroups(rows, customers);
+    expect(g.matchType).toBe("phone");
+    expect(g.sameNumberLinked).toEqual([]);
+  });
+});

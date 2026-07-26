@@ -818,3 +818,49 @@ test("listQuoteRequests(전체) 길이 ≥ listQuoteRequestsByUser(부분) — �
     expect(["app_user", "phone", "none"]).toContain(r.matchType);
   }
 });
+
+// 같은 번호 "연결 고객" 경고(0726) — 서버 배선: 다른 계정(B)의 요청에, 같은 번호를 인증한 계정(A)의
+// 연결 고객이 sameNumberLinked로 실린다. 판정 규칙은 phone-duplicate.test.ts(유닛·CI)가 잠근다.
+test("listQuoteRequests: 같은 번호 다른 계정의 연결 고객이 sameNumberLinked로 실린다 (tx 롤백)", async () => {
+  const db = getDefaultDb();
+  // 같은 번호를 인증한 profiles 2계정 표본 — 실 master 실태(현재 김지안 3계정 등 2쌍). 앱 팀이
+  // 번호 유일성 정리를 완료하면 표본이 사라질 수 있어 그땐 **명시적 스킵**한다(표본 부재는 회귀가
+  // 아니라 전제 소멸 — 로그를 남겨 가짜 그린과 구분).
+  const [dup] = await db
+    .select({ phone: profiles.phoneNumber, ids: sql<string[]>`array_agg(${profiles.id} order by ${profiles.id})` })
+    .from(profiles)
+    .where(sql`${profiles.phoneNumber} is not null`)
+    .groupBy(profiles.phoneNumber)
+    .having(sql`count(*) >= 2`)
+    .orderBy(asc(profiles.phoneNumber))
+    .limit(1);
+  if (!dup) {
+    console.log("[skip] 같은 번호 profiles 2계정 표본 없음(앱 번호 유일성 정리 완료 추정) — sameNumberLinked 서버 배선 검증 생략");
+    return;
+  }
+  const [userA, userB] = dup.ids;
+  const reqId = crypto.randomUUID();
+  await expect(
+    db.transaction(async (tx) => {
+      // 계정 A의 "연결 고객"(픽스처)과 계정 B의 요청을 같은 tx에 만든다 — B 입장에서 A의 고객은
+      // 계정 매칭도(다른 계정) phone 매칭도(연결 고객이라 customers.phone NULL) 안 걸리는 경고 전용 케이스.
+      // app_user_id 부분 유니크(customers_app_user_id_unique)라 A의 기존 연결을 먼저 푼다(롤백됨).
+      await tx.update(customers).set({ appUserId: null }).where(eq(customers.appUserId, userA));
+      const [cust] = await tx
+        .insert(customers)
+        .values({ customerCode: `CU-QRPF-${crypto.randomUUID().slice(0, 8)}`, name: "같은번호경고테스트", appUserId: userA })
+        .returning({ id: customers.id, code: customers.customerCode });
+      await tx.insert(quoteRequestsTable).values({
+        id: reqId, userId: userB, trimId: null, paymentMethod: "lease", period: 36,
+        trimPrice: 30000000, status: "open", createdAt: new Date().toISOString(),
+      });
+      const row = (await listQuoteRequests(tx)).find((r) => r.id === reqId);
+      expect(row).toBeDefined();
+      // 실 master에 같은 번호 연결 고객(김민준 등)이 이미 있을 수 있어 포함 여부만 단언(equal 금지).
+      expect(row!.sameNumberLinked.map((c) => c.code)).toContain(cust.code);
+      // 본인 계정(B)에 연결된 고객은 경고에 없어야 한다 — 있다면 그건 '연결됨' 매칭 소관.
+      expect(row!.sameNumberLinked.every((c) => c.id !== row!.matchedCustomerId || row!.matchType !== "app_user")).toBe(true);
+      throw new Error("ROLLBACK");
+    }),
+  ).rejects.toThrow("ROLLBACK");
+});

@@ -26,10 +26,14 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
   const [actingId, setActingId] = useState<string | null>(null);
   // link 충돌 안내(이사님 2026-07-13 ②) — 차단은 서버가 유지, 여기선 사유 + "그 고객 보기" 경로를 보여준다.
   const [linkConflict, setLinkConflict] = useState<{ requestId: string; message: string; customerCode: string; name: string } | null>(null);
+  // 같은 번호 연결 고객 경고(0726)가 있는 행의 "신규 생성"은 2단(재확인) — 첫 클릭은 무장만 한다.
+  // 차단이 아니라 재확인이다(가족 공용 번호 등 정당한 동번호 사례 — fail-open).
+  const [confirmCreateId, setConfirmCreateId] = useState<string | null>(null);
 
   async function handleCreate(r: AppQuoteRequest) {
     setActingId(r.id);
     setLinkConflict(null);
+    setConfirmCreateId(null);
     try {
       const created = await createCustomerFromRequest(r.id);
       onToast(`${created.customerCode} ${created.name} 고객 생성`);
@@ -166,6 +170,17 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
                   {/* flex는 안쪽 div에 — td를 flex로 만들면 Safari에서 행 높이만큼 안 늘어나 세로정렬이 어긋남 */}
                   <div className="app-req-match-inner">
                     <span className={MATCH_CLASS[r.matchType]}>{r.matchLabel}</span>
+                    {r.sameNumberLinked.length > 0 && (
+                      // 같은 번호를 인증한 다른 앱 계정의 고객(0726) — 연결 불가(1고객 1계정)라 버튼이
+                      // 아니라 경고다. 중복 계정으로 새 고객을 만들기 전에 사람이 확인하게 한다.
+                      <span
+                        className="app-req-samenum-warn"
+                        title="이 요청 계정과 같은 번호를 인증한 다른 앱 계정의 고객입니다. 같은 사람의 중복 계정일 수 있어요."
+                      >
+                        ⚠️ 같은 번호 고객 {r.sameNumberLinked[0].code} {r.sameNumberLinked[0].name}
+                        {r.sameNumberLinked.length > 1 ? ` 외 ${r.sameNumberLinked.length - 1}명` : ""}
+                      </span>
+                    )}
                     {r.matchType === "none" && r.nameMatches.length > 0 && (
                       <div className="app-req-name-suggest">
                         <span className="app-req-name-suggest-label">이름이 같은 미연결 고객</span>
@@ -183,7 +198,21 @@ export function AppRequestsPage({ signal, onRead, onToast, onCustomerListChanged
                       </div>
                     )}
                     {r.matchType === "none" && (
-                      <button className="app-req-action" disabled={actingId === r.id} onClick={() => handleCreate(r)} type="button">신규 생성</button>
+                      <button
+                        className={`app-req-action${confirmCreateId === r.id ? " samenum-armed" : ""}`}
+                        disabled={actingId === r.id}
+                        onClick={() => {
+                          // 같은 번호 경고가 있으면 첫 클릭은 무장(라벨 전환)만 — 두 번째 클릭이 실행.
+                          if (r.sameNumberLinked.length > 0 && confirmCreateId !== r.id) {
+                            setConfirmCreateId(r.id);
+                            return;
+                          }
+                          void handleCreate(r);
+                        }}
+                        type="button"
+                      >
+                        {confirmCreateId === r.id ? "같은 번호 고객 있음 — 그래도 생성" : "신규 생성"}
+                      </button>
                     )}
                     {r.matchType === "phone" && (
                       <button className="app-req-action" disabled={actingId === r.id} onClick={() => handleLink(r)} type="button">{r.matchedCustomerName ?? "고객"}에 연결</button>

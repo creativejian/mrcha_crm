@@ -6,6 +6,7 @@ import type { Customer } from "@/data/customers";
 import type { AppConsultationRow } from "./consultations";
 import { sanitizePhoneDigits } from "./customer-create";
 import { formatActivity, formatPhone } from "./customers";
+import { findSameNumberLinked, type LinkedPhoneCandidate } from "./phone-duplicate";
 
 export type ConsultationMatchType = "app_user" | "phone" | "none";
 
@@ -40,6 +41,8 @@ export type ConsultationInboxGroup = {
   matchedCustomerCode: string | null;
   // none일 때만 채우는 같은 이름 미연결 고객 후보(예방용 제안 — 자동 연결 아님). 그 외 매칭은 빈 배열.
   nameMatches: MatchedCustomer[];
+  // 같은 번호를 인증한 **다른 계정**의 연결 고객(경고 표시 전용 — lib/phone-duplicate.ts SSOT).
+  sameNumberLinked: MatchedCustomer[];
 };
 
 type MatchedCustomer = { id: string; name: string; code: string };
@@ -71,10 +74,16 @@ export function buildConsultationInboxGroups(
   const byAppUser = new Map<string, MatchedCustomer>();
   const byPhone = new Map<string, MatchedCustomer>();
   const byNameUnlinked = new Map<string, MatchedCustomer[]>();
+  // 같은 번호 "연결 고객" 경고 후보 — 연결 고객의 표시 phone(서버 합성 = 계정 인증 번호)을 쓴다.
+  // 위 phone 매칭(자동 연결 제안)과 달리 **경고 전용**이라 연결 고객을 봐야 한다(phone-duplicate.ts).
+  const linkedPhoneCandidates: LinkedPhoneCandidate[] = [];
   for (const c of customers) {
     if (!c.id) continue;
     const entry: MatchedCustomer = { id: c.id, name: c.name, code: c.customerId };
     if (c.appUserId && !byAppUser.has(c.appUserId)) byAppUser.set(c.appUserId, entry);
+    if (c.appUserId) {
+      linkedPhoneCandidates.push({ ...entry, appUserId: c.appUserId, phoneDigits: sanitizePhoneDigits(c.phone) });
+    }
     // phone 매칭 후보 = 앱 미연결 고객만(2026-07-17 spec §3-6). 연결 고객의 표시 phone은 서버 합성
     // **앱 번호**라 여기 넣으면 가족 공유 번호의 다른 유저가 이미 연결된 고객으로 오매칭된다
     // (그 고객은 app_user_id로 이미 확정 매칭 — phone 후보일 이유가 없다). 추가 연락처도 매칭 제외.
@@ -128,6 +137,7 @@ export function buildConsultationInboxGroups(
               .slice()
               .sort((a, b) => a.code.localeCompare(b.code))
           : [],
+      sameNumberLinked: findSameNumberLinked(digits, latest.userId, linkedPhoneCandidates),
     };
   });
 }
