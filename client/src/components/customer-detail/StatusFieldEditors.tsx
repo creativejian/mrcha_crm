@@ -18,10 +18,11 @@ import {
 // 직군 상세분류 옵션(개인일 때). 본체에서 이동 — 값 무변경.
 const personalJobDetailOptions = ["4대보험", "프리랜서", "무직", "주부", "기타"];
 
-export function PhoneStatusInput({ initialValue }: { initialValue: string }) {
+export function PhoneStatusInput({ initialValue, onLocalChange }: { initialValue: string; onLocalChange?: (local: string) => void }) {
   // 010은 고정 prefix. 입력값은 뒤 8자리(4-4)만 다룬다. 폼 제출 시 name="value"=8자리, 저장 핸들러가 010 prepend.
   // 접근 이름은 래핑 <label>(`${fieldLabel(key)} 수정` — StatusWorkflow)이 준다 — aria-label 하드코딩 금지
   // (phoneSecondary 편집기까지 "연락처 수정"으로 덮던 것 제거, 배치 8 D#3).
+  // onLocalChange: 1차 번호 중복 advisory(0726)용 draft 통지 — 검증·차단이 아니라 표시 전용이라 optional.
   const [value, setValue] = useState(() => localPhoneFrom(initialValue));
 
   return (
@@ -33,7 +34,11 @@ export function PhoneStatusInput({ initialValue }: { initialValue: string }) {
         inputMode="numeric"
         maxLength={9}
         name="value"
-        onChange={(event) => setValue(formatLocalPhone(event.currentTarget.value))}
+        onChange={(event) => {
+          const next = formatLocalPhone(event.currentTarget.value);
+          setValue(next);
+          onLocalChange?.(next);
+        }}
         onFocus={(event) => {
           const end = event.currentTarget.value.length;
           event.currentTarget.setSelectionRange(end, end);

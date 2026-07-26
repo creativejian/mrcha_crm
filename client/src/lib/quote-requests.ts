@@ -44,6 +44,8 @@ export type AppQuoteRequestRow = {
   promotedQuoteIds: string[];
   matchType: "app_user" | "phone" | "none";
   nameMatches: { id: string; name: string; code: string }[];
+  // 같은 번호를 인증한 **다른 계정**의 연결 고객(경고 표시 전용 — lib/phone-duplicate.ts SSOT).
+  sameNumberLinked: { id: string; name: string; code: string }[];
 };
 
 // 결제방식/보증금 라벨은 data/quote-request-labels(클라·서버 공용 SSOT — 배치 E 수렴)에서 import.
@@ -84,6 +86,7 @@ export type AppQuoteRequest = {
   promotedQuoteIds: string[];
   matchType: AppQuoteRequestRow["matchType"];
   nameMatches: AppQuoteRequestRow["nameMatches"];
+  sameNumberLinked: AppQuoteRequestRow["sameNumberLinked"];
 };
 
 function moneyOrDash(won: number | null): string {
@@ -157,6 +160,7 @@ export function toAppQuoteRequest(row: AppQuoteRequestRow): AppQuoteRequest {
     promotedQuoteIds: row.promotedQuoteIds,
     matchType: row.matchType,
     nameMatches: row.nameMatches,
+    sameNumberLinked: row.sameNumberLinked ?? [], // ?? 방어 = 위 topicLabels와 같은 배포 스큐 사유
   };
 }
 

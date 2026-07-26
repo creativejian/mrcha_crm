@@ -1,8 +1,9 @@
 import { Check, History, MessageSquareText } from "lucide-react";
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
+import { type Dispatch, type RefObject, type SetStateAction, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, customerStatusGroups, type Customer } from "@/data/customers";
+import { findPhoneDuplicate, fullPhoneFromLocal, sanitizePhoneDigits } from "@/lib/customer-create";
 import { consultKindClass } from "@/lib/detail-utils";
 import { hasAppSourceQueue } from "@/lib/status-fields";
 
@@ -13,6 +14,9 @@ import type { useCustomerWorkflow } from "./hooks/useCustomerWorkflow";
 
 type StatusWorkflowProps = {
   customer: Customer;
+  // 1차 번호 중복 advisory(0726)용 전체 고객 목록 — 수기 등록 모달(findPhoneDuplicate)과 같은
+  // 대조(합성 번호 포함). 미전달(단독 렌더·테스트)이면 advisory만 조용히 꺼진다.
+  allCustomers?: readonly Customer[];
   // 부모 소유 공유 인프라(니즈·구매조건도 사용) — props로 받는다.
   openEditor: OpenEditorState | null;
   setOpenEditor: Dispatch<SetStateAction<OpenEditorState | null>>;
@@ -23,9 +27,22 @@ type StatusWorkflowProps = {
   advisorAssignable: boolean;
 };
 
-export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEditor, editorRef, workflow, advisorAssignable }: StatusWorkflowProps) {
+export function StatusWorkflow({ customer, allCustomers, openEditor, setOpenEditor, toggleEditor, editorRef, workflow, advisorAssignable }: StatusWorkflowProps) {
   const { statusValues, phoneLocked, advisorId, stageGroup, stageStatus, chance, manage, timelineItems, consultBodyRef, workflowValue, handlers } = workflow;
   const navigate = useNavigate();
+  // 1차 번호 중복 advisory(0726) — 등록 폼에만 있고 드로어(최초 등록·수정 동일 경로)엔 없던 비대칭
+  // 해소. null = 아직 안 건드림(현재 저장값으로 대조 — 열자마자 기존 중복도 보이게). 경고 표시만,
+  // 저장 차단 없음(등록 폼과 동일 규칙). secondary는 대조 제외(#276 매칭 금지 계약).
+  const [phoneDraftLocal, setPhoneDraftLocal] = useState<string | null>(null);
+  const phoneEditorOpen = openEditor?.kind === "status" && openEditor.key === "phone";
+  const phoneDraftDigits = phoneDraftLocal != null ? (fullPhoneFromLocal(phoneDraftLocal) ?? "") : sanitizePhoneDigits(statusValues.phone);
+  const phoneDuplicate =
+    phoneEditorOpen && allCustomers
+      ? findPhoneDuplicate(
+          allCustomers.filter((c) => c.customerId !== customer.customerId), // 본인 제외 — 자기 번호는 중복이 아니다
+          phoneDraftDigits,
+        )
+      : null;
   // 앱 채팅 이동은 앱 계정 연결(appUserId)이 전제 — source 어휘만 앱 계열이고 미연결이면 볼 채팅이 없다.
   const appChatUserId = hasAppSourceQueue(statusValues.source) ? customer.appUserId ?? null : null;
 
@@ -62,11 +79,16 @@ export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEdit
           <label>
             <span>{key === "phone" || key === "phoneSecondary" ? `${fieldLabel(key)} 수정` : fieldLabel(key)}</span>
             {key === "phone" || key === "phoneSecondary" ? (
-              <PhoneStatusInput initialValue={statusValues[key]} />
+              <PhoneStatusInput initialValue={statusValues[key]} onLocalChange={key === "phone" ? setPhoneDraftLocal : undefined} />
             ) : (
               <input autoFocus defaultValue={statusValues[key]} name="value" />
             )}
           </label>
+          {key === "phone" && phoneDuplicate ? (
+            <p className="kim-phone-duplicate" role="status">
+              {phoneDuplicate.name}({phoneDuplicate.customerId}) 고객과 연락처가 같습니다.
+            </p>
+          ) : null}
           <div className="kim-edit-actions">
             <button type="button" onClick={() => setOpenEditor(null)}>취소</button>
             <button className="primary" type="submit">저장</button>
@@ -213,7 +235,14 @@ export function StatusWorkflow({ customer, openEditor, setOpenEditor, toggleEdit
                   {/* 라벨·번호 같은 라인(유슨생) — 카드 전체가 정확히 2줄: "연락처 …" / "추가 …".
                       표시 라벨만 축약("추가") — 편집기 제목·토스트는 fieldLabel("추가 연락처") 유지. */}
                   <span className="kim-status-copy kim-phone-stack-copy">
-                    <button className="kim-phone-entry" onClick={() => handlers.openStatusEditor({ kind: "status", key: "phone" })} type="button">
+                    <button
+                      className="kim-phone-entry"
+                      onClick={() => {
+                        setPhoneDraftLocal(null); // 재오픈 시 이전 draft 잔상 제거 — 현재 저장값으로 다시 대조
+                        handlers.openStatusEditor({ kind: "status", key: "phone" });
+                      }}
+                      type="button"
+                    >
                       <span>연락처</span>
                       {phoneLocked ? (
                         // 앱 등록 번호(잠금) — 값 회색 + APP 칩(계약 가능성 '확정' 칩 톤 미러)

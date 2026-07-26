@@ -793,6 +793,16 @@
   gap: 11px;
 }
 
+/* 1차 번호 중복 advisory(0726) — 수기 등록 모달 .customer-create-duplicate와 같은 amber 경고 톤
+   (그쪽은 콘솔 헤드바 스코프라 재사용 불가). 경고만, 저장 차단 없음. */
+.kim-edit-form .kim-phone-duplicate {
+  margin: -4px 0 0;
+  color: #b45309;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
 .kim-edit-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

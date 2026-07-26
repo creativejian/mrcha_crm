@@ -90,9 +90,13 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
     }
   }
 
+  // 같은 번호 연결 고객 경고(0726)가 있는 그룹의 "고객 생성"은 2단(재확인) — 견적요청 인박스 미러.
+  const [confirmCreateKey, setConfirmCreateKey] = useState<string | null>(null);
+
   async function handleCreate(g: ConsultationInboxGroup) {
     setActingKey(g.key);
     setLinkConflict(null);
+    setConfirmCreateKey(null);
     try {
       const created = await createCustomerFromConsultation(g.latestConsultationId);
       onToast(`${created.customerCode} ${created.name} 고객 생성`);
@@ -197,6 +201,16 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
                         {/* flex는 안쪽 div에 — td를 flex로 만들면 Safari에서 행 높이 세로정렬이 어긋남(견적요청 인박스 관례) */}
                         <div className="app-req-match-inner">
                           <span className={MATCH_CLASS[g.matchType]}>{g.matchLabel}</span>
+                          {g.sameNumberLinked.length > 0 && (
+                            // 같은 번호를 인증한 다른 앱 계정의 고객(0726) — 견적요청 인박스 미러(경고 전용).
+                            <span
+                              className="app-req-samenum-warn"
+                              title="이 상담 계정과 같은 번호를 인증한 다른 앱 계정의 고객입니다. 같은 사람의 중복 계정일 수 있어요."
+                            >
+                              ⚠️ 같은 번호 고객 {g.sameNumberLinked[0].code} {g.sameNumberLinked[0].name}
+                              {g.sameNumberLinked.length > 1 ? ` 외 ${g.sameNumberLinked.length - 1}명` : ""}
+                            </span>
+                          )}
                           {g.matchType === "none" && g.canPromote && g.nameMatches.length > 0 && (
                             /* 라벨·버튼 사이 여백 클릭이 행 펼침 토글로 번지지 않게 wrapper에서 차단
                                (배치 8 B#3 .app-req-conflict 미러 — 배치 9 B-a) */
@@ -220,15 +234,20 @@ export function ConsultationRequestsPage({ customers, onToast, onCustomerListCha
                           )}
                           {g.matchType === "none" && g.canPromote && (
                             <button
-                              className="app-req-action"
+                              className={`app-req-action${confirmCreateKey === g.key ? " samenum-armed" : ""}`}
                               disabled={actingKey === g.key}
                               onClick={(event) => {
                                 stopRowToggle(event);
+                                // 같은 번호 경고가 있으면 첫 클릭은 무장만 — 두 번째 클릭이 실행(견적요청 미러).
+                                if (g.sameNumberLinked.length > 0 && confirmCreateKey !== g.key) {
+                                  setConfirmCreateKey(g.key);
+                                  return;
+                                }
                                 void handleCreate(g);
                               }}
                               type="button"
                             >
-                              고객 생성
+                              {confirmCreateKey === g.key ? "같은 번호 고객 있음 — 그래도 생성" : "고객 생성"}
                             </button>
                           )}
                           {g.matchType === "phone" && g.canPromote && (

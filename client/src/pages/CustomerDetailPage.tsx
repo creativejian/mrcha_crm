@@ -29,6 +29,8 @@ import { useQuoteWorkbench } from "@/components/customer-detail/hooks/useQuoteWo
 
 type CustomerDetailPageProps = {
   customer: Customer;
+  // 1차 번호 중복 advisory(0726)용 전체 고객 목록 — StatusWorkflow에 그대로 전달(표시 전용).
+  allCustomers?: readonly Customer[];
   chanceOverride?: CustomerChanceOption;
   onBack: () => void;
   onFullScreen?: () => void;
@@ -63,6 +65,7 @@ function editorMatches(openEditor: OpenEditorState | null, next: OpenEditorState
 }
 
 function CustomerDetailContent({
+  allCustomers,
   chanceOverride,
   customer,
   detail,
@@ -74,6 +77,7 @@ function CustomerDetailContent({
   onQuotesPersisted,
   onDetailPatch,
 }: {
+  allCustomers?: readonly Customer[];
   chanceOverride?: CustomerChanceOption;
   customer: Customer;
   detail: CustomerDetailData;
@@ -213,6 +217,7 @@ function CustomerDetailContent({
       <div className="kim-left-dashboard">
         <CustomerDetailHeader now={recentUpdateNow} recentUpdate={recentUpdate} name={detail.name} customerCode={detail.customerCode} receivedLabel={formatActivity(detail.receivedAt)} />
         <StatusWorkflow
+          allCustomers={allCustomers}
           customer={customer}
           openEditor={openEditor}
           setOpenEditor={setOpenEditor}
@@ -276,6 +281,7 @@ function CustomerDetailContent({
 }
 
 export function CustomerDetailPage({
+  allCustomers,
   chanceOverride,
   customer,
   onEditorOpenChange,
@@ -324,6 +330,7 @@ export function CustomerDetailPage({
       ) : detail ? (
         <CustomerDetailContent
           key={customer.id}
+          allCustomers={allCustomers}
           detail={detail}
           chanceOverride={chanceOverride}
           customer={customer}

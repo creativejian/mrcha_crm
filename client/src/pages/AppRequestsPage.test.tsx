@@ -43,6 +43,7 @@ const PHONE_MATCH_ROW: AppQuoteRequest = {
   promotedQuoteIds: [],
   matchType: "phone",
   nameMatches: [],
+  sameNumberLinked: [],
 };
 
 const NAME_MATCH_ROW: AppQuoteRequest = {

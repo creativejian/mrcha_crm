@@ -4,6 +4,7 @@ import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
 import { APP_QUOTE_REQUEST_SOURCE } from "../../../client/src/data/customers";
 import { deliveryRegionOf, deliveryTimingTextOf } from "../../../client/src/lib/quote-delivery";
 import { deriveNeedsFromRequest } from "../../../client/src/lib/quote-request-needs";
+import { findSameNumberLinked, type LinkedPhoneCandidate } from "../../../client/src/lib/phone-duplicate";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles, quoteRequestOptions, quoteRequests } from "../public-app";
@@ -47,6 +48,8 @@ export type AppQuoteRequestRow = {
   matchType: "app_user" | "phone" | "none";
   // none일 때만 채우는 같은 이름 미연결 고객 후보(예방용 제안 — 자동 연결 아님). 그 외 매칭은 빈 배열.
   nameMatches: { id: string; name: string; code: string }[];
+  // 같은 번호를 인증한 **다른 계정**의 연결 고객(경고 표시 전용 — client/src/lib/phone-duplicate.ts SSOT).
+  sameNumberLinked: { id: string; name: string; code: string }[];
 };
 
 // 이름 매칭 정규화 — 클라 consultation-inbox.normalizeName와 동일 규칙(공유 모듈은 import 경계상 미도입).
@@ -107,7 +110,7 @@ export async function buildAppQuoteRequestRows(
   const userIds = [...new Set(rows.map((r) => r.userId))];
   const names = [...new Set(rows.map((r) => r.requesterName).filter((v): v is string => v != null))];
 
-  const [trimRows, optRows, custRows, promoRows] = await Promise.all([
+  const [trimRows, optRows, custRows, promoRows, linkedPhoneRows] = await Promise.all([
     trimIds.length
       ? executor
           .select({
@@ -148,9 +151,32 @@ export async function buildAppQuoteRequestRows(
       .from(quotes)
       .where(inArray(quotes.sourceQuoteRequestId, reqIds))
       .orderBy(desc(quotes.createdAt)),
+    // 같은 번호 "연결 고객" 후보(경고 축 — phone-duplicate.ts 주석 참조): 연결 고객의 번호는
+    // customers.phone이 아니라 profiles에만 있어(CHECK 배타) 위 custRows 매칭으로는 못 잡는다.
+    // 요청자 번호(profiles 유래)와 같은 번호를 인증한 **다른 계정**의 연결 고객을 여기서 찾는다.
+    phones.length
+      ? executor
+          .select({
+            id: customers.id,
+            name: customers.name,
+            code: customers.customerCode,
+            appUserId: customers.appUserId,
+            phoneDigits: profiles.phoneNumber,
+          })
+          .from(customers)
+          .innerJoin(profiles, eq(profiles.id, customers.appUserId))
+          .where(inArray(profiles.phoneNumber, phones))
+      : Promise.resolve(
+          [] as { id: string; name: string; code: string; appUserId: string | null; phoneDigits: string | null }[],
+        ),
   ]);
 
   const trimMap = new Map(trimRows.map((t) => [t.id, t]));
+
+  // innerJoin(profiles.id = customers.app_user_id)이라 appUserId는 실제로 non-null — 타입만 좁힌다.
+  const linkedPhoneCandidates: LinkedPhoneCandidate[] = linkedPhoneRows.flatMap((c) =>
+    c.appUserId ? [{ id: c.id, name: c.name, code: c.code, appUserId: c.appUserId, phoneDigits: c.phoneDigits }] : [],
+  );
 
   const optCount = new Map<string, number>();
   for (const o of optRows) optCount.set(o.quoteRequestId, (optCount.get(o.quoteRequestId) ?? 0) + 1);
@@ -236,6 +262,8 @@ export async function buildAppQuoteRequestRows(
               .slice()
               .sort((a, b) => a.code.localeCompare(b.code))
           : [],
+      // 같은 번호를 인증한 다른 계정의 연결 고객(경고 표시 전용 — 연결 액션 불가, phone-duplicate.ts).
+      sameNumberLinked: findSameNumberLinked(r.requesterPhone, r.userId, linkedPhoneCandidates),
     };
   });
 }

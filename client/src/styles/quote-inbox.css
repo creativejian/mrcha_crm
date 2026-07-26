@@ -88,6 +88,21 @@
 .app-req-name-suggest { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; align-items: flex-start; }
 .app-req-name-suggest-label { font-size: 11px; font-weight: 600; color: #7f858c; }
 
+/* 같은 번호 "연결 고객" 경고(0726) — 액션이 아니라 정보(연결 불가·생성 재확인용). 이름 매칭 제안
+   (회색 라벨+버튼)과 시각적으로 구분되는 경고 톤. armed = 생성 버튼 2단 재확인 상태. */
+.app-req-samenum-warn {
+  max-width: 250px;
+  color: #b45309;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.app-req-action.samenum-armed {
+  border-color: rgba(180, 83, 9, 0.45);
+  color: #b45309;
+}
+
 /* link 충돌 인라인 안내 — 차단 사유 + 충돌 고객으로 가는 경로(닫기 전까지 유지, 토스트보다 읽을 시간 확보) */
 .app-req-conflict {
   display: flex;
