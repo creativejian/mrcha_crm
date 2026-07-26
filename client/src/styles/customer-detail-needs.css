@@ -192,6 +192,13 @@
 
 .kim-needs-request-card {
   max-height: none;
+  /* 화면 밖 카드의 레이아웃·페인트 스킵(0726) — 요청 98건 고객(제임스)의 드로어 오픈 시 "카드가
+     만들어지는 느낌"의 정체 = 일괄 마운트 페인트 비용(네트워크 직렬은 #367이 이미 제거). 처음
+     보이는 3~4장만 실제로 그려진다. 가시성 판정은 스크롤 컨테이너(.kim-needs-request-scroll,
+     overflow-y:auto) 기준. contain-intrinsic-size의 auto 키워드는 한 번 그려진 카드의 실측 높이를
+     기억해 스크롤바 출렁임을 줄인다 — 210px는 최초 추정치(견적 배지·문의사항 포함 카드 근사). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 210px;
 }
 
 /* 앱 고객인데 대표 견적요청이 없을 때(상담신청만 유입 등) 스택 위에 고정되는 수기 편집 카드.
