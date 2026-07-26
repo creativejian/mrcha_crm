@@ -1,7 +1,7 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
-import { aiHintPlainText, badgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
+import { aiHintPlainText, badgeClass, chanceBadgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
 import { normalizeSearchValue } from "@/lib/global-customer-search";
@@ -950,6 +950,10 @@ export function CustomerManagementPage({
       );
     }
 
+    // 상담 메모 칩 = 계약 가능성(0726 유슨생 결정) — 드로어·전체 보기와 같은 resolveChance 한 벌이라
+    // 드로어 "계약 가능성" 저장이 이 칩에도 반영된다. 구 priority 칩은 쓰기 경로 0인 시드 박제라
+    // 승격 신규 고객이 전부 빈 칩이었다. 하단 글자(nextAction = 최신 미완료 할일)는 그대로.
+    const rowChance = resolveChance(customer, chanceOverrides[customer.no]);
     return (
       <tr key={customer.no} {...rowProps}>
         {check}
@@ -958,10 +962,10 @@ export function CustomerManagementPage({
         {vehicleCell}
         <td><span className={badgeClass(customer.status, customer.statusGroup)}>{customer.status}</span><span className="table-note">{customer.date}</span></td>
         <td><div className="ai-summary-cell">{aiHintPlainText(customer)}</div></td>
-        {/* priority(계약가능성/긴급) 셀은 헤더에 "action" 컬럼이 있는 mode만 그린다 — delivery는 그
+        {/* 계약 가능성 칩 셀은 헤더에 "action" 컬럼이 있는 mode만 그린다 — delivery는 그
             컬럼이 없어(select~stage,summary,advisor,actions) 이 셀이 잉여 8번째가 되면 table-layout:fixed
             에서 actions가 colgroup 밖으로 밀려 헤더 우측이 잘렸다(프로토타입 이래 상존, mock 렌더 시 발현). */}
-        {tableColumns.includes("action") && <td><span className={badgeClass(customer.priority)}>{customer.priority}</span><span className="table-note">{customer.nextAction}</span></td>}
+        {tableColumns.includes("action") && <td><span className={chanceBadgeClass(rowChance)}>{rowChance}</span><span className="table-note">{customer.nextAction}</span></td>}
         {showAdvisorColumn && <td><strong>{customer.advisor}</strong><span className="table-note">{customer.team}</span></td>}
         {actions}
       </tr>

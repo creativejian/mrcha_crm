@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Customer } from "@/data/customers";
-import { aiHintDisplay, aiHintPlainText, deliveryMethodDisplay, deliveryVehicleDisplay, parseAiHintParts, resolveChance } from "./customer-table";
+import { aiHintDisplay, aiHintPlainText, chanceBadgeClass, deliveryMethodDisplay, deliveryVehicleDisplay, parseAiHintParts, resolveChance } from "./customer-table";
 
 // 계약 가능성 판정에 필요한 필드만 채운 최소 고객 팩토리(나머지는 표시값과 무관).
 function makeCustomer(overrides: Partial<Customer>): Customer {
@@ -197,5 +197,17 @@ describe("deliveryMethodDisplay", () => {
         contractingQuote: { id: "q1", brandName: "BMW", modelName: "3 Series", trimName: null, purchaseMethod: null, lender: null },
       } as Customer),
     ).toBeNull();
+  });
+});
+
+// 상담/계약 목록 "상담 메모" 칩 톤(0726 — priority 칩을 계약 가능성으로 교체하며 도입).
+// badge 팔레트에 purple이 없어 chanceButtonClass(높음=purple)와 일부러 다르다 — 구현 주석 참조.
+describe("chanceBadgeClass", () => {
+  it("확정=green · 낮음=red · 높음/보류=yellow · 중간=기본", () => {
+    expect(chanceBadgeClass("확정")).toBe("badge green");
+    expect(chanceBadgeClass("낮음")).toBe("badge red");
+    expect(chanceBadgeClass("높음")).toBe("badge yellow");
+    expect(chanceBadgeClass("보류")).toBe("badge yellow");
+    expect(chanceBadgeClass("중간")).toBe("badge");
   });
 });

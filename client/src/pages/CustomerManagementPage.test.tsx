@@ -104,6 +104,16 @@ describe("CustomerManagementPage", () => {
     expect(screen.queryByText("박서연")).not.toBeInTheDocument();
   });
 
+  // 상담 메모 칩 = 계약 가능성(0726 축 교체) — 구 priority(쓰기 경로 0인 시드 박제)가 아니라
+  // 드로어·전체 보기와 같은 resolveChance 파생값을 그린다. mock 김민준은 priority "긴급"인데
+  // chance 어휘에 긴급이 없어 파생 "높음"으로 흡수되는 것까지 잠근다(축 교체의 관측 가능한 차이).
+  it("renders the chance badge (not legacy priority) in the consulting 상담 메모 cell", () => {
+    render(<CustomerManagementPage mode="consulting" />);
+    const row = screen.getByText("김민준").closest("tr")!;
+    expect(within(row).getByText("높음")).toBeInTheDocument();
+    expect(within(row).queryByText("긴급")).not.toBeInTheDocument();
+  });
+
   // renderRow fallthrough는 priority 셀(action 컬럼 = 상담 메모/재컨택 성격) → advisor 셀(담당) 순으로 그린다.
   // contract만 헤더/컬럼이 담당 → action으로 뒤집혀 있어 헤더 아래에 다른 데이터가 오던 버그(프로토타입).
   // action 컬럼 라벨이 "담당"보다 앞에 오도록 잠근다(consulting/hold는 회귀 가드).
