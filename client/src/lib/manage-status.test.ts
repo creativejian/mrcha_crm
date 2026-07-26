@@ -84,6 +84,31 @@ describe("resolveUpdateBadge", () => {
     expect(info).toBeNull();
     expect(status).toBeNull();
   });
+
+  // 0726: 오버라이드도 pre-action 게이트를 따른다 — 신규·상담접수에서 진행 상태/계약 가능성만
+  // 수정한 "방금 전" 마킹이 가짜 "정상"으로 떴다가 리로드에 빈칸으로 돌아가던 불일치의 회귀 그물.
+  test("pre-action(신규·상담접수)에서는 finalUpdateOverride도 무시한다", () => {
+    const override = { action: "계약 가능성 업데이트", label: "방금 전", days: 0 };
+    const { info, status, displayInfo } = resolveUpdateBadge(
+      { ...source, statusGroup: "신규", status: "상담접수" },
+      { finalUpdateOverride: override, now: NOW },
+    );
+    expect(info).toBeNull();
+    expect(status).toBeNull();
+    expect(displayInfo).toBeNull();
+  });
+
+  // 대조 — 유효 수동 상태(스누즈)는 pre-action이어도 표시된다(수동 지정 자체가 상담사 액션,
+  // 배치 4 B2 기각 번복 규칙 유지). 게이트는 파생·오버라이드에만 걸린다.
+  test("pre-action이어도 유효 수동 상태는 표시(오버라이드 게이트와 무관)", () => {
+    const at = source.lastActivityAt;
+    const { status, displayInfo } = resolveUpdateBadge(
+      { ...source, statusGroup: "신규", status: "상담접수", manageStatus: "확인필요", manageStatusAt: at },
+      { finalUpdateOverride: { action: "계약 가능성 업데이트", label: "방금 전", days: 0 }, now: NOW },
+    );
+    expect(status?.label).toBe("확인필요");
+    expect(displayInfo?.action).toBe("관리 상태 수동 지정");
+  });
 });
 
 // 수동 관리 상태 영속(이사님 2026-07-13 ⑦-①) — 스누즈 유효 판정과 배지 우선순위.

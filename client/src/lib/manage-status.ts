@@ -89,7 +89,14 @@ export function resolveUpdateBadge(
   source: ManageStatusSource,
   opts: { finalUpdateOverride?: FinalUpdateInfo | null; now?: Date } = {},
 ): { info: FinalUpdateInfo | null; status: FinalUpdateStatus | null; displayInfo: FinalUpdateInfo | null } {
-  const info = opts.finalUpdateOverride ?? deriveFinalUpdateInfo(source, opts.now);
+  // pre-action(신규·상담접수) 공백 규칙은 오버라이드("방금 전" 로컬 마킹)에도 적용한다(0726) —
+  // 파생 경로(deriveFinalUpdateInfo)만 게이트가 있어, 목록에서 진행 상태·계약 가능성을 수정하면
+  // 관리 상태 셀에 가짜 "정상"(방금 전 활동 버킷)이 떴다가 리로드에서 빈칸으로 돌아가는 불일치가
+  // 났다(김지운 실사고 — 상담 메모 마킹에서 잡았던 것과 같은 회귀 축). 유효 수동 상태(스누즈)는
+  // 이 게이트와 무관하게 아래 manual 경로가 계속 표시한다(수동 지정 자체가 상담사 액션 — 기존 규칙).
+  const info = isPreActionStatus(source.statusGroup, source.status)
+    ? null
+    : (opts.finalUpdateOverride ?? deriveFinalUpdateInfo(source, opts.now));
   const manual = effectiveManageStatus(source);
   const status = manual
     ? finalUpdateStatusFromManage(manual)
