@@ -422,6 +422,7 @@ export function App() {
           element={
             selectedCustomer ? (
               <CustomerDetailPage
+                allCustomers={customers}
                 chanceOverride={chanceOverrides[selectedCustomer.no]}
                 customer={selectedCustomer}
                 onBack={() => navigate("/customers")}
@@ -501,6 +502,7 @@ export function App() {
           <button aria-label="고객 상세 닫기" className="customer-detail-drawer-backdrop" onClick={() => navigate(customerListPath(customerMode))} type="button" />
           <aside aria-label={`${selectedCustomer.name} 고객 상세 패널`} className="customer-detail-drawer" role="dialog" aria-modal="true">
             <CustomerDetailPage
+              allCustomers={customers}
               chanceOverride={chanceOverrides[selectedCustomer.no]}
               customer={selectedCustomer}
               onBack={() => navigate(customerListPath(customerMode))}
