@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { APP_QUOTE_REQUEST_SOURCE, CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
+import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
 import { aiHintPlainText, badgeClass, chanceBadgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
@@ -14,6 +14,7 @@ import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-
 import { addSchedule, deleteSchedule, saveCustomerDelivery, updateSchedule } from "@/lib/customer-children";
 import { compareDeliverySchedule, DELIVERY_PILL_IN_PROGRESS, DELIVERY_STAGE_PILLS, deliveryCountLabel, deliveryPillCounts, matchesDeliveryPill, resolveDeliveryScheduleSubmit } from "@/lib/delivery-console";
 import { resolveDeliveryInfoSubmit, type DeliveryInfoDraft } from "@/lib/delivery-info";
+import { prefetchCustomerConsultations } from "@/lib/consultations";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerDeliveryInfoCell, CustomerDeliveryScheduleCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
 import type { RoleTab } from "@/data/roles";
@@ -859,7 +860,13 @@ export function CustomerManagementPage({
       onMouseEnter: onOpenCustomer && customer.id
         ? () => {
             prefetchCustomerDetail(customer.id as string);
-            if (customer.source === APP_QUOTE_REQUEST_SOURCE) prefetchCustomerQuoteRequests(customer.id as string);
+            // 니즈·상담 카드의 존재 축 = appUserId(useCustomerNeeds와 동일 판정, 0726 축 교정).
+            // 구 source 문자열 게이트("앱 견적요청")는 상담신청 승격·전화 매칭 link 고객(source가
+            // 상담/수동 어휘인 앱 고객 — 김지운 실사고)을 프리패치에서 빠뜨려 첫 오픈이 느렸다.
+            if (customer.appUserId) {
+              prefetchCustomerQuoteRequests(customer.id as string);
+              prefetchCustomerConsultations(customer.id as string);
+            }
           }
         : undefined,
       tabIndex: onOpenCustomer ? 0 : undefined,

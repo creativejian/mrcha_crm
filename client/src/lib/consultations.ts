@@ -59,6 +59,11 @@ export function fetchCustomerConsultationsCached(customerId: string, force = fal
   return p;
 }
 
+// 행 hover·드로어 오픈이 호출하는 백그라운드 워밍(결과/에러 무시) — prefetchCustomerQuoteRequests 미러(0726).
+export function prefetchCustomerConsultations(customerId: string): void {
+  void fetchCustomerConsultationsCached(customerId).catch(() => {});
+}
+
 // 캐시 버림(dismissConsultation 성공 후 그 고객 캐시 무효화용).
 export function invalidateCustomerConsultations(customerId: string): void {
   cache.delete(customerId);

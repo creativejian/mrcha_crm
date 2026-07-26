@@ -7,7 +7,9 @@ import { type Customer, type CustomerChanceOption, type CustomerMode, customerMo
 import { statusGroupByStatus } from "@/lib/customer-table";
 import { applyWorkflowRowUpdate, buildWorkflowPatch, type WorkflowNext } from "@/lib/customer-workflow";
 import { addTask, deleteTask, updateTask } from "@/lib/customer-children";
-import { fetchCustomers, updateCustomer } from "@/lib/customers";
+import { fetchCustomers, prefetchCustomerDetail, updateCustomer } from "@/lib/customers";
+import { prefetchCustomerConsultations } from "@/lib/consultations";
+import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { fetchAppQuoteRequests } from "@/lib/quote-requests";
 import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
@@ -225,6 +227,17 @@ export function App() {
   }
 
   function openCustomerDetailPanel(customer: Customer) {
+    // 클릭 즉시 상세+니즈+상담 카드를 병렬 워밍(0726 첫 로딩 딜레이 픽스) — 드로어 훅은 상세가
+    // 도착해야 마운트돼 니즈 fetch가 직렬 2왕복이 됐고, hover 프리패치를 안 거친 진입(채팅 콘솔·
+    // 빠른 클릭·키보드)이 그 직렬을 그대로 맞았다. 훅은 캐시/inflight dedupe에 합류하므로 중복
+    // 왕복 없음. 카드 존재 축 = appUserId(행 hover와 동일 판정).
+    if (customer.id) {
+      prefetchCustomerDetail(customer.id);
+      if (customer.appUserId) {
+        prefetchCustomerQuoteRequests(customer.id);
+        prefetchCustomerConsultations(customer.id);
+      }
+    }
     const alreadyOpen = isDrawerOpen;
     setCustomerDetailEditorOpen(false);
     // 현재 mode를 유지한 채 드로어를 연다(?view=x&customer=code) — 닫으면 그 목록으로 돌아간다.
@@ -352,6 +365,18 @@ export function App() {
     document.addEventListener("keydown", closeByEscape);
     return () => document.removeEventListener("keydown", closeByEscape);
   }, [customerDetailEditorOpen, customerMode, isDrawerOpen, navigate]);
+
+  // 드로어가 URL로 직접 열릴 때(F5·링크 공유·목록 도착 후 자동 오픈)도 니즈·상담 카드를 상세와
+  // **병렬** 워밍 — 드로어 훅은 상세 도착 후에야 fetch를 시작해 직렬 2왕복이 됐다(0726 첫 로딩
+  // 딜레이 픽스, openCustomerDetailPanel 클릭 경로와 같은 축). inflight dedupe라 클릭 경로 워밍과
+  // 겹쳐도 왕복은 1회.
+  const drawerCustomerId = isDrawerOpen ? (selectedCustomer?.id ?? null) : null;
+  const drawerCustomerAppUser = isDrawerOpen ? (selectedCustomer?.appUserId ?? null) : null;
+  useEffect(() => {
+    if (!drawerCustomerId || !drawerCustomerAppUser) return;
+    prefetchCustomerQuoteRequests(drawerCustomerId);
+    prefetchCustomerConsultations(drawerCustomerId);
+  }, [drawerCustomerId, drawerCustomerAppUser]);
 
   // 고객 상세 패널이 열린 동안 배경(고객 목록 페이지) 스크롤을 잠가 스크롤 전파(chaining)를 막는다.
   useEffect(() => {
