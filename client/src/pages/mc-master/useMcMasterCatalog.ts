@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   type CatalogBrand,
@@ -21,6 +21,7 @@ import {
   getCachedTrims,
 } from "./catalog-cache";
 import { trimSubline } from "./trim-grouping";
+import { mcMasterViewState } from "./view-state";
 
 // 옵션 요약 행 → trimId 키 맵(트림 배지 조회용). 렌더 리셋·fetch 양쪽에서 공유.
 const toOptionMap = (rows: TrimOptionSummary[]) => new Map(rows.map((r) => [r.trimId, r] as const));
@@ -43,15 +44,25 @@ const firstGroup = (rows: CatalogTrim[]): Set<string> =>
 
 // 차량 관리(/mc-master) 카탈로그 데이터 로딩/캐시. 라우팅(brandId/modelId)에 반응해
 // 브랜드→모델→트림 뷰를 캐시 경유로 채운다(catalog-cache). 편집 직후 갱신은 reload*.
-export function useMcMasterCatalog(modelId: string | undefined) {
-  // 재진입 시 캐시값으로 즉시 초기화(brands 네트워크 대기 없이 사이드바 표시). brandId는
-  // 트림 뷰면 URL modelId의 브랜드로 복원(사이드바·isDomestic 정합), 아니면 첫 브랜드.
+export function useMcMasterCatalog(modelId: string | undefined, urlBrandId: number | null) {
+  // 재진입 시 캐시값으로 즉시 초기화(brands 네트워크 대기 없이 사이드바 표시).
   const [brands, setBrands] = useState<CatalogBrand[]>(() => getCachedBrands() ?? []);
-  const [brandId, setBrandId] = useState<number | null>(() => {
-    const fromModel = modelId ? getBrandIdForModel(Number(modelId)) : undefined;
-    return fromModel ?? getCachedBrands()?.[0]?.id ?? null;
-  });
-  const [models, setModels] = useState<CatalogModel[]>([]);
+
+  // 선택 브랜드는 상태가 아니라 파생값이다 — URL(?brand=)이 single source.
+  // 폴백 순서: URL → 트림 뷰 모델의 브랜드(딥링크) → 마지막 선택(쿼리 없는 메뉴 재진입) → 첫 브랜드.
+  const brandId = useMemo(() => {
+    const pick =
+      urlBrandId ?? (modelId ? getBrandIdForModel(Number(modelId)) : undefined) ?? mcMasterViewState.brandId;
+    // brands가 아직 없으면 검증 없이 그대로 쓴다 — 모델 fetch를 brands 왕복만큼 앞당긴다.
+    // 도착 후 목록에 없는 id(구 북마크·손으로 고친 URL)면 첫 브랜드로 교정한다.
+    if (pick != null && (brands.length === 0 || brands.some((b) => b.id === pick))) return pick;
+    return brands[0]?.id ?? null;
+  }, [urlBrandId, modelId, brands]);
+
+  // 재진입 즉시 렌더(왕복 0) — 프리패치/직전 방문으로 캐시가 있으면 첫 페인트부터 목록이 있다.
+  const [models, setModels] = useState<CatalogModel[]>(() =>
+    brandId != null ? getCachedModels(brandId) ?? [] : [],
+  );
   const [trims, setTrims] = useState<CatalogTrim[]>([]);
   const [colorsByTrim, setColorsByTrim] = useState<Map<number, TrimColor[]>>(new Map());
   const [optionByTrim, setOptionByTrim] = useState<Map<number, TrimOptionSummary>>(new Map());
@@ -83,8 +94,7 @@ export function useMcMasterCatalog(modelId: string | undefined) {
   useEffect(() => {
     fetchBrandsCached()
       .then((b) => {
-        setBrands(b);
-        setBrandId((cur) => cur ?? b[0]?.id ?? null);
+        setBrands(b); // brandId는 brands에서 파생되므로 여기서 따로 세팅하지 않는다.
         setLoadError(false);
       })
       .catch(() => setLoadError(true));
@@ -171,7 +181,6 @@ export function useMcMasterCatalog(modelId: string | undefined) {
   return {
     brands,
     brandId,
-    setBrandId,
     models,
     setModels,
     trims,
