@@ -24,6 +24,7 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/db/queries/customer-quotes.send.test.ts",
   "src/db/queries/customers.create.test.ts",
   "src/db/queries/customers.next-delivery.test.ts",
+  "src/db/queries/dealer-profiles.test.ts",
   "src/db/queries/embed-sources.test.ts",
   "src/db/queries/embeddings-meta.test.ts",
   "src/db/queries/embeddings.test.ts",

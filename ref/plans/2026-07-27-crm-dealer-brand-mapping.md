@@ -110,8 +110,9 @@ git commit -m "feat(crm): crm.dealer_profiles 테이블 — 딜러 1명 = 브랜
 
 ```ts
 import { afterAll, expect, test } from "bun:test";
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
+import { brandsInCatalog } from "../catalog";
 import { getDefaultDb } from "../client";
 import { dealerProfiles } from "../schema";
 import { listDealerProfiles, upsertDealerProfile } from "./dealer-profiles";
@@ -119,6 +120,8 @@ import { listDealerProfiles, upsertDealerProfile } from "./dealer-profiles";
 // 실 DB(공유 master) 테스트. dealer_profiles는 profiles에 FK가 없어(loose id 정책)
 // 실제 계정 없이 랜덤 uuid로 완결된다 — 대신 afterAll 정리를 반드시 남긴다
 // (uuid PK라 코드 리터럴 registry(fixture-codes)로는 잔재를 탐지할 수 없다).
+// 브랜드는 실 catalog에서 집는다(하드코딩 id 금지 — 환경마다 다르다). **raw execute는 쓰지 않는다**:
+// 레포에 사용례가 0건이고 반환 형태가 드라이버 의존이라, 쿼리 빌더가 타입까지 잠근다(실행 중 정정).
 const db = getDefaultDb();
 const DEALER_ID = crypto.randomUUID();
 
@@ -126,27 +129,29 @@ afterAll(async () => {
   await db.delete(dealerProfiles).where(eq(dealerProfiles.dealerUserId, DEALER_ID));
 });
 
+async function pickBrands(limit: number) {
+  return db
+    .select({ id: brandsInCatalog.id, name: brandsInCatalog.name })
+    .from(brandsInCatalog)
+    .orderBy(asc(brandsInCatalog.sortOrder))
+    .limit(limit);
+}
+
 test("upsert 신규 → 목록에 브랜드명과 함께 뜬다", async () => {
-  // 브랜드는 실 catalog에서 하나 집는다(하드코딩 id 금지 — 환경마다 다르다).
-  const [brand] = await db.execute<{ id: number; name: string }>(
-    sql`select id, name from catalog.brands order by sort_order limit 1`,
-  );
+  const [brand] = await pickBrands(1);
   expect(brand).toBeDefined();
 
-  await upsertDealerProfile({ dealerUserId: DEALER_ID, brandId: brand.id, note: "동성모터스" }, db);
+  await upsertDealerProfile({ dealerUserId: DEALER_ID, brandId: brand!.id, note: "동성모터스" }, db);
 
-  const rows = await listDealerProfiles(db);
-  const mine = rows.find((r) => r.dealerUserId === DEALER_ID);
+  const mine = (await listDealerProfiles(db)).find((r) => r.dealerUserId === DEALER_ID);
   expect(mine).toBeDefined();
-  expect(mine!.brandId).toBe(brand.id);
-  expect(mine!.brandName).toBe(brand.name);
+  expect(mine!.brandId).toBe(brand!.id);
+  expect(mine!.brandName).toBe(brand!.name);
   expect(mine!.note).toBe("동성모터스");
 });
 
 test("upsert 재호출 → 1행 유지 · 브랜드 교체 · updated_at 전진", async () => {
-  const brands = await db.execute<{ id: number }>(
-    sql`select id from catalog.brands order by sort_order limit 2`,
-  );
+  const brands = await pickBrands(2);
   expect(brands.length).toBe(2);
   const other = brands[1]!.id;
 
@@ -170,7 +175,7 @@ test("upsert 재호출 → 1행 유지 · 브랜드 교체 · updated_at 전진"
 - [ ] **Step 2: 실패 확인**
 
 ```bash
-bun test src/db/queries/dealer-profiles.test.ts
+EMBED_ON_WRITE=off PUSH_NOTIFY=off AI_HINT_ON_WRITE=off bun test --env-file=.env.local src/db/queries/dealer-profiles.test.ts
 ```
 
 기대: FAIL — `Cannot find module './dealer-profiles'`
@@ -221,7 +226,7 @@ export async function upsertDealerProfile(
 - [ ] **Step 4: 통과 확인**
 
 ```bash
-bun test src/db/queries/dealer-profiles.test.ts
+EMBED_ON_WRITE=off PUSH_NOTIFY=off AI_HINT_ON_WRITE=off bun test --env-file=.env.local src/db/queries/dealer-profiles.test.ts
 ```
 
 기대: PASS 2건
@@ -294,7 +299,7 @@ test("GET /api/dealer/profiles — admin 200", async () => {
 - [ ] **Step 2: 실패 확인**
 
 ```bash
-bun test src/routes/dealer.role-gate.test.ts
+EMBED_ON_WRITE=off PUSH_NOTIFY=off AI_HINT_ON_WRITE=off bun test --env-file=.env.local src/routes/dealer.role-gate.test.ts
 ```
 
 기대: FAIL — 라우트가 없어 404(403 기대와 불일치)
@@ -365,7 +370,7 @@ import { dealer } from "./routes/dealer";
 - [ ] **Step 5: 통과 확인**
 
 ```bash
-bun test src/routes/dealer.role-gate.test.ts
+EMBED_ON_WRITE=off PUSH_NOTIFY=off AI_HINT_ON_WRITE=off bun test --env-file=.env.local src/routes/dealer.role-gate.test.ts
 ```
 
 기대: PASS 7건
@@ -376,7 +381,7 @@ bun test src/routes/dealer.role-gate.test.ts
 manager/staff/dealer GET 3건이 **실패**하는 것을 눈으로 확인 → **원복** → `git status`가 clean인지 확인.
 
 ```bash
-bun test src/routes/dealer.role-gate.test.ts   # 원복 후: PASS 7건
+EMBED_ON_WRITE=off PUSH_NOTIFY=off AI_HINT_ON_WRITE=off bun test --env-file=.env.local src/routes/dealer.role-gate.test.ts   # 원복 후: PASS 7건
 git status --short
 ```
 
@@ -591,7 +596,7 @@ bun run test:unit && bun run test:pure && bun run build
 - [ ] **Step 2: 실 DB 테스트(로컬 전용)**
 
 ```bash
-bun test src/db/queries/dealer-profiles.test.ts src/routes/dealer.role-gate.test.ts
+EMBED_ON_WRITE=off PUSH_NOTIFY=off AI_HINT_ON_WRITE=off bun test --env-file=.env.local src/db/queries/dealer-profiles.test.ts src/routes/dealer.role-gate.test.ts
 ```
 
 기대: PASS 9건. 이어서 잔재가 남지 않았는지 확인:
