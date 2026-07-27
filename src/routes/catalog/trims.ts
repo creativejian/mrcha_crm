@@ -9,6 +9,7 @@ import {
   reorderCatalog,
   updateTrim,
 } from "../../db/queries/catalog-admin";
+import { visibleTrimsFor } from "../../lib/dealer-visibility";
 import { type CatalogApp, id, run, status } from "./shared";
 
 // 트림 본문 스키마. create는 modelId를 더해 그대로, patch는 .partial()로 전부 optional.
@@ -52,7 +53,9 @@ export function registerTrimRoutes(catalog: CatalogApp) {
 
   catalog.get("/trims", zValidator("query", z.object({ modelId: id })), async (c) => {
     const trims = await listTrimsByModel(c.req.valid("query").modelId, c.var.db);
-    return c.json(trims.map((t) => ({ ...t, price: Number(t.price) })));
+    // 딜러에게는 관리자 확정 할인을 내리지 않는다 — 자기 제안만 본다(lib/dealer-visibility 참조).
+    const visible = visibleTrimsFor(c.var.user.role, trims);
+    return c.json(visible.map((t) => ({ ...t, price: Number(t.price) })));
   });
 
   catalog.post("/trims", zValidator("json", trimBody.extend({ modelId: id })), async (c) =>

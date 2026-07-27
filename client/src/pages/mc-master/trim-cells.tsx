@@ -4,8 +4,14 @@ import { ListChecks } from "lucide-react";
 import { statusBadgeTone, statusLabel } from "@/data/vehicle-taxonomy";
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
+import type { TrimProposals } from "@/lib/discount-proposals";
+import { AdminDiscountCells, type AdoptHandler } from "./admin-discount-cells";
 import { optionBadgeState } from "./option-badge";
-import { discountText, fmtDate, formatThousands, parseWon } from "./trim-format";
+import { fmtDate, formatThousands, parseWon } from "./trim-format";
+
+// ⚠️ 이 파일의 아래쪽 `DiscountField`는 **딜러 제안 금액 컬럼 키**(financialAmount…)다.
+// 관리자 채택의 필드 어휘(financial…)는 이름이 같고 값이 달라 섞이면 위험하므로,
+// 채택 팝오버는 admin-discount-cells.tsx에 따로 두고 여기서는 핸들러 타입만 받는다.
 
 export function ColorChips({ colors }: { colors: TrimColor[] }) {
   if (!colors || colors.length === 0) return <div className="va-color-none">색상 없음</div>;
@@ -33,7 +39,15 @@ export function ColorChips({ colors }: { colors: TrimColor[] }) {
 
 // 트림명 다음 ~ 편집 전 공통 헤더(평면/그룹 테이블 컬럼 동기화).
 // 옵션 컬럼은 국산차만 표시(앱 패리티 — 수입차는 옵션 미관리).
-export function TrimHeadCells({ showOption = true }: { showOption?: boolean }) {
+export function TrimHeadCells({
+  showOption = true,
+  showDiscountDate = true,
+}: {
+  showOption?: boolean;
+  /** 딜러 모드에선 false — 확정 할인을 안 내리므로 할인변경일이 항상 빈 칸이 된다(빈 열은
+   *  감춘 의도가 아니라 고장으로 읽힌다). 본문 td는 TrimMetaCells가 onSaveProposal로 판단한다. */
+  showDiscountDate?: boolean;
+}) {
   return (
     <>
       <th className="va-th-code">고유번호</th>
@@ -43,7 +57,7 @@ export function TrimHeadCells({ showOption = true }: { showOption?: boolean }) {
       <th className="va-c-disc">자사할인</th>
       <th className="va-c-disc">제휴할인</th>
       <th className="va-c-disc">타사할인</th>
-      <th className="va-col-center va-c-date">할인변경일</th>
+      {showDiscountDate && <th className="va-col-center va-c-date">할인변경일</th>}
       <th className="va-col-center va-th-status">상태</th>
       {showOption && <th className="va-col-center va-th-option">옵션</th>}
     </>
@@ -86,7 +100,10 @@ export function OptionBadgeButton({
   );
 }
 
-// 딜러 모드 할인 3셀 — **내 제안을 입력**하고 확정값은 아래 회색으로 함께 보여준다(spec §7.1).
+// 딜러 모드 할인 3셀 — **내 제안만** 입력하고 본다.
+// ⚠️ 확정값 보조표기는 2026-07-27 제거했다(유슨생 결정 — 구 spec §7.1의 "아래 회색으로 함께
+// 보여준다"는 폐기): 관리자 확정 할인을 딜러가 보면 다른 딜러 제안이 채택된 결과를 역산할 수
+// 있고, 관리자가 얼마로 확정했는지 알고 제안을 맞추게 된다.
 // 저장은 **디바운스 자동 저장**이다(입력 후 800ms): 조직 화면에서 [저장] 버튼을 놓친 실기 사례가
 // 있어 누를 게 없는 쪽을 택했다. 제안값이라 실수 저장 위험이 낮다(관리자 채택 전이고, 확정
 // 할인은 이 경로로 절대 바뀌지 않는다).
@@ -94,12 +111,6 @@ const DEALER_SAVE_DEBOUNCE_MS = 800;
 type SaveState = "idle" | "saving" | "saved" | "error";
 type DiscountField = keyof DealerDiscountAmounts;
 const DISCOUNT_FIELDS: DiscountField[] = ["financialAmount", "partnerAmount", "cashAmount"];
-// 확정값(catalog)의 같은 순서 대응 — 보조표기에 쓴다.
-const CONFIRMED_OF: Record<DiscountField, (t: CatalogTrim) => number | null> = {
-  financialAmount: (t) => t.financialDiscountAmount,
-  partnerAmount: (t) => t.partnerDiscountAmount,
-  cashAmount: (t) => t.cashDiscountAmount,
-};
 
 function DealerDiscountCells({
   trim,
@@ -167,15 +178,13 @@ function DealerDiscountCells({
 
   return (
     <>
+      {/* 실제 차단은 서버가 한다 — `lib/dealer-visibility.ts`의 visibleTrimsFor가 딜러 요청에
+          확정 3금액·할인변경일을 null로 내린다. 화면에서만 감추면 DevTools로 보인다. */}
       {DISCOUNT_FIELDS.map((field, i) => {
         const value = draft ? draft[field] : serverText(field);
-        const confirmed = CONFIRMED_OF[field](trim);
-        // 확정값이 내 제안과 같으면 보조표기를 생략한다(중복 노이즈 제거).
-        const showConfirmed = confirmed != null && parseWon(value) !== confirmed;
         return (
           <td className="va-num va-c-disc va-dealer-disc" key={field}>
             <input inputMode="numeric" onChange={change(field)} placeholder="—" value={value} />
-            {showConfirmed && <small>확정 {discountText(confirmed, trim.price)}</small>}
             {/* 상태는 마지막 셀에 한 번만 — 3셀에 각각 띄우면 노이즈다. */}
             {i === DISCOUNT_FIELDS.length - 1 && state !== "idle" && (
               <small className={state === "error" ? "va-dealer-disc-error" : undefined}>
@@ -195,10 +204,15 @@ export function TrimMetaCells({
   trim,
   dealerProposal,
   onSaveProposal,
+  proposalEntry,
+  onAdopt,
 }: {
   trim: CatalogTrim;
   dealerProposal?: DealerDiscountProposal;
   onSaveProposal?: (trimId: number, amounts: DealerDiscountAmounts) => Promise<void>;
+  /** 관리자 모드 — 이 트림에 들어온 딜러 제안(없으면 셀에 단서가 붙지 않는다). */
+  proposalEntry?: TrimProposals;
+  onAdopt?: AdoptHandler;
 }) {
   return (
     <>
@@ -209,13 +223,13 @@ export function TrimMetaCells({
       {onSaveProposal ? (
         <DealerDiscountCells onSave={onSaveProposal} proposal={dealerProposal} trim={trim} />
       ) : (
-        <>
-          <td className="va-num va-c-disc">{discountText(trim.financialDiscountAmount, trim.price)}</td>
-          <td className="va-num va-c-disc">{discountText(trim.partnerDiscountAmount, trim.price)}</td>
-          <td className="va-num va-c-disc">{discountText(trim.cashDiscountAmount, trim.price)}</td>
-        </>
+        <AdminDiscountCells entry={proposalEntry} onAdopt={onAdopt} trim={trim} />
       )}
-      <td className="va-col-center va-num va-muted va-c-date">{fmtDate(trim.discountUpdatedAt)}</td>
+      {/* 딜러 모드에선 열째 없앤다 — 서버가 확정 할인을 안 내리므로 항상 빈 칸이 된다.
+          헤더(TrimHeadCells)의 showDiscountDate와 **함께** 켜고 꺼야 열 수가 맞는다. */}
+      {!onSaveProposal && (
+        <td className="va-col-center va-num va-muted va-c-date">{fmtDate(trim.discountUpdatedAt)}</td>
+      )}
       <td className="va-col-center">
         <span className={`badge ${statusBadgeTone(trim.status)}`}>{statusLabel(trim.status)}</span>
       </td>

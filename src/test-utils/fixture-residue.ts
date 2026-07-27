@@ -38,12 +38,40 @@ export type FixtureResidue = {
   consultations: { id: string; customerName: string; createdAt: string }[];
   /** crm.customer_deletions 감사 잔재 — 고객 행이 이미 없어도 남는다. `--clean`이 같은 술어로 지운다. */
   deletionAudits: { customerCode: string; name: string }[];
+  /**
+   * 딜러 3테이블의 잔재 — 판별식이 고객과 다르다. PK/FK가 uuid라 **코드 리터럴 registry로는
+   * 탐지할 수 없어서**(`fixture-codes.ts`가 CU-/QT-/PUSH- 접두사만 본다) 딜러 테스트는 스스로
+   * "잔재를 탐지할 수 없다"고 주석에 적어둔 채 그물 밖에 있었다(2026-07-27 실측: 고아 제안 1행이
+   * 실제로 남아 있었고 `check:residue`는 "잔재 없음"이라고 답했다).
+   *
+   * 대신 **고아 판정**을 쓴다: 실제 딜러·관리자는 앱 유저라 반드시 `public.profiles`에 있고,
+   * 테스트는 `crypto.randomUUID()`를 쓰므로 절대 없다. 사람 유저가 앱에서 탈퇴해도 잡히는데,
+   * 그건 오탐이 아니다 — 없는 유저의 딜러 매칭·제안은 어차피 정리 대상이다.
+   */
+  orphanDealerProfiles: { dealerUserId: string; brandId: number }[];
+  orphanDealerDiscounts: { dealerUserId: string; trimId: number }[];
+  /**
+   * 고아 채택 감사 — **report-only**(`--clean`이 지우지 않는다).
+   * 다른 잔재와 성격이 다르다: 이 행이 남았다는 건 **`catalog.trims`의 확정 할인이 테스트 값으로
+   * 오염됐을 수 있다**는 뜻이고(앱 고객에게 보이는 금액이다), 되돌릴 유일한 근거가 이 행의
+   * `previous_amount`다. 먼저 지우면 복원 정보가 사라진다 — 그래서 되돌리기 SQL을 안내만 한다.
+   */
+  orphanAdoptions: { trimId: number; field: string; previousAmount: number | null; adoptedAt: string }[];
+};
+
+// 채택 필드 → catalog.trims 컬럼. 되돌리기 SQL 안내에 쓴다(형식은 client/src/lib/discount-adoption.ts의
+// ProposalState와 같은 3필드 어휘 — 여기서 하드코딩하는 이유는 SQL 컬럼명이 클라에 없기 때문이다).
+const ADOPTION_FIELD_COLUMNS: Record<string, string> = {
+  financial: "financial_discount_amount",
+  partner: "partner_discount_amount",
+  cash: "cash_discount_amount",
 };
 
 export function residueCount(r: FixtureResidue): number {
   return (
     r.customers.length + r.quotes.length + r.orphanEmbeddings + r.orphanAppCards +
-    r.consultations.length + r.deletionAudits.length
+    r.consultations.length + r.deletionAudits.length +
+    r.orphanDealerProfiles.length + r.orphanDealerDiscounts.length + r.orphanAdoptions.length
   );
 }
 
@@ -69,6 +97,21 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
   // customerResidueWhere()(코드 정규식 + 이름 registry)를 그대로 재사용한다(--clean과 동일 술어).
   const deletionAudits = await asRows<{ customer_code: string; name: string }>(sql`
     select customer_code, name from crm.customer_deletions where ${customerResidueWhere()} order by deleted_at`);
+  // 딜러 3테이블 — 고아 판정(위 타입 주석 참조). profiles는 **읽기만** 한다(계약 준수).
+  const orphanDealerProfiles = await asRows<{ dealer_user_id: string; brand_id: number }>(sql`
+    select dp.dealer_user_id::text, dp.brand_id from crm.dealer_profiles dp
+    where not exists (select 1 from public.profiles p where p.id = dp.dealer_user_id)
+    order by dp.created_at`);
+  const orphanDealerDiscounts = await asRows<{ dealer_user_id: string; trim_id: number }>(sql`
+    select d.dealer_user_id::text, d.trim_id from crm.dealer_trim_discounts d
+    where not exists (select 1 from public.profiles p where p.id = d.dealer_user_id)
+    order by d.created_at`);
+  const orphanAdoptions = await asRows<{
+    trim_id: number; field: string; previous_amount: number | null; adopted_at: string;
+  }>(sql`
+    select a.trim_id, a.field, a.previous_amount, a.adopted_at::text from crm.catalog_discount_adoptions a
+    where not exists (select 1 from public.profiles p where p.id = a.adopted_by)
+    order by a.adopted_at`);
 
   return {
     customers: customers.map((c) => ({ customerCode: c.customer_code, name: c.name, createdAt: c.created_at })),
@@ -77,6 +120,18 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
     orphanAppCards: Number(cards?.n ?? 0),
     consultations: consultations.map((c) => ({ id: c.id, customerName: c.customer_name, createdAt: c.created_at })),
     deletionAudits: deletionAudits.map((d) => ({ customerCode: d.customer_code, name: d.name })),
+    orphanDealerProfiles: orphanDealerProfiles.map((d) => ({
+      dealerUserId: d.dealer_user_id, brandId: Number(d.brand_id),
+    })),
+    orphanDealerDiscounts: orphanDealerDiscounts.map((d) => ({
+      dealerUserId: d.dealer_user_id, trimId: Number(d.trim_id),
+    })),
+    orphanAdoptions: orphanAdoptions.map((a) => ({
+      trimId: Number(a.trim_id),
+      field: a.field,
+      previousAmount: a.previous_amount === null ? null : Number(a.previous_amount),
+      adoptedAt: a.adopted_at,
+    })),
   };
 }
 
@@ -90,5 +145,43 @@ export function formatResidue(r: FixtureResidue): string {
     lines.push(`상담신청 ${c.customerName} · ${c.createdAt} — public 소유, --clean 미삭제(수동 psql DELETE)`);
   }
   for (const d of r.deletionAudits) lines.push(`삭제 감사 ${d.customerCode} · ${d.name} (crm.customer_deletions)`);
+  for (const d of r.orphanDealerProfiles) {
+    lines.push(`딜러 매칭 ${d.dealerUserId} · 브랜드 ${d.brandId} (crm.dealer_profiles — profiles에 없는 유저)`);
+  }
+  for (const d of r.orphanDealerDiscounts) {
+    lines.push(`딜러 제안 ${d.dealerUserId} · 트림 ${d.trimId} (crm.dealer_trim_discounts — profiles에 없는 유저)`);
+  }
+  for (const a of r.orphanAdoptions) {
+    lines.push(
+      `채택 감사 트림 ${a.trimId} · ${a.field} · ${a.adoptedAt} — **catalog.trims 확정 할인이 오염됐을 수 있습니다**(앱 고객에게 보이는 금액)`,
+    );
+  }
+  if (r.orphanAdoptions.length > 0) lines.push("", ...restoreAdoptionSql(r.orphanAdoptions));
   return lines.join("\n");
+}
+
+// 고아 채택으로 오염된 확정 할인을 되돌리는 SQL을 만든다(실행하지 않고 **안내만** 한다 —
+// catalog는 앱 소유 데이터고, 사람이 값을 보고 판단해야 한다).
+// 같은 (트림, 필드)가 여러 번 채택됐으면 **가장 오래된** previous_amount가 진짜 원본이다 —
+// 두 번째 채택의 previous_amount는 이미 첫 채택이 넣은 테스트 값이다. 입력이 adopted_at 순이므로
+// 먼저 온 것만 남긴다.
+export function restoreAdoptionSql(rows: FixtureResidue["orphanAdoptions"]): string[] {
+  const oldest = new Map<string, FixtureResidue["orphanAdoptions"][number]>();
+  for (const a of rows) {
+    const key = `${a.trimId}:${a.field}`;
+    if (!oldest.has(key)) oldest.set(key, a);
+  }
+  const out = ["  되돌리기(값을 눈으로 확인한 뒤 psql로 실행하세요 — 자동 삭제하지 않습니다):"];
+  for (const a of oldest.values()) {
+    const column = ADOPTION_FIELD_COLUMNS[a.field];
+    if (!column) {
+      out.push(`  -- ⚠️ 알 수 없는 field '${a.field}' (트림 ${a.trimId}) — 수동 확인 필요`);
+      continue;
+    }
+    out.push(
+      `  update catalog.trims set ${column} = ${a.previousAmount ?? "null"} where id = ${a.trimId};`,
+    );
+  }
+  out.push("  -- 되돌린 뒤: delete from crm.catalog_discount_adoptions where adopted_by not in (select id from public.profiles);");
+  return out;
 }

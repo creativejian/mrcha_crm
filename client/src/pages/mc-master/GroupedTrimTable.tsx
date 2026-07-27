@@ -3,6 +3,8 @@ import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
 
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
+import type { TrimProposals } from "@/lib/discount-proposals";
+import type { AdoptHandler } from "./admin-discount-cells";
 import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 import { TRIM_BODY_COLS } from "./trim-format";
 import { groupTrimsBySubline, trimGrade } from "./trim-grouping";
@@ -21,12 +23,17 @@ export function GroupedTrimTable({
   onPrefetchOptions,
   dealerProposals,
   onSaveProposal,
+  proposalsByTrim,
+  onAdopt,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
   // 딜러 모드 전용(optional이라 admin 호출부는 무변경) — 있으면 할인 3셀이 제안 입력칸이 된다.
   dealerProposals?: Map<number, DealerDiscountProposal>;
   onSaveProposal?: (trimId: number, amounts: DealerDiscountAmounts) => Promise<void>;
+  /** 관리자 채택(슬라이스 C) — 트림별 딜러 제안. 없으면 할인 셀은 기존 정적 표시다. */
+  proposalsByTrim?: Map<number, TrimProposals>;
+  onAdopt?: AdoptHandler;
   colorsByTrim: Map<number, TrimColor[]>;
   optionByTrim: Map<number, TrimOptionSummary>;
   expanded: Set<string>;
@@ -37,13 +44,14 @@ export function GroupedTrimTable({
 }) {
   if (trims.length === 0) return <div className="va-empty">트림이 없습니다. ‘트림 추가’로 등록하세요.</div>;
   const groups = groupTrimsBySubline(trims);
-  const colSpan = TRIM_BODY_COLS + (canEdit ? 1 : 0);
+  // 딜러 모드는 할인변경일 열이 없다(TrimHeadCells showDiscountDate) — 그룹 제목 행 폭도 함께 줄인다.
+  const colSpan = TRIM_BODY_COLS - (onSaveProposal ? 1 : 0) + (canEdit ? 1 : 0);
   return (
     <table className="customer-table va-trim-table">
       <thead>
         <tr>
           <th className="va-th-trim">트림명</th>
-          <TrimHeadCells />
+          <TrimHeadCells showDiscountDate={!onSaveProposal} />
           {canEdit && <th className="va-col-center va-th-edit" aria-label="편집" />}
         </tr>
       </thead>
@@ -77,7 +85,13 @@ export function GroupedTrimTable({
                       <div className="va-trim-name">{trimGrade(t.trimName)}</div>
                       <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
                     </td>
-                    <TrimMetaCells dealerProposal={dealerProposals?.get(t.id)} onSaveProposal={onSaveProposal} trim={t} />
+                    <TrimMetaCells
+                      dealerProposal={dealerProposals?.get(t.id)}
+                      onAdopt={onAdopt}
+                      onSaveProposal={onSaveProposal}
+                      proposalEntry={proposalsByTrim?.get(t.id)}
+                      trim={t}
+                    />
                     <td className="va-col-center">
                       <OptionBadgeButton
                         summary={optionByTrim.get(t.id)}

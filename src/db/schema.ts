@@ -451,3 +451,28 @@ export const dealerTrimDiscounts = crm.table(
   },
   (table) => [unique("dealer_trim_discounts_trim_dealer_unique").on(table.trimId, table.dealerUserId)],
 );
+
+// 확정 할인 채택 감사(2026-07-27, 슬라이스 C) — **필드 단위 1행**이라 "자사는 동성모터스, 제휴는
+// 코오롱" 같은 독립 채택이 자연스럽게 표현된다(이사님 요구).
+// 채택은 catalog.trims를 갱신하는 관리자 행위이고, 이 표는 "누가·언제·어느 딜러 값을·무엇에서"를
+// 남긴다. catalog.trims엔 discount_updated_at만 있어 **누가 바꿨는지가 남지 않는다** — 그 공백을
+// 메우는 게 이 테이블의 존재 이유다(딜러 = 외부 인원이고 그 값이 앱 고객에게 보인다).
+// source_dealer_user_id = NULL 이면 관리자 직접 입력(TrimEditPanel 경로).
+// previous_amount는 되돌리기 근거로만 남긴다(undo는 이번 범위 밖).
+// spec: ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md §3.3
+export const catalogDiscountAdoptions = crm.table(
+  "catalog_discount_adoptions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    trimId: bigint("trim_id", { mode: "number" }).notNull(), // → catalog.trims.id(loose id)
+    field: text("field").notNull(), // 'financial' | 'partner' | 'cash'
+    amount: integer("amount"), // 채택된 금액. null = "비움"을 채택
+    previousAmount: integer("previous_amount"), // 직전 catalog 값
+    sourceDealerUserId: uuid("source_dealer_user_id"), // NULL = 관리자 직접 입력
+    adoptedBy: uuid("adopted_by").notNull(), // → public.profiles.id(채택한 관리자)
+    adoptedAt: timestamp("adopted_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("catalog_discount_adoptions_field_check", sql`${table.field} in ('financial','partner','cash')`),
+  ],
+);

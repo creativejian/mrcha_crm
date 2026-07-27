@@ -127,6 +127,63 @@ test("검사기: customer_deletions 감사 잔재를 탐지한다 — 코드 접
   expect(residueCount(restored)).toBe(baseline);
 });
 
+test("검사기: 딜러 3테이블의 고아 잔재를 탐지한다(트랜잭션 롤백)", async () => {
+  const baseline = residueCount(await scanFixtureResidue(db));
+  const ghost = crypto.randomUUID(); // profiles에 없는 유저 = 딜러 테스트가 쓰는 모양 그대로
+
+  await db
+    .transaction(async (tx) => {
+      // brand_id·trim_id는 FK가 없다(loose id 정책) — 고아 판정은 dealer_user_id/adopted_by만 본다.
+      await tx.execute(sql`insert into crm.dealer_profiles (dealer_user_id, brand_id) values (${ghost}, 1)`);
+      await tx.execute(sql`
+        insert into crm.dealer_trim_discounts (trim_id, dealer_user_id, financial_amount)
+        values (1, ${ghost}, 1234)`);
+      await tx.execute(sql`
+        insert into crm.catalog_discount_adoptions (trim_id, field, amount, previous_amount, adopted_by)
+        values (1, 'financial', 1234, null, ${ghost})`);
+      const after = await scanFixtureResidue(tx as unknown as typeof db);
+      expect(after.orphanDealerProfiles.map((d) => d.dealerUserId)).toContain(ghost);
+      expect(after.orphanDealerDiscounts.map((d) => d.dealerUserId)).toContain(ghost);
+      expect(after.orphanAdoptions.map((a) => a.trimId)).toContain(1);
+      expect(residueCount(after)).toBe(baseline + 3);
+      // 채택 감사는 report-only라 되돌리기 SQL이 함께 안내돼야 한다(지우면 복원 근거가 사라진다).
+      expect(formatResidue(after)).toContain("update catalog.trims set financial_discount_amount = null where id = 1;");
+      throw new Error("rollback"); // 심은 행을 남기지 않는다
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Error) || e.message !== "rollback") throw e;
+    });
+
+  const restored = await scanFixtureResidue(db);
+  expect(restored.orphanDealerProfiles.map((d) => d.dealerUserId)).not.toContain(ghost);
+  expect(residueCount(restored)).toBe(baseline);
+});
+
+test("검사기: 실제 앱 유저의 딜러 매칭은 잔재가 아니다(고아 판정의 오탐 방지)", async () => {
+  const baseline = residueCount(await scanFixtureResidue(db));
+  // 실 유저를 하드코딩하지 않고 집는다 — 아직 딜러 매칭이 없는 사람이어야 PK가 비어 있다.
+  const [real] = (await db.execute(sql`
+    select id::text from public.profiles p
+    where not exists (select 1 from crm.dealer_profiles dp where dp.dealer_user_id = p.id)
+    limit 1`)) as unknown as { id: string }[];
+  expect(real?.id).toBeDefined();
+
+  await db
+    .transaction(async (tx) => {
+      await tx.execute(sql`insert into crm.dealer_profiles (dealer_user_id, brand_id) values (${real!.id}, 1)`);
+      await tx.execute(sql`
+        insert into crm.dealer_trim_discounts (trim_id, dealer_user_id, financial_amount)
+        values (1, ${real!.id}, 1234)`);
+      // profiles에 있는 유저이므로 정상 데이터다 — 잔재 카운트가 움직이면 실 딜러 데이터를
+      // --clean이 지운다는 뜻이고, 그건 이사님이 매칭한 브랜드가 사라지는 사고다.
+      expect(residueCount(await scanFixtureResidue(tx as unknown as typeof db))).toBe(baseline);
+      throw new Error("rollback");
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Error) || e.message !== "rollback") throw e;
+    });
+});
+
 // "실채번 코드를 잔재로 오인하지 않는다"는 단언은 fixture-codes.test.ts에 있다.
 // 이 파일은 getDefaultDb를 쓰므로 registry 계약 스캔의 대상이고, 여기에 `CU-2606-0001` 같은
 // 실채번 리터럴을 적으면 **그 스캔이 자기 형제를 위반으로 잡는다**(실제로 그렇게 됐다).

@@ -2,6 +2,8 @@ import { Pencil } from "lucide-react";
 
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
+import type { TrimProposals } from "@/lib/discount-proposals";
+import type { AdoptHandler } from "./admin-discount-cells";
 import { SelectAllHeadCell, SelectCheckCell, SelectableRow } from "./table-select";
 import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 
@@ -26,12 +28,17 @@ export function TrimTable({
   onDrop,
   dealerProposals,
   onSaveProposal,
+  proposalsByTrim,
+  onAdopt,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
   // 딜러 모드 전용(optional이라 admin 호출부는 무변경) — 있으면 할인 3셀이 제안 입력칸이 된다.
   dealerProposals?: Map<number, DealerDiscountProposal>;
   onSaveProposal?: (trimId: number, amounts: DealerDiscountAmounts) => Promise<void>;
+  /** 관리자 채택(슬라이스 C) — 트림별 딜러 제안. 없으면 할인 셀은 기존 정적 표시다. */
+  proposalsByTrim?: Map<number, TrimProposals>;
+  onAdopt?: AdoptHandler;
   isDomestic: boolean;
   selectMode: boolean;
   selected: Set<number>;
@@ -55,7 +62,7 @@ export function TrimTable({
         <tr>
           <SelectAllHeadCell show={selectMode} allChecked={allChecked} onToggleAll={onToggleAll} />
           <th className="va-th-trim">트림명</th>
-          <TrimHeadCells showOption={isDomestic} />
+          <TrimHeadCells showDiscountDate={!onSaveProposal} showOption={isDomestic} />
           {canEdit && !selectMode && <th className="va-col-center va-th-edit" aria-label="편집" />}
         </tr>
       </thead>
@@ -81,7 +88,13 @@ export function TrimTable({
               <div className="va-trim-name">{t.trimName}</div>
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
             </td>
-            <TrimMetaCells dealerProposal={dealerProposals?.get(t.id)} onSaveProposal={onSaveProposal} trim={t} />
+            <TrimMetaCells
+                      dealerProposal={dealerProposals?.get(t.id)}
+                      onAdopt={onAdopt}
+                      onSaveProposal={onSaveProposal}
+                      proposalEntry={proposalsByTrim?.get(t.id)}
+                      trim={t}
+                    />
             {isDomestic && (
               <td className="va-col-center">
                 <OptionBadgeButton
