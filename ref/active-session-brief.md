@@ -6,47 +6,46 @@ Last updated: 2026-07-27
 
 ## 지금 상태
 
-**main 전량 green · 브랜치 0.** 07-27 머지 8건(`#372`~`#374` + 딜러 할인 `#375`~`#378` + main 직접 1) ·
-마이그 2건(0039 `dealer_profiles` · 0040 `dealer_trim_discounts`) · 4종 0 · unit **1193** · pure **247** ·
-build · 실 DB 36건. ⚠️ **딜러 할인 파이프라인 실기 확인이 통째로 남았다**(prod 배포 O · 눈 확인 0회).
+**main 전량 green · 브랜치 0.** 07-27 머지 10건(`#372`~`#380` + main 직접 1) · 마이그 3건
+(0039 `dealer_profiles` · 0040 `dealer_trim_discounts` · 0041 `catalog_discount_adoptions`) ·
+4종 0 · unit **1199** · pure **259** · build · 실 DB **755**(87파일) · `check:residue` 0.
+**딜러 할인 파이프라인 = 입력 → 채택까지 완결**, 로컬 실기 완료. ⚠️ **prod 눈 확인 0회.**
 
-## 직전 세션 요약 (07-27 오후 · 딜러 할인 제안 → 관리자 채택)
+## 직전 세션 요약 (07-27 밤 · 슬라이스 C 완결 + 딜러 비노출)
 
-이사님 요구 = **딜러가 자사·제휴·타사 할인만** 입력하고 catalog 확정가엔 바로 안 들어간다 →
-**관리자가 필드별 채택**할 때 반영. 1딜러=1브랜드, 1브랜드=여러 딜러.
-spec = `ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md`(2단 구조).
+- **`#379`** 딜러 화면 브랜드 열 제거(선택지 1개짜리 장식) → 헤더 `"BMW 차량 관리"`.
+- **`#380`** 슬라이스 C 전량 — `crm.catalog_discount_adoptions`(필드 단위 감사) · `listModelProposals`
+  /`adoptDealerProposal` · admin 라우트 2개 · 할인 셀 채택 팝오버.
+- 🔴 **딜러에게 확정 할인 비노출**(구현 중 결정 — spec §7.1 뒤집음). 차단은 **서버**가 한다
+  (`src/lib/dealer-visibility.ts`): 새는 경로가 둘이었다 — `/api/catalog/trims` ·
+  `/api/vehicles/trims/:trimId`. 할인변경일도 비우고 딜러 화면에선 **열째 제거**.
+- ⚠️ **spec §2 근거 정정**: "확정 할인은 앱에서 고객에게 공개되는 값"이 **거짓**이었다 — 앱 사용처는
+  `screens/admin/trim_list/` 2파일뿐, **고객 화면 0건**(실측). 고객에게 가는 건 계산 결과(견적)다.
+  그 정정이 정책을 뒤집었다(감출 실익 + 앱 우회 경로 없음). 브랜드 스코프는 반대로 클라 차단 유지.
+- **계획 이탈 5건**(전부 PR 본문): 금액 인자 제거(감사 위조 차단) · 테스트 전량 트랜잭션 롤백
+  (afterAll 복원은 중단 시 오염) · 조회 트림→모델 단위 · **자격 상실자 채택 서버 차단**(TDD RED로
+  실제 뚫림 확인) · 팝오버 별 파일(`DiscountField` 동명이의 회피).
+- **잔재 그물 확장**: `check:residue`가 딜러 3테이블을 안 봐서 고아 제안 1행에도 "없음 ✅"이라 답했다
+  → **고아 판정**(실 딜러는 profiles에 있고 테스트는 랜덤 uuid). 채택 감사만 report-only(되돌리기
+  근거 `previous_amount` 보존) + 되돌리기 SQL 자동 생성.
+- **변이 검증 2회** — `requireRoles` 제거 시 실측: `dealer GET→200`(남의 제안 열람) ·
+  `dealer POST→403`(dealerWriteGate는 쓰기만 본다) → **GET의 유일 방어선이 requireRoles**.
+- ⚠️ **`dev:api`는 watch가 없다** — 오늘 두 번 밟았다(브랜드 404 · 라우트 404). 백엔드 파일 수정 후
+  **반드시 `bun dev` 재시작**. 증상은 매번 "기능이 없는 것처럼 보임"이다.
 
-- **A(`#375`)** `crm.dealer_profiles` + admin `/api/dealer/profiles` + 조직 화면 브랜드·비고 매칭.
-  PK가 `dealer_user_id` 하나라 "1딜러=1브랜드"를 스키마가 강제. `brand_id` FK 미도입(근거 = 주석).
-- **B1(`#376`)** `crm.dealer_trim_discounts` + **`DEALER_WRITE_ALLOWLIST` 첫 개방**(1줄) + 브랜드
-  소유권 fail-closed 403. cross-schema라 DB CHECK 불가 = 서버가 유일 방어선 → **변이 검증 2회 실관찰**.
-- **B2a(`#377`)** 사이드바 "할인 업데이트" 실동작화(딜러 메뉴 4개가 전부 onClick 없는 목업이었다) +
-  Topbar 목업 `"BMW 한독/서초"` → 실데이터(`roleAccountMeta` 전멸) + 자기 브랜드만(`scopeBrandId` —
-  brands 도착 전 `?brand=` 창 **및** modelId 독립 경로 둘 다 막음).
-- **B2b(`#378`)** 할인 3셀 인라인 편집(위=내 제안·아래=확정값) + **디바운스 800ms 자동 저장** + 실패 표시.
-  평면·그룹 두 테이블이 `TrimMetaCells` 공유라 한 번에 반영.
-- **main 직접(`62f85a9`)** 딜러 실시간 상담 패널 숨김(구: 회색 disabled) + 죽은 CSS 6룰.
-- ⚠️ `profiles-write-guard`가 `dealerProfiles` 오탐 → 주석이 예견한 대로 **ALLOW 3건 명시 등록**(정규식 불변) + 스테일 방지 테스트 신설.
+## ▶ 다음 — 미확정
 
-## ▶ 그 다음 — 슬라이스 C (관리자 채택) · **계획 완비, 즉시 착수**
-
-**"CRM 이어가자"면 조사 없이 시작한다:**
-1. **`ref/plans/2026-07-27-crm-dealer-discount-c-adoption.md`** 읽기 — Task 0~6 + 코드 +
-   **"확정된 사실" 8항목**(재조사 불필요: 트리거·쿼리 관례·게이트·profiles 조인·테스트 실행법·guard 오탐)
-2. `superpowers:executing-plans`로 Task 0(브랜치)부터
-3. ⚠️ Task 1은 **마이그 0041이 공유 master에 들어간다** — 생성 SQL 육안 검사를 건너뛰지 말 것
-
-내용 = `catalog_discount_adoptions`(필드 단위 감사) + 채택 트랜잭션 + 할인 셀 팝오버 + 상태 파생
-(채택됨/수정됨/미채택/자격상실). **이사님이 제안을 볼 화면이 아직 0** — 딜러 입력값은 DB에만 쌓인다.
-⚠️ 채택은 **앱 고객에게 보이는 확정 할인**을 바꾼다(실기 대상 트림을 신중히).
+**"CRM 이어가자"면 먼저 이 셋 중 택1을 물을 것**(코드 작업은 남은 게 없다):
+① 채택 되돌리기(undo — `previous_amount` 있음) ② 제안 도착 알림 배지("대기 N건")
+③ 조직 화면 [저장] 버튼 ↔ 딜러 셀 자동 저장 톤 통일(유슨생 판단 대기)
 
 ## 대기
 
-**실기(유슨생)** = 딜러 `디엘오토솔루션의 혁명적인 개`(BMW 매칭됨)로 ①"할인 업데이트" 진입 ②금액 입력
-→ 1초 뒤 "저장됨" → 리로드 유지 ③관리자 화면 확정값 불변 ④Safari.
-**판단(유슨생)** = 조직 화면은 [저장] 버튼 · 딜러 셀은 자동 저장 → 톤 맞출지.
+**prod(유슨생)** = `#379`·`#380` 눈 확인 1회(로컬만 검증). **판단(유슨생)** = 위 ③ ·
+`dev:api --watch` 도입(실 DB 커넥션 재수립 트레이드오프).
+**이사님** = ⓐBMW 523d(`MC070526001`)에 **자사 5,000,000 · 제휴 6,000,000이 실제로 들어갔다**
+(실기 산물·유지 판단 — 고객 견적에 반영) ⓑspec §7.1 정책 뒤집힘 ⓒ`ref/director-pending-confirmations.md` **16건**.
 **제프** = B(iM `quotedVehiclePrice`·할인·보조금) · D(`catalogPrice`) · ⑦. ⚠️ B 전까지 iM+할인 조합 금지.
-**이사님** = `ref/director-pending-confirmations.md` **16건**(14 · 16~30).
 
 ## Boot
 

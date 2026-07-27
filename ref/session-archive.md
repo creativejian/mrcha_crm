@@ -7,6 +7,24 @@
 > 분리 사유: 이 내용이 142k자까지 자라 매 세션 컨텍스트의 14%를 차지했고,
 > AGENTS.md의 "60줄 이하 / 과거 로그 누적 금지" 규칙과도 어긋나 있었다(2026-07-21).
 
+## 세션 0727 오후 (2026-07-27 · 유슨생) — 딜러 할인 제안 파이프라인 A~B2b
+
+이사님 요구 = **딜러가 자사·제휴·타사 할인만** 입력하고 catalog 확정가엔 바로 안 들어간다 →
+**관리자가 필드별 채택**할 때 반영. 1딜러=1브랜드, 1브랜드=여러 딜러.
+spec = `ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md`(2단 구조).
+
+- **A(`#375`)** `crm.dealer_profiles` + admin `/api/dealer/profiles` + 조직 화면 브랜드·비고 매칭.
+  PK가 `dealer_user_id` 하나라 "1딜러=1브랜드"를 스키마가 강제. `brand_id` FK 미도입(근거 = 주석).
+- **B1(`#376`)** `crm.dealer_trim_discounts` + **`DEALER_WRITE_ALLOWLIST` 첫 개방**(1줄) + 브랜드
+  소유권 fail-closed 403. cross-schema라 DB CHECK 불가 = 서버가 유일 방어선 → **변이 검증 2회 실관찰**.
+- **B2a(`#377`)** 사이드바 "할인 업데이트" 실동작화(딜러 메뉴 4개가 전부 onClick 없는 목업이었다) +
+  Topbar 목업 `"BMW 한독/서초"` → 실데이터(`roleAccountMeta` 전멸) + 자기 브랜드만(`scopeBrandId` —
+  brands 도착 전 `?brand=` 창 **및** modelId 독립 경로 둘 다 막음).
+- **B2b(`#378`)** 할인 3셀 인라인 편집(위=내 제안·아래=확정값) + **디바운스 800ms 자동 저장** + 실패 표시.
+  평면·그룹 두 테이블이 `TrimMetaCells` 공유라 한 번에 반영. ⚠️ "아래=확정값"은 0727 밤 폐기(비노출).
+- **main 직접(`62f85a9`)** 딜러 실시간 상담 패널 숨김(구: 회색 disabled) + 죽은 CSS 6룰.
+- ⚠️ `profiles-write-guard`가 `dealerProfiles` 오탐 → 주석이 예견한 대로 **ALLOW 3건 명시 등록**(정규식 불변) + 스테일 방지 테스트 신설.
+
 ## 세션 0727 오전 (2026-07-27 · 유슨생) — max 앱카드 라벨·파트너 차량가 가드·견적요청 담당자 확인
 
 **① 잔존 max 앱카드 라벨(`#372`).** 이사님 지적 — max면 payload가 `"최대"` 맨문자열로 나갔다(발송 7건
