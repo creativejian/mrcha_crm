@@ -271,11 +271,6 @@
   padding: 5px 8px 1px;
 }
 
-.live-setting-panel.disabled .setting-icon-live.off {
-  background: #eeeeed;
-  color: #8f969c;
-}
-
 .live-setting-label {
   display: flex;
   align-items: center;
@@ -297,14 +292,6 @@
   margin-top: 2px;
   color: var(--muted);
   font-size: 11px;
-}
-
-.live-setting-panel.disabled .live-setting-label strong {
-  color: #5f6366;
-}
-
-.live-setting-panel.disabled .live-setting-label small {
-  color: #9a9a97;
 }
 
 .live-toggle {
@@ -331,16 +318,8 @@
   transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
 }
 
-.live-toggle button:disabled {
-  cursor: default;
-}
-
 .live-toggle button:hover {
   color: #303336;
-}
-
-.live-toggle button:disabled:hover {
-  color: #777b7e;
 }
 
 .live-toggle button.active {
@@ -354,12 +333,6 @@
 
 .live-toggle button.active.off {
   background: #dc2626;
-}
-
-.live-setting-panel.disabled .live-toggle button.active.off {
-  background: #d8d8d6;
-  color: #777b7e;
-  box-shadow: none;
 }
 
 .modal-backdrop {

@@ -506,7 +506,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
           )}
         </div>
         <div className="settings-wrap account-menu-wrap" ref={settingsMenuRef}>
-          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={`${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setFailedAvatarUrl(userAvatarUrl ?? null)} /> : <AccountDefaultIcon />}</span><span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" /></button>
+          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={canManageLiveConsulting ? `${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}` : `${displayName}, ${roleTab}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setFailedAvatarUrl(userAvatarUrl ?? null)} /> : <AccountDefaultIcon />}</span>{canManageLiveConsulting && <span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" />}</button>
           {settingsOpen && (
             <>
               <div
@@ -534,13 +534,20 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
                   </div>
                 </div>
                 <div className="settings-menu-line account-line" />
-                <div className={`live-setting-panel ${canManageLiveConsulting ? "" : "disabled"}`}>
-                  <div className="live-setting-label"><span className={`setting-icon-live ${displayLiveConsulting ? "on" : "off"}`}><SettingSolidIcon name="chat" /></span><div><strong>실시간 상담</strong><small>{canManageLiveConsulting ? (liveConsulting ? "상담 수신 중" : "상담 수신 중지") : "상담 수신 비활성화"}</small></div></div>
-                  <div className="live-toggle" role="tablist" aria-label="실시간 상담 상태">
-                    <button className={displayLiveConsulting ? "active on" : ""} disabled={!canManageLiveConsulting} onClick={() => { if (canManageLiveConsulting && !liveConsulting) setConfirmMode("on"); }} type="button">On</button>
-                    <button className={!displayLiveConsulting ? "active off" : ""} disabled={!canManageLiveConsulting} onClick={() => { if (canManageLiveConsulting && liveConsulting) setConfirmMode("off"); }} type="button">Off</button>
+                {/* 딜러에게는 실시간 상담 패널을 **아예 렌더하지 않는다**(2026-07-27 유슨생 실기 리포트).
+                    구 동작은 회색 disabled로 남겨 "상담 수신 비활성화"를 보여줬는데, 딜러는 담당 고객·
+                    실시간 상담 개념이 없어서(배정 후보에서도 제외) 그 칸이 "왜 못 켜지?"라는 질문만
+                    만들었다. 조직 화면 구성원 탭이 딜러 행을 "해당 없음"으로 처리하는 것과 같은 축이다.
+                    패널 안에서는 canManageLiveConsulting이 항상 true라 disabled 분기가 전부 사라진다. */}
+                {canManageLiveConsulting && (
+                  <div className="live-setting-panel">
+                    <div className="live-setting-label"><span className={`setting-icon-live ${displayLiveConsulting ? "on" : "off"}`}><SettingSolidIcon name="chat" /></span><div><strong>실시간 상담</strong><small>{liveConsulting ? "상담 수신 중" : "상담 수신 중지"}</small></div></div>
+                    <div className="live-toggle" role="tablist" aria-label="실시간 상담 상태">
+                      <button className={displayLiveConsulting ? "active on" : ""} onClick={() => { if (!liveConsulting) setConfirmMode("on"); }} type="button">On</button>
+                      <button className={!displayLiveConsulting ? "active off" : ""} onClick={() => { if (liveConsulting) setConfirmMode("off"); }} type="button">Off</button>
+                    </div>
                   </div>
-                </div>
+                )}
                 {(showAttendanceMenu || isAdminRole) && (
                   <>
                     <div className={`settings-menu-line live-line ${isAdminRole ? "" : "compact"}`} />
