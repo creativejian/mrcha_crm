@@ -44,20 +44,33 @@ const firstGroup = (rows: CatalogTrim[]): Set<string> =>
 
 // 차량 관리(/mc-master) 카탈로그 데이터 로딩/캐시. 라우팅(brandId/modelId)에 반응해
 // 브랜드→모델→트림 뷰를 캐시 경유로 채운다(catalog-cache). 편집 직후 갱신은 reload*.
-export function useMcMasterCatalog(modelId: string | undefined, urlBrandId: number | null) {
+export function useMcMasterCatalog(
+  modelId: string | undefined,
+  urlBrandId: number | null,
+  // 딜러 모드 브랜드 스코프(null = 제한 없음). brands 필터와 brandId 강제를 **한 곳에서** 처리한다
+  // — 사이드바 표시 범위와 URL 우회 차단이 같은 값에서 나와야 어긋나지 않는다.
+  scopeBrandId: number | null = null,
+) {
   // 재진입 시 캐시값으로 즉시 초기화(brands 네트워크 대기 없이 사이드바 표시).
-  const [brands, setBrands] = useState<CatalogBrand[]>(() => getCachedBrands() ?? []);
+  const [brands, setBrands] = useState<CatalogBrand[]>(() => {
+    const cached = getCachedBrands() ?? [];
+    return scopeBrandId != null ? cached.filter((b) => b.id === scopeBrandId) : cached;
+  });
 
   // 선택 브랜드는 상태가 아니라 파생값이다 — URL(?brand=)이 single source.
   // 폴백 순서: URL → 트림 뷰 모델의 브랜드(딥링크) → 마지막 선택(쿼리 없는 메뉴 재진입) → 첫 브랜드.
   const brandId = useMemo(() => {
+    // 딜러 모드는 URL·딥링크·마지막 선택을 **전부 무시하고** 자기 브랜드로 고정한다.
+    // 아래 `brands.length === 0` 분기(모델 fetch를 앞당기는 최적화)가 brands 도착 전에 손으로 고친
+    // ?brand=를 검증 없이 통과시키므로, 그 창을 아예 만들지 않으려면 여기서 먼저 끊어야 한다.
+    if (scopeBrandId != null) return scopeBrandId;
     const pick =
       urlBrandId ?? (modelId ? getBrandIdForModel(Number(modelId)) : undefined) ?? mcMasterViewState.brandId;
     // brands가 아직 없으면 검증 없이 그대로 쓴다 — 모델 fetch를 brands 왕복만큼 앞당긴다.
     // 도착 후 목록에 없는 id(구 북마크·손으로 고친 URL)면 첫 브랜드로 교정한다.
     if (pick != null && (brands.length === 0 || brands.some((b) => b.id === pick))) return pick;
     return brands[0]?.id ?? null;
-  }, [urlBrandId, modelId, brands]);
+  }, [urlBrandId, modelId, brands, scopeBrandId]);
 
   // 재진입 즉시 렌더(왕복 0) — 프리패치/직전 방문으로 캐시가 있으면 첫 페인트부터 목록이 있다.
   const [models, setModels] = useState<CatalogModel[]>(() =>
@@ -94,11 +107,13 @@ export function useMcMasterCatalog(modelId: string | undefined, urlBrandId: numb
   useEffect(() => {
     fetchBrandsCached()
       .then((b) => {
-        setBrands(b); // brandId는 brands에서 파생되므로 여기서 따로 세팅하지 않는다.
+        // brandId는 brands에서 파생되므로 여기서 따로 세팅하지 않는다.
+        // 딜러 모드면 사이드바에 자기 브랜드만 남도록 여기서 걸러 담는다(캐시 초기화와 같은 규칙).
+        setBrands(scopeBrandId != null ? b.filter((x) => x.id === scopeBrandId) : b);
         setLoadError(false);
       })
       .catch(() => setLoadError(true));
-  }, []);
+  }, [scopeBrandId]);
 
   useEffect(() => {
     if (brandId == null) return;
