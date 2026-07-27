@@ -346,7 +346,10 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
           </>
         ) : (
           <>
-            <h2>차량 관리</h2>
+            {/* 딜러는 브랜드가 하나뿐이라(dealer_profiles PK = dealer_user_id) 사이드바를 감추는 대신
+                브랜드명을 헤더에 넣는다 — Topbar 조직 라벨과 중복이지만 본문만 봐도 맥락이 남는다.
+                brandName이 null이면(브랜드가 catalog에서 삭제됨) 접두 없이 원래 문구로 떨어진다. */}
+            <h2>{dealerMode && dealerMe?.brandName ? `${dealerMe.brandName} 차량 관리` : "차량 관리"}</h2>
             {brandId != null &&
               editActions(() => {
                 setPanelError(null);
@@ -361,8 +364,12 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
         {dealerMode && dealerMeLoaded && dealerMe == null && (
           <div className="notice-box">담당 브랜드가 지정되지 않았습니다. 관리자에게 브랜드 지정을 요청해 주세요.</div>
         )}
-        <div className="va-layout">
-          <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} onPrefetch={prefetchModels} />
+        {/* 딜러 모드에선 브랜드 열이 선택지 1개짜리 장식이다(진입 시 자동 선택돼 누를 것도 없다) —
+            140px을 비우고 모델·트림 표를 전폭으로 쓴다. 관리자 화면은 그대로 2열이다. */}
+        <div className={`va-layout${dealerMode ? " va-layout-full" : ""}`}>
+          {!dealerMode && (
+            <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} onPrefetch={prefetchModels} />
+          )}
           <div className="table-scroll va-scroll" ref={scrollRef} onScroll={onScroll}>
             {inTrimView && isDomestic && (
               <div className="va-trim-tabs">

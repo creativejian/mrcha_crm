@@ -23,6 +23,10 @@
   grid-template-columns: 140px minmax(0, 1fr);
   min-height: 420px;
 }
+/* 딜러 모드 — 브랜드 열을 렌더하지 않으므로 표가 전폭을 쓴다(MCMasterPage 주석 참조). */
+.va-layout-full {
+  grid-template-columns: minmax(0, 1fr);
+}
 .va-brand-sidebar {
   border-right: 1px solid var(--line);
   padding: 12px 8px;
