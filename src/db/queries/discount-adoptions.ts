@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { proposalState, type ProposalState } from "../../../client/src/lib/discount-adoption";
 import { trimsInCatalog } from "../catalog";
@@ -51,42 +51,55 @@ type TrimAdoptedField = {
   adoptedAt: string | null;
 };
 
-export type TrimProposalsResult = {
+export type TrimProposals = {
+  trimId: number;
   adopted: Record<DiscountField, TrimAdoptedField>;
   proposals: TrimProposal[];
 };
 
 const FIELDS: readonly DiscountField[] = ["financial", "partner", "cash"];
 
-// 트림 1개의 전 딜러 제안 + 각 필드 상태(admin 전용 조회 — 딜러에게 남의 제안을 보여주면
-// 경쟁사 할인 전략 노출이다. 라우트가 requireRoles(["admin"])로 막는다).
-export async function listTrimProposals(
-  trimId: number,
+// 모델 1개의 전 트림 × 전 딜러 제안(admin 전용 — 딜러에게 남의 제안을 보여주면 경쟁사 할인
+// 전략 노출이고, 라우트가 requireRoles(["admin"])로 막는다).
+//
+// **모델 단위인 이유**: 화면은 트림 표의 할인 셀마다 "제안 있음" 단서를 달아야 하므로 목록
+// 전체의 제안을 알아야 한다. 트림 단위로 받으면 트림 수만큼 왕복한다(5시리즈는 13개).
+// 딜러 쪽 listMyTrimDiscounts(dealerUserId, modelId)와 같은 축이다.
+//
+// **제안이 0건인 트림은 반환하지 않는다** — 채택할 것이 없어 팝오버를 열 이유가 없고,
+// 확정 할인 자체는 트림 목록 응답에 이미 있다(페이로드를 두 번 싣지 않는다).
+export async function listModelProposals(
+  modelId: number,
   executor: Executor = getDefaultDb(),
-): Promise<TrimProposalsResult> {
-  const [trim] = await executor
+): Promise<TrimProposals[]> {
+  const trims = await executor
     .select({
+      id: trimsInCatalog.id,
       financial: trimsInCatalog.financialDiscountAmount,
       partner: trimsInCatalog.partnerDiscountAmount,
       cash: trimsInCatalog.cashDiscountAmount,
     })
     .from(trimsInCatalog)
-    .where(eq(trimsInCatalog.id, trimId));
+    .where(eq(trimsInCatalog.modelId, modelId));
+  if (trims.length === 0) return [];
+  const trimIds = trims.map((t) => t.id);
 
-  // 필드별 **최신 1건**만 의미가 있다(그 이전 채택은 이미 덮였다). distinct on 대신 전량을
-  // 시각 역순으로 받아 첫 건을 집는다 — 트림당 채택 횟수는 사람 손 단위라 작다.
+  // 필드별 **최신 1건**만 의미가 있다(그 이전 채택은 이미 덮였다). distinct on 대신 시각
+  // 역순으로 받아 (트림, 필드)별 첫 건을 집는다 — 트림당 채택 횟수는 사람 손 단위라 작다.
   const audits = await executor
     .select({
+      trimId: catalogDiscountAdoptions.trimId,
       field: catalogDiscountAdoptions.field,
       sourceDealerUserId: catalogDiscountAdoptions.sourceDealerUserId,
       adoptedAt: catalogDiscountAdoptions.adoptedAt,
     })
     .from(catalogDiscountAdoptions)
-    .where(eq(catalogDiscountAdoptions.trimId, trimId))
+    .where(inArray(catalogDiscountAdoptions.trimId, trimIds))
     .orderBy(desc(catalogDiscountAdoptions.adoptedAt));
 
   const rows = await executor
     .select({
+      trimId: dealerTrimDiscounts.trimId,
       dealerUserId: dealerTrimDiscounts.dealerUserId,
       financialAmount: dealerTrimDiscounts.financialAmount,
       partnerAmount: dealerTrimDiscounts.partnerAmount,
@@ -99,45 +112,53 @@ export async function listTrimProposals(
     .from(dealerTrimDiscounts)
     .leftJoin(profiles, eq(profiles.id, dealerTrimDiscounts.dealerUserId))
     .leftJoin(dealerProfiles, eq(dealerProfiles.dealerUserId, dealerTrimDiscounts.dealerUserId))
-    .where(eq(dealerTrimDiscounts.trimId, trimId))
+    .where(inArray(dealerTrimDiscounts.trimId, trimIds))
     .orderBy(dealerTrimDiscounts.createdAt);
 
-  const adopted = {} as Record<DiscountField, TrimAdoptedField>;
-  for (const field of FIELDS) {
-    const latest = audits.find((a) => a.field === field);
-    adopted[field] = {
-      amount: trim?.[field] ?? null,
-      sourceDealerUserId: latest?.sourceDealerUserId ?? null,
-      adoptedAt: latest ? latest.adoptedAt.toISOString() : null,
-    };
-  }
+  const out: TrimProposals[] = [];
+  for (const trim of trims) {
+    const mine = rows.filter((r) => r.trimId === trim.id);
+    if (mine.length === 0) continue;
 
-  return {
-    adopted,
-    proposals: rows.map((r) => {
-      const field = (f: DiscountField): TrimProposalField => {
-        const amount = r[FIELD_MAP[f].proposal];
-        return {
-          amount,
-          state: proposalState({
-            proposalAmount: amount,
-            adoptedAmount: adopted[f].amount,
-            adoptedFromThisDealer: adopted[f].sourceDealerUserId === r.dealerUserId,
-          }),
+    const adopted = {} as Record<DiscountField, TrimAdoptedField>;
+    for (const field of FIELDS) {
+      const latest = audits.find((a) => a.trimId === trim.id && a.field === field);
+      adopted[field] = {
+        amount: trim[field],
+        sourceDealerUserId: latest?.sourceDealerUserId ?? null,
+        adoptedAt: latest ? latest.adoptedAt.toISOString() : null,
+      };
+    }
+
+    out.push({
+      trimId: trim.id,
+      adopted,
+      proposals: mine.map((r) => {
+        const field = (f: DiscountField): TrimProposalField => {
+          const amount = r[FIELD_MAP[f].proposal];
+          return {
+            amount,
+            state: proposalState({
+              proposalAmount: amount,
+              adoptedAmount: adopted[f].amount,
+              adoptedFromThisDealer: adopted[f].sourceDealerUserId === r.dealerUserId,
+            }),
+          };
         };
-      };
-      return {
-        dealerUserId: r.dealerUserId,
-        dealerName: r.dealerName,
-        dealerNote: r.dealerNote,
-        isDealer: r.role === "dealer",
-        financial: field("financial"),
-        partner: field("partner"),
-        cash: field("cash"),
-        updatedAt: r.updatedAt.toISOString(),
-      };
-    }),
-  };
+        return {
+          dealerUserId: r.dealerUserId,
+          dealerName: r.dealerName,
+          dealerNote: r.dealerNote,
+          isDealer: r.role === "dealer",
+          financial: field("financial"),
+          partner: field("partner"),
+          cash: field("cash"),
+          updatedAt: r.updatedAt.toISOString(),
+        };
+      }),
+    });
+  }
+  return out;
 }
 
 // 필드 단위 채택 — 딜러 제안값을 확정 할인으로 올리고 감사 1행을 남긴다.

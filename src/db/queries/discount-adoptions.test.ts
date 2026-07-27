@@ -6,7 +6,7 @@ import { getDefaultDb, type Executor } from "../client";
 import { profiles } from "../public-app";
 import { catalogDiscountAdoptions, dealerTrimDiscounts } from "../schema";
 import { upsertDealerProfile } from "./dealer-profiles";
-import { adoptDealerProposal, listTrimProposals } from "./discount-adoptions";
+import { adoptDealerProposal, listModelProposals } from "./discount-adoptions";
 
 // ── 관리자 채택(슬라이스 C) ─────────────────────────────────────────────────
 // 이 테스트는 `catalog.trims`의 확정 할인을 **실제로** 바꾼다 — 앱 고객에게 보이는 금액이다.
@@ -20,17 +20,19 @@ import { adoptDealerProposal, listTrimProposals } from "./discount-adoptions";
 const db = getDefaultDb();
 
 let trimId = 0;
+let modelId = 0;
 let dealerId = ""; // profiles.role = 'dealer' — 자격 있음
 let nonDealerId = ""; // role != 'dealer' — 자격 상실 표시 대상
 let brandId = 0;
 
 beforeAll(async () => {
   const [trim] = await db
-    .select({ id: trimsInCatalog.id, brandId: modelsInCatalog.brandId })
+    .select({ id: trimsInCatalog.id, modelId: trimsInCatalog.modelId, brandId: modelsInCatalog.brandId })
     .from(trimsInCatalog)
     .innerJoin(modelsInCatalog, eq(modelsInCatalog.id, trimsInCatalog.modelId))
     .limit(1);
   trimId = trim!.id;
+  modelId = trim!.modelId;
   brandId = trim!.brandId;
 
   const [dealer] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.role, "dealer")).limit(1);
@@ -60,6 +62,12 @@ async function seedProposal(
   await tx.insert(dealerTrimDiscounts).values({ trimId, dealerUserId: userId, ...amounts });
 }
 
+// 조회는 모델 단위이므로(화면이 셀마다 단서를 달아야 한다) 검증 대상 트림만 골라 본다.
+async function proposalsOf(tx: Executor) {
+  const all = await listModelProposals(modelId, tx);
+  return all.find((e) => e.trimId === trimId);
+}
+
 async function trimRow(tx: Executor) {
   const [row] = await tx
     .select({
@@ -73,11 +81,11 @@ async function trimRow(tx: Executor) {
   return row!;
 }
 
-test("listTrimProposals: 딜러명·비고와 함께 제안이 나오고 필드 상태가 파생된다", async () => {
+test("listModelProposals: 딜러명·비고와 함께 제안이 나오고 필드 상태가 파생된다", async () => {
   await inRollback(async (tx) => {
     await seedProposal(tx, dealerId, { financialAmount: 6_500_000, partnerAmount: null, cashAmount: 7_000_000 });
 
-    const result = await listTrimProposals(trimId, tx);
+    const result = (await proposalsOf(tx))!;
     const mine = result.proposals.find((p) => p.dealerUserId === dealerId);
     expect(mine).toBeDefined();
     expect(mine!.dealerName).toBeTruthy(); // profiles.full_name read-through
@@ -90,11 +98,11 @@ test("listTrimProposals: 딜러명·비고와 함께 제안이 나오고 필드 
   });
 });
 
-test("listTrimProposals: role이 dealer가 아닌 제안자는 자격 상실로 표시된다", async () => {
+test("listModelProposals: role이 dealer가 아닌 제안자는 자격 상실로 표시된다", async () => {
   await inRollback(async (tx) => {
     await seedProposal(tx, nonDealerId, { financialAmount: 5_000_000, partnerAmount: null, cashAmount: null });
 
-    const result = await listTrimProposals(trimId, tx);
+    const result = (await proposalsOf(tx))!;
     const row = result.proposals.find((p) => p.dealerUserId === nonDealerId);
     expect(row).toBeDefined();
     expect(row!.isDealer).toBe(false); // 채택 불가 — soft delete 컬럼 없이 read-through 판정
@@ -195,7 +203,7 @@ test("채택 후 상태가 '채택됨'으로, 제안이 바뀌면 '수정됨'으
     await seedProposal(tx, dealerId, { financialAmount: 6_500_000, partnerAmount: null, cashAmount: null });
     await adoptDealerProposal({ trimId, field: "financial", dealerUserId: dealerId, adoptedBy: nonDealerId }, tx);
 
-    const adopted = await listTrimProposals(trimId, tx);
+    const adopted = (await proposalsOf(tx))!;
     expect(adopted.proposals.find((p) => p.dealerUserId === dealerId)!.financial.state).toBe("adopted");
     expect(adopted.adopted.financial.sourceDealerUserId).toBe(dealerId);
 
@@ -205,7 +213,7 @@ test("채택 후 상태가 '채택됨'으로, 제안이 바뀌면 '수정됨'으
       .set({ financialAmount: 6_800_000 })
       .where(and(eq(dealerTrimDiscounts.trimId, trimId), eq(dealerTrimDiscounts.dealerUserId, dealerId)));
 
-    const changed = await listTrimProposals(trimId, tx);
+    const changed = (await proposalsOf(tx))!;
     expect(changed.proposals.find((p) => p.dealerUserId === dealerId)!.financial.state).toBe("changed");
   });
 });

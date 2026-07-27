@@ -1,7 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 
-import { adoptDealerProposal, listTrimProposals } from "../../db/queries/discount-adoptions";
+import { adoptDealerProposal, listModelProposals } from "../../db/queries/discount-adoptions";
 import { requireRoles } from "../../middleware/role-gate";
 import { type CatalogApp, id, run } from "./shared";
 
@@ -18,11 +18,14 @@ const adoptBody = z.object({
 });
 
 export function registerDiscountRoutes(catalog: CatalogApp) {
+  // 모델 단위 조회 — 화면이 트림 표의 셀마다 "제안 있음" 단서를 달아야 하므로 목록 전체가
+  // 한 번에 필요하다(트림 단위면 5시리즈 하나에 13번 왕복한다). 딜러 쪽
+  // GET /api/dealer/discounts?modelId= 와 같은 축이다.
   catalog.get(
-    "/trims/:id/discount-proposals",
+    "/models/:id/discount-proposals",
     requireRoles(["admin"]),
     zValidator("param", z.object({ id })),
-    async (c) => run(c, () => listTrimProposals(c.req.valid("param").id, c.var.db)),
+    async (c) => run(c, () => listModelProposals(c.req.valid("param").id, c.var.db)),
   );
 
   // 필드 단위 채택. **트랜잭션을 여기서 연다** — 쿼리 함수는 받은 executor를 그대로 쓰는 레포

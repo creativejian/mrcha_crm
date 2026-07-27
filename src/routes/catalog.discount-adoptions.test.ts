@@ -18,10 +18,15 @@ import { getDefaultDb } from "../db/client";
 // spec: ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md §6.3
 const db = getDefaultDb();
 let trimId = 0;
+let modelId = 0;
 
 beforeAll(async () => {
-  const [trim] = await db.select({ id: trimsInCatalog.id }).from(trimsInCatalog).limit(1);
+  const [trim] = await db
+    .select({ id: trimsInCatalog.id, modelId: trimsInCatalog.modelId })
+    .from(trimsInCatalog)
+    .limit(1);
   trimId = trim!.id;
+  modelId = trim!.modelId;
 });
 
 async function request(
@@ -39,16 +44,16 @@ async function request(
   });
 }
 
-const proposalsPath = () => `/api/catalog/trims/${trimId}/discount-proposals`;
+// 조회는 모델 단위다(화면이 트림 표의 셀마다 단서를 달아야 한다 — 트림 단위면 13번 왕복).
+const proposalsPath = () => `/api/catalog/models/${modelId}/discount-proposals`;
 const adoptionsPath = () => `/api/catalog/trims/${trimId}/discount-adoptions`;
 const ADOPT_BODY = { field: "financial", dealerUserId: crypto.randomUUID() };
 
 test("제안 조회: admin은 200", async () => {
   const res = await request("admin", "GET", proposalsPath());
   expect(res.status).toBe(200);
-  const body = (await res.json()) as { adopted: unknown; proposals: unknown[] };
-  expect(body.adopted).toBeDefined();
-  expect(Array.isArray(body.proposals)).toBe(true);
+  // 제안이 있는 트림만 담긴다(0건 트림은 채택할 것이 없어 팝오버를 열 이유가 없다).
+  expect(Array.isArray(await res.json())).toBe(true);
 });
 
 test("제안 조회: staff·manager·dealer는 403 (GET도 막는다 — 경쟁사 전략 노출)", async () => {
