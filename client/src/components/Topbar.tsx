@@ -2,8 +2,9 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { AiAssistantPanel } from "@/components/ai/AiAssistantPanel";
 import { useAssistantThread } from "@/components/ai/useAssistantThread";
 import { type Customer } from "@/data/customers";
-import { roleAccountMeta, type RoleTab } from "@/data/roles";
+import { type RoleTab } from "@/data/roles";
 import { signOut } from "@/lib/auth";
+import { useDealerMe } from "@/lib/dealer-profiles";
 import { filterGlobalCustomerSearch, globalSearchCountLabel, globalSearchEmptyState, normalizeSearchValue, resolveRecentSearchCustomers } from "@/lib/global-customer-search";
 import { fetchLiveConsulting, saveLiveConsulting } from "@/lib/live-consulting";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
@@ -165,7 +166,6 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsCloseTimerRef = useRef<number | null>(null);
   const suppressNotificationOutsideClickRef = useRef(false);
-  const accountMeta = roleAccountMeta[roleTab];
   const showAdminMetrics = roleTab === "최고관리자" || roleTab === "팀장";
   const isAdminRole = roleTab === "최고관리자";
   // 실제 로그인 사용자 정보(인증 컨텍스트). full_name/avatar는 카카오 user_metadata 기반.
@@ -176,7 +176,18 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
   const dealerMode = roleTab === "딜러";
   const canManageLiveConsulting = !dealerMode;
   const displayLiveConsulting = canManageLiveConsulting && liveConsulting;
-  const accountOrgLabel = dealerMode ? accountMeta.title : roleTab === "최고관리자" ? "크리에이티브지안" : "인천본사 상담팀";
+  // 딜러 조직 라벨은 **실데이터**다(구: roles.ts 목업 `딜러: { title: "BMW 한독/서초" }` — 이름은
+  // 실제 계정인데 조직만 목업이라 섞여 보였다). 브랜드 + 비고(딜러사명)를 관리자가 조직 화면에서
+  // 지정한다 — 미지정이면 그 사실을 그대로 보여줘야 딜러가 관리자에게 요청할 수 있다.
+  const { me: dealerMe } = useDealerMe(dealerMode);
+  const dealerOrgLabel = dealerMe?.brandName
+    ? [dealerMe.brandName, dealerMe.note].filter(Boolean).join(" · ")
+    : "브랜드 미지정";
+  const accountOrgLabel = dealerMode
+    ? dealerOrgLabel
+    : roleTab === "최고관리자"
+      ? "크리에이티브지안"
+      : "인천본사 상담팀";
   const accountScopeLabel = roleTab === "최고관리자" ? "전체 운영 권한" : roleTab === "팀장" ? "팀 상담 관리" : roleTab === "상담사" ? "상담 업무" : "딜러 포털";
   const hasGlobalSearchQuery = normalizeSearchValue(globalSearchQuery).length > 0;
   // 실 고객(customers prop)을 검색한다 — 종전엔 목업 initialCustomers를 필터해 실 데이터가 안 잡혔다.

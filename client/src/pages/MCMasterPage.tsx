@@ -19,6 +19,7 @@ import {
   updateModel,
   updateTrim,
 } from "@/lib/catalog";
+import { useDealerMe } from "@/lib/dealer-profiles";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
 import { prefetchModels, prefetchOptions, prefetchTrims } from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
@@ -44,6 +45,16 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const { modelId } = useParams();
   const urlBrandId = brandIdFromSearch(useLocation().search);
 
+  // 딜러 모드 — 자기 브랜드만 본다(유슨생 결정: 경쟁사 가격·할인 전략 비노출).
+  // ⚠️ 이 차단은 **클라 스코프**다. catalog 읽기 API는 그대로 열려 있고, 그 데이터(기본가·MC코드·
+  // 색상)는 차선생 앱에서 고객에게 공개되는 정보라 서버 강제는 과잉으로 판단했다 — 기밀 차단이
+  // 아니라 정보 위생·UX 목적이다(쓰기는 서버가 fail-closed로 막는다 — 슬라이스 B1).
+  const dealerMode = roleTab === "딜러";
+  const { me: dealerMe, loaded: dealerMeLoaded } = useDealerMe(dealerMode);
+  // 프로필 도착 전에는 스코프를 알 수 없다 — 그 사이 전 브랜드가 스치는 것을 막으려고 존재하지
+  // 않는 브랜드 id(-1)를 넣어 빈 목록으로 둔다. 도착하면 실제 브랜드로 좁혀진다.
+  const scopeBrandId = dealerMode ? (dealerMe?.brandId ?? -1) : null;
+
   const {
     brands,
     brandId,
@@ -59,7 +70,19 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     reloadModels,
     reloadTrims,
     reloadOptionSummary,
-  } = useMcMasterCatalog(modelId, urlBrandId);
+  } = useMcMasterCatalog(modelId, urlBrandId, scopeBrandId);
+
+  // 딜러 모드: URL의 modelId가 내 브랜드 모델이 아니면 첫 모델로 교정한다.
+  // brandId 스코프는 사이드바와 모델 목록을 좁히지만 **modelId는 독립 경로**다 — 손으로 고친 URL이나
+  // 구 북마크로 타 브랜드 모델을 열면 브랜드는 내 것인데 트림만 남의 것이 로드된다.
+  // (교정 직전 한 프레임은 그 트림이 스칠 수 있다. 기본가·MC코드는 차선생 앱 공개 정보라 그 수준을
+  //  수용한다 — 쓰기는 서버가 브랜드 소유권으로 막는다, 슬라이스 B1.)
+  useEffect(() => {
+    if (!dealerMode || !modelId || models.length === 0) return;
+    if (!models.some((m) => String(m.id) === modelId)) {
+      navigate(`/mc-master/${models[0]!.id}`, { replace: true });
+    }
+  }, [dealerMode, modelId, models, navigate]);
   const {
     selectMode,
     selected,
@@ -327,6 +350,10 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       </div>
       <div className="panel-body va-body">
         {loadError && <div className="notice-box error">불러오기 실패</div>}
+        {/* 브랜드 미지정 딜러에게는 빈 사이드바만 보이면 고장으로 읽힌다 — 사실을 알려 요청하게 한다. */}
+        {dealerMode && dealerMeLoaded && dealerMe == null && (
+          <div className="notice-box">담당 브랜드가 지정되지 않았습니다. 관리자에게 브랜드 지정을 요청해 주세요.</div>
+        )}
         <div className="va-layout">
           <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} onPrefetch={prefetchModels} />
           <div className="table-scroll va-scroll" ref={scrollRef} onScroll={onScroll}>
