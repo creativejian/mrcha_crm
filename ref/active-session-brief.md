@@ -1,7 +1,6 @@
 # Mr. Cha CRM Active Session Brief
 
-> **매 세션 자동 로드된다. 60줄 이하 유지**(AGENTS.md). 과거 로그는 `ref/session-archive.md`로 보낸다.
-> 지속 결정 = `AGENTS.md` · 설계 근거 = `ref/specs/*` · 장기 상태 = `ref/current-working-state.md`.
+> **자동 로드 · 60줄 이하 유지**(AGENTS.md). 과거 로그 = `ref/session-archive.md` · 지속 결정 = `AGENTS.md` · 설계 = `ref/specs/*` · 장기 상태 = `ref/current-working-state.md`.
 
 Last updated: 2026-07-27
 
@@ -27,8 +26,7 @@ spec = `ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md`(2단 구조
 - **B2b(`#378`)** 할인 3셀 인라인 편집(위=내 제안·아래=확정값) + **디바운스 800ms 자동 저장** + 실패 표시.
   평면·그룹 두 테이블이 `TrimMetaCells` 공유라 한 번에 반영.
 - **main 직접(`62f85a9`)** 딜러 실시간 상담 패널 숨김(구: 회색 disabled) + 죽은 CSS 6룰.
-- ⚠️ `profiles-write-guard`가 `dealerProfiles`를 오탐 → RULES 주석이 예견한 대로 **ALLOW 3건 명시 등록**
-  (정규식 불변) + 스테일 방지 테스트 신설.
+- ⚠️ `profiles-write-guard`가 `dealerProfiles` 오탐 → 주석이 예견한 대로 **ALLOW 3건 명시 등록**(정규식 불변) + 스테일 방지 테스트 신설.
 
 ## ▶ 그 다음 — 슬라이스 C (관리자 채택) · **계획 완비, 즉시 착수**
 
