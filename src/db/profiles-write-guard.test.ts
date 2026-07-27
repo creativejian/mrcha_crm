@@ -52,6 +52,28 @@ function findProfileWrites(source: string): string[] {
   );
 }
 
+// ── 명시 예외 등록 ──────────────────────────────────────────────────
+// 위 RULES 주석이 예견한 오탐 자리다: 탐지기는 **별칭 import를 잡으려고** "profiles로 끝나는
+// 식별자"를 보기 때문에, crm 소유 테이블이 그 이름으로 끝나면 이름만으로는 구분할 수 없다.
+// 그래서 정규식을 좁히지 않고(= 탐지력 유지) 여기에 "언제 누가 왜"를 남겨 커밋에 박는다.
+//
+// ⚠️ 등록 단위는 **(파일, 매치 조각) 쌍**이다. 파일 전체를 면제하지 않는다 — 그 파일에 진짜
+// public.profiles 쓰기가 새로 들어오면 hit 문자열이 달라 여전히 위반으로 잡힌다.
+const ALLOW: { path: string; hit: string; why: string }[] = [
+  {
+    path: "src/db/queries/dealer-profiles.ts",
+    hit: "drizzle: .insert(dealerProfiles)",
+    why: "crm.dealer_profiles(CRM 소유) upsert — public.profiles 무접촉. 2026-07-27 딜러 브랜드 매칭(슬라이스 A)",
+  },
+  {
+    path: "src/db/queries/dealer-profiles.test.ts",
+    hit: "drizzle: .delete(dealerProfiles)",
+    why: "위 테이블의 테스트 픽스처 정리(afterAll) — 같은 이유",
+  },
+];
+
+const isAllowed = (path: string, hit: string) => ALLOW.some((a) => a.path === path && hit.startsWith(a.hit));
+
 // ── 탐지기 자체 검증 ────────────────────────────────────────────────
 // "위반 0건"만 단언하면 정규식이 고장 나도 통과한다. 잡아야 할 것과 흘려보내야 할 것을 각각 고정한다.
 
@@ -104,11 +126,24 @@ test("계약: CRM 저장소 어디에서도 public.profiles에 쓰지 않는다"
     for await (const rel of new Glob("**/*.{ts,tsx}").scan({ cwd: root })) {
       const path = `${root}/${rel}`;
       if (path === SELF) continue;
-      for (const hit of findProfileWrites(await Bun.file(path).text())) violations.push(`${path} — ${hit}`);
+      for (const hit of findProfileWrites(await Bun.file(path).text())) {
+        if (isAllowed(path, hit)) continue; // 명시 등록된 crm 테이블 오탐 — 위 ALLOW 참조
+        violations.push(`${path} — ${hit}`);
+      }
     }
   }
   // 실패했다면 profiles 쓰기가 새로 들어왔다는 뜻이다. 정규식을 고치지 말고 위 주석의 계약을 읽을 것.
   expect(violations).toEqual([]);
+});
+
+// 예외가 썩는 것을 막는다: 등록한 조각이 더 이상 존재하지 않으면(파일 삭제·리팩토링) 실패시켜
+// ALLOW를 함께 정리하게 만든다. 죽은 예외가 쌓이면 다음 사람이 "왜 열려 있는지" 판단할 수 없다.
+test("계약: ALLOW 예외는 전부 살아 있다(스테일 방지)", async () => {
+  for (const a of ALLOW) {
+    const file = Bun.file(a.path);
+    expect(await file.exists()).toBe(true);
+    expect(findProfileWrites(await file.text()).some((h) => h.startsWith(a.hit))).toBe(true);
+  }
 });
 
 test("계약: 스캔이 실제로 파일을 훑었다(빈 글롭으로 통과하는 것 방지)", async () => {
