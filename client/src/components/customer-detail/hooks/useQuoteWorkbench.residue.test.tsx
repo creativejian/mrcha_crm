@@ -416,6 +416,7 @@ const partnerResponse = {
     residual: { amount: 20_000_000, rateDecimal: 0.4 },
     workbookImport: { versionLabel: "2026-07 v2" },
     warnings: [],
+    sentVehiclePrice: 74_300_000,
   },
 };
 
@@ -538,6 +539,7 @@ describe("useQuoteWorkbench — 솔루션 조회 결과 반영·늦은 응답 �
       totalCost: 1_234_600 * 60 + 20_000_000,
       warnings: [],
       raw: partnerResponse,
+      sentVehiclePrice: 74_300_000,
     };
     act(() => result.current.handlers.pickRankingEntry("manual-condition-1", entry));
     expect(stateLender(result, "manual-condition-1")).toBe("iM캐피탈"); // 금융사 = controlled state(②c)

@@ -96,7 +96,7 @@ export function SolutionLenderRankingModal({ condId, purchaseMethod, buildBaseAr
             setFailureNote((prev) => prev ?? "계산 응답을 해석하지 못했습니다");
             return;
           }
-          const entry = buildRankingEntry(lender.code, lender.label, parsed, raw, built.input.productType, built.input.leaseTermMonths);
+          const entry = buildRankingEntry(lender.code, lender.label, parsed, raw, built.input.productType, built.input.leaseTermMonths, built.input.quotedVehiclePrice);
           setEntries((prev) => ({ ...prev, [lender.code]: entry }));
         })
         .catch((e: unknown) => {

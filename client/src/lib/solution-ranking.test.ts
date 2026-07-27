@@ -40,6 +40,7 @@ function entryFixture(over: Partial<SolutionRankingEntry> = {}): SolutionRanking
     totalCost: 900_000 * 60 + 26_550_000,
     warnings: [],
     raw: { ok: true },
+    sentVehiclePrice: 74_300_000,
     ...over,
   };
 }
@@ -54,7 +55,7 @@ describe("solutionMonthlyDisplay (제프 표시 라운딩 미러)", () => {
 
 describe("buildRankingEntry", () => {
   test("표시 라운딩·총 비용(표시 월납입 × 기간 + 잔가)·잔가 % 조립", () => {
-    const e = buildRankingEntry("shinhan-card", "신한카드", parsedFixture(), { ok: true }, "operating_lease", 60);
+    const e = buildRankingEntry("shinhan-card", "신한카드", parsedFixture(), { ok: true }, "operating_lease", 60, 74_300_000);
     expect(e.monthlyDisplay).toBe(860_900);
     expect(e.ratePct).toBe(5.32); // 일반 금융사 = 표면금리
     expect(e.residualAmount).toBe(26_550_000);
@@ -64,9 +65,9 @@ describe("buildRankingEntry", () => {
   });
 
   test("우리카드만 유효금리(제프 sortQuotes 미러 — 잔가보장수수료 lump-sum)", () => {
-    const woori = buildRankingEntry("woori-card", "우리카드", parsedFixture(), {}, "operating_lease", 60);
+    const woori = buildRankingEntry("woori-card", "우리카드", parsedFixture(), {}, "operating_lease", 60, 74_300_000);
     expect(woori.ratePct).toBe(5.61);
-    const other = buildRankingEntry("im-capital", "iM캐피탈", parsedFixture(), {}, "operating_lease", 60);
+    const other = buildRankingEntry("im-capital", "iM캐피탈", parsedFixture(), {}, "operating_lease", 60, 74_300_000);
     expect(other.ratePct).toBe(5.32);
   });
 });

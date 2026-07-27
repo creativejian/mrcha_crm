@@ -5,6 +5,7 @@ import {
   SOLUTION_LENDERS,
   buildSolutionQuoteInput,
   detectLenderDrift,
+  detectVehiclePriceMismatch,
   extractPartnerLenders,
   hasLenderDrift,
   parseSolutionQuoteResult,
@@ -309,5 +310,60 @@ describe("extractPartnerLenders / detectLenderDrift — 파트너 금융사 SSOT
   test("행 순서에 의존하지 않는다 — 파트너가 순서 비의존을 권고했고 집합 비교라 무관", () => {
     const reversed = { matrix: rowsOf([...CURRENT].reverse()) };
     expect(hasLenderDrift(detectLenderDrift(extractPartnerLenders(reversed)))).toBe(false);
+  });
+});
+
+describe("detectVehiclePriceMismatch — 파트너가 우리 차량가로 계산했는지 대조", () => {
+  // 실측 사고(2026-07-27 QT-2607-0012): 520i M Spt(74,300,000)를 보냈는데 파트너가 기본
+  // 520i(69,800,000) offering에 링크돼 있어 그 가격으로 전액 계산했다.
+  const rawWith = (
+    used: number,
+    catalog = used,
+    modelName = "The New 5 Series 520i (P1) #116604-1054541",
+  ) => ({
+    ok: true,
+    quote: {
+      monthlyPayment: 795_410,
+      rates: { annualRateDecimal: 0.052 },
+      residual: { amount: 41_880_000, rateDecimal: 0.6 },
+      majorInputs: { vehiclePrice: used, discountedVehiclePrice: used },
+      resolvedVehicle: { brand: "BMW", modelName, vehiclePrice: catalog },
+    },
+  });
+
+  test("실제 계산에 쓴 값이 우리가 보낸 값과 다르면 잡는다", () => {
+    expect(detectVehiclePriceMismatch(rawWith(69_800_000), 74_300_000)).toEqual({
+      sentPrice: 74_300_000,
+      usedPrice: 69_800_000,
+      resolvedModelName: "The New 5 Series 520i (P1) #116604-1054541",
+    });
+  });
+
+  test("일치하면 null", () => {
+    expect(detectVehiclePriceMismatch(rawWith(79_200_000), 79_200_000)).toBeNull();
+  });
+
+  // 제프 회신 ③: 산은은 마스터↔offering 가격 체계가 애초에 달라 카탈로그가 불일치가 정상이고,
+  // 엔진이 quotedVehiclePrice를 우선하므로 견적가에 영향이 없다. 카탈로그가로 대조하면 헛경고가 뜬다.
+  test("카탈로그가만 다르고 계산은 우리 값으로 했으면 경고하지 않는다(산은 i5·iX1 오탐 방지)", () => {
+    // 보낸 84,900,000으로 계산했지만 링크된 offering 카탈로그가는 92,800,000
+    expect(detectVehiclePriceMismatch(rawWith(84_900_000, 92_800_000), 84_900_000)).toBeNull();
+  });
+
+  test("금융사 구분 없이 같은 축을 쓴다 — 판정에 lenderCode가 필요 없다", () => {
+    // 8사 모두 "우리가 보낸 가격으로 계산했는가"라는 질문은 동일하다.
+    expect(detectVehiclePriceMismatch(rawWith(69_800_000), 74_300_000)).not.toBeNull();
+  });
+
+  test("fail-open: majorInputs가 없거나 값이 이상하면 경고하지 않는다", () => {
+    expect(detectVehiclePriceMismatch({ ok: true, quote: {} }, 74_300_000)).toBeNull();
+    expect(detectVehiclePriceMismatch(rawWith(0), 74_300_000)).toBeNull();
+    expect(detectVehiclePriceMismatch(null, 74_300_000)).toBeNull();
+    expect(detectVehiclePriceMismatch(rawWith(69_800_000), 0)).toBeNull();
+  });
+
+  test("resolvedVehicle이 없어도 가격 대조는 성립한다(문구에서 차량명만 빠진다)", () => {
+    const raw = { ok: true, quote: { majorInputs: { vehiclePrice: 69_800_000 } } };
+    expect(detectVehiclePriceMismatch(raw, 74_300_000)?.resolvedModelName).toBeNull();
   });
 });

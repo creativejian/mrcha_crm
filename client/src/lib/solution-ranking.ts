@@ -45,6 +45,9 @@ export type SolutionRankingEntry = {
   totalCost: number; // 표시 월납입 × 기간 + 잔가 금액
   warnings: string[];
   raw: unknown; // 행 선택 시 스냅샷(solution_raw)으로 영속할 파트너 원 응답
+  // 이 행을 받을 때 파트너에 보낸 차량가(할인 전). 행 선택 시 응답의 resolvedVehicle과 대조해
+  // "다른 차로 계산된 응답"을 잡는다(detectVehicleResolveMismatch — solution-quote.ts 주석 참조).
+  sentVehiclePrice: number;
 };
 
 export function buildRankingEntry(
@@ -54,6 +57,7 @@ export function buildRankingEntry(
   raw: unknown,
   productType: SolutionProductType,
   termMonths: number,
+  sentVehiclePrice: number,
 ): SolutionRankingEntry {
   const monthlyDisplay = solutionMonthlyDisplay(productType, parsed.monthlyPayment);
   return {
@@ -66,6 +70,7 @@ export function buildRankingEntry(
     totalCost: solutionTotalCost(monthlyDisplay, termMonths, parsed.residualAmount),
     warnings: parsed.warnings,
     raw,
+    sentVehiclePrice,
   };
 }
 

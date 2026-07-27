@@ -4,7 +4,7 @@
 // 계약 원본·매핑 근거: ref/specs/2026-07-14-crm-solution-quote-integration-design.md §파트너 계약.
 // 잔존 3모드 매핑은 제프 UI 원본(dolim-solution QuoteRevolutionV2.tsx:197-202)을 미러한다.
 
-import { parsePercentInput, percentToWon } from "./quote-pricing";
+import { formatMoney, parsePercentInput, percentToWon } from "./quote-pricing";
 
 export const SOLUTION_LENDERS = [
   { code: "mg-capital", label: "MG캐피탈" },
@@ -334,6 +334,64 @@ export function parseSolutionQuoteResult(raw: unknown): SolutionQuoteParsed | nu
     totalTakeoverCost: numOrNull(q.totalTakeoverCost),
     dueAtDelivery: numOrNull(q.dueAtDelivery),
   };
+}
+
+// ── 파트너 차량가 대조(2026-07-27 iM 오배정 사고) ───────────────────────────────
+//
+// 파트너는 우리가 보낸 `masterMcCode`를 자기 offering에 링크해 계산한다. 그 링크가 **사람이 손으로**
+// 걸려 있어서(제프 회신: `match_source = "manual"`), 엉뚱한 트림에 연결돼 있으면 **다른 차로 계산된
+// 견적이 에러 없이 성공 응답으로 돌아온다.** 실사고: 520i M Spt(74,300,000)를 보냈는데 기본
+// 520i(69,800,000) offering에 링크돼 있어 차량가·월납입·잔가가 전부 그 값 기준으로 나왔고,
+// 그대로 고객에게 발송됐다(QT-2607-0012). 응답만 보면 정상이라 사람 눈으로는 안 잡힌다.
+//
+// ⚠️ 보는 축은 **`majorInputs.vehiclePrice`(파트너가 실제 계산에 쓴 값)**다.
+// `resolvedVehicle.vehiclePrice`(링크된 offering의 카탈로그 가격)를 보면 **오탐이 난다** — 제프 회신 ③:
+// 산은은 마스터↔offering 가격 체계가 애초에 달라 불일치 8건이 **정상**이고(대안 offering이 없어 재배정
+// 대상도 아니다), 산은 엔진은 `quotedVehiclePrice`를 우선하므로 **그 불일치가 견적가에 영향을 주지
+// 않는다.** 카탈로그가로 대조하면 산은 i5·iX1 견적마다 헛경고가 뜬다.
+//
+// 실제 계산 입력을 보면 금융사 제한이 필요 없다 — "우리가 보낸 가격으로 계산했는가"는 8사 모두에게
+// 의미가 같다. 제프 표에 따르면 MG·하나·농협·산은·메리츠는 `quotedVehiclePrice` 우선, BNK·신한은
+// 필수, **iM만 카탈로그가만 사용**한다(그래서 지금은 iM만 어긋난다).
+//
+// 🔵 제프 조치 B(iM이 `quotedVehiclePrice`를 반영)가 끝나면 이 축은 조용해진다 — 그게 정상이다.
+// 다만 그 뒤에는 "링크가 엉뚱한 트림을 가리키는데 가격만 우리 값으로 덮인" 상태를 이 축으로 못 잡는다.
+// 그걸 위해 `catalogPrice`를 따로 요청해 뒀다(`ref/2026-07-27-jeff-im-capital-trim-resolve-followup.md` ④).
+// 산은 8건(제프 조치 F)이 정리되기 전에는 카탈로그가 축을 켜면 오탐이 나므로, 그 둘이 함께 와야 한다.
+
+export type VehiclePriceMismatch = {
+  sentPrice: number;
+  usedPrice: number; // 파트너가 실제 계산에 쓴 차량가
+  resolvedModelName: string | null; // 링크된 offering 이름(있으면 경고 문구에 실어 원인 파악을 돕는다)
+};
+
+// 파트너가 우리가 보낸 차량가로 계산했는지 판정. 어긋나면 상세, 아니면 null.
+// fail-open: 필드가 없거나 값이 비정상이면 null(견적 작성을 막지 않는다).
+export function detectVehiclePriceMismatch(raw: unknown, quotedVehiclePrice: number): VehiclePriceMismatch | null {
+  if (!(quotedVehiclePrice > 0)) return null;
+  if (typeof raw !== "object" || raw === null) return null;
+  const quote = (raw as { quote?: unknown }).quote;
+  if (typeof quote !== "object" || quote === null) return null;
+  const q = quote as { majorInputs?: unknown; resolvedVehicle?: unknown };
+  if (typeof q.majorInputs !== "object" || q.majorInputs === null) return null;
+  const usedPrice = numOrNull((q.majorInputs as { vehiclePrice?: unknown }).vehiclePrice);
+  if (usedPrice == null || usedPrice <= 0) return null;
+  if (usedPrice === quotedVehiclePrice) return null;
+  const resolvedName =
+    typeof q.resolvedVehicle === "object" && q.resolvedVehicle !== null
+      ? (q.resolvedVehicle as { modelName?: unknown }).modelName
+      : undefined;
+  return {
+    sentPrice: quotedVehiclePrice,
+    usedPrice,
+    resolvedModelName: typeof resolvedName === "string" ? resolvedName : null,
+  };
+}
+
+// 상담사에게 띄울 한 줄. 파트너 warnings와 같은 토스트 라인에 실린다.
+export function vehiclePriceMismatchMessage(m: VehiclePriceMismatch): string {
+  const vehicle = m.resolvedModelName ? ` (${m.resolvedModelName})` : "";
+  return `⚠️ 금융사가 다른 차량가로 계산했습니다 — 보낸 ${formatMoney(m.sentPrice)}원 ↔ 적용 ${formatMoney(m.usedPrice)}원${vehicle}. 발송 전 확인이 필요합니다.`;
 }
 
 // (solutionDisplayRatePct — 우리카드 유효금리 표시 규칙 — 는 개정 1로 제거: 카드 금리는 제프 응답이 아니라

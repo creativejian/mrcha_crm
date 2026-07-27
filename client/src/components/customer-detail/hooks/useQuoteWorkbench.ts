@@ -6,7 +6,7 @@ import { type CustomerDetailData } from "@/lib/customers";
 import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { customerRegionOf, DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
-import { buildSolutionQuoteInput, CRM_EXTRA_LENDERS, parseSolutionQuoteResult, solutionLenderOptions, solutionProductTypeOf, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
+import { buildSolutionQuoteInput, CRM_EXTRA_LENDERS, detectVehiclePriceMismatch, parseSolutionQuoteResult, solutionLenderOptions, solutionProductTypeOf, vehiclePriceMismatchMessage, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
 import { supportedMileagesFor, supportedTermsFor, useSupportMatrix } from "@/lib/support-matrix";
 import { fetchSolutionDealers, type SolutionDealer } from "@/lib/solution-dealers";
 import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solution-ranking";
@@ -999,8 +999,9 @@ export function useQuoteWorkbench({
     parsed: SolutionQuoteParsed;
     raw: unknown;
     monthlyDisplay: number;
+    sentVehiclePrice: number; // 대조용 — 이 응답을 받을 때 파트너에 보낸 차량가(할인 전)
   }) {
-    const { cardEl, condId, lenderLabel, lenderCode, parsed, raw, monthlyDisplay } = args;
+    const { cardEl, condId, lenderLabel, lenderCode, parsed, raw, monthlyDisplay, sentVehiclePrice } = args;
     // 워크벤치 전환/닫힘 후 늦은 응답/지연 선택 가드 — 카드 key(`${editingQuoteId ?? "new"}-${condId}`) 리마운트
     // 구조상 detach가 완전한 판별자. 없으면 stale 스냅샷 병합 + dirty 마킹이 다음 견적 저장 payload를 오염(#163 잔상 부류).
     if (!cardEl.isConnected) return;
@@ -1031,7 +1032,12 @@ export function useQuoteWorkbench({
         solutionRaw: raw,
       },
     }));
-    if (parsed.warnings.length > 0) onToast(parsed.warnings.join(" · "));
+    // 파트너 warnings + 차량가 대조 경고를 같은 줄에 싣는다. 파트너가 우리가 보낸 차량가로 계산하지
+    // 않으면(링크 오배정) 에러 없이 성공 응답이 오기 때문에, 이걸 안 보면 사람 눈으로 못 잡는다
+    // (2026-07-27 QT-2607-0012 실사고 — 발송까지 갔다). 축 선택 근거는 detectVehiclePriceMismatch 주석.
+    const mismatch = detectVehiclePriceMismatch(raw, sentVehiclePrice);
+    const notes = [...parsed.warnings, ...(mismatch ? [vehiclePriceMismatchMessage(mismatch)] : [])];
+    if (notes.length > 0) onToast(notes.join(" · "));
     handleManualCardFieldEdit();
   }
 
@@ -1064,6 +1070,7 @@ export function useQuoteWorkbench({
         parsed,
         raw,
         monthlyDisplay: solutionMonthlyDisplay(built.input.productType, parsed.monthlyPayment),
+        sentVehiclePrice: built.input.quotedVehiclePrice,
       });
     } catch (e) {
       // 서버 릴레이가 파트너 error 문구를 {error}로 매핑 → HttpError.message(한글)를 그대로 표면화.
@@ -1116,6 +1123,7 @@ export function useQuoteWorkbench({
       parsed,
       raw: entry.raw,
       monthlyDisplay: entry.monthlyDisplay,
+      sentVehiclePrice: entry.sentVehiclePrice,
     });
   }
 
