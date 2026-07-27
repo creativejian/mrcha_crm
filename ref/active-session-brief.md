@@ -8,53 +8,61 @@ Last updated: 2026-07-27
 
 ## 지금 상태
 
-**main 전량 green · 브랜치 0 · 미완 작업 없음.** 07-27 머지 **3건**(`#372`~`#374`) · main `1bc0279` · 마이그 0건
-(앱이 `public.quote_requests.confirmed_at` 추가 — 우리 마이그 아님). 검증: typecheck 0 · lint 0 · knip 0 ·
-format 0 · unit **1193** · pure · build · 실 DB 2건(confirm 멱등·소유권).
-**눈 확인: `#372`~`#374` 전부 유슨생 확인 완료**(07-27) — confirmed 푸시(`#374`)도 **실기 작동 확인**.
-⚠️ 다만 이 기능은 **실제 고객에게 푸시가 나간다** — 이후 테스트도 대상을 신중히
-(FCM 토큰 = 이사님 웹 2대 + 김지안 iOS).
+**main 전량 green · 브랜치 0.** 07-27 머지 **8건**(`#372`~`#374` + 딜러 할인 `#375`~`#378` + main
+직접 1건) · main `b4a2a90` · 마이그 **2건**(0039 `dealer_profiles` · 0040 `dealer_trim_discounts`).
+검증: typecheck 0 · lint 0 · knip 0 · format 0 · unit **1193** · pure **247** · build · 실 DB 36건.
 
-## 직전 세션 요약 (07-27 · 0726-mcMaster-scroll 연장)
+⚠️ **딜러 할인 파이프라인은 실기 확인이 통째로 남았다** — prod 배포는 됐지만 유슨생 눈 확인 0회.
 
-**① 잔존 max 앱카드 라벨(`#372`).** 이사님 지적 — max면 payload가 `"최대"` 맨문자열로 나갔다(발송 7건
-전부 실측). 제프는 금액·율을 정확히 줬고 `solution_raw`에 저장까지 됐는데 **라벨 경로만 안 읽었다**
-(서버 `AdvisorPayloadScenarioRow`에 `solutionRaw` 부재 — 조달은 이미 `select()` 전체였다).
-→ `residualLabelOf`(app-card-labels) 신설, 클라·서버 양쪽 배선 + 파리티 2케이스. 스냅샷 없는 max는 폴백 유지.
-**② 파트너 차량가 대조 가드(`#373`).** iM이 520i M Spt(74,300,000)를 **기본 520i(69,800,000)로 resolve**해
-월납·잔가가 전부 낮은 기준으로 계산된 견적이 **성공 응답으로** 왔다(에러 없음 → 사람 눈으로 못 잡음).
-축은 **`majorInputs.vehiclePrice`(실계산값)** — `resolvedVehicle`(카탈로그가)로 보면 **산은 오탐**이 난다
-(제프 F: 산은은 카탈로그가 불일치가 정상). 금융사 제한 없음. ⚠️ 제프 B 완료 후엔 이 축이 **조용해지는 게
-정상**이고, 그때 링크 오배정을 잡으려면 D의 `catalogPrice`가 필요하다.
-**③ 제프 왕복 3문서**(`ref/2026-07-27-jeff-im-capital-trim-resolve-{request,reply,followup}.md`).
-제프 원인 = 수동 링크 오배정(`match_source="manual"`). **조치 A 머지·우리 재계산으로 실측 확인**
-(잔가 44,580,000 / 월납 846,710). **B·C·D는 코드 미착수 실측**. 확인법은 로컬 메모리에 박제.
-**④ 견적요청 "담당자 확인"(`#374`, 이사님 요청).** 견적 작성 첫 진입 → `confirmed_at` **최초 1회 전이**
-→ 그 전이에서만 푸시. 멱등은 **SQL 조건절**(`confirmed_at IS NULL`)이라 "추가 작성"·URL 재진입 안전.
-GET 프리필에 안 얹고 **별도 POST** — URL 진입으로 GET이 다시 돌아 "열지도 않았는데 확인됨"이 생긴다.
-앱 협업 완결(요청문→회신, 앱 PR #765 머지) — 앱에 5단계가 문구까지 있는데 2·3·4가 **도달 불가**였던 것.
+## 직전 세션 요약 (07-27 오후 · 딜러 할인 제안 → 관리자 채택)
 
-## ▶ 그 다음
+이사님 요구 = MC 마스터에서 **딜러가 자사·제휴·타사 할인만** 입력하고, 그 값은 catalog 확정가에
+바로 들어가지 않는다. **관리자가 필드별로 채택**할 때 반영된다. 한 딜러=한 브랜드, 한 브랜드=여러 딜러.
+spec = `ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md`(2단 구조 · §1~§10).
 
-1. **requireRole 확산(2/11)** — 이사님 항목 16 답 대기. 2. **항목 29 답** 오면 스누즈 트리거 조정.
-3. 이월: 실기 1개(비admin URL·비긴급) · L2(createCustomerFromRequest 인라인 정리) ·
-   pending-tasks 4건(디자인 확정 대기). **미완 작업 없음 — 다음은 제프/이사님 회신 대기가 주다.**
+- **A(`#375`)** `crm.dealer_profiles` + admin `/api/dealer/profiles` + 조직 화면 브랜드·비고 매칭.
+  PK가 `dealer_user_id` 하나라 "1딜러=1브랜드"를 스키마가 강제. brand_id FK 미도입(근거 스키마 주석).
+- **B1(`#376`)** `crm.dealer_trim_discounts` + **`DEALER_WRITE_ALLOWLIST` 첫 개방**
+  (`PUT /api/dealer/discounts/:trimId` 1줄) + 브랜드 소유권 fail-closed 403. cross-schema라 DB CHECK
+  불가 = **서버가 유일 방어선** → **변이 검증 2회 실관찰**(소유권 제거 → 403 3건만 실패 / allowlist
+  닫기 → 200 1건만 실패).
+- **B2a(`#377`)** 사이드바 "할인 업데이트" 실동작화(딜러 메뉴 4개가 전부 onClick 없는 목업이었다) +
+  Topbar 목업 `"BMW 한독/서초"` → 실데이터 `"BMW · 동성모터스"`(`roleAccountMeta` 상수 전멸) +
+  자기 브랜드만(`scopeBrandId` — brands 도착 전 `?brand=` 통과 창 **및** modelId 독립 경로 둘 다 막음).
+- **B2b(`#378`)** 할인 3셀 인라인 편집(위=내 제안·아래=확정값 회색) + **디바운스 800ms 자동 저장** +
+  저장 실패 표시. 평면·그룹 두 테이블이 `TrimMetaCells`를 공유해 한 번에 반영.
+- **main 직접(`62f85a9`)** 딜러에게 실시간 상담 패널 숨김(구: 회색 disabled로 남아 있었다) + 죽은 CSS 6룰.
+- ⚠️ `profiles-write-guard`가 `dealerProfiles`를 오탐 → RULES 주석이 예견한 대로 **ALLOW 3건 명시
+  등록**(정규식 불변) + **스테일 방지 테스트 신설**(등록 조각이 사라지면 실패).
 
-## 대기 (우리 액션 없음)
+## ▶ 그 다음 — 슬라이스 C (관리자 채택) · **계획 완비, 즉시 착수 가능**
 
-**제프** = B(iM이 `quotedVehiclePrice`·할인·보조금 반영) · D(`catalogPrice` 형태 합의) · ⑦(우리카드 다중매칭
-9건에 `MC070626003` 포함 여부). ⚠️ **B 완료 전까지 iM + 할인/전기차보조금 조합 견적 금지**(상수 0 무시).
-확인은 로컬 메모리 `jeff-partner-action-verification` 절차대로(레포 grep + 파트너 API 실측).
-**이사님** = `ref/director-pending-confirmations.md` 14 · 16~29. **앱** = 애플 개발자 등록 후 FCM 실기기.
+**"CRM 이어가자"면 조사 없이 바로 시작한다:**
+1. **`ref/plans/2026-07-27-crm-dealer-discount-c-adoption.md`** 를 읽는다 — Task 0~6 + 코드 + "확정된
+   사실"(재조사 불필요 항목 8개: 트리거·쿼리 관례·게이트·profiles 조인·테스트 실행법·guard 오탐 등)
+2. `superpowers:executing-plans`로 Task 0(브랜치)부터 순서대로
+3. ⚠️ Task 1은 **마이그 0041이 공유 master에 들어간다** — Step 2의 생성 SQL 육안 검사를 건너뛰지 말 것
+
+내용 = `crm.catalog_discount_adoptions`(필드 단위 감사) + 채택 트랜잭션 + 할인 셀 팝오버 +
+상태 파생(채택됨/수정됨/미채택/자격상실). **지금은 이사님이 제안을 볼 화면이 0** — 딜러 입력값은
+DB에만 쌓인다. ⚠️ 채택은 **앱 고객에게 보이는 확정 할인**을 바꾼다(실기 대상 트림을 신중히).
+
+## 대기
+
+**실기(유슨생)** = 딜러 계정 `디엘오토솔루션의 혁명적인 개`(BMW 매칭 완료)로 ①"할인 업데이트" 진입
+②금액 입력 → 1초 뒤 "저장됨" → 리로드 유지 ③관리자 화면 확정값 불변 ④Safari 입력.
+**판단(유슨생)** = 조직 화면은 [저장] 버튼 · 딜러 셀은 자동 저장 → 톤을 맞출지.
+**제프** = B(iM `quotedVehiclePrice`·할인·보조금) · D(`catalogPrice`) · ⑦. ⚠️ B 전까지 iM+할인 조합 금지.
+**이사님** = `ref/director-pending-confirmations.md` 14 · 16~30.
 
 ## Boot
 
 1. `AGENTS.md` → 이 파일 순. 2. `git status --short --branch` · `git log --oneline -5`
-3. 더 필요하면: 과거 세션 = `ref/session-archive.md` / 제프 건 = `ref/2026-07-27-jeff-*` 3종 /
-   confirmed 계약 = `ref/2026-07-27-app-quote-request-confirmed-{request,reply}.md`
+3. 더 필요하면: 딜러 건 = `ref/specs/2026-07-27-crm-dealer-*` · `ref/plans/2026-07-27-crm-dealer-*`(3종) /
+   과거 세션 = `ref/session-archive.md` / 제프 건 = `ref/2026-07-27-jeff-*`(3종)
 
 ## 세션 마무리 규칙
 
 - 이 파일은 **교체**한다(누적 금지). 직전 세션 요약만 남기고 이전 것은 `ref/session-archive.md` 맨 위로.
-- 행위 변경은 `ref/director-pending-confirmations.md`에 등재(PR 🟡와 병행). **단 유슨생이 그 자리에서 승인하면
-  등재 없이 박제**. 단 이사님 확정 설계를 뒤집는 건은 승인 대신 등재(항목 29가 그 사례).
+- 행위 변경은 `ref/director-pending-confirmations.md`에 등재(PR 🟡와 병행). **단 유슨생이 그 자리에서
+  승인하면 등재 없이 박제.** 이사님 확정 설계를 뒤집는 건은 승인 대신 등재.
