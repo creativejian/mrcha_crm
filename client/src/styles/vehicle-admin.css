@@ -625,9 +625,6 @@
   position: relative;
 }
 .va-disc-open {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   padding: 0;
   border: 0;
   background: none;
@@ -638,7 +635,13 @@
   text-decoration: underline dotted var(--brand);
   text-underline-offset: 3px;
 }
+/* 개수 배지는 **셀 위로 띄운다**(2026-07-27 실기): inline으로 두면 확정값이 채워진 순간
+   `5,000,000원(6.5%)` + 배지가 va-c-disc 열 폭을 넘겨 옆 열을 밀어낸다. absolute면 폭을
+   전혀 차지하지 않고, 금액은 우측 정렬·배지는 위쪽이라 세로로 분리돼 겹치지도 않는다. */
 .va-disc-count {
+  position: absolute;
+  top: 4px;
+  right: 6px;
   min-width: 16px;
   padding: 0 4px;
   border-radius: 8px;
@@ -648,6 +651,7 @@
   font-weight: 600;
   line-height: 16px;
   text-align: center;
+  pointer-events: none;
 }
 .va-disc-pop {
   position: absolute;
@@ -711,6 +715,15 @@
   flex-direction: column;
   min-width: 0;
   color: var(--text);
+  /* 딜러명이 길면(실 계정 "디엘오토솔루션의 혁명적인 개") 3줄로 뭉개진다 — 한 줄로 자르고
+     전체 이름은 title 속성으로 남긴다. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.va-disc-dealer > .va-disc-person {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .va-disc-person {
   font-size: 10px;
@@ -721,10 +734,14 @@
   white-space: nowrap;
 }
 .va-disc-badge {
-  min-width: 52px;
   font-size: 10px;
   text-align: center;
   color: var(--muted);
+  white-space: nowrap;
+}
+/* 상태가 없는 제안(미채택)은 빈 배지라 자리를 차지할 이유가 없다 — 열은 남고 폭만 0이 된다. */
+.va-disc-badge:empty {
+  display: none;
 }
 .va-disc-badge.ok {
   color: #1a7f4b;

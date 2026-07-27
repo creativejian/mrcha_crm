@@ -96,7 +96,11 @@ export function AdminDiscountCells({
                   {trim.mcCode ? <span className="va-disc-pop-code">{trim.mcCode}</span> : null}
                 </div>
                 <div className="va-disc-pop-now">
-                  현재 확정: <strong>{discountText(confirmed, trim.price)}</strong>
+                  {/* 텍스트와 <strong>을 div로 묶는다 — flex column의 직접 자식이 되면 각각
+                      익명 flex item이 되어 "현재 확정:"과 금액이 줄바꿈된다(실기에서 확인). */}
+                  <div>
+                    현재 확정: <strong>{discountText(confirmed, trim.price)}</strong>
+                  </div>
                   {sourceName && adoptedInfo?.adoptedAt ? (
                     <span className="va-disc-pop-src">
                       출처 {sourceName} · {fmtDate(adoptedInfo.adoptedAt)} 채택
@@ -111,9 +115,18 @@ export function AdminDiscountCells({
                     const badge = STATE_BADGE[p[field].state];
                     return (
                       <li className="va-disc-row" key={p.dealerUserId}>
-                        <span className="va-disc-dealer">
-                          {p.dealerNote ?? "(딜러사 미지정)"}
-                          <span className="va-disc-person">{p.dealerName ?? "이름 없음"}</span>
+                        <span className="va-disc-dealer" title={p.dealerName ?? undefined}>
+                          {p.dealerNote ? (
+                            <>
+                              {p.dealerNote}
+                              <span className="va-disc-person">{p.dealerName ?? "이름 없음"}</span>
+                            </>
+                          ) : (
+                            // 딜러사명(dealer_profiles.note)이 비어 있으면 **사람 이름을 주로** 올린다.
+                            // "(딜러사 미지정)"을 굵게 띄우면 정작 누가 낸 제안인지가 회색 보조 줄로
+                            // 밀린다(실기에서 확인). 비고는 조직 화면에서 채우면 위로 올라온다.
+                            (p.dealerName ?? "이름 없음")
+                          )}
                         </span>
                         <span className="va-disc-amount">{discountText(p[field].amount, trim.price)}</span>
                         {!p.isDealer ? (
