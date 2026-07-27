@@ -617,3 +617,124 @@
   pointer-events: auto;
   overflow: hidden;
 }
+
+/* ── 관리자 할인 채택 팝오버(슬라이스 C) ───────────────────────────────────
+   딜러 제안이 들어온 할인 셀에만 개수 단서가 붙고, 눌러야 팝오버가 열린다.
+   제안이 0건인 셀은 기존과 똑같은 정적 표시라 이 규칙이 닿지 않는다. */
+.va-disc-cell {
+  position: relative;
+}
+.va-disc-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  /* 확정값 자체는 그대로 읽히고, "제안이 있다"는 사실만 밑줄로 덧붙인다. */
+  text-decoration: underline dotted var(--brand);
+  text-underline-offset: 3px;
+}
+.va-disc-count {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+.va-disc-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 70;
+  width: 340px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(17, 17, 17, 0.16);
+  text-align: left;
+  white-space: normal;
+  cursor: default;
+}
+.va-disc-pop-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.va-disc-pop-code {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.va-disc-pop-now {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--text);
+}
+.va-disc-pop-src {
+  font-size: 10px;
+  color: var(--muted);
+}
+.va-disc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.va-disc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.va-disc-dealer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--text);
+}
+.va-disc-person {
+  font-size: 10px;
+  color: var(--muted);
+}
+.va-disc-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.va-disc-badge {
+  min-width: 52px;
+  font-size: 10px;
+  text-align: center;
+  color: var(--muted);
+}
+.va-disc-badge.ok {
+  color: #1a7f4b;
+}
+.va-disc-badge.warn {
+  color: #b26a00;
+  font-weight: 600;
+}
+.va-disc-fail {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #c02626;
+}

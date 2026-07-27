@@ -1,6 +1,11 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
-import { proposalState, type ProposalState } from "../../../client/src/lib/discount-adoption";
+import {
+  DISCOUNT_FIELDS,
+  proposalState,
+  type DiscountField,
+  type ProposalState,
+} from "../../../client/src/lib/discount-adoption";
 import { trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles } from "../public-app";
@@ -10,8 +15,9 @@ import { updateTrim } from "./catalog-admin";
 // 관리자 채택(슬라이스 C) — 딜러 제안(crm.dealer_trim_discounts)을 확정 할인(catalog.trims)으로
 // 올리고 그 사실을 감사에 남긴다. 자사·제휴·타사는 **각각 독립**이다(이사님 요구 — 자사는
 // 동성모터스, 제휴는 코오롱 값을 채택할 수 있다). 그래서 감사가 필드 단위 1행이다.
+// 필드 어휘(DiscountField)는 client/src/lib/discount-adoption.ts가 SSOT다 — 라우트 zod enum과
+// 클라 팝오버가 같은 값을 봐야 하고, 부작용 0 순수 모듈이라 서버가 import할 수 있다(AGENTS.md).
 // spec: ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md §3.3·§4·§5
-export type DiscountField = "financial" | "partner" | "cash";
 
 // 필드 하나가 세 곳을 가리킨다: 제안 컬럼 · 확정 컬럼 · updateTrim 패치 키.
 // 한 곳에 모아 두지 않으면 필드를 추가할 때 세 군데가 어긋난다(어긋나도 타입은 통과한다).
@@ -21,8 +27,8 @@ const FIELD_MAP = {
   cash: { proposal: "cashAmount", trim: "cashDiscountAmount" },
 } as const satisfies Record<DiscountField, { proposal: string; trim: string }>;
 
-// 아래 세 타입은 TrimProposalsResult의 구성 요소일 뿐이라 export하지 않는다 — 소비자는
-// `TrimProposalsResult["proposals"][number]`로 닿을 수 있고, 같은 파일에서만 쓰는 export는
+// 아래 세 타입은 TrimProposals의 구성 요소일 뿐이라 export하지 않는다 — 소비자는
+// `TrimProposals["proposals"][number]`로 닿을 수 있고, 같은 파일에서만 쓰는 export는
 // knip 기준선 0을 깨뜨린다(#333 선례).
 type TrimProposalField = { amount: number | null; state: ProposalState };
 
@@ -57,7 +63,6 @@ export type TrimProposals = {
   proposals: TrimProposal[];
 };
 
-const FIELDS: readonly DiscountField[] = ["financial", "partner", "cash"];
 
 // 모델 1개의 전 트림 × 전 딜러 제안(admin 전용 — 딜러에게 남의 제안을 보여주면 경쟁사 할인
 // 전략 노출이고, 라우트가 requireRoles(["admin"])로 막는다).
@@ -121,7 +126,7 @@ export async function listModelProposals(
     if (mine.length === 0) continue;
 
     const adopted = {} as Record<DiscountField, TrimAdoptedField>;
-    for (const field of FIELDS) {
+    for (const field of DISCOUNT_FIELDS) {
       const latest = audits.find((a) => a.trimId === trim.id && a.field === field);
       adopted[field] = {
         amount: trim[field],
@@ -179,7 +184,7 @@ export async function adoptDealerProposal(
 ) {
   // 자격 상실자(딜러를 그만둔 사람)의 제안은 확정 할인으로 올라갈 수 없다. 화면이 "채택 불가"를
   // 달아 주지만 그건 표시일 뿐이고, API를 직접 부르면 뚫린다 — 여기가 유일한 방어선이다.
-  // 판정은 listTrimProposals의 isDealer와 같은 read-through 기준이어야 한다(둘이 어긋나면
+  // 판정은 listModelProposals의 isDealer와 같은 read-through 기준이어야 한다(둘이 어긋나면
   // 화면엔 채택 가능으로 보이는데 눌러도 안 되는 상태가 된다).
   const [author] = await executor
     .select({ role: profiles.role })

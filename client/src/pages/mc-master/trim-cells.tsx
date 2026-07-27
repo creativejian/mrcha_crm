@@ -4,8 +4,14 @@ import { ListChecks } from "lucide-react";
 import { statusBadgeTone, statusLabel } from "@/data/vehicle-taxonomy";
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
+import type { TrimProposals } from "@/lib/discount-proposals";
+import { AdminDiscountCells, type AdoptHandler } from "./admin-discount-cells";
 import { optionBadgeState } from "./option-badge";
 import { discountText, fmtDate, formatThousands, parseWon } from "./trim-format";
+
+// ⚠️ 이 파일의 아래쪽 `DiscountField`는 **딜러 제안 금액 컬럼 키**(financialAmount…)다.
+// 관리자 채택의 필드 어휘(financial…)는 이름이 같고 값이 달라 섞이면 위험하므로,
+// 채택 팝오버는 admin-discount-cells.tsx에 따로 두고 여기서는 핸들러 타입만 받는다.
 
 export function ColorChips({ colors }: { colors: TrimColor[] }) {
   if (!colors || colors.length === 0) return <div className="va-color-none">색상 없음</div>;
@@ -195,10 +201,15 @@ export function TrimMetaCells({
   trim,
   dealerProposal,
   onSaveProposal,
+  proposalEntry,
+  onAdopt,
 }: {
   trim: CatalogTrim;
   dealerProposal?: DealerDiscountProposal;
   onSaveProposal?: (trimId: number, amounts: DealerDiscountAmounts) => Promise<void>;
+  /** 관리자 모드 — 이 트림에 들어온 딜러 제안(없으면 셀에 단서가 붙지 않는다). */
+  proposalEntry?: TrimProposals;
+  onAdopt?: AdoptHandler;
 }) {
   return (
     <>
@@ -209,11 +220,7 @@ export function TrimMetaCells({
       {onSaveProposal ? (
         <DealerDiscountCells onSave={onSaveProposal} proposal={dealerProposal} trim={trim} />
       ) : (
-        <>
-          <td className="va-num va-c-disc">{discountText(trim.financialDiscountAmount, trim.price)}</td>
-          <td className="va-num va-c-disc">{discountText(trim.partnerDiscountAmount, trim.price)}</td>
-          <td className="va-num va-c-disc">{discountText(trim.cashDiscountAmount, trim.price)}</td>
-        </>
+        <AdminDiscountCells entry={proposalEntry} onAdopt={onAdopt} trim={trim} />
       )}
       <td className="va-col-center va-num va-muted va-c-date">{fmtDate(trim.discountUpdatedAt)}</td>
       <td className="va-col-center">

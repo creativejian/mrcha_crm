@@ -1,6 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 
+import { DISCOUNT_FIELDS } from "../../../client/src/lib/discount-adoption";
 import { adoptDealerProposal, listModelProposals } from "../../db/queries/discount-adoptions";
 import { requireRoles } from "../../middleware/role-gate";
 import { type CatalogApp, id, run } from "./shared";
@@ -12,8 +13,10 @@ import { type CatalogApp, id, run } from "./shared";
 // 제안을 열람하고 ②확정 할인을 채택할 수 있다. dealerWriteGate는 **쓰기만** 보므로 GET을 막지
 // 않아 딜러가 경쟁사 제안을 들여다보는 경로도 열린다.
 // spec: ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md §6.3·§7.2
+// field 어휘는 client/src/lib/discount-adoption.ts가 SSOT다 — 여기 리터럴을 다시 적으면
+// 스키마·쿼리·클라 팝오버가 어긋날 수 있다(어긋나도 타입은 통과한다).
 const adoptBody = z.object({
-  field: z.enum(["financial", "partner", "cash"]),
+  field: z.enum(DISCOUNT_FIELDS),
   dealerUserId: z.uuid(),
 });
 

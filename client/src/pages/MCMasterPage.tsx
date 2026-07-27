@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckSquare, FolderInput, Hash, Plus } from "lucide-react";
 
@@ -21,6 +21,8 @@ import {
 } from "@/lib/catalog";
 import { useDealerDiscounts } from "@/lib/dealer-discounts";
 import { useDealerMe } from "@/lib/dealer-profiles";
+import type { DiscountField } from "@/lib/discount-adoption";
+import { useTrimProposals } from "@/lib/discount-proposals";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
 import { prefetchModels, prefetchOptions, prefetchTrims } from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
@@ -78,6 +80,20 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     reloadTrims,
     reloadOptionSummary,
   } = useMcMasterCatalog(modelId, urlBrandId, scopeBrandId);
+
+  // 관리자 채택(슬라이스 C) — 딜러가 낸 제안을 필드 단위로 확정 할인에 반영한다.
+  // canEdit(최고관리자)일 때만 요청한다: 서버도 requireRoles(["admin"])로 막지만, staff 화면에서
+  // 403을 유발하는 요청을 굳이 보내지 않는다.
+  const { byTrim: trimProposals, adopt } = useTrimProposals(modelId ? Number(modelId) : null, canEdit);
+  // 채택은 catalog.trims를 바꾸므로 트림 목록을 다시 읽어야 확정값 셀이 갱신된다
+  // (제안 목록 자체는 훅이 자기 데이터를 다시 받는다 — 다른 딜러의 상태까지 함께 바뀐다).
+  const handleAdopt = useCallback(
+    async (trimId: number, field: DiscountField, dealerUserId: string) => {
+      await adopt(trimId, field, dealerUserId);
+      reloadTrims();
+    },
+    [adopt, reloadTrims],
+  );
 
   // 딜러 모드: URL의 modelId가 내 브랜드 모델이 아니면 첫 모델로 교정한다.
   // brandId 스코프는 사이드바와 모델 목록을 좁히지만 **modelId는 독립 경로**다 — 손으로 고친 URL이나
@@ -396,6 +412,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   canEdit={canEdit}
                   dealerProposals={dealerMode ? dealerProposals : undefined}
                   onSaveProposal={dealerMode ? saveProposal : undefined}
+                  proposalsByTrim={canEdit ? trimProposals : undefined}
+                  onAdopt={canEdit ? handleAdopt : undefined}
                   colorsByTrim={colorsByTrim}
                   optionByTrim={optionByTrim}
                   expanded={expandedGroups}
@@ -413,6 +431,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   canEdit={canEdit}
                   dealerProposals={dealerMode ? dealerProposals : undefined}
                   onSaveProposal={dealerMode ? saveProposal : undefined}
+                  proposalsByTrim={canEdit ? trimProposals : undefined}
+                  onAdopt={canEdit ? handleAdopt : undefined}
                   isDomestic={isDomestic}
                   selectMode={selectMode}
                   selected={selected}
