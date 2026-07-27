@@ -9,6 +9,7 @@ import { catalog } from "./routes/catalog";
 import { consultations } from "./routes/consultations";
 import { insightsRoute, knowledgeRoute } from "./routes/content";
 import { customers } from "./routes/customers";
+import { dealer } from "./routes/dealer";
 import { me } from "./routes/me";
 import { quoteRequests } from "./routes/quote-requests";
 import { solution } from "./routes/solution";
@@ -47,6 +48,7 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   protect("/api/solution/*");
   protect("/api/staff/*");
   protect("/api/me/*");
+  protect("/api/dealer/*");
 
   app.route("/api/vehicles", vehicles);
   app.route("/api/catalog", catalog);
@@ -59,6 +61,7 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.route("/api/solution", solution);
   app.route("/api/staff", staff);
   app.route("/api/me", me);
+  app.route("/api/dealer", dealer);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));
   // 처리되지 않은 에러는 CF 실시간 로그로 진단할 수 있게 console.error로 남기되,
