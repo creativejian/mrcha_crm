@@ -6,7 +6,7 @@ import { type CustomerDetailData } from "@/lib/customers";
 import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, type QuoteDiscountLine, type QuoteItem } from "@/lib/quote-items";
 import { customerRegionOf, DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
-import { buildSolutionQuoteInput, CRM_EXTRA_LENDERS, detectVehicleResolveMismatch, parseSolutionQuoteResult, solutionLenderOptions, solutionProductTypeOf, vehicleResolveMismatchMessage, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
+import { buildSolutionQuoteInput, CRM_EXTRA_LENDERS, detectVehiclePriceMismatch, parseSolutionQuoteResult, solutionLenderOptions, solutionProductTypeOf, vehiclePriceMismatchMessage, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
 import { supportedMileagesFor, supportedTermsFor, useSupportMatrix } from "@/lib/support-matrix";
 import { fetchSolutionDealers, type SolutionDealer } from "@/lib/solution-dealers";
 import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solution-ranking";
@@ -1032,11 +1032,11 @@ export function useQuoteWorkbench({
         solutionRaw: raw,
       },
     }));
-    // 파트너 warnings + 차량 resolve 대조 경고를 같은 줄에 싣는다. 대조는 응답이 우리가 보낸 차량이
-    // 아닌 다른 차량가로 계산됐는지 보는 축 — 파트너 링크 오배정은 에러 없이 성공 응답으로 오기 때문에
-    // 이걸 안 보면 사람 눈으로 못 잡는다(2026-07-27 QT-2607-0012 실사고, 발송까지 갔다).
-    const mismatch = detectVehicleResolveMismatch(lenderCode, raw, sentVehiclePrice);
-    const notes = [...parsed.warnings, ...(mismatch ? [vehicleResolveMismatchMessage(mismatch)] : [])];
+    // 파트너 warnings + 차량가 대조 경고를 같은 줄에 싣는다. 파트너가 우리가 보낸 차량가로 계산하지
+    // 않으면(링크 오배정) 에러 없이 성공 응답이 오기 때문에, 이걸 안 보면 사람 눈으로 못 잡는다
+    // (2026-07-27 QT-2607-0012 실사고 — 발송까지 갔다). 축 선택 근거는 detectVehiclePriceMismatch 주석.
+    const mismatch = detectVehiclePriceMismatch(raw, sentVehiclePrice);
+    const notes = [...parsed.warnings, ...(mismatch ? [vehiclePriceMismatchMessage(mismatch)] : [])];
     if (notes.length > 0) onToast(notes.join(" · "));
     handleManualCardFieldEdit();
   }
