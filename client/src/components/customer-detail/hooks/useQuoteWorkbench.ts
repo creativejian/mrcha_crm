@@ -11,7 +11,7 @@ import { supportedMileagesFor, supportedTermsFor, useSupportMatrix } from "@/lib
 import { fetchSolutionDealers, type SolutionDealer } from "@/lib/solution-dealers";
 import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solution-ranking";
 import { deriveCardResults, residualAmountOf } from "@/lib/lease-rate";
-import { fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
+import { confirmQuoteRequest, fetchQuoteRequestDetail, fetchAppQuoteRequestsCached } from "@/lib/quote-requests";
 import { seedScenarioCardFromRequest } from "@/lib/quote-request-seed";
 import { type VehicleSelection } from "@/components/customer-detail/WorkbenchVehiclePickers";
 import { buildAppCardModel, type AppCardModel } from "@/lib/app-card";
@@ -173,6 +173,11 @@ export function useQuoteWorkbench({
   // 앱 견적요청 → 워크벤치 prefill 오픈(차량/구매방식/옵션). 가격은 catalog 계산 보존.
   // 인박스 진입(URL ?quoteRequest=) + 니즈 카드 "견적 작성" 양쪽이 호출. hoisted 함수(useCallback 미사용 — 기존 패턴).
   function openWorkbenchForQuoteRequest(reqId: string): Promise<void> {
+    // 담당자 확인(앱 진행 2단계) — **워크벤치를 여는 것 자체가 그 사건**이라 여기서 전이시킨다.
+    // "견적 작성"·"추가 작성"·URL 진입이 모두 이 함수를 지나므로 훅 지점이 하나로 모인다.
+    // 중복은 서버 조건절(confirmed_at IS NULL)이 막으므로 재클릭을 여기서 방어할 필요가 없다.
+    // 프리필과 병렬로 쏘고 실패는 삼킨다(best-effort — 알림이 못 가도 견적 작성은 막지 않는다).
+    void confirmQuoteRequest(detail.id, reqId).catch(() => undefined);
     return fetchQuoteRequestDetail(detail.id, reqId).then((prefill) => {
       // 워크벤치를 여는 지점은 팝오버-내부 상태(확인 5종·넛지)를 **단일 지점으로** 청소한다
       // (배치 12 B#1 계약 — `useQuoteList.closeQuoteActionPopover`. 산개해서 setter를 하나씩 부르면

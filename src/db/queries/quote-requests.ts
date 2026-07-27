@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 
 import { nextSequenceCode, yymmKstOf } from "../../lib/business-code";
 import { APP_QUOTE_REQUEST_SOURCE } from "../../../client/src/data/customers";
+import { dedupedModelTrim } from "../../../client/src/lib/app-card-labels";
 import { deliveryRegionOf, deliveryTimingTextOf } from "../../../client/src/lib/quote-delivery";
 import { deriveNeedsFromRequest } from "../../../client/src/lib/quote-request-needs";
 import { findSameNumberLinked, type LinkedPhoneCandidate } from "../../../client/src/lib/phone-duplicate";
@@ -600,4 +601,67 @@ export async function createCustomerFromRequest(
   // 방금 만든 고객이라 덮을 수기값이 없다(D5 덮어쓰기 주의사항이 여기엔 해당 없음).
   await applyFeaturedRequestNeeds(row.id, (await firstRequestIdOf(req.userId, ex)) ?? requestId, ex);
   return { ...row, appUserId: req.userId };
+}
+
+// ── 담당자 확인(2단계) 전이 ────────────────────────────────────────────────────
+//
+// 이사님 요청(2026-07-27): CRM에서 그 요청의 "견적 작성"을 **처음 여는 순간**을 담당자 확인 사건으로
+// 잡는다. 버튼 클릭마다 푸시하는 대신 `confirmed_at`을 **한 번만** 채우고 그 최초 전이에서만 알림을
+// 보낸다 — 그래야 앱 2단계 표시(reviewing)와 푸시 중복 방지가 같은 사실 하나를 근거로 쓴다.
+//
+// 멱등의 근거는 조건절 `confirmed_at IS NULL`이다. "견적 작성"과 "추가 작성"이 클라에서 같은 핸들러라
+// 재진입·재클릭이 흔한데, 두 번째부터는 UPDATE가 0행이 되어 `firstConfirm: false`로 떨어진다.
+// (앱 계약: 단조 값 — 되돌리지 않는다. ref/2026-07-27-app-quote-request-confirmed-request.md)
+export type QuoteRequestConfirmResult = {
+  firstConfirm: boolean; // true일 때만 호출부가 푸시한다
+  appUserId: string;
+  vehicleLabel: string; // 푸시 body — "<브랜드> · <모델 트림>"
+};
+
+export async function confirmQuoteRequest(
+  requestId: string,
+  customerId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<QuoteRequestConfirmResult | null> {
+  // 소유권 검증은 setFeaturedRequest와 같은 축 — 파라미터 2개가 서로 무관하게 올 수 있다.
+  const [req] = await ex
+    .select({ userId: quoteRequests.userId, trimId: quoteRequests.trimId })
+    .from(quoteRequests)
+    .where(eq(quoteRequests.id, requestId));
+  if (!req) return null;
+  const [customer] = await ex.select({ appUserId: customers.appUserId }).from(customers).where(eq(customers.id, customerId));
+  if (!customer || customer.appUserId !== req.userId) return null;
+
+  // ⚠️ 시각은 DB 시계(now())로 찍는다 — 앱 시계와 어긋나면 앱이 보는 확인 시점이 뒤로 갈 수 있다
+  //    (updated-at-clock-guard와 같은 축).
+  const changed = await ex
+    .update(quoteRequests)
+    .set({ confirmedAt: sql`now()` })
+    .where(and(eq(quoteRequests.id, requestId), sql`${quoteRequests.confirmedAt} is null`))
+    .returning({ id: quoteRequests.id });
+
+  return {
+    firstConfirm: changed.length > 0,
+    appUserId: req.userId,
+    vehicleLabel: await vehicleLabelOfTrim(req.trimId, ex),
+  };
+}
+
+// 푸시 body "<브랜드> · <모델 트림>". 트림명이 모델명을 접두로 포함하면 중복을 지운다(앱카드 어휘와 동일 규칙).
+// 차량을 못 찾으면 빈 문자열 — 호출부가 그때는 body 없이 보낸다(알림 자체를 막지는 않는다).
+async function vehicleLabelOfTrim(trimId: number | null, ex: Executor): Promise<string> {
+  if (trimId == null) return "";
+  const [t] = await ex
+    .select({
+      trimName: trimsInCatalog.trimName,
+      modelName: modelsInCatalog.name,
+      brandName: brandsInCatalog.name,
+    })
+    .from(trimsInCatalog)
+    .leftJoin(modelsInCatalog, eq(modelsInCatalog.id, trimsInCatalog.modelId))
+    .leftJoin(brandsInCatalog, eq(brandsInCatalog.id, modelsInCatalog.brandId))
+    .where(eq(trimsInCatalog.id, trimId));
+  if (!t) return "";
+  const vehicle = dedupedModelTrim(t.modelName, t.trimName);
+  return [t.brandName, vehicle].filter(Boolean).join(" · ");
 }

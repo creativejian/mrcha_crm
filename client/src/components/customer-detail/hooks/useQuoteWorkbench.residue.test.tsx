@@ -8,7 +8,7 @@ import type { CustomerDetailData } from "@/lib/customers";
 import type { QuoteItem } from "@/lib/quote-items";
 import type { VehicleSelection } from "@/components/customer-detail/WorkbenchVehiclePickers";
 import { DEFAULT_QUOTE_GUIDANCE, regionFromResidence } from "@/data/quote-guidance";
-import { fetchQuoteRequestDetail } from "@/lib/quote-requests";
+import { confirmQuoteRequest, fetchQuoteRequestDetail } from "@/lib/quote-requests";
 import { createQuote, requestSolutionQuote } from "@/lib/customer-quotes";
 import { fetchSolutionDealers, type SolutionDealer } from "@/lib/solution-dealers";
 
@@ -19,6 +19,8 @@ import type { useQuoteList } from "./useQuoteList";
 vi.mock("@/lib/quote-requests", () => ({
   fetchQuoteRequestDetail: vi.fn(),
   fetchAppQuoteRequestsCached: vi.fn(async () => []),
+  // 담당자 확인 전이(앱 2단계) — 워크벤치를 여는 경로가 이걸 부른다. 기본은 성공 resolve.
+  confirmQuoteRequest: vi.fn(async () => ({ firstConfirm: true })),
 }));
 
 // 솔루션 조회 릴레이 + 저장 INSERT만 모킹(payload 관측용) — parse 헬퍼·타입 등 나머지는 원본 유지.
@@ -136,6 +138,9 @@ const editLegacyManualQuote = {
 };
 
 const detail = {
+  // id는 서버 호출(fetchQuoteRequestDetail·confirmQuoteRequest)의 customerId 인자다 — 실제
+  // CustomerDetailData에는 항상 있다. 빠져 있으면 undefined가 그대로 흘러 인자 검증이 무의미해진다.
+  id: "cust-1",
   residence: "인천광역시 · 남동구",
   quotes: [editTargetQuote, editTargetWithDiscounts, editStaleRegionQuote, editSolutionMaxQuote, editLegacyManualQuote],
 } as unknown as CustomerDetailData;
@@ -242,6 +247,22 @@ describe("useQuoteWorkbench — 오픈/리셋 경로의 카드 UI 상태 잔상 
     expect(result.current.cardUi).toEqual({ "manual-condition-1": { ...DEFAULT_CARD_UI, depositMode: "percent" } });
     expect(result.current.discountLines).toEqual([]);
     expect(result.current.acquisitionTaxMode).toBe("normal");
+  });
+
+  // 앱 진행 2단계("담당자 확인 완료") 전이 — 워크벤치를 여는 것이 곧 그 사건이다(이사님 2026-07-27).
+  // 중복 방지는 서버 조건절(confirmed_at IS NULL)이 하므로 클라는 매번 부르고 결과를 신경 쓰지 않는다.
+  it("openWorkbenchForQuoteRequest가 담당자 확인 전이를 호출한다(best-effort — 실패해도 워크벤치는 열린다)", async () => {
+    vi.mocked(fetchQuoteRequestDetail).mockResolvedValue({
+      id: "req-1",
+      trimId: null,
+      optionIds: [],
+    } as unknown as Awaited<ReturnType<typeof fetchQuoteRequestDetail>>);
+    // 전이가 실패해도(네트워크·403) 프리필은 그대로 진행돼야 한다 — 알림 때문에 견적 작성이 막히면 안 된다.
+    vi.mocked(confirmQuoteRequest).mockRejectedValueOnce(new Error("network"));
+    const { result } = setup();
+    await act(async () => result.current.openWorkbenchForQuoteRequest("req-1"));
+    expect(confirmQuoteRequest).toHaveBeenCalledWith("cust-1", "req-1");
+    expect(result.current.manualQuoteCards).toHaveLength(3); // 프리필은 정상 완료
   });
 
   it("setDiscountLineLabel이 할인 행 항목명을 state에 반영한다(#157 select 미배선 — 프리뷰 라벨 스테일 픽스)", () => {

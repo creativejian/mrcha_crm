@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createCustomerManual, getCustomer, getCustomerAdvisorId, getCustomerAdvisorName, getCustomerAppUserId, getCustomerFeaturedRequestId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
 import { DERIVED_NEED_KEYS } from "../../client/src/lib/quote-request-needs";
 import { dismissConsultation, linkedCustomerIdForConsultation, listConsultationsByUser } from "../db/queries/consultations";
-import { getQuoteRequestDetail, listQuoteRequestsByUser, setFeaturedRequest } from "../db/queries/quote-requests";
+import { confirmQuoteRequest, getQuoteRequestDetail, listQuoteRequestsByUser, setFeaturedRequest } from "../db/queries/quote-requests";
 import {
   addMemo, updateMemo, deleteMemo,
   addTask, updateTask, deleteTask,
@@ -247,6 +247,34 @@ customers.post("/:id/quote-requests/:reqId/feature", zValidator("param", z.objec
   scheduleEmbedOnWrite(c, { sourceType: "customer_profile", sourceId: p.id });
   scheduleAiHintRefresh(c, p.id);
   return c.json(row);
+});
+
+// 담당자 확인(앱 진행 2단계 "담당자 확인 완료") — 그 요청의 "견적 작성"을 처음 열 때 클라가 부른다.
+// 이사님 요청(2026-07-27): 버튼 클릭마다 푸시하지 않고, quote_requests.confirmed_at을 **한 번만**
+// 전이시킨 뒤 그 최초 전이에서만 알림을 보낸다 → 앱 2단계 표시와 중복 방지가 같은 사실을 쓴다.
+// 계약 = ref/2026-07-27-app-quote-request-confirmed-request.md
+//
+// ⚠️ GET 프리필(위 라우트)에 얹지 않고 별도 POST로 둔다 — 프리패치·재시도·뒤로가기로 GET이 다시 도는
+//    경로가 있어(워크벤치 URL 진입) 조회에 상태 전이를 섞으면 "열지 않았는데 확인됨"이 생긴다.
+// 게이트는 /feature와 동일 — customerScopeGate 자동 편입(staff는 본인 담당 고객만). 견적 쓰기가 아니라
+// 요청 처리 착수 표시라 quoteWriteGate는 걸지 않는다.
+customers.post("/:id/quote-requests/:reqId/confirm", zValidator("param", z.object({ id: z.uuid(), reqId: z.uuid() })), async (c) => {
+  const p = c.req.valid("param");
+  const result = await c.var.db.transaction((tx) => confirmQuoteRequest(p.reqId, p.id, tx));
+  // 고객 없음·요청 없음·소유권 불일치를 같은 문구로(프리필·대표 지정 라우트와 동일 — 존재 여부가 새지 않는다).
+  if (!result) return c.json({ error: "요청을 찾을 수 없습니다." }, 404);
+  // 최초 전이에서만 발송. 재클릭·추가 작성은 firstConfirm=false라 조용하다.
+  // best-effort: holdWork가 실패를 흡수하고 sendAssignmentPush도 throw하지 않는다 — 푸시가 실패해도
+  // 견적 작성은 그대로 진행된다(이사님 요구). assignmentPushEnabled는 테스트/로컬 게이트(배정 알림과 동일 축).
+  if (result.firstConfirm && assignmentPushEnabled(c)) {
+    holdWork(c, sendAssignmentPush(c, {
+      userId: result.appUserId,
+      title: "차선생",
+      subtitle: "담당자가 요청하신 견적 조건을 확인했어요",
+      body: result.vehicleLabel,
+    }));
+  }
+  return c.json({ firstConfirm: result.firstConfirm });
 });
 
 // 고객 상세: 그 고객(app_user_id)의 앱 상담신청 목록. 수기 고객은 빈 배열.
