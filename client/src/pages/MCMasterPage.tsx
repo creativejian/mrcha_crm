@@ -19,6 +19,7 @@ import {
   updateModel,
   updateTrim,
 } from "@/lib/catalog";
+import { useDealerDiscounts } from "@/lib/dealer-discounts";
 import { useDealerMe } from "@/lib/dealer-profiles";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
 import { prefetchModels, prefetchOptions, prefetchTrims } from "./mc-master/catalog-cache";
@@ -54,6 +55,12 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   // 프로필 도착 전에는 스코프를 알 수 없다 — 그 사이 전 브랜드가 스치는 것을 막으려고 존재하지
   // 않는 브랜드 id(-1)를 넣어 빈 목록으로 둔다. 도착하면 실제 브랜드로 좁혀진다.
   const scopeBrandId = dealerMode ? (dealerMe?.brandId ?? -1) : null;
+  // 딜러 모드에서만 내 제안을 로드한다(다른 role은 요청조차 보내지 않는다).
+  // 저장은 트림 단위로 3금액을 함께 PUT하고, 실패는 셀이 자기 상태로 알린다(훅이 throw).
+  const { byTrim: dealerProposals, save: saveProposal } = useDealerDiscounts(
+    modelId ? Number(modelId) : null,
+    dealerMode,
+  );
 
   const {
     brands,
@@ -380,6 +387,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 <GroupedTrimTable
                   trims={trims}
                   canEdit={canEdit}
+                  dealerProposals={dealerMode ? dealerProposals : undefined}
+                  onSaveProposal={dealerMode ? saveProposal : undefined}
                   colorsByTrim={colorsByTrim}
                   optionByTrim={optionByTrim}
                   expanded={expandedGroups}
@@ -395,6 +404,8 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 <TrimTable
                   trims={trims}
                   canEdit={canEdit}
+                  dealerProposals={dealerMode ? dealerProposals : undefined}
+                  onSaveProposal={dealerMode ? saveProposal : undefined}
                   isDomestic={isDomestic}
                   selectMode={selectMode}
                   selected={selected}

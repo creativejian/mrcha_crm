@@ -428,6 +428,33 @@
   width: 152px;
   white-space: nowrap;
 }
+/* 딜러 모드 할인 셀 — 위: 내 제안 입력칸, 아래: 확정값/저장 상태 보조표기(spec §7.1).
+   입력칸을 셀 폭(152px)에 맞춰 가둬야 컬럼 리듬이 깨지지 않는다. */
+.va-trim-table .va-dealer-disc input {
+  width: 100%;
+  height: 28px;
+  border: 1px solid #e4e4e2;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 8px;
+  font-size: 13px;
+  text-align: right;
+}
+.va-trim-table .va-dealer-disc input:focus {
+  border-color: #a5b4fc;
+  outline: none;
+}
+.va-trim-table .va-dealer-disc small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+}
+.va-trim-table .va-dealer-disc small.va-dealer-disc-error {
+  color: #dc2626;
+  white-space: normal;
+}
 /* 옵션 배지 버튼: 리스트 아이콘 + 우상단 배지(있음 파랑/무옵션확정 회색/미정 빨강). */
 .va-option-btn {
   position: relative;

@@ -1,6 +1,7 @@
 import { Pencil } from "lucide-react";
 
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
+import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
 import { SelectAllHeadCell, SelectCheckCell, SelectableRow } from "./table-select";
 import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 
@@ -23,9 +24,14 @@ export function TrimTable({
   onDragStart,
   onDragOver,
   onDrop,
+  dealerProposals,
+  onSaveProposal,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
+  // 딜러 모드 전용(optional이라 admin 호출부는 무변경) — 있으면 할인 3셀이 제안 입력칸이 된다.
+  dealerProposals?: Map<number, DealerDiscountProposal>;
+  onSaveProposal?: (trimId: number, amounts: DealerDiscountAmounts) => Promise<void>;
   isDomestic: boolean;
   selectMode: boolean;
   selected: Set<number>;
@@ -75,7 +81,7 @@ export function TrimTable({
               <div className="va-trim-name">{t.trimName}</div>
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
             </td>
-            <TrimMetaCells trim={t} />
+            <TrimMetaCells dealerProposal={dealerProposals?.get(t.id)} onSaveProposal={onSaveProposal} trim={t} />
             {isDomestic && (
               <td className="va-col-center">
                 <OptionBadgeButton

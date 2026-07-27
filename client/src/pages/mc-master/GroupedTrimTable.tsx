@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
 
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
+import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
 import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 import { TRIM_BODY_COLS } from "./trim-format";
 import { groupTrimsBySubline, trimGrade } from "./trim-grouping";
@@ -18,9 +19,14 @@ export function GroupedTrimTable({
   onEdit,
   onOpenOptions,
   onPrefetchOptions,
+  dealerProposals,
+  onSaveProposal,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
+  // 딜러 모드 전용(optional이라 admin 호출부는 무변경) — 있으면 할인 3셀이 제안 입력칸이 된다.
+  dealerProposals?: Map<number, DealerDiscountProposal>;
+  onSaveProposal?: (trimId: number, amounts: DealerDiscountAmounts) => Promise<void>;
   colorsByTrim: Map<number, TrimColor[]>;
   optionByTrim: Map<number, TrimOptionSummary>;
   expanded: Set<string>;
@@ -71,7 +77,7 @@ export function GroupedTrimTable({
                       <div className="va-trim-name">{trimGrade(t.trimName)}</div>
                       <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
                     </td>
-                    <TrimMetaCells trim={t} />
+                    <TrimMetaCells dealerProposal={dealerProposals?.get(t.id)} onSaveProposal={onSaveProposal} trim={t} />
                     <td className="va-col-center">
                       <OptionBadgeButton
                         summary={optionByTrim.get(t.id)}
