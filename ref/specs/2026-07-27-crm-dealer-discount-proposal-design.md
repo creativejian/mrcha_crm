@@ -1,0 +1,247 @@
+# 딜러 할인 제안 → 관리자 채택 설계 (2026-07-27)
+
+요청: 이사님(브랜드 매칭·비고·채택 권한) · 설계 합의: 유슨생 · 작성: 송실장 세션
+
+## 1. 요구 (원문 기준)
+
+- MC 마스터에서 **딜러가 자사할인·제휴할인·타사할인만** insert/update 할 수 있게 한다.
+- 딜러는 **자기 브랜드 전 트림만** 입력·수정 가능. 관리자가 딜러에게 브랜드를 매칭한다.
+- **한 딜러 = 한 브랜드**, 그러나 **한 브랜드에 여러 딜러**가 각자 금액을 낼 수 있다.
+- ⚠️ **딜러가 입력한 금액이 최종 컨펌된 catalog 할인금액으로 들어가면 안 된다.**
+  관리자(이사님)가 제안들을 보고 **선택하면 그때 최종 금액에 반영**된다.
+- 선택은 **자사·제휴·타사 각각 독립**이어야 한다.
+- 딜러 행에 **비고 컬럼**(이사님 입력)이 있어야 한다 — 예: "동성모터스", "코오롱모터스", "바바리안".
+
+## 2. 핵심 결정 — 2단 구조(제안 → 채택)
+
+```
+딜러 입력                        관리자 채택                  최종 소비
+crm.dealer_trim_discounts  →  [필드별 채택]  →  catalog.trims(자사/제휴/타사)
+(브랜드별 여러 딜러 병존)         crm.catalog_discount_adoptions   → 견적 워크벤치 · 차선생 앱
+```
+
+**딜러는 `catalog` 스키마를 한 글자도 건드리지 않는다.** `DEALER_WRITE_ALLOWLIST`에 여는 것은
+신설 crm 라우트뿐이라, 트림명·기본가격·상태는 물론 **최종 할인 금액까지** 딜러 손이 닿지 않는다.
+`catalog` 쓰기는 admin 전용 그대로다.
+
+근거(실측): `catalog.trims`의 `financial_discount_amount`·`partner_discount_amount`·
+`cash_discount_amount`는 `client/src/components/customer-detail/hooks/useQuoteWorkbench.ts`가 읽어
+**견적 계산에 실제로 반영**되고, `catalog`는 앱과 공유하는 스키마다. 즉 확정 할인은 고객에게
+보이는 값이라 딜러 제안이 직접 들어가면 안 된다.
+
+## 3. 데이터 모델
+
+### 3.1 신설 — `crm.dealer_profiles`
+
+| 컬럼 | 타입 | 비고 |
+|---|---|---|
+| `dealer_user_id` | `uuid` PK | → `public.profiles.id` (loose id) |
+| `brand_id` | `bigint` NOT NULL | → `catalog.brands.id` (loose id) |
+| `note` | `text` | **비고 — 딜러사명**(동성모터스·코오롱모터스·바바리안). 관리자 입력 |
+| `created_at` | `timestamptz` NOT NULL | `defaultNow()` |
+| `updated_at` | `timestamptz` NOT NULL | `defaultNow()` / UPDATE는 `sql\`now()\`` |
+
+`created_at`을 두는 이유는 감사(언제 처음 매칭했나)와 **테스트 가능성**이다 — 스탬프 전진을
+DB 안에서 `updated_at > created_at`(timestamptz = 마이크로초)으로 검증할 수 있다. JS `Date`로 꺼내
+비교하면 ms 절삭 때문에 빠른 연속 호출에서 거짓 실패하고, 더 나쁘게는 시계 스큐가 클수록 잘 통과해
+결함을 가린다(#334·#335).
+
+- **PK가 `dealer_user_id` 하나** = "한 딜러 = 한 브랜드"를 스키마가 강제한다.
+- `brand_id`에 FK를 걸지 않는다: `NOT NULL`이라 `ON DELETE SET NULL`을 쓸 수 없고, `RESTRICT`는
+  catalog(앱 공유) 삭제를 CRM이 가로막는 소유권 침범이 된다. `crm.quotes → catalog` FK(마이그 0001)는
+  nullable이라 가능했던 선례이므로 여기 적용되지 않는다. 조회 시 조인 실패는 "브랜드 미지정"으로 처리.
+
+### 3.2 신설 — `crm.dealer_trim_discounts` (제안)
+
+| 컬럼 | 타입 | 비고 |
+|---|---|---|
+| `id` | `uuid` PK | `defaultRandom()` |
+| `trim_id` | `bigint` NOT NULL | → `catalog.trims.id` (loose id) |
+| `dealer_user_id` | `uuid` NOT NULL | → `public.profiles.id` |
+| `financial_amount` | `integer` | 자사할인 제안. **nullable = 미입력** |
+| `partner_amount` | `integer` | 제휴할인 제안 |
+| `cash_amount` | `integer` | 타사할인 제안 |
+| `created_at` | `timestamptz` NOT NULL | `defaultNow()` (§3.1과 같은 이유) |
+| `updated_at` | `timestamptz` NOT NULL | `defaultNow()` / UPDATE는 `sql\`now()\`` |
+
+- `UNIQUE (trim_id, dealer_user_id)` — 딜러별·트림별 1행 upsert.
+- 3금액이 각각 nullable인 이유: 딜러가 자사만 내고 제휴·타사는 비울 수 있다.
+
+### 3.3 신설 — `crm.catalog_discount_adoptions` (채택 감사)
+
+| 컬럼 | 타입 | 비고 |
+|---|---|---|
+| `id` | `uuid` PK | |
+| `trim_id` | `bigint` NOT NULL | |
+| `field` | `text` NOT NULL | `'financial'` \| `'partner'` \| `'cash'` — CHECK 제약 |
+| `amount` | `integer` | 채택된 금액. nullable = "비움"을 채택 |
+| `previous_amount` | `integer` | 직전 catalog 값(되돌리기 근거) |
+| `source_dealer_user_id` | `uuid` | **NULL = 관리자 직접 입력** |
+| `adopted_by` | `uuid` NOT NULL | 채택한 관리자 `profiles.id` |
+| `adopted_at` | `timestamptz` NOT NULL | `defaultNow()` |
+
+**필드 단위 행**이라 "자사는 동성모터스 값, 제휴는 코오롱 값"이 자연스럽게 표현된다.
+
+### 3.4 기존 — `catalog.trims` (변경 없음)
+
+3할인 컬럼 + `discount_updated_at`이 **최종 확정값의 SSOT**다. 채택 시에만 갱신한다.
+관리자 직접 입력(현행 `TrimEditPanel` 할인 3칸)은 **그대로 유지** — 제안이 없는 트림도 있다.
+직접 입력도 감사 행을 남긴다(`source_dealer_user_id = NULL`).
+
+## 4. 상태 파생 (컬럼 없이 조회 시 계산)
+
+제안 1건 × 필드 1개의 상태는 **최신 adoption과 현재 제안 금액의 대조**로 파생한다.
+
+| 상태 | 판정 | 화면 |
+|---|---|---|
+| **채택됨** | 최신 adoption(그 트림·필드)의 `source_dealer_user_id` = 이 딜러 **AND** `amount` = 이 딜러의 현재 제안 금액 | ✅ 표시 |
+| **수정됨(재채택 필요)** | `source_dealer_user_id` = 이 딜러 **AND** `amount` ≠ 현재 제안 금액 | 🟡 "새 제안" 배지 · 최종값은 불변 |
+| **미채택** | 그 외 | [채택] 버튼 |
+
+금액 대조를 쓰는 이유: 제안 행 `updated_at` 비교는 **딜러가 다른 필드만 고쳐도 행 시각이 움직여**
+오탐이 난다. 필드 단위 금액 비교가 정확하다.
+
+**채택 후 딜러 수정 → 자동 재반영은 하지 않는다**(유슨생 결정). 자동 반영하면 채택이 멱목이 되고,
+딜러가 사후에 숫자를 바꿔 실견적 기준을 움직일 수 있다.
+
+## 5. 딜러 자격 상실 (dealer → customer)
+
+실측: `user_role` enum = `customer`·`staff`·`manager`·`admin`·`dealer`
+(현재 분포 customer 11 · admin 3 · dealer 1 · staff 1 · manager 1).
+
+**⚠️ CRM은 role을 바꿀 수 없다** — `public.profiles`는 앱과 합의한 read 전용 계약이다. role 변경은
+앱 Edge Function이나 Supabase 대시보드에서 일어나고, **CRM은 통보받지 못한다.**
+
+| | 결과 |
+|---|---|
+| CRM 접근 | 즉시 끊긴다 — `roleTabFromClaim`이 `customer`를 매핑하지 않아 null = 접근 거부. 새 제안 불가 |
+| crm 제안·프로필 행 | 그대로 남는다 (profiles FK 없음) |
+| 이미 채택된 catalog 값 | **유지한다** — 채택은 관리자의 결정이었고 앱·견적에 이미 반영된 값이다. 되돌리면 고객에게 보이는 가격이 조용히 바뀐다 |
+| 채택 팝오버 | **"현재 딜러 아님" 배지 + 채택 버튼 비활성**(유슨생 결정) |
+
+**soft delete 컬럼을 두지 않는다.** `deactivated_at`을 두면 CRM이 role 변경을 감지하지 못하는 탓에
+이사님이 앱에서 role을 내린 뒤 CRM에서 또 비활성 처리를 해야 하는 **이중 관리**가 되고, 잊으면
+"컬럼은 활성인데 실제론 딜러 아님"이라는 **조용한 드리프트**가 남는다.
+
+대신 제안 목록 조회 시 `public.profiles.role`을 조인해 **현재 딜러인지 그 자리에서 파생 판정**한다.
+항상 최신이고, role이 되돌아오면 자동 복구된다. 전화번호 소유권 모델의
+read-through 합성(`coalesce(profiles.phone_number, phone)`, #276)과 같은 패턴이다.
+
+## 6. 권한·게이트
+
+### 6.1 딜러 쓰기 개방 (allowlist 1줄)
+
+`src/middleware/role-gate.ts`의 `DEALER_WRITE_ALLOWLIST`에 **딜러 제안 upsert 라우트만** 등록한다.
+정규식은 `^…$` 앵커 강제(테스트가 잠금).
+
+```
+{ method: "PUT", path: /^\/api\/dealer\/discounts\/\d+$/ }
+```
+
+### 6.2 브랜드 소유권 검증 (서버, fail-closed)
+
+딜러가 `trim_id`에 쓸 때마다 2단 조인으로 브랜드를 확인한다.
+
+```sql
+select m.brand_id from catalog.trims t
+  join catalog.models m on m.id = t.model_id
+ where t.id = $1
+```
+
+`dealer_profiles.brand_id`와 다르면 **403**. 프로필이 없으면 **403**(fail-closed — 브랜드 미지정
+딜러는 아무것도 못 쓴다). UI 숨김은 UX 보조일 뿐이고 서버가 진짜 게이트다(#212·#220 선례).
+
+### 6.3 라우트
+
+| 메서드·경로 | 역할 | 비고 |
+|---|---|---|
+| `GET /api/dealer/me` | dealer | 내 브랜드·비고 |
+| `GET /api/dealer/discounts?modelId=` | dealer | **내 제안만**(타 딜러 제안 비노출) |
+| `PUT /api/dealer/discounts/:trimId` | dealer | upsert — **allowlist 개방 지점** |
+| `GET /api/catalog/trims/:id/discount-proposals` | admin | 전 딜러 제안 + 파생 상태 |
+| `POST /api/catalog/trims/:id/discount-adoptions` | admin | **필드 단위 채택** |
+| `GET /api/dealer-profiles` · `PUT /api/dealer-profiles/:userId` | admin | 브랜드 매칭 + 비고 |
+
+관리자 채택은 **한 트랜잭션**으로 ① `catalog.trims`의 해당 할인 필드 UPDATE
+② `crm.catalog_discount_adoptions` INSERT를 처리한다.
+
+⚠️ **`discount_updated_at`은 직접 세팅하지 않는다**(2026-07-27 실측). `catalog.trims`에 트리거
+`trims_discount_updated`(BEFORE UPDATE → `catalog.update_discount_timestamp()`)가 이미 걸려 있고,
+**3할인 중 하나라도 `IS DISTINCT FROM`일 때만 `NOW()`로 찍는다**(DB 시계·값이 같으면 안 찍는 멱등).
+우리가 직접 넣으면 트리거 조건을 못 채운 경우(같은 값 재채택) 그 값이 그대로 들어가 **거짓 스탬프**가
+된다. 즉 여기서는 직접 찍는 쪽이 위험하다.
+
+반면 **crm 소유 테이블(`dealer_profiles`·`dealer_trim_discounts`)의 `updated_at`은 우리 몫**이므로
+UPDATE 시 반드시 인라인 `sql\`now()\`` — 앱 시계는 스탬프가 과거로 되돌아간다(#334·#335,
+`src/db/updated-at-clock-guard.test.ts`가 스캔).
+
+## 7. 화면
+
+### 7.1 딜러 모드 (MC 마스터 재사용)
+
+현재 `MCMasterPage`는 `canEdit = roleTab === "최고관리자"`이고, Topbar 설정 메뉴의 MC 마스터는
+`isAdminRole` 게이트라 **딜러에게는 메뉴가 보이지 않는다**. 이를 다음으로 바꾼다.
+
+- 사이드바: **자기 브랜드만** 표시(유슨생 결정 — 경쟁사 가격·할인 전략 비노출). 타 브랜드 URL 직접 진입도 차단.
+- 트림 테이블: 트림명·기본가격·상태·연식은 **읽기 전용**. 할인 3열만 편집 가능.
+- 편집 대상은 **자기 제안값**이다(확정값을 덮어쓰는 게 아니다).
+- **확정값은 함께 보여준다** — 확정 할인은 차선생 앱에서 고객에게 이미 공개되는 값이라 숨길 실익이 없다.
+  단 **다른 딜러의 미채택 제안과 그 소속은 딜러에게 노출하지 않는다.**
+  표시 방식: 컬럼을 6개로 늘리지 않고 **할인 3열 각 셀 안에서** 위=내 제안값(편집 입력), 아래=확정값
+  회색 보조표기(`확정 6,500,000`)로 둔다. 내 제안이 확정과 같으면 보조표기 생략(중복 노이즈 제거).
+- 제안 **비우기**는 허용한다 — 3금액이 nullable이므로 빈 값 저장 = "이 필드는 제안하지 않음". 비워도
+  이미 채택된 확정값에는 영향이 없다(§4 "수정됨" 상태로 배지만 뜬다).
+- admin 전용 기능(트림 추가·이동·삭제·옵션 패널·MC코드)은 딜러 모드에서 전부 숨김 + 서버 403.
+
+### 7.2 관리자 채택 팝오버
+
+트림 테이블의 자사·제휴·타사 셀을 누르면 그 필드의 제안 목록이 뜬다.
+
+```
+자사할인 — 520i (MC070526005)
+현재 확정: 6,500,000원 (9.3%)  ← 출처: 동성모터스 · 2026-07-25 채택
+─────────────────────────────────────────────
+동성모터스   권지현   6,800,000원 (9.7%)  🟡 새 제안   [채택]
+코오롱모터스 김ㅇㅇ   6,500,000원 (9.3%)  ✅ 채택됨
+바바리안     박ㅇㅇ   6,200,000원 (8.9%)              [채택]
+(현재 딜러 아님) 이ㅇㅇ 7,000,000원          ⛔ 채택 불가
+```
+
+- 맥락(모델·트림·기본가격)이 이미 화면에 있어 한 화면에서 비교·채택이 끝난다(유슨생 결정).
+- 별도 "딜러 할인 제안" 화면은 **만들지 않는다** — 딜러가 늘어나 전수 조망이 필요해지면 별건.
+
+### 7.3 딜러 브랜드 매칭 UI
+
+`OrgMembersPage` 「구성원」 탭(실데이터, `GET /api/staff/org`)의 dealer 행에 **브랜드 select + 비고
+입력**을 추가한다. 저장 대상은 `crm.dealer_profiles`이므로 **profiles read 전용 계약을 위반하지 않는다.**
+
+## 8. 확정된 결정 (유슨생 답변)
+
+1. 딜러 1명 = **브랜드 1개 고정**(컬럼 1개, PK로 강제)
+2. 딜러는 **자기 브랜드만** 보인다
+3. **감사 테이블을 남긴다**(`crm.catalog_discount_adoptions`)
+4. 채택 후 딜러가 수정하면 **재채택 필요**(자동 재반영 없음)
+5. 채택 UI = **MC 마스터 할인 셀 팝오버**
+6. 딜러 입력 화면 = **MC 마스터 딜러 모드**
+7. 자격 상실 제안 = **배지 + 채택 불가**(soft delete 컬럼 없음, role read-through 판정)
+
+## 9. 검증 계획
+
+- 마이그레이션: `db:generate` → `db:migrate`(0039 예정, `schemaFilter:["crm"]`). **`db:push` 금지.**
+- 순수 판정 로직(상태 파생 · 브랜드 소유권 · 자격 판정)은 **단위테스트 우선**.
+- 게이트 회귀: dealer가 ①`catalog` 쓰기 ②타 브랜드 트림 ③할인 외 필드에 접근 시 전부 403 — RED 확인 후 구현.
+  ⚠️ **403 전제 픽스처 이름도 `TEST_CUSTOMER_NAMES` registry(`fixture-codes.ts`)에 선등록**한다
+  ("어차피 403이라 안 만들어진다"는 가정은 정확히 게이트가 깨졌을 때 무너진다 — #214 실사고).
+- `updated_at` tripwire(`src/db/updated-at-clock-guard.test.ts`)를 통과해야 한다 = 인라인 `sql\`now()\``.
+- 4종(typecheck · lint · knip · format:check) + `test:unit` + `test:pure` + `build`.
+- 실화면 눈 확인 1회: 관리자 채택 팝오버 · 딜러 모드(magiclink 스모크 — 딜러 계정 필요).
+
+## 10. 미결·후속
+
+- **딜러 실계정 1개**(`김지안수령님의개`, 담당 고객 0)뿐이라 실기 검증 폭이 좁다. 스모크용 딜러 계정의
+  브랜드 매칭이 선행 조건.
+- 딜러 제안 도착을 이사님에게 알리는 **배지·알림은 이번 범위에서 제외**. 필요해지면 별건
+  (MC 마스터 메뉴에 "대기 N건" 형태).
+- 채택 **되돌리기(undo)** 는 이번 범위 밖. `previous_amount`를 남겨두므로 필요할 때 구현 가능.
+- 이 변경은 **행위 변경**이므로 `ref/director-pending-confirmations.md` 등재 대상이나, 이사님이
+  직접 요구한 기능이라 등재 불필요(요구 자체가 승인).
