@@ -324,3 +324,10 @@ export async function featureQuoteRequest(customerId: string, requestId: string)
   invalidateCustomerDetail(customerId);
   return r;
 }
+
+// 담당자 확인(앱 진행 2단계) 전이 — 그 요청의 "견적 작성"을 여는 순간 부른다.
+// 서버가 confirmed_at을 **한 번만** 채우고 그 최초 전이에서만 고객에게 푸시한다(중복 방지는 서버 조건절).
+// best-effort: 실패해도 워크벤치는 그대로 열린다(호출부가 catch로 삼킨다 — 이사님 요구).
+export async function confirmQuoteRequest(customerId: string, id: string): Promise<{ firstConfirm: boolean }> {
+  return sendJson<{ firstConfirm: boolean }>(`/api/customers/${customerId}/quote-requests/${id}/confirm`, "POST");
+}

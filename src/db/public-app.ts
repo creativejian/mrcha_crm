@@ -19,6 +19,11 @@ export const quoteRequests = pgTable("quote_requests", {
   paymentMethod: text("payment_method"),
   rentalDeposit: bigint("rental_deposit", { mode: "number" }),
   status: text(),
+  // 담당자 확인 시각(앱 마이그 20260727141844, 이사님 요청 2026-07-27). NULL = 미확인.
+  // CRM이 "견적 작성"을 처음 열 때 한 번만 채우는 **단조** 값 — 되돌리지 않는다. 앱 진행단계
+  // 2단계(reviewing "담당자 확인 완료") 표시와 confirmed 푸시 중복 방지가 이 한 값을 함께 쓴다.
+  // 계약·근거: ref/2026-07-27-app-quote-request-confirmed-request.md
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: "string" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   period: integer(),
   depositType: text("deposit_type"),

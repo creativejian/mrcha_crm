@@ -23,7 +23,8 @@ export function assignmentPushEnabled(c: { env: unknown }): boolean {
 
 export async function sendAssignmentPush(
   c: { env: unknown },
-  msg: { userId: string; title: string; body: string },
+  // subtitle은 iOS 2줄 알림용(앱 send-push가 이미 지원 — parse.ts `raw.subtitle ?? ""`). 생략 가능.
+  msg: { userId: string; title: string; body: string; subtitle?: string },
 ): Promise<void> {
   try {
     const env = (c.env ?? {}) as { SUPABASE_URL?: string; SEND_PUSH_SECRET?: string };
@@ -49,7 +50,12 @@ export async function sendAssignmentPush(
         "Content-Type": "application/json",
         ...(secret ? { "X-Push-Secret": secret } : {}),
       },
-      body: JSON.stringify({ user_id: msg.userId, title: msg.title, body: msg.body }),
+      body: JSON.stringify({
+        user_id: msg.userId,
+        title: msg.title,
+        ...(msg.subtitle ? { subtitle: msg.subtitle } : {}),
+        body: msg.body,
+      }),
     });
     if (!res.ok) {
       // 401은 네트워크·5xx와 섞이면 안 된다 — 시크릿 누락은 "실패해도 조용한" 부류라 tail에서
