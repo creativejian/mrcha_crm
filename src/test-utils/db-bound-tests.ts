@@ -55,6 +55,7 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/routes/customers.role-scope.test.ts",
   "src/routes/customers.send.test.ts",
   "src/routes/customers.test.ts",
+  "src/routes/dealer.discounts.test.ts",
   "src/routes/dealer.role-gate.test.ts",
   "src/routes/inbox-role-gate.test.ts",
   "src/routes/me.test.ts",

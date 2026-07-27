@@ -19,7 +19,14 @@ export type DealerWriteAllowEntry = { method: string; path: RegExp };
 // 그건 이 파일 안에서 하는 일이다. 밖으로 열면 다른 모듈이 런타임에 게이트를 넓힐 수 있어
 // "여기 한 곳이 딜러 쓰기의 유일한 관문"이라는 성질이 깨진다. 주입이 필요한 테스트는
 // `isDealerWriteAllowed(method, path, allowlist)`가 allowlist를 인자로 받으므로 그걸 쓴다.
-const DEALER_WRITE_ALLOWLIST: DealerWriteAllowEntry[] = [];
+const DEALER_WRITE_ALLOWLIST: DealerWriteAllowEntry[] = [
+  // 딜러 할인 제안 upsert(2026-07-27, 슬라이스 B1 — 이사님 요구). **첫 개방 항목이다.**
+  // 쓰기 대상은 crm.dealer_trim_discounts뿐이고, catalog.trims의 확정 할인은 관리자 채택으로만
+  // 바뀐다(spec §2) — 그래서 catalog 라우트는 계속 닫힌 채로 둔다.
+  // 브랜드 소유권(내 브랜드 트림만)은 라우트가 fail-closed로 검증한다: cross-schema 조인이라
+  // DB CHECK로 강제할 수 없어 서버가 유일한 방어선이고, routes/dealer.discounts.test.ts가 잠근다.
+  { method: "PUT", path: /^\/api\/dealer\/discounts\/\d+$/ },
+];
 
 export function isDealerWriteAllowed(
   method: string,
