@@ -5,6 +5,7 @@ import {
   SOLUTION_LENDERS,
   buildSolutionQuoteInput,
   detectLenderDrift,
+  detectVehicleResolveMismatch,
   extractPartnerLenders,
   hasLenderDrift,
   parseSolutionQuoteResult,
@@ -309,5 +310,52 @@ describe("extractPartnerLenders / detectLenderDrift — 파트너 금융사 SSOT
   test("행 순서에 의존하지 않는다 — 파트너가 순서 비의존을 권고했고 집합 비교라 무관", () => {
     const reversed = { matrix: rowsOf([...CURRENT].reverse()) };
     expect(hasLenderDrift(detectLenderDrift(extractPartnerLenders(reversed)))).toBe(false);
+  });
+});
+
+describe("detectVehicleResolveMismatch — 파트너가 다른 차량으로 계산했는지 대조", () => {
+  // 실측 사고(2026-07-27 QT-2607-0012): 520i M Spt(74,300,000)를 보냈는데 파트너가
+  // 기본 520i(69,800,000) offering에 링크돼 있어 그 가격으로 전액 계산했다.
+  const rawWith = (vehiclePrice: number, modelName = "The New 5 Series 520i (P1) #116604-1054541") => ({
+    ok: true,
+    quote: {
+      monthlyPayment: 795_410,
+      rates: { annualRateDecimal: 0.052 },
+      residual: { amount: 41_880_000, rateDecimal: 0.6 },
+      resolvedVehicle: { brand: "BMW", modelName, vehiclePrice },
+    },
+  });
+
+  test("웹스크레이프 2사: 보낸 가격과 다르면 잡는다", () => {
+    const m = detectVehicleResolveMismatch("im-capital", rawWith(69_800_000), 74_300_000);
+    expect(m).toEqual({
+      sentPrice: 74_300_000,
+      resolvedPrice: 69_800_000,
+      resolvedModelName: "The New 5 Series 520i (P1) #116604-1054541",
+    });
+  });
+
+  test("일치하면 null", () => {
+    expect(detectVehicleResolveMismatch("kdbc-capital", rawWith(79_200_000), 79_200_000)).toBeNull();
+  });
+
+  // 제프 회신 ③ 주석: MG·메리츠·우리카드는 워크북 가격이 마스터 소비자가와 애초에 다른 기준이라
+  // 불일치율 94~96% — 대조하면 오탐이 쏟아져 경고 자체가 무의미해진다.
+  test("가격 기준이 다른 금융사는 대조 축 자체를 건너뛴다", () => {
+    for (const code of ["woori-card", "mg-capital", "meritz-capital", "shinhan-card"]) {
+      expect(detectVehicleResolveMismatch(code, rawWith(69_800_000), 74_300_000)).toBeNull();
+    }
+  });
+
+  test("fail-open: resolvedVehicle이 없거나 값이 이상하면 경고하지 않는다", () => {
+    expect(detectVehicleResolveMismatch("im-capital", { ok: true, quote: {} }, 74_300_000)).toBeNull();
+    expect(detectVehicleResolveMismatch("im-capital", rawWith(0), 74_300_000)).toBeNull();
+    expect(detectVehicleResolveMismatch("im-capital", null, 74_300_000)).toBeNull();
+    expect(detectVehicleResolveMismatch("im-capital", rawWith(69_800_000), 0)).toBeNull();
+  });
+
+  test("모델명이 없어도 가격 대조는 성립한다(문구만 축약)", () => {
+    const raw = { ok: true, quote: { resolvedVehicle: { vehiclePrice: 69_800_000 } } };
+    expect(detectVehicleResolveMismatch("im-capital", raw, 74_300_000)?.resolvedModelName).toBeNull();
   });
 });

@@ -4,7 +4,7 @@
 // 계약 원본·매핑 근거: ref/specs/2026-07-14-crm-solution-quote-integration-design.md §파트너 계약.
 // 잔존 3모드 매핑은 제프 UI 원본(dolim-solution QuoteRevolutionV2.tsx:197-202)을 미러한다.
 
-import { parsePercentInput, percentToWon } from "./quote-pricing";
+import { formatMoney, parsePercentInput, percentToWon } from "./quote-pricing";
 
 export const SOLUTION_LENDERS = [
   { code: "mg-capital", label: "MG캐피탈" },
@@ -334,6 +334,61 @@ export function parseSolutionQuoteResult(raw: unknown): SolutionQuoteParsed | nu
     totalTakeoverCost: numOrNull(q.totalTakeoverCost),
     dueAtDelivery: numOrNull(q.dueAtDelivery),
   };
+}
+
+// ── 파트너 차량 resolve 대조(2026-07-27 iM 오배정 사고) ─────────────────────────
+//
+// 파트너는 우리가 보낸 `masterMcCode`를 자기 offering에 링크해 계산한다. 그 링크가 **사람이 손으로**
+// 걸려 있어서(제프 회신: `match_source = "manual"`), 엉뚱한 트림에 연결돼 있으면 **다른 차로 계산된
+// 견적이 에러 없이 성공 응답으로 돌아온다.** 실사고: 520i M Spt(74,300,000)를 보냈는데 기본
+// 520i(69,800,000) offering에 링크돼 있어 차량가·월납입·잔가가 전부 그 값 기준으로 나왔고,
+// 그대로 고객에게 발송됐다(QT-2607-0012). 응답만 보면 정상이라 사람 눈으로는 안 잡힌다.
+//
+// ⚠️ **웹스크레이프 2사(iM·산은)에만 유효한 축이다.** MG·메리츠·우리카드는 워크북 가격이 마스터
+// 소비자가와 애초에 다른 기준이라 불일치율이 94~96%다(제프 회신 ③) — 전 금융사에 걸면 오탐이 쏟아져
+// 경고 자체가 무의미해진다. 그래서 대조 대상을 명시 목록으로 좁힌다.
+//
+// 🔵 이건 **임시 축**이다. 제프가 응답에 `catalogPrice`(매칭된 offering 자체의 가격)를 실어주면
+// (요청: `ref/2026-07-27-jeff-im-capital-trim-resolve-followup.md` ④) `requestedPrice ≠ catalogPrice`로
+// **전 금융사에 유효한** 대조가 되므로 그때 이 목록 제한을 걷어낸다. 특히 제프의 조치 B(iM이
+// `quotedVehiclePrice`를 반영)가 끝나면 가격이 항상 우리 값으로 덮여 **이 축은 신호를 잃는다.**
+const PRICE_AUDIT_LENDER_CODES: readonly string[] = ["im-capital", "kdbc-capital"];
+
+export type VehicleResolveMismatch = {
+  sentPrice: number;
+  resolvedPrice: number;
+  resolvedModelName: string | null;
+};
+
+// 응답이 우리가 보낸 차량과 다른 차량으로 계산됐는지 판정. 어긋나면 상세, 아니면 null.
+// fail-open: 대조 대상이 아니거나 필드가 없거나 값이 비정상이면 null(견적 작성을 막지 않는다).
+export function detectVehicleResolveMismatch(
+  lenderCode: string,
+  raw: unknown,
+  quotedVehiclePrice: number,
+): VehicleResolveMismatch | null {
+  if (!PRICE_AUDIT_LENDER_CODES.includes(lenderCode)) return null;
+  if (!(quotedVehiclePrice > 0)) return null;
+  if (typeof raw !== "object" || raw === null) return null;
+  const quote = (raw as { quote?: unknown }).quote;
+  if (typeof quote !== "object" || quote === null) return null;
+  const resolved = (quote as { resolvedVehicle?: unknown }).resolvedVehicle;
+  if (typeof resolved !== "object" || resolved === null) return null;
+  const r = resolved as { vehiclePrice?: unknown; modelName?: unknown };
+  const resolvedPrice = numOrNull(r.vehiclePrice);
+  if (resolvedPrice == null || resolvedPrice <= 0) return null;
+  if (resolvedPrice === quotedVehiclePrice) return null;
+  return {
+    sentPrice: quotedVehiclePrice,
+    resolvedPrice,
+    resolvedModelName: typeof r.modelName === "string" ? r.modelName : null,
+  };
+}
+
+// 상담사에게 띄울 한 줄. 파트너 warnings와 같은 토스트 라인에 실린다.
+export function vehicleResolveMismatchMessage(m: VehicleResolveMismatch): string {
+  const vehicle = m.resolvedModelName ? ` (${m.resolvedModelName})` : "";
+  return `⚠️ 금융사가 다른 차량가로 계산했습니다 — 보낸 ${formatMoney(m.sentPrice)}원 ↔ 적용 ${formatMoney(m.resolvedPrice)}원${vehicle}. 발송 전 확인이 필요합니다.`;
 }
 
 // (solutionDisplayRatePct — 우리카드 유효금리 표시 규칙 — 는 개정 1로 제거: 카드 금리는 제프 응답이 아니라
