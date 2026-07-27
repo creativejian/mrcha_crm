@@ -156,6 +156,16 @@ export async function adoptDealerProposal(
   input: { trimId: number; field: DiscountField; dealerUserId: string; adoptedBy: string },
   executor: Executor = getDefaultDb(),
 ) {
+  // 자격 상실자(딜러를 그만둔 사람)의 제안은 확정 할인으로 올라갈 수 없다. 화면이 "채택 불가"를
+  // 달아 주지만 그건 표시일 뿐이고, API를 직접 부르면 뚫린다 — 여기가 유일한 방어선이다.
+  // 판정은 listTrimProposals의 isDealer와 같은 read-through 기준이어야 한다(둘이 어긋나면
+  // 화면엔 채택 가능으로 보이는데 눌러도 안 되는 상태가 된다).
+  const [author] = await executor
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, input.dealerUserId));
+  if (author?.role !== "dealer") return null;
+
   const [proposal] = await executor
     .select({
       financialAmount: dealerTrimDiscounts.financialAmount,

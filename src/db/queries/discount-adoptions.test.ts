@@ -152,6 +152,25 @@ test("adoptDealerProposal: 제안이 없으면 아무것도 바꾸지 않는다(
   });
 });
 
+test("adoptDealerProposal: 자격 상실(role != dealer) 제안자의 제안은 채택되지 않는다", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    await seedProposal(tx, nonDealerId, { financialAmount: 5_000_000, partnerAmount: null, cashAmount: null });
+
+    // 화면은 이 제안에 "채택 불가"를 달지만, 그건 표시일 뿐이다 — API를 직접 부르면 뚫린다.
+    // 딜러를 그만둔 사람의 값이 앱 고객에게 보이는 확정 할인으로 올라가는 경로를 서버가 막는다.
+    const result = await adoptDealerProposal(
+      { trimId, field: "financial", dealerUserId: nonDealerId, adoptedBy: nonDealerId },
+      tx,
+    );
+    expect(result).toBeNull();
+    expect((await trimRow(tx)).financial).toBe(before.financial);
+    expect(
+      await tx.select().from(catalogDiscountAdoptions).where(eq(catalogDiscountAdoptions.trimId, trimId)),
+    ).toHaveLength(0);
+  });
+});
+
 test("adoptDealerProposal: 제안 행은 있어도 그 필드가 비었으면 채택하지 않는다", async () => {
   await inRollback(async (tx) => {
     const before = await trimRow(tx);

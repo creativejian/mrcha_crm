@@ -42,6 +42,7 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/middleware/db.test.ts",
   "src/middleware/role-gate.test.ts",
   "src/routes/assistant.test.ts",
+  "src/routes/catalog.discount-adoptions.test.ts",
   "src/routes/catalog.test.ts",
   "src/routes/consultations.test.ts",
   "src/routes/content.test.ts",
