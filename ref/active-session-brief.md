@@ -8,9 +8,8 @@ Last updated: 2026-07-27
 ## 지금 상태
 
 **main 전량 green · 브랜치 0.** 07-27 머지 8건(`#372`~`#374` + 딜러 할인 `#375`~`#378` + main 직접 1) ·
-main `bd5c091` · 마이그 2건(0039 `dealer_profiles` · 0040 `dealer_trim_discounts`).
-검증: 4종 0 · unit **1193** · pure **247** · build · 실 DB 36건.
-⚠️ **딜러 할인 파이프라인 실기 확인이 통째로 남았다** — prod 배포는 됐지만 유슨생 눈 확인 0회.
+마이그 2건(0039 `dealer_profiles` · 0040 `dealer_trim_discounts`) · 4종 0 · unit **1193** · pure **247** ·
+build · 실 DB 36건. ⚠️ **딜러 할인 파이프라인 실기 확인이 통째로 남았다**(prod 배포 O · 눈 확인 0회).
 
 ## 직전 세션 요약 (07-27 오후 · 딜러 할인 제안 → 관리자 채택)
 
@@ -53,11 +52,11 @@ spec = `ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md`(2단 구조
 
 ## Boot
 
-1. `AGENTS.md` → 이 파일. 2. `git status --short --branch` · `git log --oneline -5`
-3. 더 필요하면: 딜러 건 = `ref/{specs,plans}/2026-07-27-crm-dealer-*` / 과거 = `ref/session-archive.md`
+`AGENTS.md` → 이 파일 → `git status --short --branch` · `git log --oneline -5`. 더 필요하면
+딜러 건 = `ref/{specs,plans}/2026-07-27-crm-dealer-*` / 과거 = `ref/session-archive.md`.
 
 ## 세션 마무리 규칙
 
-- 이 파일은 **교체**한다(누적 금지). 이전 요약은 `ref/session-archive.md` 맨 위로.
-- 행위 변경은 `ref/director-pending-confirmations.md`에 등재(**유슨생이 그 자리에서 승인하면 등재 없이
-  박제** · 이사님 확정 설계를 뒤집는 건은 승인 대신 등재). **항목 신설 시 그 파일 롤업 2곳도 함께 갱신.**
+이 파일은 **교체**(누적 금지, 이전 요약은 `ref/session-archive.md` 맨 위로). 행위 변경은
+`ref/director-pending-confirmations.md` 등재(**유슨생 현장 승인 시 등재 없이 박제** · 이사님 확정
+설계를 뒤집는 건은 등재). **항목 신설 시 그 파일 롤업 2곳도 함께 갱신.**
