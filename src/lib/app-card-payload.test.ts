@@ -54,6 +54,7 @@ const fullScenario: AdvisorPayloadScenarioRow = {
   totalTakeoverCost: "23456789",
   dueAtDelivery: "5500000",
   interestRate: "5.3",
+  solutionRaw: null,
 };
 
 const SENT_AT = "2026-07-05T03:04:00.000Z"; // KST 2026-07-05 12:04
