@@ -98,10 +98,14 @@ const advisorAssignmentModes = [
   ["advisor-assignment-live", "실시간 상담 요청"],
 ] as const;
 
-const dealerMenuItems: Array<[MenuIconName, string]> = [
+// 딜러 포털 메뉴. 3번째 원소 = 목적지 view(없으면 화면이 아직 없다는 뜻).
+// **"할인 업데이트"가 원 설계상 딜러의 MC 마스터 진입점**이다(2026-07-27 유슨생 실기에서 확인 —
+// 그전까지 4개 전부 onClick이 없는 목업이라 딜러는 어디로도 갈 수 없었다).
+// 목적지 없는 항목은 disabled로 둔다: 눌리는데 아무 일도 안 일어나는 버튼이 더 나쁘다.
+const dealerMenuItems: Array<[MenuIconName, string, string?]> = [
   ["dashboard", "대시보드"],
   ["users", "고객 관리"],
-  ["discount", "할인 업데이트"],
+  ["discount", "할인 업데이트", "mc-master"],
   ["inventory", "재고 업로드"],
 ];
 
@@ -211,8 +215,8 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
       <div className="nav-separator" />
       <nav className="nav">
         {roleTab === "딜러"
-          ? dealerMenuItems.map(([icon, label], index) => (
-            <button aria-label={label} className={navButtonClass(index === 0)} data-label={label} key={label} type="button"><MenuIcon name={icon} /><span>{label}</span></button>
+          ? dealerMenuItems.map(([icon, label, view]) => (
+            <button aria-label={label} className={navButtonClass(view != null && visibleActiveView === view)} data-label={label} disabled={view == null} key={label} onClick={view ? () => navigate(view) : undefined} title={view == null ? "준비 중입니다" : undefined} type="button"><MenuIcon name={icon} /><span>{label}</span></button>
           ))
           : (
             <>
