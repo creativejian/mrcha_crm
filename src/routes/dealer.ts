@@ -2,7 +2,8 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { listDealerProfiles, upsertDealerProfile } from "../db/queries/dealer-profiles";
+import { brandIdOfTrim, listMyTrimDiscounts, upsertDealerTrimDiscount } from "../db/queries/dealer-discounts";
+import { getDealerProfile, listDealerProfiles, upsertDealerProfile } from "../db/queries/dealer-profiles";
 import type { AuthVariables } from "../middleware/auth";
 import type { DbVariables } from "../middleware/db";
 import { requireRoles } from "../middleware/role-gate";
@@ -34,6 +35,46 @@ dealer.put(
     const { brandId, note } = c.req.valid("json");
     const row = await upsertDealerProfile(
       { dealerUserId: userId, brandId, note: note?.length ? note : null },
+      c.var.db,
+    );
+    return c.json(row);
+  },
+);
+
+// ── 딜러 본인용 (슬라이스 B1) ────────────────────────────────────────────────
+const trimIdParam = z.object({ trimId: z.coerce.number().int().positive() });
+const modelIdQuery = z.object({ modelId: z.coerce.number().int().positive() });
+// 금액은 원 단위 0 이상. null = 그 필드는 미제안(비우기도 저장 대상이다).
+const amount = z.number().int().nonnegative().nullable();
+const discountBody = z.object({ financialAmount: amount, partnerAmount: amount, cashAmount: amount });
+
+// 본인 프로필 — 게이트 없이 **자기 것만** 돌려준다(role 무관, dealer가 아니면 자연히 null).
+// 소비처: 딜러 모드 브랜드 게이트 + Topbar 조직 라벨(B2에서 목업 "BMW 한독/서초"를 대체).
+dealer.get("/me", async (c) => c.json(await getDealerProfile(c.var.user.id, c.var.db)));
+
+// 내 제안(모델 단위) — 쿼리가 dealerUserId로 필터하므로 다른 딜러 제안은 섞이지 않는다.
+dealer.get("/discounts", zValidator("query", modelIdQuery), async (c) =>
+  c.json(await listMyTrimDiscounts(c.var.user.id, c.req.valid("query").modelId, c.var.db)),
+);
+
+// 제안 저장 — **allowlist가 여는 유일한 딜러 쓰기 경로**(role-gate.ts 참조).
+// 브랜드 소유권을 fail-closed로 검증한다: 프로필 없음(브랜드 미지정) · 트림 없음 · 다른 브랜드
+// = 전부 403. cross-schema라 DB가 막아주지 않으므로 이 검사가 유일한 방어선이다.
+dealer.put(
+  "/discounts/:trimId",
+  zValidator("param", trimIdParam),
+  zValidator("json", discountBody),
+  async (c) => {
+    const { trimId } = c.req.valid("param");
+    const [profile, trimBrandId] = await Promise.all([
+      getDealerProfile(c.var.user.id, c.var.db),
+      brandIdOfTrim(trimId, c.var.db),
+    ]);
+    if (!profile || trimBrandId === null || profile.brandId !== trimBrandId) {
+      return c.json({ error: "권한이 없습니다." }, 403);
+    }
+    const row = await upsertDealerTrimDiscount(
+      { trimId, dealerUserId: c.var.user.id, ...c.req.valid("json") },
       c.var.db,
     );
     return c.json(row);

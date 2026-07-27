@@ -281,6 +281,13 @@
       "when": 1785140806242,
       "tag": "0039_loud_firedrake",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1785148219141,
+      "tag": "0040_gigantic_karnak",
+      "breakpoints": true
     }
   ]
 }

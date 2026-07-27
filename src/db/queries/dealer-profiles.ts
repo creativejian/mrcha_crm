@@ -26,6 +26,23 @@ export async function listDealerProfiles(executor: Executor = getDefaultDb()) {
 // 브랜드·비고 저장(관리자). PK 충돌을 UPDATE로 흡수해 신규/변경이 한 경로다.
 // updated_at은 인라인 sql`now()` — 앱 시계(new Date())로 찍으면 앱↔DB 시계가 어긋난 만큼
 // 스탬프가 과거로 되돌아간다(#334·#335, updated-at-clock-guard.test.ts가 소스를 스캔).
+// 딜러 본인 프로필 단건 — **브랜드 소유권 검증(서버)** 과 Topbar 조직 라벨(B2)이 쓴다.
+// null = 브랜드 미지정 → 쓰기 경로는 403(fail-closed), 화면은 안내 문구를 낸다.
+// 목록(listDealerProfiles)과 달리 admin 게이트가 없다 — 자기 것만 돌려주므로 노출이 없다.
+export async function getDealerProfile(dealerUserId: string, executor: Executor = getDefaultDb()) {
+  const [row] = await executor
+    .select({
+      dealerUserId: dealerProfiles.dealerUserId,
+      brandId: dealerProfiles.brandId,
+      brandName: brandsInCatalog.name,
+      note: dealerProfiles.note,
+    })
+    .from(dealerProfiles)
+    .leftJoin(brandsInCatalog, eq(brandsInCatalog.id, dealerProfiles.brandId))
+    .where(eq(dealerProfiles.dealerUserId, dealerUserId));
+  return row ?? null;
+}
+
 export async function upsertDealerProfile(
   input: { dealerUserId: string; brandId: number; note: string | null },
   executor: Executor = getDefaultDb(),

@@ -429,3 +429,25 @@ export const dealerProfiles = crm.table("dealer_profiles", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// 딜러 할인 제안(2026-07-27) — 딜러가 낸 **제안값**이고 확정값이 아니다.
+// 확정 할인은 catalog.trims의 3컬럼이며 **관리자 채택으로만** 바뀐다(spec §2) — 딜러 쓰기는
+// role-gate allowlist가 이 테이블로 가는 라우트 하나만 열어서, catalog에는 손이 닿지 않는다.
+// 한 트림에 여러 딜러가 각자 제안을 낼 수 있어 (trim_id, dealer_user_id) UNIQUE로 딜러당 1행.
+// 3금액이 각각 nullable인 이유: 자사만 내고 제휴·타사는 비울 수 있다(빈 값 = 그 필드는 미제안).
+// created_at은 dealerProfiles와 같은 이유(감사 + 스탬프 전진을 DB 안에서 검증).
+// spec: ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md §3.2
+export const dealerTrimDiscounts = crm.table(
+  "dealer_trim_discounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    trimId: bigint("trim_id", { mode: "number" }).notNull(), // → catalog.trims.id(loose id)
+    dealerUserId: uuid("dealer_user_id").notNull(), // → public.profiles.id(loose id)
+    financialAmount: integer("financial_amount"), // 자사할인 제안
+    partnerAmount: integer("partner_amount"), // 제휴할인 제안
+    cashAmount: integer("cash_amount"), // 타사할인 제안
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [unique("dealer_trim_discounts_trim_dealer_unique").on(table.trimId, table.dealerUserId)],
+);

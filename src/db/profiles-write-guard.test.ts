@@ -70,6 +70,11 @@ const ALLOW: { path: string; hit: string; why: string }[] = [
     hit: "drizzle: .delete(dealerProfiles)",
     why: "위 테이블의 테스트 픽스처 정리(afterAll) — 같은 이유",
   },
+  {
+    path: "src/routes/dealer.discounts.test.ts",
+    hit: "drizzle: .delete(dealerProfiles)",
+    why: "브랜드 소유권 테스트의 픽스처 정리(afterAll) — crm.dealer_profiles, public.profiles 무접촉. 2026-07-27 슬라이스 B1",
+  },
 ];
 
 const isAllowed = (path: string, hit: string) => ALLOW.some((a) => a.path === path && hit.startsWith(a.hit));
