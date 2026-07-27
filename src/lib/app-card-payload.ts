@@ -13,7 +13,7 @@
 // **부작용 0 순수 모듈만** 허용(app-card-labels·quote-pricing — AGENTS.md 경계 규칙. http/supabase 체인 금지).
 // vitest(클라 테스트)가 상대경로로 import해 클라 조립기와 파리티 비교한다.
 
-import { CALC_PENDING, NO_SOURCE, acquisitionTaxModeLabelOf, downPaymentRowLabelOf, formatTerm, mileageLabelOf, moneyLabelOf, moneyModeLabel, numOr, splitService, vehicleTitleOf } from "../../client/src/lib/app-card-labels";
+import { CALC_PENDING, NO_SOURCE, acquisitionTaxModeLabelOf, downPaymentRowLabelOf, formatTerm, mileageLabelOf, moneyLabelOf, moneyModeLabel, numOr, residualLabelOf, splitService, vehicleTitleOf } from "../../client/src/lib/app-card-labels";
 import { formatMoney } from "../../client/src/lib/quote-pricing";
 
 // 업무 AI 견적 청크 빌더(assistant-corpus)가 재수출로 소비하던 순수 헬퍼 — 공유 모듈로 이동 후에도
@@ -62,6 +62,9 @@ export type AdvisorPayloadScenarioRow = {
   totalTakeoverCost: string | null;
   dueAtDelivery: string | null;
   interestRate: string | null;
+  // 파트너 응답 raw — 잔존 max의 실채택 금액·율이 여기에만 있다(residualLabelOf 참조). 발송 훅은
+  // 시나리오를 select() 전체로 읽으므로 조달은 이미 돼 있었고, 이 타입이 필드를 빠뜨려 안 읽혔다.
+  solutionRaw: unknown;
 };
 
 // 클라 AppCardModel 동형에서 statusLabel/ddayLabel 2필드 제외 + payloadVersion 추가.
@@ -230,8 +233,8 @@ export function buildAdvisorQuotePayload(
     ].filter(Boolean).join(" ㅣ "),
     monthlyLabel: moneyLabelOf(sc?.monthlyPayment, CALC_PENDING),
     rateChipLabel: rate != null ? `금리 ${rate}%` : null,
-    residualLabel: sc ? moneyModeLabel(sc.residualMode, sc.residualValue, finalVehiclePrice, { noneLabel: CALC_PENDING, percentFirst: false }) : CALC_PENDING,
-    residualCondLabel: sc ? moneyModeLabel(sc.residualMode, sc.residualValue, finalVehiclePrice, { noneLabel: CALC_PENDING, percentFirst: true }) : CALC_PENDING,
+    residualLabel: sc ? residualLabelOf(sc.residualMode, sc.residualValue, finalVehiclePrice, sc.solutionRaw, { noneLabel: CALC_PENDING, percentFirst: false }) : CALC_PENDING,
+    residualCondLabel: sc ? residualLabelOf(sc.residualMode, sc.residualValue, finalVehiclePrice, sc.solutionRaw, { noneLabel: CALC_PENDING, percentFirst: true }) : CALC_PENDING,
     totalCostLabel: totalCost != null ? `${formatMoney(totalCost)}원` : CALC_PENDING,
     // 클라 미리보기는 구성 내역을 병기하지만 고객 payload는 항상 고정 문구 — 의도된 클라↔서버 차이
     // (파리티 테스트에서 명시 이탈 처리, 2026-07-05 이사님 결정).

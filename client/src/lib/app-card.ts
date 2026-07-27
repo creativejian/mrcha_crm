@@ -7,6 +7,7 @@ import {
   mileageLabelOf,
   moneyLabelOf,
   moneyModeLabel,
+  residualLabelOf,
   numOr,
   splitService,
   vehicleTitleOf,
@@ -142,8 +143,8 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     ].filter(Boolean).join(" ㅣ "),
     monthlyLabel: moneyLabelOf(s?.monthlyPayment, CALC_PENDING),
     rateChipLabel: rate != null ? `금리 ${rate}%` : null,
-    residualLabel: s ? moneyModeLabel(s.residualMode, s.residualValue, fvp, { noneLabel: CALC_PENDING, percentFirst: false }) : CALC_PENDING,
-    residualCondLabel: s ? moneyModeLabel(s.residualMode, s.residualValue, fvp, { noneLabel: CALC_PENDING, percentFirst: true }) : CALC_PENDING,
+    residualLabel: s ? residualLabelOf(s.residualMode, s.residualValue, fvp, s.solutionRaw, { noneLabel: CALC_PENDING, percentFirst: false }) : CALC_PENDING,
+    residualCondLabel: s ? residualLabelOf(s.residualMode, s.residualValue, fvp, s.solutionRaw, { noneLabel: CALC_PENDING, percentFirst: true }) : CALC_PENDING,
     totalCostLabel: totalCost != null ? `${formatMoney(totalCost)}원` : CALC_PENDING,
     // CRM 미리보기는 구성 내역 라벨을 병기한다 — 고객 발송 payload(src/lib/app-card-payload.ts)는 항상
     // "최대 할인 적용" 고정. 의도된 클라↔서버 차이(2026-07-05 이사님 결정: "CRM은 모든 할인 항목 표시,

@@ -91,6 +91,7 @@ const leaseScenario: AdvisorPayloadScenarioRow = {
   totalTakeoverCost: "23456789",
   dueAtDelivery: "5500000",
   interestRate: "5.3",
+  solutionRaw: null,
 };
 
 // 케이스 2 — 할부: 선납금(amount 모드) 경로(downPaymentRowLabel 분기).
@@ -104,6 +105,30 @@ const installmentScenario: AdvisorPayloadScenarioRow = {
   downPaymentValue: "10000000",
   residualMode: "amount",
   residualValue: "43094000",
+};
+
+// 케이스 3 — 잔존 max: 실채택 금액·율이 DB 컬럼이 아니라 솔루션 스냅샷에만 있는 경로.
+// (실측 스냅샷 형태 — iM캐피탈 520i M Spt. 파서가 monthlyPayment·금리까지 요구해 함께 담는다.)
+const maxResidualScenario: AdvisorPayloadScenarioRow = {
+  ...leaseScenario,
+  residualMode: "max",
+  residualValue: null, // max는 DB 값이 null(의도된 추출 규칙) — 스냅샷이 유일한 출처
+  solutionRaw: {
+    ok: true,
+    quote: {
+      monthlyPayment: 2398000,
+      rates: { annualRateDecimal: 0.053 },
+      residual: { amount: 41880000, rateDecimal: 0.6, source: "residual-matrix" },
+    },
+  },
+};
+
+// 케이스 4 — 잔존 max인데 스냅샷 없음(파트너 조회 없이 max만 선택): "최대" 폴백 경로.
+const maxResidualNoSnapshot: AdvisorPayloadScenarioRow = {
+  ...leaseScenario,
+  residualMode: "max",
+  residualValue: null,
+  solutionRaw: null,
 };
 
 // 동일 의미 픽스처 2벌을 한 시나리오 행에서 조립한다(null = 대표 시나리오 없는 견적).
@@ -213,6 +238,20 @@ describe("발송 payload 클라↔서버 파리티", () => {
     const { clientModel, payload } = buildBoth(installmentScenario);
     expect(clientModel.downPaymentRowLabel).toBe("선납금");
     expect(clientModel.downPaymentLabel).toBe("10,000,000원");
+    assertParity(clientModel, payload);
+  });
+
+  it("잔존 max — 스냅샷의 실채택 금액·율(DB 컬럼 아님)까지 전 필드 일치", () => {
+    const { clientModel, payload } = buildBoth(maxResidualScenario);
+    // 값으로 고정 — 양쪽이 "최대" 폴백으로 우연히 일치하는 무의미 green 방지(이 픽스가 고친 바로 그 상태).
+    expect(clientModel.residualLabel).toBe("41,880,000원 (60%)");
+    expect(clientModel.residualCondLabel).toBe("(60%) 41,880,000원");
+    assertParity(clientModel, payload);
+  });
+
+  it("잔존 max + 스냅샷 없음 — '최대' 폴백까지 전 필드 일치", () => {
+    const { clientModel, payload } = buildBoth(maxResidualNoSnapshot);
+    expect(clientModel.residualLabel).toBe("최대");
     assertParity(clientModel, payload);
   });
 

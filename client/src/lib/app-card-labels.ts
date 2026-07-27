@@ -10,6 +10,10 @@
 // 바뀐다 — 청크가 바뀌면 백필 재실행 소급 필수(hash 불일치).
 
 import { formatMoney } from "./quote-pricing";
+import { parseSolutionQuoteResult } from "./solution-quote";
+
+// 잔존 max인데 실채택 금액을 모를 때의 표시(파트너 조회 전·스냅샷 유실). residualLabelOf 참조.
+const RESIDUAL_MAX_FALLBACK = "최대";
 
 // 계산엔진 미연결 필드는 가짜 숫자 대신 정직한 안내 텍스트로 표시한다.
 export const CALC_PENDING = "계산 후 안내";
@@ -69,7 +73,7 @@ export function moneyModeLabel(
   opts: { noneLabel: string; percentFirst: boolean },
 ): string {
   if (mode == null || mode === "none") return opts.noneLabel;
-  if (mode === "max") return "최대";
+  if (mode === "max") return RESIDUAL_MAX_FALLBACK; // 잔존 전용 모드 — 스냅샷 반영은 residualLabelOf가 담당
   if (mode === "percent") {
     const v = numOr(value);
     if (v == null) return opts.noneLabel;
@@ -79,6 +83,32 @@ export function moneyModeLabel(
   }
   const n = numOr(value);
   return n == null ? opts.noneLabel : `${formatMoney(n)}원`;
+}
+
+// 잔존가치 라벨 — max 모드만 특별 취급한다(보증금·선수금엔 max 자체가 없다: DB 실측 none/percent/amount뿐).
+//
+// max는 "얼마"를 사람이 입력하지 않고 파트너 잔존 매트릭스가 정하는 모드라, DB `residual_value`가 null이다
+// (의도된 추출 규칙). 실채택 금액·율은 `solution_raw`에만 산다 — 워크벤치 재진입이 이미 같은 비대칭을
+// residualDisplayFromSnapshot(quote-workbench-meta)으로 풀고 있는데, 앱카드 라벨만 그걸 안 읽어서
+// 미리보기·고객 발송 payload가 둘 다 "최대"라는 맨 문자열로 나갔다(2026-07-27 이사님 지적, 발송 7건 실측).
+//
+// %는 스냅샷 rateDecimal을 그대로 쓴다 — 금액÷차량가로 재계산하면 파트너 견적서와 숫자가 어긋난다.
+// (실측: 6건 중 5건은 파트너 기준가 = 우리 finalVehiclePrice로 동일. iM캐피탈 1건만 기본 트림가로 잡혀
+//  56% vs 60%로 갈리는데, 그건 파트너 쪽 트림 매칭 확인 사항이지 라벨이 덮을 문제가 아니다.)
+// 스냅샷이 없거나(파트너 조회 없이 max만 선택) 잔존 금액이 빠졌으면 기존 "최대" 폴백.
+export function residualLabelOf(
+  mode: string | null | undefined,
+  value: string | null | undefined,
+  finalVehiclePrice: number,
+  solutionRaw: unknown,
+  opts: { noneLabel: string; percentFirst: boolean },
+): string {
+  if (mode !== "max") return moneyModeLabel(mode, value, finalVehiclePrice, opts);
+  const parsed = parseSolutionQuoteResult(solutionRaw);
+  if (!parsed) return RESIDUAL_MAX_FALLBACK;
+  const amount = `${formatMoney(parsed.residualAmount)}원`;
+  const pct = `${parsed.residualRatePct}%`;
+  return opts.percentFirst ? `(${pct}) ${amount}` : `${amount} (${pct})`;
 }
 
 // "20,000km / 년" → "연 20,000km"(디자인 표기). "/" 앞부분에 "연 " 접두, 빈 head면 원문 유지.
