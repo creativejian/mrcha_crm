@@ -35,6 +35,9 @@ if (!clean) {
   if (residue.consultations.length > 0) {
     console.error(`  상담신청 잔재도 자동 삭제하지 않습니다 — public.consultations는 앱 소유입니다. 수동 psql DELETE로 정리하세요(DELETE는 알림 트리거 무관).`);
   }
+  if (residue.orphanAdoptions.length > 0) {
+    console.error(`  채택 감사 잔재도 자동 삭제하지 않습니다 — 그 행의 previous_amount가 catalog.trims를 되돌릴 유일한 근거입니다(위 SQL 참조).`);
+  }
   process.exit(1);
 }
 
@@ -51,6 +54,13 @@ await db.transaction(async (tx) => {
   await tx.execute(sql`delete from crm.customer_deletions where customer_code in (select customer_code from crm.customers where ${customerResidueWhere()})`);
   await tx.execute(sql`delete from crm.customers where ${customerResidueWhere()}`);
   await tx.execute(sql`delete from crm.customer_deletions where ${customerResidueWhere()}`);
+  // 딜러 잔재는 고아 판정으로 지운다(scan과 동일 술어) — crm 소유이고 catalog에 영향이 없다.
+  // **채택 감사(crm.catalog_discount_adoptions)는 여기 없다** — 지우면 catalog.trims를 되돌릴
+  // previous_amount가 사라진다. 보고만 하고 사람이 처리한다(위 안내 SQL).
+  await tx.execute(sql`delete from crm.dealer_trim_discounts d
+    where not exists (select 1 from public.profiles p where p.id = d.dealer_user_id)`);
+  await tx.execute(sql`delete from crm.dealer_profiles dp
+    where not exists (select 1 from public.profiles p where p.id = dp.dealer_user_id)`);
 });
 console.error(`\n[residue] crm 스키마 잔재를 삭제했습니다.`);
 if (residue.orphanAppCards > 0) console.error(`  고아 앱 카드 ${residue.orphanAppCards}건은 그대로 두었습니다(앱 소유).`);
