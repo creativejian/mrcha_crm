@@ -410,3 +410,22 @@ export const customerDeliveries = crm.table("customer_deliveries", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// 딜러 프로필(2026-07-27) — 딜러 계정 1명당 1행.
+// **PK가 dealer_user_id 하나 = "한 딜러 = 한 브랜드"를 스키마가 강제**한다(이사님 요구: 한 브랜드에는
+// 여러 딜러가 붙을 수 있으나, 한 딜러는 한 브랜드). 딜러가 낸 할인 제안의 쓰기 범위를 이 브랜드로
+// 잠그는 게 유일한 목적이다 — 서버가 trims→models.brand_id를 조회해 이 값과 대조한다(fail-closed).
+// brand_id에 FK를 걸지 않는다: NOT NULL이라 ON DELETE SET NULL을 쓸 수 없고, RESTRICT는 catalog(앱
+// 공유 스키마) 삭제를 CRM이 가로막는 소유권 침범이다. crm.quotes→catalog FK(0001)는 nullable이라
+// 가능했던 선례이므로 여기 적용되지 않는다 — 조회 시 조인 실패 = "브랜드 삭제됨"으로 화면에 알린다.
+// note = 비고(딜러사명 "동성모터스"·"코오롱모터스"·"바바리안") — 관리자 입력.
+// created_at은 감사(언제 처음 매칭했나) + 테스트 가능성(updated_at > created_at을 DB 안에서 비교 —
+// JS Date는 ms 절삭으로 거짓 실패하고 시계 스큐가 클수록 통과해 결함을 가린다, #334·#335)용.
+// spec: ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md §3.1
+export const dealerProfiles = crm.table("dealer_profiles", {
+  dealerUserId: uuid("dealer_user_id").primaryKey(), // → public.profiles.id(loose id 관례)
+  brandId: bigint("brand_id", { mode: "number" }).notNull(), // → catalog.brands.id
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
