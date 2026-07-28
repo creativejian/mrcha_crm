@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
-import { isNotNull } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { trimsInCatalog } from "../db/catalog";
 import { getDefaultDb } from "../db/client";
+import { dealerProfiles } from "../db/schema";
 
 const db = getDefaultDb();
 
@@ -105,6 +106,22 @@ test("GET /api/dealer/roster — admin 200", async () => {
   const res = await reqFor("admin", "/api/dealer/roster");
   expect(res.status).toBe(200);
   expect(Array.isArray(await res.json())).toBe(true);
+});
+
+// ── 브랜드 저장 대상 가드(2026-07-28 유슨생) ────────────────────────────────
+// 화면은 "현재 딜러 아님" 행의 편집을 disabled로 막지만 그건 표시일 뿐이다(DevTools로 뚫린다).
+// admin이 딜러 아닌(또는 profiles에 없는) uuid에 PUT하면 딜러였던 적 없는 사람에게 매칭이 생겨
+// 명부 합집합(listDealerRoster)에 유령 행("현재 딜러 아님")이 뜬다 — 서버가 409로 거부한다.
+// 판정은 채택 가드(adoptDealerProposal)와 같은 read-through 기준(isDealerRole)이다.
+test("PUT /api/dealer/profiles/:userId — 대상이 딜러가 아니면 409 + 매칭 미생성", async () => {
+  const ghost = crypto.randomUUID(); // profiles에 없는 uuid = 딜러 아님(fail-closed 축까지 함께 본다)
+  const res = await reqFor("admin", `/api/dealer/profiles/${ghost}`, { method: "PUT", body: BODY });
+  // 단언보다 **정리를 먼저** 한다 — 가드가 깨진 상태(RED)에서는 여기서 실 행이 생기는데,
+  // 단언이 먼저 실패하면 정리가 안 돌아 공유 master에 고아가 남는다(check:residue가 잡는 그 유형).
+  const rows = await db.select().from(dealerProfiles).where(eq(dealerProfiles.dealerUserId, ghost));
+  await db.delete(dealerProfiles).where(eq(dealerProfiles.dealerUserId, ghost));
+  expect(res.status).toBe(409);
+  expect(rows).toHaveLength(0);
 });
 
 test("삭제: admin이 없는 유저를 지우면 0건으로 응답한다(존재 확인 없이 멱등)", async () => {

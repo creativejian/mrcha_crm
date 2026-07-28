@@ -7,6 +7,7 @@ import {
   deleteDealerProfile,
   deleteDealerProposals,
   getDealerProfile,
+  isDealerRole,
   listDealerRoster,
   upsertDealerProfile,
 } from "../db/queries/dealer-profiles";
@@ -62,6 +63,13 @@ dealer.put(
   zValidator("json", profileBody),
   async (c) => {
     const { userId } = c.req.valid("param");
+    // 대상 가드(2026-07-28 유슨생) — 딜러가 아닌(또는 profiles에 없는) 대상에게는 저장 불가.
+    // 화면은 "현재 딜러 아님" 행의 편집을 disabled로 막지만 그건 표시일 뿐이고(DevTools),
+    // 뚫리면 딜러였던 적 없는 uuid에도 매칭이 생겨 명부에 유령 행이 뜬다. 409 = 호출자 권한
+    // 문제(requireRoles 403)가 아니라 **대상 상태**가 거부 사유라는 구분(PATCH phone 선례).
+    if (!(await isDealerRole(userId, c.var.db))) {
+      return c.json({ error: "딜러가 아닌 구성원에게는 브랜드를 지정할 수 없습니다." }, 409);
+    }
     const { brandId, note } = c.req.valid("json");
     const row = await upsertDealerProfile(
       { dealerUserId: userId, brandId, note: note?.length ? note : null },
