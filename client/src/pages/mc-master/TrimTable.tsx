@@ -62,7 +62,7 @@ export function TrimTable({
         <tr>
           <SelectAllHeadCell show={selectMode} allChecked={allChecked} onToggleAll={onToggleAll} />
           <th className="va-th-trim">트림명</th>
-          <TrimHeadCells showDiscountDate={!onSaveProposal} showOption={isDomestic} />
+          <TrimHeadCells dealerMode={Boolean(onSaveProposal)} showOption={isDomestic} />
           {canEdit && !selectMode && <th className="va-col-center va-th-edit" aria-label="편집" />}
         </tr>
       </thead>
