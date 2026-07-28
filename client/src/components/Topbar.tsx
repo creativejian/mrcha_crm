@@ -544,7 +544,9 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
                     <span>{accountScopeLabel}</span>
                   </div>
                 </div>
-                <div className="settings-menu-line account-line" />
+                {/* 딜러 모드에선 이 선을 내지 않는다 — 아래 실시간 상담·운영 섹션이 전부 빠져
+                    logout-line과 바로 붙어 이중선이 된다(2026-07-28 유슨생 실기 피드백). */}
+                {!dealerMode && <div className="settings-menu-line account-line" />}
                 {/* 딜러에게는 실시간 상담 패널을 **아예 렌더하지 않는다**(2026-07-27 유슨생 실기 리포트).
                     구 동작은 회색 disabled로 남겨 "상담 수신 비활성화"를 보여줬는데, 딜러는 담당 고객·
                     실시간 상담 개념이 없어서(배정 후보에서도 제외) 그 칸이 "왜 못 켜지?"라는 질문만
@@ -583,7 +585,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
                     </div>
                   </>
                 )}
-                <div className={`settings-menu-line logout-line ${dealerMode ? "after-live" : ""}`}><span>Prototype by Jian</span></div>
+                <div className={`settings-menu-line logout-line ${dealerMode ? "after-live" : ""}`}><span>CRM by Creativejian</span></div>
                 <div className="settings-menu-section logout-section">
                   <button className="settings-menu-row danger" onClick={() => void signOut()} type="button"><span><SettingSolidIcon name="logout" />로그아웃</span></button>
                 </div>
