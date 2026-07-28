@@ -18,6 +18,11 @@ type TrimProposalRow = {
   dealerNote: string | null;
   /** false = 자격 상실(딜러를 그만둠) → 채택 불가. 서버도 같은 기준으로 거부한다. */
   isDealer: boolean;
+  /**
+   * false = 담당 브랜드가 이 트림의 브랜드와 다르다(이직) → 채택 불가. 서버도 같은 기준으로
+   * 거부한다. **데이터는 지우지 않으므로** 브랜드를 되돌리면 이 제안을 그대로 다시 채택할 수 있다.
+   */
+  brandMatches: boolean;
   financial: TrimProposalField;
   partner: TrimProposalField;
   cash: TrimProposalField;

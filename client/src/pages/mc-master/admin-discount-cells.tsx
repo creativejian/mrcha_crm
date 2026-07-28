@@ -142,7 +142,18 @@ export function AdminDiscountCells({
                         <span className="va-disc-amount">{discountText(p[field].amount, trim.price)}</span>
                         {!p.isDealer ? (
                           // 자격 상실 — 서버도 같은 기준으로 거부하므로 버튼을 아예 주지 않는다.
-                          <span className="va-disc-badge muted">채택 불가</span>
+                          <span className="va-disc-badge muted" title="이 사람은 현재 딜러가 아닙니다.">
+                            채택 불가
+                          </span>
+                        ) : !p.brandMatches ? (
+                          // 담당 브랜드가 바뀐 딜러(이직) — 데이터는 지우지 않으므로 브랜드를
+                          // 되돌리면 이 제안을 그대로 다시 채택할 수 있다. 그 사실을 title에 남긴다.
+                          <span
+                            className="va-disc-badge muted"
+                            title="이 딜러의 담당 브랜드가 바뀌었습니다 — 브랜드를 되돌리면 이 제안을 다시 채택할 수 있습니다."
+                          >
+                            브랜드 변경됨
+                          </span>
                         ) : badge ? (
                           <span className={`va-disc-badge ${badge.tone}`} title={badge.hint}>
                             {badge.text}
@@ -150,7 +161,7 @@ export function AdminDiscountCells({
                         ) : (
                           <span className="va-disc-badge" />
                         )}
-                        {p.isDealer && p[field].state !== "adopted" ? (
+                        {p.isDealer && p.brandMatches && p[field].state !== "adopted" ? (
                           <button
                             className="tiny-btn va-disc-adopt"
                             disabled={busy}

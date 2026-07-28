@@ -6,11 +6,12 @@ import {
   type DiscountField,
   type ProposalState,
 } from "../../../client/src/lib/discount-adoption";
-import { trimsInCatalog } from "../catalog";
+import { modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles } from "../public-app";
 import { catalogDiscountAdoptions, dealerProfiles, dealerTrimDiscounts } from "../schema";
 import { updateTrim, type TrimPatch } from "./catalog-admin";
+import { brandIdOfTrim } from "./dealer-discounts";
 
 // 관리자 채택(슬라이스 C) — 딜러 제안(crm.dealer_trim_discounts)을 확정 할인(catalog.trims)으로
 // 올리고 그 사실을 감사에 남긴다. 자사·제휴·타사는 **각각 독립**이다(이사님 요구 — 자사는
@@ -44,6 +45,15 @@ type TrimProposal = {
    * 자격의 출처가 앱 profiles이므로 CRM이 사본을 들면 그 순간부터 어긋난다(spec §5).
    */
   isDealer: boolean;
+  /**
+   * 제안자의 현재 담당 브랜드가 **이 트림의 브랜드와 같은가**. false면 채택 불가 —
+   * 딜러는 이직·퇴사한다(2026-07-28 유슨생). 담당이 바뀐 뒤 옛 브랜드 제안을 확정으로 올리면
+   * 관계가 끝난 딜러사의 조건을 쓰는 셈이다. `isDealer`와 **따로 두는 이유**: 화면이 "채택 불가"와
+   * "브랜드 변경됨"을 구분해 보여줘야 관리자가 이유를 안다.
+   * 쓰기 경로는 이미 같은 기준으로 403이었는데(routes/dealer.ts) 채택 경로에만 없어서,
+   * **딜러 본인은 손댈 수 없게 된 제안을 관리자가 채택할 수 있었다**(실측 확인 후 추가).
+   */
+  brandMatches: boolean;
   financial: TrimProposalField;
   partner: TrimProposalField;
   cash: TrimProposalField;
@@ -77,14 +87,17 @@ export async function listModelProposals(
   modelId: number,
   executor: Executor = getDefaultDb(),
 ): Promise<TrimProposals[]> {
+  // 모델의 브랜드는 하나다 — 트림마다 조회할 필요 없이 여기서 한 번 얻어 brandMatches에 쓴다.
   const trims = await executor
     .select({
       id: trimsInCatalog.id,
+      brandId: modelsInCatalog.brandId,
       financial: trimsInCatalog.financialDiscountAmount,
       partner: trimsInCatalog.partnerDiscountAmount,
       cash: trimsInCatalog.cashDiscountAmount,
     })
     .from(trimsInCatalog)
+    .innerJoin(modelsInCatalog, eq(modelsInCatalog.id, trimsInCatalog.modelId))
     .where(eq(trimsInCatalog.modelId, modelId));
   if (trims.length === 0) return [];
   const trimIds = trims.map((t) => t.id);
@@ -113,6 +126,7 @@ export async function listModelProposals(
       dealerName: profiles.fullName,
       role: profiles.role,
       dealerNote: dealerProfiles.note,
+      dealerBrandId: dealerProfiles.brandId, // 현재 담당 브랜드 — 트림 브랜드와 대조(brandMatches)
     })
     .from(dealerTrimDiscounts)
     .leftJoin(profiles, eq(profiles.id, dealerTrimDiscounts.dealerUserId))
@@ -155,6 +169,8 @@ export async function listModelProposals(
           dealerName: r.dealerName,
           dealerNote: r.dealerNote,
           isDealer: r.role === "dealer",
+          // 프로필이 없으면(매칭 삭제) null이라 자동으로 false — fail-closed.
+          brandMatches: r.dealerBrandId === trim.brandId,
           financial: field("financial"),
           partner: field("partner"),
           cash: field("cash"),
@@ -234,6 +250,17 @@ export async function adoptDealerProposal(
     .from(profiles)
     .where(eq(profiles.id, input.dealerUserId));
   if (author?.role !== "dealer") return null;
+
+  // **담당 브랜드 대조**(2026-07-28) — 딜러는 이직·퇴사한다. 담당이 바뀐 뒤 옛 브랜드 제안을
+  // 확정으로 올리면 관계가 끝난 딜러사의 조건을 쓰는 셈이다. 쓰기 경로(routes/dealer.ts)가 쓰는
+  // `brandIdOfTrim`을 **그대로 재사용**한다 — 기준이 갈리면 "쓰기는 403인데 채택은 통과"가 다시 생긴다.
+  // 프로필이 없으면(매칭 삭제) 대조 대상이 없으니 거부한다(fail-closed).
+  const [dealerProfile] = await executor
+    .select({ brandId: dealerProfiles.brandId })
+    .from(dealerProfiles)
+    .where(eq(dealerProfiles.dealerUserId, input.dealerUserId));
+  const trimBrandId = await brandIdOfTrim(input.trimId, executor);
+  if (!dealerProfile || trimBrandId === null || dealerProfile.brandId !== trimBrandId) return null;
 
   const [proposal] = await executor
     .select({
