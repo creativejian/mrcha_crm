@@ -71,6 +71,11 @@ const ALLOW: { path: string; hit: string; why: string }[] = [
     why: "crm.dealer_profiles(CRM 소유) 딜러 해제 — public.profiles 무접촉. 2026-07-28 조직 화면 딜러 테이블의 '딜러 해제' 버튼",
   },
   {
+    path: "src/routes/dealer.role-gate.test.ts",
+    hit: "drizzle: .delete(dealerProfiles)",
+    why: "crm.dealer_profiles(CRM 소유) 테스트 정리 — 브랜드 저장 대상 가드가 깨진 상태(RED)에서 생기는 고아 행 제거. 2026-07-28",
+  },
+  {
     path: "src/db/queries/dealer-profiles.test.ts",
     hit: "drizzle: .delete(dealerProfiles)",
     why: "위 테이블의 테스트 픽스처 정리(afterAll) — 같은 이유",

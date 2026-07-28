@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 
 import { brandsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
+import { profiles } from "../public-app";
 import { dealerProfiles, dealerTrimDiscounts } from "../schema";
 
 // 딜러 프로필(브랜드 매칭 + 비고) — 관리자 전용 도메인.
@@ -25,6 +26,16 @@ export async function getDealerProfile(dealerUserId: string, executor: Executor 
     .leftJoin(brandsInCatalog, eq(brandsInCatalog.id, dealerProfiles.brandId))
     .where(eq(dealerProfiles.dealerUserId, dealerUserId));
   return row ?? null;
+}
+
+// 대상이 **지금** 딜러인가 — profiles.role read-through(계약상 읽기만 — staff.ts 선례).
+// 브랜드 저장(PUT /profiles/:userId)의 대상 가드가 쓴다: 딜러가 아닌(또는 profiles에 없는)
+// uuid에 매칭을 만들면 명부 합집합(listDealerRoster)에 유령 행("현재 딜러 아님")이 생긴다.
+// 판정 기준은 채택 가드(adoptDealerProposal)와 같아야 한다 — 둘이 어긋나면 "저장은 되는데
+// 채택은 안 되는" 매칭이 생긴다. 행 없음 = false(fail-closed).
+export async function isDealerRole(userId: string, executor: Executor = getDefaultDb()) {
+  const [row] = await executor.select({ role: profiles.role }).from(profiles).where(eq(profiles.id, userId));
+  return row?.role === "dealer";
 }
 
 // 딜러 명부(조직 화면의 별도 "딜러" 테이블 — 2026-07-28 유슨생).

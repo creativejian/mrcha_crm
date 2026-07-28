@@ -9,6 +9,7 @@ import {
   deleteDealerProfile,
   deleteDealerProposals,
   getDealerProfile,
+  isDealerRole,
   listDealerRoster,
   upsertDealerProfile,
 } from "./dealer-profiles";
@@ -196,4 +197,16 @@ test("삭제는 그 딜러만 건드린다(다른 딜러 제안은 남는다)", 
     expect(await tx.select().from(dealerTrimDiscounts).where(eq(dealerTrimDiscounts.dealerUserId, other))).toHaveLength(1);
     expect(await tx.select().from(dealerProfiles).where(eq(dealerProfiles.dealerUserId, other))).toHaveLength(1);
   });
+});
+
+// ── 브랜드 저장 대상 가드(2026-07-28 유슨생) ────────────────────────────────
+// 판정 기준은 채택 경로(adoptDealerProposal)와 같은 read-through(profiles.role)여야 한다 —
+// 둘이 어긋나면 "저장은 되는데 채택은 안 되는" 매칭이 생긴다. 읽기 전용이라 롤백 불필요.
+test("isDealerRole: 실 딜러 true · 다른 role false · 없는 uuid false(fail-closed)", async () => {
+  const [realDealer] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.role, "dealer")).limit(1);
+  const [admin] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.role, "admin")).limit(1);
+  expect(await isDealerRole(realDealer!.id, db)).toBe(true);
+  expect(await isDealerRole(admin!.id, db)).toBe(false);
+  // profiles에 없는 uuid = 딜러 아님 — "행 없음"을 통과로 읽으면 유령 매칭이 생긴다.
+  expect(await isDealerRole(crypto.randomUUID(), db)).toBe(false);
 });

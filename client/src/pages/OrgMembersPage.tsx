@@ -190,8 +190,12 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
                 {!d.isDealer && <span className="badge yellow">현재 딜러 아님</span>}
               </td>
               <td>{d.phone ? formatPhone(d.phone) : "미입력"}</td>
+              {/* role이 내려간 행은 편집 불가 — 딜러 아닌 사람에게 브랜드를 새로 지정하는 건
+                  의미가 없고(채택도 서버가 거부), 이 행의 존재 이유는 데이터 정리뿐이다.
+                  서버도 같은 기준으로 PUT을 409로 거부한다(routes/dealer.ts 대상 가드). */}
               <DealerBrandCell
                 brands={brands}
+                disabled={!d.isDealer}
                 entry={d}
                 onSave={(brandId, note) => saveProfile(d.dealerUserId, brandId, note)}
               />
@@ -221,10 +225,13 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
 // 같은 핸들러를 onChange + onInput에 병행 바인딩한다 — setState가 멱등이라 이중 발화는 무해하다.
 function DealerBrandCell({
   brands,
+  disabled,
   entry,
   onSave,
 }: {
   brands: { id: number; name: string }[];
+  /** "현재 딜러 아님" 행 — 폼 컨트롤 없이 값만 텍스트로 낸다(서버도 PUT을 409로 거부). */
+  disabled: boolean;
   entry: DealerRosterEntry | undefined;
   onSave: (brandId: number, note: string | null) => Promise<void>;
 }) {
@@ -235,6 +242,25 @@ function DealerBrandCell({
   const [draft, setDraft] = useState<{ brandId: number | null; note: string } | null>(null);
   const brandId = draft ? draft.brandId : (entry?.brandId ?? null);
   const note = draft ? draft.note : (entry?.note ?? "");
+
+  // 읽기 전용 행은 **폼 컨트롤 자체를 내지 않는다** — disabled select는 화살표·입력 박스가
+  // 남아 "편집될 것 같은" 모양이라 직관적이지 않다(2026-07-28 유슨생 실기 피드백). 연락처
+  // 열과 같은 일반 텍스트로 내면 "컨트롤이 보이는 행만 편집 가능"이 모양만으로 읽힌다.
+  if (disabled) {
+    return (
+      <>
+        <td>
+          {/* 편집 행의 select 안 텍스트와 같은 지점에서 시작시킨다(.org-dealer-plain) —
+              없으면 두 행의 "BMW"가 어긋나 보인다(유슨생 실기 피드백). */}
+          <span className="org-dealer-plain">
+            {entry?.brandName ??
+              (entry?.brandId != null ? <span className="badge yellow">브랜드 삭제됨</span> : "미지정")}
+          </span>
+        </td>
+        <td>{entry?.note ?? "—"}</td>
+      </>
+    );
+  }
 
   const pickBrand = (e: SyntheticEvent<HTMLSelectElement>) => {
     const value = e.currentTarget.value;
