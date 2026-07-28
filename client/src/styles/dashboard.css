@@ -890,3 +890,47 @@
   color: var(--success);
   font-weight: 700;
 }
+
+/* ── 조직 화면 딜러 테이블(2026-07-28) ─────────────────────────────────────
+   섹션 라벨은 「구성원|조직|권한」 탭과 같은 pill 디자인(유슨생 지정)이지만 **탭이 아니라
+   제목**이라 span이다 — 누를 것이 없으므로 button을 쓰지 않는다(스크린리더에도 버튼으로
+   읽히면 안 된다). .ops-tabs가 3열 그리드라 1열로 되돌린다. */
+.org-dealer-label {
+  grid-template-columns: minmax(104px, auto);
+  margin-top: 22px;
+}
+.org-dealer-label span.active {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  box-shadow: 0 1px 2px rgba(17, 17, 17, 0.08);
+}
+.org-dealer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+/* 두 버튼은 **칩 형태를 새로 쓰지 않는다** — `.badge`(customer-list.css)가 칩 1벌을 소유하고
+   있어서(형태를 각자 두면 또 갈라진다는 그 규칙) JSX에서 `.badge`/`.badge red`를 얹고 여기는
+   **버튼이라서 생기는 것만** 둔다. 배지 클래스를 button에 얹는 선례 = HandoffStatusBadge의
+   `button.chat-handoff-badge`. 딜러 해제는 제안 + 매칭을 함께 지우는 무거운 행위라 red 톤이다.
+   disabled(cursor·opacity)는 theme.css의 전역 `button:disabled`가 이미 처리한다.
+   ⚠️ hover에서 box-shadow를 건드리지 않는다 — 칩의 층진 그림자를 덮으면 눌린 것처럼 납작해진다.
+   background·border-color만 바꾼다(둘 다 칩 규칙의 transition 목록에 이미 있다). */
+.org-dealer-action:hover:not(:disabled) {
+  border-color: rgba(15, 23, 42, 0.16);
+  background: #e3e8ef;
+}
+.org-dealer-action.red:hover:not(:disabled) {
+  background: #fdd4d0;
+}
+.org-dealer-error {
+  color: #c02626;
+  font-size: 12px;
+}

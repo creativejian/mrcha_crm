@@ -3,10 +3,17 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { brandIdOfTrim, listMyTrimDiscounts, upsertDealerTrimDiscount } from "../db/queries/dealer-discounts";
-import { getDealerProfile, listDealerProfiles, upsertDealerProfile } from "../db/queries/dealer-profiles";
+import {
+  deleteDealerProfile,
+  deleteDealerProposals,
+  getDealerProfile,
+  listDealerRoster,
+  upsertDealerProfile,
+} from "../db/queries/dealer-profiles";
 import type { AuthVariables } from "../middleware/auth";
 import type { DbVariables } from "../middleware/db";
 import { requireRoles } from "../middleware/role-gate";
+import { run } from "./shared";
 
 // /api/dealer/* — 딜러 도메인. 지금은 **관리자용 브랜드 매칭만**이다(슬라이스 A).
 // 딜러 본인용 제안 입력(GET /me · PUT /discounts/:trimId)은 슬라이스 B에서 같은 라우터에 붙고,
@@ -23,7 +30,30 @@ const profileBody = z.object({
   note: z.string().trim().max(100).nullable().optional(),
 });
 
-dealer.get("/profiles", requireRoles(["admin"]), async (c) => c.json(await listDealerProfiles(c.var.db)));
+// 딜러 명부(조직 화면의 별도 "딜러" 테이블) — role이 내려간 딜러도 포함하는 합집합이다
+// (queries/dealer-profiles.ts listDealerRoster 주석 참조).
+dealer.get("/roster", requireRoles(["admin"]), async (c) => c.json(await listDealerRoster(c.var.db)));
+
+// 입력값 삭제 — 그 딜러의 제안 전부. 브랜드 매칭은 남아 다시 입력할 수 있다.
+// ⚠️ 채택된 확정 할인과 채택 감사는 건드리지 않는다(spec §5 · 쿼리 함수 주석).
+dealer.delete(
+  "/profiles/:userId/proposals",
+  requireRoles(["admin"]),
+  zValidator("param", userIdParam),
+  async (c) => run(c, async () => ({ deleted: await deleteDealerProposals(c.req.valid("param").userId, c.var.db) })),
+);
+
+// 딜러 해제 — 제안 + 브랜드 매칭. **트랜잭션**으로 묶는다: 제안만 지워지고 매칭이 남으면
+// "브랜드는 있는데 입력값이 사라진" 어중간한 상태가 되고, 관리자는 무엇이 지워졌는지 알 수 없다.
+dealer.delete(
+  "/profiles/:userId",
+  requireRoles(["admin"]),
+  zValidator("param", userIdParam),
+  async (c) => {
+    const { userId } = c.req.valid("param");
+    return run(c, () => c.var.db.transaction((tx) => deleteDealerProfile(userId, tx)));
+  },
+);
 
 dealer.put(
   "/profiles/:userId",
