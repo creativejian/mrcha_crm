@@ -1,10 +1,10 @@
 import { beforeAll, expect, test } from "bun:test";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 
-import { modelsInCatalog, trimsInCatalog } from "../catalog";
+import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles } from "../public-app";
-import { catalogDiscountAdoptions, dealerTrimDiscounts } from "../schema";
+import { catalogDiscountAdoptions, dealerProfiles, dealerTrimDiscounts } from "../schema";
 import { updateTrim } from "./catalog-admin";
 import { upsertDealerProfile } from "./dealer-profiles";
 import { adoptDealerProposal, listModelProposals, recordAdminDiscountEdits } from "./discount-adoptions";
@@ -25,6 +25,7 @@ let modelId = 0;
 let dealerId = ""; // profiles.role = 'dealer' — 자격 있음
 let nonDealerId = ""; // role != 'dealer' — 자격 상실 표시 대상
 let brandId = 0;
+let otherBrandId = 0; // 트림의 브랜드가 아닌 브랜드 — 이직 시나리오용
 
 beforeAll(async () => {
   const [trim] = await db
@@ -36,10 +37,18 @@ beforeAll(async () => {
   modelId = trim!.modelId;
   brandId = trim!.brandId;
 
+  // 트림의 브랜드와 **다른** 브랜드(하드코딩 금지 — 환경마다 id가 다르다).
+  const [otherBrand] = await db
+    .select({ id: brandsInCatalog.id })
+    .from(brandsInCatalog)
+    .where(ne(brandsInCatalog.id, trim!.brandId))
+    .limit(1);
+  otherBrandId = otherBrand!.id;
+
   const [dealer] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.role, "dealer")).limit(1);
-  const [other] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.role, "admin")).limit(1);
+  const [admin] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.role, "admin")).limit(1);
   dealerId = dealer!.id;
-  nonDealerId = other!.id;
+  nonDealerId = admin!.id;
 });
 
 // 롤백 전용 실행기 — 심은 행·바뀐 확정 할인이 커밋되지 않는다.
@@ -285,6 +294,66 @@ test("adoptDealerProposal: 자격 상실(role != dealer) 제안자의 제안은 
     expect(
       await tx.select().from(catalogDiscountAdoptions).where(eq(catalogDiscountAdoptions.trimId, trimId)),
     ).toHaveLength(0);
+  });
+});
+
+// ── 브랜드 이동/이직 (2026-07-28 유슨생) ────────────────────────────────────
+// 딜러는 이직·퇴사한다. 담당 브랜드가 바뀌면 **옛 브랜드 제안은 채택할 수 없어야** 한다 —
+// 그 딜러사와의 관계가 끝났는데 그때 조건을 확정 할인으로 올리는 셈이 된다.
+// 쓰기 경로는 이미 브랜드 소유권으로 403인데(routes/dealer.ts) 채택 경로에는 검증이 없어서,
+// **딜러 본인은 손댈 수 없게 된 제안을 관리자가 채택할 수 있었다**(실측으로 확인 후 이 가드 추가).
+// ⚠️ 데이터는 지우지 않는다 — 브랜드를 되돌리면 예전 입력값을 그대로 이어 쓴다(아래 마지막 케이스).
+test("adoptDealerProposal: 담당 브랜드가 다른 딜러의 제안은 채택되지 않는다", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    await seedProposal(tx, dealerId, { financialAmount: 6_500_000, partnerAmount: null, cashAmount: null });
+    // 관리자가 이 딜러를 다른 브랜드로 옮긴다(이직) — 트림의 브랜드와 어긋난다.
+    await upsertDealerProfile({ dealerUserId: dealerId, brandId: otherBrandId, note: "이직" }, tx);
+
+    const result = await adoptDealerProposal(
+      { trimId, field: "financial", dealerUserId: dealerId, adoptedBy: nonDealerId },
+      tx,
+    );
+    expect(result).toBeNull();
+    expect((await trimRow(tx)).financial).toBe(before.financial);
+    expect(
+      await tx.select().from(catalogDiscountAdoptions).where(eq(catalogDiscountAdoptions.trimId, trimId)),
+    ).toHaveLength(0);
+  });
+});
+
+test("listModelProposals: 브랜드가 어긋난 제안은 brandMatches=false로 표시된다", async () => {
+  await inRollback(async (tx) => {
+    await seedProposal(tx, dealerId, { financialAmount: 6_500_000, partnerAmount: null, cashAmount: null });
+    expect((await proposalsOf(tx))!.proposals[0]!.brandMatches).toBe(true);
+
+    await upsertDealerProfile({ dealerUserId: dealerId, brandId: otherBrandId, note: "이직" }, tx);
+    const moved = (await proposalsOf(tx))!.proposals[0]!;
+    expect(moved.brandMatches).toBe(false);
+    // 자격(role)은 그대로다 — 표시가 갈려야 관리자가 이유를 안다("채택 불가" vs "브랜드 변경됨").
+    expect(moved.isDealer).toBe(true);
+  });
+});
+
+test("브랜드를 되돌리면 예전 입력값을 그대로 이어 쓴다(데이터는 지우지 않는다)", async () => {
+  await inRollback(async (tx) => {
+    await seedProposal(tx, dealerId, { financialAmount: 6_500_000, partnerAmount: null, cashAmount: null });
+    const [origin] = await tx
+      .select({ brandId: dealerProfiles.brandId })
+      .from(dealerProfiles)
+      .where(eq(dealerProfiles.dealerUserId, dealerId));
+
+    await upsertDealerProfile({ dealerUserId: dealerId, brandId: otherBrandId, note: null }, tx);
+    expect((await proposalsOf(tx))!.proposals[0]!.brandMatches).toBe(false);
+
+    // 다시 원래 브랜드로 복귀 — 제안 행은 건드리지 않았으므로 금액이 살아 있고 채택도 된다.
+    await upsertDealerProfile({ dealerUserId: dealerId, brandId: origin!.brandId, note: null }, tx);
+    const back = (await proposalsOf(tx))!.proposals[0]!;
+    expect(back.brandMatches).toBe(true);
+    expect(back.financial.amount).toBe(6_500_000);
+    expect(
+      await adoptDealerProposal({ trimId, field: "financial", dealerUserId: dealerId, adoptedBy: nonDealerId }, tx),
+    ).not.toBeNull();
   });
 });
 
