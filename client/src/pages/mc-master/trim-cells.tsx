@@ -42,12 +42,17 @@ export function ColorChips({ colors }: { colors: TrimColor[] }) {
 // 옵션 컬럼은 국산차만 표시(앱 패리티 — 수입차는 옵션 미관리).
 export function TrimHeadCells({
   showOption = true,
-  showDiscountDate = true,
+  dealerMode = false,
 }: {
   showOption?: boolean;
-  /** 딜러 모드에선 false — 확정 할인을 안 내리므로 할인변경일이 항상 빈 칸이 된다(빈 열은
-   *  감춘 의도가 아니라 고장으로 읽힌다). 본문 td는 TrimMetaCells가 onSaveProposal로 판단한다. */
-  showDiscountDate?: boolean;
+  /**
+   * 딜러 모드에선 날짜 열의 **의미가 다르다**: 관리자는 확정 할인이 바뀐 날
+   * (`catalog.trims.discount_updated_at`)을 보지만, 딜러는 그 값을 못 받으므로(비노출 정책)
+   * **자기 제안을 고친 날**(`crm.dealer_trim_discounts.updated_at`)을 본다.
+   * 같은 이름 "할인변경일"을 쓰면 딜러가 **확정 할인이 그날 바뀐 것으로 오해**한다 —
+   * 감추기로 한 바로 그 값이라 이름을 갈라야 한다(2026-07-28 유슨생 결정).
+   */
+  dealerMode?: boolean;
 }) {
   return (
     <>
@@ -58,7 +63,7 @@ export function TrimHeadCells({
       <th className="va-c-disc">자사할인</th>
       <th className="va-c-disc">제휴할인</th>
       <th className="va-c-disc">타사할인</th>
-      {showDiscountDate && <th className="va-col-center va-c-date">할인변경일</th>}
+      <th className="va-col-center va-c-date">{dealerMode ? "제안변경일" : "할인변경일"}</th>
       <th className="va-col-center va-th-status">상태</th>
       {showOption && <th className="va-col-center va-th-option">옵션</th>}
     </>
@@ -229,11 +234,13 @@ export function TrimMetaCells({
       ) : (
         <AdminDiscountCells entry={proposalEntry} onAdopt={onAdopt} trim={trim} />
       )}
-      {/* 딜러 모드에선 열째 없앤다 — 서버가 확정 할인을 안 내리므로 항상 빈 칸이 된다.
-          헤더(TrimHeadCells)의 showDiscountDate와 **함께** 켜고 꺼야 열 수가 맞는다. */}
-      {!onSaveProposal && (
-        <td className="va-col-center va-num va-muted va-c-date">{fmtDate(trim.discountUpdatedAt)}</td>
-      )}
+      {/* 날짜 열의 **값이 모드마다 다르다**(헤더 문구도 함께 갈린다 — TrimHeadCells dealerMode):
+          관리자는 확정 할인이 바뀐 날, 딜러는 자기 제안을 고친 날. 딜러에게 확정 할인은 비노출이라
+          `trim.discountUpdatedAt`이 항상 null로 오고, 그걸 그대로 쓰면 빈 열이 된다(2026-07-27에
+          그래서 열을 없앴다가, 값의 출처를 갈라 되살렸다). */}
+      <td className="va-col-center va-num va-muted va-c-date">
+        {fmtDate(onSaveProposal ? (dealerProposal?.updatedAt ?? null) : trim.discountUpdatedAt)}
+      </td>
       <td className="va-col-center">
         <span className={`badge ${statusBadgeTone(trim.status)}`}>{statusLabel(trim.status)}</span>
       </td>
