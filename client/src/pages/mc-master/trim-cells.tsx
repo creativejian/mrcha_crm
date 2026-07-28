@@ -7,6 +7,7 @@ import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer
 import type { TrimProposals } from "@/lib/discount-proposals";
 import { AdminDiscountCells, type AdoptHandler } from "./admin-discount-cells";
 import { optionBadgeState } from "./option-badge";
+import { applyThousandsInput } from "./thousands-input";
 import { fmtDate, formatThousands, parseWon } from "./trim-format";
 
 // ⚠️ 이 파일의 아래쪽 `DiscountField`는 **딜러 제안 금액 컬럼 키**(financialAmount…)다.
@@ -163,18 +164,21 @@ function DealerDiscountCells({
     [onSave, trim.id],
   );
 
-  const change = (field: DiscountField) => (e: SyntheticEvent<HTMLInputElement>) => {
-    const base = draft ?? {
-      financialAmount: serverText("financialAmount"),
-      partnerAmount: serverText("partnerAmount"),
-      cashAmount: serverText("cashAmount"),
-    };
-    const next = { ...base, [field]: formatThousands(e.currentTarget.value) };
-    setDraft(next);
-    setState("idle");
-    if (timerRef.current != null) clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => void flush(next), DEALER_SAVE_DEBOUNCE_MS);
-  };
+  // applyThousandsInput이 포맷과 **커서 복원**을 맡는다 — 중간 숫자를 지울 때 커서가 끝으로 튀면
+  // 딜러가 금액을 고칠 수 없다(2026-07-28 유슨생 실기 · thousands-input.ts 참조).
+  const change = (field: DiscountField) => (e: SyntheticEvent<HTMLInputElement>) =>
+    applyThousandsInput(e, (formatted) => {
+      const base = draft ?? {
+        financialAmount: serverText("financialAmount"),
+        partnerAmount: serverText("partnerAmount"),
+        cashAmount: serverText("cashAmount"),
+      };
+      const next = { ...base, [field]: formatted };
+      setDraft(next);
+      setState("idle");
+      if (timerRef.current != null) clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => void flush(next), DEALER_SAVE_DEBOUNCE_MS);
+    });
 
   return (
     <>
