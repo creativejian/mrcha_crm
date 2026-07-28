@@ -230,7 +230,7 @@ function DealerBrandCell({
   onSave,
 }: {
   brands: { id: number; name: string }[];
-  /** "현재 딜러 아님" 행 — 값은 표시하되 편집·저장을 막는다(서버도 PUT을 409로 거부). */
+  /** "현재 딜러 아님" 행 — 폼 컨트롤 없이 값만 텍스트로 낸다(서버도 PUT을 409로 거부). */
   disabled: boolean;
   entry: DealerRosterEntry | undefined;
   onSave: (brandId: number, note: string | null) => Promise<void>;
@@ -243,6 +243,21 @@ function DealerBrandCell({
   const brandId = draft ? draft.brandId : (entry?.brandId ?? null);
   const note = draft ? draft.note : (entry?.note ?? "");
 
+  // 읽기 전용 행은 **폼 컨트롤 자체를 내지 않는다** — disabled select는 화살표·입력 박스가
+  // 남아 "편집될 것 같은" 모양이라 직관적이지 않다(2026-07-28 유슨생 실기 피드백). 연락처
+  // 열과 같은 일반 텍스트로 내면 "컨트롤이 보이는 행만 편집 가능"이 모양만으로 읽힌다.
+  if (disabled) {
+    return (
+      <>
+        <td>
+          {entry?.brandName ??
+            (entry?.brandId != null ? <span className="badge yellow">브랜드 삭제됨</span> : "미지정")}
+        </td>
+        <td>{entry?.note ?? "—"}</td>
+      </>
+    );
+  }
+
   const pickBrand = (e: SyntheticEvent<HTMLSelectElement>) => {
     const value = e.currentTarget.value;
     setDraft({ brandId: value ? Number(value) : null, note });
@@ -253,7 +268,7 @@ function DealerBrandCell({
   return (
     <>
       <td>
-        <select disabled={disabled} value={brandId ?? ""} onChange={pickBrand} onInput={pickBrand}>
+        <select value={brandId ?? ""} onChange={pickBrand} onInput={pickBrand}>
           <option value="">미지정</option>
           {brands.map((b) => (
             <option key={b.id} value={b.id}>{b.name}</option>
@@ -264,16 +279,14 @@ function DealerBrandCell({
       </td>
       <td>
         <input
-          disabled={disabled}
           value={note}
           onChange={(e) => setDraft({ brandId, note: e.currentTarget.value })}
           placeholder="동성모터스"
           maxLength={100}
         />
         {/* 브랜드가 있어야 저장할 수 있다(brand_id NOT NULL). 값이 그대로면 버튼을 숨겨 오조작을 줄인다.
-            저장 후 draft를 비워 서버가 돌려준 값으로 복귀한다. disabled면 편집 자체가 안 돼
-            changed가 못 되지만, 조건에도 명시해 둔다(가드 한 곳이 풀려도 다른 곳이 막는다). */}
-        {!disabled && brandId !== null && changed && (
+            저장 후 draft를 비워 서버가 돌려준 값으로 복귀한다. */}
+        {brandId !== null && changed && (
           <button
             onClick={() => void onSave(brandId, note.trim() || null).then(() => setDraft(null))}
             type="button"
