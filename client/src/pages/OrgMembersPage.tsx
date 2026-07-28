@@ -1,4 +1,4 @@
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { ROLE_ACCESS_SUMMARY, roleLabelOf } from "@/data/roles";
@@ -218,11 +218,20 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
   );
 }
 
-// 딜러 1행의 브랜드·비고 편집 셀(td 2개를 낸다).
-// ⚠️ **Safari controlled select 함정**(크로스 프로젝트 규칙): Safari는 팝오버 선택 시
-// input → React가 controlled 값 복원 → change(구값) 순서로 발화해서 **onChange만 들으면 선택이
-// 통째로 유실**된다(Chrome 정상 · Playwright webkit 재현 불가라 테스트로 안 잡힌다).
-// 같은 핸들러를 onChange + onInput에 병행 바인딩한다 — setState가 멱등이라 이중 발화는 무해하다.
+// 딜러 1행의 브랜드·비고 편집 셀(td 2개를 낸다). **저장 버튼 없음**(2026-07-28 유슨생):
+//   브랜드 = 선택 즉시 window.confirm → 저장(삭제 2종과 같은 톤). 취소하면 아무것도 안 한다 —
+//     select가 서버 값(entry.brandId)만 보는 controlled라 화면이 스스로 되돌아간다.
+//   비고 = blur/Enter 자동 저장(MC 마스터 딜러 셀과 같은 톤 — 라벨 한 줄에 confirm은 과하다).
+//     브랜드 미지정이면 **입력칸 자체를 비활성화**(placeholder "브랜드 먼저 지정") — brand_id가
+//     NOT NULL이라 비고 단독 저장이 불가한데, 쓰게 두면 "썼는데 저장 안 됨" 함정이 된다.
+//     경고 팝업(focus 시 alert)은 사후 안내인 데다 alert 닫힘 → 재포커스 → 재발화 루프 위험이
+//     있어 사전 차단을 택했다(유슨생 승인).
+// ⚠️ **Safari controlled select 함정 — 액션형 변형**(크로스 프로젝트 규칙): Safari는 팝오버 선택 시
+// input → React가 controlled 값 복원 → change(구값) 순서로 발화한다. setState형이면 같은 핸들러를
+// onChange+onInput에 병행 바인딩하면 되지만(멱등), 여기는 confirm 실행이라 **두 번 뜬다** —
+// onInput은 ref에 실값만 보관하고 실행은 onChange 1곳. **ref를 먼저** 읽는다: 전역 규칙의
+// `value || ref` 폴백은 value가 빈 문자열 고정인 액션형 기준이고, 여기는 Safari가 복원한 구값이
+// truthy라 DOM 값을 먼저 읽으면 구 브랜드로 confirm이 뜬다.
 function DealerBrandCell({
   brands,
   disabled,
@@ -235,13 +244,13 @@ function DealerBrandCell({
   entry: DealerRosterEntry | undefined;
   onSave: (brandId: number, note: string | null) => Promise<void>;
 }) {
-  // **편집 중 값만 draft로 들고, 없으면 서버 값(entry)을 그대로 렌더한다** — effect 동기화가 필요 없다.
-  // useState 초기값에 entry를 넣고 effect로 맞추는 형태는 ①프로필 목록이 비동기로 늦게 도착하면
-  // 초기값이 null로 굳고 ②그걸 고치려 effect에서 setState하면 react-hooks/set-state-in-effect에
-  // 걸린다. 파생 상태면 두 문제가 함께 사라진다(#84에서 같은 안티패턴을 고친 선례).
-  const [draft, setDraft] = useState<{ brandId: number | null; note: string } | null>(null);
-  const brandId = draft ? draft.brandId : (entry?.brandId ?? null);
-  const note = draft ? draft.note : (entry?.note ?? "");
+  // 비고만 draft로 들고, 없으면 서버 값(entry)을 그대로 렌더한다 — effect 동기화가 필요 없다
+  // (#84에서 초기값+effect 동기화 안티패턴을 고친 선례). 브랜드는 draft가 없다 — 선택 즉시
+  // confirm → 저장이라 "편집 중" 상태 자체가 없다.
+  const [noteDraft, setNoteDraft] = useState<string | null>(null);
+  const pickedRef = useRef<string | null>(null);
+  const savedBrandId = entry?.brandId ?? null;
+  const note = noteDraft ?? entry?.note ?? "";
 
   // 읽기 전용 행은 **폼 컨트롤 자체를 내지 않는다** — disabled select는 화살표·입력 박스가
   // 남아 "편집될 것 같은" 모양이라 직관적이지 않다(2026-07-28 유슨생 실기 피드백). 연락처
@@ -262,42 +271,77 @@ function DealerBrandCell({
     );
   }
 
+  // 선택 즉시 confirm — 문구에 ①대상 ②무엇이 바뀌나 ③기존 제안에 미치는 영향을 담는다
+  // (삭제 confirm과 같은 원칙: 무엇이 일어나는지 모르고 누르는 상황을 만들지 않는다).
   const pickBrand = (e: SyntheticEvent<HTMLSelectElement>) => {
-    const value = e.currentTarget.value;
-    setDraft({ brandId: value ? Number(value) : null, note });
+    const picked = pickedRef.current ?? e.currentTarget.value;
+    pickedRef.current = null;
+    if (!picked) return; // "미지정" 선택은 해제 경로가 아니다 — 매칭 해제는 딜러 해제 버튼 하나뿐
+    const brandId = Number(picked);
+    if (brandId === savedBrandId) return;
+    const who = entry?.name ?? "이 딜러";
+    const newName = brands.find((b) => b.id === brandId)?.name ?? "선택한 브랜드";
+    const message =
+      savedBrandId === null
+        ? `${who}를 ${newName} 딜러로 지정합니다.\n\n딜러 화면에서 ${newName} 차량에만 할인을 입력할 수 있습니다. 계속할까요?`
+        : `${who}의 브랜드를 ${entry?.brandName ?? "미지정"} → ${newName}(으)로 변경합니다.\n\n` +
+          (entry && entry.proposalCount > 0
+            ? `· 기존 할인 제안 ${entry.proposalCount}건은 남지만, 브랜드가 달라 채택할 수 없게 됩니다.\n`
+            : "") +
+          `· 딜러 화면 입력 범위가 ${newName} 차량으로 바뀝니다.\n\n계속할까요?`;
+    if (!window.confirm(message)) return;
+    // 실패를 삼키면 저장된 줄 안다 — confirm과 같은 채널(alert)로 알린다.
+    void onSave(brandId, note.trim() || null)
+      .then(() => setNoteDraft(null))
+      .catch(() => window.alert(`${who}의 브랜드 저장에 실패했습니다. 다시 시도해 주세요.`));
   };
 
-  const changed = brandId !== (entry?.brandId ?? null) || note !== (entry?.note ?? "");
+  // blur/Enter 자동 저장 — 값이 그대로면 서버를 부르지 않는다.
+  const saveNote = () => {
+    if (savedBrandId === null || noteDraft === null) return; // 미지정이면 입력칸이 잠겨 있다(방어)
+    const next = noteDraft.trim() || null;
+    if (next === (entry?.note ?? null)) {
+      setNoteDraft(null);
+      return;
+    }
+    void onSave(savedBrandId, next)
+      .then(() => setNoteDraft(null))
+      .catch(() => window.alert("비고 저장에 실패했습니다. 다시 시도해 주세요."));
+  };
 
   return (
     <>
       <td>
-        <select value={brandId ?? ""} onChange={pickBrand} onInput={pickBrand}>
+        <select
+          value={savedBrandId ?? ""}
+          onChange={pickBrand}
+          onInput={(e) => {
+            pickedRef.current = e.currentTarget.value;
+          }}
+        >
           <option value="">미지정</option>
           {brands.map((b) => (
             <option key={b.id} value={b.id}>{b.name}</option>
           ))}
         </select>
-        {/* 브랜드가 지정됐는데 이름이 없으면 그 브랜드가 catalog에서 삭제된 상태다(FK 미도입 — spec §3.1) */}
-        {entry && entry.brandName === null && <span className="badge yellow">브랜드 삭제됨</span>}
+        {/* 브랜드가 지정됐는데 이름이 없으면 그 브랜드가 catalog에서 삭제된 상태다(FK 미도입 — spec §3.1).
+            brandId 조건이 없으면 미지정 행(brandName도 null)에 배지가 잘못 뜬다. */}
+        {entry && entry.brandId !== null && entry.brandName === null && (
+          <span className="badge yellow">브랜드 삭제됨</span>
+        )}
       </td>
       <td>
         <input
+          disabled={savedBrandId === null}
           value={note}
-          onChange={(e) => setDraft({ brandId, note: e.currentTarget.value })}
-          placeholder="동성모터스"
+          onChange={(e) => setNoteDraft(e.currentTarget.value)}
+          onBlur={saveNote}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          placeholder={savedBrandId === null ? "브랜드 먼저 지정" : "동성모터스"}
           maxLength={100}
         />
-        {/* 브랜드가 있어야 저장할 수 있다(brand_id NOT NULL). 값이 그대로면 버튼을 숨겨 오조작을 줄인다.
-            저장 후 draft를 비워 서버가 돌려준 값으로 복귀한다. */}
-        {brandId !== null && changed && (
-          <button
-            onClick={() => void onSave(brandId, note.trim() || null).then(() => setDraft(null))}
-            type="button"
-          >
-            저장
-          </button>
-        )}
       </td>
     </>
   );
