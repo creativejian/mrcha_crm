@@ -10,7 +10,7 @@ import { trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles } from "../public-app";
 import { catalogDiscountAdoptions, dealerProfiles, dealerTrimDiscounts } from "../schema";
-import { updateTrim } from "./catalog-admin";
+import { updateTrim, type TrimPatch } from "./catalog-admin";
 
 // 관리자 채택(슬라이스 C) — 딜러 제안(crm.dealer_trim_discounts)을 확정 할인(catalog.trims)으로
 // 올리고 그 사실을 감사에 남긴다. 자사·제휴·타사는 **각각 독립**이다(이사님 요구 — 자사는
@@ -164,6 +164,49 @@ export async function listModelProposals(
     });
   }
   return out;
+}
+
+// 관리자 직접 입력 감사(spec §3.4) — `PATCH /api/catalog/trims/:id`(TrimEditPanel 저장)가 부른다.
+//
+// ⚠️ 이게 없으면 **감사가 거짓을 말한다**: 딜러 채택만 기록되므로, 관리자가 확정값을 직접 바꿔도
+// 최신 감사 행은 옛 딜러 채택이고 팝오버가 "출처 ○○딜러 · 어제 채택"을 계속 보여준다.
+// 2026-07-28 유슨생 실기에서 실제로 그렇게 됐다(확정 5,500,000 · 감사 5,000,000/딜러). 게다가
+// proposalState가 그 딜러를 출처로 보고 "수정됨"(새 제안)으로 판정해, 딜러가 제안을 올린 것처럼
+// 읽혔다 — `source_dealer_user_id = NULL`이 들어가면 그 딜러는 "미채택"으로 정확히 떨어진다.
+//
+// **바뀐 필드만** 남긴다: 같은 값 재저장에 행을 쌓으면 감사가 노이즈가 되고, 트리거가
+// discount_updated_at을 안 찍는 것과도 어긋난다(두 기록이 같은 사상이어야 읽는 사람이 안 헷갈린다).
+export async function recordAdminDiscountEdits(
+  input: {
+    trimId: number;
+    /** 갱신 **전** 확정 3금액. 호출자가 같은 트랜잭션에서 먼저 읽어 넘긴다. */
+    before: { financial: number | null; partner: number | null; cash: number | null };
+    /** 라우트가 받은 patch 그대로(할인 외 키는 무시된다). */
+    patch: TrimPatch;
+    adoptedBy: string;
+  },
+  executor: Executor = getDefaultDb(),
+) {
+  const rows = DISCOUNT_FIELDS.flatMap((field) => {
+    const key = FIELD_MAP[field].trim;
+    // 패치에 그 키가 아예 없으면 "안 건드림"이다(null을 보낸 "비우기"와 구분해야 한다).
+    if (!(key in input.patch)) return [];
+    const next = input.patch[key] ?? null;
+    const previous = input.before[field];
+    if (next === previous) return [];
+    return [
+      {
+        trimId: input.trimId,
+        field,
+        amount: next,
+        previousAmount: previous,
+        sourceDealerUserId: null, // = 관리자 직접 입력
+        adoptedBy: input.adoptedBy,
+      },
+    ];
+  });
+  if (rows.length === 0) return [];
+  return executor.insert(catalogDiscountAdoptions).values(rows).returning();
 }
 
 // 필드 단위 채택 — 딜러 제안값을 확정 할인으로 올리고 감사 1행을 남긴다.

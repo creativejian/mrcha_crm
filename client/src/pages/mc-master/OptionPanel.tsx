@@ -17,6 +17,7 @@ import { excludeGroups } from "@/lib/option-selection";
 import { fetchOptionsCached, getCachedOptions } from "./catalog-cache";
 import { EditDrawer } from "./EditDrawer";
 import { EXCLUDE_PALETTE, excludesText, includesText } from "./option-relations";
+import { applyThousandsInput } from "./thousands-input";
 import { formatThousands, manwonText, parseManwon } from "./trim-format";
 
 // 트림 옵션 패널: 기본/튜닝 탭 + 인라인 추가/편집/삭제. 옵션 0개면 '옵션 없음 확정' 토글.
@@ -151,7 +152,7 @@ export function OptionPanel({
         className="input va-num"
         inputMode="numeric"
         value={price}
-        onChange={(e) => setPrice(formatThousands(e.currentTarget.value))}
+        onChange={(e) => applyThousandsInput(e, setPrice)}
         placeholder="가격(미정 시 빈칸)"
       />
       <span className="va-opt-unit">만원</span>

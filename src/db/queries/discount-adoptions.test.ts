@@ -1,12 +1,13 @@
 import { beforeAll, expect, test } from "bun:test";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles } from "../public-app";
 import { catalogDiscountAdoptions, dealerTrimDiscounts } from "../schema";
+import { updateTrim } from "./catalog-admin";
 import { upsertDealerProfile } from "./dealer-profiles";
-import { adoptDealerProposal, listModelProposals } from "./discount-adoptions";
+import { adoptDealerProposal, listModelProposals, recordAdminDiscountEdits } from "./discount-adoptions";
 
 // ── 관리자 채택(슬라이스 C) ─────────────────────────────────────────────────
 // 이 테스트는 `catalog.trims`의 확정 할인을 **실제로** 바꾼다 — 앱 고객에게 보이는 금액이다.
@@ -157,6 +158,114 @@ test("adoptDealerProposal: 제안이 없으면 아무것도 바꾸지 않는다(
     expect(
       await tx.select().from(catalogDiscountAdoptions).where(eq(catalogDiscountAdoptions.trimId, trimId)),
     ).toHaveLength(0);
+  });
+});
+
+// ── 관리자 직접 입력 감사(spec §3.4) ───────────────────────────────────────
+// 딜러 채택만 감사에 남기면 **감사가 거짓을 말한다**: 관리자가 TrimEditPanel로 확정값을 바꿔도
+// 최신 감사 행은 옛 딜러 채택이라, 팝오버가 "출처 ○○딜러 · 어제 채택"을 계속 보여준다
+// (2026-07-28 유슨생 실기에서 실제로 그렇게 표시됐다 — 확정 5,500,000인데 감사는 5,000,000/딜러).
+test("recordAdminDiscountEdits: 바뀐 필드만 관리자 출처(NULL)로 남는다", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    const nextFinancial = (before.financial ?? 0) + 1_500_000;
+
+    await recordAdminDiscountEdits(
+      { trimId, before, patch: { financialDiscountAmount: nextFinancial }, adoptedBy: nonDealerId },
+      tx,
+    );
+
+    const audits = await tx
+      .select()
+      .from(catalogDiscountAdoptions)
+      .where(eq(catalogDiscountAdoptions.trimId, trimId));
+    expect(audits).toHaveLength(1);
+    expect(audits[0]!.field).toBe("financial");
+    expect(audits[0]!.amount).toBe(nextFinancial);
+    expect(audits[0]!.previousAmount).toBe(before.financial);
+    // NULL = 관리자 직접 입력. 이 값이 팝오버의 "관리자 직접 입력" 표기와 상태 파생을 가른다.
+    expect(audits[0]!.sourceDealerUserId).toBeNull();
+    expect(audits[0]!.adoptedBy).toBe(nonDealerId);
+  });
+});
+
+test("recordAdminDiscountEdits: 값이 그대로면 남기지 않는다(트리거와 같은 멱등 사상)", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    await recordAdminDiscountEdits(
+      { trimId, before, patch: { financialDiscountAmount: before.financial }, adoptedBy: nonDealerId },
+      tx,
+    );
+    expect(
+      await tx.select().from(catalogDiscountAdoptions).where(eq(catalogDiscountAdoptions.trimId, trimId)),
+    ).toHaveLength(0);
+  });
+});
+
+test("recordAdminDiscountEdits: 할인 아닌 필드만 고치면 남기지 않는다", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    await recordAdminDiscountEdits({ trimId, before, patch: { modelYear: 2027 }, adoptedBy: nonDealerId }, tx);
+    expect(
+      await tx.select().from(catalogDiscountAdoptions).where(eq(catalogDiscountAdoptions.trimId, trimId)),
+    ).toHaveLength(0);
+  });
+});
+
+test("recordAdminDiscountEdits: 두 필드를 함께 바꾸면 2행(필드 단위 감사)", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    await recordAdminDiscountEdits(
+      {
+        trimId,
+        before,
+        patch: { financialDiscountAmount: (before.financial ?? 0) + 1, cashDiscountAmount: (before.cash ?? 0) + 2 },
+        adoptedBy: nonDealerId,
+      },
+      tx,
+    );
+    const audits = await tx
+      .select()
+      .from(catalogDiscountAdoptions)
+      .where(eq(catalogDiscountAdoptions.trimId, trimId));
+    expect(audits.map((a) => a.field).sort()).toEqual(["cash", "financial"]);
+  });
+});
+
+test("관리자 직접 입력 후 그 딜러 제안은 '미채택'이 된다(거짓 출처 재발 방지)", async () => {
+  await inRollback(async (tx) => {
+    await seedProposal(tx, dealerId, { financialAmount: 6_500_000, partnerAmount: null, cashAmount: null });
+
+    // "어제 이 딜러 값이 채택됐다"를 심는다. ⚠️ adopted_at을 **명시**해야 한다: 같은 트랜잭션에서
+    // adoptDealerProposal을 부르면 PostgreSQL의 now()가 트랜잭션 시작 시각이라 두 감사 행의 시각이
+    // 완전히 같아지고, "필드별 최신 1건" 정렬이 불확정해진다(운영에선 요청마다 트랜잭션이 달라
+    // 발생하지 않는다 — 테스트 특유의 조건이다). DB 시계로 심어 앱 시계를 섞지 않는다.
+    await updateTrim(trimId, { financialDiscountAmount: 6_500_000 }, tx);
+    await tx.insert(catalogDiscountAdoptions).values({
+      trimId,
+      field: "financial",
+      amount: 6_500_000,
+      previousAmount: null,
+      sourceDealerUserId: dealerId,
+      adoptedBy: nonDealerId,
+      adoptedAt: sql`now() - interval '1 day'`,
+    });
+    expect((await proposalsOf(tx))!.proposals[0]!.financial.state).toBe("adopted");
+
+    // 관리자가 확정값을 직접 딴 값으로 바꾼다 — 이제 출처는 딜러가 아니다.
+    const manual = 9_999_000;
+    const afterAdopt = await trimRow(tx);
+    await recordAdminDiscountEdits(
+      { trimId, before: afterAdopt, patch: { financialDiscountAmount: manual }, adoptedBy: nonDealerId },
+      tx,
+    );
+    await updateTrim(trimId, { financialDiscountAmount: manual }, tx);
+
+    const view = (await proposalsOf(tx))!;
+    expect(view.adopted.financial.sourceDealerUserId).toBeNull(); // "관리자 직접 입력"
+    // 구 동작에서는 여기가 "changed"("새 제안")로 보여 딜러가 제안을 올린 것처럼 읽혔다.
+    expect(view.proposals[0]!.financial.state).toBe("none");
+    expect(view.adopted.financial.amount).toBe(manual);
   });
 });
 

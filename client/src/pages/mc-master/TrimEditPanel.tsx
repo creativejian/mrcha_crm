@@ -12,7 +12,8 @@ import {
 import type { CatalogTrim, TrimInput } from "@/lib/catalog";
 import { bindSelect } from "@/lib/select-bind";
 import { EditDrawer } from "./EditDrawer";
-import { formatThousands, parseWon } from "./trim-format";
+import { applyThousandsInput } from "./thousands-input";
+import { parseWon } from "./trim-format";
 
 // 입력 필드 초기값용 천단위 콤마(미정이면 빈칸). 표시용 wonText와 달리 단위·'—' 없음.
 const won = (v: number | null): string => (v != null ? v.toLocaleString() : "");
@@ -88,7 +89,7 @@ export function TrimEditPanel({
           className="input va-num"
           inputMode="numeric"
           value={price}
-          onChange={(e) => setPrice(formatThousands(e.currentTarget.value))}
+          onChange={(e) => applyThousandsInput(e, setPrice)}
           placeholder="예: 70,000,000"
         />
       </label>
@@ -145,7 +146,7 @@ export function TrimEditPanel({
           className="input va-num"
           inputMode="numeric"
           value={financialDiscount}
-          onChange={(e) => setFinancialDiscount(formatThousands(e.currentTarget.value))}
+          onChange={(e) => applyThousandsInput(e, setFinancialDiscount)}
           placeholder="예: 1,000,000"
         />
       </label>
@@ -155,7 +156,7 @@ export function TrimEditPanel({
           className="input va-num"
           inputMode="numeric"
           value={partnerDiscount}
-          onChange={(e) => setPartnerDiscount(formatThousands(e.currentTarget.value))}
+          onChange={(e) => applyThousandsInput(e, setPartnerDiscount)}
           placeholder="예: 500,000"
         />
       </label>
@@ -165,7 +166,7 @@ export function TrimEditPanel({
           className="input va-num"
           inputMode="numeric"
           value={cashDiscount}
-          onChange={(e) => setCashDiscount(formatThousands(e.currentTarget.value))}
+          onChange={(e) => applyThousandsInput(e, setCashDiscount)}
           placeholder="예: 500,000"
         />
       </label>

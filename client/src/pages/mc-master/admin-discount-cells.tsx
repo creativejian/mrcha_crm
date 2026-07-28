@@ -24,9 +24,15 @@ const TRIM_AMOUNT_KEYS = {
   cash: "cashDiscountAmount",
 } as const satisfies Record<DiscountField, keyof CatalogTrim>;
 
-const STATE_BADGE: Record<string, { text: string; tone: string }> = {
-  adopted: { text: "채택됨", tone: "ok" },
-  changed: { text: "새 제안", tone: "warn" },
+// "새 제안"은 무엇을 해야 하는지 알려주지 않아 실기에서 "이게 뭔지" 질문이 나왔다(2026-07-28) —
+// 관리자가 취할 행동을 그대로 쓴다. hint는 title 속성으로 붙여 판단 근거까지 남긴다.
+const STATE_BADGE: Record<string, { text: string; tone: string; hint: string }> = {
+  adopted: { text: "채택됨", tone: "ok", hint: "이 딜러 값이 현재 확정 할인입니다." },
+  changed: {
+    text: "재채택 필요",
+    tone: "warn",
+    hint: "이 딜러 값이 채택된 뒤 제안 금액이 바뀌었습니다 — 다시 채택해야 확정에 반영됩니다.",
+  },
 };
 
 export function AdminDiscountCells({
@@ -101,9 +107,14 @@ export function AdminDiscountCells({
                   <div>
                     현재 확정: <strong>{discountText(confirmed, trim.price)}</strong>
                   </div>
-                  {sourceName && adoptedInfo?.adoptedAt ? (
+                  {/* 출처 3갈래: 딜러 채택 · 관리자 직접 입력(source_dealer_user_id = NULL) · 이력 없음.
+                      가운데를 빼먹으면 관리자가 직접 넣은 값에 옛 딜러 채택이 출처로 붙어 **거짓이
+                      된다**(2026-07-28 실기에서 그렇게 보였다 — 그때는 감사 자체가 안 남았다). */}
+                  {adoptedInfo?.adoptedAt ? (
                     <span className="va-disc-pop-src">
-                      출처 {sourceName} · {fmtDate(adoptedInfo.adoptedAt)} 채택
+                      {sourceName
+                        ? `출처 ${sourceName} · ${fmtDate(adoptedInfo.adoptedAt)} 채택`
+                        : `관리자 직접 입력 · ${fmtDate(adoptedInfo.adoptedAt)}`}
                     </span>
                   ) : (
                     <span className="va-disc-pop-src">채택 이력 없음</span>
@@ -133,7 +144,9 @@ export function AdminDiscountCells({
                           // 자격 상실 — 서버도 같은 기준으로 거부하므로 버튼을 아예 주지 않는다.
                           <span className="va-disc-badge muted">채택 불가</span>
                         ) : badge ? (
-                          <span className={`va-disc-badge ${badge.tone}`}>{badge.text}</span>
+                          <span className={`va-disc-badge ${badge.tone}`} title={badge.hint}>
+                            {badge.text}
+                          </span>
                         ) : (
                           <span className="va-disc-badge" />
                         )}

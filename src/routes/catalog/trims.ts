@@ -1,4 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import {
@@ -9,6 +10,8 @@ import {
   reorderCatalog,
   updateTrim,
 } from "../../db/queries/catalog-admin";
+import { trimsInCatalog } from "../../db/catalog";
+import { recordAdminDiscountEdits } from "../../db/queries/discount-adoptions";
 import { visibleTrimsFor } from "../../lib/dealer-visibility";
 import { type CatalogApp, id, run, status } from "./shared";
 
@@ -62,11 +65,39 @@ export function registerTrimRoutes(catalog: CatalogApp) {
     run(c, () => createTrim(c.req.valid("json"), c.var.db)),
   );
 
+  // 관리자 직접 편집. **할인 3필드가 바뀌면 감사 행을 남긴다**(spec §3.4) — 딜러 채택만 기록하면
+  // 관리자가 확정값을 바꿔도 최신 감사가 옛 딜러 채택이라 팝오버가 거짓 출처를 보여준다
+  // (2026-07-28 실기에서 실제로 그렇게 됐다). **트랜잭션**으로 열어 갱신과 감사를 한 몸으로 둔다:
+  // 갱신만 커밋되면 "누가 바꿨는지 모르는 확정 할인"이 남고, 그게 이 표를 만든 이유다.
   catalog.patch(
     "/trims/:id",
     zValidator("param", z.object({ id })),
     zValidator("json", trimBody.partial()),
-    async (c) => run(c, () => updateTrim(c.req.valid("param").id, c.req.valid("json"), c.var.db), "트림을 찾을 수 없습니다."),
+    async (c) => {
+      const trimId = c.req.valid("param").id;
+      const patch = c.req.valid("json");
+      const adoptedBy = c.var.user.id;
+      return run(
+        c,
+        () =>
+          c.var.db.transaction(async (tx) => {
+            // 갱신 전 값을 같은 트랜잭션에서 읽는다 — previous_amount의 근거이고, 되돌리기의 유일한 단서다.
+            const [before] = await tx
+              .select({
+                financial: trimsInCatalog.financialDiscountAmount,
+                partner: trimsInCatalog.partnerDiscountAmount,
+                cash: trimsInCatalog.cashDiscountAmount,
+              })
+              .from(trimsInCatalog)
+              .where(eq(trimsInCatalog.id, trimId));
+            if (!before) return null;
+            const row = await updateTrim(trimId, patch, tx);
+            if (row) await recordAdminDiscountEdits({ trimId, before, patch, adoptedBy }, tx);
+            return row;
+          }),
+        "트림을 찾을 수 없습니다.",
+      );
+    },
   );
 
   catalog.delete("/trims/:id", zValidator("param", z.object({ id })), async (c) =>

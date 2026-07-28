@@ -164,25 +164,26 @@ export async function createTrim(
   return row;
 }
 
-export async function updateTrim(
-  id: number,
-  input: Partial<{
-    trimName: string;
-    price: number;
-    modelYear: number;
-    fuelType: string;
-    driveSystem: string | null;
-    displacementCc: number | null;
-    transmissionType: string | null;
-    bodyStyle: string | null;
-    seatingCapacity: number | null;
-    status: VehicleStatus;
-    financialDiscountAmount: number | null;
-    partnerDiscountAmount: number | null;
-    cashDiscountAmount: number | null;
-  }>,
-  executor: Executor = getDefaultDb(),
-) {
+// 트림 수정 패치. **관리자 직접 입력 감사**(queries/discount-adoptions.ts
+// recordAdminDiscountEdits)가 같은 타입을 받아야 라우트가 받은 patch를 그대로 넘길 수 있다 —
+// 할인 3키만 따로 뽑는 타입을 두면 호출부가 변환을 하고, 그 변환이 어긋나면 감사가 조용히 빈다.
+export type TrimPatch = Partial<{
+  trimName: string;
+  price: number;
+  modelYear: number;
+  fuelType: string;
+  driveSystem: string | null;
+  displacementCc: number | null;
+  transmissionType: string | null;
+  bodyStyle: string | null;
+  seatingCapacity: number | null;
+  status: VehicleStatus;
+  financialDiscountAmount: number | null;
+  partnerDiscountAmount: number | null;
+  cashDiscountAmount: number | null;
+}>;
+
+export async function updateTrim(id: number, input: TrimPatch, executor: Executor = getDefaultDb()) {
   const patch: Record<string, unknown> = {};
   // trimName 변경 시 name도 동기화(앱과 동일). canonical_name은 생성 시에만 설정(Phase 1).
   if (input.trimName !== undefined) {
