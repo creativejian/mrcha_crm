@@ -25,19 +25,11 @@ async function reqFor(role: "admin" | "manager" | "staff" | "dealer", path: stri
 const BODY = JSON.stringify({ brandId: 1, note: "동성모터스" });
 
 for (const role of ["manager", "staff", "dealer"] as const) {
-  test(`GET /api/dealer/profiles — ${role} 403`, async () => {
-    expect((await reqFor(role, "/api/dealer/profiles")).status).toBe(403);
-  });
-
   test(`PUT /api/dealer/profiles/:userId — ${role} 403 (게이트가 zod·본 처리보다 앞)`, async () => {
     const res = await reqFor(role, `/api/dealer/profiles/${crypto.randomUUID()}`, { method: "PUT", body: BODY });
     expect(res.status).toBe(403);
   });
 }
-
-test("GET /api/dealer/profiles — admin 200", async () => {
-  expect((await reqFor("admin", "/api/dealer/profiles")).status).toBe(200);
-});
 
 // ── 확정 할인 비노출(2026-07-27 유슨생 결정) ─────────────────────────────────
 // 딜러는 **자기 제안만** 본다. 화면에서 감추는 것으로는 부족해서(DevTools) 서버가 응답을 비운다
@@ -88,4 +80,41 @@ test("GET /api/vehicles/trims/:trimId — 딜러 응답에 확정 3금액이 없
   expect(detail.financialDiscountAmount).toBeNull();
   expect(detail.partnerDiscountAmount).toBeNull();
   expect(detail.cashDiscountAmount).toBeNull();
+});
+
+// ── 딜러 데이터 삭제 게이트(2026-07-28) ─────────────────────────────────────
+// 삭제는 되돌릴 수 없다 — **admin만** 부를 수 있어야 한다. dealerWriteGate가 딜러의 쓰기를 막지만
+// (DELETE도 쓰기다) manager·staff는 그 게이트 밖이라 requireRoles가 유일한 방어선이다.
+for (const role of ["manager", "staff", "dealer"] as const) {
+  test(`DELETE /api/dealer/profiles/:userId — ${role} 403 (딜러 해제)`, async () => {
+    const res = await reqFor(role, `/api/dealer/profiles/${crypto.randomUUID()}`, { method: "DELETE" });
+    expect(res.status).toBe(403);
+  });
+
+  test(`DELETE /api/dealer/profiles/:userId/proposals — ${role} 403 (입력값 삭제)`, async () => {
+    const res = await reqFor(role, `/api/dealer/profiles/${crypto.randomUUID()}/proposals`, { method: "DELETE" });
+    expect(res.status).toBe(403);
+  });
+
+  test(`GET /api/dealer/roster — ${role} 403 (명부는 조직 운영 정보다)`, async () => {
+    expect((await reqFor(role, "/api/dealer/roster")).status).toBe(403);
+  });
+}
+
+test("GET /api/dealer/roster — admin 200", async () => {
+  const res = await reqFor("admin", "/api/dealer/roster");
+  expect(res.status).toBe(200);
+  expect(Array.isArray(await res.json())).toBe(true);
+});
+
+test("삭제: admin이 없는 유저를 지우면 0건으로 응답한다(존재 확인 없이 멱등)", async () => {
+  // 랜덤 uuid라 지울 것이 없다 — 게이트 통과와 멱등 동작을 함께 본다(실 데이터 무영향).
+  const ghost = crypto.randomUUID();
+  const proposals = await reqFor("admin", `/api/dealer/profiles/${ghost}/proposals`, { method: "DELETE" });
+  expect(proposals.status).toBe(200);
+  expect(await proposals.json()).toEqual({ deleted: 0 });
+
+  const release = await reqFor("admin", `/api/dealer/profiles/${ghost}`, { method: "DELETE" });
+  expect(release.status).toBe(200);
+  expect(await release.json()).toEqual({ proposals: 0, profileRemoved: false });
 });

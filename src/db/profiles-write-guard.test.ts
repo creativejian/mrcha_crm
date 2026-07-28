@@ -66,6 +66,11 @@ const ALLOW: { path: string; hit: string; why: string }[] = [
     why: "crm.dealer_profiles(CRM 소유) upsert — public.profiles 무접촉. 2026-07-27 딜러 브랜드 매칭(슬라이스 A)",
   },
   {
+    path: "src/db/queries/dealer-profiles.ts",
+    hit: "drizzle: .delete(dealerProfiles)",
+    why: "crm.dealer_profiles(CRM 소유) 딜러 해제 — public.profiles 무접촉. 2026-07-28 조직 화면 딜러 테이블의 '딜러 해제' 버튼",
+  },
+  {
     path: "src/db/queries/dealer-profiles.test.ts",
     hit: "drizzle: .delete(dealerProfiles)",
     why: "위 테이블의 테스트 픽스처 정리(afterAll) — 같은 이유",
