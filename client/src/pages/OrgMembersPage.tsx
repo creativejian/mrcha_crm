@@ -250,8 +250,12 @@ function DealerBrandCell({
     return (
       <>
         <td>
-          {entry?.brandName ??
-            (entry?.brandId != null ? <span className="badge yellow">브랜드 삭제됨</span> : "미지정")}
+          {/* 편집 행의 select 안 텍스트와 같은 지점에서 시작시킨다(.org-dealer-plain) —
+              없으면 두 행의 "BMW"가 어긋나 보인다(유슨생 실기 피드백). */}
+          <span className="org-dealer-plain">
+            {entry?.brandName ??
+              (entry?.brandId != null ? <span className="badge yellow">브랜드 삭제됨</span> : "미지정")}
+          </span>
         </td>
         <td>{entry?.note ?? "—"}</td>
       </>
