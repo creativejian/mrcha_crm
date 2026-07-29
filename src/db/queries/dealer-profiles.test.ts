@@ -96,18 +96,25 @@ test("listDealerRoster: role이 dealer면 매칭이 없어도 명부에 뜬다(�
   });
 });
 
-test("listDealerRoster: role이 내려가도 매칭이 있으면 명부에 남는다(데이터 정리용)", async () => {
+test("listDealerRoster: role이 내려가도 매칭이 있으면 명부에 남는다(데이터 정리용) + 제안 수", async () => {
   await inRollback(async (tx) => {
     // role이 dealer가 아닌 실 유저에게 매칭을 심는다 = 앱에서 role이 내려간 딜러와 같은 상태.
     const [nonDealer] = await tx.select({ id: profiles.id }).from(profiles).where(eq(profiles.role, "admin")).limit(1);
     const [brand] = await pickBrands(1);
     await upsertDealerProfile({ dealerUserId: nonDealer!.id, brandId: brand!.id, note: "퇴사" }, tx);
+    // 제안 1건도 심는다 — proposalCount는 삭제 confirm 팝업의 "지울 N건" 근거인데 잠금이 없었다
+    // (2026-07-29 경량 체크). 서브쿼리 집계가 깨지면 팝업이 0건이라 말하며 실제로는 지운다.
+    const [trim] = await tx.select({ id: trimsInCatalog.id }).from(trimsInCatalog).limit(1);
+    await tx.insert(dealerTrimDiscounts).values({
+      trimId: trim!.id, dealerUserId: nonDealer!.id, financialAmount: 111_000, partnerAmount: null, cashAmount: null,
+    });
 
     const row = (await listDealerRoster(tx)).find((r) => r.dealerUserId === nonDealer!.id);
     expect(row).toBeDefined();
     // 이 행이 사라지면 그 사람의 데이터를 정리할 방법이 없어진다 — 합집합이 필요한 이유.
     expect(row!.isDealer).toBe(false);
     expect(row!.note).toBe("퇴사");
+    expect(row!.proposalCount).toBe(1);
   });
 });
 

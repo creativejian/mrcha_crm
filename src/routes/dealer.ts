@@ -16,10 +16,11 @@ import type { DbVariables } from "../middleware/db";
 import { requireRoles } from "../middleware/role-gate";
 import { run } from "./shared";
 
-// /api/dealer/* — 딜러 도메인. 지금은 **관리자용 브랜드 매칭만**이다(슬라이스 A).
-// 딜러 본인용 제안 입력(GET /me · PUT /discounts/:trimId)은 슬라이스 B에서 같은 라우터에 붙고,
-// 그때만 dealerWriteGate allowlist에 그 경로 하나가 등록된다 — /profiles는 딜러에게 계속 닫힌다
-// (자기 브랜드를 스스로 바꿀 수 있으면 브랜드 소유권 검증이 무의미해진다).
+// /api/dealer/* — 딜러 도메인. 두 축이 한 라우터에 산다:
+//   admin 축 = 명부(/roster)·브랜드 매칭(/profiles/:userId PUT)·데이터 삭제 2종(DELETE)
+//   dealer 본인 축 = /me · /discounts (allowlist가 여는 유일한 딜러 쓰기 = PUT /discounts/:trimId)
+// /profiles는 딜러에게 닫혀 있다 — 자기 브랜드를 스스로 바꿀 수 있으면 브랜드 소유권 검증이
+// 무의미해진다(아무 브랜드로 갈아타면 그만이다).
 // spec: ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md §6.3
 export const dealer = new Hono<{ Variables: AuthVariables & DbVariables }>();
 

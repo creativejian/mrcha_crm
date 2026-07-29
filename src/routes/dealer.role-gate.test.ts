@@ -102,10 +102,23 @@ for (const role of ["manager", "staff", "dealer"] as const) {
   });
 }
 
-test("GET /api/dealer/roster — admin 200", async () => {
+test("GET /api/dealer/roster — admin 200 + 응답 계약(클라 DealerRosterEntry와 동형)", async () => {
   const res = await reqFor("admin", "/api/dealer/roster");
   expect(res.status).toBe(200);
-  expect(Array.isArray(await res.json())).toBe(true);
+  const rows = (await res.json()) as Record<string, unknown>[];
+  expect(Array.isArray(rows)).toBe(true);
+  // 응답 형태 = 클라 타입(lib/dealer-roster.ts DealerRosterEntry)이 곧 계약인데 잠금이 없었다
+  // (2026-07-29 경량 체크). 서버가 snake_case 매핑을 빠뜨리면 화면이 빈 값으로 조용히 깨진다.
+  if (rows.length === 0) {
+    console.warn("[roster] 실 DB에 딜러가 없어 필드 계약 검사를 건너뜁니다");
+    return;
+  }
+  const r = rows[0]!;
+  expect(typeof r.dealerUserId).toBe("string");
+  expect(typeof r.isDealer).toBe("boolean");
+  expect(typeof r.proposalCount).toBe("number");
+  // nullable 5종은 값이 데이터 의존이라 **키 존재**만 잠근다.
+  for (const k of ["name", "phone", "brandId", "brandName", "note"]) expect(k in r).toBe(true);
 });
 
 // ── 브랜드 저장 대상 가드(2026-07-28 유슨생) ────────────────────────────────
