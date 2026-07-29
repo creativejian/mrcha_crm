@@ -931,15 +931,12 @@
   background: #fdd4d0;
 }
 /* 입력 트림 팝오버(2026-07-29 유슨생) — "입력값 삭제 (N)"의 N이 무엇인지 지우기 전에 보여준다.
-   카드 골격은 채택 팝오버(.va-disc-pop)와 같은 톤. 셀이 앵커라 relative. */
-.org-dealer-trims {
-  position: relative;
-}
+   카드 골격은 채택 팝오버(.va-disc-pop)와 같은 톤.
+   ⚠️ fixed다 — 명부가 .table-scroll(overflow) 안이라 absolute는 잘린다(실기: 카드 모서리만
+   보였다). 좌표(top/left)는 여는 순간 버튼 rect에서 인라인으로 준다(콘솔 fixed 선례와 같은 축). */
 .org-dealer-trims-pop {
-  position: absolute;
-  z-index: 60;
-  top: calc(100% - 4px);
-  left: 0;
+  position: fixed;
+  z-index: 70;
   min-width: 360px;
   max-width: 480px;
   padding: 8px;

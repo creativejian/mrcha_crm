@@ -162,6 +162,11 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<DealerProposalTrim[] | null>(null); // null = 아직 로딩
   const [failed, setFailed] = useState(false);
+  // fixed 좌표 — 명부가 .table-scroll(overflow) 안이라 absolute 팝오버는 잘린다(2026-07-29 실기,
+  // 마지막 행에서 카드 모서리만 보였다). 콘솔 래퍼 클리핑 탈출의 fixed 선례(customer-console)와
+  // 같은 축. 열 때 버튼 rect로 좌표를 굳히고, 우측 화면 밖으로 나가지 않게 클램프한다.
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   usePopoverDismiss(popRef, open, () => setOpen(false));
@@ -171,6 +176,8 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
       setOpen(false);
       return;
     }
+    const rect = btnRef.current?.getBoundingClientRect();
+    setPos(rect ? { top: rect.bottom + 4, left: Math.max(8, Math.min(rect.left, window.innerWidth - 496)) } : null);
     setOpen(true);
     setRows(null);
     setFailed(false);
@@ -185,13 +192,14 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
         className="badge org-dealer-action"
         disabled={entry.proposalCount === 0}
         onClick={toggle}
+        ref={btnRef}
         title={entry.proposalCount === 0 ? "입력한 트림이 없습니다." : undefined}
         type="button"
       >
         보기{entry.proposalCount > 0 ? ` (${entry.proposalCount})` : ""}
       </button>
       {open && (
-        <div className="org-dealer-trims-pop" ref={popRef}>
+        <div className="org-dealer-trims-pop" ref={popRef} style={pos ? { top: pos.top, left: pos.left } : undefined}>
           {rows === null && !failed && <div className="org-dealer-trims-note">불러오는 중…</div>}
           {failed && <div className="org-dealer-trims-note">목록을 불러오지 못했습니다.</div>}
           {rows?.map((r) => {
