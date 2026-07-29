@@ -67,13 +67,18 @@ export function GroupedTrimTable({
                     aria-expanded={open}
                     onClick={() => onToggleGroup(g.key)}
                   >
-                    {open ? (
-                      <ChevronDown size={16} className="va-group-chevron" />
-                    ) : (
-                      <ChevronRight size={16} className="va-group-chevron" />
-                    )}
-                    <span className="va-group-name">{g.key}</span>
-                    <span className="va-group-count">{g.trims.length}개 트림</span>
+                    {/* 내용물만 sticky(.va-group-label) — 버튼 자체를 sticky로 밀면 행 전체
+                        클릭 영역이 스크롤을 따라 이동해 행 왼쪽이 안 눌린다. 버튼(전폭 클릭)은
+                        그대로 두고 라벨만 왼쪽에 붙인다(2026-07-29 유슨생 — 트림명 고정과 한 축). */}
+                    <span className="va-group-label">
+                      {open ? (
+                        <ChevronDown size={16} className="va-group-chevron" />
+                      ) : (
+                        <ChevronRight size={16} className="va-group-chevron" />
+                      )}
+                      <span className="va-group-name">{g.key}</span>
+                      <span className="va-group-count">{g.trims.length}개 트림</span>
+                    </span>
                   </button>
                 </td>
               </tr>

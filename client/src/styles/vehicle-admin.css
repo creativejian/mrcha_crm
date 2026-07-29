@@ -298,8 +298,13 @@
   color: var(--muted);
   background: var(--surface-2);
 }
-/* 국산차 트림 뷰 탭(목록 보기 / 순서 관리) — 고객관리 필터 버튼 계열. */
+/* 국산차 트림 뷰 탭(목록 보기 / 순서 관리) — 고객관리 필터 버튼 계열.
+   스크롤 컨테이너(.table-scroll) 안에 테이블의 형제로 살아서(아래 + 셀렉터가 이 구조 의존)
+   가로 스크롤에 같이 흘러갔다 → sticky로 고정(2026-07-29 유슨생). 블록 요소라 폭이
+   스크롤포트와 같아 left:0이면 제자리 — 트림명 열 고정과 같은 축. */
 .va-trim-tabs {
+  position: sticky;
+  left: 0;
   display: flex;
   gap: 6px;
   margin: 8px 0 14px;
@@ -335,7 +340,6 @@
 .va-group-toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
   width: 100%;
   padding: 9px 12px;
   border: 0;
@@ -343,6 +347,17 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+/* 그룹 라벨(셰브론+그룹명+개수)만 sticky — 버튼은 전폭 클릭 영역을 유지한 채 라벨이 좌우
+   스크롤에 떠내려가지 않는다(2026-07-29 유슨생, GroupedTrimTable 주석 참조). width를
+   내용 크기로 줄여야 sticky가 밀 여유가 생긴다(전폭이면 이동 슬랙 0 = 무동작). */
+.va-group-label {
+  position: sticky;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
 }
 .va-group-toggle:hover {
   background: rgba(var(--brand-rgb), 0.05);
@@ -754,4 +769,39 @@
   margin-top: 8px;
   font-size: 10px;
   color: #c02626;
+}
+
+/* ── 트림명 컬럼 고정(2026-07-29 유슨생) ─────────────────────────────────────
+   좌우 스크롤 시 어느 트림의 값인지 놓치지 않게 트림명 열을 왼쪽에 고정한다(.table-scroll이
+   가로 스크롤 담당). th 배경은 전역 th(#f7f7f6, customer-list.css)가 이미 불투명이라 그대로
+   쓰고, td만 흰색을 깐다 — 안 깔면 지나가는 컬럼이 밑에서 비친다. 행이 z:1 스태킹 컨텍스트
+   (customer-table 규칙)라 셀 z-index는 같은 행 안에서만 겨루면 되고, 채택 팝오버(z:60·70)는
+   그 위에 뜬다. 그룹 표의 트림명 본문 셀은 .va-grade-cell이다 — 같은 규칙. */
+.va-trim-table th.va-th-trim,
+.va-trim-table td.va-th-trim,
+.va-trim-table td.va-grade-cell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+.va-trim-table td.va-th-trim,
+.va-trim-table td.va-grade-cell {
+  background: #fff;
+}
+/* 선택 모드(평면 표)는 체크 컬럼(60px)이 트림명 앞에 붙는다 — 체크도 고정하고 트림명은 그
+   폭만큼 민다. :has는 레포 기존 문법(customer-list.css tr:has 선례). 그룹 헤더 행(colSpan
+   전체 폭)의 그룹명은 고정하지 않는다 — 토글이 행 전체 클릭 영역이라 sticky로 밀면 클릭
+   영역까지 따라와 스크롤 위치에 따라 행 왼쪽이 안 눌리는 부작용이 생긴다. */
+.va-trim-table th.va-col-sel,
+.va-trim-table td.va-col-sel {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+.va-trim-table td.va-col-sel {
+  background: #fff;
+}
+.va-trim-table:has(.va-col-sel) th.va-th-trim,
+.va-trim-table:has(.va-col-sel) td.va-th-trim {
+  left: 60px;
 }
