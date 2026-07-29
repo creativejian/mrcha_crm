@@ -643,7 +643,14 @@
   position: relative;
 }
 .va-disc-open {
-  padding: 0;
+  /* 클릭 범위 = 셀 전체(2026-07-29 실기: 확정값이 "—"면 표적이 글자 하나 폭이라 못 누른다).
+     셀 패딩(9px 10px — controls.css 콘솔 테이블 골격)을 음수 마진으로 되물려 패딩 영역까지 덮는다.
+     그 골격 패딩을 바꾸면 여기도 같이 바꿀 것. */
+  display: block;
+  width: calc(100% + 20px);
+  margin: -9px -10px;
+  padding: 9px 10px;
+  text-align: inherit;
   border: 0;
   background: none;
   font: inherit;

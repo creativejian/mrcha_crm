@@ -42,6 +42,12 @@ function buildColorMap(rows: TrimColor[]): Map<number, TrimColor[]> {
 const firstGroup = (rows: CatalogTrim[]): Set<string> =>
   rows[0] ? new Set([trimSubline(rows[0].trimName)]) : new Set();
 
+// 딜러 프로필 도착 전 스코프 센티널 — "브랜드 미확정이지만 URL·마지막 선택 폴백은 차단"을 뜻한다.
+// 실존할 수 없는 id여야 하고(양수 금지 — 서버 idSchema가 positive라 fetch에 새면 400),
+// 아래 models fetch가 이 값을 만나면 **요청 자체를 보내지 않는다**(2026-07-29 실기: 딜러 리로드마다
+// -1 fetch → 400 → "불러오기 실패"가 스치던 원인).
+export const SCOPE_BRAND_PENDING = -1;
+
 // 차량 관리(/mc-master) 카탈로그 데이터 로딩/캐시. 라우팅(brandId/modelId)에 반응해
 // 브랜드→모델→트림 뷰를 캐시 경유로 채운다(catalog-cache). 편집 직후 갱신은 reload*.
 export function useMcMasterCatalog(
@@ -116,7 +122,8 @@ export function useMcMasterCatalog(
   }, [scopeBrandId]);
 
   useEffect(() => {
-    if (brandId == null) return;
+    // 센티널(딜러 프로필 대기)은 fetch 금지 — 프로필이 오면 실제 브랜드로 이 effect가 다시 돈다.
+    if (brandId == null || brandId === SCOPE_BRAND_PENDING) return;
     let active = true;
     // hadCache면 갱신 실패해도 에러화면 대신 (위에서 세팅된) 캐시 유지.
     const hadCache = getCachedModels(brandId) !== undefined;
