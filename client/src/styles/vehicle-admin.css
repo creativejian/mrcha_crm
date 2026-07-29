@@ -309,7 +309,8 @@
   left: 12px;
   display: flex;
   gap: 6px;
-  margin: 8px 0 14px 12px;
+  /* 위아래 동일 마진 — 탭 띠(총 52px) 안에서 버튼 수직 중앙. */
+  margin: 11px 0 11px 12px;
 }
 /* 트림 테이블 헤더 위 구분선 — 탭(목록보기/순서관리)이 있는 국산차에서만(탭과 헤더 분리). */
 .va-trim-tabs + .va-trim-table thead th {
