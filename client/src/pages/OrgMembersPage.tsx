@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
-import { useNavigate } from "react-router";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { ROLE_ACCESS_SUMMARY, roleLabelOf } from "@/data/roles";
@@ -14,8 +13,8 @@ import {
 import { useOrgMembers } from "@/lib/org-members";
 import { formatPhone } from "@/lib/phone-format";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
+import { ProposalTrimsPopover, popoverPosFromRect, type PopoverPos } from "@/components/ProposalTrimsPopover";
 import { fetchBrandsCached } from "@/pages/mc-master/catalog-cache";
-import { mcMasterPath } from "@/pages/mc-master/mc-master-route";
 
 // ⚠️ 「조직」·「권한」 탭은 아직 목업이다(2026-07-25 유슨생 결정 — 구성원 탭만 실데이터화).
 // DB에 대응하는 것이 없다: `public.profiles`는 id·email·username·role·avatar_url·created_at·
@@ -147,30 +146,18 @@ export function OrgMembersPage() {
 // 목록 기준이 구성원 표와 **다르다**: 앱에서 role이 내려간 딜러도 포함하는 합집합이다
 // (서버 listDealerRoster). 그래야 퇴사·전환한 딜러의 데이터를 정리할 수 있다 — 행이 사라지면
 // 삭제 버튼을 누를 대상 자체가 없어진다.
-// 낸 금액 요약("자사 4,000,000원 · 제휴 6,000,000원") — null 필드는 미제안이라 표기하지 않는다.
-// 확정가(트림 price)를 모르는 문맥이라 할인 셀의 % 표기는 하지 않는다(원 금액이 사실의 전부).
-function proposalAmountsSummary(r: DealerProposalTrim): string {
-  const parts: string[] = [];
-  if (r.financialAmount !== null) parts.push(`자사 ${r.financialAmount.toLocaleString()}원`);
-  if (r.partnerAmount !== null) parts.push(`제휴 ${r.partnerAmount.toLocaleString()}원`);
-  if (r.cashAmount !== null) parts.push(`타사 ${r.cashAmount.toLocaleString()}원`);
-  return parts.join(" · ");
-}
-
-// 입력 트림 셀(2026-07-29 유슨생) — "입력값 삭제 (N)"의 N이 무엇인지 지우기 전에 보여준다.
-// 목록은 팝오버를 열 때마다 on-demand로 받고(명부 로드에 얹지 않는다), 행을 누르면 그 트림의
-// 화면(/mc-master/:modelId?brand=&hl=)으로 이동해 착지 행을 플래시로 마킹한다.
+// 입력 트림 셀(2026-07-29 유슨생) — "입력값 삭제"의 대상이 무엇인지 지우기 전에 보여준다.
+// 목록은 팝오버를 열 때마다 on-demand로 받고(명부 로드에 얹지 않는다), 표시·이동은 공용 부품
+// (ProposalTrimsPopover — 딜러 모드 "내 입력 트림"과 한 벌)이 담당한다.
 function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<DealerProposalTrim[] | null>(null); // null = 아직 로딩
   const [failed, setFailed] = useState(false);
   // fixed 좌표 — 명부가 .table-scroll(overflow) 안이라 absolute 팝오버는 잘린다(2026-07-29 실기,
-  // 마지막 행에서 카드 모서리만 보였다). 콘솔 래퍼 클리핑 탈출의 fixed 선례(customer-console)와
-  // 같은 축. 열 때 버튼 rect로 좌표를 굳히고, 우측 화면 밖으로 나가지 않게 클램프한다.
-  const [pos, setPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
+  // 마지막 행에서 카드 모서리만 보였다). 좌표 계산은 공용 popoverPosFromRect.
+  const [pos, setPos] = useState<PopoverPos | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
   usePopoverDismiss(popRef, open, () => setOpen(false));
 
   function toggle() {
@@ -178,17 +165,7 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
       setOpen(false);
       return;
     }
-    const rect = btnRef.current?.getBoundingClientRect();
-    // maxHeight = 화면 남은 높이 — 목록이 길면(딜러가 수십 트림에 제안) 팝오버 안에서 스크롤한다.
-    setPos(
-      rect
-        ? {
-            top: rect.bottom + 4,
-            left: Math.max(8, Math.min(rect.left, window.innerWidth - 736)), // 팝오버 최대 폭 720 + 여백
-            maxHeight: Math.max(160, window.innerHeight - rect.bottom - 16),
-          }
-        : null,
-    );
+    setPos(popoverPosFromRect(btnRef.current?.getBoundingClientRect()));
     setOpen(true);
     setFailed(false);
     // 캐시(hover 프리패치 포함)가 있으면 즉시 그린다 — 그리고 항상 재조회해 갱신한다(딜러가
@@ -216,45 +193,7 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
       >
         보기{entry.proposalCount > 0 ? ` (${entry.proposalCount})` : ""}
       </button>
-      {open && (
-        <div
-          className="org-dealer-trims-pop"
-          ref={popRef}
-          style={pos ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight } : undefined}
-        >
-          {rows === null && !failed && <div className="org-dealer-trims-note">불러오는 중…</div>}
-          {failed && <div className="org-dealer-trims-note">목록을 불러오지 못했습니다.</div>}
-          {rows?.map((r) => {
-            // 클로저(onClick) 안에서는 property 내로잉이 사라진다 — 목적지를 먼저 굳힌다.
-            const dest =
-              r.modelId != null && r.brandId != null ? `${mcMasterPath(r.brandId, r.modelId)}&hl=${r.trimId}` : null;
-            return dest != null ? (
-              <button
-                className="org-dealer-trim-row"
-                key={r.trimId}
-                onClick={() => navigate(dest)}
-                title="이 트림의 화면으로 이동합니다."
-                type="button"
-              >
-                {/* title = 전체 이름 — 이름 열만 말줄임 대상이라(그리드 1fr) 잘렸을 때 복구 경로. */}
-                <span className="org-dealer-trim-name" title={`${r.modelName} · ${r.trimName}`}>
-                  {r.modelName} · {r.trimName}
-                </span>
-                {/* 코드는 이름 span 밖의 자기 열 — 이름 말줄임에 같이 잘리면 안 된다(실기: MC0705…). */}
-                <span className="org-dealer-trim-code">{r.mcCode ?? ""}</span>
-                <span className="org-dealer-trim-amounts">{proposalAmountsSummary(r)}</span>
-              </button>
-            ) : (
-              // 카탈로그에서 삭제된 트림(loose id) — "무엇을 지우는지" 목록에는 남기되 이동은 없다.
-              <div className="org-dealer-trim-row deleted" key={r.trimId}>
-                <span className="org-dealer-trim-name">삭제된 트림</span>
-                <span className="org-dealer-trim-code" />
-                <span className="org-dealer-trim-amounts">{proposalAmountsSummary(r)}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {open && <ProposalTrimsPopover failed={failed} popRef={popRef} pos={pos} rows={rows} />}
     </td>
   );
 }

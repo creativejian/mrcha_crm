@@ -101,6 +101,11 @@ const discountBody = z.object({ financialAmount: amount, partnerAmount: amount, 
 // 소비처: 딜러 모드 브랜드 게이트 + Topbar 조직 라벨(B2에서 목업 "BMW 한독/서초"를 대체).
 dealer.get("/me", async (c) => c.json(await getDealerProfile(c.var.user.id, c.var.db)));
 
+// 내 입력 트림 전체(모델 횡단) — 딜러 모드 헤더 "내 입력 트림 (N)"이 소비한다(2026-07-29 유슨생).
+// 게이트 없음: 세션 본인 것만 돌려준다(/me·/discounts와 같은 축 — 딜러가 아니면 자연히 빈 배열).
+// 관리자 명부 팝오버(GET /profiles/:userId/proposals)와 같은 쿼리·응답 형태라 클라 부품이 한 벌이다.
+dealer.get("/my-proposal-trims", async (c) => c.json(await listDealerProposalTrims(c.var.user.id, c.var.db)));
+
 // 내 제안(모델 단위) — 쿼리가 dealerUserId로 필터하므로 다른 딜러 제안은 섞이지 않는다.
 dealer.get("/discounts", zValidator("query", modelIdQuery), async (c) =>
   c.json(await listMyTrimDiscounts(c.var.user.id, c.req.valid("query").modelId, c.var.db)),

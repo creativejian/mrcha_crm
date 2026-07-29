@@ -963,7 +963,7 @@
   /* 3열 그리드 — 이름만 말줄임 대상이고 코드·금액은 항상 온전히 보인다(코드가 이름 span 안에
      있으면 말줄임에 같이 잘린다 — 실기: MC0705…). */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: baseline;
   gap: 12px;
   width: 100%;
@@ -1002,6 +1002,13 @@
 .org-dealer-trim-amounts {
   flex-shrink: 0;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+/* 제안변경일(2026-07-29 유슨생) — 이 값이 언제 것인지가 채택 판단의 일부다. */
+.org-dealer-trim-date {
+  white-space: nowrap;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
