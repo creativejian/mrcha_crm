@@ -184,7 +184,7 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
       rect
         ? {
             top: rect.bottom + 4,
-            left: Math.max(8, Math.min(rect.left, window.innerWidth - 576)),
+            left: Math.max(8, Math.min(rect.left, window.innerWidth - 736)), // 팝오버 최대 폭 720 + 여백
             maxHeight: Math.max(160, window.innerHeight - rect.bottom - 16),
           }
         : null,
