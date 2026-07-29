@@ -937,6 +937,10 @@
 .org-dealer-trims-pop {
   position: fixed;
   z-index: 70;
+  /* 목록이 길면 안에서 스크롤 — max-height는 여는 순간 화면 남은 높이로 인라인 지정된다. */
+  overflow-y: auto;
+  /* 목록이 길면 안에서 스크롤 — max-height는 여는 순간 화면 남은 높이로 인라인 지정된다. */
+  overflow-y: auto;
   min-width: 360px;
   max-width: 480px;
   padding: 8px;
