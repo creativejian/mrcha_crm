@@ -205,7 +205,7 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
   return (
     <td className="org-dealer-trims">
       <button
-        className="badge org-dealer-action"
+        className="badge purple org-dealer-action"
         disabled={entry.proposalCount === 0}
         onClick={toggle}
         onFocus={() => prefetchDealerProposalTrims(entry.dealerUserId)}
@@ -236,7 +236,8 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
                 title="이 트림의 화면으로 이동합니다."
                 type="button"
               >
-                <span className="org-dealer-trim-name">
+                {/* title = 전체 이름 — 이름 열만 말줄임 대상이라(그리드 1fr) 잘렸을 때 복구 경로. */}
+                <span className="org-dealer-trim-name" title={`${r.modelName} · ${r.trimName}`}>
                   {r.modelName} · {r.trimName}
                 </span>
                 {/* 코드는 이름 span 밖의 자기 열 — 이름 말줄임에 같이 잘리면 안 된다(실기: MC0705…). */}
