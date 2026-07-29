@@ -68,6 +68,25 @@ export function prefetchDealerProposalTrims(dealerUserId: string): void {
   void fetchDealerProposalTrims(dealerUserId).catch(() => {});
 }
 
+// ── 딜러 본인용("내 입력 트림" — MC 마스터 딜러 모드 헤더, 2026-07-29 유슨생) ──
+// 같은 캐시 Map을 쓰되 키는 고정 문자열 — 서버가 세션에서 본인을 판별하므로 클라는 id를 모른다.
+const MY_PROPOSAL_TRIMS_KEY = "my-proposal-trims";
+
+export async function fetchMyProposalTrims(): Promise<DealerProposalTrim[]> {
+  const rows = await getJson<DealerProposalTrim[]>("/api/dealer/my-proposal-trims");
+  proposalTrimsCache.set(MY_PROPOSAL_TRIMS_KEY, rows);
+  return rows;
+}
+
+export function getCachedMyProposalTrims(): DealerProposalTrim[] | undefined {
+  return proposalTrimsCache.get(MY_PROPOSAL_TRIMS_KEY);
+}
+
+// 딜러가 제안을 저장하면(dealer-discounts.save) 목록·건수가 낡는다 — 저장 경로가 부른다.
+export function invalidateMyProposalTrims(): void {
+  proposalTrimsCache.delete(MY_PROPOSAL_TRIMS_KEY);
+}
+
 export function useDealerRoster(): {
   roster: DealerRosterEntry[];
   loading: boolean;

@@ -113,6 +113,16 @@ test("GET /api/dealer/profiles/:userId/proposals — admin 200 (없는 딜러 = 
   expect(await res.json()).toEqual([]);
 });
 
+test("GET /api/dealer/my-proposal-trims — 게이트 없음(자기 것만): dealer·admin 모두 200 배열", async () => {
+  // 세션 본인 판별이라 남의 데이터가 나올 수 없다(/me·/discounts와 같은 축). 랜덤 uuid 세션이라
+  // 제안이 없어 빈 배열 — 여기서는 형태(200 + 배열)만 잠근다.
+  for (const role of ["dealer", "admin"] as const) {
+    const res = await reqFor(role, "/api/dealer/my-proposal-trims");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([]);
+  }
+});
+
 test("GET /api/dealer/roster — admin 200 + 응답 계약(클라 DealerRosterEntry와 동형)", async () => {
   const res = await reqFor("admin", "/api/dealer/roster");
   expect(res.status).toBe(200);

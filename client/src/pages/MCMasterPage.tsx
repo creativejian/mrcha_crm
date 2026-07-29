@@ -30,6 +30,7 @@ import { brandIdFromSearch, highlightTrimIdFromSearch, mcMasterPath } from "./mc
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
 import { MoveTrimsDialog } from "./mc-master/MoveTrimsDialog";
+import { MyProposalTrimsButton } from "./mc-master/MyProposalTrims";
 import { trimSubline } from "./mc-master/trim-grouping";
 import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
@@ -406,6 +407,10 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 브랜드명을 헤더에 넣는다 — Topbar 조직 라벨과 중복이지만 본문만 봐도 맥락이 남는다.
                 brandName이 null이면(브랜드가 catalog에서 삭제됨) 접두 없이 원래 문구로 떨어진다. */}
             <h2>{dealerMode && dealerMe?.brandName ? `${dealerMe.brandName} 차량 관리` : "차량 관리"}</h2>
+            {/* 딜러의 "내 현황" 시작점(2026-07-29 유슨생) — 어느 트림에 제안을 냈는지 여기서
+                한눈에 보고, 행 클릭으로 그 트림에 착지한다. 브랜드 미지정 딜러는 제안 자체가
+                불가능하니(쓰기 403) 프로필이 있을 때만 낸다. */}
+            {dealerMode && dealerMeLoaded && dealerMe != null && <MyProposalTrimsButton />}
             {brandId != null &&
               editActions(() => {
                 setPanelError(null);

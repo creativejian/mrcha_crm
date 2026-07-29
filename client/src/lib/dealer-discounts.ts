@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { getJson, sendJson } from "./http";
+import { invalidateMyProposalTrims } from "./dealer-roster";
 
 // 딜러 **본인**의 할인 제안(crm.dealer_trim_discounts) — MC 마스터 딜러 모드가 쓴다.
 // ⚠️ 이 값은 **제안**이고 확정 할인이 아니다: catalog.trims의 3컬럼은 관리자 채택으로만 바뀐다
@@ -55,6 +56,7 @@ export function useDealerDiscounts(
   const save = useCallback(async (trimId: number, amounts: DealerDiscountAmounts) => {
     const row = await sendJson<DealerDiscountProposal>(`/api/dealer/discounts/${trimId}`, "PUT", amounts);
     setByTrim((prev) => new Map(prev).set(trimId, row));
+    invalidateMyProposalTrims(); // "내 입력 트림" 목록·건수가 낡는다(헤더 버튼 캐시)
   }, []);
 
   return { byTrim, save };
