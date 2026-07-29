@@ -7,7 +7,7 @@ import { profiles } from "../public-app";
 import { catalogDiscountAdoptions, dealerProfiles, dealerTrimDiscounts } from "../schema";
 import { updateTrim } from "./catalog-admin";
 import { upsertDealerProfile } from "./dealer-profiles";
-import { adoptDealerProposal, listModelProposals, recordAdminDiscountEdits } from "./discount-adoptions";
+import { adoptDealerProposal, listModelProposals, recordAdminDiscountEdits, undoLatestAdoption } from "./discount-adoptions";
 
 // ── 관리자 채택(슬라이스 C) ─────────────────────────────────────────────────
 // 이 테스트는 `catalog.trims`의 확정 할인을 **실제로** 바꾼다 — 앱 고객에게 보이는 금액이다.
@@ -423,5 +423,133 @@ test("같은 값 재채택은 스탬프를 움직이지 않는다(트리거 멱�
     const second = await trimRow(tx);
     expect(second.stampedAt).toBe(first.stampedAt);
     expect(second.financial).toBe(fresh);
+  });
+});
+
+// ── 되돌리기(undo, 2026-07-29) ──────────────────────────────────────────────
+// 토글 의미론: 최신 감사 행의 previous_amount를 복원하고 그 사실을 undo_of 행으로 남긴다.
+// ⚠️ 같은 트랜잭션에선 now()가 동일해 감사 시각이 전부 같아지므로(위 "거짓 출처" 테스트 주석),
+// 선행 행을 백데이트해 "최신"을 확정한다 — 운영은 요청별 트랜잭션이라 이 조작이 필요 없다.
+async function backdateAudit(tx: Executor, auditId: string, interval: string) {
+  await tx
+    .update(catalogDiscountAdoptions)
+    .set({ adoptedAt: sql`now() - ${sql.raw(`interval '${interval}'`)}` })
+    .where(eq(catalogDiscountAdoptions.id, auditId));
+}
+
+test("undoLatestAdoption: 확정값이 직전 값으로 돌아가고 undo_of 감사 행이 남는다", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    const fresh = (before.financial ?? 0) + 3_456_000;
+    await seedProposal(tx, dealerId, { financialAmount: fresh, partnerAmount: null, cashAmount: null });
+    const adoptRow = (await adoptDealerProposal(
+      { trimId, field: "financial", dealerUserId: dealerId, adoptedBy: nonDealerId },
+      tx,
+    ))!;
+    await backdateAudit(tx, adoptRow.id, "2 hours");
+
+    const undoRow = await undoLatestAdoption({ trimId, field: "financial", adoptedBy: nonDealerId }, tx);
+    expect(undoRow).not.toBeNull();
+    expect((await trimRow(tx)).financial).toBe(before.financial); // 복원
+    expect(undoRow!.amount).toBe(before.financial);
+    expect(undoRow!.previousAmount).toBe(fresh);
+    expect(undoRow!.undoOf).toBe(adoptRow.id);
+    // 최초 채택의 undo — 복원되는 값은 감사 이전 상태라 출처 불명(NULL). 딜러 채택분으로
+    // 되돌아가는 경우는 출처를 이어받는다(아래 토글·직접 입력 테스트).
+    expect(undoRow!.sourceDealerUserId).toBeNull();
+
+    // 조회 파생: 출처는 "되돌림"(isUndo)으로 갈리고, 그 딜러는 "미채택"으로 돌아가 재채택 가능하다.
+    const view = (await proposalsOf(tx))!;
+    expect(view.adopted.financial.isUndo).toBe(true);
+    expect(view.adopted.financial.previousAmount).toBe(fresh); // 다음 되돌리기(토글)가 갈 값
+    expect(view.proposals.find((r) => r.dealerUserId === dealerId)!.financial.state).toBe("none");
+  });
+});
+
+test("undoLatestAdoption: 토글 — 한 번 더 부르면 방금 되돌린 값이 복원된다", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    const fresh = (before.financial ?? 0) + 4_567_000;
+    await seedProposal(tx, dealerId, { financialAmount: fresh, partnerAmount: null, cashAmount: null });
+    const adoptRow = (await adoptDealerProposal(
+      { trimId, field: "financial", dealerUserId: dealerId, adoptedBy: nonDealerId },
+      tx,
+    ))!;
+    await backdateAudit(tx, adoptRow.id, "2 hours");
+
+    const first = (await undoLatestAdoption({ trimId, field: "financial", adoptedBy: nonDealerId }, tx))!;
+    await backdateAudit(tx, first.id, "1 hour");
+
+    const second = (await undoLatestAdoption({ trimId, field: "financial", adoptedBy: nonDealerId }, tx))!;
+    expect((await trimRow(tx)).financial).toBe(fresh); // c → b → 다시 c
+    expect(second.undoOf).toBe(first.id); // 사슬이 선형으로 이어진다
+
+    // 복원된 값은 그 딜러의 채택분이다 — 출처를 이어받아 "채택됨"이 다시 선다(2026-07-29 유슨생).
+    expect(second.sourceDealerUserId).toBe(dealerId);
+    const view = (await proposalsOf(tx))!;
+    expect(view.adopted.financial.sourceDealerUserId).toBe(dealerId);
+    expect(view.proposals.find((r) => r.dealerUserId === dealerId)!.financial.state).toBe("adopted");
+  });
+});
+
+test("undoLatestAdoption: 관리자 직접 입력을 되돌리면 딜러 출처가 복귀한다", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    const fresh = (before.financial ?? 0) + 6_789_000;
+    await seedProposal(tx, dealerId, { financialAmount: fresh, partnerAmount: null, cashAmount: null });
+    const adoptRow = (await adoptDealerProposal(
+      { trimId, field: "financial", dealerUserId: dealerId, adoptedBy: nonDealerId },
+      tx,
+    ))!;
+    await backdateAudit(tx, adoptRow.id, "2 hours");
+
+    // 관리자가 확정값을 직접 딴 값으로 덮는다(감사 포함 — 라우트가 하는 그대로).
+    const manual = fresh + 111_000;
+    const afterAdopt = await trimRow(tx);
+    const [manualRow] = await recordAdminDiscountEdits(
+      { trimId, before: afterAdopt, patch: { financialDiscountAmount: manual }, adoptedBy: nonDealerId },
+      tx,
+    );
+    await updateTrim(trimId, { financialDiscountAmount: manual }, tx);
+    await backdateAudit(tx, manualRow!.id, "1 hour");
+
+    // 직접 입력을 되돌리면 값과 함께 **원 출처(딜러)가 복귀**해 "채택됨"이 다시 선다.
+    const undoRow = (await undoLatestAdoption({ trimId, field: "financial", adoptedBy: nonDealerId }, tx))!;
+    expect((await trimRow(tx)).financial).toBe(fresh);
+    expect(undoRow.sourceDealerUserId).toBe(dealerId);
+    const view = (await proposalsOf(tx))!;
+    expect(view.proposals.find((r) => r.dealerUserId === dealerId)!.financial.state).toBe("adopted");
+  });
+});
+
+test("undoLatestAdoption: 감사 이력이 없으면 아무것도 바꾸지 않는다(fail-closed)", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    const result = await undoLatestAdoption({ trimId, field: "financial", adoptedBy: nonDealerId }, tx);
+    expect(result).toBeNull();
+    expect((await trimRow(tx)).financial).toBe(before.financial);
+    expect(
+      await tx.select().from(catalogDiscountAdoptions).where(eq(catalogDiscountAdoptions.trimId, trimId)),
+    ).toHaveLength(0);
+  });
+});
+
+test("undoLatestAdoption: 확정값이 감사와 어긋나면 복원하지 않는다(드리프트 fail-closed)", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    const fresh = (before.financial ?? 0) + 5_678_000;
+    await seedProposal(tx, dealerId, { financialAmount: fresh, partnerAmount: null, cashAmount: null });
+    const adoptRow = (await adoptDealerProposal(
+      { trimId, field: "financial", dealerUserId: dealerId, adoptedBy: nonDealerId },
+      tx,
+    ))!;
+    await backdateAudit(tx, adoptRow.id, "2 hours");
+
+    // 감사 밖의 쓰기(psql 수동 조작 등) — 감사가 "직전 값"을 보증할 수 없는 상태를 흉내낸다.
+    await updateTrim(trimId, { financialDiscountAmount: fresh + 1 }, tx);
+
+    const result = await undoLatestAdoption({ trimId, field: "financial", adoptedBy: nonDealerId }, tx);
+    expect(result).toBeNull();
+    expect((await trimRow(tx)).financial).toBe(fresh + 1); // 손대지 않는다
   });
 });

@@ -716,6 +716,13 @@
   font-size: 11px;
   color: var(--text);
 }
+/* "현재 확정" 텍스트 + 되돌리기 버튼 한 줄 — 버튼은 우측 끝(대상이 이 줄의 확정값이다). */
+.va-disc-pop-now-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .va-disc-pop-src {
   font-size: 10px;
   color: var(--muted);
@@ -779,6 +786,24 @@
   margin-top: 8px;
   font-size: 10px;
   color: #c02626;
+}
+/* 되돌리기 — tiny-btn은 28px 정사각(아이콘용)이라 텍스트가 세로로 갈라진다. 폭을 자체로 펴고
+   flex 줄임·줄바꿈을 막는다("현재 확정" 줄의 space-between 상대라 squeeze 대상이 된다). */
+.va-disc-undo {
+  width: auto;
+  height: 22px;
+  padding: 0 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 11px;
+}
+/* 되돌릴 이력이 없으면 비활성 — 숨기지 않는 이유: 자리가 유지돼야 팝오버 레이아웃이 필드마다
+   널뛰지 않고, "이 기능이 있다"는 사실 자체가 보인다(title이 사유를 말한다). */
+.va-disc-undo:disabled {
+  opacity: 0.45;
+  cursor: default;
+  box-shadow: none;
+  transform: none;
 }
 
 /* ── 트림명 컬럼 고정(2026-07-29 유슨생) ─────────────────────────────────────

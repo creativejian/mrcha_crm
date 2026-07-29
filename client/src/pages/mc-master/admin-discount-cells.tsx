@@ -15,6 +15,7 @@ import { discountText, fmtDate } from "./trim-format";
 // 상단에 항상 보여준다(무엇을 덮는지 모르고 누르는 상황을 만들지 않는다).
 // spec: ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md §7.2
 export type AdoptHandler = (trimId: number, field: DiscountField, dealerUserId: string) => Promise<void>;
+export type UndoHandler = (trimId: number, field: DiscountField) => Promise<void>;
 
 // 할인 필드 → CatalogTrim의 확정값 키. 서버 FIELD_MAP과 같은 축이지만 이쪽은 **응답 모델**의
 // 키다(SQL 컬럼명은 클라의 관심사가 아니다 — 어휘만 discount-adoption.ts가 SSOT).
@@ -39,27 +40,44 @@ export function AdminDiscountCells({
   trim,
   entry,
   onAdopt,
+  onUndo,
 }: {
   trim: CatalogTrim;
   entry?: TrimProposals;
   onAdopt?: AdoptHandler;
+  onUndo?: UndoHandler;
 }) {
   const [openField, setOpenField] = useState<DiscountField | null>(null);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<"adopt" | "undo" | null>(null);
   const popRef = useRef<HTMLDivElement>(null);
   usePopoverDismiss(popRef, openField !== null, () => setOpenField(null));
 
   async function adopt(field: DiscountField, dealerUserId: string) {
     if (!onAdopt || busy) return;
     setBusy(true);
-    setFailed(false);
+    setFailed(null);
     try {
       await onAdopt(trim.id, field, dealerUserId);
       setOpenField(null);
     } catch {
       // 팝오버를 열어둔 채 알린다 — 닫으면 실패가 조용히 사라지고, 관리자는 채택된 줄 안다.
-      setFailed(true);
+      setFailed("adopt");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function undoAdoption(field: DiscountField) {
+    if (!onUndo || busy) return;
+    setBusy(true);
+    setFailed(null);
+    try {
+      await onUndo(trim.id, field);
+      // 채택과 달리 **닫지 않는다** — 갱신된 "현재 확정"이 제자리에서 바뀌는 게 결과 확인이고,
+      // 토글 의미론이라 같은 버튼이 곧바로 "다시 그 값으로" 역할을 한다.
+    } catch {
+      setFailed("undo");
     } finally {
       setBusy(false);
     }
@@ -104,17 +122,45 @@ export function AdminDiscountCells({
                 <div className="va-disc-pop-now">
                   {/* 텍스트와 <strong>을 div로 묶는다 — flex column의 직접 자식이 되면 각각
                       익명 flex item이 되어 "현재 확정:"과 금액이 줄바꿈된다(실기에서 확인). */}
-                  <div>
-                    현재 확정: <strong>{discountText(confirmed, trim.price)}</strong>
+                  <div className="va-disc-pop-now-line">
+                    <div>
+                      현재 확정: <strong>{discountText(confirmed, trim.price)}</strong>
+                    </div>
+                    {/* 되돌리기 — 대상이 "현재 확정"이므로 이 줄에 산다(딜러 행에 붙이면 관리자
+                        직접 입력 출처일 때 버튼 놓을 자리가 없다). 감사 이력이 없으면 숨기지 않고
+                        **비활성**한다(유슨생 2026-07-29) — 자리가 유지되고 사유는 title이 말한다.
+                        무엇으로 돌아가는지도 title로 미리 보여준다 — 이 팝오버의 원칙(무엇을 덮는지
+                        모르고 누르지 않게) 그대로. */}
+                    {onUndo ? (
+                      <button
+                        className="tiny-btn va-disc-undo"
+                        disabled={busy || !adoptedInfo?.adoptedAt}
+                        onClick={() => void undoAdoption(field)}
+                        title={
+                          adoptedInfo?.adoptedAt
+                            ? `직전 값 ${discountText(adoptedInfo.previousAmount, trim.price)}(으)로 되돌립니다.`
+                            : "되돌릴 채택 이력이 없습니다."
+                        }
+                        type="button"
+                      >
+                        {busy ? "…" : "↩ 되돌리기"}
+                      </button>
+                    ) : null}
                   </div>
-                  {/* 출처 3갈래: 딜러 채택 · 관리자 직접 입력(source_dealer_user_id = NULL) · 이력 없음.
-                      가운데를 빼먹으면 관리자가 직접 넣은 값에 옛 딜러 채택이 출처로 붙어 **거짓이
-                      된다**(2026-07-28 실기에서 그렇게 보였다 — 그때는 감사 자체가 안 남았다). */}
+                  {/* 출처 갈래: 되돌림(출처 이어받음/불명) · 딜러 채택 · 관리자 직접 입력(source
+                      NULL) · 이력 없음. 직접 입력 갈래를 빼먹으면 관리자가 직접 넣은 값에 옛 딜러
+                      채택이 출처로 붙어 **거짓이 된다**(2026-07-28 실기 — 그때는 감사 자체가 안
+                      남았다). 되돌림은 복원된 값의 원 출처를 이어받으므로(쿼리 주석) 딜러명이
+                      있으면 "○○ 값으로 되돌림"이 정확한 서술이다. */}
                   {adoptedInfo?.adoptedAt ? (
                     <span className="va-disc-pop-src">
-                      {sourceName
-                        ? `출처 ${sourceName} · ${fmtDate(adoptedInfo.adoptedAt)} 채택`
-                        : `관리자 직접 입력 · ${fmtDate(adoptedInfo.adoptedAt)}`}
+                      {adoptedInfo.isUndo
+                        ? sourceName
+                          ? `${sourceName} 값으로 되돌림 · ${fmtDate(adoptedInfo.adoptedAt)}`
+                          : `되돌림 · ${fmtDate(adoptedInfo.adoptedAt)}`
+                        : sourceName
+                          ? `출처 ${sourceName} · ${fmtDate(adoptedInfo.adoptedAt)} 채택`
+                          : `관리자 직접 입력 · ${fmtDate(adoptedInfo.adoptedAt)}`}
                     </span>
                   ) : (
                     <span className="va-disc-pop-src">채택 이력 없음</span>
@@ -178,7 +224,11 @@ export function AdminDiscountCells({
                   })}
                 </ul>
 
-                {failed && <div className="va-disc-fail">채택에 실패했습니다 — 다시 시도해 주세요.</div>}
+                {failed && (
+                  <div className="va-disc-fail">
+                    {failed === "undo" ? "되돌리기에 실패했습니다 — 다시 시도해 주세요." : "채택에 실패했습니다 — 다시 시도해 주세요."}
+                  </div>
+                )}
               </div>
             )}
           </td>

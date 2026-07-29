@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 
 import { DISCOUNT_FIELDS } from "../../../client/src/lib/discount-adoption";
-import { adoptDealerProposal, listModelProposals } from "../../db/queries/discount-adoptions";
+import { adoptDealerProposal, listModelProposals, undoLatestAdoption } from "../../db/queries/discount-adoptions";
 import { requireRoles } from "../../middleware/role-gate";
 import { type CatalogApp, id, run } from "./shared";
 
@@ -52,6 +52,28 @@ export function registerDiscountRoutes(catalog: CatalogApp) {
         // null = 제안 없음 · 그 필드 미제안 · 제안자 자격 상실. 셋 다 "채택할 값이 없다"이고
         // 화면은 어느 쪽이든 목록을 새로 받으면 사실이 드러난다(사유를 나누지 않는다).
         "채택할 제안이 없습니다.",
+      );
+    },
+  );
+
+  // 되돌리기(2026-07-29) — 최신 감사 행의 직전 값을 복원한다(토글 의미론 — 쿼리 주석).
+  // 채택과 같은 이유로 admin 전용·트랜잭션·주체는 세션에서 얻는다. 복원 금액을 본문으로 받지
+  // 않는 것도 채택과 같은 원칙이다 — 무엇으로 돌아가는지는 감사 사슬이 결정해야 감사가 참이다.
+  catalog.post(
+    "/trims/:id/discount-adoptions/undo",
+    requireRoles(["admin"]),
+    zValidator("param", z.object({ id })),
+    zValidator("json", z.object({ field: z.enum(DISCOUNT_FIELDS) })),
+    async (c) => {
+      const trimId = c.req.valid("param").id;
+      const { field } = c.req.valid("json");
+      const adoptedBy = c.var.user.id;
+      return run(
+        c,
+        () => c.var.db.transaction((tx) => undoLatestAdoption({ trimId, field, adoptedBy }, tx)),
+        // null = 이력 없음 · 트림 없음 · 감사-확정 드리프트. 셋 다 "감사가 보증하는 직전 값이
+        // 없다"이고, 화면은 목록을 새로 받으면 사실이 드러난다.
+        "되돌릴 채택 이력이 없습니다.",
       );
     },
   );

@@ -34,6 +34,10 @@ type TrimAdoptedField = {
   /** null = 관리자 직접 입력이거나 채택 이력이 없다. */
   sourceDealerUserId: string | null;
   adoptedAt: string | null;
+  /** 최신 감사 행의 직전 값 — 되돌리기 버튼 hint("무엇으로 돌아가는지")에 쓴다. */
+  previousAmount: number | null;
+  /** 최신 감사 행이 되돌림인가 — 출처 라벨("되돌림" vs "관리자 직접 입력")을 가른다. */
+  isUndo: boolean;
 };
 
 export type TrimProposals = {
@@ -55,6 +59,7 @@ export function useTrimProposals(
 ): {
   byTrim: Map<number, TrimProposals>;
   adopt: (trimId: number, field: DiscountField, dealerUserId: string) => Promise<void>;
+  undo: (trimId: number, field: DiscountField) => Promise<void>;
 } {
   const [byTrim, setByTrim] = useState<Map<number, TrimProposals>>(new Map());
 
@@ -89,5 +94,15 @@ export function useTrimProposals(
     [modelId],
   );
 
-  return { byTrim, adopt };
+  // 되돌리기 — 서버가 감사 사슬에서 직전 값을 복원한다(토글 의미론 — 금액은 보내지 않는다).
+  // 채택과 같은 이유로 목록 전체 재조회 + 실패 throw.
+  const undo = useCallback(
+    async (trimId: number, field: DiscountField) => {
+      await sendJson(`/api/catalog/trims/${trimId}/discount-adoptions/undo`, "POST", { field });
+      if (modelId != null) setByTrim(toMap(await fetchProposals(modelId)));
+    },
+    [modelId],
+  );
+
+  return { byTrim, adopt, undo };
 }
