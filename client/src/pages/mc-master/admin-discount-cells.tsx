@@ -147,16 +147,19 @@ export function AdminDiscountCells({
                       </button>
                     ) : null}
                   </div>
-                  {/* 출처 4갈래: 딜러 채택 · 되돌림(undo_of 보유) · 관리자 직접 입력(source_dealer_user_id
-                      = NULL) · 이력 없음. 셋째를 빼먹으면 관리자가 직접 넣은 값에 옛 딜러 채택이 출처로
-                      붙어 **거짓이 된다**(2026-07-28 실기 — 그때는 감사 자체가 안 남았다). 되돌림도
-                      source가 NULL이라 라벨을 나누지 않으면 직접 입력과 섞인다. */}
+                  {/* 출처 갈래: 되돌림(출처 이어받음/불명) · 딜러 채택 · 관리자 직접 입력(source
+                      NULL) · 이력 없음. 직접 입력 갈래를 빼먹으면 관리자가 직접 넣은 값에 옛 딜러
+                      채택이 출처로 붙어 **거짓이 된다**(2026-07-28 실기 — 그때는 감사 자체가 안
+                      남았다). 되돌림은 복원된 값의 원 출처를 이어받으므로(쿼리 주석) 딜러명이
+                      있으면 "○○ 값으로 되돌림"이 정확한 서술이다. */}
                   {adoptedInfo?.adoptedAt ? (
                     <span className="va-disc-pop-src">
-                      {sourceName
-                        ? `출처 ${sourceName} · ${fmtDate(adoptedInfo.adoptedAt)} 채택`
-                        : adoptedInfo.isUndo
-                          ? `되돌림 · ${fmtDate(adoptedInfo.adoptedAt)}`
+                      {adoptedInfo.isUndo
+                        ? sourceName
+                          ? `${sourceName} 값으로 되돌림 · ${fmtDate(adoptedInfo.adoptedAt)}`
+                          : `되돌림 · ${fmtDate(adoptedInfo.adoptedAt)}`
+                        : sourceName
+                          ? `출처 ${sourceName} · ${fmtDate(adoptedInfo.adoptedAt)} 채택`
                           : `관리자 직접 입력 · ${fmtDate(adoptedInfo.adoptedAt)}`}
                     </span>
                   ) : (

@@ -328,16 +328,18 @@ export async function undoLatestAdoption(
   input: { trimId: number; field: DiscountField; adoptedBy: string },
   executor: Executor = getDefaultDb(),
 ) {
-  const [latest] = await executor
+  // 최신 1건 = 되돌릴 사건, 그 직전 1건 = **복원되는 값을 만든 행**(출처 이어받기용 — 아래).
+  const [latest, prior] = await executor
     .select({
       id: catalogDiscountAdoptions.id,
       amount: catalogDiscountAdoptions.amount,
       previousAmount: catalogDiscountAdoptions.previousAmount,
+      sourceDealerUserId: catalogDiscountAdoptions.sourceDealerUserId,
     })
     .from(catalogDiscountAdoptions)
     .where(and(eq(catalogDiscountAdoptions.trimId, input.trimId), eq(catalogDiscountAdoptions.field, input.field)))
     .orderBy(desc(catalogDiscountAdoptions.adoptedAt))
-    .limit(1);
+    .limit(2);
   if (!latest) return null; // 이력 없음 — 되돌릴 사건이 없다
 
   const [trim] = await executor
@@ -353,6 +355,15 @@ export async function undoLatestAdoption(
 
   await updateTrim(input.trimId, { [FIELD_MAP[input.field].trim]: latest.previousAmount }, executor);
 
+  // 출처는 **복원되는 값의 원 출처**를 이어받는다(2026-07-29 유슨생 — 딜러 채택분으로 되돌리면
+  // "채택됨"이 다시 서야 한다). source_dealer_user_id의 의미가 "어느 딜러의 값인가"이고 주체는
+  // adopted_by가 말하므로, 값이 실제로 그 딜러의 채택분인 한 이어받는 게 감사로서 참이다 —
+  // 2026-07-28 "거짓 출처" 사고는 딜러가 내지 않은 값에 출처가 붙는 반대 방향이었다.
+  // 직전 행이 없거나(최초 채택의 undo — 감사 이전 값이라 출처 불명) 금액 사슬이 어긋나면
+  // (모든 쓰기가 감사를 남기는 한 없는 상태) NULL로 남긴다(fail-closed).
+  const restoredSource =
+    prior && prior.amount === latest.previousAmount ? prior.sourceDealerUserId : null;
+
   const [audit] = await executor
     .insert(catalogDiscountAdoptions)
     .values({
@@ -360,7 +371,7 @@ export async function undoLatestAdoption(
       field: input.field,
       amount: latest.previousAmount,
       previousAmount: latest.amount,
-      sourceDealerUserId: null, // 되돌림의 주체는 관리자다 — 딜러 출처를 다시 달면 감사가 거짓이 된다
+      sourceDealerUserId: restoredSource,
       adoptedBy: input.adoptedBy,
       undoOf: latest.id,
     })

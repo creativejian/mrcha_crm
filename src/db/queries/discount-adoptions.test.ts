@@ -454,7 +454,8 @@ test("undoLatestAdoption: 확정값이 직전 값으로 돌아가고 undo_of 감
     expect(undoRow!.amount).toBe(before.financial);
     expect(undoRow!.previousAmount).toBe(fresh);
     expect(undoRow!.undoOf).toBe(adoptRow.id);
-    // 되돌림의 주체는 관리자다 — 딜러 출처를 다시 달면 감사가 거짓이 된다.
+    // 최초 채택의 undo — 복원되는 값은 감사 이전 상태라 출처 불명(NULL). 딜러 채택분으로
+    // 되돌아가는 경우는 출처를 이어받는다(아래 토글·직접 입력 테스트).
     expect(undoRow!.sourceDealerUserId).toBeNull();
 
     // 조회 파생: 출처는 "되돌림"(isUndo)으로 갈리고, 그 딜러는 "미채택"으로 돌아가 재채택 가능하다.
@@ -482,6 +483,42 @@ test("undoLatestAdoption: 토글 — 한 번 더 부르면 방금 되돌린 값�
     const second = (await undoLatestAdoption({ trimId, field: "financial", adoptedBy: nonDealerId }, tx))!;
     expect((await trimRow(tx)).financial).toBe(fresh); // c → b → 다시 c
     expect(second.undoOf).toBe(first.id); // 사슬이 선형으로 이어진다
+
+    // 복원된 값은 그 딜러의 채택분이다 — 출처를 이어받아 "채택됨"이 다시 선다(2026-07-29 유슨생).
+    expect(second.sourceDealerUserId).toBe(dealerId);
+    const view = (await proposalsOf(tx))!;
+    expect(view.adopted.financial.sourceDealerUserId).toBe(dealerId);
+    expect(view.proposals.find((r) => r.dealerUserId === dealerId)!.financial.state).toBe("adopted");
+  });
+});
+
+test("undoLatestAdoption: 관리자 직접 입력을 되돌리면 딜러 출처가 복귀한다", async () => {
+  await inRollback(async (tx) => {
+    const before = await trimRow(tx);
+    const fresh = (before.financial ?? 0) + 6_789_000;
+    await seedProposal(tx, dealerId, { financialAmount: fresh, partnerAmount: null, cashAmount: null });
+    const adoptRow = (await adoptDealerProposal(
+      { trimId, field: "financial", dealerUserId: dealerId, adoptedBy: nonDealerId },
+      tx,
+    ))!;
+    await backdateAudit(tx, adoptRow.id, "2 hours");
+
+    // 관리자가 확정값을 직접 딴 값으로 덮는다(감사 포함 — 라우트가 하는 그대로).
+    const manual = fresh + 111_000;
+    const afterAdopt = await trimRow(tx);
+    const [manualRow] = await recordAdminDiscountEdits(
+      { trimId, before: afterAdopt, patch: { financialDiscountAmount: manual }, adoptedBy: nonDealerId },
+      tx,
+    );
+    await updateTrim(trimId, { financialDiscountAmount: manual }, tx);
+    await backdateAudit(tx, manualRow!.id, "1 hour");
+
+    // 직접 입력을 되돌리면 값과 함께 **원 출처(딜러)가 복귀**해 "채택됨"이 다시 선다.
+    const undoRow = (await undoLatestAdoption({ trimId, field: "financial", adoptedBy: nonDealerId }, tx))!;
+    expect((await trimRow(tx)).financial).toBe(fresh);
+    expect(undoRow.sourceDealerUserId).toBe(dealerId);
+    const view = (await proposalsOf(tx))!;
+    expect(view.proposals.find((r) => r.dealerUserId === dealerId)!.financial.state).toBe("adopted");
   });
 });
 
