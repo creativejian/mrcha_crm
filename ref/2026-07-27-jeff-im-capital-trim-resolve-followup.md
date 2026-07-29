@@ -4,7 +4,24 @@
 · 회신 대상: `ref/2026-07-27-jeff-im-capital-trim-resolve-reply.md`
 · 최초 문의: `ref/2026-07-27-jeff-im-capital-trim-resolve-request.md`
 
-> **상태**: 부탁 4건 전부 회신 · **조치 A 반영 저희 쪽 실측 확인 완료** · D 형태 의견 회신 대기
+> **상태(2026-07-29 종결 갱신)**: 제프 2차 회신 수신(`ref/2026-07-29-jeff-im-capital-bdf-shipped-reply.md`,
+> 그쪽 #111) — **B·D·F 배포 완료를 우리가 코드 + 파트너 API 실측 6발로 검증 완료.**
+> ⚠️ 아래 「남은 것」 표는 **07-27 시점 스냅샷**이다 — 이 헤더가 우선한다:
+> - **B ✅ 완료 실측**(할인 5M → 계산가 −5M·월납 789,700 / AG·CM 1% 폴백 제거 — 미지정=0%+warnings,
+>   846,710이 확정치로 공식화·876,600은 그쪽 오보 정정) → **iM+할인/EV보조금 조합 제약 해제**(2026-07-29).
+> - **D ✅ 완료 실측** — `requestedPrice`·`catalogPrice`·`priceSource` + `linkedOfferingCount`(≥2일 때만).
+>   검출축 = **`requestedPrice !== catalogPrice`**(`priceSource`는 B 이후 항상 "request" — 단독 사용 금지).
+>   ⚠️ `catalogPrice` = 정가가 아니라 **그 금융사의 계산 기준가**(iM 탄력세율 보정 —
+>   base 보유 트림은 `rawRow.base`). `/quotes/cheapest`엔 4필드 없음(우리 미사용 — 무관).
+> - **F ✅ 완료 실측** — 산은 8건 `known-price-mismatch` 링크는 `catalogPrice` 미탑재
+>   (i5 eDrive40 SE `MC072526001` 실호출로 확인 — 검출축 켜도 산은 헛경고 없음).
+> - **C 🔴 정정** — 표의 "`is_primary` 우선 정렬"은 **무효**(532그룹 전부 primary>1 — 제약이
+>   offering→master 방향이라 mc_code 조회에 판별력 0). 방향 = **다중매칭 시 명시적 거부**로 확정,
+>   단 링크 정리 선행(즉시 켜면 BNK 39.8%·메리츠 31.9%가 400). 지금은 신호만(`linkedOfferingCount`).
+> - **⑦ ✅ 확답** — `MC070626003`은 우리카드 9건에 **없음**(무관). 단 9건 전부 포르쉐 파워트레인 혼입,
+>   메리츠 `MC070526006`은 **실측에서 실제 520d(디젤)로 resolve**(linkedOfferingCount 2).
+> - **우리 쪽 결정 대기 4건**: ①`linkedOfferingCount` 소비 방식 ②산은 가드 축 원복 여부(#373)
+>   ③마스터 트림 원본 정기 수신 주기·형식·경로(그쪽 수락 완료) ④cheapest 미사용 회신 한 줄.
 
 ## 먼저 — A 반영을 저희 쪽에서 실측 확인했습니다
 

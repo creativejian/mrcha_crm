@@ -39,7 +39,9 @@ Last updated: 2026-07-29
 **prod(유슨생)** = `#379`~`#387` 눈 확인 1회(로컬만 검증). **판단(유슨생)** = `dev:api --watch`
 도입(실 DB 커넥션 재수립 트레이드오프). **이사님** = ⓐBMW 523d(`MC070526001`) 자사 5,300,000·제휴
 6,000,000 실데이터 유지 판단 ⓑspec §7.1 뒤집힘 ⓒ`ref/director-pending-confirmations.md` **16건**.
-**제프** = B(iM `quotedVehiclePrice`·할인·보조금) · D(`catalogPrice`) · ⑦. ⚠️ B 전까지 iM+할인 조합 금지.
+**제프** = B·D·F 배포 완료 **실측 검증 종결**(07-29, `…followup.md` 헤더가 SSOT) — **iM+할인 제약
+해제됨**. 남은 건 **우리 결정 4건**(①linkedOfferingCount 소비 ②산은 가드 축 원복 ③마스터 트림
+정기 수신 주기·형식 ④cheapest 미사용 회신). C 거부 게이트는 그쪽 링크 정리 후(우리 조치 불요).
 
 ## Boot
 
