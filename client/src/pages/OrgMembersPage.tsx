@@ -325,8 +325,9 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
               {/* 칩 버튼 — 형태·색은 `.badge` 1벌(customer-list.css)에서 그대로 온다.
                   `.org-dealer-action`은 hover만 얹는다(dashboard.css 주석 참조). */}
               <td className="org-dealer-actions">
+                {/* 건수는 "보기 (N)" 버튼과 confirm 문구("N건을 삭제합니다")가 이미 말한다 — 중복 제거(유슨생). */}
                 <button className="badge org-dealer-action" disabled={busy !== null || d.proposalCount === 0} onClick={() => void run(d, "proposals")} type="button">
-                  입력값 삭제{d.proposalCount > 0 ? ` (${d.proposalCount})` : ""}
+                  입력값 삭제
                 </button>
                 <button className="badge red org-dealer-action" disabled={busy !== null || d.brandId === null} onClick={() => void run(d, "release")} type="button">
                   딜러 해제
