@@ -127,15 +127,20 @@ export function AdminDiscountCells({
                       현재 확정: <strong>{discountText(confirmed, trim.price)}</strong>
                     </div>
                     {/* 되돌리기 — 대상이 "현재 확정"이므로 이 줄에 산다(딜러 행에 붙이면 관리자
-                        직접 입력 출처일 때 버튼 놓을 자리가 없다). 감사 이력이 있어야 "직전 값"을
-                        감사가 보증한다. 무엇으로 돌아가는지 title로 미리 보여준다 — 이 팝오버의
-                        원칙(무엇을 덮는지 모르고 누르지 않게) 그대로. */}
-                    {adoptedInfo?.adoptedAt && onUndo ? (
+                        직접 입력 출처일 때 버튼 놓을 자리가 없다). 감사 이력이 없으면 숨기지 않고
+                        **비활성**한다(유슨생 2026-07-29) — 자리가 유지되고 사유는 title이 말한다.
+                        무엇으로 돌아가는지도 title로 미리 보여준다 — 이 팝오버의 원칙(무엇을 덮는지
+                        모르고 누르지 않게) 그대로. */}
+                    {onUndo ? (
                       <button
                         className="tiny-btn va-disc-undo"
-                        disabled={busy}
+                        disabled={busy || !adoptedInfo?.adoptedAt}
                         onClick={() => void undoAdoption(field)}
-                        title={`직전 값 ${discountText(adoptedInfo.previousAmount, trim.price)}(으)로 되돌립니다.`}
+                        title={
+                          adoptedInfo?.adoptedAt
+                            ? `직전 값 ${discountText(adoptedInfo.previousAmount, trim.price)}(으)로 되돌립니다.`
+                            : "되돌릴 채택 이력이 없습니다."
+                        }
                         type="button"
                       >
                         {busy ? "…" : "↩ 되돌리기"}
