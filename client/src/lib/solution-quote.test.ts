@@ -5,9 +5,13 @@ import {
   SOLUTION_LENDERS,
   buildSolutionQuoteInput,
   detectLenderDrift,
+  detectLinkPriceMismatch,
+  detectMultiLinkResolve,
   detectVehiclePriceMismatch,
   extractPartnerLenders,
   hasLenderDrift,
+  linkPriceMismatchMessage,
+  multiLinkResolveMessage,
   parseSolutionQuoteResult,
   solutionLenderOptions,
   solutionProductTypeOf,
@@ -365,5 +369,91 @@ describe("detectVehiclePriceMismatch — 파트너가 우리 차량가로 계산
   test("resolvedVehicle이 없어도 가격 대조는 성립한다(문구에서 차량명만 빠진다)", () => {
     const raw = { ok: true, quote: { majorInputs: { vehiclePrice: 69_800_000 } } };
     expect(detectVehiclePriceMismatch(raw, 74_300_000)?.resolvedModelName).toBeNull();
+  });
+});
+
+// ── 링크 오배정 검출축 2종 (2026-07-29 — 제프 B·D 배포 후속) ──────────────────
+// B 이후 8사 전부 요청가로 계산하므로 위 detectVehiclePriceMismatch 축은 링크 오배정을
+// 못 잡는다(계산가는 항상 일치). 유일한 검출축 = requestedPrice ≠ catalogPrice(제프 D).
+describe("detectLinkPriceMismatch — 요청가 ↔ 금융사 계산 기준가 대조", () => {
+  const rawWith = (resolved: Record<string, unknown>) => ({
+    ok: true,
+    quote: {
+      majorInputs: { vehiclePrice: 74_300_000 },
+      resolvedVehicle: { brand: "BMW", modelName: "520d M Sport", ...resolved },
+    },
+  });
+
+  test("requestedPrice ≠ catalogPrice면 잡는다(메리츠 MC070526006 실측 — 디젤 트림 링크)", () => {
+    expect(
+      detectLinkPriceMismatch(rawWith({ requestedPrice: 74_300_000, catalogPrice: 73_000_000 })),
+    ).toEqual({
+      requestedPrice: 74_300_000,
+      catalogPrice: 73_000_000,
+      resolvedModelName: "520d M Sport",
+    });
+  });
+
+  test("일치하면 null", () => {
+    expect(detectLinkPriceMismatch(rawWith({ requestedPrice: 74_300_000, catalogPrice: 74_300_000 }))).toBeNull();
+  });
+
+  test("catalogPrice가 없으면 null — 산은 known-mismatch 8건은 F가 의도적으로 미탑재(헛경고 억제)", () => {
+    expect(detectLinkPriceMismatch(rawWith({ requestedPrice: 84_900_000 }))).toBeNull();
+  });
+
+  test("requestedPrice가 없으면 null — 구 응답·미배포 경로 fail-open", () => {
+    expect(detectLinkPriceMismatch(rawWith({ catalogPrice: 73_000_000 }))).toBeNull();
+    expect(detectLinkPriceMismatch({ ok: true, quote: {} })).toBeNull();
+    expect(detectLinkPriceMismatch(null)).toBeNull();
+  });
+
+  test("B 이후 기존 축이 못 잡는 오배정을 이 축이 잡는다(계산가는 요청가 그대로인 케이스)", () => {
+    const raw = rawWith({ requestedPrice: 74_300_000, catalogPrice: 73_000_000 });
+    // 기존 축: majorInputs.vehiclePrice(74.3M) === 보낸 값(74.3M) → 조용하다
+    expect(detectVehiclePriceMismatch(raw, 74_300_000)).toBeNull();
+    // 새 축이 링크 오배정을 드러낸다
+    expect(detectLinkPriceMismatch(raw)).not.toBeNull();
+  });
+
+  test("문구에 두 값과 트림명이 실린다", () => {
+    const msg = linkPriceMismatchMessage({
+      requestedPrice: 74_300_000,
+      catalogPrice: 73_000_000,
+      resolvedModelName: "520d M Sport",
+    });
+    expect(msg).toContain("74,300,000");
+    expect(msg).toContain("73,000,000");
+    expect(msg).toContain("520d M Sport");
+  });
+});
+
+describe("detectMultiLinkResolve — 다중매칭 임의 트림 신호(linkedOfferingCount)", () => {
+  const rawWith = (resolved: Record<string, unknown>) => ({
+    ok: true,
+    quote: { resolvedVehicle: { brand: "BMW", modelName: "520d M Sport", ...resolved } },
+  });
+
+  test("2 이상이면 잡는다 + resolve된 모델명 동봉(상담사가 눈으로 대조할 근거)", () => {
+    expect(detectMultiLinkResolve(rawWith({ linkedOfferingCount: 2 }))).toEqual({
+      linkedOfferingCount: 2,
+      resolvedModelName: "520d M Sport",
+    });
+  });
+
+  test("필드가 없으면 null — 링크 1건이면 파트너가 필드 자체를 생략한다(제프 회신 D)", () => {
+    expect(detectMultiLinkResolve(rawWith({}))).toBeNull();
+    expect(detectMultiLinkResolve(null)).toBeNull();
+  });
+
+  test("방어: 1 이하·비수치는 null(스펙 밖 값 fail-open)", () => {
+    expect(detectMultiLinkResolve(rawWith({ linkedOfferingCount: 1 }))).toBeNull();
+    expect(detectMultiLinkResolve(rawWith({ linkedOfferingCount: "6" }))).toBeNull();
+  });
+
+  test("문구에 후보 수와 트림명이 실린다", () => {
+    const msg = multiLinkResolveMessage({ linkedOfferingCount: 6, resolvedModelName: "Cayenne 3.0" });
+    expect(msg).toContain("6");
+    expect(msg).toContain("Cayenne 3.0");
   });
 });
