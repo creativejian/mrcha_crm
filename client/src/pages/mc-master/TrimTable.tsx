@@ -31,6 +31,7 @@ export function TrimTable({
   proposalsByTrim,
   onAdopt,
   onUndo,
+  flashTrimId,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -41,6 +42,8 @@ export function TrimTable({
   proposalsByTrim?: Map<number, TrimProposals>;
   onAdopt?: AdoptHandler;
   onUndo?: UndoHandler;
+  /** ?hl= 딥링크 착지 마킹 대상 — 해당 행에 플래시 클래스와 스크롤 앵커(data-trim-id)를 단다. */
+  flashTrimId?: number | null;
   isDomestic: boolean;
   selectMode: boolean;
   selected: Set<number>;
@@ -76,6 +79,7 @@ export function TrimTable({
             selectMode={selectMode}
             isSelected={selected.has(t.id)}
             isDragging={draggingId === t.id}
+            flash={t.id === flashTrimId}
             onDragStart={onDragStart}
             onDragOver={onDragOver}
             onDrop={onDrop}

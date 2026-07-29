@@ -930,6 +930,81 @@
 .org-dealer-action.red:hover:not(:disabled) {
   background: #fdd4d0;
 }
+/* 보기(입력 트림) 버튼 — 보라 배지(.badge.purple, vehicle-admin.css)와 같은 톤의 hover. */
+.org-dealer-action.purple:hover:not(:disabled) {
+  background: #e2dbff;
+}
+/* 입력 트림 팝오버(2026-07-29 유슨생) — "입력값 삭제 (N)"의 N이 무엇인지 지우기 전에 보여준다.
+   카드 골격은 채택 팝오버(.va-disc-pop)와 같은 톤.
+   ⚠️ fixed다 — 명부가 .table-scroll(overflow) 안이라 absolute는 잘린다(실기: 카드 모서리만
+   보였다). 좌표(top/left)는 여는 순간 버튼 rect에서 인라인으로 준다(콘솔 fixed 선례와 같은 축). */
+.org-dealer-trims-pop {
+  position: fixed;
+  z-index: 70;
+  /* 목록이 길면 안에서 스크롤 — max-height는 여는 순간 화면 남은 높이로 인라인 지정된다. */
+  overflow-y: auto;
+  /* 내용만큼 자란다 — 고정 상한은 3금액 행에서 트림명을 눌렀다(실기: 5 Series · 5…).
+     상한(720px/화면 폭)에 닿을 때만 이름 열(그리드 1fr)이 말줄임된다. */
+  width: max-content;
+  min-width: 400px;
+  max-width: min(720px, calc(100vw - 24px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+}
+.org-dealer-trims-note {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.org-dealer-trim-row {
+  /* 3열 그리드 — 이름만 말줄임 대상이고 코드·금액은 항상 온전히 보인다(코드가 이름 span 안에
+     있으면 말줄임에 같이 잘린다 — 실기: MC0705…). */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+.org-dealer-trim-row:hover {
+  background: var(--surface-2);
+}
+/* 카탈로그에서 삭제된 트림(loose id) — 목록에는 남기되 이동할 곳이 없다. */
+.org-dealer-trim-row.deleted {
+  color: var(--muted);
+  cursor: default;
+}
+.org-dealer-trim-row.deleted:hover {
+  background: none;
+}
+.org-dealer-trim-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.org-dealer-trim-code {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.org-dealer-trim-amounts {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
 .org-dealer-error {
   color: #c02626;
   font-size: 12px;

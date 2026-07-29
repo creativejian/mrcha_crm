@@ -29,6 +29,45 @@ async function fetchRoster(): Promise<DealerRosterEntry[]> {
   return getJson<DealerRosterEntry[]>("/api/dealer/roster");
 }
 
+// 입력 트림 1행(명부 "보기 (N)" 팝오버 — 2026-07-29 유슨생). catalog 이름들이 null이면
+// 트림이 카탈로그에서 삭제된 것(loose id) — 화면은 "삭제된 트림"으로 표기하고 이동은 막는다.
+export type DealerProposalTrim = {
+  trimId: number;
+  financialAmount: number | null;
+  partnerAmount: number | null;
+  cashAmount: number | null;
+  updatedAt: string;
+  trimName: string | null;
+  mcCode: string | null;
+  /** 행 클릭 이동(/mc-master/:modelId?brand=)용 — null이면 이동 불가(삭제된 트림). */
+  modelId: number | null;
+  modelName: string | null;
+  brandId: number | null;
+  brandName: string | null;
+};
+
+// 팝오버가 열릴 때마다 on-demand로 받는다(명부 로드에 얹지 않는다 — 딜러 수 × 제안 수 페이로드).
+// 캐시(모듈 스코프, catalog-cache 패턴): hover 프리패치 + 열 때 캐시 즉시 표시 → fetch가 갱신.
+// 딜러가 다른 세션에서 제안을 고칠 수 있어 캐시만 믿지 않는다(열 때마다 백그라운드 재조회).
+const proposalTrimsCache = new Map<string, DealerProposalTrim[]>();
+
+export async function fetchDealerProposalTrims(dealerUserId: string): Promise<DealerProposalTrim[]> {
+  const rows = await getJson<DealerProposalTrim[]>(`/api/dealer/profiles/${dealerUserId}/proposals`);
+  proposalTrimsCache.set(dealerUserId, rows);
+  return rows;
+}
+
+export function getCachedDealerProposalTrims(dealerUserId: string): DealerProposalTrim[] | undefined {
+  return proposalTrimsCache.get(dealerUserId);
+}
+
+// 버튼 hover에서 부른다 — 클릭 시점엔 대개 도착해 있어 팝오버가 즉시 채워진다(프리패치 실패는
+// 무해: 클릭 시 본 fetch가 다시 간다).
+export function prefetchDealerProposalTrims(dealerUserId: string): void {
+  if (proposalTrimsCache.has(dealerUserId)) return;
+  void fetchDealerProposalTrims(dealerUserId).catch(() => {});
+}
+
 export function useDealerRoster(): {
   roster: DealerRosterEntry[];
   loading: boolean;
@@ -73,6 +112,7 @@ export function useDealerRoster(): {
   const deleteProposals = useCallback(
     async (dealerUserId: string) => {
       await sendVoid(`/api/dealer/profiles/${dealerUserId}/proposals`, "DELETE");
+      proposalTrimsCache.delete(dealerUserId); // "보기" 팝오버 캐시 — 지운 목록이 다시 보이면 안 된다
       await reload();
     },
     [reload],
@@ -81,6 +121,7 @@ export function useDealerRoster(): {
   const releaseDealer = useCallback(
     async (dealerUserId: string) => {
       await sendVoid(`/api/dealer/profiles/${dealerUserId}`, "DELETE");
+      proposalTrimsCache.delete(dealerUserId);
       await reload();
     },
     [reload],

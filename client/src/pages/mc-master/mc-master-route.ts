@@ -17,3 +17,12 @@ export function mcMasterPath(brandId: number | null, modelId?: string | number):
   const path = modelId == null ? "/mc-master" : `/mc-master/${modelId}`;
   return brandId == null ? path : `${path}?brand=${brandId}`;
 }
+
+// 하이라이트 딥링크(?hl=trimId) — 딜러 명부 "보기" 팝오버 → 트림 뷰 착지 마킹(2026-07-29 유슨생).
+// brand 파서와 같은 규칙: 없거나 양의 정수가 아니면 null.
+export function highlightTrimIdFromSearch(search: string): number | null {
+  const raw = new URLSearchParams(search).get("hl");
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}

@@ -10,6 +10,7 @@ export function SelectableRow({
   selectMode,
   isSelected,
   isDragging,
+  flash,
   onDragStart,
   onDragOver,
   onDrop,
@@ -19,6 +20,8 @@ export function SelectableRow({
   selectMode: boolean;
   isSelected: boolean;
   isDragging: boolean;
+  /** ?hl= 딥링크 착지 마킹(va-row-flash) — 명부 "보기" 팝오버에서 온 경우만 잠깐 켜진다. */
+  flash?: boolean;
   onDragStart: (id: number) => void;
   onDragOver: (id: number) => void;
   onDrop: () => void;
@@ -26,6 +29,7 @@ export function SelectableRow({
 }) {
   return (
     <tr
+      data-trim-id={id}
       draggable={selectMode}
       onDragStart={selectMode ? () => onDragStart(id) : undefined}
       onDragOver={
@@ -38,7 +42,7 @@ export function SelectableRow({
       }
       onDragEnd={selectMode ? onDrop : undefined}
       className={
-        [selectMode && isSelected ? "va-row-selected" : "", isDragging ? "va-dragging" : ""]
+        [selectMode && isSelected ? "va-row-selected" : "", isDragging ? "va-dragging" : "", flash ? "va-row-flash" : ""]
           .filter(Boolean)
           .join(" ") || undefined
       }

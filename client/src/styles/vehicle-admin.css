@@ -840,3 +840,19 @@
 .va-trim-table:has(.va-col-sel) td.va-th-trim {
   left: 60px;
 }
+
+/* ── 명부 딥링크 착지 마킹(?hl= — 2026-07-29 유슨생) ─────────────────────────
+   브랜드 톤으로 칠했다가 자연 소멸한다 — 영구 마킹은 "왜 이 행만 색이 다르지?"라는 스테일
+   상태를 남긴다. forwards를 쓰지 않아 끝나면 각 셀의 원래 배경(sticky 트림명 셀 = 흰색)으로
+   복귀한다. 클래스는 애니메이션 종료 후 URL 파라미터 소비와 함께 떨어진다(MCMasterPage). */
+@keyframes va-row-flash {
+  from {
+    background-color: rgba(var(--brand-rgb), 0.18);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.va-trim-table tr.va-row-flash > td {
+  animation: va-row-flash 2.4s ease-out;
+}

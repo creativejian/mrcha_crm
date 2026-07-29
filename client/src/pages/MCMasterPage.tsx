@@ -26,10 +26,11 @@ import { useTrimProposals } from "@/lib/discount-proposals";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
 import { prefetchModels, prefetchOptions, prefetchTrims } from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
-import { brandIdFromSearch, mcMasterPath } from "./mc-master/mc-master-route";
+import { brandIdFromSearch, highlightTrimIdFromSearch, mcMasterPath } from "./mc-master/mc-master-route";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
 import { MoveTrimsDialog } from "./mc-master/MoveTrimsDialog";
+import { trimSubline } from "./mc-master/trim-grouping";
 import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
 import { TrimTable } from "./mc-master/TrimTable";
@@ -46,7 +47,9 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   const canEdit = roleTab === "최고관리자";
   const navigate = useNavigate();
   const { modelId } = useParams();
-  const urlBrandId = brandIdFromSearch(useLocation().search);
+  const { search } = useLocation();
+  const urlBrandId = brandIdFromSearch(search);
+  const hlTrimId = highlightTrimIdFromSearch(search);
 
   // 딜러 모드 — 자기 브랜드만 본다(유슨생 결정: 경쟁사 가격·할인 전략 비노출).
   // ⚠️ 이 차단은 **클라 스코프**다. catalog 읽기 API는 그대로 열려 있고, 그 데이터(기본가·MC코드·
@@ -77,6 +80,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     loadError,
     expandedGroups,
     toggleGroup,
+    expandGroup,
     reloadModels,
     reloadTrims,
     reloadOptionSummary,
@@ -155,6 +159,33 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     mcMasterViewState.brandId = brandId;
     if (brandId !== urlBrandId) navigate(mcMasterPath(brandId, modelId), { replace: true });
   }, [brandId, urlBrandId, modelId, navigate]);
+
+  // 명부 딥링크(?hl=trimId — 2026-07-29 유슨생): 대상 트림이 접힌 서브라인 안이면 펼치고,
+  // 가운데로 스크롤한 뒤 플래시(va-row-flash)로 마킹한다. 파라미터는 애니메이션이 끝나면
+  // replace로 소비한다 — 남겨두면 새로고침·북마크마다 재발동한다. brand는 딥링크에 같이 실려
+  // 오므로 위 브랜드 정규화 effect가 hl을 지우는 경합은 없다(둘 다 mcMasterPath 조립).
+  // setState·DOM 접근은 전부 타이머 콜백에서 한다(effect 본문 setState는 lint 기준선 위반).
+  useEffect(() => {
+    if (hlTrimId == null || trims.length === 0) return;
+    const target = trims.find((t) => t.id === hlTrimId);
+    if (!target) return;
+    const group = isDomestic ? trimSubline(target.trimName) : null;
+    const t0 = window.setTimeout(() => {
+      if (group) expandGroup(group);
+    }, 0);
+    // 그룹 펼침 커밋 후의 DOM에서 찾아야 한다(접혀 있던 행은 그 전엔 존재하지 않는다).
+    const t1 = window.setTimeout(() => {
+      scrollRef.current
+        ?.querySelector(`tr[data-trim-id="${hlTrimId}"]`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 80);
+    const t2 = window.setTimeout(() => navigate(mcMasterPath(brandId, modelId), { replace: true }), 2600);
+    return () => {
+      window.clearTimeout(t0);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [hlTrimId, trims, isDomestic, expandGroup, brandId, modelId, navigate]);
 
   // 스크롤 위치 보존(모델 목록·트림 목록 각각): 트림 뷰 왕복은 물론 다른 메뉴에 갔다 와도 복원.
   // 트림은 모델별로 나눠 담아 다른 모델에 들어갈 땐 맨 위에서 시작한다(view-state.ts).
@@ -424,6 +455,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   proposalsByTrim={canEdit ? trimProposals : undefined}
                   onAdopt={canEdit ? handleAdopt : undefined}
                   onUndo={canEdit ? handleUndo : undefined}
+                  flashTrimId={hlTrimId}
                   colorsByTrim={colorsByTrim}
                   optionByTrim={optionByTrim}
                   expanded={expandedGroups}
@@ -444,6 +476,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   proposalsByTrim={canEdit ? trimProposals : undefined}
                   onAdopt={canEdit ? handleAdopt : undefined}
                   onUndo={canEdit ? handleUndo : undefined}
+                  flashTrimId={hlTrimId}
                   isDomestic={isDomestic}
                   selectMode={selectMode}
                   selected={selected}
