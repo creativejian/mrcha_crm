@@ -304,10 +304,12 @@
    스크롤포트와 같아 left:0이면 제자리 — 트림명 열 고정과 같은 축. */
 .va-trim-tabs {
   position: sticky;
-  left: 0;
+  /* left와 margin-left를 같은 값으로 — sticky가 left 기준으로 붙어서, margin만 주면
+     가로 스크롤 시작 순간 여백이 사라지며 탭이 왼쪽으로 미끄러진다. */
+  left: 12px;
   display: flex;
   gap: 6px;
-  margin: 8px 0 14px;
+  margin: 8px 0 14px 12px;
 }
 /* 트림 테이블 헤더 위 구분선 — 탭(목록보기/순서관리)이 있는 국산차에서만(탭과 헤더 분리). */
 .va-trim-tabs + .va-trim-table thead th {
