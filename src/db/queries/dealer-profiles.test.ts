@@ -10,6 +10,7 @@ import {
   deleteDealerProposals,
   getDealerProfile,
   isDealerRole,
+  listDealerProposalTrims,
   listDealerRoster,
   upsertDealerProfile,
 } from "./dealer-profiles";
@@ -216,4 +217,51 @@ test("isDealerRole: 실 딜러 true · 다른 role false · 없는 uuid false(fa
   expect(await isDealerRole(admin!.id, db)).toBe(false);
   // profiles에 없는 uuid = 딜러 아님 — "행 없음"을 통과로 읽으면 유령 매칭이 생긴다.
   expect(await isDealerRole(crypto.randomUUID(), db)).toBe(false);
+});
+
+test("listDealerProposalTrims: catalog 이름·이동 좌표와 함께 나오고, 삭제된 트림은 이름 null로 남는다", async () => {
+  // 롤백 전용 — 제안 행과 매칭이 커밋되지 않는다(discount-adoptions.test.ts와 같은 패턴).
+  await db
+    .transaction(async (tx: Executor) => {
+      const [trim] = await tx
+        .select({ id: trimsInCatalog.id, name: trimsInCatalog.trimName, mcCode: trimsInCatalog.mcCode, modelId: trimsInCatalog.modelId })
+        .from(trimsInCatalog)
+        .limit(1);
+      await tx.insert(dealerTrimDiscounts).values({
+        trimId: trim!.id,
+        dealerUserId: DEALER_ID,
+        financialAmount: 4_000_000,
+        partnerAmount: null,
+        cashAmount: 5_500_000,
+      });
+      // loose id — catalog에 없는 트림의 제안도 목록에는 남아야 한다("무엇을 지우는지"의 일부).
+      await tx.insert(dealerTrimDiscounts).values({
+        trimId: 999_999_999,
+        dealerUserId: DEALER_ID,
+        financialAmount: 1_000_000,
+        partnerAmount: null,
+        cashAmount: null,
+      });
+
+      const rows = await listDealerProposalTrims(DEALER_ID, tx);
+      expect(rows).toHaveLength(2);
+
+      const live = rows.find((r) => r.trimId === trim!.id)!;
+      expect(live.trimName).toBe(trim!.name);
+      expect(live.mcCode).toBe(trim!.mcCode);
+      expect(live.modelId).toBe(trim!.modelId); // 행 클릭 이동(/mc-master/:modelId)의 좌표
+      expect(live.brandId).not.toBeNull();
+      expect(live.financialAmount).toBe(4_000_000);
+      expect(live.partnerAmount).toBeNull();
+      expect(live.cashAmount).toBe(5_500_000);
+
+      const orphan = rows.find((r) => r.trimId === 999_999_999)!;
+      expect(orphan.trimName).toBeNull(); // 화면이 "삭제된 트림"으로 표기하고 이동을 막는 근거
+      expect(orphan.modelId).toBeNull();
+
+      throw new Error("rollback");
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Error) || e.message !== "rollback") throw e;
+    });
 });

@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { useNavigate } from "react-router";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { ROLE_ACCESS_SUMMARY, roleLabelOf } from "@/data/roles";
-import { useDealerRoster, type DealerRosterEntry } from "@/lib/dealer-roster";
+import {
+  fetchDealerProposalTrims,
+  useDealerRoster,
+  type DealerProposalTrim,
+  type DealerRosterEntry,
+} from "@/lib/dealer-roster";
 import { useOrgMembers } from "@/lib/org-members";
 import { formatPhone } from "@/lib/phone-format";
+import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 import { fetchBrandsCached } from "@/pages/mc-master/catalog-cache";
+import { mcMasterPath } from "@/pages/mc-master/mc-master-route";
 
 // ⚠️ 「조직」·「권한」 탭은 아직 목업이다(2026-07-25 유슨생 결정 — 구성원 탭만 실데이터화).
 // DB에 대응하는 것이 없다: `public.profiles`는 id·email·username·role·avatar_url·created_at·
@@ -137,6 +145,87 @@ export function OrgMembersPage() {
 // 목록 기준이 구성원 표와 **다르다**: 앱에서 role이 내려간 딜러도 포함하는 합집합이다
 // (서버 listDealerRoster). 그래야 퇴사·전환한 딜러의 데이터를 정리할 수 있다 — 행이 사라지면
 // 삭제 버튼을 누를 대상 자체가 없어진다.
+// 낸 금액 요약("자사 4,000,000원 · 제휴 6,000,000원") — null 필드는 미제안이라 표기하지 않는다.
+// 확정가(트림 price)를 모르는 문맥이라 할인 셀의 % 표기는 하지 않는다(원 금액이 사실의 전부).
+function proposalAmountsSummary(r: DealerProposalTrim): string {
+  const parts: string[] = [];
+  if (r.financialAmount !== null) parts.push(`자사 ${r.financialAmount.toLocaleString()}원`);
+  if (r.partnerAmount !== null) parts.push(`제휴 ${r.partnerAmount.toLocaleString()}원`);
+  if (r.cashAmount !== null) parts.push(`타사 ${r.cashAmount.toLocaleString()}원`);
+  return parts.join(" · ");
+}
+
+// 입력 트림 셀(2026-07-29 유슨생) — "입력값 삭제 (N)"의 N이 무엇인지 지우기 전에 보여준다.
+// 목록은 팝오버를 열 때마다 on-demand로 받고(명부 로드에 얹지 않는다), 행을 누르면 그 트림의
+// 화면(/mc-master/:modelId?brand=&hl=)으로 이동해 착지 행을 플래시로 마킹한다.
+function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<DealerProposalTrim[] | null>(null); // null = 아직 로딩
+  const [failed, setFailed] = useState(false);
+  const popRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  usePopoverDismiss(popRef, open, () => setOpen(false));
+
+  function toggle() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    setRows(null);
+    setFailed(false);
+    fetchDealerProposalTrims(entry.dealerUserId)
+      .then(setRows)
+      .catch(() => setFailed(true));
+  }
+
+  return (
+    <td className="org-dealer-trims">
+      <button
+        className="badge org-dealer-action"
+        disabled={entry.proposalCount === 0}
+        onClick={toggle}
+        title={entry.proposalCount === 0 ? "입력한 트림이 없습니다." : undefined}
+        type="button"
+      >
+        보기{entry.proposalCount > 0 ? ` (${entry.proposalCount})` : ""}
+      </button>
+      {open && (
+        <div className="org-dealer-trims-pop" ref={popRef}>
+          {rows === null && !failed && <div className="org-dealer-trims-note">불러오는 중…</div>}
+          {failed && <div className="org-dealer-trims-note">목록을 불러오지 못했습니다.</div>}
+          {rows?.map((r) => {
+            // 클로저(onClick) 안에서는 property 내로잉이 사라진다 — 목적지를 먼저 굳힌다.
+            const dest =
+              r.modelId != null && r.brandId != null ? `${mcMasterPath(r.brandId, r.modelId)}&hl=${r.trimId}` : null;
+            return dest != null ? (
+              <button
+                className="org-dealer-trim-row"
+                key={r.trimId}
+                onClick={() => navigate(dest)}
+                title="이 트림의 화면으로 이동합니다."
+                type="button"
+              >
+                <span className="org-dealer-trim-name">
+                  {r.brandName} {r.modelName} · {r.trimName}
+                  {r.mcCode ? <span className="org-dealer-trim-code">{r.mcCode}</span> : null}
+                </span>
+                <span className="org-dealer-trim-amounts">{proposalAmountsSummary(r)}</span>
+              </button>
+            ) : (
+              // 카탈로그에서 삭제된 트림(loose id) — "무엇을 지우는지" 목록에는 남기되 이동은 없다.
+              <div className="org-dealer-trim-row deleted" key={r.trimId}>
+                <span className="org-dealer-trim-name">삭제된 트림</span>
+                <span className="org-dealer-trim-amounts">{proposalAmountsSummary(r)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </td>
+  );
+}
+
 function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] }) {
   const { roster, loading, failed, deleteProposals, releaseDealer, saveProfile } = useDealerRoster();
   const [busy, setBusy] = useState<string | null>(null);
@@ -177,11 +266,11 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
         <span className="active">딜러</span>
       </div>
       <table className="org-members-table">
-        <thead><tr><th>이름</th><th>연락처</th><th>브랜드</th><th>비고</th><th>데이터 관리</th></tr></thead>
+        <thead><tr><th>이름</th><th>연락처</th><th>브랜드</th><th>비고</th><th>입력 트림</th><th>데이터 관리</th></tr></thead>
         <tbody>
-          {loading && <tr><td colSpan={5}>딜러 불러오는 중…</td></tr>}
-          {failed && <tr><td colSpan={5}>딜러 목록을 불러오지 못했습니다.</td></tr>}
-          {!loading && !failed && roster.length === 0 && <tr><td colSpan={5}>등록된 딜러가 없습니다.</td></tr>}
+          {loading && <tr><td colSpan={6}>딜러 불러오는 중…</td></tr>}
+          {failed && <tr><td colSpan={6}>딜러 목록을 불러오지 못했습니다.</td></tr>}
+          {!loading && !failed && roster.length === 0 && <tr><td colSpan={6}>등록된 딜러가 없습니다.</td></tr>}
           {roster.map((d) => (
             <tr key={d.dealerUserId}>
               <td>
@@ -199,6 +288,7 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
                 entry={d}
                 onSave={(brandId, note) => saveProfile(d.dealerUserId, brandId, note)}
               />
+              <DealerProposalTrimsCell entry={d} />
               {/* 칩 버튼 — 형태·색은 `.badge` 1벌(customer-list.css)에서 그대로 온다.
                   `.org-dealer-action`은 hover만 얹는다(dashboard.css 주석 참조). */}
               <td className="org-dealer-actions">
@@ -211,7 +301,7 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
               </td>
             </tr>
           ))}
-          {error && <tr><td className="org-dealer-error" colSpan={5}>{error}</td></tr>}
+          {error && <tr><td className="org-dealer-error" colSpan={6}>{error}</td></tr>}
         </tbody>
       </table>
     </>

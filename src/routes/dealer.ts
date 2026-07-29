@@ -8,6 +8,7 @@ import {
   deleteDealerProposals,
   getDealerProfile,
   isDealerRole,
+  listDealerProposalTrims,
   listDealerRoster,
   upsertDealerProfile,
 } from "../db/queries/dealer-profiles";
@@ -35,6 +36,15 @@ const profileBody = z.object({
 // 딜러 명부(조직 화면의 별도 "딜러" 테이블) — role이 내려간 딜러도 포함하는 합집합이다
 // (queries/dealer-profiles.ts listDealerRoster 주석 참조).
 dealer.get("/roster", requireRoles(["admin"]), async (c) => c.json(await listDealerRoster(c.var.db)));
+
+// 입력 트림 목록(2026-07-29 유슨생) — 그 딜러가 제안을 낸 트림들. DELETE와 같은 경로의 GET이라
+// "입력값 삭제 (N)"의 N이 무엇인지 지우기 전에 볼 수 있다(명부 "보기 (N)" 팝오버가 소비).
+dealer.get(
+  "/profiles/:userId/proposals",
+  requireRoles(["admin"]),
+  zValidator("param", userIdParam),
+  async (c) => c.json(await listDealerProposalTrims(c.req.valid("param").userId, c.var.db)),
+);
 
 // 입력값 삭제 — 그 딜러의 제안 전부. 브랜드 매칭은 남아 다시 입력할 수 있다.
 // ⚠️ 채택된 확정 할인과 채택 감사는 건드리지 않는다(spec §5 · 쿼리 함수 주석).

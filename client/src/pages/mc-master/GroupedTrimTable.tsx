@@ -26,6 +26,7 @@ export function GroupedTrimTable({
   proposalsByTrim,
   onAdopt,
   onUndo,
+  flashTrimId,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -36,6 +37,8 @@ export function GroupedTrimTable({
   proposalsByTrim?: Map<number, TrimProposals>;
   onAdopt?: AdoptHandler;
   onUndo?: UndoHandler;
+  /** ?hl= 딥링크 착지 마킹 대상 — 해당 행에 플래시 클래스와 스크롤 앵커(data-trim-id)를 단다. */
+  flashTrimId?: number | null;
   colorsByTrim: Map<number, TrimColor[]>;
   optionByTrim: Map<number, TrimOptionSummary>;
   expanded: Set<string>;
@@ -86,7 +89,7 @@ export function GroupedTrimTable({
               </tr>
               {open &&
                 g.trims.map((t) => (
-                  <tr key={t.id}>
+                  <tr key={t.id} data-trim-id={t.id} className={t.id === flashTrimId ? "va-row-flash" : undefined}>
                     <td className="va-grade-cell">
                       <div className="va-trim-name">{trimGrade(t.trimName)}</div>
                       <ColorChips colors={colorsByTrim.get(t.id) ?? []} />

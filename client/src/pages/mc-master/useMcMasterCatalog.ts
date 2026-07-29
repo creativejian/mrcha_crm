@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   type CatalogBrand,
@@ -191,6 +191,12 @@ export function useMcMasterCatalog(
       .then((rows) => setOptionByTrim(toOptionMap(rows)))
       .catch(() => undefined);
   }
+  // 특정 그룹을 펼친 상태로 보장한다(접지 않는다) — ?hl= 딥링크가 접힌 서브라인 안의 트림을
+  // 마킹할 때 쓴다. effect deps에 들어가므로 useCallback으로 정체성을 고정한다.
+  const expandGroup = useCallback((key: string) => {
+    setExpandedGroups((s) => (s.has(key) ? s : new Set(s).add(key)));
+  }, []);
+
   function toggleGroup(key: string) {
     setExpandedGroups((s) => {
       const n = new Set(s);
@@ -212,6 +218,7 @@ export function useMcMasterCatalog(
     loadError,
     expandedGroups,
     toggleGroup,
+    expandGroup,
     reloadModels,
     reloadTrims,
     reloadOptionSummary,

@@ -29,6 +29,28 @@ async function fetchRoster(): Promise<DealerRosterEntry[]> {
   return getJson<DealerRosterEntry[]>("/api/dealer/roster");
 }
 
+// 입력 트림 1행(명부 "보기 (N)" 팝오버 — 2026-07-29 유슨생). catalog 이름들이 null이면
+// 트림이 카탈로그에서 삭제된 것(loose id) — 화면은 "삭제된 트림"으로 표기하고 이동은 막는다.
+export type DealerProposalTrim = {
+  trimId: number;
+  financialAmount: number | null;
+  partnerAmount: number | null;
+  cashAmount: number | null;
+  updatedAt: string;
+  trimName: string | null;
+  mcCode: string | null;
+  /** 행 클릭 이동(/mc-master/:modelId?brand=)용 — null이면 이동 불가(삭제된 트림). */
+  modelId: number | null;
+  modelName: string | null;
+  brandId: number | null;
+  brandName: string | null;
+};
+
+// 팝오버가 열릴 때마다 on-demand로 받는다(명부 로드에 얹지 않는다 — 딜러 수 × 제안 수 페이로드).
+export async function fetchDealerProposalTrims(dealerUserId: string): Promise<DealerProposalTrim[]> {
+  return getJson<DealerProposalTrim[]>(`/api/dealer/profiles/${dealerUserId}/proposals`);
+}
+
 export function useDealerRoster(): {
   roster: DealerRosterEntry[];
   loading: boolean;

@@ -100,7 +100,18 @@ for (const role of ["manager", "staff", "dealer"] as const) {
   test(`GET /api/dealer/roster — ${role} 403 (명부는 조직 운영 정보다)`, async () => {
     expect((await reqFor(role, "/api/dealer/roster")).status).toBe(403);
   });
+
+  test(`GET /api/dealer/profiles/:userId/proposals — ${role} 403 (입력 트림 목록도 명부의 일부다)`, async () => {
+    const res = await reqFor(role, `/api/dealer/profiles/${crypto.randomUUID()}/proposals`);
+    expect(res.status).toBe(403);
+  });
 }
+
+test("GET /api/dealer/profiles/:userId/proposals — admin 200 (없는 딜러 = 빈 배열)", async () => {
+  const res = await reqFor("admin", `/api/dealer/profiles/${crypto.randomUUID()}/proposals`);
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual([]);
+});
 
 test("GET /api/dealer/roster — admin 200 + 응답 계약(클라 DealerRosterEntry와 동형)", async () => {
   const res = await reqFor("admin", "/api/dealer/roster");

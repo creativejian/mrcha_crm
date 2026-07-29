@@ -1,6 +1,6 @@
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
-import { brandsInCatalog } from "../catalog";
+import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles } from "../public-app";
 import { dealerProfiles, dealerTrimDiscounts } from "../schema";
@@ -123,4 +123,32 @@ export async function upsertDealerProfile(
     })
     .returning();
   return row ?? null;
+}
+
+// 명부 드릴다운(2026-07-29 유슨생) — "입력값 삭제 (N)"의 N이 **무엇인지** 화면에서 보여준다.
+// 지우기 전에 대상을 확인할 경로가 psql뿐이던 구멍을 메우는 admin 전용 조회다.
+// catalog 조인은 전부 left join — 제안의 trim_id는 loose id라 트림이 삭제됐을 수 있고,
+// 그 행도 "무엇을 지우는지" 목록에는 남아야 한다(이름만 null → 화면이 '삭제된 트림'으로 표기).
+// brandId·modelId는 행 클릭 이동(/mc-master/:modelId?brand=)용 — 이름만 주면 클라가 URL을 못 만든다.
+export async function listDealerProposalTrims(dealerUserId: string, executor: Executor = getDefaultDb()) {
+  return executor
+    .select({
+      trimId: dealerTrimDiscounts.trimId,
+      financialAmount: dealerTrimDiscounts.financialAmount,
+      partnerAmount: dealerTrimDiscounts.partnerAmount,
+      cashAmount: dealerTrimDiscounts.cashAmount,
+      updatedAt: dealerTrimDiscounts.updatedAt,
+      trimName: trimsInCatalog.trimName,
+      mcCode: trimsInCatalog.mcCode,
+      modelId: trimsInCatalog.modelId,
+      modelName: modelsInCatalog.name,
+      brandId: modelsInCatalog.brandId,
+      brandName: brandsInCatalog.name,
+    })
+    .from(dealerTrimDiscounts)
+    .leftJoin(trimsInCatalog, eq(trimsInCatalog.id, dealerTrimDiscounts.trimId))
+    .leftJoin(modelsInCatalog, eq(modelsInCatalog.id, trimsInCatalog.modelId))
+    .leftJoin(brandsInCatalog, eq(brandsInCatalog.id, modelsInCatalog.brandId))
+    .where(eq(dealerTrimDiscounts.dealerUserId, dealerUserId))
+    .orderBy(asc(brandsInCatalog.name), asc(modelsInCatalog.name), asc(trimsInCatalog.trimName));
 }
