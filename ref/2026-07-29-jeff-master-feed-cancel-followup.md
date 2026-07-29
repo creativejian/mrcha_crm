@@ -1,0 +1,49 @@
+# [차선생 CRM → 제프] 마스터 피드 — 파일이 필요 없습니다, 이미 갖고 계십니다
+
+작성 2026-07-29 · 회신 대상: `docs/crm-reply-2026-07-29-master-feed.md`(그쪽 — 피드 형식 확정·1회 전달 요청)
+· 전달: 2026-07-29 유슨생 (채팅 작성본 그대로)
+
+## 0. 30초 요약
+
+첫 파일을 만들려고 준비하다가 확인한 건데 — **보내드릴 필요가 없습니다.** 그쪽 레포에 마스터 카탈로그를 저희 DB에서 직접 당겨오는 **동기화 파이프라인이 이미 살아 있고**, 요청하신 `displacementCc`를 포함해 저희가 피드에 담으려던 필드 전부를 이미 수집 목록에 갖고 있습니다. 실행 한 번이면 408건 정리를 바로 시작하실 수 있습니다.
+
+## 1. 근거 — 그쪽 코드입니다
+
+`src/domain/imports/sync-from-mrcha-api.ts` — `performMrchaSync()`:
+
+- 저희 master Supabase PostgREST에서 brands/models/trims(+옵션·색상 4테이블)를 pull → `public.brands/models/trims`에 stable-key(mc_code 등) UPSERT. **admin 엔드포인트로 노출돼 있습니다**(`routes/imports.ts`의 syncMaster — dry-run 모드 포함).
+- **`TRIM_COLS`에 `displacement_cc`·`fuel_type`·`drive_system`이 이미 들어 있습니다** — 이번 회신에서 "알맹이"라고 하신 배기량과, "저희 쪽에 연료 컬럼이 생기면 다시 요청하겠다"던 `fuelType`까지 이미 가져가고 계십니다(마스터 테이블 기준).
+- API key도 2026-06-14 로테이션이 반영돼 있는 **살아있는 코드**입니다. archive로 들어간 건 링크 매칭용 마이그레이션 스크립트들이고, 이 sync 본체는 archive가 아닙니다.
+
+## 2. "받는 절차가 매주 사람 손"이라는 우려 — 이미 해소돼 있습니다
+
+정기화를 미루신 근거가 "`guard_master_write` 해제 → 반영 → 재잠금이 매주 수동"이었는데, 같은 파일에 이렇게 있습니다:
+
+```ts
+// Bypass the guard_master_write trigger for this transaction only.
+// set_config(..., true) is transaction-local — auto-resets at COMMIT/ROLLBACK
+await tx`SELECT set_config('mrcha.sync_in_progress', 'true', true)`;
+```
+
+**트랜잭션 로컬 자동 우회**라 사람 손이 0입니다. 정기화가 필요해지는 시점(감사 상설화)에도 이 엔드포인트를 cron으로 부르면 끝이라, "수동 절차 자동화 선행" 항목 자체가 소멸합니다.
+
+## 3. 소스 신선도는 저희가 실측했습니다
+
+sync의 소스인 저희 `public.*` 미러(catalog → public)가 낡았으면 의미가 없어서 대조했습니다:
+
+- `catalog.trims` ↔ `public.trims` **1,669행 전량 가격·배기량 일치**
+- 결정타: **어제(07-28) 입력된 BMW 523d(`MC070526001`) 확정 할인(자사 5,300,000·제휴 6,000,000)이 미러에 이미 반영**돼 있습니다(`discount_updated_at` 동일). 최소 일 단위 이상으로 신선합니다.
+
+즉 파일을 보내드려도 원천이 같은 미러라 **데이터 차이가 0**입니다.
+
+## 4. 정리
+
+| 그쪽 §6 항목 | 갱신 |
+|---|---|
+| 1. 마스터 피드 첫 파일 | **불필요** — `performMrchaSync` 실행 1회로 대체(배기량 포함 전 필드) |
+| 2. 피드 정기화 | 논의 자체가 단순화 — 자동 우회가 이미 있어 cron 걸면 끝(그쪽 판단) |
+| 3~5 | 변동 없음 |
+
+한 가지만 참고로 — 배기량이 NULL인 트림은 원천에도 NULL입니다(전기차 등, 예: `MC072526001` i5). 408건 중 배기량으로 갈리는 비율은 데이터 채움 정도에 달려 있는데, 그건 파일이었어도 동일했을 제약입니다.
+
+저희 쪽 준비는 이걸로 다 끝났습니다. sync 실행 결과(diff)가 이상하면 언제든 말씀 주세요 — 미러 쪽은 저희가 보겠습니다.

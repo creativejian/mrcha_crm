@@ -39,10 +39,10 @@ Last updated: 2026-07-29
 **prod(유슨생)** = `#379`~`#387` 눈 확인 1회(로컬만 검증). **판단(유슨생)** = `dev:api --watch`
 도입(실 DB 커넥션 재수립 트레이드오프). **이사님** = ⓐBMW 523d(`MC070526001`) 자사 5,300,000·제휴
 6,000,000 실데이터 유지 판단 ⓑspec §7.1 뒤집힘 ⓒ`ref/director-pending-confirmations.md` **16건**.
-**제프** = B·D·F 실측 검증 종결 + **결정 4건 처리 완료**(07-29): ①경고 표시·②catalogPrice 새
-1차 축(검출축 2종 배포 — `solution-quote.ts`)·③주 1회 JSON 파일 제안·④cheapest 미사용 회신 —
-회신 문서 = `ref/2026-07-29-jeff-master-feed-followup.md`(**전달 대기**). ③ 그쪽 OK 오면 export
-스크립트 1개 + 첫 파일. C 거부 게이트는 그쪽 링크 정리 후(우리 백스톱 = linkedOfferingCount 경고).
+**제프** = **전면 종결**(07-29): B·D·F 검증·검출축 2종 배포(`#388`)·결정 4건 + **피드 취소 정정**
+— 파일 불필요 판명(그쪽 `performMrchaSync`가 배기량 포함 전 필드를 이미 pull, public 미러 신선도
+실측 07-28 할인 반영). 문서 = `ref/2026-07-29-jeff-master-feed-{reply,cancel-followup}.md`. 기억
+2건: ⓐcheapest 쓰게 되면 **사전 통지**(검출축 없는 경로) ⓑC 거부 게이트 켜지면 경고→차단 전환.
 
 ## Boot
 
