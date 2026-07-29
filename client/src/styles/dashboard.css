@@ -939,10 +939,11 @@
   z-index: 70;
   /* 목록이 길면 안에서 스크롤 — max-height는 여는 순간 화면 남은 높이로 인라인 지정된다. */
   overflow-y: auto;
-  /* 목록이 길면 안에서 스크롤 — max-height는 여는 순간 화면 남은 높이로 인라인 지정된다. */
-  overflow-y: auto;
-  min-width: 360px;
-  max-width: 480px;
+  /* 내용만큼 자란다 — 고정 상한은 3금액 행에서 트림명을 눌렀다(실기: 5 Series · 5…).
+     상한(720px/화면 폭)에 닿을 때만 이름 열(그리드 1fr)이 말줄임된다. */
+  width: max-content;
+  min-width: 400px;
+  max-width: min(720px, calc(100vw - 24px));
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 10px;
