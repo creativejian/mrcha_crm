@@ -241,7 +241,8 @@ function DealerBrandCell({
   brands: { id: number; name: string }[];
   /** "현재 딜러 아님" 행 — 폼 컨트롤 없이 값만 텍스트로 낸다(서버도 PUT을 409로 거부). */
   disabled: boolean;
-  entry: DealerRosterEntry | undefined;
+  /** 명부 행에서 오므로 항상 있다(구 「구성원」 병합 시절의 undefined 허용은 #384에서 소멸). */
+  entry: DealerRosterEntry;
   onSave: (brandId: number, note: string | null) => Promise<void>;
 }) {
   // 비고만 draft로 들고, 없으면 서버 값(entry)을 그대로 렌더한다 — effect 동기화가 필요 없다
@@ -249,8 +250,8 @@ function DealerBrandCell({
   // confirm → 저장이라 "편집 중" 상태 자체가 없다.
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
   const pickedRef = useRef<string | null>(null);
-  const savedBrandId = entry?.brandId ?? null;
-  const note = noteDraft ?? entry?.note ?? "";
+  const savedBrandId = entry.brandId;
+  const note = noteDraft ?? entry.note ?? "";
 
   // 읽기 전용 행은 **폼 컨트롤 자체를 내지 않는다** — disabled select는 화살표·입력 박스가
   // 남아 "편집될 것 같은" 모양이라 직관적이지 않다(2026-07-28 유슨생 실기 피드백). 연락처
@@ -262,11 +263,11 @@ function DealerBrandCell({
           {/* 편집 행의 select 안 텍스트와 같은 지점에서 시작시킨다(.org-dealer-plain) —
               없으면 두 행의 "BMW"가 어긋나 보인다(유슨생 실기 피드백). */}
           <span className="org-dealer-plain">
-            {entry?.brandName ??
-              (entry?.brandId != null ? <span className="badge yellow">브랜드 삭제됨</span> : "미지정")}
+            {entry.brandName ??
+              (entry.brandId !== null ? <span className="badge yellow">브랜드 삭제됨</span> : "미지정")}
           </span>
         </td>
-        <td>{entry?.note ?? "—"}</td>
+        <td>{entry.note ?? "—"}</td>
       </>
     );
   }
@@ -279,13 +280,13 @@ function DealerBrandCell({
     if (!picked) return; // "미지정" 선택은 해제 경로가 아니다 — 매칭 해제는 딜러 해제 버튼 하나뿐
     const brandId = Number(picked);
     if (brandId === savedBrandId) return;
-    const who = entry?.name ?? "이 딜러";
+    const who = entry.name ?? "이 딜러";
     const newName = brands.find((b) => b.id === brandId)?.name ?? "선택한 브랜드";
     const message =
       savedBrandId === null
         ? `${who}를 ${newName} 딜러로 지정합니다.\n\n딜러 화면에서 ${newName} 차량에만 할인을 입력할 수 있습니다. 계속할까요?`
-        : `${who}의 브랜드를 ${entry?.brandName ?? "미지정"} → ${newName}(으)로 변경합니다.\n\n` +
-          (entry && entry.proposalCount > 0
+        : `${who}의 브랜드를 ${entry.brandName ?? "미지정"} → ${newName}(으)로 변경합니다.\n\n` +
+          (entry.proposalCount > 0
             ? `· 기존 할인 제안 ${entry.proposalCount}건은 남지만, 브랜드가 달라 채택할 수 없게 됩니다.\n`
             : "") +
           `· 딜러 화면 입력 범위가 ${newName} 차량으로 바뀝니다.\n\n계속할까요?`;
@@ -300,7 +301,7 @@ function DealerBrandCell({
   const saveNote = () => {
     if (savedBrandId === null || noteDraft === null) return; // 미지정이면 입력칸이 잠겨 있다(방어)
     const next = noteDraft.trim() || null;
-    if (next === (entry?.note ?? null)) {
+    if (next === (entry.note ?? null)) {
       setNoteDraft(null);
       return;
     }
@@ -326,7 +327,7 @@ function DealerBrandCell({
         </select>
         {/* 브랜드가 지정됐는데 이름이 없으면 그 브랜드가 catalog에서 삭제된 상태다(FK 미도입 — spec §3.1).
             brandId 조건이 없으면 미지정 행(brandName도 null)에 배지가 잘못 뜬다. */}
-        {entry && entry.brandId !== null && entry.brandName === null && (
+        {entry.brandId !== null && entry.brandName === null && (
           <span className="badge yellow">브랜드 삭제됨</span>
         )}
       </td>

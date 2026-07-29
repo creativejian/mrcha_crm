@@ -184,9 +184,14 @@ select m.brand_id from catalog.trims t
 | `GET /api/dealer/me` | dealer | 내 브랜드·비고 |
 | `GET /api/dealer/discounts?modelId=` | dealer | **내 제안만**(타 딜러 제안 비노출) |
 | `PUT /api/dealer/discounts/:trimId` | dealer | upsert — **allowlist 개방 지점** |
-| `GET /api/catalog/trims/:id/discount-proposals` | admin | 전 딜러 제안 + 파생 상태 |
+| `GET /api/catalog/models/:id/discount-proposals` | admin | 전 딜러 제안 + 파생 상태(**모델 단위** — 트림 단위는 5시리즈 13왕복이라 `#380`에서 변경) |
 | `POST /api/catalog/trims/:id/discount-adoptions` | admin | **필드 단위 채택** |
-| `GET /api/dealer-profiles` · `PUT /api/dealer-profiles/:userId` | admin | 브랜드 매칭 + 비고 |
+| `GET /api/dealer/roster` | admin | 딜러 명부 — **합집합**(§7.3, `#384`) |
+| `PUT /api/dealer/profiles/:userId` | admin | 브랜드 매칭 + 비고 — 대상이 딜러 아니면 409(§7.3, `#385`) |
+| `DELETE /api/dealer/profiles/:userId/proposals` · `DELETE /api/dealer/profiles/:userId` | admin | 입력값 삭제 / 딜러 해제(§7.3, `#384`) |
+
+(2026-07-29 정정: 구 표의 `GET/PUT /api/dealer-profiles`는 실제 구현 경로 `/api/dealer/profiles/*`와
+달랐고, 제안 조회는 트림→모델 단위로 바뀐 뒤였다 — 경량 체크에서 발견해 실경로로 맞췄다.)
 
 관리자 채택은 **한 트랜잭션**으로 ① `catalog.trims`의 해당 할인 필드 UPDATE
 ② `crm.catalog_discount_adoptions` INSERT를 처리한다.
