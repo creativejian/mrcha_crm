@@ -34,7 +34,7 @@ import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
 import { TrimTable } from "./mc-master/TrimTable";
 import { moveItem } from "./mc-master/reorder";
-import { useMcMasterCatalog } from "./mc-master/useMcMasterCatalog";
+import { SCOPE_BRAND_PENDING, useMcMasterCatalog } from "./mc-master/useMcMasterCatalog";
 import { useMcMasterSelection } from "./mc-master/useMcMasterSelection";
 import { mcMasterViewState } from "./mc-master/view-state";
 
@@ -54,9 +54,10 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   // 아니라 정보 위생·UX 목적이다(쓰기는 서버가 fail-closed로 막는다 — 슬라이스 B1).
   const dealerMode = roleTab === "딜러";
   const { me: dealerMe, loaded: dealerMeLoaded } = useDealerMe(dealerMode);
-  // 프로필 도착 전에는 스코프를 알 수 없다 — 그 사이 전 브랜드가 스치는 것을 막으려고 존재하지
-  // 않는 브랜드 id(-1)를 넣어 빈 목록으로 둔다. 도착하면 실제 브랜드로 좁혀진다.
-  const scopeBrandId = dealerMode ? (dealerMe?.brandId ?? -1) : null;
+  // 프로필 도착 전에는 스코프를 알 수 없다 — 그 사이 전 브랜드가 스치는 것을 막으려고 센티널을
+  // 넣어 빈 목록으로 둔다(fetch도 보내지 않는다 — 훅의 SCOPE_BRAND_PENDING 가드). 도착하면 실제
+  // 브랜드로 좁혀진다.
+  const scopeBrandId = dealerMode ? (dealerMe?.brandId ?? SCOPE_BRAND_PENDING) : null;
   // 딜러 모드에서만 내 제안을 로드한다(다른 role은 요청조차 보내지 않는다).
   // 저장은 트림 단위로 3금액을 함께 PUT하고, 실패는 셀이 자기 상태로 알린다(훅이 throw).
   const { byTrim: dealerProposals, save: saveProposal } = useDealerDiscounts(
