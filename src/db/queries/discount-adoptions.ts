@@ -65,6 +65,10 @@ type TrimAdoptedField = {
   /** NULL = 관리자 직접 입력(TrimEditPanel 경로) 또는 채택 이력 없음. */
   sourceDealerUserId: string | null;
   adoptedAt: string | null;
+  /** 최신 감사 행의 직전 값 — 되돌리기 버튼이 "무엇으로 돌아가는지"를 누르기 전에 보여준다. */
+  previousAmount: number | null;
+  /** 최신 감사 행이 되돌림(undo_of 보유)인가 — 출처 라벨을 "되돌림"으로 가른다. */
+  isUndo: boolean;
 };
 
 export type TrimProposals = {
@@ -110,6 +114,8 @@ export async function listModelProposals(
       field: catalogDiscountAdoptions.field,
       sourceDealerUserId: catalogDiscountAdoptions.sourceDealerUserId,
       adoptedAt: catalogDiscountAdoptions.adoptedAt,
+      previousAmount: catalogDiscountAdoptions.previousAmount,
+      undoOf: catalogDiscountAdoptions.undoOf,
     })
     .from(catalogDiscountAdoptions)
     .where(inArray(catalogDiscountAdoptions.trimId, trimIds))
@@ -146,6 +152,8 @@ export async function listModelProposals(
         amount: trim[field],
         sourceDealerUserId: latest?.sourceDealerUserId ?? null,
         adoptedAt: latest ? latest.adoptedAt.toISOString() : null,
+        previousAmount: latest?.previousAmount ?? null,
+        isUndo: latest ? latest.undoOf !== null : false,
       };
     }
 
@@ -300,6 +308,61 @@ export async function adoptDealerProposal(
       previousAmount: trim[input.field],
       sourceDealerUserId: input.dealerUserId,
       adoptedBy: input.adoptedBy,
+    })
+    .returning();
+  return audit ?? null;
+}
+
+// 되돌리기(undo, 2026-07-29) — 최신 감사 행의 previous_amount를 확정 할인으로 복원하고,
+// 그 사실을 **새 감사 행**(undo_of = 취소한 행)으로 남긴다. 사슬이 선형으로 유지되므로
+// 한 번 더 누르면 방금 되돌린 값이 복원된다(**토글 의미론** — 유슨생 확정. c→b, 다시 c).
+//
+// ⚠️ **드리프트 검증**: 현재 확정값 ≠ 최신 감사 행 amount면 거부한다(fail-closed). 모든 쓰기
+// 경로(채택·관리자 직접 입력)가 감사를 남기므로 정상 상태에선 항상 일치하는데, 만약 어긋났다면
+// (psql 수동 조작 등 감사 밖의 쓰기) "직전 값"이 무엇인지 감사가 보증할 수 없다 — 그 상태에서
+// 복원하면 되돌리기가 엉뚱한 값을 만든다.
+//
+// ⚠️ **원자성은 호출자 책임**(adoptDealerProposal과 같은 관례) — 라우트가 트랜잭션을 연다.
+// discount_updated_at은 여기서도 넣지 않는다 — 트리거가 값 변경 시에만 찍는다(위 채택 주석).
+export async function undoLatestAdoption(
+  input: { trimId: number; field: DiscountField; adoptedBy: string },
+  executor: Executor = getDefaultDb(),
+) {
+  const [latest] = await executor
+    .select({
+      id: catalogDiscountAdoptions.id,
+      amount: catalogDiscountAdoptions.amount,
+      previousAmount: catalogDiscountAdoptions.previousAmount,
+    })
+    .from(catalogDiscountAdoptions)
+    .where(and(eq(catalogDiscountAdoptions.trimId, input.trimId), eq(catalogDiscountAdoptions.field, input.field)))
+    .orderBy(desc(catalogDiscountAdoptions.adoptedAt))
+    .limit(1);
+  if (!latest) return null; // 이력 없음 — 되돌릴 사건이 없다
+
+  const [trim] = await executor
+    .select({
+      financial: trimsInCatalog.financialDiscountAmount,
+      partner: trimsInCatalog.partnerDiscountAmount,
+      cash: trimsInCatalog.cashDiscountAmount,
+    })
+    .from(trimsInCatalog)
+    .where(eq(trimsInCatalog.id, input.trimId));
+  if (!trim) return null;
+  if (trim[input.field] !== latest.amount) return null; // 감사·확정 드리프트 — 위 주석
+
+  await updateTrim(input.trimId, { [FIELD_MAP[input.field].trim]: latest.previousAmount }, executor);
+
+  const [audit] = await executor
+    .insert(catalogDiscountAdoptions)
+    .values({
+      trimId: input.trimId,
+      field: input.field,
+      amount: latest.previousAmount,
+      previousAmount: latest.amount,
+      sourceDealerUserId: null, // 되돌림의 주체는 관리자다 — 딜러 출처를 다시 달면 감사가 거짓이 된다
+      adoptedBy: input.adoptedBy,
+      undoOf: latest.id,
     })
     .returning();
   return audit ?? null;

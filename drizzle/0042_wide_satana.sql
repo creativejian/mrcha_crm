@@ -1,0 +1,2 @@
+ALTER TABLE "crm"."catalog_discount_adoptions" ADD COLUMN "undo_of" uuid;--> statement-breakpoint
+ALTER TABLE "crm"."catalog_discount_adoptions" ADD CONSTRAINT "catalog_discount_adoptions_undo_of_catalog_discount_adoptions_id_fk" FOREIGN KEY ("undo_of") REFERENCES "crm"."catalog_discount_adoptions"("id") ON DELETE no action ON UPDATE no action;

@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
 import type { TrimProposals } from "@/lib/discount-proposals";
-import type { AdoptHandler } from "./admin-discount-cells";
+import type { AdoptHandler, UndoHandler } from "./admin-discount-cells";
 import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 import { TRIM_BODY_COLS } from "./trim-format";
 import { groupTrimsBySubline, trimGrade } from "./trim-grouping";
@@ -25,6 +25,7 @@ export function GroupedTrimTable({
   onSaveProposal,
   proposalsByTrim,
   onAdopt,
+  onUndo,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -34,6 +35,7 @@ export function GroupedTrimTable({
   /** 관리자 채택(슬라이스 C) — 트림별 딜러 제안. 없으면 할인 셀은 기존 정적 표시다. */
   proposalsByTrim?: Map<number, TrimProposals>;
   onAdopt?: AdoptHandler;
+  onUndo?: UndoHandler;
   colorsByTrim: Map<number, TrimColor[]>;
   optionByTrim: Map<number, TrimOptionSummary>;
   expanded: Set<string>;
@@ -92,6 +94,7 @@ export function GroupedTrimTable({
                     <TrimMetaCells
                       dealerProposal={dealerProposals?.get(t.id)}
                       onAdopt={onAdopt}
+                      onUndo={onUndo}
                       onSaveProposal={onSaveProposal}
                       proposalEntry={proposalsByTrim?.get(t.id)}
                       trim={t}

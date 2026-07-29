@@ -471,6 +471,10 @@ export const catalogDiscountAdoptions = crm.table(
     sourceDealerUserId: uuid("source_dealer_user_id"), // NULL = 관리자 직접 입력
     adoptedBy: uuid("adopted_by").notNull(), // → public.profiles.id(채택한 관리자)
     adoptedAt: timestamp("adopted_at", { withTimezone: true }).defaultNow().notNull(),
+    // 되돌리기(undo, 2026-07-29) — 이 행이 "직전 값 복원"이면 취소한 감사 행을 가리킨다(자기 참조
+    // FK — 같은 crm 테이블이라 loose id 관례 대상이 아니다). NULL = 일반 채택/직접 입력.
+    // 출처 표시("되돌림")와 일반 관리자 입력을 구분하는 유일한 근거다 — 금액·source로는 못 가른다.
+    undoOf: uuid("undo_of").references((): AnyPgColumn => catalogDiscountAdoptions.id),
   },
   (table) => [
     check("catalog_discount_adoptions_field_check", sql`${table.field} in ('financial','partner','cash')`),

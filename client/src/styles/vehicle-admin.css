@@ -716,6 +716,13 @@
   font-size: 11px;
   color: var(--text);
 }
+/* "현재 확정" 텍스트 + 되돌리기 버튼 한 줄 — 버튼은 우측 끝(대상이 이 줄의 확정값이다). */
+.va-disc-pop-now-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .va-disc-pop-src {
   font-size: 10px;
   color: var(--muted);

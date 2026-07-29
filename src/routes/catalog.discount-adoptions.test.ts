@@ -1,10 +1,11 @@
 import { beforeAll, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { trimsInCatalog } from "../db/catalog";
 import { getDefaultDb } from "../db/client";
+import { catalogDiscountAdoptions } from "../db/schema";
 
 // ── 채택 라우트 게이트(슬라이스 C) ──────────────────────────────────────────
 // catalog 라우터엔 role 게이트가 없어 **staff도 카탈로그를 쓸 수 있는 상태**다(기존 정책).
@@ -19,6 +20,7 @@ import { getDefaultDb } from "../db/client";
 const db = getDefaultDb();
 let trimId = 0;
 let modelId = 0;
+let cleanTrimId = 0; // 감사 이력 0건 트림 — 되돌리기 테스트 전용(아래 ⚠️ 참조)
 
 beforeAll(async () => {
   const [trim] = await db
@@ -27,6 +29,16 @@ beforeAll(async () => {
     .limit(1);
   trimId = trim!.id;
   modelId = trim!.modelId;
+
+  // ⚠️ 되돌리기는 채택과 달리 랜덤 uuid 같은 안전판이 없다 — 이력 있는 트림에 admin으로 부르면
+  // **실제로 되돌아가 커밋된다**(라우트가 자기 트랜잭션). 반드시 감사 0건 트림으로 404를 만든다.
+  const [clean] = await db
+    .select({ id: trimsInCatalog.id })
+    .from(trimsInCatalog)
+    .leftJoin(catalogDiscountAdoptions, eq(catalogDiscountAdoptions.trimId, trimsInCatalog.id))
+    .where(isNull(catalogDiscountAdoptions.id))
+    .limit(1);
+  cleanTrimId = clean!.id;
 });
 
 async function request(
@@ -48,6 +60,7 @@ async function request(
 const proposalsPath = () => `/api/catalog/models/${modelId}/discount-proposals`;
 const adoptionsPath = () => `/api/catalog/trims/${trimId}/discount-adoptions`;
 const ADOPT_BODY = { field: "financial", dealerUserId: crypto.randomUUID() };
+const undoPath = () => `/api/catalog/trims/${cleanTrimId}/discount-adoptions/undo`;
 
 test("제안 조회: admin은 200", async () => {
   const res = await request("admin", "GET", proposalsPath());
@@ -96,4 +109,22 @@ test("확정 할인은 이 파일 실행으로 바뀌지 않는다(게이트 테
   if (stamped !== null) {
     expect(new Date(stamped).toDateString()).not.toBe(new Date().toDateString());
   }
+});
+
+// ── 되돌리기 라우트 게이트(2026-07-29) — 채택과 같은 축 ──────────────────────
+test("되돌리기: staff·manager·dealer는 403", async () => {
+  for (const role of ["staff", "manager", "dealer"] as const) {
+    const res = await request(role, "POST", undoPath(), { field: "financial" });
+    expect(res.status).toBe(403);
+  }
+});
+
+test("되돌리기: admin은 게이트를 지나고, 감사 이력이 없으면 404(fail-closed)", async () => {
+  const res = await request("admin", "POST", undoPath(), { field: "financial" });
+  expect(res.status).toBe(404);
+});
+
+test("되돌리기: 본문 스키마가 필드명을 제한한다", async () => {
+  const res = await request("admin", "POST", undoPath(), { field: "price" });
+  expect(res.status).toBe(400);
 });

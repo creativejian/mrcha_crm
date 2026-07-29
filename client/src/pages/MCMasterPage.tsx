@@ -85,7 +85,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
   // 관리자 채택(슬라이스 C) — 딜러가 낸 제안을 필드 단위로 확정 할인에 반영한다.
   // canEdit(최고관리자)일 때만 요청한다: 서버도 requireRoles(["admin"])로 막지만, staff 화면에서
   // 403을 유발하는 요청을 굳이 보내지 않는다.
-  const { byTrim: trimProposals, adopt } = useTrimProposals(modelId ? Number(modelId) : null, canEdit);
+  const { byTrim: trimProposals, adopt, undo } = useTrimProposals(modelId ? Number(modelId) : null, canEdit);
   // 채택은 catalog.trims를 바꾸므로 트림 목록을 다시 읽어야 확정값 셀이 갱신된다
   // (제안 목록 자체는 훅이 자기 데이터를 다시 받는다 — 다른 딜러의 상태까지 함께 바뀐다).
   const handleAdopt = useCallback(
@@ -94,6 +94,14 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
       reloadTrims();
     },
     [adopt, reloadTrims],
+  );
+  // 되돌리기도 확정값을 바꾸는 같은 축이다 — 채택과 같은 재조회 규칙.
+  const handleUndo = useCallback(
+    async (trimId: number, field: DiscountField) => {
+      await undo(trimId, field);
+      reloadTrims();
+    },
+    [undo, reloadTrims],
   );
 
   // 딜러 모드: URL의 modelId가 내 브랜드 모델이 아니면 첫 모델로 교정한다.
@@ -415,6 +423,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   onSaveProposal={dealerMode ? saveProposal : undefined}
                   proposalsByTrim={canEdit ? trimProposals : undefined}
                   onAdopt={canEdit ? handleAdopt : undefined}
+                  onUndo={canEdit ? handleUndo : undefined}
                   colorsByTrim={colorsByTrim}
                   optionByTrim={optionByTrim}
                   expanded={expandedGroups}
@@ -434,6 +443,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                   onSaveProposal={dealerMode ? saveProposal : undefined}
                   proposalsByTrim={canEdit ? trimProposals : undefined}
                   onAdopt={canEdit ? handleAdopt : undefined}
+                  onUndo={canEdit ? handleUndo : undefined}
                   isDomestic={isDomestic}
                   selectMode={selectMode}
                   selected={selected}

@@ -5,7 +5,7 @@ import { statusBadgeTone, statusLabel } from "@/data/vehicle-taxonomy";
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
 import type { TrimProposals } from "@/lib/discount-proposals";
-import { AdminDiscountCells, type AdoptHandler } from "./admin-discount-cells";
+import { AdminDiscountCells, type AdoptHandler, type UndoHandler } from "./admin-discount-cells";
 import { optionBadgeState } from "./option-badge";
 import { applyThousandsInput } from "./thousands-input";
 import { fmtDate, formatThousands, parseWon } from "./trim-format";
@@ -215,6 +215,7 @@ export function TrimMetaCells({
   onSaveProposal,
   proposalEntry,
   onAdopt,
+  onUndo,
 }: {
   trim: CatalogTrim;
   dealerProposal?: DealerDiscountProposal;
@@ -222,6 +223,7 @@ export function TrimMetaCells({
   /** 관리자 모드 — 이 트림에 들어온 딜러 제안(없으면 셀에 단서가 붙지 않는다). */
   proposalEntry?: TrimProposals;
   onAdopt?: AdoptHandler;
+  onUndo?: UndoHandler;
 }) {
   return (
     <>
@@ -232,7 +234,7 @@ export function TrimMetaCells({
       {onSaveProposal ? (
         <DealerDiscountCells onSave={onSaveProposal} proposal={dealerProposal} trim={trim} />
       ) : (
-        <AdminDiscountCells entry={proposalEntry} onAdopt={onAdopt} trim={trim} />
+        <AdminDiscountCells entry={proposalEntry} onAdopt={onAdopt} onUndo={onUndo} trim={trim} />
       )}
       {/* 날짜 열의 **값이 모드마다 다르다**(헤더 문구도 함께 갈린다 — TrimHeadCells dealerMode):
           관리자는 확정 할인이 바뀐 날, 딜러는 자기 제안을 고친 날. 딜러에게 확정 할인은 비노출이라
