@@ -354,10 +354,10 @@ export function parseSolutionQuoteResult(raw: unknown): SolutionQuoteParsed | nu
 // 의미가 같다. 제프 표에 따르면 MG·하나·농협·산은·메리츠는 `quotedVehiclePrice` 우선, BNK·신한은
 // 필수, **iM만 카탈로그가만 사용**한다(그래서 지금은 iM만 어긋난다).
 //
-// 🔵 제프 조치 B(iM이 `quotedVehiclePrice`를 반영)가 끝나면 이 축은 조용해진다 — 그게 정상이다.
-// 다만 그 뒤에는 "링크가 엉뚱한 트림을 가리키는데 가격만 우리 값으로 덮인" 상태를 이 축으로 못 잡는다.
-// 그걸 위해 `catalogPrice`를 따로 요청해 뒀다(`ref/2026-07-27-jeff-im-capital-trim-resolve-followup.md` ④).
-// 산은 8건(제프 조치 F)이 정리되기 전에는 카탈로그가 축을 켜면 오탐이 나므로, 그 둘이 함께 와야 한다.
+// 제프 조치 B 완료(2026-07-29 실측)로 이 축은 예고대로 조용해졌다 — 8사 전부 요청가로 계산한다.
+// 그래도 **축은 남긴다**: "우리가 보낸 가격으로 계산했는가"는 미래 회귀(새 금융사·엔진 개정)에도
+// 같은 질문이고, 판정이 순수라 유지 비용이 0이다. 링크 오배정은 이제 이 축으로는 안 잡히고
+// 아래 detectLinkPriceMismatch(requestedPrice ≠ catalogPrice — 제프 조치 D)가 유일 검출축이다.
 
 export type VehiclePriceMismatch = {
   sentPrice: number;
@@ -392,6 +392,77 @@ export function detectVehiclePriceMismatch(raw: unknown, quotedVehiclePrice: num
 export function vehiclePriceMismatchMessage(m: VehiclePriceMismatch): string {
   const vehicle = m.resolvedModelName ? ` (${m.resolvedModelName})` : "";
   return `⚠️ 금융사가 다른 차량가로 계산했습니다 — 보낸 ${formatMoney(m.sentPrice)}원 ↔ 적용 ${formatMoney(m.usedPrice)}원${vehicle}. 발송 전 확인이 필요합니다.`;
+}
+
+// ── 링크 오배정 검출축 2종(2026-07-29 — 제프 B·D 배포 후속) ─────────────────────
+//
+// B 이후 8사 전부 요청가로 계산하므로 위 축(majorInputs 대조)은 링크 오배정을 못 잡는다 —
+// "링크가 엉뚱한 트림을 가리키는데 가격만 우리 값으로 덮인" 상태가 되기 때문. 제프가 그래서
+// D로 검출 필드를 실었다(`ref/2026-07-29-jeff-im-capital-bdf-shipped-reply.md`):
+//   `requestedPrice`(요청가 에코) · `catalogPrice`(그 금융사의 **계산 기준가** — 정가 아님,
+//   iM 탄력세율 보정 때문) · `linkedOfferingCount`(링크 2건 이상일 때만).
+// ⚠️ `priceSource`는 판정에 쓰지 않는다 — B 이후 항상 "request"라 판별력이 없다(제프 명시).
+// ⚠️ 산은 known-mismatch 8건(조치 F)은 `catalogPrice` 자체가 안 실린다 — 그래서 이 축은
+// 산은 헛경고 없이 켤 수 있다(fail-open이 곧 F 수용).
+
+const resolvedVehicleOf = (raw: unknown): Record<string, unknown> | null => {
+  if (typeof raw !== "object" || raw === null) return null;
+  const quote = (raw as { quote?: unknown }).quote;
+  if (typeof quote !== "object" || quote === null) return null;
+  const rv = (quote as { resolvedVehicle?: unknown }).resolvedVehicle;
+  return typeof rv === "object" && rv !== null ? (rv as Record<string, unknown>) : null;
+};
+
+export type LinkPriceMismatch = {
+  requestedPrice: number;
+  catalogPrice: number; // 금융사의 계산 기준가(정가 아님 — 위 블록 주석)
+  resolvedModelName: string | null;
+};
+
+// 요청가 ↔ 금융사 계산 기준가 대조 — 어긋나면 링크가 다른 트림을 가리킬 가능성.
+// 실측 사례(2026-07-29): 메리츠 MC070526006이 520d(디젤)로 resolve — 74.3M ↔ 73.0M로 잡힌다.
+// fail-open: 두 필드 중 하나라도 없으면 null(구 응답·산은 F·미배포 경로에서 견적을 막지 않는다).
+export function detectLinkPriceMismatch(raw: unknown): LinkPriceMismatch | null {
+  const rv = resolvedVehicleOf(raw);
+  if (!rv) return null;
+  const requestedPrice = numOrNull(rv.requestedPrice);
+  const catalogPrice = numOrNull(rv.catalogPrice);
+  if (requestedPrice == null || catalogPrice == null) return null;
+  if (requestedPrice === catalogPrice) return null;
+  return {
+    requestedPrice,
+    catalogPrice,
+    resolvedModelName: typeof rv.modelName === "string" ? rv.modelName : null,
+  };
+}
+
+export function linkPriceMismatchMessage(m: LinkPriceMismatch): string {
+  const vehicle = m.resolvedModelName ? ` (${m.resolvedModelName})` : "";
+  return `⚠️ 금융사 링크가 다른 트림을 가리킬 수 있습니다 — 보낸 차량가 ${formatMoney(m.requestedPrice)}원 ↔ 금융사 기준가 ${formatMoney(m.catalogPrice)}원${vehicle}. 트림 확인이 필요합니다.`;
+}
+
+export type MultiLinkResolve = {
+  linkedOfferingCount: number;
+  resolvedModelName: string | null;
+};
+
+// 다중매칭 신호 — 필드가 실려 있으면 그 트림은 금융사 쪽 후보 여러 개 중 **임의로 뽑힌 것**이다
+// (뽑히는 행마다 잔가·금리가 갈린다 — 제프 C 거부 게이트 전까지의 가시성). 링크 1건이면 파트너가
+// 필드 자체를 생략하므로 부재 = 정상. 1 이하·비수치는 스펙 밖 — fail-open.
+export function detectMultiLinkResolve(raw: unknown): MultiLinkResolve | null {
+  const rv = resolvedVehicleOf(raw);
+  if (!rv) return null;
+  const count = numOrNull(rv.linkedOfferingCount);
+  if (count == null || count < 2) return null;
+  return {
+    linkedOfferingCount: count,
+    resolvedModelName: typeof rv.modelName === "string" ? rv.modelName : null,
+  };
+}
+
+export function multiLinkResolveMessage(m: MultiLinkResolve): string {
+  const vehicle = m.resolvedModelName ? ` — ${m.resolvedModelName}(으)로 계산됨` : "";
+  return `⚠️ 금융사에 이 트림의 후보가 ${m.linkedOfferingCount}개 링크돼 있어 그중 하나로 계산됐습니다${vehicle}. 모델명 확인이 필요합니다.`;
 }
 
 // (solutionDisplayRatePct — 우리카드 유효금리 표시 규칙 — 는 개정 1로 제거: 카드 금리는 제프 응답이 아니라

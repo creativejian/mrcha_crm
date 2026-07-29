@@ -39,9 +39,10 @@ Last updated: 2026-07-29
 **prod(유슨생)** = `#379`~`#387` 눈 확인 1회(로컬만 검증). **판단(유슨생)** = `dev:api --watch`
 도입(실 DB 커넥션 재수립 트레이드오프). **이사님** = ⓐBMW 523d(`MC070526001`) 자사 5,300,000·제휴
 6,000,000 실데이터 유지 판단 ⓑspec §7.1 뒤집힘 ⓒ`ref/director-pending-confirmations.md` **16건**.
-**제프** = B·D·F 배포 완료 **실측 검증 종결**(07-29, `…followup.md` 헤더가 SSOT) — **iM+할인 제약
-해제됨**. 남은 건 **우리 결정 4건**(①linkedOfferingCount 소비 ②산은 가드 축 원복 ③마스터 트림
-정기 수신 주기·형식 ④cheapest 미사용 회신). C 거부 게이트는 그쪽 링크 정리 후(우리 조치 불요).
+**제프** = B·D·F 실측 검증 종결 + **결정 4건 처리 완료**(07-29): ①경고 표시·②catalogPrice 새
+1차 축(검출축 2종 배포 — `solution-quote.ts`)·③주 1회 JSON 파일 제안·④cheapest 미사용 회신 —
+회신 문서 = `ref/2026-07-29-jeff-master-feed-followup.md`(**전달 대기**). ③ 그쪽 OK 오면 export
+스크립트 1개 + 첫 파일. C 거부 게이트는 그쪽 링크 정리 후(우리 백스톱 = linkedOfferingCount 경고).
 
 ## Boot
 
