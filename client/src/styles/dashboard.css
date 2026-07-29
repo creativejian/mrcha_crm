@@ -955,9 +955,11 @@
   color: var(--muted);
 }
 .org-dealer-trim-row {
-  display: flex;
+  /* 3열 그리드 — 이름만 말줄임 대상이고 코드·금액은 항상 온전히 보인다(코드가 이름 span 안에
+     있으면 말줄임에 같이 잘린다 — 실기: MC0705…). */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: baseline;
-  justify-content: space-between;
   gap: 12px;
   width: 100%;
   padding: 6px 8px;
@@ -988,9 +990,9 @@
   white-space: nowrap;
 }
 .org-dealer-trim-code {
-  margin-left: 6px;
   font-size: 10px;
   color: var(--muted);
+  white-space: nowrap;
 }
 .org-dealer-trim-amounts {
   flex-shrink: 0;

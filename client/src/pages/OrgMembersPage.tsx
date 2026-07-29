@@ -5,6 +5,8 @@ import { useAuth } from "@/auth/AuthProvider";
 import { ROLE_ACCESS_SUMMARY, roleLabelOf } from "@/data/roles";
 import {
   fetchDealerProposalTrims,
+  getCachedDealerProposalTrims,
+  prefetchDealerProposalTrims,
   useDealerRoster,
   type DealerProposalTrim,
   type DealerRosterEntry,
@@ -182,17 +184,22 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
       rect
         ? {
             top: rect.bottom + 4,
-            left: Math.max(8, Math.min(rect.left, window.innerWidth - 496)),
+            left: Math.max(8, Math.min(rect.left, window.innerWidth - 576)),
             maxHeight: Math.max(160, window.innerHeight - rect.bottom - 16),
           }
         : null,
     );
     setOpen(true);
-    setRows(null);
     setFailed(false);
+    // 캐시(hover 프리패치 포함)가 있으면 즉시 그린다 — 그리고 항상 재조회해 갱신한다(딜러가
+    // 다른 세션에서 제안을 고칠 수 있다). 캐시를 보여준 상태의 갱신 실패는 조용히 둔다.
+    const cached = getCachedDealerProposalTrims(entry.dealerUserId) ?? null;
+    setRows(cached);
     fetchDealerProposalTrims(entry.dealerUserId)
       .then(setRows)
-      .catch(() => setFailed(true));
+      .catch(() => {
+        if (cached === null) setFailed(true);
+      });
   }
 
   return (
@@ -201,6 +208,8 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
         className="badge org-dealer-action"
         disabled={entry.proposalCount === 0}
         onClick={toggle}
+        onFocus={() => prefetchDealerProposalTrims(entry.dealerUserId)}
+        onMouseEnter={() => prefetchDealerProposalTrims(entry.dealerUserId)}
         ref={btnRef}
         title={entry.proposalCount === 0 ? "입력한 트림이 없습니다." : undefined}
         type="button"
@@ -229,14 +238,16 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
               >
                 <span className="org-dealer-trim-name">
                   {r.modelName} · {r.trimName}
-                  {r.mcCode ? <span className="org-dealer-trim-code">{r.mcCode}</span> : null}
                 </span>
+                {/* 코드는 이름 span 밖의 자기 열 — 이름 말줄임에 같이 잘리면 안 된다(실기: MC0705…). */}
+                <span className="org-dealer-trim-code">{r.mcCode ?? ""}</span>
                 <span className="org-dealer-trim-amounts">{proposalAmountsSummary(r)}</span>
               </button>
             ) : (
               // 카탈로그에서 삭제된 트림(loose id) — "무엇을 지우는지" 목록에는 남기되 이동은 없다.
               <div className="org-dealer-trim-row deleted" key={r.trimId}>
                 <span className="org-dealer-trim-name">삭제된 트림</span>
+                <span className="org-dealer-trim-code" />
                 <span className="org-dealer-trim-amounts">{proposalAmountsSummary(r)}</span>
               </div>
             );
