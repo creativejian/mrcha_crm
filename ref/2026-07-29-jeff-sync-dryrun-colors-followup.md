@@ -68,3 +68,21 @@ src/domain/catalog/master-options.ts          ← 미러 options/colors read-onl
   버그이고, 원천에 남아 있는 한 손실은 없습니다."
 - **잔여 = 전부 그쪽**: ①`toUpsertRow`의 trim_id를 mc_code 경유 매핑으로 교체 ②sync 1회
   ③56건(colors) 유입 확인. **CRM 액션 0 · 통지 의무 0.**
+
+---
+
+## 종결 — 그쪽 수리·프로덕션 반영 완료 (2026-07-29, 그쪽 #118 `cef9a2c` + 회신 #119)
+
+- **56건 전량 유입 확인**(그쪽 실측: colors add 56 → active 10,483 = 원천 총량 · 고아 trim_id 0 ·
+  재dry-run add 0 멱등 · 그 외 전 테이블 변경 0). 정체 = **아우디 A6 6트림**(id 정렬이 어긋난
+  유일 구간, 나머지 1,663트림은 우연히 정렬돼 있었음).
+- **우리 진단의 미비 2건을 그쪽이 보완**(박제): ①고칠 곳은 게이트 "한 지점"이 아니라 **6곳**
+  (trim_no_options의 dry-run/apply 2곳 추가 — 이 테이블은 PK가 trim_id라 오배정 시 다른 차의
+  "옵션 없음"을 덮어씀) ②스킵 말고 **오배정 실패 모드**가 하나 더 있었음 — 번호만 보는 판정이라
+  같은 번호의 "다른 트림"이 있으면 통과해 엉뚱한 차에 붙는다(현재 0건이나 시퀀스 32,217 vs
+  Mr.Cha 대역 ~4,000이라 시간 문제). 그래서 필터 수리가 아니라 **판정 제거 + mc_code 번역**
+  (`buildMrchaTrimIdMap`/`mapTrimFkRow`)으로 구조 해소. relations 무접촉 판단은 우리 분석 그대로.
+- dry-run은 신생 트림 위성까지 세도록 음수 sentinel로 집계 보정(#115의 "dry-run=apply 예측"
+  계약 유지). 서버 1,331 pass · 신규 테스트 12건.
+- **남는 계약(그쪽 내부)**: 미러 테이블 신설 시 trim FK는 `mapTrimFkRow` 경유 —
+  `buildMrchaTrimIdMap` 주석에 박제됨. **양쪽 잔여 0, 이 건 최종 종결.**

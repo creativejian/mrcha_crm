@@ -41,11 +41,10 @@ Last updated: 2026-07-29
 6,000,000 실데이터 유지 판단 ⓑspec §7.1 뒤집힘 ⓒ`ref/director-pending-confirmations.md` **16건**.
 **제프** = **전면 종결 재확인**(07-29 오후 서면 `debfcb8`): sync 실행 완료·~~4월 사본~~ 오독 정정
 → **F 재평가 무효·대기 소멸**(CRM 할 일 없음 명문). API 재실측 회귀 0(iM 846,710·산은
-catalogPrice 미탑재 유지). colors 56건 FK 스킵(#116 §5)도 **채팅으로 합의 종결** — 그쪽 버그
-접수·통지 프로토콜 불필요(전량 fetch라 유실 0, 근거·원문 =
-`ref/2026-07-29-jeff-sync-dryrun-colors-followup.md` 후기). 그쪽 잔여 = 매핑 픽스+sync 1회+56건
-유입 확인. 기억 2건: ⓐcheapest 쓰게 되면 **사전 통지**(검출축 없는 경로) ⓑC 거부 게이트 켜지면
-경고→차단 전환.
+catalogPrice 미탑재 유지). colors 56건 FK 스킵(#116 §5)은 **그쪽 #118 프로덕션 반영까지 최종
+종결**(56건 유입·멱등 실측 + 오배정 실패 모드까지 mc_code 번역으로 구조 제거 — 경위·원문 =
+`ref/2026-07-29-jeff-sync-dryrun-colors-followup.md`). **양쪽 잔여 0.** 기억 2건: ⓐcheapest
+쓰게 되면 **사전 통지**(검출축 없는 경로) ⓑC 거부 게이트 켜지면 경고→차단 전환.
 
 ## Boot
 
