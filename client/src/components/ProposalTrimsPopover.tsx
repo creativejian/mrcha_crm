@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 
 import type { DealerProposalTrim } from "@/lib/dealer-roster";
 import { mcMasterPath } from "@/pages/mc-master/mc-master-route";
-import { fmtDate } from "@/pages/mc-master/trim-format";
+import { fmtDate, manwonText } from "@/pages/mc-master/trim-format";
 
 // 입력 트림 팝오버 본체 — 두 소비처가 같은 부품을 쓴다(2026-07-29 유슨생):
 //   ① 관리자 딜러 명부 "보기 (N)"(OrgMembersPage) ② 딜러 모드 헤더 "내 입력 트림 (N)"(MC 마스터).
@@ -24,13 +24,14 @@ export function popoverPosFromRect(rect: DOMRect | undefined): PopoverPos | null
   };
 }
 
-// 낸 금액 요약("자사 4,000,000원 · 제휴 6,000,000원") — null 필드는 미제안이라 표기하지 않는다.
-// 확정가(트림 price)를 모르는 문맥이라 할인 셀의 % 표기는 하지 않는다(원 금액이 사실의 전부).
+// 낸 금액 요약("자사 400만원 · 제휴 450만원") — null 필드는 미제안이라 표기하지 않는다.
+// 만원 축약 = manwonText(옵션 가격과 같은 SSOT — 300.5만원처럼 소수점도 처리). 확정가(트림
+// price)를 모르는 문맥이라 할인 셀의 % 표기는 하지 않는다(원 금액이 사실의 전부).
 function amountsSummary(r: DealerProposalTrim): string {
   const parts: string[] = [];
-  if (r.financialAmount !== null) parts.push(`자사 ${r.financialAmount.toLocaleString()}원`);
-  if (r.partnerAmount !== null) parts.push(`제휴 ${r.partnerAmount.toLocaleString()}원`);
-  if (r.cashAmount !== null) parts.push(`타사 ${r.cashAmount.toLocaleString()}원`);
+  if (r.financialAmount !== null) parts.push(`자사 ${manwonText(r.financialAmount)}`);
+  if (r.partnerAmount !== null) parts.push(`제휴 ${manwonText(r.partnerAmount)}`);
+  if (r.cashAmount !== null) parts.push(`타사 ${manwonText(r.cashAmount)}`);
   return parts.join(" · ");
 }
 
