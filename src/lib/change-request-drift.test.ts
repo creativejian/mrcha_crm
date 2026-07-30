@@ -22,3 +22,7 @@ test("null과 undefined는 동치 — '값 없음'의 두 표기가 드리프트
 test("null → 실값 변화는 드리프트다", () => {
   expect(detectSnapshotDrift({ driveSystem: null }, { driveSystem: "AWD" })).toEqual(["driveSystem"]);
 });
+
+test("타입이 다르면 값이 같아 보여도 드리프트다 — 정규화는 호출측 책임(fail-closed)", () => {
+  expect(detectSnapshotDrift({ price: 100 }, { price: "100" })).toEqual(["price"]);
+});
