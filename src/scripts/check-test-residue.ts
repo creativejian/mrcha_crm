@@ -61,9 +61,12 @@ await db.transaction(async (tx) => {
     where not exists (select 1 from public.profiles p where p.id = d.dealer_user_id)`);
   await tx.execute(sql`delete from crm.dealer_profiles dp
     where not exists (select 1 from public.profiles p where p.id = dp.dealer_user_id)`);
-  // 변경 요청 고아는 미반영 큐 행이라 지워도 잃는 게 없다(채택 감사의 previous_amount와 다르다).
+  // 변경 요청 고아 중 **approved는 지우지 않는다** — 승인 replay가 catalog에 이미 반영된 변경의
+  // 감사 기록이고, 그 행의 snapshot이 오염 복원의 유일한 단서다(채택 감사 previous_amount와 같은
+  // 성격 — report-only). 나머지(pending/rejected/canceled)는 미반영 큐 행이라 지워도 무손실.
   await tx.execute(sql`delete from crm.catalog_change_requests r
-    where not exists (select 1 from public.profiles p where p.id = r.requested_by)`);
+    where not exists (select 1 from public.profiles p where p.id = r.requested_by)
+      and r.status <> 'approved'`);
 });
 console.error(`\n[residue] crm 스키마 잔재를 삭제했습니다.`);
 if (residue.orphanAppCards > 0) console.error(`  고아 앱 카드 ${residue.orphanAppCards}건은 그대로 두었습니다(앱 소유).`);

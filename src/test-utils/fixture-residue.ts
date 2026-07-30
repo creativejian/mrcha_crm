@@ -57,7 +57,11 @@ export type FixtureResidue = {
    * `previous_amount`다. 먼저 지우면 복원 정보가 사라진다 — 그래서 되돌리기 SQL을 안내만 한다.
    */
   orphanAdoptions: { trimId: number; field: string; previousAmount: number | null; adoptedAt: string }[];
-  /** 고아 변경 요청 — profiles에 없는 requested_by(테스트 uuid). crm 소유·미반영 큐라 `--clean`이 지운다. */
+  /**
+   * 고아 변경 요청 — profiles에 없는 requested_by(테스트 uuid). pending/rejected/canceled는
+   * 미반영 큐 행이라 `--clean`이 지우지만, **approved는 report-only** — 승인 replay가 catalog에
+   * 이미 반영된 변경의 감사 기록이고 snapshot이 복원의 유일한 단서다(orphanAdoptions와 같은 결).
+   */
   orphanChangeRequests: { id: string; kind: string; status: string }[];
 };
 
@@ -117,6 +121,7 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
     order by a.adopted_at`);
   // 변경 요청 큐 — 라우트 테스트의 requested_by가 랜덤 uuid라 고아 판정으로 잡는다(딜러 3테이블과
   // 같은 이유: uuid PK/FK라 코드 리터럴 registry로는 탐지 불가). status 무관 전수 — canceled도 잔재다.
+  // 탐지는 전수, 삭제는 approved 제외(check-test-residue.ts 참조).
   const orphanChangeRequests = await asRows<{ id: string; kind: string; status: string }>(sql`
     select r.id::text, r.kind, r.status from crm.catalog_change_requests r
     where not exists (select 1 from public.profiles p where p.id = r.requested_by)
@@ -168,7 +173,10 @@ export function formatResidue(r: FixtureResidue): string {
   }
   if (r.orphanAdoptions.length > 0) lines.push("", ...restoreAdoptionSql(r.orphanAdoptions));
   for (const cr of r.orphanChangeRequests) {
-    lines.push(`변경 요청 ${cr.id} · ${cr.kind} · ${cr.status} (crm.catalog_change_requests — profiles에 없는 요청자)`);
+    const approvedNote = cr.status === "approved"
+      ? " — ⚠️ 반영된 변경의 감사 기록, --clean 미삭제(snapshot이 복원 단서)"
+      : "";
+    lines.push(`변경 요청 ${cr.id} · ${cr.kind} · ${cr.status} (crm.catalog_change_requests — profiles에 없는 요청자)${approvedNote}`);
   }
   return lines.join("\n");
 }
