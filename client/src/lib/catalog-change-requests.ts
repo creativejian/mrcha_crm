@@ -148,6 +148,15 @@ export function useModelPendingRequests(modelId: number | null, enabled: boolean
   }, [enabled, modelId, tick]);
   useEffect(() => onCatalogWriteQueued(() => setTick((t) => t + 1)), []);
   useEffect(() => onChangeRequestQueueUpdated(() => setTick((t) => t + 1)), []);
+  // 타 세션(다른 팀장·admin)의 적재/처리는 이 탭에 이벤트가 오지 않는다 — 탭 복귀 시점에
+  // 재검증한다(사이드바 배지의 focus 재조회 선례). 상시 interval은 두지 않는다: 최종 방어는
+  // 서버 부분 UNIQUE고, 배지는 예방선이라 탭 복귀 신선도면 충분하다.
+  useEffect(() => {
+    if (!enabled) return;
+    const onFocus = () => setTick((t) => t + 1);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [enabled]);
   return enabled && data != null && data.modelId === modelId ? data.rows : EMPTY_ROWS;
 }
 

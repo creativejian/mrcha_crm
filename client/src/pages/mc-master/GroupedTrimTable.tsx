@@ -5,7 +5,7 @@ import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
 import type { TrimProposals } from "@/lib/discount-proposals";
 import type { AdoptHandler, UndoHandler } from "./admin-discount-cells";
-import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
+import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells, TrimPendingBadge } from "./trim-cells";
 import { TRIM_BODY_COLS } from "./trim-format";
 import { groupTrimsBySubline, trimGrade } from "./trim-grouping";
 
@@ -96,11 +96,7 @@ export function GroupedTrimTable({
                     <td className="va-grade-cell">
                       <div className="va-trim-name">
                         {trimGrade(t.trimName)}
-                        {pendingBadgeByTrim?.has(t.id) && (
-                          <span className="va-cr-badge" title={pendingBadgeByTrim.get(t.id)}>
-                            승인 대기
-                          </span>
-                        )}
+                        <TrimPendingBadge title={pendingBadgeByTrim?.get(t.id)} />
                       </div>
                       <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
                     </td>

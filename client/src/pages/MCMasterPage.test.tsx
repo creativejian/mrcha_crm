@@ -352,16 +352,34 @@ it("팀장 옵션 패널: 추가·수정은 열리고 삭제는 없고 제출 �
 
 // ── PR3 Task 6: 행 "승인 대기" 배지 + 트림 뷰 헤더 pill(spec §7.2) ────────────────
 // 시도 전에 보여 409(타인 pending)를 예방하는 게 목적이라 admin·manager 공통이다. 아래 케이스는
-// 팀장으로 렌더한다 — admin 화면에는 헤더 "승인 대기 (N)" 버튼이 함께 있어 텍스트가 겹친다.
+// 팀장으로 렌더한다 — admin 화면에는 헤더 대기열 버튼이 함께 있고, 그 버튼의 **로딩 구간
+// 텍스트가 정확히 "승인 대기"**(ChangeRequestQueue의 visibleRows === null — 카운트 미표시)라
+// 완전일치 매처가 두 요소를 동시에 물 수 있다.
 it("승인 대기 중인 트림 행에 배지가 뜬다(호버 title = 요청자·경과·작업)", async () => {
-  modelPendingRows = [{ ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 }];
+  // 같은 트림에 2건 — title이 줄바꿈으로 누적되는 경로까지 잠근다.
+  modelPendingRows = [
+    { ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 },
+    {
+      ...PENDING_ROW,
+      id: "cr-3",
+      kind: "trim.no-option.set",
+      payload: {},
+      snapshot: {},
+      targetId: 100,
+      targetBrandId: 1,
+      targetModelId: 10,
+      targetTrimId: 100,
+    },
+  ];
   const user = userEvent.setup();
   renderPage("팀장");
   await user.click(await screen.findByRole("button", { name: "그랜저" }));
   await screen.findByText("캐스퍼 1.0");
-  const badge = await screen.findByText("승인 대기"); // 행 배지(팀장에겐 "승인 대기 (N)" 헤더 버튼이 없어 유일)
+  const badge = await screen.findByText("승인 대기"); // 행 배지(팀장에겐 헤더 대기열 버튼이 없어 유일)
   expect(badge.getAttribute("title")).toContain("박서준");
   expect(badge.getAttribute("title")).toContain("트림 수정");
+  expect(badge.getAttribute("title")).toContain("무옵션 확정"); // 2건이 한 배지 title에 누적
+  expect(badge.getAttribute("title")).toMatch(/분 전|시간 전/); // 경과 세그먼트
 });
 
 it("트림 행에 못 붙는 요청(트림 추가 등)은 트림 뷰 헤더 pill로 집계된다", async () => {

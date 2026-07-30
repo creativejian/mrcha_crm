@@ -5,7 +5,7 @@ import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer
 import type { TrimProposals } from "@/lib/discount-proposals";
 import type { AdoptHandler, UndoHandler } from "./admin-discount-cells";
 import { SelectAllHeadCell, SelectCheckCell, SelectableRow } from "./table-select";
-import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
+import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells, TrimPendingBadge } from "./trim-cells";
 
 // 평면 트림 테이블(전체 trim_name). 국산차 '순서 관리' 탭 / 수입차 기본 뷰에서 쓴다.
 // 드래그 순서변경/일괄삭제는 '선택' 모드에서만(앱과 동일).
@@ -96,11 +96,7 @@ export function TrimTable({
             <td className="va-th-trim">
               <div className="va-trim-name">
                 {t.trimName}
-                {pendingBadgeByTrim?.has(t.id) && (
-                  <span className="va-cr-badge" title={pendingBadgeByTrim.get(t.id)}>
-                    승인 대기
-                  </span>
-                )}
+                <TrimPendingBadge title={pendingBadgeByTrim?.get(t.id)} />
               </div>
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
             </td>

@@ -38,6 +38,17 @@ export function ColorChips({ colors }: { colors: TrimColor[] }) {
   );
 }
 
+// 트림 행 "승인 대기" 배지 — title(요청자·경과·작업)은 MCMasterPage가 합성해 내려준다.
+// pending이 없는 트림은 title이 undefined라 아무것도 렌더하지 않는다(평면/그룹 테이블 공용).
+export function TrimPendingBadge({ title }: { title: string | undefined }) {
+  if (title == null) return null;
+  return (
+    <span className="va-cr-badge" title={title}>
+      승인 대기
+    </span>
+  );
+}
+
 // 트림명 다음 ~ 편집 전 공통 헤더(평면/그룹 테이블 컬럼 동기화).
 // 옵션 컬럼은 국산차만 표시(앱 패리티 — 수입차는 옵션 미관리).
 export function TrimHeadCells({

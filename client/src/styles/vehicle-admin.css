@@ -974,3 +974,8 @@
   white-space: nowrap;
   vertical-align: 1px;
 }
+/* 트림 뷰 헤더 pill은 flex 컨테이너(.va-head-back, gap 8px)의 자식이라 margin-left가 14px로
+   합산된다 — gap에 맡긴다(vertical-align은 flex item에서 무효라 그대로 둔다: 행 배지 전용). */
+.va-head-back .va-cr-badge {
+  margin-left: 0;
+}

@@ -22,7 +22,7 @@ import {
   updateTrim,
 } from "@/lib/catalog";
 import { CHANGE_KIND_LABELS } from "@/lib/catalog-change-kinds";
-import { useModelPendingRequests } from "@/lib/catalog-change-requests";
+import { type ChangeRequestItem, useModelPendingRequests } from "@/lib/catalog-change-requests";
 import { waitingLabel } from "@/lib/chat";
 import { useDealerDiscounts } from "@/lib/dealer-discounts";
 import { useDealerMe } from "@/lib/dealer-profiles";
@@ -54,6 +54,33 @@ import { mcMasterViewState } from "./mc-master/view-state";
 type ModelPanelState = { mode: "add" } | { mode: "edit"; model: CatalogModel } | null;
 type TrimPanelState = { mode: "add" } | { mode: "edit"; trim: CatalogTrim } | null;
 type TrimTab = "list" | "order";
+
+// 모델 단위 pending → 행 배지 title(트림별) + 헤더 pill 줄(트림에 못 붙는 요청)로 갈라 담는다.
+// targetTrimId가 있는 요청(트림 수정·무옵션·옵션류)은 그 트림 행에, 없는 요청(트림 추가·모델
+// 수정)은 헤더로 — 붙일 행이 없는 요청이 조용히 사라지지 않게 한다(spec §7.2).
+// now는 인자로 받는다(렌더 시각을 호출부가 준다 — 호출부 주석의 경과 표기 동결 참조).
+function buildPendingBadges(
+  rows: ChangeRequestItem[],
+  staffNames: Map<string, string>,
+  now: Date,
+): { byTrim: Map<number, string>; headerLines: string[] } {
+  const byTrim = new Map<number, string>();
+  const headerLines: string[] = [];
+  const linesByTrim = new Map<number, string[]>();
+  for (const r of rows) {
+    const line = `${staffNames.get(r.requestedBy) ?? "알 수 없음"} · ${waitingLabel(r.createdAt, now, "전")} · ${CHANGE_KIND_LABELS[r.kind]}`;
+    if (r.targetTrimId != null) {
+      const arr = linesByTrim.get(r.targetTrimId) ?? [];
+      arr.push(line);
+      linesByTrim.set(r.targetTrimId, arr);
+    } else {
+      headerLines.push(line);
+    }
+  }
+  // 한 트림에 여러 건(트림 수정 + 옵션 추가 등)이면 title에 줄바꿈으로 쌓는다.
+  for (const [trimId, lines] of linesByTrim) byTrim.set(trimId, lines.join("\n"));
+  return { byTrim, headerLines };
+}
 
 export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: (message: string) => void }) {
   const canEdit = roleTab === "최고관리자";
@@ -130,29 +157,10 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   const { staff } = useStaffDirectory(canWrite);
   const pendingRows = useModelPendingRequests(modelId ? Number(modelId) : null, canWrite);
   const staffNames = useMemo(() => new Map(staff.map((s) => [s.id, s.name])), [staff]);
-  // targetTrimId가 있는 요청(트림 수정·무옵션·옵션류)은 그 트림 행에, 없는 요청(트림 추가·모델
-  // 수정)은 헤더 pill로 — 붙일 행이 없는 요청이 조용히 사라지지 않게 한다.
-  const changeBadges = useMemo(() => {
-    const byTrim = new Map<number, string>();
-    const headerLines: string[] = [];
-    if (pendingRows.length > 0) {
-      const now = new Date();
-      const linesByTrim = new Map<number, string[]>();
-      for (const r of pendingRows) {
-        const line = `${staffNames.get(r.requestedBy) ?? "알 수 없음"} · ${waitingLabel(r.createdAt, now, "전")} · ${CHANGE_KIND_LABELS[r.kind]}`;
-        if (r.targetTrimId != null) {
-          const arr = linesByTrim.get(r.targetTrimId) ?? [];
-          arr.push(line);
-          linesByTrim.set(r.targetTrimId, arr);
-        } else {
-          headerLines.push(line);
-        }
-      }
-      // 한 트림에 여러 건(트림 수정 + 옵션 추가 등)이면 title에 줄바꿈으로 쌓는다.
-      for (const [trimId, lines] of linesByTrim) byTrim.set(trimId, lines.join("\n"));
-    }
-    return { byTrim, headerLines };
-  }, [pendingRows, staffNames]);
+  // ⚠️ 일부러 useMemo로 감싸지 않는다 — 경과 표기가 deps에 없는 `new Date()`에서 나오므로
+  // memo하면 재조회 전까지 "3분 전"이 못 박힌다(ChangeRequestQueue도 렌더 시점 인라인
+  // `new Date()`를 쓴다 — 같은 축). pending은 모델당 한 자릿수라 렌더당 재계산은 무시 가능.
+  const changeBadges = buildPendingBadges(pendingRows, staffNames, new Date());
 
   // 딜러 모드: URL의 modelId가 내 브랜드 모델이 아니면 첫 모델로 교정한다.
   // brandId 스코프는 사이드바와 모델 목록을 좁히지만 **modelId는 독립 경로**다 — 손으로 고친 URL이나
