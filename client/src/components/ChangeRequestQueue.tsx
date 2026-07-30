@@ -92,7 +92,7 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
     try {
       await reject(row.id, reason);
       setRowState(row.id, { phase: "done" }); // 즉시 숨김 — 승인과 같은 규칙.
-      onApplied();
+      // 반려는 catalog 무변 — onApplied(재조회)는 승인 성공에만 건다.
     } catch (e) {
       setRowState(row.id, { phase: "error", message: e instanceof Error ? e.message : "반려 실패" });
     }
