@@ -88,9 +88,9 @@ export function AppCardPreview({ model, inModal = false }: { model: AppCardModel
               <dt>할인금액</dt><dd>-{model.discountLabel}원</dd>
               <dt className="is-strong">최종 차량가격 ①</dt><dd className="is-green is-strong">{model.finalVehiclePriceLabel}원</dd>
               <dt>취득세 ({model.acquisitionTaxModeLabel})</dt><dd>{model.acquisitionTaxLabel}원</dd>
-              <dt>공채</dt><dd>{model.bondLabel}원</dd>
-              <dt>탁송료</dt><dd>{model.deliveryFeeLabel}원</dd>
-              <dt>부대비용</dt><dd>{model.incidentalLabel}원</dd>
+              <dt>공채 ({model.bondIncludedLabel})</dt><dd>{model.bondLabel}원</dd>
+              <dt>탁송료 ({model.deliveryFeeIncludedLabel})</dt><dd>{model.deliveryFeeLabel}원</dd>
+              <dt>부대비용 ({model.incidentalIncludedLabel})</dt><dd>{model.incidentalLabel}원</dd>
               <dt className="is-strong">등록비용 합계 ②</dt><dd className="is-green is-strong">{model.registrationCostLabel}원</dd>
               <dt className="is-strong">취득원가 ① + ②</dt><dd className="is-blue is-strong">{model.acquisitionCostLabel}원</dd>
             </dl>

@@ -3,7 +3,7 @@ import {
   CALC_PENDING,
   NO_SOURCE,
   acquisitionTaxModeLabelOf,
-  costItemLabelOf,
+  costIncludedLabelOf,
   formatTerm,
   mileageLabelOf,
   moneyLabelOf,
@@ -90,6 +90,10 @@ export type AppCardModel = {
   bondLabel: string;
   deliveryFeeLabel: string;
   incidentalLabel: string;
+  // 포함/불포함 제목 어휘(2026-07-30) — 렌더러가 "공채 (포함)"처럼 행 제목에 조합(취득세 모드 선례).
+  bondIncludedLabel: string;
+  deliveryFeeIncludedLabel: string;
+  incidentalIncludedLabel: string;
   registrationCostLabel: string;
   acquisitionCostLabel: string;
   // 섹션 3 — 추천 견적 조건(대표 시나리오 전체)
@@ -171,9 +175,12 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     finalVehiclePriceLabel: formatMoney(fvp),
     acquisitionTaxLabel: formatMoney(input.acquisitionTax),
     acquisitionTaxModeLabel: acquisitionTaxModeLabelOf(input.acquisitionTaxMode),
-    bondLabel: costItemLabelOf(input.bond, input.bondIncluded),
-    deliveryFeeLabel: costItemLabelOf(input.delivery, input.deliveryIncluded),
-    incidentalLabel: costItemLabelOf(input.incidental, input.incidentalIncluded),
+    bondLabel: formatMoney(input.bond),
+    deliveryFeeLabel: formatMoney(input.delivery),
+    incidentalLabel: formatMoney(input.incidental),
+    bondIncludedLabel: costIncludedLabelOf(input.bondIncluded),
+    deliveryFeeIncludedLabel: costIncludedLabelOf(input.deliveryIncluded),
+    incidentalIncludedLabel: costIncludedLabelOf(input.incidentalIncluded),
     registrationCostLabel: formatMoney(input.registrationCost),
     acquisitionCostLabel: formatMoney(input.acquisitionCost),
     hasScenario: s != null,

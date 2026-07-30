@@ -32,11 +32,11 @@ export function formatTerm(termMonths: number | null): string {
   return termMonths != null ? `${termMonths}개월` : "조건 미정";
 }
 
-// 취득원가 항목(공채/탁송료/부대비용) 라벨 — 금액에 포함/불포함을 병기(2026-07-30 실동작화 spec D4).
-// 포함 = 취득원가 합산(금융 원금行), 불포함 = 출고 시 고객 직접 부담. 어휘는 carTaxLabel(포함/불포함) 재사용.
-// 앱은 라벨 문자열을 그대로 그리므로 payload 구조 변경 없음(앱 팀 무변경).
-export function costItemLabelOf(amount: number, included: boolean): string {
-  return `${formatMoney(amount)} · ${included ? "포함" : "불포함(고객 부담)"}`;
+// 취득원가 항목(공채/탁송료/부대비용) 포함/불포함 어휘 — 행 **제목** 조합용(2026-07-30 유슨생 디자인:
+// "공채 (포함)" — 취득세 (일반)의 acquisitionTaxModeLabel 선례와 동형). 값 쪽에 붙이면 앱 렌더러의
+// '원' 접미와 꼬인다("포함원"). 앱은 이 필드를 제목에 조합한다(미반영 구 번들은 무시 — 제목만 구형).
+export function costIncludedLabelOf(included: boolean): string {
+  return included ? "포함" : "불포함·고객 부담";
 }
 
 export function numOr(raw: string | null | undefined): number | null {

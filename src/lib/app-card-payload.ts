@@ -13,7 +13,7 @@
 // **부작용 0 순수 모듈만** 허용(app-card-labels·quote-pricing — AGENTS.md 경계 규칙. http/supabase 체인 금지).
 // vitest(클라 테스트)가 상대경로로 import해 클라 조립기와 파리티 비교한다.
 
-import { CALC_PENDING, NO_SOURCE, acquisitionTaxModeLabelOf, costItemLabelOf, downPaymentRowLabelOf, formatTerm, mileageLabelOf, moneyLabelOf, moneyModeLabel, numOr, residualLabelOf, splitService, vehicleTitleOf } from "../../client/src/lib/app-card-labels";
+import { CALC_PENDING, NO_SOURCE, acquisitionTaxModeLabelOf, costIncludedLabelOf, downPaymentRowLabelOf, formatTerm, mileageLabelOf, moneyLabelOf, moneyModeLabel, numOr, residualLabelOf, splitService, vehicleTitleOf } from "../../client/src/lib/app-card-labels";
 import { computePricing, formatMoney } from "../../client/src/lib/quote-pricing";
 
 // 업무 AI 견적 청크 빌더(assistant-corpus)가 재수출로 소비하던 순수 헬퍼 — 공유 모듈로 이동 후에도
@@ -107,6 +107,10 @@ export type AdvisorQuotePayload = {
   bondLabel: string;
   deliveryFeeLabel: string;
   incidentalLabel: string;
+  // 포함/불포함 제목 어휘(2026-07-30) — 앱이 "공채 (포함)"처럼 행 제목에 조합(취득세 모드 선례).
+  bondIncludedLabel: string;
+  deliveryFeeIncludedLabel: string;
+  incidentalIncludedLabel: string;
   registrationCostLabel: string;
   acquisitionCostLabel: string;
   // 섹션 3 — 추천 견적 조건(대표 시나리오 전체)
@@ -262,9 +266,12 @@ export function buildAdvisorQuotePayload(
     finalVehiclePriceLabel: formatMoney(finalVehiclePrice),
     acquisitionTaxLabel: formatMoney(acquisitionTax),
     acquisitionTaxModeLabel: acquisitionTaxModeLabelOf(q.acquisitionTaxMode),
-    bondLabel: costItemLabelOf(bond, q.bondIncluded),
-    deliveryFeeLabel: costItemLabelOf(delivery, q.deliveryIncluded),
-    incidentalLabel: costItemLabelOf(incidental, q.incidentalIncluded),
+    bondLabel: formatMoney(bond),
+    deliveryFeeLabel: formatMoney(delivery),
+    incidentalLabel: formatMoney(incidental),
+    bondIncludedLabel: costIncludedLabelOf(q.bondIncluded),
+    deliveryFeeIncludedLabel: costIncludedLabelOf(q.deliveryIncluded),
+    incidentalIncludedLabel: costIncludedLabelOf(q.incidentalIncluded),
     registrationCostLabel: formatMoney(registrationCost),
     acquisitionCostLabel: formatMoney(acquisitionCost),
     hasScenario: sc != null,
