@@ -192,3 +192,25 @@ test("대상 삭제 가드: 승인 전에 대상이 삭제되면 ConflictError(s
     await expect(approveChangeRequest(reqId, crypto.randomUUID(), tx)).rejects.toThrow(ConflictError);
   });
 });
+
+test("update 3종: 스키마 전체 키 payload로 스냅샷을 떠도 계약 위반이 없다(selector 완비 tripwire)", async () => {
+  await inRollback(async (tx) => {
+    // 스키마에 필드를 추가하면서 스냅샷 selector를 같이 안 고치면 여기가 먼저 빨개진다
+    // (운영에선 팀장 폼 전체 PATCH가 첫 희생자다 — pickByPayloadKeys 주석 참조).
+    const trimPayload = {
+      trimName: "x", price: 1, modelYear: 2027, fuelType: "가솔린", driveSystem: null,
+      displacementCc: null, transmissionType: null, bodyStyle: null, seatingCapacity: null,
+      status: "판매중", financialDiscountAmount: null, partnerDiscountAmount: null, cashDiscountAmount: null,
+    };
+    const trimSnap = await CHANGE_KINDS["trim.update"].buildSnapshot(trimId, trimPayload, tx);
+    expect(Object.keys(trimSnap!).length).toBe(Object.keys(trimPayload).length);
+    const modelPayload = { category: null, status: "판매중" };
+    const modelSnap = await CHANGE_KINDS["model.update"].buildSnapshot(modelId, modelPayload, tx);
+    expect(Object.keys(modelSnap!).length).toBe(Object.keys(modelPayload).length);
+    // option.update — beforeAll의 트림에 옵션이 없을 수 있어 tx 안에서 하나 만들어 쓴다
+    const created = (await createOption({ trimId, type: "basic", name: "승인요청검증옵션", price: null }, tx)) as { id: number };
+    const optionPayload = { name: "y", price: null };
+    const optionSnap = await CHANGE_KINDS["option.update"].buildSnapshot(created.id, optionPayload, tx);
+    expect(Object.keys(optionSnap!).length).toBe(Object.keys(optionPayload).length);
+  });
+});

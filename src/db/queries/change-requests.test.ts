@@ -110,6 +110,10 @@ test("타인의 pending이 있으면 적재를 거부하고 기존 요청 정보
   });
 });
 
+// ⚠️ 이 테스트는 upsert 내부의 "UPDATE 0행 → insert 폴스루" 분기 자체를 타지 않는다 — 같은 tx라
+// claimPending 이후의 SELECT부터 pending이 안 보여 바깥 INSERT 경로를 탄다(내부 분기는 두 커넥션
+// 인터리빙에서만 도달, 단일 tx로 재현 불가). 여기서 잠그는 것은 그 관찰 가능 계약이다:
+// 승인된 뒤 같은 사람이 재제출하면 에러 없이 **새** 요청이 생기고, 옛 approved 행은 되살아나지 않는다.
 test("승인으로 pending이 사라진 뒤 같은 요청자가 다시 적재하면 새 행이 insert된다(폴스루)", async () => {
   await inRollback(async (tx) => {
     const me = requester();
