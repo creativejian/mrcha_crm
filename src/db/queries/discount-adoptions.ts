@@ -241,6 +241,13 @@ export async function recordAdminDiscountEdits(
 //
 // admin 직접 실행(routes/catalog/trims.ts)과 변경 요청 승인 replay(change-request-kinds.ts)가
 // 이 한 벌을 공유한다 — 두 경로가 갈라지면 위 사고가 다시 생긴다.
+//
+// ⚠️ 관례(executor 기본값 getDefaultDb())와 달리 tx에 기본값을 두지 않는다 — 갱신과 감사가
+// 따로 커밋되면 "누가 바꿨는지 모르는 확정 할인"이 남으므로, 호출자가 방금 연 트랜잭션을
+// 반드시 넘기게 시그니처로 표시한다(타입은 Db도 받지만 기본값 부재가 의도를 드러낸다).
+//
+// catalog-admin.ts가 아닌 여기 있는 이유: 이 파일은 이미 updateTrim을 import한다(단방향).
+// 반대로 두면 catalog-admin이 recordAdminDiscountEdits를 역수입해 순환 의존이 된다.
 export async function updateTrimWithDiscountAudit(
   trimId: number,
   patch: TrimPatch,
