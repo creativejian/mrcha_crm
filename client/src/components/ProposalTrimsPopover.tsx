@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { Fragment, type RefObject } from "react";
 import { useNavigate } from "react-router";
 
 import type { DealerProposalTrim } from "@/lib/dealer-roster";
@@ -27,12 +27,22 @@ export function popoverPosFromRect(rect: DOMRect | undefined): PopoverPos | null
 // 낸 금액 요약("자사 400만원 · 제휴 450만원") — null 필드는 미제안이라 표기하지 않는다.
 // 만원 축약 = manwonText(옵션 가격과 같은 SSOT — 300.5만원처럼 소수점도 처리). 확정가(트림
 // price)를 모르는 문맥이라 할인 셀의 % 표기는 하지 않는다(원 금액이 사실의 전부).
-function amountsSummary(r: DealerProposalTrim): string {
-  const parts: string[] = [];
-  if (r.financialAmount !== null) parts.push(`자사 ${manwonText(r.financialAmount)}`);
-  if (r.partnerAmount !== null) parts.push(`제휴 ${manwonText(r.partnerAmount)}`);
-  if (r.cashAmount !== null) parts.push(`타사 ${manwonText(r.cashAmount)}`);
-  return parts.join(" · ");
+// 라벨(자사/제휴/타사)만 본문색, 금액은 muted(2026-07-30 유슨생) — 그래서 문자열이 아니라 JSX다.
+function AmountsSummary({ r }: { r: DealerProposalTrim }) {
+  const parts: [string, number][] = [];
+  if (r.financialAmount !== null) parts.push(["자사", r.financialAmount]);
+  if (r.partnerAmount !== null) parts.push(["제휴", r.partnerAmount]);
+  if (r.cashAmount !== null) parts.push(["타사", r.cashAmount]);
+  return (
+    <>
+      {parts.map(([label, amount], i) => (
+        <Fragment key={label}>
+          {i > 0 && " · "}
+          <span className="org-dealer-trim-amount-label">{label}</span> {manwonText(amount)}
+        </Fragment>
+      ))}
+    </>
+  );
 }
 
 // 연속 구간 그룹핑 — 서버 정렬(브랜드→모델→트림명, listDealerProposalTrims)이 같은 모델을
@@ -104,7 +114,7 @@ export function ProposalTrimsPopover({
                   </span>
                   {/* 코드는 이름 span 밖의 자기 열 — 이름 말줄임에 같이 잘리면 안 된다(실기: MC0705…). */}
                   <span className="org-dealer-trim-code">{r.mcCode ?? ""}</span>
-                  <span className="org-dealer-trim-amounts">{amountsSummary(r)}</span>
+                  <span className="org-dealer-trim-amounts"><AmountsSummary r={r} /></span>
                   {/* 제안변경일(2026-07-29 유슨생) — 이 값이 언제 것인지가 채택 판단의 일부다. */}
                   <span className="org-dealer-trim-date">{fmtDate(r.updatedAt)}</span>
                 </button>
@@ -113,7 +123,7 @@ export function ProposalTrimsPopover({
                 <div className="org-dealer-trim-row deleted" key={r.trimId}>
                   <span className="org-dealer-trim-name">—</span>
                   <span className="org-dealer-trim-code" />
-                  <span className="org-dealer-trim-amounts">{amountsSummary(r)}</span>
+                  <span className="org-dealer-trim-amounts"><AmountsSummary r={r} /></span>
                   <span className="org-dealer-trim-date">{fmtDate(r.updatedAt)}</span>
                 </div>
               );
