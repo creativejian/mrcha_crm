@@ -41,9 +41,10 @@
 - `includePublicBondCost`/`includeDeliveryFeeAmount`/`includeMiscFeeAmount` = 플래그 **상시 전송**,
   금액(`publicBondCost` 등)은 **포함일 때만** 동봉(불포함이면 undefined — 계산기와 동일).
 - 취득세: **금액 > 0일 때만** `acquisitionTaxMode: "amount"` + `acquisitionTaxAmountOverride` 동봉.
-  0이면 미전송 = 엔진 자동 계산(현행과 동일). ⚠️ 워크벤치에는 계산기의 `autoAcquisitionTax` 자동 공식이
-  없다(모드 세그먼트는 라벨·저장용) — 자동 공식 도입은 이번 범위 밖(별도 결정). 0 override를 보내면
-  엔진 자동 계산을 0으로 덮어 월납입이 과소되므로 가드가 필수다.
+  0이면 미전송 = 엔진 자동 계산(0 override는 엔진 자동 계산을 0으로 덮어 월납입 과소 — 가드 필수).
+  **자동 공식도 도입**(같은 날 유슨생 실기 지적 "계산기는 자동인데 워크벤치는 안 따라온다"):
+  계산기 `autoAcquisitionTax`(build-payload 순수 계층)를 물리 공유해 `recomputePricing` 수렴점에서
+  파생한다 — 차량 선택·가격 수정·프리필 전 경로 커버, 직접 입력 모드·차량가 0은 덮지 않음(계산기 미러).
 - 랭킹 모달은 같은 빌더(`buildCardSolutionBaseArgs`) 공유라 동반 반영. 릴레이 서버는 무변경
   (zod가 이미 수용 — 계산기용 확장).
 
@@ -64,7 +65,6 @@ carTaxLabel의 기존 포함/불포함 어휘 재사용). 앱 렌더러는 라�
 
 ## 범위 밖 (의도)
 
-- 워크벤치 취득세 자동 공식(`autoAcquisitionTax`) 도입 — 별도 제품 결정.
 - 계산기 쪽 변경 0. 파트너 릴레이 변경 0.
 - 기존 발송 견적 소급 재계산 없음(다음 조회/발송부터 반영).
 

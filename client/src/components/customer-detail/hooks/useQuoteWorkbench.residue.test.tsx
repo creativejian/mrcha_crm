@@ -193,7 +193,7 @@ function injectResidue(result: ReturnType<typeof setup>["result"]) {
     result.current.handlers.setManualMileageValue("manual-condition-1", "30,000km / 년");
     result.current.handlers.setManualDealerMode("manual-condition-1", "input");
     result.current.handlers.addDiscountLine();
-    result.current.handlers.setAcquisitionTaxMode("electric");
+    result.current.handlers.selectAcquisitionTaxMode("electric");
   });
 }
 
@@ -448,6 +448,12 @@ async function setupSolutionDom(result: ReturnType<typeof setup>["result"]) {
   document.body.append(pricingRoot, compareForm);
   result.current.pricingPanelRef.current = pricingRoot;
   result.current.quoteDetailFormRef.current = compareForm;
+  // 취득세 "직접 입력" 고정 — 자동 공식(2026-07-30)이 시드 취득세 0을 덮으면 파생 대조군의
+  // 전제(취득원가 = 차량가 50,000,000 그대로)가 무너진다. 이 스위트는 파생 산술이 관심사다.
+  // act 분리 필수: 같은 act에서 이어 부르면 applyTrimToPricing이 모드 변경 전 closure(normal)를 본다.
+  await act(async () => {
+    result.current.handlers.selectAcquisitionTaxMode("manual");
+  });
   await act(async () => {
     await result.current.handlers.applyTrimToPricing(vehicleSelection);
   });

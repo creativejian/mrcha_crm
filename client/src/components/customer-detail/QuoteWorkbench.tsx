@@ -98,7 +98,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     setIsQuoteWorkbenchOriginalDragActive,
     setExteriorColor,
     setInteriorColor,
-    setAcquisitionTaxMode,
+    selectAcquisitionTaxMode,
     setCostIncluded,
     setGuidance,
     handleJeffMoneyInputFocus,
@@ -420,7 +420,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
               <div className="kim-jeff-section kim-jeff-cost-section">
                 <h4>⚙️ 취득원가 설정</h4>
                 <FormRow label="취득세" className="kim-jeff-acquisition-tax-row">
-                  <SegmentGroup value={acquisitionTaxMode} options={acquisitionTaxModeOptions} onSelect={setAcquisitionTaxMode} />
+                  <SegmentGroup value={acquisitionTaxMode} options={acquisitionTaxModeOptions} onSelect={selectAcquisitionTaxMode} />
                   <MoneyField suffix="원" inputProps={{ "data-pricing": "acquisitionTax", defaultValue: formatMoney(emptyQuotePricing.acquisitionTax), readOnly: acquisitionTaxMode !== "manual" }} />
                 </FormRow>
                 {/* 공채/탁송료/부대비용 토글 — 실동작(2026-07-30 spec, 구 D6 장식 해제): 취득원가 분류·

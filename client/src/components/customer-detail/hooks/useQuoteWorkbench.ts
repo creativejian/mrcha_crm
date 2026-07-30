@@ -7,6 +7,8 @@ import { dedupedModelTrim, flattenPrimaryScenario, type CustomerDetailScenario, 
 import { customerRegionOf, DEFAULT_QUOTE_GUIDANCE, normalizeQuoteGuidance, sanitizeQuoteGuidance, type QuoteGuidance, regionFromResidence } from "@/data/quote-guidance";
 import { updateQuote as apiUpdateQuote, createQuote as apiCreateQuote, parseMonthlyPayment, parseInterestRate, requestSolutionQuote, type QuoteWritePatch, type QuoteCreatePayload, type ScenarioInput } from "@/lib/customer-quotes";
 import { buildSolutionQuoteInput, CRM_EXTRA_LENDERS, detectLinkPriceMismatch, detectMultiLinkResolve, detectVehiclePriceMismatch, linkPriceMismatchMessage, multiLinkResolveMessage, parseSolutionQuoteResult, solutionLenderOptions, solutionProductTypeOf, vehiclePriceMismatchMessage, type BuildArgs, type SolutionLenderCode, type SolutionQuoteParsed, type SolutionSnapshot } from "@/lib/solution-quote";
+// 취득세 자동 공식 — 계산기 순수 계층과 물리 1벌(2026-07-30 유슨생: 워크벤치도 계산기처럼 자동).
+import { autoAcquisitionTax } from "@/components/calculator/build-payload";
 import { supportedMileagesFor, supportedTermsFor, useSupportMatrix } from "@/lib/support-matrix";
 import { fetchSolutionDealers, type SolutionDealer } from "@/lib/solution-dealers";
 import { solutionMonthlyDisplay, type SolutionRankingEntry } from "@/lib/solution-ranking";
@@ -520,6 +522,18 @@ export function useQuoteWorkbench({
     };
   }
 
+  // 취득세 모드 전환 — 자동 공식이 즉시 따라와야 해서 setState 후 명시 mode로 재파생한다.
+  function selectAcquisitionTaxMode(mode: AcquisitionTaxMode) {
+    setAcquisitionTaxMode(mode);
+    const root = pricingPanelRef.current;
+    if (!root) return;
+    const inputs = withAutoAcquisitionTax(root, readPricingInputs(root), mode);
+    setPricingInputs(inputs);
+    setPricing(computePricing(inputs));
+    refreshCardScenarioPreview();
+    markQuoteDraftChanged();
+  }
+
   // 포함/불포함 토글 — setState 직후 같은 틱의 recomputePricing은 closure 구값을 보므로,
   // 바뀐 플래그를 명시로 합쳐 재계산한다(stale closure 회피). 저장 payload에 실리는 값이라 dirty 마킹.
   function setCostIncluded(kind: "bond" | "delivery" | "incidental", included: boolean) {
@@ -541,10 +555,21 @@ export function useQuoteWorkbench({
     markQuoteDraftChanged();
   }
 
+  // 취득세 자동 계산(계산기 autoAcquisitionTax 미러) — null = 덮지 않음(직접 입력 모드·차량가 0:
+  // 직전 값 유지). DOM input이 진실 원본이라 표시값도 여기서 써 넣는다(uncontrolled 계약 유지).
+  function withAutoAcquisitionTax(root: HTMLElement, inputs: PricingInputs, mode: AcquisitionTaxMode): PricingInputs {
+    const fvp = inputs.basePrice + inputs.optionPrice - inputs.discount;
+    const auto = autoAcquisitionTax(fvp, mode === "normal" ? "none" : mode);
+    if (auto == null) return inputs;
+    const el = root.querySelector<HTMLInputElement>('input[data-pricing="acquisitionTax"]');
+    if (el) el.value = formatMoney(auto);
+    return { ...inputs, acquisitionTax: auto };
+  }
+
   function recomputePricing() {
     const root = pricingPanelRef.current;
     if (!root) return;
-    const inputs = readPricingInputs(root);
+    const inputs = withAutoAcquisitionTax(root, readPricingInputs(root), acquisitionTaxMode);
     setPricingInputs(inputs);
     setPricing(computePricing(inputs));
     // 가격패널 변경(기타비용·취득원가·차량가)도 결과 4필드 파생 입력이다(개정 1 R3) — 카드 편집과 같은
@@ -1799,7 +1824,7 @@ export function useQuoteWorkbench({
       setIsQuoteWorkbenchOriginalDragActive,
       setExteriorColor,
       setInteriorColor,
-      setAcquisitionTaxMode,
+      selectAcquisitionTaxMode,
       setCostIncluded,
       setGuidance,
       // 가격 패널 핸들러
