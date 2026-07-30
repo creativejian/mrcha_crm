@@ -174,7 +174,7 @@ export async function listModelPendingRequests(
           ),
           and(
             eq(catalogChangeRequests.kind, "option.create"),
-            sql`(${catalogChangeRequests.payload}->>'trimId')::int in (select id from ${trimsInCatalog} where ${trimsInCatalog.modelId} = ${modelId})`,
+            sql`(${catalogChangeRequests.payload}->>'trimId')::int in (${modelTrimIds})`,
           ),
         ),
       ),
@@ -198,10 +198,17 @@ async function labelTargets(rows: ChangeRequestRow[], ex: Executor): Promise<Cha
       : [];
   const optionById = new Map(options.map((o) => [o.id, o]));
 
+  // 비정상 payload(키 누락·비숫자)는 NaN이 되는데, 그대로 inArray에 넣으면 bigint 바인딩이
+  // 죽어 큐 조회 전체가 500이 된다(실측) — 유한수만 모아 라벨은 "삭제됨" 폴백으로 떨어뜨린다.
+  const addId = (set: Set<number>, v: unknown) => {
+    const n = Number(v);
+    if (Number.isFinite(n)) set.add(n);
+  };
+
   const trimIds = new Set<number>();
   for (const r of rows) {
     if (r.targetType === "trim" && r.targetId != null) trimIds.add(r.targetId);
-    if (r.kind === "option.create") trimIds.add(Number(p(r).trimId));
+    if (r.kind === "option.create") addId(trimIds, p(r).trimId);
   }
   for (const o of options) trimIds.add(o.trimId);
   const trims =
@@ -216,7 +223,7 @@ async function labelTargets(rows: ChangeRequestRow[], ex: Executor): Promise<Cha
   const modelIds = new Set<number>();
   for (const r of rows) {
     if (r.targetType === "model" && r.targetId != null) modelIds.add(r.targetId);
-    if (r.kind === "trim.create") modelIds.add(Number(p(r).modelId));
+    if (r.kind === "trim.create") addId(modelIds, p(r).modelId);
   }
   for (const t of trims) modelIds.add(t.modelId);
   const models =

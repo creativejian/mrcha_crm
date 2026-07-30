@@ -1,5 +1,5 @@
 import { beforeAll, expect, test } from "bun:test";
-import { eq, sql } from "drizzle-orm";
+import { eq, ne, sql } from "drizzle-orm";
 
 import { modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
@@ -14,6 +14,7 @@ import {
 const db = getDefaultDb();
 let trimId = 0;
 let modelId = 0;
+let otherModelTrimId = 0; // 다른 모델 소속 트림 — option.create 축 스코프 제외 검증용
 
 beforeAll(async () => {
   const [trim] = await db
@@ -22,6 +23,13 @@ beforeAll(async () => {
     .limit(1);
   trimId = trim!.id;
   modelId = trim!.modelId;
+
+  const [other] = await db
+    .select({ id: trimsInCatalog.id })
+    .from(trimsInCatalog)
+    .where(ne(trimsInCatalog.modelId, modelId))
+    .limit(1);
+  otherModelTrimId = other!.id;
 });
 
 async function inRollback(fn: (tx: Executor) => Promise<void>): Promise<void> {
@@ -90,10 +98,68 @@ test("본인 재제출은 같은 행을 갱신한다(payload 교체 + updated_at
 
 test("타인의 pending이 있으면 적재를 거부하고 기존 요청 정보를 준다", async () => {
   await inRollback(async (tx) => {
-    const first = await upsertPendingRequest(trimUpdateInput(requester()), tx);
+    const firstRequester = requester();
+    const first = await upsertPendingRequest(trimUpdateInput(firstRequester), tx);
     expect(first.ok).toBe(true);
     const second = await upsertPendingRequest(trimUpdateInput(requester()), tx);
     expect(second.ok).toBe(false);
+    // 필드 뒤바뀜 회귀 방지 — 거부 응답이 "기존(첫) 요청자"를 정확히 가리키는지 확인.
+    if (second.ok) throw new Error("거부 예상 실패");
+    expect(second.existingRequestedBy).toBe(firstRequester);
+    expect(second.existingCreatedAt).toBeInstanceOf(Date);
+  });
+});
+
+test("승인으로 pending이 사라진 뒤 같은 요청자가 다시 적재하면 새 행이 insert된다(폴스루)", async () => {
+  await inRollback(async (tx) => {
+    const me = requester();
+    const first = await upsertPendingRequest(trimUpdateInput(me), tx);
+    if (!first.ok) throw new Error("적재 실패");
+    const claimed = await claimPending(first.id, requester(), tx);
+    expect(claimed).not.toBeNull();
+
+    const second = await upsertPendingRequest(trimUpdateInput(me), tx);
+    expect(second.ok).toBe(true);
+    if (!second.ok) throw new Error("적재 실패");
+    // 기존 pending이 이미 approved로 전이됐으므로 갱신 대상이 없다 — 새 행이어야 한다.
+    expect(second.id).not.toBe(first.id);
+  });
+});
+
+test("모델 단위 pending 조회: option.create는 payload.trimId가 그 모델 소속일 때만 잡힌다", async () => {
+  await inRollback(async (tx) => {
+    const optionCreateInput = (byTrimId: number) => ({
+      kind: "option.create", targetType: "option", targetId: null,
+      payload: { trimId: byTrimId, name: "승인요청검증옵션", price: 1, type: "basic" },
+      snapshot: {}, requestedBy: requester(),
+    });
+    const inScope = await upsertPendingRequest(optionCreateInput(trimId), tx);
+    const outOfScope = await upsertPendingRequest(optionCreateInput(otherModelTrimId), tx);
+    expect(inScope.ok).toBe(true);
+    expect(outOfScope.ok).toBe(true);
+    if (!inScope.ok || !outOfScope.ok) throw new Error("적재 실패");
+
+    const rows = await listModelPendingRequests(modelId, tx);
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(inScope.id);
+    expect(ids).not.toContain(outOfScope.id);
+  });
+});
+
+test("payload에 trimId가 없는 option.create도 목록 조회가 죽지 않고 '삭제됨' 폴백으로 떨어진다", async () => {
+  await inRollback(async (tx) => {
+    const r = await upsertPendingRequest(
+      {
+        kind: "option.create", targetType: "option", targetId: null,
+        payload: {}, snapshot: {}, requestedBy: requester(),
+      },
+      tx,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) throw new Error("적재 실패");
+    const rows = await listChangeRequests("pending", tx);
+    const mine = rows.find((row) => row.id === r.id);
+    expect(mine?.targetLabel.startsWith("삭제됨")).toBe(true);
   });
 });
 
