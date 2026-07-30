@@ -24,6 +24,7 @@ const FRESH_MS = 30_000;
 type CacheApi<T> = {
   get: (id: number) => T | undefined;
   load: (id: number, opts?: { force?: boolean }) => Promise<T>;
+  clear: () => void;
 };
 
 // id(brandId/modelId) → 값 캐시. 신선하면 네트워크 생략, 동시호출 dedupe, onLoad로 부수효과(이미지 워밍).
@@ -46,6 +47,11 @@ function makeCache<T>(fetcher: (id: number) => Promise<T>, onLoad?: (value: T, i
         .finally(() => inflight.delete(id));
       inflight.set(id, p);
       return p;
+    },
+    // 전 항목 무효화 — inflight는 그대로 둔다: 진행 중 fetch가 clear 직전 값을 다시 심는 창은
+    // 이론상 있으나 30s 신선도로 자기 치유되고, 기존(무효화 자체가 없던) 동작보다 나빠질 수 없다.
+    clear: () => {
+      cache.clear();
     },
   };
 }
@@ -137,4 +143,15 @@ export function prefetchCatalog(): void {
       if (first != null) prefetchModels(first);
     })
     .catch(() => undefined);
+}
+
+// 변경 요청 승인 반영 후 전 모델 캐시 무효화(PR3 — 브리프 이월 ④). 승인 대상이 현재 화면 밖
+// 모델이면 reloadTrims({force})가 닿지 않아 30s 스테일이 남는다 — 승인 성공 시 이걸 불러 다음
+// 진입이 무조건 재조회하게 한다. brands·trimColors는 큐 대상 8종 kind가 못 바꾸는 축이라 유지.
+// MCMasterPage.test.tsx beforeEach도 이걸로 케이스 간 모듈 캐시 누수를 끊는다(종전 리셋 API 부재).
+export function invalidateCatalogAfterApproval(): void {
+  modelsCache.clear();
+  trimsCache.clear();
+  optionSummaryCache.clear();
+  optionsCache.clear();
 }
