@@ -678,6 +678,14 @@
   text-align: center;
   pointer-events: none;
 }
+/* 팝오버가 열린 행을 형제 행 위로 — 행이 전부 z:1 스태킹 컨텍스트(customer-list.css
+   .customer-table tbody tr)라 팝오버의 z:70은 자기 행 안에서만 이기고, 행끼리는 DOM 뒤인
+   아래 행이 위에 그려져 아래 행 텍스트·경계선이 팝오버를 뚫는다. Chrome/Firefox가 스펙대로
+   이걸 노출하고 Safari는 tr 스태킹 미지원이라 우연히 정상으로 보였다(2026-07-30 실기).
+   출고 정보 팝오버(customer-list.css tr:has(.delivery-info-popover))와 같은 처방. */
+.customer-table tr:has(.va-disc-pop) {
+  z-index: 120;
+}
 .va-disc-pop {
   position: absolute;
   right: 0;
