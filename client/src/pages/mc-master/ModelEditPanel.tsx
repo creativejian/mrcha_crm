@@ -12,12 +12,14 @@ export function ModelEditPanel({
   onSubmit,
   busy,
   error,
+  submitLabel = "저장", // 팀장 제안 축은 "승인 요청" — 같은 폼, 다른 결말(spec §7.1)
 }: {
   model: CatalogModel | null;
   onClose: () => void;
   onSubmit: (values: { name: string; category: string | null; status: VehicleStatus }) => void;
   busy: boolean;
   error: string | null;
+  submitLabel?: string;
 }) {
   const isEdit = model !== null;
   const [name, setName] = useState(model?.name ?? "");
@@ -76,7 +78,7 @@ export function ModelEditPanel({
           disabled={!canSubmit || busy}
           onClick={() => onSubmit({ name: name.trim(), category: category || null, status })}
         >
-          {busy ? "저장 중…" : "저장"}
+          {busy ? "저장 중…" : submitLabel}
         </button>
       </div>
     </EditDrawer>

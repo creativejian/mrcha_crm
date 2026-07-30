@@ -53,6 +53,7 @@ it("캐시 hit: 첫 렌더부터 옵션 리스트(비동기 대기 없이)", asy
     <OptionPanel
       trim={TRIM}
       canEdit
+      canDelete
       summary={{ trimId: TRIM.id, basic: 1, tuning: 0, noOption: false }}
       onClose={() => {}}
       onChanged={() => {}}
@@ -71,6 +72,7 @@ it("캐시 miss 로딩 중: summary 카운트로 탭 라벨, 「옵션 없음 �
     <OptionPanel
       trim={{ ...TRIM, id: 8001 }}
       canEdit
+      canDelete
       summary={{ trimId: 8001, basic: 3, tuning: 2, noOption: false }}
       onClose={() => {}}
       onChanged={() => {}}

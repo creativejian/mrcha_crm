@@ -9,6 +9,7 @@ import {
   type TrimOptionSummary,
   createOption,
   deleteOption,
+  isCatalogWriteQueued,
   setNoOption,
   unsetNoOption,
   updateOption,
@@ -25,12 +26,15 @@ import { formatThousands, manwonText, parseManwon } from "./trim-format";
 export function OptionPanel({
   trim,
   canEdit,
+  canDelete,
   summary,
   onClose,
   onChanged,
 }: {
   trim: CatalogTrim;
   canEdit: boolean;
+  // 삭제는 admin 전용 — canEdit(쓰기 개방=admin|manager)와 축이 다르다(spec §3.2)
+  canDelete: boolean;
   summary: TrimOptionSummary | undefined;
   onClose: () => void;
   onChanged: () => void;
@@ -128,12 +132,14 @@ export function OptionPanel({
   }
   function toggleNoOption() {
     void withBusy(async () => {
+      // 팀장(202 큐 적재)은 아직 반영 전 — 로컬 noOption을 뒤집으면 "즉시 반영된 것처럼" 읽힌다
+      // (spec §7.1 로컬 상태 미반영). 즉시 실행(admin)일 때만 토글한다.
       if (noOption) {
-        await unsetNoOption(trim.id);
-        setNoOptionState(false);
+        const r = await unsetNoOption(trim.id);
+        if (!isCatalogWriteQueued(r)) setNoOptionState(false);
       } else {
-        await setNoOption(trim.id);
-        setNoOptionState(true);
+        const r = await setNoOption(trim.id);
+        if (!isCatalogWriteQueued(r)) setNoOptionState(true);
       }
     });
   }
@@ -249,14 +255,16 @@ export function OptionPanel({
                       >
                         <Pencil size={13} />
                       </button>
-                      <button
-                        type="button"
-                        className="tiny-btn va-danger"
-                        aria-label={`${o.name} 삭제`}
-                        onClick={() => del(o)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          className="tiny-btn va-danger"
+                          aria-label={`${o.name} 삭제`}
+                          onClick={() => del(o)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </span>
                   )}
                 </>
