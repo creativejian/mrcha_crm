@@ -460,8 +460,9 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 {openModel?.name ?? "트림"}
                 {openModel ? ` (${trims.length})` : ""}
               </h2>
-              {/* 트림 행에 붙일 곳이 없는 pending(트림 추가·모델 수정)의 집계 — 없으면 그 요청이
-                  화면 어디에도 안 보여 같은 제안을 다시 내다 409를 맞는다(spec §7.2). */}
+              {/* 트림 행에 붙일 곳이 없는 pending(트림 추가·모델 수정)의 집계(spec §7.2) — 없으면
+                  그 요청이 화면 어디에도 안 보인다. 409 예방은 model.update에만 해당하고(부분
+                  UNIQUE가 target_id 있는 행만 잠금), create류는 중복 적재 인지가 목적이다. */}
               {changeBadges.headerLines.length > 0 && (
                 <span className="va-cr-badge" title={changeBadges.headerLines.join("\n")}>
                   승인 대기 {changeBadges.headerLines.length}

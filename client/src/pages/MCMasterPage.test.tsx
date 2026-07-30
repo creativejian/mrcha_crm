@@ -116,7 +116,9 @@ beforeEach(() => {
   trimPatchResponse = { status: 200, body: { id: 100 } };
   fetchCalls = [];
   resetStaffDirectoryCache(); // 직원 디렉토리도 모듈 캐시 — 케이스 간 누수 차단(QuoteWorkbench.gate 관례).
-  invalidateCatalogAfterApproval(); // 30s 모듈 캐시도 케이스 간 누수 — PR3에서 생긴 리셋 API로 표준 초기화.
+  // 30s 모듈 캐시도 케이스 간 누수 — PR3에서 생긴 리셋 API로 초기화. ⚠️ brands·trimColors 캐시는
+  // 의도적으로 남는다(승인이 못 바꾸는 축) — 브랜드를 케이스별로 바꾸는 테스트가 생기면 별도 리셋 필요.
+  invalidateCatalogAfterApproval();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
