@@ -490,6 +490,16 @@ export const catalogDiscountAdoptions = crm.table(
 // payload = 원 라우트 zod 검증을 통과한 body 그대로(승인 시 재검증). snapshot = 요청 시점
 // 현재 값(update: payload가 건드리는 필드만 · create: 부모 존재 확인의 {} · 드리프트 근거).
 // spec: ref/specs/2026-07-30-crm-catalog-change-approval-design.md §4
+// 변경 요청 kind 어휘(SSOT) — 아래 CHECK와 라우트 레지스트리(change-request-kinds.ts)의
+// ChangeKind 타입이 이 배열 하나에서 파생된다(9번째 kind 추가 시 한 곳만 고친다).
+export const CHANGE_REQUEST_KINDS = [
+  "model.create", "model.update",
+  "trim.create", "trim.update",
+  "option.create", "option.update",
+  "trim.no-option.set", "trim.no-option.unset",
+] as const;
+export type ChangeRequestKind = (typeof CHANGE_REQUEST_KINDS)[number];
+
 export const catalogChangeRequests = crm.table(
   "catalog_change_requests",
   {
@@ -502,7 +512,7 @@ export const catalogChangeRequests = crm.table(
     status: text("status").default("pending").notNull(),
     requestedBy: uuid("requested_by").notNull(), // → public.profiles.id(loose id 관례)
     rejectReason: text("reject_reason"),
-    decidedBy: uuid("decided_by"),
+    decidedBy: uuid("decided_by"), // → public.profiles.id(승인/반려한 관리자, loose id 관례)
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -510,12 +520,19 @@ export const catalogChangeRequests = crm.table(
   (table) => [
     check(
       "catalog_change_requests_kind_check",
-      sql`${table.kind} in ('model.create','model.update','trim.create','trim.update','option.create','option.update','trim.no-option.set','trim.no-option.unset')`,
+      sql`${table.kind} in (${sql.raw(CHANGE_REQUEST_KINDS.map((k) => `'${k}'`).join(","))})`,
     ),
     check("catalog_change_requests_target_type_check", sql`${table.targetType} in ('model','trim','option')`),
     check(
       "catalog_change_requests_status_check",
       sql`${table.status} in ('pending','approved','rejected','canceled')`,
+    ),
+    // kind 접두사와 target_type 정합 — 애플리케이션은 레지스트리가 한 곳에서 파생하지만,
+    // psql 수동 insert가 'trim.update'+'model' 같은 불일치 행을 만들 수 있어 DB가 막는다
+    // (이 테이블은 승인 워크플로의 유일한 감사 기록이다).
+    check(
+      "catalog_change_requests_kind_target_type_check",
+      sql`(${table.kind} like 'model.%' and ${table.targetType} = 'model') or (${table.kind} like 'trim.%' and ${table.targetType} = 'trim') or (${table.kind} like 'option.%' and ${table.targetType} = 'option')`,
     ),
     uniqueIndex("catalog_change_requests_pending_target_unique")
       .on(table.targetType, table.targetId, table.kind)

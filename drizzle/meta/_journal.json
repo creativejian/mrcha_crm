@@ -309,6 +309,13 @@
       "when": 1785389694332,
       "tag": "0043_spooky_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1785390246761,
+      "tag": "0044_breezy_hannibal_king",
+      "breakpoints": true
     }
   ]
 }
