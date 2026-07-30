@@ -906,7 +906,10 @@
   font-size: 12px;
   color: var(--muted);
 }
-.va-cr-row-head > span:first-child {
+/* 요청자 이름 강조 — 구 선택자는 `> span:first-child`(위치 기반)였다. "내 요청" 팝오버(§7.3)가
+   같은 셸을 쓰면서 첫 자식이 상태 칩으로 바뀌자, 이 규칙의 특이도(0,2,1)가 칩 색(0,1,0)을
+   눌러 대기/승인/반려 색 구분이 죽었다 — 위치가 아니라 의미로 가리키게 바꿨다. */
+.va-cr-requester {
   font-weight: 600;
   color: var(--text);
 }
@@ -978,4 +981,31 @@
    합산된다 — gap에 맡긴다(vertical-align은 flex item에서 무효라 그대로 둔다: 행 배지 전용). */
 .va-head-back .va-cr-badge {
   margin-left: 0;
+}
+
+/* ── 내 요청 상태 칩(PR3 spec §7.3) — 팀장 "내 요청" 팝오버 행 머리의 대기/승인/반려 표식.
+   대기 앰버는 위 .va-cr-badge와 같은 축, 승인 초록·반려 빨강은 이 레포 결과 어휘 색이다. */
+.va-cr-status {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.va-cr-status-pending {
+  background: rgba(180, 83, 9, 0.12);
+  color: #b45309;
+}
+.va-cr-status-approved {
+  background: rgba(21, 128, 61, 0.12);
+  color: #15803d;
+}
+.va-cr-status-rejected {
+  background: rgba(185, 28, 28, 0.12);
+  color: #b91c1c;
+}
+.va-cr-reason {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #b91c1c;
 }

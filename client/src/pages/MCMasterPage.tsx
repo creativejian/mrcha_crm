@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckSquare, FolderInput, Hash, Plus } from "lucide-react";
 
 import { ChangeRequestQueueButton } from "@/components/ChangeRequestQueue";
+import { MyChangeRequestsButton } from "@/components/MyChangeRequests";
 import type { RoleTab } from "@/data/roles";
 import type { VehicleStatus } from "@/data/vehicle-taxonomy";
 import {
@@ -468,6 +469,8 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
               )}
             </div>
             {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
+            {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
+            {canPropose && <MyChangeRequestsButton />}
             {editActions(
               () => {
                 setPanelError(null);
@@ -494,6 +497,8 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 불가능하니(쓰기 403) 프로필이 있을 때만 낸다. */}
             {dealerMode && dealerMeLoaded && dealerMe != null && <MyProposalTrimsButton />}
             {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
+            {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
+            {canPropose && <MyChangeRequestsButton />}
             {brandId != null &&
               editActions(() => {
                 setPanelError(null);

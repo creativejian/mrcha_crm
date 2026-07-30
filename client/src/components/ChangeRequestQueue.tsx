@@ -170,7 +170,7 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
             return (
               <div className="va-cr-row" key={row.id}>
                 <div className="va-cr-row-head">
-                  <span>{staffNameOf(row.requestedBy) ?? "알 수 없음"}</span>
+                  <span className="va-cr-requester">{staffNameOf(row.requestedBy) ?? "알 수 없음"}</span>
                   {" · "}
                   <span>{waitingLabel(row.createdAt, new Date(), "전")}</span>
                   {" · "}

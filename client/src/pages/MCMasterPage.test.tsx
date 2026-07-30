@@ -402,6 +402,34 @@ it("트림 행에 못 붙는 요청(트림 추가 등)은 트림 뷰 헤더 pill
   expect(await screen.findByText("승인 대기 1")).toBeInTheDocument();
 });
 
+// ── PR3 Task 7: 팀장 "내 요청 (N)" 팝오버(spec §7.3) ─────────────────────────
+it("팀장: 내 요청 (N) — 반려 사유가 보이고 pending 행 취소가 DELETE를 쏜다", async () => {
+  myRequests = [
+    { ...PENDING_ROW, id: "cr-p", status: "pending" },
+    { ...PENDING_ROW, id: "cr-r", status: "rejected", rejectReason: "가격 근거 부족" },
+  ];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await screen.findByText("그랜저");
+  await user.click(await screen.findByRole("button", { name: "내 요청 (1)" })); // (N)=pending만
+  expect(await screen.findByText(/반려 사유: 가격 근거 부족/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "취소" }));
+  await waitFor(() => {
+    expect(fetchCalls.some(([url, init]) => url === "/api/catalog/change-requests/cr-p" && init?.method === "DELETE")).toBe(true);
+  });
+});
+
+it("내 요청 버튼은 팀장 전용 — 관리자·상담사에겐 없다", async () => {
+  const admin = renderPage("최고관리자");
+  await screen.findByText("그랜저");
+  expect(screen.queryByRole("button", { name: /내 요청/ })).toBeNull();
+  admin.unmount();
+
+  renderPage("상담사");
+  await screen.findByText("그랜저");
+  expect(screen.queryByRole("button", { name: /내 요청/ })).toBeNull();
+});
+
 it("팀장 저장(202)이 큐에 쌓이면 행 배지가 즉시 나타난다(pub/sub 재조회)", async () => {
   trimPatchResponse = { status: 202, body: { queued: true, requestId: "cr-9" } };
   const user = userEvent.setup();
