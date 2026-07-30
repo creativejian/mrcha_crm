@@ -255,6 +255,8 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
                 </div>
                 {/* MC 마스터 admin 진입점 — 기존엔 Topbar 설정 팝오버로만 접근 가능했다(2026-07-30
                     유슨생 위임 결정). 배지 = 딜러 변경 제안 승인 대기 건수(App.tsx 60s 폴링). */}
+                {/* MC 마스터는 인사이트류와 달리 사이드바 중복 진입을 예외 허용(2026-07-30) — 승인 대기
+                    배지를 항상 보이게 하는 게 목적이고, 설정 팝오버 행에는 배지 선례/스타일이 없다. */}
                 <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span>{pendingChangeRequestCount > 0 ? <span className="nav-count num">{pendingChangeRequestCount}</span> : null}</button>
                 {/* 인사이트·지식베이스 진입은 프로필 팝오버 "차선생 앱 설정" 그룹만(프로토타입 원 설계).
                     #251이 덧붙인 사이드바 진입점은 중복이라 제거(2026-07-19 유슨생 — pending 항목 12). */}

@@ -26,6 +26,17 @@ export type ChangeRequestItem = {
 
 const QUEUE_URL = "/api/catalog/change-requests?status=pending";
 
+// 대기열 변동 알림(모듈 레벨 pub/sub) — 팝오버에서 승인/반려하면 사이드바 배지(App 폴링)가
+// 60s를 기다리지 않고 즉시 재조회한다(dealer-roster의 invalidate 선례와 같은 결).
+const queueListeners = new Set<() => void>();
+export function onChangeRequestQueueUpdated(listener: () => void): () => void {
+  queueListeners.add(listener);
+  return () => queueListeners.delete(listener);
+}
+function notifyQueueUpdated() {
+  for (const l of queueListeners) l();
+}
+
 export function useChangeRequestQueue(enabled: boolean): {
   rows: ChangeRequestItem[] | null; // null = 미로드/로딩
   failed: boolean;
@@ -62,11 +73,13 @@ export function useChangeRequestQueue(enabled: boolean): {
   const approve = useCallback(async (id: string) => {
     await sendJson(`/api/catalog/change-requests/${id}/approve`, "POST");
     setTick((t) => t + 1);
+    notifyQueueUpdated();
   }, []);
 
   const reject = useCallback(async (id: string, reason: string) => {
     await sendJson(`/api/catalog/change-requests/${id}/reject`, "POST", { reason });
     setTick((t) => t + 1);
+    notifyQueueUpdated(); // 반려도 pending 카운트가 줄어드므로 승인과 동일하게 알린다.
   }, []);
 
   return { rows, failed, reload, approve, reject };

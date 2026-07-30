@@ -15,6 +15,7 @@ import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
 import { customerCodeFromLocation, customerListPath, customerModeFromSearch } from "@/lib/customer-route";
 import { financeListPath, financeModeFromSearch, financeModeMeta } from "@/lib/finance-route";
+import { onChangeRequestQueueUpdated } from "@/lib/catalog-change-requests";
 import { getJson } from "@/lib/http";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
@@ -207,8 +208,10 @@ export function App() {
   }, [auth.authed, showToast]);
 
   // MC 마스터 승인 대기 배지 — Realtime 구독까지는 과함(내부 승인 큐·소량). 60s 폴링 + 창 focus
-  // 재조회(관리자가 다른 탭에 가 있다 돌아오는 순간이 갱신 적기 — dealer-roster 선례). manager는
-  // 서버가 403이라 admin(isAdmin)만 조회.
+  // 재조회(관리자가 다른 탭에 가 있다 돌아오는 순간이 갱신 적기 — dealer-roster 선례) + 승인 대기열
+  // 팝오버가 직접 승인/반려하는 즉시성은 모듈 pub/sub(onChangeRequestQueueUpdated)으로 보강한다 —
+  // SPA 내 처리라 focus 이벤트가 안 오고, 60s를 기다리면 방금 처리한 배지가 그대로 남아 보인다.
+  // manager는 서버가 403이라 admin(isAdmin)만 조회.
   useEffect(() => {
     if (!auth.authed || !isAdmin) return;
     const refresh = () => {
@@ -219,9 +222,11 @@ export function App() {
     refresh();
     const timer = window.setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
+    const offQueue = onChangeRequestQueueUpdated(refresh);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", refresh);
+      offQueue();
     };
   }, [auth.authed, isAdmin]);
 
