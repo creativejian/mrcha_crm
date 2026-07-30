@@ -103,6 +103,9 @@ it("202 {queued}: 쓰기 헬퍼가 queued 표식을 반환하고 구독자에게
   unsub();
   expect(isCatalogWriteQueued(r)).toBe(true);
   expect(notified).toBe(1);
+  // 해지 후에는 알림이 없다 — 모듈 Set 누수가 테스트 간 오염이 되지 않게 잠근다.
+  await updateTrim(1, { price: 3 });
+  expect(notified).toBe(1);
 });
 
 it("200 정상 응답은 queued로 오인하지 않고 알림도 없다", async () => {
