@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { modelsInCatalog, trimsInCatalog } from "../../db/catalog";
 import { getDefaultDb, type Executor } from "../../db/client";
 import { catalogDiscountAdoptions, type ChangeRequestKind } from "../../db/schema";
-import { updateTrim } from "../../db/queries/catalog-admin";
+import { createOption, createTrim, deleteOption, updateTrim } from "../../db/queries/catalog-admin";
 import { upsertPendingRequest } from "../../db/queries/change-requests";
 import { ConflictError } from "../../lib/errors";
 import { approveChangeRequest, CHANGE_KINDS } from "./change-request-kinds";
@@ -114,11 +114,81 @@ test("payload가 현재 스키마에 안 맞으면 승인이 ConflictError(재�
   });
 });
 
-test("no-option 스냅샷은 옵션 개수를 담는다(요청 후 옵션 생김 = 드리프트 재료)", async () => {
+test("no-option 드리프트: 요청 후 옵션이 생기면 승인이 ConflictError로 죽는다", async () => {
   await inRollback(async (tx) => {
-    const def = CHANGE_KINDS["trim.no-option.set"];
-    const snapshot = await def.buildSnapshot(trimId, {}, tx);
-    expect(snapshot).not.toBeNull();
-    expect(typeof (snapshot as Record<string, unknown>).optionCount).toBe("number");
+    const noOptTrim = await createTrim(
+      { modelId, trimName: "승인요청검증무옵션드리프트 - 등급", price: 1_000_000, modelYear: 2027, fuelType: "가솔린" },
+      tx,
+    );
+    const reqId = await enqueue(tx, "trim.no-option.set", noOptTrim!.id, {});
+    // 요청 후 옵션이 생겨 스냅샷(optionCount:0)과 어긋난다.
+    await createOption({ trimId: noOptTrim!.id, type: "basic", name: "드리프트옵션", price: 10000 }, tx);
+    await expect(approveChangeRequest(reqId, crypto.randomUUID(), tx)).rejects.toThrow(ConflictError);
+  });
+});
+
+test("8종 kind 전수 스모크 — enqueue→approve가 전부 에러 없이 끝난다(레지스트리 오타 그물)", async () => {
+  await inRollback(async (tx) => {
+    // model.create
+    const modelReqId = await enqueue(tx, "model.create", null, {
+      brandId, name: "승인요청검증스모크모델", category: null, status: "판매중",
+    });
+    const newModel = (await approveChangeRequest(modelReqId, crypto.randomUUID(), tx)) as { id: number } | null;
+    expect(newModel?.id).toBeGreaterThan(0);
+    const newModelId = newModel!.id;
+
+    // trim.create (하이픈 포함 — 국산 브랜드 트림명 트리거 대비)
+    const trimReqId = await enqueue(tx, "trim.create", null, {
+      modelId: newModelId, trimName: "승인요청검증 - 등급", price: 10_000_000, modelYear: 2027, fuelType: "가솔린",
+    });
+    const newTrim = (await approveChangeRequest(trimReqId, crypto.randomUUID(), tx)) as { id: number } | null;
+    expect(newTrim?.id).toBeGreaterThan(0);
+    const newTrimId = newTrim!.id;
+
+    // option.create
+    const optReqId = await enqueue(tx, "option.create", null, {
+      trimId: newTrimId, type: "basic", name: "승인요청검증옵션", price: 100000,
+    });
+    const newOption = (await approveChangeRequest(optReqId, crypto.randomUUID(), tx)) as { id: number } | null;
+    expect(newOption?.id).toBeGreaterThan(0);
+
+    // option.update
+    const optUpdReqId = await enqueue(tx, "option.update", newOption!.id, { price: 200000 });
+    await expect(approveChangeRequest(optUpdReqId, crypto.randomUUID(), tx)).resolves.not.toBeNull();
+
+    // trim.update(기존 트림)
+    const [beforeTrim] = await tx
+      .select({ fin: trimsInCatalog.financialDiscountAmount })
+      .from(trimsInCatalog)
+      .where(eq(trimsInCatalog.id, trimId));
+    const trimUpdReqId = await enqueue(tx, "trim.update", trimId, {
+      financialDiscountAmount: (beforeTrim!.fin ?? 0) + 222,
+    });
+    await expect(approveChangeRequest(trimUpdReqId, crypto.randomUUID(), tx)).resolves.not.toBeNull();
+
+    // model.update(기존 모델)
+    const modelUpdReqId = await enqueue(tx, "model.update", modelId, { category: "승인요청검증카테고리" });
+    await expect(approveChangeRequest(modelUpdReqId, crypto.randomUUID(), tx)).resolves.not.toBeNull();
+
+    // 새 트림(옵션 없음) — no-option set/unset 대상. 승인이 슬롯을 비우므로 순차 진행에 UNIQUE 충돌 없음.
+    const noOptTrim = await createTrim(
+      { modelId: newModelId, trimName: "승인요청검증무옵션 - 등급", price: 5_000_000, modelYear: 2027, fuelType: "가솔린" },
+      tx,
+    );
+
+    const setReqId = await enqueue(tx, "trim.no-option.set", noOptTrim!.id, {});
+    await expect(approveChangeRequest(setReqId, crypto.randomUUID(), tx)).resolves.not.toBeNull();
+
+    const unsetReqId = await enqueue(tx, "trim.no-option.unset", noOptTrim!.id, {});
+    await expect(approveChangeRequest(unsetReqId, crypto.randomUUID(), tx)).resolves.not.toBeNull();
+  });
+});
+
+test("대상 삭제 가드: 승인 전에 대상이 삭제되면 ConflictError(spec §6.4 ③)", async () => {
+  await inRollback(async (tx) => {
+    const option = await createOption({ trimId, type: "basic", name: "승인요청검증삭제옵션", price: 50000 }, tx);
+    const reqId = await enqueue(tx, "option.update", option!.id, { price: 60000 });
+    await deleteOption(option!.id, tx);
+    await expect(approveChangeRequest(reqId, crypto.randomUUID(), tx)).rejects.toThrow(ConflictError);
   });
 });

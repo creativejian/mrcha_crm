@@ -38,8 +38,16 @@ type KindDef = {
   execute(targetId: number | null, payload: Record<string, unknown>, ctx: { decidedBy: string }, tx: Executor): Promise<unknown>;
 };
 
+// payload가 건드리는 필드만 스냅샷에 담는다(spec §5.1). selector가 모르는 키는 계약 위반 —
+// 조용히 null 비교로 통과시키면 그 필드만 드리프트 무방비로 catalog에 써지므로 즉시 터뜨린다
+// (스키마에 필드를 추가하면서 스냅샷 selector를 같이 안 고친 개발 실수를 적재 시점에 잡는 그물).
 const pickByPayloadKeys = (fields: Record<string, unknown>, payload: Record<string, unknown>) =>
-  Object.fromEntries(Object.keys(payload).map((k) => [k, fields[k] ?? null]));
+  Object.fromEntries(
+    Object.keys(payload).map((k) => {
+      if (!(k in fields)) throw new Error(`스냅샷 selector에 없는 payload 키: ${k} — buildSnapshot을 함께 갱신하세요.`);
+      return [k, fields[k] ?? null];
+    }),
+  );
 
 async function brandExists(brandId: number, ex: Executor) {
   const [row] = await ex.select({ id: brandsInCatalog.id }).from(brandsInCatalog).where(eq(brandsInCatalog.id, brandId));
@@ -84,7 +92,8 @@ async function trimFields(id: number, ex: Executor): Promise<Record<string, unkn
     .from(trimsInCatalog)
     .where(eq(trimsInCatalog.id, id));
   if (!row) return null;
-  // price는 numeric이라 드라이버가 문자열로 줄 수 있다 — payload(number)와 같은 표현으로 정규화.
+  // price는 bigint({mode:"number"})라 이미 number다(Number()는 방어적 no-op) — 새 숫자 컬럼을
+  // 추가할 땐 드라이버 표현을 payload 타입에 맞출 것(detectSnapshotDrift가 타입까지 엄격 비교).
   return { ...row, price: Number(row.price) };
 }
 
@@ -190,7 +199,9 @@ export async function approveChangeRequest(id: string, decidedBy: string, tx: Ex
   if (!parsed.success) throw new ConflictError("요청 내용이 현재 스키마와 맞지 않습니다. 반려 후 재요청을 안내하세요.");
   const current = await def.buildSnapshot(claimed.targetId, claimed.payload, tx); // ③ 드리프트
   if (current === null) throw new ConflictError("대상이 그 사이 삭제되어 승인할 수 없습니다. 반려 후 재요청을 안내하세요.");
-  const drifted = detectSnapshotDrift(claimed.snapshot ?? {}, current);
+  // snapshot NULL은 앱 경로로 불가(submitChangeRequest가 404) — psql 조작 흔적이므로 검사 생략 대신 거부.
+  if (claimed.snapshot == null) throw new ConflictError("요청에 스냅샷이 없습니다. 반려 처리하세요.");
+  const drifted = detectSnapshotDrift(claimed.snapshot, current);
   if (drifted.length > 0) {
     throw new ConflictError(`그 사이 값이 바뀌어 승인할 수 없습니다(${drifted.join(", ")}). 반려 후 재요청을 안내하세요.`);
   }
@@ -211,6 +222,12 @@ export async function submitChangeRequest(
   try {
     const snapshot = await def.buildSnapshot(targetId, payload, c.var.db);
     if (snapshot === null) return c.json({ error: def.notFoundMsg }, 404);
+    // 옵션 있는 트림의 무옵션 확정은 승인 시점에 반드시 실패한다(setTrimNoOption이 거부) —
+    // "절대 승인될 수 없는 요청"을 큐에 받으면 제3자(관리자) 화면에서 500으로 터지므로
+    // 적재 시점에 409로 돌려보낸다(admin 직접 실행이 즉시 에러를 보는 것과 대칭).
+    if (kind === "trim.no-option.set" && Number(snapshot.optionCount) > 0) {
+      return c.json({ error: "옵션이 있는 트림은 '옵션 없음'으로 확정할 수 없습니다." }, 409);
+    }
     const result = await upsertPendingRequest(
       { kind, targetType: def.targetType, targetId, payload, snapshot, requestedBy: c.var.user.id },
       c.var.db,
@@ -223,6 +240,15 @@ export async function submitChangeRequest(
     }
     return c.json({ queued: true, requestId: result.id }, 202);
   } catch (e) {
+    // 두 팀장이 ms 단위로 겹치면 SELECT 선검사를 지나 부분 UNIQUE(23505)에서 만난다 —
+    // 의미는 위 409와 같으므로 상태코드도 같게(500이면 클라 분기가 "알 수 없는 오류"가 된다).
+    if (
+      String(e instanceof Error ? `${e.message} ${String((e as { cause?: unknown }).cause ?? "")}` : e).includes(
+        "catalog_change_requests_pending_target_unique",
+      )
+    ) {
+      return c.json({ error: "이미 승인 대기 중인 요청이 있습니다." }, 409);
+    }
     return errorResponse(c, e);
   }
 }
