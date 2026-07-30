@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { onCatalogWriteQueued } from "./catalog";
 import { CHANGE_FIELD_LABELS, OPTION_TYPE_VALUE_LABELS, type ChangeRequestKind } from "./catalog-change-kinds";
 import { getJson, sendJson } from "./http";
 
@@ -119,4 +120,69 @@ export function buildChangeDiff(row: Pick<ChangeRequestItem, "kind" | "payload" 
     before: isCreate ? null : formatValue(snapshot[k], k),
     after: formatValue(row.payload[k], k) ?? "—",
   }));
+}
+
+const EMPTY_ROWS: ChangeRequestItem[] = [];
+
+// 모델 단위 pending — 트림/옵션 행 "승인 대기" 배지(spec §7.2, admin·manager 공용). 조회 실패
+// 무소음: 배지는 409를 미리 보여주는 예방선일 뿐 최종 방어는 서버 부분 UNIQUE다. modelId 전환
+// 직후 이전 모델 rows가 스치지 않게 응답을 modelId와 묶어 두고 소비 시점에 대조한다(effect 본문
+// setState 금지 관례라 초기화 대신 파생 필터). 큐가 움직이면(202 적재 = catalog.ts 채널 /
+// 승인·반려·취소 = 이 모듈 채널) 즉시 재조회한다.
+export function useModelPendingRequests(modelId: number | null, enabled: boolean): ChangeRequestItem[] {
+  const [data, setData] = useState<{ modelId: number; rows: ChangeRequestItem[] } | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!enabled || modelId == null) return;
+    let alive = true;
+    getJson<ChangeRequestItem[]>(`/api/catalog/models/${modelId}/change-requests`)
+      .then((rows) => {
+        if (alive) setData({ modelId, rows });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [enabled, modelId, tick]);
+  useEffect(() => onCatalogWriteQueued(() => setTick((t) => t + 1)), []);
+  useEffect(() => onChangeRequestQueueUpdated(() => setTick((t) => t + 1)), []);
+  return data != null && data.modelId === modelId ? data.rows : EMPTY_ROWS;
+}
+
+// 팀장 "내 요청" 팝오버(spec §7.3) — mine=1은 전 상태·최근 50건(서버 관례)이라 상태 구분은
+// 클라 몫이다. 취소 성공은 notifyQueueUpdated로 알린다 — 모델 배지·(같은 브라우저의) 대기열이
+// 60s 폴링을 기다리지 않고 따라온다. 내 저장이 202로 적재되면 (N)도 즉시 갱신(catalog.ts 채널).
+export function useMyChangeRequests(enabled: boolean): {
+  rows: ChangeRequestItem[] | null;
+  failed: boolean;
+  reload: () => void;
+  cancel: (id: string) => Promise<void>;
+} {
+  const [rows, setRows] = useState<ChangeRequestItem[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    getJson<ChangeRequestItem[]>("/api/catalog/change-requests?mine=1")
+      .then((list) => {
+        if (!alive) return;
+        setRows(list);
+        setFailed(false);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [enabled, tick]);
+  useEffect(() => onCatalogWriteQueued(() => setTick((t) => t + 1)), []);
+  const reload = useCallback(() => setTick((t) => t + 1), []);
+  const cancel = useCallback(async (id: string) => {
+    await sendJson(`/api/catalog/change-requests/${id}`, "DELETE");
+    setTick((t) => t + 1);
+    notifyQueueUpdated();
+  }, []);
+  return { rows, failed, reload, cancel };
 }
