@@ -349,3 +349,52 @@ it("팀장 옵션 패널: 추가·수정은 열리고 삭제는 없고 제출 �
   await user.click(editOption);
   expect(await screen.findByRole("button", { name: "승인 요청" })).toBeInTheDocument();
 });
+
+// ── PR3 Task 6: 행 "승인 대기" 배지 + 트림 뷰 헤더 pill(spec §7.2) ────────────────
+// 시도 전에 보여 409(타인 pending)를 예방하는 게 목적이라 admin·manager 공통이다. 아래 케이스는
+// 팀장으로 렌더한다 — admin 화면에는 헤더 "승인 대기 (N)" 버튼이 함께 있어 텍스트가 겹친다.
+it("승인 대기 중인 트림 행에 배지가 뜬다(호버 title = 요청자·경과·작업)", async () => {
+  modelPendingRows = [{ ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 }];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  const badge = await screen.findByText("승인 대기"); // 행 배지(팀장에겐 "승인 대기 (N)" 헤더 버튼이 없어 유일)
+  expect(badge.getAttribute("title")).toContain("박서준");
+  expect(badge.getAttribute("title")).toContain("트림 수정");
+});
+
+it("트림 행에 못 붙는 요청(트림 추가 등)은 트림 뷰 헤더 pill로 집계된다", async () => {
+  modelPendingRows = [
+    {
+      ...PENDING_ROW,
+      id: "cr-2",
+      kind: "trim.create",
+      targetId: null,
+      targetBrandId: 1,
+      targetModelId: 10,
+      targetTrimId: null,
+      payload: { modelId: 10, trimName: "새 트림", price: 1, modelYear: 2027, fuelType: "가솔린" },
+      snapshot: {},
+    },
+  ];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  expect(await screen.findByText("승인 대기 1")).toBeInTheDocument();
+});
+
+it("팀장 저장(202)이 큐에 쌓이면 행 배지가 즉시 나타난다(pub/sub 재조회)", async () => {
+  trimPatchResponse = { status: 202, body: { queued: true, requestId: "cr-9" } };
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  expect(screen.queryByText("승인 대기")).toBeNull(); // 저장 전엔 배지 없음
+  await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
+  // 저장이 202로 적재되면 onCatalogWriteQueued가 배지 훅을 재조회시킨다 — 재조회 시점의
+  // 스텁 응답을 pending 1건으로 바꿔 "적재 → 배지 등장"을 통합으로 잠근다.
+  modelPendingRows = [{ ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 }];
+  await user.click(await screen.findByRole("button", { name: "승인 요청" }));
+  expect(await screen.findByText("승인 대기")).toBeInTheDocument();
+});

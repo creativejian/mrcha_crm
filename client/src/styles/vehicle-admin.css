@@ -957,3 +957,20 @@
   flex: 1;
   min-width: 0;
 }
+
+/* ── 행 "승인 대기" 배지(PR3 spec §7.2) — 시도 전에 보여 409(타인 pending)를 예방한다.
+   title 속성에 "요청자 · 경과 · 작업"(여러 건은 줄바꿈)이 실린다. 앰버 리터럴은 이 레포의
+   대기/보류 어휘 색(quote-inbox.css·customer-console.css의 #b45309와 같은 축)이다. */
+.va-cr-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  background: rgba(180, 83, 9, 0.12);
+  color: #b45309;
+  white-space: nowrap;
+  vertical-align: 1px;
+}

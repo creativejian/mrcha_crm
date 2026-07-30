@@ -21,10 +21,14 @@ import {
   updateModel,
   updateTrim,
 } from "@/lib/catalog";
+import { CHANGE_KIND_LABELS } from "@/lib/catalog-change-kinds";
+import { useModelPendingRequests } from "@/lib/catalog-change-requests";
+import { waitingLabel } from "@/lib/chat";
 import { useDealerDiscounts } from "@/lib/dealer-discounts";
 import { useDealerMe } from "@/lib/dealer-profiles";
 import type { DiscountField } from "@/lib/discount-adoption";
 import { useTrimProposals } from "@/lib/discount-proposals";
+import { useStaffDirectory } from "@/lib/staff";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
 import {
   invalidateCatalogAfterApproval,
@@ -120,6 +124,35 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     },
     [undo, reloadTrims],
   );
+
+  // 행 "승인 대기" 배지 재료(spec §7.2, admin·manager) — 모델 단위 pending + 요청자 이름.
+  // 시도 전에 보여 409(대상+작업당 pending 1건)를 예방하는 게 목적이라 canWrite 축이다.
+  const { staff } = useStaffDirectory(canWrite);
+  const pendingRows = useModelPendingRequests(modelId ? Number(modelId) : null, canWrite);
+  const staffNames = useMemo(() => new Map(staff.map((s) => [s.id, s.name])), [staff]);
+  // targetTrimId가 있는 요청(트림 수정·무옵션·옵션류)은 그 트림 행에, 없는 요청(트림 추가·모델
+  // 수정)은 헤더 pill로 — 붙일 행이 없는 요청이 조용히 사라지지 않게 한다.
+  const changeBadges = useMemo(() => {
+    const byTrim = new Map<number, string>();
+    const headerLines: string[] = [];
+    if (pendingRows.length > 0) {
+      const now = new Date();
+      const linesByTrim = new Map<number, string[]>();
+      for (const r of pendingRows) {
+        const line = `${staffNames.get(r.requestedBy) ?? "알 수 없음"} · ${waitingLabel(r.createdAt, now, "전")} · ${CHANGE_KIND_LABELS[r.kind]}`;
+        if (r.targetTrimId != null) {
+          const arr = linesByTrim.get(r.targetTrimId) ?? [];
+          arr.push(line);
+          linesByTrim.set(r.targetTrimId, arr);
+        } else {
+          headerLines.push(line);
+        }
+      }
+      // 한 트림에 여러 건(트림 수정 + 옵션 추가 등)이면 title에 줄바꿈으로 쌓는다.
+      for (const [trimId, lines] of linesByTrim) byTrim.set(trimId, lines.join("\n"));
+    }
+    return { byTrim, headerLines };
+  }, [pendingRows, staffNames]);
 
   // 딜러 모드: URL의 modelId가 내 브랜드 모델이 아니면 첫 모델로 교정한다.
   // brandId 스코프는 사이드바와 모델 목록을 좁히지만 **modelId는 독립 경로**다 — 손으로 고친 URL이나
@@ -418,6 +451,13 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 {openModel?.name ?? "트림"}
                 {openModel ? ` (${trims.length})` : ""}
               </h2>
+              {/* 트림 행에 붙일 곳이 없는 pending(트림 추가·모델 수정)의 집계 — 없으면 그 요청이
+                  화면 어디에도 안 보여 같은 제안을 다시 내다 409를 맞는다(spec §7.2). */}
+              {changeBadges.headerLines.length > 0 && (
+                <span className="va-cr-badge" title={changeBadges.headerLines.join("\n")}>
+                  승인 대기 {changeBadges.headerLines.length}
+                </span>
+              )}
             </div>
             {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
             {editActions(
@@ -496,6 +536,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                   onAdopt={canEdit ? handleAdopt : undefined}
                   onUndo={canEdit ? handleUndo : undefined}
                   flashTrimId={hlTrimId}
+                  pendingBadgeByTrim={changeBadges.byTrim}
                   colorsByTrim={colorsByTrim}
                   optionByTrim={optionByTrim}
                   expanded={expandedGroups}
@@ -517,6 +558,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                   onAdopt={canEdit ? handleAdopt : undefined}
                   onUndo={canEdit ? handleUndo : undefined}
                   flashTrimId={hlTrimId}
+                  pendingBadgeByTrim={changeBadges.byTrim}
                   isDomestic={isDomestic}
                   selectMode={selectMode}
                   selected={selected}

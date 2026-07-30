@@ -27,6 +27,7 @@ export function GroupedTrimTable({
   onAdopt,
   onUndo,
   flashTrimId,
+  pendingBadgeByTrim,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -39,6 +40,8 @@ export function GroupedTrimTable({
   onUndo?: UndoHandler;
   /** ?hl= 딥링크 착지 마킹 대상 — 해당 행에 플래시 클래스와 스크롤 앵커(data-trim-id)를 단다. */
   flashTrimId?: number | null;
+  /** 트림별 "승인 대기" 배지 title(요청자·경과·작업 — MCMasterPage가 합성). 없으면 미표시. */
+  pendingBadgeByTrim?: Map<number, string>;
   colorsByTrim: Map<number, TrimColor[]>;
   optionByTrim: Map<number, TrimOptionSummary>;
   expanded: Set<string>;
@@ -91,7 +94,14 @@ export function GroupedTrimTable({
                 g.trims.map((t) => (
                   <tr key={t.id} data-trim-id={t.id} className={t.id === flashTrimId ? "va-row-flash" : undefined}>
                     <td className="va-grade-cell">
-                      <div className="va-trim-name">{trimGrade(t.trimName)}</div>
+                      <div className="va-trim-name">
+                        {trimGrade(t.trimName)}
+                        {pendingBadgeByTrim?.has(t.id) && (
+                          <span className="va-cr-badge" title={pendingBadgeByTrim.get(t.id)}>
+                            승인 대기
+                          </span>
+                        )}
+                      </div>
                       <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
                     </td>
                     <TrimMetaCells
