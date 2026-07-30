@@ -93,6 +93,7 @@ export function AppCardPreview({ model, inModal = false }: { model: AppCardModel
               <dt>부대비용 ({model.incidentalIncludedLabel})</dt><dd>{model.incidentalLabel}원</dd>
               <dt className="is-strong">등록비용 합계 ②</dt><dd className="is-green is-strong">{model.registrationCostLabel}원</dd>
               <dt className="is-strong">취득원가 ① + ②</dt><dd className="is-blue is-strong">{model.acquisitionCostLabel}원</dd>
+              <dt>기타비용 (취득원가 불포함, 고객 부담)</dt><dd>{model.otherCostLabel}원</dd>
             </dl>
           ) : null}
         </section>

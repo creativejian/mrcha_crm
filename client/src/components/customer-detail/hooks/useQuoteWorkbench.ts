@@ -278,6 +278,7 @@ export function useQuoteWorkbench({
     incidentalIncluded,
     registrationCost: pricing.registrationCost,
     acquisitionCost: pricing.acquisitionCost,
+    otherCost: pricing.otherCost,
     exteriorColorName: exteriorColor?.name ?? null,
     interiorColorName: interiorColor?.name ?? null,
     guidance,

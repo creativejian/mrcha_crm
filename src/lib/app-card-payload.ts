@@ -113,6 +113,8 @@ export type AdvisorQuotePayload = {
   incidentalIncludedLabel: string;
   registrationCostLabel: string;
   acquisitionCostLabel: string;
+  // 기타비용(불포함 합 = 고객 부담, 앱팀 요청 2026-07-30) — 0원도 전송·표시(유슨생 ⓐ). 구 카드 부재 → 앱 행 숨김.
+  otherCostLabel: string;
   // 섹션 3 — 추천 견적 조건(대표 시나리오 전체)
   hasScenario: boolean;
   lenderLabel: string;
@@ -213,7 +215,7 @@ export function buildAdvisorQuotePayload(
   const incidental = toNum(q.incidental);
   // 산식 = computePricing SSOT(quote-pricing.ts) — 구 인라인 복제(tax+bond 정적)가 플래그 실동작화(0045)로
   // 화면(동적 분류)과 갈라질 수 있어 한 벌로 정렬(spec D2).
-  const { finalVehiclePrice, registrationCost, acquisitionCost } = computePricing({
+  const { finalVehiclePrice, registrationCost, acquisitionCost, otherCost } = computePricing({
     basePrice, optionPrice: optionTotal, discount, acquisitionTax, bond, delivery, incidental,
     bondIncluded: q.bondIncluded, deliveryIncluded: q.deliveryIncluded, incidentalIncluded: q.incidentalIncluded,
   });
@@ -274,6 +276,7 @@ export function buildAdvisorQuotePayload(
     incidentalIncludedLabel: costIncludedLabelOf(q.incidentalIncluded),
     registrationCostLabel: formatMoney(registrationCost),
     acquisitionCostLabel: formatMoney(acquisitionCost),
+    otherCostLabel: formatMoney(otherCost),
     hasScenario: sc != null,
     lenderLabel: sc?.lender ?? "금융사 미정",
     downPaymentLabel: sc ? moneyModeLabel(sc.downPaymentMode, sc.downPaymentValue, finalVehiclePrice, { noneLabel: "없음", percentFirst: true }) : "없음",

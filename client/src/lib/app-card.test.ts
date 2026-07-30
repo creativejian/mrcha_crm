@@ -25,6 +25,7 @@ const base: AppCardModelInput = {
   incidentalIncluded: false,
   registrationCost: 3200000,
   acquisitionCost: 146000000,
+  otherCost: 0,
   exteriorColorName: "알파인 화이트",
   interiorColorName: "블랙",
   guidance: {

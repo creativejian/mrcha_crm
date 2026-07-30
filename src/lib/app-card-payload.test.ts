@@ -112,6 +112,7 @@ describe("buildAdvisorQuotePayload", () => {
     expect(payload.bondLabel).toBe("300,000");
     expect(payload.deliveryFeeLabel).toBe("0");
     expect(payload.incidentalLabel).toBe("100,000");
+    expect(payload.otherCostLabel).toBe("100,000"); // 불포함 합(탁송 0 + 부대 100,000) — 0원도 전송(ⓐ)
     expect(payload.bondIncludedLabel).toBe("포함");
     expect(payload.deliveryFeeIncludedLabel).toBe("불포함·고객 부담");
     expect(payload.incidentalIncludedLabel).toBe("불포함·고객 부담");
