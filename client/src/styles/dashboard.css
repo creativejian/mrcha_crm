@@ -910,11 +910,19 @@
   font-weight: 650;
   box-shadow: 0 1px 2px rgba(17, 17, 17, 0.08);
 }
+/* ⚠️ td에 display:flex 금지 — 셀이 table-cell을 벗어나 행 높이와 어긋난다(2026-07-30 실기:
+   이름·연락처가 줄바꿈돼 행이 높아지자 경계선이 버튼을 관통). 간격은 형제 마진으로 준다. */
 .org-dealer-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   white-space: nowrap;
+}
+.org-dealer-actions > .org-dealer-action + .org-dealer-action {
+  margin-left: 6px;
+}
+/* 딜러 표 전용 — 이름("디엘오토솔루션의 혁명적인 개")·연락처가 열 압박에 두 줄로 꺾이지 않게.
+   표가 .table-scroll 안이라 넘치면 가로 스크롤이 받는다. 구성원 표는 열 구성이 달라 건드리지 않는다. */
+.org-dealer-table td {
+  white-space: nowrap;
+  vertical-align: middle;
 }
 /* 두 버튼은 **칩 형태를 새로 쓰지 않는다** — `.badge`(customer-list.css)가 칩 1벌을 소유하고
    있어서(형태를 각자 두면 또 갈라진다는 그 규칙) JSX에서 `.badge`/`.badge red`를 얹고 여기는

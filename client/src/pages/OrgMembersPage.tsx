@@ -237,7 +237,7 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
       <div className="ops-tabs org-dealer-label">
         <span className="active">딜러</span>
       </div>
-      <table className="org-members-table">
+      <table className="org-members-table org-dealer-table">
         <thead><tr><th>이름</th><th>연락처</th><th>브랜드</th><th>비고</th><th>입력 트림</th><th>데이터 관리</th></tr></thead>
         <tbody>
           {loading && <tr><td colSpan={6}>딜러 불러오는 중…</td></tr>}
