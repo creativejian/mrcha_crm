@@ -9,7 +9,14 @@ import { catalogChangeRequests } from "../schema";
 // spec: ref/specs/2026-07-30-crm-catalog-change-approval-design.md §4·§6.3
 
 export type ChangeRequestRow = typeof catalogChangeRequests.$inferSelect;
-export type ChangeRequestListItem = ChangeRequestRow & { targetLabel: string };
+export type ChangeRequestListItem = ChangeRequestRow & {
+  targetLabel: string;
+  // 대기열 착지 점프 좌표(2026-07-30 PR2) — 클라가 /mc-master/:modelId?brand=&hl= 를 조립한다.
+  // 라벨 합성이 이미 만든 모델/트림 맵에서 꺼내므로 추가 쿼리 0. 대상 소실 시 null(점프 비활성).
+  targetBrandId: number | null;
+  targetModelId: number | null;
+  targetTrimId: number | null;
+};
 
 export type UpsertPendingInput = {
   kind: string;
@@ -229,7 +236,7 @@ async function labelTargets(rows: ChangeRequestRow[], ex: Executor): Promise<Cha
   const models =
     modelIds.size > 0
       ? await ex
-          .select({ id: modelsInCatalog.id, name: modelsInCatalog.name })
+          .select({ id: modelsInCatalog.id, name: modelsInCatalog.name, brandId: modelsInCatalog.brandId })
           .from(modelsInCatalog)
           .where(inArray(modelsInCatalog.id, [...modelIds]))
       : [];
@@ -241,17 +248,51 @@ async function labelTargets(rows: ChangeRequestRow[], ex: Executor): Promise<Cha
     return t ? `${modelName(t.modelId)} › ${t.trimName}` : "삭제됨";
   };
 
+  // 점프 좌표 헬퍼 — model/trim 맵을 그대로 타고 올라가 { brand, model, trim } id를 채운다.
+  // 어느 단계든 miss면 셋 다 null(점프 비활성 — 대상 소실과 같은 신호).
+  type Coords = { targetBrandId: number | null; targetModelId: number | null; targetTrimId: number | null };
+  const noCoords: Coords = { targetBrandId: null, targetModelId: null, targetTrimId: null };
+  const coordsFromModel = (modelId: number): Coords => {
+    const m = modelById.get(modelId);
+    return m ? { targetBrandId: m.brandId, targetModelId: modelId, targetTrimId: null } : noCoords;
+  };
+  const coordsFromTrim = (trimId: number): Coords => {
+    const t = trimById.get(trimId);
+    if (!t) return noCoords;
+    const m = modelById.get(t.modelId);
+    return { targetBrandId: m?.brandId ?? null, targetModelId: t.modelId, targetTrimId: trimId };
+  };
+  const coordsFromOption = (optionId: number): Coords => {
+    const o = optionById.get(optionId);
+    return o ? coordsFromTrim(o.trimId) : noCoords;
+  };
+
   return rows.map((r) => {
     let targetLabel = "삭제됨";
-    if (r.kind === "model.create") targetLabel = `${String(p(r).name)} (신규 모델)`;
-    else if (r.targetType === "model" && r.targetId != null) targetLabel = modelName(r.targetId);
-    else if (r.kind === "trim.create") targetLabel = `${modelName(Number(p(r).modelId))} › ${String(p(r).trimName)} (신규 트림)`;
-    else if (r.targetType === "trim" && r.targetId != null) targetLabel = trimPath(r.targetId);
-    else if (r.kind === "option.create") targetLabel = `${trimPath(Number(p(r).trimId))} › ${String(p(r).name)} (신규 옵션)`;
-    else if (r.targetType === "option" && r.targetId != null) {
+    let coords: Coords = noCoords;
+    if (r.kind === "model.create") {
+      targetLabel = `${String(p(r).name)} (신규 모델)`;
+      const brandId = Number(p(r).brandId);
+      coords = { targetBrandId: Number.isFinite(brandId) ? brandId : null, targetModelId: null, targetTrimId: null };
+    } else if (r.targetType === "model" && r.targetId != null) {
+      targetLabel = modelName(r.targetId);
+      coords = coordsFromModel(r.targetId);
+    } else if (r.kind === "trim.create") {
+      const modelId = Number(p(r).modelId);
+      targetLabel = `${modelName(modelId)} › ${String(p(r).trimName)} (신규 트림)`;
+      coords = Number.isFinite(modelId) ? coordsFromModel(modelId) : noCoords;
+    } else if (r.targetType === "trim" && r.targetId != null) {
+      targetLabel = trimPath(r.targetId);
+      coords = coordsFromTrim(r.targetId);
+    } else if (r.kind === "option.create") {
+      const trimId = Number(p(r).trimId);
+      targetLabel = `${trimPath(trimId)} › ${String(p(r).name)} (신규 옵션)`;
+      coords = Number.isFinite(trimId) ? coordsFromTrim(trimId) : noCoords;
+    } else if (r.targetType === "option" && r.targetId != null) {
       const o = optionById.get(r.targetId);
       targetLabel = o ? `${trimPath(o.trimId)} › ${o.name}` : "삭제됨";
+      coords = coordsFromOption(r.targetId);
     }
-    return { ...r, targetLabel };
+    return { ...r, targetLabel, ...coords };
   });
 }

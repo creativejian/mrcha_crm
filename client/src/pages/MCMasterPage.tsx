@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckSquare, FolderInput, Hash, Plus } from "lucide-react";
 
+import { ChangeRequestQueueButton } from "@/components/ChangeRequestQueue";
 import type { RoleTab } from "@/data/roles";
 import type { VehicleStatus } from "@/data/vehicle-taxonomy";
 import {
@@ -386,6 +387,17 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 {openModel ? ` (${trims.length})` : ""}
               </h2>
             </div>
+            {canEdit && (
+              <ChangeRequestQueueButton
+                onApplied={() => {
+                  reloadModels();
+                  if (modelId) {
+                    reloadTrims();
+                    reloadOptionSummary();
+                  }
+                }}
+              />
+            )}
             {editActions(
               () => {
                 setPanelError(null);
@@ -411,6 +423,17 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 한눈에 보고, 행 클릭으로 그 트림에 착지한다. 브랜드 미지정 딜러는 제안 자체가
                 불가능하니(쓰기 403) 프로필이 있을 때만 낸다. */}
             {dealerMode && dealerMeLoaded && dealerMe != null && <MyProposalTrimsButton />}
+            {canEdit && (
+              <ChangeRequestQueueButton
+                onApplied={() => {
+                  reloadModels();
+                  if (modelId) {
+                    reloadTrims();
+                    reloadOptionSummary();
+                  }
+                }}
+              />
+            )}
             {brandId != null &&
               editActions(() => {
                 setPanelError(null);

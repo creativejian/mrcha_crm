@@ -33,6 +33,7 @@ import {
   PURCHASE_UNSET_SENTINEL,
   customerStatusGroups,
 } from "../../client/src/data/customers";
+import { CHANGE_REQUEST_KINDS } from "../../client/src/lib/catalog-change-kinds";
 import { EMBEDDING_DIM } from "../lib/gemini-embed";
 
 // CRM 운영 스키마. drizzle은 catalog + crm만 관리(public=앱 소유, 불가침).
@@ -497,13 +498,11 @@ export const catalogDiscountAdoptions = crm.table(
 // spec: ref/specs/2026-07-30-crm-catalog-change-approval-design.md §4
 // 변경 요청 kind 어휘(SSOT) — 아래 CHECK와 라우트 레지스트리(change-request-kinds.ts)의
 // ChangeKind 타입이 이 배열 하나에서 파생된다(9번째 kind 추가 시 한 곳만 고친다).
-export const CHANGE_REQUEST_KINDS = [
-  "model.create", "model.update",
-  "trim.create", "trim.update",
-  "option.create", "option.update",
-  "trim.no-option.set", "trim.no-option.unset",
-] as const;
-export type ChangeRequestKind = (typeof CHANGE_REQUEST_KINDS)[number];
+// kind 어휘 SSOT는 클라 순수 lib로 이동(2026-07-30 PR2) — 클라 대기열 라벨과 DB CHECK가
+// 같은 배열을 본다. 기존 소비처(레지스트리 등)를 위해 re-export.
+// 서버 코드는 계속 schema.ts 경유로 import한다(클라 lib 직접 import는 client 코드 전용 — 경로 혼용 방지).
+export { CHANGE_REQUEST_KINDS };
+export type { ChangeRequestKind } from "../../client/src/lib/catalog-change-kinds";
 
 export const catalogChangeRequests = crm.table(
   "catalog_change_requests",
