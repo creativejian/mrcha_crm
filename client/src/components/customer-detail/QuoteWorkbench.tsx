@@ -72,6 +72,9 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     primaryDiscountUnit,
     discountLines,
     acquisitionTaxMode,
+    bondIncluded,
+    deliveryIncluded,
+    incidentalIncluded,
     trimDetail,
     exteriorColor,
     interiorColor,
@@ -95,7 +98,8 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     setIsQuoteWorkbenchOriginalDragActive,
     setExteriorColor,
     setInteriorColor,
-    setAcquisitionTaxMode,
+    selectAcquisitionTaxMode,
+    setCostIncluded,
     setGuidance,
     handleJeffMoneyInputFocus,
     handleJeffMoneyInputMouseDown,
@@ -416,20 +420,21 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
               <div className="kim-jeff-section kim-jeff-cost-section">
                 <h4>⚙️ 취득원가 설정</h4>
                 <FormRow label="취득세" className="kim-jeff-acquisition-tax-row">
-                  <SegmentGroup value={acquisitionTaxMode} options={acquisitionTaxModeOptions} onSelect={setAcquisitionTaxMode} />
+                  <SegmentGroup value={acquisitionTaxMode} options={acquisitionTaxModeOptions} onSelect={selectAcquisitionTaxMode} />
                   <MoneyField suffix="원" inputProps={{ "data-pricing": "acquisitionTax", defaultValue: formatMoney(emptyQuotePricing.acquisitionTax), readOnly: acquisitionTaxMode !== "manual" }} />
                 </FormRow>
-                {/* 공채/탁송료/부대비용 토글 = 현행 장식(무핸들러 고정 — spec D6, 실동작화는 별도 제품 결정). */}
+                {/* 공채/탁송료/부대비용 토글 — 실동작(2026-07-30 spec, 구 D6 장식 해제): 취득원가 분류·
+                    솔루션 조회·저장·앱카드 라벨이 이 플래그를 소비한다. 상태는 훅 setCostIncluded 소유. */}
                 <FormRow label="공채" className="kim-jeff-cost-toggle-row">
-                  <SegmentGroup value="included" options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} />
+                  <SegmentGroup value={bondIncluded ? "included" : "excluded"} options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} onSelect={(v) => setCostIncluded("bond", v === "included")} />
                   <MoneyField suffix="원" inputProps={{ "data-pricing": "bond", defaultValue: formatMoney(emptyQuotePricing.bond) }} />
                 </FormRow>
                 <FormRow label="탁송료" className="kim-jeff-cost-toggle-row">
-                  <SegmentGroup value="excluded" options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} />
+                  <SegmentGroup value={deliveryIncluded ? "included" : "excluded"} options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} onSelect={(v) => setCostIncluded("delivery", v === "included")} />
                   <MoneyField suffix="원" inputProps={{ "data-pricing": "delivery", defaultValue: formatMoney(emptyQuotePricing.delivery) }} />
                 </FormRow>
                 <FormRow label="부대비용" className="kim-jeff-cost-toggle-row">
-                  <SegmentGroup value="excluded" options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} />
+                  <SegmentGroup value={incidentalIncluded ? "included" : "excluded"} options={[{ value: "included", label: "포함" }, { value: "excluded", label: "불포함" }]} onSelect={(v) => setCostIncluded("incidental", v === "included")} />
                   <MoneyField suffix="원" inputProps={{ "data-pricing": "incidental", defaultValue: formatMoney(emptyQuotePricing.incidental) }} />
                 </FormRow>
               </div>

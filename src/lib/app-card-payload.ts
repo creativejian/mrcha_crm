@@ -13,8 +13,8 @@
 // **부작용 0 순수 모듈만** 허용(app-card-labels·quote-pricing — AGENTS.md 경계 규칙. http/supabase 체인 금지).
 // vitest(클라 테스트)가 상대경로로 import해 클라 조립기와 파리티 비교한다.
 
-import { CALC_PENDING, NO_SOURCE, acquisitionTaxModeLabelOf, downPaymentRowLabelOf, formatTerm, mileageLabelOf, moneyLabelOf, moneyModeLabel, numOr, residualLabelOf, splitService, vehicleTitleOf } from "../../client/src/lib/app-card-labels";
-import { formatMoney } from "../../client/src/lib/quote-pricing";
+import { CALC_PENDING, NO_SOURCE, acquisitionTaxModeLabelOf, costIncludedLabelOf, downPaymentRowLabelOf, formatTerm, mileageLabelOf, moneyLabelOf, moneyModeLabel, numOr, residualLabelOf, splitService, vehicleTitleOf } from "../../client/src/lib/app-card-labels";
+import { computePricing, formatMoney } from "../../client/src/lib/quote-pricing";
 
 // 업무 AI 견적 청크 빌더(assistant-corpus)가 재수출로 소비하던 순수 헬퍼 — 공유 모듈로 이동 후에도
 // 기존 import 경로 호환을 위해 re-export(소비처: assistant-corpus·자체 테스트).
@@ -37,6 +37,10 @@ export type AdvisorPayloadQuoteRow = {
   bond: string | null;
   delivery: string | null;
   incidental: string | null;
+  // 취득원가 포함/불포함(0045) — drizzle notNull이라 비nullable. 발송 훅은 quotes 행 전체를 읽어 자동 조달.
+  bondIncluded: boolean;
+  deliveryIncluded: boolean;
+  incidentalIncluded: boolean;
   exteriorColorName: string | null;
   interiorColorName: string | null;
   guidance: unknown; // QuoteGuidance jsonb(legacy keyPoint 단수 행 존재 가능) | null
@@ -103,6 +107,10 @@ export type AdvisorQuotePayload = {
   bondLabel: string;
   deliveryFeeLabel: string;
   incidentalLabel: string;
+  // 포함/불포함 제목 어휘(2026-07-30) — 앱이 "공채 (포함)"처럼 행 제목에 조합(취득세 모드 선례).
+  bondIncludedLabel: string;
+  deliveryFeeIncludedLabel: string;
+  incidentalIncludedLabel: string;
   registrationCostLabel: string;
   acquisitionCostLabel: string;
   // 섹션 3 — 추천 견적 조건(대표 시나리오 전체)
@@ -203,9 +211,12 @@ export function buildAdvisorQuotePayload(
   const bond = toNum(q.bond);
   const delivery = toNum(q.delivery);
   const incidental = toNum(q.incidental);
-  const finalVehiclePrice = basePrice + optionTotal - discount;
-  const registrationCost = acquisitionTax + bond;
-  const acquisitionCost = finalVehiclePrice + registrationCost;
+  // 산식 = computePricing SSOT(quote-pricing.ts) — 구 인라인 복제(tax+bond 정적)가 플래그 실동작화(0045)로
+  // 화면(동적 분류)과 갈라질 수 있어 한 벌로 정렬(spec D2).
+  const { finalVehiclePrice, registrationCost, acquisitionCost } = computePricing({
+    basePrice, optionPrice: optionTotal, discount, acquisitionTax, bond, delivery, incidental,
+    bondIncluded: q.bondIncluded, deliveryIncluded: q.deliveryIncluded, incidentalIncluded: q.incidentalIncluded,
+  });
 
   const optionNames = stringListFrom(q.options, "name");
   const guidance = guidanceOf(q.guidance);
@@ -258,6 +269,9 @@ export function buildAdvisorQuotePayload(
     bondLabel: formatMoney(bond),
     deliveryFeeLabel: formatMoney(delivery),
     incidentalLabel: formatMoney(incidental),
+    bondIncludedLabel: costIncludedLabelOf(q.bondIncluded),
+    deliveryFeeIncludedLabel: costIncludedLabelOf(q.deliveryIncluded),
+    incidentalIncludedLabel: costIncludedLabelOf(q.incidentalIncluded),
     registrationCostLabel: formatMoney(registrationCost),
     acquisitionCostLabel: formatMoney(acquisitionCost),
     hasScenario: sc != null,

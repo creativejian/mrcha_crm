@@ -34,7 +34,18 @@ const BASE_ARGS = {
   agFeeRaw: "",
   dealerName: null,
   vehicle: { brand: "BMW", model: "3 Series", mcCode: "MC-TEST-001" },
-  pricing: { baseAndOption: 59_000_000, discount: 6_500_000 },
+  pricing: {
+    baseAndOption: 59_000_000,
+    discount: 6_500_000,
+    // 취득원가(2026-07-30 실동작화) — 기본값 = 구 장식 표기(공채 포함·탁송/부대 불포함)·취득세 0.
+    acquisitionTax: 0,
+    bond: 0,
+    bondIncluded: true,
+    delivery: 0,
+    deliveryIncluded: false,
+    incidental: 0,
+    incidentalIncluded: false,
+  },
 };
 
 describe("어휘 SSOT", () => {
@@ -75,8 +86,47 @@ describe("buildSolutionQuoteInput", () => {
       // CM/AG(계산기 패리티) — 빈 칸도 분율 0 상시 전송(계산기 payload 미러)
       cmFeeRate: 0,
       agFeeRate: 0,
+      // 취득원가 포함/불포함 플래그 = 상시 전송, 금액은 포함일 때만(계산기 payload 미러)
+      includePublicBondCost: true,
+      publicBondCost: 0,
+      includeDeliveryFeeAmount: false,
+      includeMiscFeeAmount: false,
       residualMode: "high",
     });
+  });
+
+  test("취득세 >0이면 amount 모드+override 동봉, 0이면 둘 다 미전송(엔진 자동 계산 유지)", () => {
+    const on = buildSolutionQuoteInput({
+      ...BASE_ARGS,
+      pricing: { ...BASE_ARGS.pricing, acquisitionTax: 5_078_180 },
+    });
+    if (!on.ok) throw new Error(on.reason);
+    expect(on.input.acquisitionTaxMode).toBe("amount");
+    expect(on.input.acquisitionTaxAmountOverride).toBe(5_078_180);
+
+    const off = buildSolutionQuoteInput(BASE_ARGS);
+    if (!off.ok) throw new Error(off.reason);
+    expect(off.input.acquisitionTaxMode).toBeUndefined();
+    expect(off.input.acquisitionTaxAmountOverride).toBeUndefined();
+  });
+
+  test("공채/탁송/부대: 포함이면 금액 동봉, 불포함이면 플래그만 false로 가고 금액 미전송", () => {
+    const r = buildSolutionQuoteInput({
+      ...BASE_ARGS,
+      pricing: {
+        ...BASE_ARGS.pricing,
+        bond: 300_000, bondIncluded: false,
+        delivery: 10_000, deliveryIncluded: true,
+        incidental: 2_000, incidentalIncluded: false,
+      },
+    });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.input.includePublicBondCost).toBe(false);
+    expect(r.input.publicBondCost).toBeUndefined();
+    expect(r.input.includeDeliveryFeeAmount).toBe(true);
+    expect(r.input.deliveryFeeAmount).toBe(10_000);
+    expect(r.input.includeMiscFeeAmount).toBe(false);
+    expect(r.input.miscFeeAmount).toBeUndefined();
   });
 
   test("% 모드는 할인 전 차량가 기준 원 환산(반올림)", () => {
@@ -164,7 +214,7 @@ describe("buildSolutionQuoteInput", () => {
   });
 
   test("차량가 미입력(0원) = 실패", () => {
-    expect(buildSolutionQuoteInput({ ...BASE_ARGS, pricing: { baseAndOption: 0, discount: 0 } }).ok).toBe(false);
+    expect(buildSolutionQuoteInput({ ...BASE_ARGS, pricing: { ...BASE_ARGS.pricing, baseAndOption: 0, discount: 0 } }).ok).toBe(false);
   });
 
   test("판매사(T2): dealerName passthrough — null(비제휴/미선택)은 미전송, 값은 그대로 동봉", () => {

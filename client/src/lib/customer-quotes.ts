@@ -62,6 +62,10 @@ export type QuoteWritePatch = {
   bond?: string | null;
   delivery?: string | null;
   incidental?: string | null;
+  // 취득원가 포함/불포함(0045) — 미전송 = 기존 유지(PATCH)/DB 기본값(POST).
+  bondIncluded?: boolean;
+  deliveryIncluded?: boolean;
+  incidentalIncluded?: boolean;
   finalVehiclePrice?: string | null;
   acquisitionCost?: string | null;
   exteriorColorId?: number | null;
@@ -110,6 +114,10 @@ export type QuoteCreatePayload = {
   bond?: string | null;
   delivery?: string | null;
   incidental?: string | null;
+  // 취득원가 포함/불포함(0045) — 미전송 = 기존 유지(PATCH)/DB 기본값(POST).
+  bondIncluded?: boolean;
+  deliveryIncluded?: boolean;
+  incidentalIncluded?: boolean;
   finalVehiclePrice?: string | null;
   acquisitionCost?: string | null;
   exteriorColorId?: number | null;

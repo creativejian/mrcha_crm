@@ -3,6 +3,7 @@ import {
   CALC_PENDING,
   NO_SOURCE,
   acquisitionTaxModeLabelOf,
+  costIncludedLabelOf,
   formatTerm,
   mileageLabelOf,
   moneyLabelOf,
@@ -35,6 +36,10 @@ export type AppCardModelInput = {
   bond: number;
   delivery: number;
   incidental: number;
+  // 취득원가 포함/불포함(0045 실동작화) — 워크벤치 토글 상태.
+  bondIncluded: boolean;
+  deliveryIncluded: boolean;
+  incidentalIncluded: boolean;
   registrationCost: number;
   acquisitionCost: number;
   exteriorColorName: string | null;
@@ -85,6 +90,10 @@ export type AppCardModel = {
   bondLabel: string;
   deliveryFeeLabel: string;
   incidentalLabel: string;
+  // 포함/불포함 제목 어휘(2026-07-30) — 렌더러가 "공채 (포함)"처럼 행 제목에 조합(취득세 모드 선례).
+  bondIncludedLabel: string;
+  deliveryFeeIncludedLabel: string;
+  incidentalIncludedLabel: string;
   registrationCostLabel: string;
   acquisitionCostLabel: string;
   // 섹션 3 — 추천 견적 조건(대표 시나리오 전체)
@@ -169,6 +178,9 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     bondLabel: formatMoney(input.bond),
     deliveryFeeLabel: formatMoney(input.delivery),
     incidentalLabel: formatMoney(input.incidental),
+    bondIncludedLabel: costIncludedLabelOf(input.bondIncluded),
+    deliveryFeeIncludedLabel: costIncludedLabelOf(input.deliveryIncluded),
+    incidentalIncludedLabel: costIncludedLabelOf(input.incidentalIncluded),
     registrationCostLabel: formatMoney(input.registrationCost),
     acquisitionCostLabel: formatMoney(input.acquisitionCost),
     hasScenario: s != null,
