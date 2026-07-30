@@ -46,6 +46,8 @@ const PRICES = {
   delivery: 0,
   incidental: 100_000,
 };
+// 포함/불포함(0045) — 파리티 대상 양쪽(서버 행/클라 모델)에 같은 값이 실려야 라벨 동치가 성립한다.
+const COST_FLAGS = { bondIncluded: true, deliveryIncluded: false, incidentalIncluded: true } as const;
 
 // 클라 파생가는 서버 재계산과 같은 공식(quote-pricing.ts computePricing)으로 산출해야 동치가 성립한다:
 // fvp = base + option − discount, reg = tax + bond, acq = fvp + reg.
@@ -57,6 +59,7 @@ const pricing = computePricing({
   bond: PRICES.bond,
   delivery: PRICES.delivery,
   incidental: PRICES.incidental,
+  ...COST_FLAGS,
 });
 
 // guidance는 non-null로 고정 — 서버의 null guidance 폴백(빈 guidance)은 클라 DEFAULT_QUOTE_GUIDANCE
@@ -149,6 +152,7 @@ function buildBoth(scenario: AdvisorPayloadScenarioRow | null): { clientModel: A
     bond: String(PRICES.bond),
     delivery: String(PRICES.delivery),
     incidental: String(PRICES.incidental),
+    ...COST_FLAGS,
     exteriorColorName: "알파인 화이트",
     interiorColorName: "블랙",
     guidance,
@@ -171,6 +175,7 @@ function buildBoth(scenario: AdvisorPayloadScenarioRow | null): { clientModel: A
     bond: PRICES.bond,
     delivery: PRICES.delivery,
     incidental: PRICES.incidental,
+    ...COST_FLAGS,
     registrationCost: pricing.registrationCost,
     acquisitionCost: pricing.acquisitionCost,
     exteriorColorName: "알파인 화이트",

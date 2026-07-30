@@ -496,6 +496,10 @@ const quoteCreateBody = z.object({
   bond: z.string().nullable().optional(),
   delivery: z.string().nullable().optional(),
   incidental: z.string().nullable().optional(),
+  // 취득원가 포함/불포함(0045 실동작화) — 미전송이면 DB 기본값(공채 true·탁송/부대 false) 유지.
+  bondIncluded: z.boolean().optional(),
+  deliveryIncluded: z.boolean().optional(),
+  incidentalIncluded: z.boolean().optional(),
   finalVehiclePrice: z.string().nullable().optional(),
   acquisitionCost: z.string().nullable().optional(),
   exteriorColorId: z.number().int().nullable().optional(),
@@ -536,6 +540,10 @@ const quotePatchBody = z.object({
   bond: z.string().nullable().optional(),
   delivery: z.string().nullable().optional(),
   incidental: z.string().nullable().optional(),
+  // 취득원가 포함/불포함(0045 실동작화) — 미전송이면 DB 기본값(공채 true·탁송/부대 false) 유지.
+  bondIncluded: z.boolean().optional(),
+  deliveryIncluded: z.boolean().optional(),
+  incidentalIncluded: z.boolean().optional(),
   finalVehiclePrice: z.string().nullable().optional(),
   acquisitionCost: z.string().nullable().optional(),
   exteriorColorId: z.number().int().nullable().optional(),

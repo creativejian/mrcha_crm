@@ -22,6 +22,9 @@ const fullQuote: AdvisorPayloadQuoteRow = {
   bond: "300000",
   delivery: "0",
   incidental: "100000",
+  bondIncluded: true,
+  deliveryIncluded: false,
+  incidentalIncluded: false,
   exteriorColorName: "알파인 화이트",
   interiorColorName: "블랙",
   guidance: {
@@ -106,9 +109,9 @@ describe("buildAdvisorQuotePayload", () => {
     expect(payload.finalVehiclePriceLabel).toBe("74,300,000");
     expect(payload.acquisitionTaxLabel).toBe("5,200,000");
     expect(payload.acquisitionTaxModeLabel).toBe("일반");
-    expect(payload.bondLabel).toBe("300,000");
-    expect(payload.deliveryFeeLabel).toBe("0");
-    expect(payload.incidentalLabel).toBe("100,000");
+    expect(payload.bondLabel).toBe("300,000 · 포함");
+    expect(payload.deliveryFeeLabel).toBe("0 · 불포함(고객 부담)");
+    expect(payload.incidentalLabel).toBe("100,000 · 불포함(고객 부담)");
     expect(payload.registrationCostLabel).toBe("5,500,000"); // 취득세+공채
     expect(payload.acquisitionCostLabel).toBe("79,800,000"); // fvp+등록비용
 

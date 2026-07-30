@@ -32,7 +32,17 @@ const baseArgs: Omit<BuildArgs, "lenderLabel"> = {
   agFeeRaw: "",
   dealerName: null,
   vehicle: { brand: "BMW", model: "5시리즈", mcCode: "MC-1" },
-  pricing: { baseAndOption: 50_000_000, discount: 0 },
+  pricing: {
+    baseAndOption: 50_000_000,
+    discount: 0,
+    acquisitionTax: 0,
+    bond: 0,
+    bondIncluded: true,
+    delivery: 0,
+    deliveryIncluded: false,
+    incidental: 0,
+    incidentalIncluded: false,
+  },
 };
 
 const rawOf = (monthly: number, rateDecimal: number, warnings: string[] = []) => ({

@@ -282,6 +282,10 @@ export const emptyQuotePricing: PricingInputs = {
   bond: 0,
   delivery: 0,
   incidental: 0,
+  // 기본 플래그 = DB 기본값(0045)·구 정적 분류와 동일(공채 포함·탁송/부대 불포함).
+  bondIncluded: true,
+  deliveryIncluded: false,
+  incidentalIncluded: false,
 };
 // 워크벤치 pricing 초기 state(빈 기본값 계산 결과) — 이름은 목업 시절 maybachQuotePricingResult에서 정리(0705 배치 D).
 export const initialQuotePricingResult = computePricing(emptyQuotePricing);

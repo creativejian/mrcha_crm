@@ -149,7 +149,9 @@ export type SolutionQuoteInput = {
   residualValueRatio?: number; // 분율(0.45)
   residualAmountOverride?: number; // 원
   // ── 계산기 모달 확장 17필드(전부 optional — 스펙 2026-07-16 §릴레이 zod 확장, 제프 calculateQuoteSchema 미러) ──
-  // buildSolutionQuoteInput(워크벤치 빌더)은 이 필드들을 만들지 않는다 — 출력 불변(하위호환).
+  // 취득원가 7필드(acquisitionTax*·publicBond·deliveryFee·miscFee)는 2026-07-30 실동작화부터 워크벤치
+  // 빌더도 만든다(계산기 payload 미러 — spec 2026-07-30-crm-workbench-acquisition-cost D3). 나머지
+  // (affiliateType·releaseMethod·정비등급·보험 등)는 여전히 계산기 전용.
   affiliateType?: (typeof SOLUTION_AFFILIATE_TYPES)[number];
   directModelEntry?: boolean;
   releaseMethod?: (typeof SOLUTION_RELEASE_METHODS)[number]; // 장기렌트 전용(리스는 미전송 — V2 미러)
@@ -199,7 +201,18 @@ export type BuildArgs = {
   // useMultiQuote DealerSelection 근거). 전사 프로브(랭킹 모달)는 buildCardSolutionBaseArgs가 null로 벗긴다.
   dealerName: string | null;
   vehicle: { brand: string | null; model: string | null; mcCode: string | null };
-  pricing: { baseAndOption: number; discount: number };
+  pricing: {
+    baseAndOption: number;
+    discount: number;
+    // 취득원가(2026-07-30 실동작화 spec D3) — 금액은 가격 패널 값, 플래그는 토글 상태.
+    acquisitionTax: number;
+    bond: number;
+    bondIncluded: boolean;
+    delivery: number;
+    deliveryIncluded: boolean;
+    incidental: number;
+    incidentalIncluded: boolean;
+  };
 };
 
 export type BuildResult = { ok: true; input: SolutionQuoteInput } | { ok: false; reason: string };
@@ -262,7 +275,21 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
     quotedVehiclePrice: args.pricing.baseAndOption,
     cmFeeRate: cmFeePct / 100,
     agFeeRate: agFeePct / 100,
+    // 취득원가 3종(spec D3) — include 플래그는 상시 전송, 금액은 포함일 때만(계산기 buildScenarioPayload
+    // :includePublicBondCost 블록 미러 — 불포함 금액을 실으면 파트너가 합산할 여지가 생긴다).
+    includePublicBondCost: args.pricing.bondIncluded,
+    publicBondCost: args.pricing.bondIncluded ? args.pricing.bond : undefined,
+    includeDeliveryFeeAmount: args.pricing.deliveryIncluded,
+    deliveryFeeAmount: args.pricing.deliveryIncluded ? args.pricing.delivery : undefined,
+    includeMiscFeeAmount: args.pricing.incidentalIncluded,
+    miscFeeAmount: args.pricing.incidentalIncluded ? args.pricing.incidental : undefined,
   };
+  // 취득세: 화면 금액 >0일 때만 override(계산기는 자동 공식이 항상 채우지만 워크벤치는 자동 공식이 없어
+  // 0이 흔하다 — 0 override는 엔진 자동 계산을 0으로 덮어 월납입 과소, spec D3 가드).
+  if (args.pricing.acquisitionTax > 0) {
+    input.acquisitionTaxMode = "amount";
+    input.acquisitionTaxAmountOverride = args.pricing.acquisitionTax;
+  }
   if (args.pricing.discount > 0) input.discountAmount = args.pricing.discount;
   // 판매사(T2) — 값 있을 때만 동봉(파트너 zod min(1) optional — 빈 문자열 전송 금지).
   if (args.dealerName) input.dealerName = args.dealerName;

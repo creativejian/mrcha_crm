@@ -316,6 +316,13 @@
       "when": 1785390246761,
       "tag": "0044_breezy_hannibal_king",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1785403562922,
+      "tag": "0045_many_namorita",
+      "breakpoints": true
     }
   ]
 }

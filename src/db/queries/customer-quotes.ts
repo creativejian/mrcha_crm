@@ -50,6 +50,10 @@ type QuoteHeaderPatch = {
   bond?: string | null;
   delivery?: string | null;
   incidental?: string | null;
+  // 취득원가 포함/불포함(0045) — undefined = 미변경(기존 행 유지), 생성 시 미전송 = DB 기본값.
+  bondIncluded?: boolean;
+  deliveryIncluded?: boolean;
+  incidentalIncluded?: boolean;
   finalVehiclePrice?: string | null;
   acquisitionCost?: string | null;
   exteriorColorId?: number | null;
@@ -134,6 +138,9 @@ function headerSet(p: QuoteHeaderPatch): Record<string, unknown> {
   if (p.bond !== undefined) set.bond = p.bond;
   if (p.delivery !== undefined) set.delivery = p.delivery;
   if (p.incidental !== undefined) set.incidental = p.incidental;
+  if (p.bondIncluded !== undefined) set.bondIncluded = p.bondIncluded;
+  if (p.deliveryIncluded !== undefined) set.deliveryIncluded = p.deliveryIncluded;
+  if (p.incidentalIncluded !== undefined) set.incidentalIncluded = p.incidentalIncluded;
   if (p.finalVehiclePrice !== undefined) set.finalVehiclePrice = p.finalVehiclePrice;
   if (p.acquisitionCost !== undefined) set.acquisitionCost = p.acquisitionCost;
   if (p.exteriorColorId !== undefined) set.exteriorColorId = p.exteriorColorId;
@@ -337,6 +344,10 @@ export type QuoteCreateBody = {
   bond?: string | null;
   delivery?: string | null;
   incidental?: string | null;
+  // 취득원가 포함/불포함(0045) — 미전송이면 insert에서 생략 = DB 기본값(공채 true·탁송/부대 false).
+  bondIncluded?: boolean;
+  deliveryIncluded?: boolean;
+  incidentalIncluded?: boolean;
   finalVehiclePrice?: string | null;
   acquisitionCost?: string | null;
   exteriorColorId?: number | null;
@@ -434,6 +445,10 @@ export async function createQuote(
     bond: body.bond ?? null,
     delivery: body.delivery ?? null,
     incidental: body.incidental ?? null,
+    // undefined = 컬럼 생략(DB DEFAULT) — notNull이라 null 폴백 금지.
+    ...(body.bondIncluded !== undefined ? { bondIncluded: body.bondIncluded } : {}),
+    ...(body.deliveryIncluded !== undefined ? { deliveryIncluded: body.deliveryIncluded } : {}),
+    ...(body.incidentalIncluded !== undefined ? { incidentalIncluded: body.incidentalIncluded } : {}),
     finalVehiclePrice: body.finalVehiclePrice ?? null,
     acquisitionCost: body.acquisitionCost ?? null,
     exteriorColorId: body.exteriorColorId ?? null,

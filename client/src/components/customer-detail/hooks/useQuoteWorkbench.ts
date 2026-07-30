@@ -140,6 +140,11 @@ export function useQuoteWorkbench({
   const [primaryDiscountUnit, setPrimaryDiscountUnit] = useState<DiscountUnit>("amount");
   const [discountLines, setDiscountLines] = useState<DiscountLine[]>([]);
   const [acquisitionTaxMode, setAcquisitionTaxMode] = useState<AcquisitionTaxMode>("normal");
+  // 취득원가 포함/불포함(0045 실동작화 spec D5) — 플래그 SSOT는 이 state 3종. readPricingInputs가
+  // DOM 금액과 합쳐 PricingInputs로 되돌리므로 pricingInputs 스냅샷과 항상 일치한다.
+  const [bondIncluded, setBondIncluded] = useState(true);
+  const [deliveryIncluded, setDeliveryIncluded] = useState(false);
+  const [incidentalIncluded, setIncidentalIncluded] = useState(false);
   const [trimDetail, setTrimDetail] = useState<TrimDetail | null>(null);
   const [exteriorColor, setExteriorColor] = useState<TrimColor | null>(null);
   const [interiorColor, setInteriorColor] = useState<TrimColor | null>(null);
@@ -266,6 +271,9 @@ export function useQuoteWorkbench({
     bond: pricingInputs.bond,
     delivery: pricingInputs.delivery,
     incidental: pricingInputs.incidental,
+    bondIncluded,
+    deliveryIncluded,
+    incidentalIncluded,
     registrationCost: pricing.registrationCost,
     acquisitionCost: pricing.acquisitionCost,
     exteriorColorName: exteriorColor?.name ?? null,
@@ -505,7 +513,32 @@ export function useQuoteWorkbench({
       bond: read("bond"),
       delivery: read("delivery"),
       incidental: read("incidental"),
+      // 플래그는 DOM이 아니라 state 소유(토글은 controlled) — 렌더마다 재생성되는 함수라 최신 state를 본다.
+      bondIncluded,
+      deliveryIncluded,
+      incidentalIncluded,
     };
+  }
+
+  // 포함/불포함 토글 — setState 직후 같은 틱의 recomputePricing은 closure 구값을 보므로,
+  // 바뀐 플래그를 명시로 합쳐 재계산한다(stale closure 회피). 저장 payload에 실리는 값이라 dirty 마킹.
+  function setCostIncluded(kind: "bond" | "delivery" | "incidental", included: boolean) {
+    if (kind === "bond") setBondIncluded(included);
+    else if (kind === "delivery") setDeliveryIncluded(included);
+    else setIncidentalIncluded(included);
+    const root = pricingPanelRef.current;
+    if (!root) return;
+    const base = readPricingInputs(root);
+    const inputs = {
+      ...base,
+      bondIncluded: kind === "bond" ? included : base.bondIncluded,
+      deliveryIncluded: kind === "delivery" ? included : base.deliveryIncluded,
+      incidentalIncluded: kind === "incidental" ? included : base.incidentalIncluded,
+    };
+    setPricingInputs(inputs);
+    setPricing(computePricing(inputs));
+    refreshCardScenarioPreview();
+    markQuoteDraftChanged();
   }
 
   function recomputePricing() {
@@ -646,6 +679,9 @@ export function useQuoteWorkbench({
     setCardUi({});
     setDiscountLines([]);
     setAcquisitionTaxMode("normal");
+    setBondIncluded(true);
+    setDeliveryIncluded(false);
+    setIncidentalIncluded(false);
     setPrimaryDiscountUnit("amount");
     // 솔루션 스냅샷도 저장 payload에 실리는 값 — 이전 견적 스냅샷이 새 견적에 새는 잔상 방지(#163 부류).
     setSolutionSnapshots({});
@@ -979,6 +1015,14 @@ export function useQuoteWorkbench({
         pricing: {
           baseAndOption: (pricingNow?.basePrice ?? 0) + (pricingNow?.optionPrice ?? 0),
           discount: pricingNow?.discount ?? 0,
+          // 취득원가(spec D3) — 금액은 가격 패널 DOM, 플래그는 토글 state(readPricingInputs가 합류).
+          acquisitionTax: pricingNow?.acquisitionTax ?? 0,
+          bond: pricingNow?.bond ?? 0,
+          bondIncluded: pricingNow?.bondIncluded ?? bondIncluded,
+          delivery: pricingNow?.delivery ?? 0,
+          deliveryIncluded: pricingNow?.deliveryIncluded ?? deliveryIncluded,
+          incidental: pricingNow?.incidental ?? 0,
+          incidentalIncluded: pricingNow?.incidentalIncluded ?? incidentalIncluded,
         },
       },
     };
@@ -1351,6 +1395,9 @@ export function useQuoteWorkbench({
       bond: inputs ? num(inputs.bond) : null,
       delivery: inputs ? num(inputs.delivery) : null,
       incidental: inputs ? num(inputs.incidental) : null,
+      bondIncluded,
+      deliveryIncluded,
+      incidentalIncluded,
       finalVehiclePrice: num(pricing.finalVehiclePrice),
       acquisitionCost: num(pricing.acquisitionCost),
       exteriorColorId: exteriorColor?.id ?? null,
@@ -1662,6 +1709,10 @@ export function useQuoteWorkbench({
     setDealerOptionsByCard({});
     // 취득세 모드는 견적 저장본에서 복원(미복원 시 이전 세션 잔상이 persist payload에 실려 수정 저장을 오염).
     setAcquisitionTaxMode((dq?.acquisitionTaxMode as AcquisitionTaxMode) ?? "normal");
+    // 포함/불포함 복원 — 구 견적(0045 이전 저장분)은 필드 부재 → DB 기본값과 같은 폴백.
+    setBondIncluded(dq?.bondIncluded ?? true);
+    setDeliveryIncluded(dq?.deliveryIncluded ?? false);
+    setIncidentalIncluded(dq?.incidentalIncluded ?? false);
     setDiscountLines(restoredDiscount.lines); // 저장본 복원(없으면 빈 행 — 다른 견적 잔상도 함께 청소)
     setPrimaryDiscountUnit("amount");
     setEditingQuoteId(quote.id);
@@ -1720,6 +1771,9 @@ export function useQuoteWorkbench({
     primaryDiscountUnit,
     discountLines,
     acquisitionTaxMode,
+    bondIncluded,
+    deliveryIncluded,
+    incidentalIncluded,
     trimDetail,
     exteriorColor,
     interiorColor,
@@ -1746,6 +1800,7 @@ export function useQuoteWorkbench({
       setExteriorColor,
       setInteriorColor,
       setAcquisitionTaxMode,
+      setCostIncluded,
       setGuidance,
       // 가격 패널 핸들러
       handleJeffMoneyInputFocus,

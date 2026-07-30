@@ -3,6 +3,7 @@ import {
   CALC_PENDING,
   NO_SOURCE,
   acquisitionTaxModeLabelOf,
+  costItemLabelOf,
   formatTerm,
   mileageLabelOf,
   moneyLabelOf,
@@ -35,6 +36,10 @@ export type AppCardModelInput = {
   bond: number;
   delivery: number;
   incidental: number;
+  // 취득원가 포함/불포함(0045 실동작화) — 워크벤치 토글 상태.
+  bondIncluded: boolean;
+  deliveryIncluded: boolean;
+  incidentalIncluded: boolean;
   registrationCost: number;
   acquisitionCost: number;
   exteriorColorName: string | null;
@@ -166,9 +171,9 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     finalVehiclePriceLabel: formatMoney(fvp),
     acquisitionTaxLabel: formatMoney(input.acquisitionTax),
     acquisitionTaxModeLabel: acquisitionTaxModeLabelOf(input.acquisitionTaxMode),
-    bondLabel: formatMoney(input.bond),
-    deliveryFeeLabel: formatMoney(input.delivery),
-    incidentalLabel: formatMoney(input.incidental),
+    bondLabel: costItemLabelOf(input.bond, input.bondIncluded),
+    deliveryFeeLabel: costItemLabelOf(input.delivery, input.deliveryIncluded),
+    incidentalLabel: costItemLabelOf(input.incidental, input.incidentalIncluded),
     registrationCostLabel: formatMoney(input.registrationCost),
     acquisitionCostLabel: formatMoney(input.acquisitionCost),
     hasScenario: s != null,
