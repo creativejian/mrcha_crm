@@ -244,6 +244,13 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
               {collapsed && <SidebarFlyout title="상담사 배정" items={advisorAssignmentModes.map(([view, label]) => ({ active: visibleActiveView === view, label, onClick: () => handleAdvisorAssignmentSelect(view) }))} />}
             </div>
             <button aria-label="팀원 관리" className={navButtonClass(visibleActiveView === "team-members")} data-label="팀원 관리" onClick={() => setSelectedDraftMenu("team-members")} type="button"><MenuIcon name="team" /><span>팀원 관리</span></button>
+            {/* MC 마스터 팀장 진입점(PR3, 2026-07-30) — 편집 제안(canPropose)이 열리면서 필요해졌다
+                (종전 진입점은 admin 전용 2곳뿐). admin은 아래 관리 구역의 기존 항목(승인 대기 배지
+                포함)을 그대로 쓴다 — 배지는 admin의 일감 카운트라 팀장 항목에는 달지 않는다(팀장
+                셀프 현황은 MC 마스터 화면 안 "내 요청 (N)"이 담당). */}
+            {roleTab === "팀장" && (
+              <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span></button>
+            )}
             {canViewAdminMenu && (
               <>
                 <div className="admin-nav-separator" />
