@@ -417,6 +417,9 @@ it("팀장: 내 요청 (N) — 반려 사유가 보이고 pending 행 취소가 
   await waitFor(() => {
     expect(fetchCalls.some(([url, init]) => url === "/api/catalog/change-requests/cr-p" && init?.method === "DELETE")).toBe(true);
   });
+  // done 즉시 숨김 × (N) 상호작용 — 재조회가 끝나기 전에도 행이 사라지고 카운트가 따라 준다.
+  await waitFor(() => expect(screen.queryByRole("button", { name: "취소" })).toBeNull());
+  expect(screen.getByRole("button", { name: "내 요청 (0)" })).toBeInTheDocument();
 });
 
 it("내 요청 버튼은 팀장 전용 — 관리자·상담사에겐 없다", async () => {

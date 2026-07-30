@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { mcMasterPath } from "@/pages/mc-master/mc-master-route";
+
 import { onCatalogWriteQueued } from "./catalog";
 import { CHANGE_FIELD_LABELS, OPTION_TYPE_VALUE_LABELS, type ChangeRequestKind } from "./catalog-change-kinds";
 import { getJson, sendJson } from "./http";
@@ -121,6 +123,16 @@ export function buildChangeDiff(row: Pick<ChangeRequestItem, "kind" | "payload" 
     before: isCreate ? null : formatValue(snapshot[k], k),
     after: formatValue(row.payload[k], k) ?? "—",
   }));
+}
+
+// 변경 요청 행 → 착지 경로(순수) — 두 팝오버(대기열·내 요청)가 같은 계약을 복제하지 않게 SSOT.
+// brand 쿼리 없이는 정규화 effect가 hl을 지우므로 brandId 없으면 이동 불가(null).
+export function changeRequestDest(
+  row: Pick<ChangeRequestItem, "targetBrandId" | "targetModelId" | "targetTrimId">,
+): string | null {
+  if (row.targetBrandId == null) return null;
+  if (row.targetModelId == null) return mcMasterPath(row.targetBrandId, undefined);
+  return `${mcMasterPath(row.targetBrandId, row.targetModelId)}${row.targetTrimId != null ? `&hl=${row.targetTrimId}` : ""}`;
 }
 
 const EMPTY_ROWS: ChangeRequestItem[] = [];

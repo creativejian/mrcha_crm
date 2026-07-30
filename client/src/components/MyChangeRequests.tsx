@@ -3,10 +3,14 @@ import { useNavigate } from "react-router";
 
 import { popoverPosFromRect, type PopoverPos } from "@/components/ProposalTrimsPopover";
 import { CHANGE_KIND_LABELS } from "@/lib/catalog-change-kinds";
-import { buildChangeDiff, useMyChangeRequests, type ChangeRequestItem } from "@/lib/catalog-change-requests";
+import {
+  buildChangeDiff,
+  changeRequestDest,
+  useMyChangeRequests,
+  type ChangeRequestItem,
+} from "@/lib/catalog-change-requests";
 import { waitingLabel } from "@/lib/chat";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
-import { mcMasterPath } from "@/pages/mc-master/mc-master-route";
 
 // 팀장 "내 요청" 팝오버(PR3 Task 7, spec §7.3) — 반려 사유 확인 → 수정 → 재요청 셀프서비스.
 // 대기열 팝오버(ChangeRequestQueue)와 같은 셸(.va-cr-*)이되 액션이 다르다: 승인/반려 대신
@@ -35,7 +39,7 @@ export function MyChangeRequestsButton() {
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
-  usePopoverDismiss(popRef, open, () => setOpen(false));
+  usePopoverDismiss(popRef, open, () => closePopover());
 
   function stateOf(id: string): RowState {
     return rowStates[id] ?? IDLE_STATE;
@@ -44,9 +48,28 @@ export function MyChangeRequestsButton() {
     setRowStates((prev) => ({ ...prev, [id]: s }));
   }
 
+  // 닫으며 error를 idle로 정리한다 — 취소 실패 행이 pending에서 벗어나면(승인 경합 404 등)
+  // 재시도 버튼조차 없어 에러가 지워질 길이 없다(대기열 closePopover와 같은 규칙, rejecting 축만 없음).
+  function closePopover() {
+    setOpen(false);
+    setRowStates((prev) => {
+      let changed = false;
+      const next: Record<string, RowState> = {};
+      for (const [id, s] of Object.entries(prev)) {
+        if (s.phase === "error") {
+          changed = true;
+          next[id] = IDLE_STATE;
+        } else {
+          next[id] = s;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }
+
   function toggle() {
     if (open) {
-      setOpen(false);
+      closePopover();
       return;
     }
     setPos(popoverPosFromRect(btnRef.current?.getBoundingClientRect()));
@@ -64,20 +87,22 @@ export function MyChangeRequestsButton() {
     }
   }
 
-  // 착지 점프 — ChangeRequestQueue.jumpTo와 같은 좌표 규칙(brand 쿼리 필수·트림은 hl 플래시).
+  // 착지 점프 — 경로 계약은 changeRequestDest(대기열과 공용 SSOT)가 안다.
   function jumpTo(row: ChangeRequestItem) {
-    if (row.targetBrandId == null) return;
-    const dest =
-      row.targetModelId != null
-        ? `${mcMasterPath(row.targetBrandId, row.targetModelId)}${
-            row.targetTrimId != null ? `&hl=${row.targetTrimId}` : ""
-          }`
-        : mcMasterPath(row.targetBrandId, undefined);
+    const dest = changeRequestDest(row);
+    if (dest == null) return;
     navigate(dest);
-    setOpen(false);
+    closePopover();
   }
 
-  const visibleRows = rows?.filter((r) => r.status !== "canceled" && stateOf(r.id).phase !== "done") ?? null;
+  // 행동 대상(pending)이 이력 사이에 묻히지 않게 위로 올린다 — mine=1은 상태 무관 최근 50건
+  // (서버)이라 승인·반려가 쌓이면 pending이 아래로 밀린다. 같은 상태 안에서는 서버 순서
+  // (createdAt desc)를 그대로 둔다(안정 정렬). .sort는 in-place라 rows 원본이 아닌
+  // .filter 결과(새 배열)에만 건다.
+  const visibleRows =
+    rows
+      ?.filter((r) => r.status !== "canceled" && stateOf(r.id).phase !== "done")
+      .sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending")) ?? null;
   const pendingCount = visibleRows == null ? null : visibleRows.filter((r) => r.status === "pending").length;
 
   return (

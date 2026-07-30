@@ -1000,6 +1000,8 @@
   background: rgba(21, 128, 61, 0.12);
   color: #15803d;
 }
+/* 칩만 #b91c1c(살짝 짙은 빨강) — 자기 배경 틴트 위에 얹혀서 본문 에러 빨강(#c02626)으로는
+   대비가 모자란다. 배경 없는 사유 문구는 아래처럼 팝오버 공용 에러색을 그대로 쓴다. */
 .va-cr-status-rejected {
   background: rgba(185, 28, 28, 0.12);
   color: #b91c1c;
@@ -1007,5 +1009,5 @@
 .va-cr-reason {
   margin-top: 4px;
   font-size: 12px;
-  color: #b91c1c;
+  color: #c02626;
 }
