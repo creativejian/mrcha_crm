@@ -233,6 +233,35 @@ export async function recordAdminDiscountEdits(
   return executor.insert(catalogDiscountAdoptions).values(rows).returning();
 }
 
+// 관리자 직접 편집 + 할인 3필드 감사 한 몸(구 routes/catalog/trims.ts PATCH 트랜잭션 블록 —
+// spec §3.4). **할인 3필드가 바뀌면 감사 행을 남긴다** — 딜러 채택만 기록하면 관리자가
+// 확정값을 바꿔도 최신 감사가 옛 딜러 채택이라 팝오버가 거짓 출처를 보여준다(2026-07-28
+// 실기에서 실제로 그렇게 됐다). **트랜잭션**(tx)으로 호출돼야 갱신과 감사가 한 몸으로 묶인다:
+// 갱신만 커밋되면 "누가 바꿨는지 모르는 확정 할인"이 남고, 그게 이 표를 만든 이유다.
+//
+// admin 직접 실행(routes/catalog/trims.ts)과 변경 요청 승인 replay(change-request-kinds.ts)가
+// 이 한 벌을 공유한다 — 두 경로가 갈라지면 위 사고가 다시 생긴다.
+export async function updateTrimWithDiscountAudit(
+  trimId: number,
+  patch: TrimPatch,
+  adoptedBy: string,
+  tx: Executor,
+) {
+  // 갱신 전 값을 같은 트랜잭션에서 읽는다 — previous_amount의 근거이고, 되돌리기의 유일한 단서다.
+  const [before] = await tx
+    .select({
+      financial: trimsInCatalog.financialDiscountAmount,
+      partner: trimsInCatalog.partnerDiscountAmount,
+      cash: trimsInCatalog.cashDiscountAmount,
+    })
+    .from(trimsInCatalog)
+    .where(eq(trimsInCatalog.id, trimId));
+  if (!before) return null;
+  const row = await updateTrim(trimId, patch, tx);
+  if (row) await recordAdminDiscountEdits({ trimId, before, patch, adoptedBy }, tx);
+  return row;
+}
+
 // 필드 단위 채택 — 딜러 제안값을 확정 할인으로 올리고 감사 1행을 남긴다.
 //
 // ⚠️ **금액을 인자로 받지 않는다.** 호출자가 금액을 정할 수 있으면 관리자가 딜러가 제안하지도
