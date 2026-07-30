@@ -13,24 +13,8 @@ import {
 import { trimsInCatalog } from "../../db/catalog";
 import { recordAdminDiscountEdits } from "../../db/queries/discount-adoptions";
 import { visibleTrimsFor } from "../../lib/dealer-visibility";
-import { type CatalogApp, id, run, status } from "./shared";
-
-// 트림 본문 스키마. create는 modelId를 더해 그대로, patch는 .partial()로 전부 optional.
-const trimBody = z.object({
-  trimName: z.string().min(1),
-  price: z.number().int().nonnegative(),
-  modelYear: z.number().int(),
-  fuelType: z.string().min(1),
-  driveSystem: z.string().nullable().optional(),
-  displacementCc: z.number().int().nullable().optional(),
-  transmissionType: z.string().nullable().optional(),
-  bodyStyle: z.string().nullable().optional(),
-  seatingCapacity: z.number().int().nullable().optional(),
-  status: status.optional(),
-  financialDiscountAmount: z.number().int().nullable().optional(),
-  partnerDiscountAmount: z.number().int().nullable().optional(),
-  cashDiscountAmount: z.number().int().nullable().optional(),
-});
+import { trimCreateBody, trimUpdateBody } from "./schemas";
+import { type CatalogApp, id, run } from "./shared";
 
 // /api/catalog/trims* — 트림 CRUD/순서/모델 이동.
 export function registerTrimRoutes(catalog: CatalogApp) {
@@ -61,7 +45,7 @@ export function registerTrimRoutes(catalog: CatalogApp) {
     return c.json(visible.map((t) => ({ ...t, price: Number(t.price) })));
   });
 
-  catalog.post("/trims", zValidator("json", trimBody.extend({ modelId: id })), async (c) =>
+  catalog.post("/trims", zValidator("json", trimCreateBody), async (c) =>
     run(c, () => createTrim(c.req.valid("json"), c.var.db)),
   );
 
@@ -72,7 +56,7 @@ export function registerTrimRoutes(catalog: CatalogApp) {
   catalog.patch(
     "/trims/:id",
     zValidator("param", z.object({ id })),
-    zValidator("json", trimBody.partial()),
+    zValidator("json", trimUpdateBody),
     async (c) => {
       const trimId = c.req.valid("param").id;
       const patch = c.req.valid("json");

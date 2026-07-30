@@ -11,7 +11,8 @@ import {
   unsetTrimNoOption,
   updateOption,
 } from "../../db/queries/catalog-admin";
-import { type CatalogApp, id, optionType, run } from "./shared";
+import { optionCreateBody, optionUpdateBody } from "./schemas";
+import { type CatalogApp, id, run } from "./shared";
 
 // /api/catalog/trims/:id/options·colors·no-option, /options/:id — 옵션/색상/무옵션 확정.
 export function registerOptionRoutes(catalog: CatalogApp) {
@@ -31,14 +32,14 @@ export function registerOptionRoutes(catalog: CatalogApp) {
   catalog.post(
     "/trims/:id/options",
     zValidator("param", z.object({ id })),
-    zValidator("json", z.object({ type: optionType, name: z.string().min(1), price: z.number().int().nullable().default(null) })),
+    zValidator("json", optionCreateBody),
     async (c) => run(c, () => createOption({ trimId: c.req.valid("param").id, ...c.req.valid("json") }, c.var.db)),
   );
 
   catalog.patch(
     "/options/:id",
     zValidator("param", z.object({ id })),
-    zValidator("json", z.object({ name: z.string().min(1).optional(), price: z.number().int().nullable().optional() })),
+    zValidator("json", optionUpdateBody),
     async (c) => run(c, () => updateOption(c.req.valid("param").id, c.req.valid("json"), c.var.db), "옵션을 찾을 수 없습니다."),
   );
 

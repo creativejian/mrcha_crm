@@ -11,7 +11,8 @@ import {
   reorderCatalog,
   updateModel,
 } from "../../db/queries/catalog-admin";
-import { type CatalogApp, id, run, status } from "./shared";
+import { modelCreateBody, modelUpdateBody } from "./schemas";
+import { type CatalogApp, id, run } from "./shared";
 
 // /api/catalog/models* — 모델 CRUD/순서/고유번호 할당.
 // (/models/:id/trim-colors·option-summary는 모델 단위 조회라 여기 둔다.)
@@ -28,19 +29,14 @@ export function registerModelRoutes(catalog: CatalogApp) {
     );
   });
 
-  catalog.post(
-    "/models",
-    zValidator(
-      "json",
-      z.object({ brandId: id, name: z.string().min(1), category: z.string().nullable().default(null), status: status.default("판매중") }),
-    ),
-    async (c) => run(c, () => createModel(c.req.valid("json"), c.var.db)),
+  catalog.post("/models", zValidator("json", modelCreateBody), async (c) =>
+    run(c, () => createModel(c.req.valid("json"), c.var.db)),
   );
 
   catalog.patch(
     "/models/:id",
     zValidator("param", z.object({ id })),
-    zValidator("json", z.object({ category: z.string().nullable().optional(), status: status.optional() })),
+    zValidator("json", modelUpdateBody),
     async (c) => run(c, () => updateModel(c.req.valid("param").id, c.req.valid("json"), c.var.db), "모델을 찾을 수 없습니다."),
   );
 
