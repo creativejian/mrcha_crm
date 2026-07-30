@@ -39,6 +39,11 @@ export type PricingInputs = {
   bond: number;
   delivery: number;
   incidental: number;
+  // 포함/불포함(2026-07-30 실동작화 spec D2) — 포함 = 취득원가(등록비용)에 합산되어 금융 원금을 타고,
+  // 불포함 = 출고 시 고객 직접 부담(기타비용). 취득세는 항상 포함(토글 없음 — 계산기와 동일 어휘).
+  bondIncluded: boolean;
+  deliveryIncluded: boolean;
+  incidentalIncluded: boolean;
 };
 
 export type PricingResult = {
@@ -50,8 +55,15 @@ export type PricingResult = {
 
 export function computePricing(inputs: PricingInputs): PricingResult {
   const finalVehiclePrice = inputs.basePrice + inputs.optionPrice - inputs.discount;
-  const registrationCost = inputs.acquisitionTax + inputs.bond;
-  const otherCost = inputs.delivery + inputs.incidental;
+  const registrationCost =
+    inputs.acquisitionTax +
+    (inputs.bondIncluded ? inputs.bond : 0) +
+    (inputs.deliveryIncluded ? inputs.delivery : 0) +
+    (inputs.incidentalIncluded ? inputs.incidental : 0);
+  const otherCost =
+    (inputs.bondIncluded ? 0 : inputs.bond) +
+    (inputs.deliveryIncluded ? 0 : inputs.delivery) +
+    (inputs.incidentalIncluded ? 0 : inputs.incidental);
   const acquisitionCost = finalVehiclePrice + registrationCost;
   return { finalVehiclePrice, registrationCost, otherCost, acquisitionCost };
 }

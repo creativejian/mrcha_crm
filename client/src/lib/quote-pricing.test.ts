@@ -61,6 +61,9 @@ describe("parsePercentInput", () => {
 });
 
 describe("computePricing", () => {
+  // 구 정적 분류(공채→등록비용, 탁송/부대→기타)와 같은 플래그 — DB 기본값(0045)과 동일.
+  const legacyFlags = { bondIncluded: true, deliveryIncluded: false, incidentalIncluded: false } as const;
+
   it("현재 mock 시나리오와 일치", () => {
     expect(
       computePricing({
@@ -71,6 +74,7 @@ describe("computePricing", () => {
         bond: 0,
         delivery: 0,
         incidental: 0,
+        ...legacyFlags,
       }),
     ).toEqual({
       finalVehiclePrice: 236500000,
@@ -79,7 +83,7 @@ describe("computePricing", () => {
       acquisitionCost: 250031000,
     });
   });
-  it("할인·취득세·기타비용 변동 반영", () => {
+  it("기본 플래그(공채 포함·탁송/부대 불포함)는 구 정적 분류와 산출 동일", () => {
     const r = computePricing({
       basePrice: 100000000,
       optionPrice: 5000000,
@@ -88,10 +92,62 @@ describe("computePricing", () => {
       bond: 500000,
       delivery: 300000,
       incidental: 200000,
+      ...legacyFlags,
     });
     expect(r.finalVehiclePrice).toBe(102000000);
     expect(r.registrationCost).toBe(7500000);
     expect(r.otherCost).toBe(500000);
     expect(r.acquisitionCost).toBe(109500000);
+  });
+  it("전부 포함이면 등록비용에 3종 합산·기타비용 0", () => {
+    const r = computePricing({
+      basePrice: 100000000,
+      optionPrice: 0,
+      discount: 0,
+      acquisitionTax: 7000000,
+      bond: 500000,
+      delivery: 300000,
+      incidental: 200000,
+      bondIncluded: true,
+      deliveryIncluded: true,
+      incidentalIncluded: true,
+    });
+    expect(r.registrationCost).toBe(8000000);
+    expect(r.otherCost).toBe(0);
+    expect(r.acquisitionCost).toBe(108000000);
+  });
+  it("전부 불포함이면 등록비용은 취득세뿐·나머지는 고객 부담(기타비용)", () => {
+    const r = computePricing({
+      basePrice: 100000000,
+      optionPrice: 0,
+      discount: 0,
+      acquisitionTax: 7000000,
+      bond: 500000,
+      delivery: 300000,
+      incidental: 200000,
+      bondIncluded: false,
+      deliveryIncluded: false,
+      incidentalIncluded: false,
+    });
+    expect(r.registrationCost).toBe(7000000);
+    expect(r.otherCost).toBe(1000000);
+    expect(r.acquisitionCost).toBe(107000000);
+  });
+  it("혼합(공채 불포함·탁송 포함)도 항목별 독립 분류", () => {
+    const r = computePricing({
+      basePrice: 50000000,
+      optionPrice: 0,
+      discount: 0,
+      acquisitionTax: 3000000,
+      bond: 400000,
+      delivery: 250000,
+      incidental: 100000,
+      bondIncluded: false,
+      deliveryIncluded: true,
+      incidentalIncluded: false,
+    });
+    expect(r.registrationCost).toBe(3250000);
+    expect(r.otherCost).toBe(500000);
+    expect(r.acquisitionCost).toBe(53250000);
   });
 });

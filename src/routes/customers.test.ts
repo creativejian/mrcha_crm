@@ -760,6 +760,8 @@ test("견적 생성(워크벤치 #4c-2): 가격/색상/옵션 payload → getCus
         options: [{ id: 9001, name: "프리미엄 패키지", price: 5000000 }],
         finalDiscount: "6500000", acquisitionTax: "13531000", acquisitionTaxMode: "normal",
         bond: "0", delivery: "0", incidental: "0",
+        // 포함/불포함(0045) — 비기본값 2종으로 영속 검증, incidentalIncluded는 생략(DB 기본 false 확인).
+        bondIncluded: false, deliveryIncluded: true,
         finalVehiclePrice: "241500000", acquisitionCost: "255031000",
         exteriorColorName: "옵시디언 블랙", exteriorColorHex: "#0a0a0a",
         interiorColorName: "마키아토 베이지", interiorColorHex: "#d8c7a8",
@@ -770,7 +772,7 @@ test("견적 생성(워크벤치 #4c-2): 가격/색상/옵션 payload → getCus
     quoteId = ((await created.json()) as { id: string }).id;
 
     const detail = (await (await app.request(`/api/customers/${cid}`, { headers: { Authorization: `Bearer ${token}` } })).json()) as {
-      quotes: Array<{ id: string; basePrice: string | null; optionTotal: string | null; options: Array<{ id: number; name: string; price: number | null }> | null; finalVehiclePrice: string | null; exteriorColorName: string | null; exteriorColorHex: string | null; interiorColorName: string | null; scenarios: Array<{ purchaseMethod: string | null }> }>;
+      quotes: Array<{ id: string; basePrice: string | null; optionTotal: string | null; options: Array<{ id: number; name: string; price: number | null }> | null; finalVehiclePrice: string | null; exteriorColorName: string | null; exteriorColorHex: string | null; interiorColorName: string | null; bondIncluded: boolean; deliveryIncluded: boolean; incidentalIncluded: boolean; scenarios: Array<{ purchaseMethod: string | null }> }>;
     };
     const q = detail.quotes.find((x) => x.id === quoteId)!;
     expect(q.basePrice).toBe("243000000");
@@ -781,6 +783,9 @@ test("견적 생성(워크벤치 #4c-2): 가격/색상/옵션 payload → getCus
     expect(q.exteriorColorHex).toBe("#0a0a0a");
     expect(q.interiorColorName).toBe("마키아토 베이지");
     expect(q.scenarios[0].purchaseMethod).toBe("운용리스");
+    expect(q.bondIncluded).toBe(false);
+    expect(q.deliveryIncluded).toBe(true);
+    expect(q.incidentalIncluded).toBe(false); // 미전송 → DB 기본값
   } finally {
     if (quoteId) await getDefaultDb().delete(quotes).where(eq(quotes.id, quoteId));
   }

@@ -247,6 +247,11 @@ export const quotes = crm.table("quotes", {
   bond: numeric("bond"),
   delivery: numeric("delivery"),
   incidental: numeric("incidental"),
+  // 취득원가 포함/불포함(0045, 2026-07-30 실동작화 spec D1) — 포함 = 취득원가 합산·솔루션 조회 동봉,
+  // 불포함 = 고객 직접 부담(기타비용). 기본값 = 구 정적 분류(공채 포함·탁송/부대 불포함)라 기존 행 의미 불변.
+  bondIncluded: boolean("bond_included").default(true).notNull(),
+  deliveryIncluded: boolean("delivery_included").default(false).notNull(),
+  incidentalIncluded: boolean("incidental_included").default(false).notNull(),
   finalVehiclePrice: numeric("final_vehicle_price"),
   acquisitionCost: numeric("acquisition_cost"),
   status: text("status"),

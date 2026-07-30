@@ -128,6 +128,10 @@ export type CustomerDetailQuote = {
   bond: string | null;
   delivery: string | null;
   incidental: string | null;
+  // 취득원가 포함/불포함(0045) — getCustomer select() 전체라 응답 포함. 수정 진입 토글 복원용.
+  bondIncluded: boolean;
+  deliveryIncluded: boolean;
+  incidentalIncluded: boolean;
   finalVehiclePrice: string | null;
   acquisitionCost: string | null;
   // PR1: catalog FK(워크벤치 수정모드 차량/색상 복원용). bigint mode:"number"라 number|null.
