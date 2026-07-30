@@ -22,10 +22,15 @@ export const CHANGE_KIND_LABELS: Record<ChangeRequestKind, string> = {
 
 // diff 필드 한글 라벨 — 트림/모델/옵션 payload 키 전체(스냅샷 selector와 같은 어휘).
 // 할인 3필드는 DISCOUNT_FIELD_LABELS(discount-adoption.ts)와 표기를 맞춘다.
+// 화면 표기는 TrimEditPanel(client/src/pages/mc-master/TrimEditPanel.tsx)의 실제 라벨과 맞춘다
+// (driveSystem="구동방식", seatingCapacity="인승").
+// 부모 id류(brandId/modelId/trimId)는 의도적으로 없다 — diff 빌더가 제외한다(targetLabel이 대상을 말한다).
 export const CHANGE_FIELD_LABELS: Record<string, string> = {
   trimName: "트림명", price: "가격", modelYear: "연식", fuelType: "연료",
-  driveSystem: "구동", displacementCc: "배기량", transmissionType: "변속기",
-  bodyStyle: "차체", seatingCapacity: "승차정원", status: "상태",
+  driveSystem: "구동방식", displacementCc: "배기량", transmissionType: "변속기",
+  bodyStyle: "차체", seatingCapacity: "인승", status: "상태",
   financialDiscountAmount: "자사할인", partnerDiscountAmount: "제휴할인", cashDiscountAmount: "타사할인",
-  category: "카테고리", name: "이름", type: "종류", brandId: "브랜드", modelId: "모델", trimId: "트림",
+  category: "카테고리",
+  // name은 모델명/옵션명 공용 통칭 — 행에 kind 라벨("모델 추가" 등)이 함께 떠 문맥으로 구분된다.
+  name: "이름", type: "종류",
 };
