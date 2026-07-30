@@ -4,7 +4,8 @@ import { onCatalogWriteQueued } from "./catalog";
 import { CHANGE_FIELD_LABELS, OPTION_TYPE_VALUE_LABELS, type ChangeRequestKind } from "./catalog-change-kinds";
 import { getJson, sendJson } from "./http";
 
-// MC 마스터 변경 승인 대기열 — 관리자 팝오버(ChangeRequestQueue, Task 4)가 소비한다.
+// MC 마스터 변경 승인 대기열 — admin 대기열 팝오버(ChangeRequestQueue) + manager 행 배지·내 요청
+// 팝오버가 소비한다.
 // spec: ref/specs/2026-07-30-crm-catalog-change-approval-design.md §6.3
 // 조회 실패는 failed로만 알리고(무소음 폴백 — discount-proposals.ts 관례), 승인/반려 실패는
 // throw한다(삼키면 조용히 유실 — 호출한 팝오버가 행별 에러로 표시해야 한다).
@@ -125,10 +126,11 @@ export function buildChangeDiff(row: Pick<ChangeRequestItem, "kind" | "payload" 
 const EMPTY_ROWS: ChangeRequestItem[] = [];
 
 // 모델 단위 pending — 트림/옵션 행 "승인 대기" 배지(spec §7.2, admin·manager 공용). 조회 실패
-// 무소음: 배지는 409를 미리 보여주는 예방선일 뿐 최종 방어는 서버 부분 UNIQUE다. modelId 전환
-// 직후 이전 모델 rows가 스치지 않게 응답을 modelId와 묶어 두고 소비 시점에 대조한다(effect 본문
-// setState 금지 관례라 초기화 대신 파생 필터). 큐가 움직이면(202 적재 = catalog.ts 채널 /
-// 승인·반려·취소 = 이 모듈 채널) 즉시 재조회한다.
+// 무소음: 배지는 409를 미리 보여주는 예방선일 뿐 최종 방어는 서버 부분 UNIQUE다(초기 실패 = EMPTY,
+// 재조회 실패 = 직전 rows 유지 — stale 배지가 없음보다 안전하다). modelId 전환 직후 이전 모델
+// rows가 스치지 않게 응답을 modelId와 묶어 두고 소비 시점에 대조한다(effect 본문 setState 금지
+// 관례라 초기화 대신 파생 필터). 큐가 움직이면(202 적재 = catalog.ts 채널 / 승인·반려·취소 = 이
+// 모듈 채널) 즉시 재조회한다.
 export function useModelPendingRequests(modelId: number | null, enabled: boolean): ChangeRequestItem[] {
   const [data, setData] = useState<{ modelId: number; rows: ChangeRequestItem[] } | null>(null);
   const [tick, setTick] = useState(0);
@@ -146,7 +148,7 @@ export function useModelPendingRequests(modelId: number | null, enabled: boolean
   }, [enabled, modelId, tick]);
   useEffect(() => onCatalogWriteQueued(() => setTick((t) => t + 1)), []);
   useEffect(() => onChangeRequestQueueUpdated(() => setTick((t) => t + 1)), []);
-  return data != null && data.modelId === modelId ? data.rows : EMPTY_ROWS;
+  return enabled && data != null && data.modelId === modelId ? data.rows : EMPTY_ROWS;
 }
 
 // 팀장 "내 요청" 팝오버(spec §7.3) — mine=1은 전 상태·최근 50건(서버 관례)이라 상태 구분은
@@ -178,6 +180,9 @@ export function useMyChangeRequests(enabled: boolean): {
     };
   }, [enabled, tick]);
   useEffect(() => onCatalogWriteQueued(() => setTick((t) => t + 1)), []);
+  // onChangeRequestQueueUpdated는 구독하지 않는다 — 승인/반려는 admin 세션(다른 사용자·다른
+  // 브라우저)에서 일어나는 이벤트라 이 훅이 들을 수 없고(모듈 pub/sub은 탭 내부 한정), 내 취소는
+  // cancel이 직접 tick을 올리므로 별도 구독이 필요 없다.
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const cancel = useCallback(async (id: string) => {
     await sendJson(`/api/catalog/change-requests/${id}`, "DELETE");
