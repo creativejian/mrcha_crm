@@ -3,11 +3,15 @@ import { useNavigate } from "react-router";
 
 import { popoverPosFromRect, type PopoverPos } from "@/components/ProposalTrimsPopover";
 import { CHANGE_KIND_LABELS } from "@/lib/catalog-change-kinds";
-import { buildChangeDiff, useChangeRequestQueue, type ChangeRequestItem } from "@/lib/catalog-change-requests";
+import {
+  buildChangeDiff,
+  changeRequestDest,
+  useChangeRequestQueue,
+  type ChangeRequestItem,
+} from "@/lib/catalog-change-requests";
 import { waitingLabel } from "@/lib/chat";
 import { staffNameOf, useStaffDirectory } from "@/lib/staff";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
-import { mcMasterPath } from "@/pages/mc-master/mc-master-route";
 
 // 관리자 승인 대기열 팝오버(PR2 Task 4, 2026-07-30) — MC 마스터 변경 승인 워크플로의 관리자
 // 소비 UI. 데이터는 useChangeRequestQueue(catalog-change-requests.ts, PR2 Task 1~3)가 이미
@@ -122,14 +126,10 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
 
   // targetBrandId만 있으면 점프 가능 — targetModelId까지 있으면 기존대로 모델(+하이라이트 트림)
   // 뷰로, 없으면(model.create — 대상 모델이 아직 없다) 브랜드의 모델 목록으로 이동한다.
+  // 그 인코딩 규칙 자체는 changeRequestDest(내 요청 팝오버와 공용 SSOT)가 소유한다.
   function jumpTo(row: ChangeRequestItem) {
-    if (row.targetBrandId == null) return;
-    const dest =
-      row.targetModelId != null
-        ? `${mcMasterPath(row.targetBrandId, row.targetModelId)}${
-            row.targetTrimId != null ? `&hl=${row.targetTrimId}` : ""
-          }`
-        : mcMasterPath(row.targetBrandId, undefined);
+    const dest = changeRequestDest(row);
+    if (dest == null) return;
     navigate(dest);
     closePopover();
   }
@@ -170,7 +170,7 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
             return (
               <div className="va-cr-row" key={row.id}>
                 <div className="va-cr-row-head">
-                  <span>{staffNameOf(row.requestedBy) ?? "알 수 없음"}</span>
+                  <span className="va-cr-requester">{staffNameOf(row.requestedBy) ?? "알 수 없음"}</span>
                   {" · "}
                   <span>{waitingLabel(row.createdAt, new Date(), "전")}</span>
                   {" · "}

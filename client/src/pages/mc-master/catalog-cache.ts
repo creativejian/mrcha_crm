@@ -24,6 +24,7 @@ const FRESH_MS = 30_000;
 type CacheApi<T> = {
   get: (id: number) => T | undefined;
   load: (id: number, opts?: { force?: boolean }) => Promise<T>;
+  clear: () => void;
 };
 
 // id(brandId/modelId) → 값 캐시. 신선하면 네트워크 생략, 동시호출 dedupe, onLoad로 부수효과(이미지 워밍).
@@ -46,6 +47,16 @@ function makeCache<T>(fetcher: (id: number) => Promise<T>, onLoad?: (value: T, i
         .finally(() => inflight.delete(id));
       inflight.set(id, p);
       return p;
+    },
+    // 전 항목 무효화 — inflight는 그대로 둔다: 진행 중 fetch가 clear 직전 값을 다시 심는 창은
+    // 이론상 있으나 30s 신선도로 자기 치유되고, 기존(무효화 자체가 없던) 동작보다 나빠질 수 없다.
+    // ⚠️ `inflight.clear()`를 추가해도 해결이 아니다 — 이미 대기 중인 promise의 `.then`은 이 Map과
+    // 무관하게 실행되어, 새 타임스탬프로 스테일 값을 다시 심는(재심기) 것 자체는 못 막는다.
+    // ⚠️ `{force:true}`도 선재하는 inflight 재사용 경로(위 `existing` 분기)에서는 옛 promise를 그대로
+    // 돌려받는다 — force가 이 재심기 창을 메워주는 만능 보완 장치라고 가정하지 말 것. 제대로
+    // 막으려면 clear마다 세대를 올리고 stale 세대의 완료 결과를 버리는 epoch/세대 가드가 필요하다.
+    clear: () => {
+      cache.clear();
     },
   };
 }
@@ -137,4 +148,15 @@ export function prefetchCatalog(): void {
       if (first != null) prefetchModels(first);
     })
     .catch(() => undefined);
+}
+
+// 변경 요청 승인 반영 후 전 모델 캐시 무효화(PR3 — 브리프 이월 ④). 승인 대상이 현재 화면 밖
+// 모델이면 reloadTrims({force})가 닿지 않아 30s 스테일이 남는다 — 승인 성공 시 이걸 불러 다음
+// 진입이 무조건 재조회하게 한다. brands·trimColors는 큐 대상 8종 kind가 못 바꾸는 축이라 유지.
+// MCMasterPage.test.tsx beforeEach의 케이스 간 모듈 캐시 초기화 용도로도 쓴다(팀장 개방 배선과 함께 추가).
+export function invalidateCatalogAfterApproval(): void {
+  modelsCache.clear();
+  trimsCache.clear();
+  optionSummaryCache.clear();
+  optionsCache.clear();
 }

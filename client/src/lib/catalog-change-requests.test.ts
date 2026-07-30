@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChangeDiff } from "./catalog-change-requests";
+import { buildChangeDiff, changeRequestDest } from "./catalog-change-requests";
 
 describe("buildChangeDiff", () => {
   it("trim.update — 변경 필드만 전→후 표시(천단위 콤마)", () => {
@@ -107,5 +107,22 @@ describe("buildChangeDiff", () => {
         snapshot: { type: "basic" },
       }),
     ).toEqual([{ label: "종류", before: "기본 옵션", after: "튜닝 옵션" }]);
+  });
+});
+
+// 착지 경로 SSOT — 두 팝오버(대기열·내 요청)가 공유하는 URL 계약(brand 쿼리 필수·트림 hl 플래시).
+describe("changeRequestDest", () => {
+  it("브랜드 좌표가 없으면 null(삭제된 대상 — 갈 곳 없음)", () => {
+    expect(changeRequestDest({ targetBrandId: null, targetModelId: 30, targetTrimId: 300 })).toBeNull();
+  });
+
+  it("모델이 없으면(model.create) 브랜드의 모델 목록으로", () => {
+    expect(changeRequestDest({ targetBrandId: 3, targetModelId: null, targetTrimId: null })).toBe("/mc-master?brand=3");
+  });
+
+  it("트림까지 있으면 모델 뷰 + hl 플래시", () => {
+    expect(changeRequestDest({ targetBrandId: 3, targetModelId: 30, targetTrimId: 300 })).toBe(
+      "/mc-master/30?brand=3&hl=300",
+    );
   });
 });

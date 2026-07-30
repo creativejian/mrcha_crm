@@ -7,6 +7,7 @@ import type { RoleTab } from "@/data/roles";
 import type { ChangeRequestItem } from "@/lib/catalog-change-requests";
 import { resetStaffDirectoryCache } from "@/lib/staff";
 
+import { invalidateCatalogAfterApproval } from "./mc-master/catalog-cache";
 import { mcMasterViewState } from "./mc-master/view-state";
 
 // apiFetch(../lib/api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
@@ -22,13 +23,13 @@ function LocationProbe() {
   return <div data-testid="loc">{pathname + search}</div>;
 }
 
-function renderPage(roleTab: RoleTab, entry = "/mc-master") {
+function renderPage(roleTab: RoleTab, entry = "/mc-master", onToast: (m: string) => void = () => {}) {
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <LocationProbe />
       <Routes>
-        <Route path="/mc-master" element={<MCMasterPage roleTab={roleTab} />} />
-        <Route path="/mc-master/:modelId" element={<MCMasterPage roleTab={roleTab} />} />
+        <Route path="/mc-master" element={<MCMasterPage roleTab={roleTab} onToast={onToast} />} />
+        <Route path="/mc-master/:modelId" element={<MCMasterPage roleTab={roleTab} onToast={onToast} />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -96,6 +97,10 @@ const PENDING_ROW: ChangeRequestItem = {
 };
 
 let changeRequestQueue: ChangeRequestItem[] = [];
+// 팀장 축(PR3) 스텁: 모델 단위 pending 배지 재료 · 내 요청 목록 · 트림 저장 응답(202/409 주입구).
+let modelPendingRows: ChangeRequestItem[] = [];
+let myRequests: ChangeRequestItem[] = [];
+let trimPatchResponse: { status: number; body: unknown } = { status: 200, body: { id: 100 } };
 let fetchCalls: [string, RequestInit | undefined][] = [];
 
 beforeEach(() => {
@@ -106,13 +111,35 @@ beforeEach(() => {
   mcMasterViewState.brandScrollTop = 0;
   mcMasterViewState.trimScrollTop.clear();
   changeRequestQueue = [];
+  modelPendingRows = [];
+  myRequests = [];
+  trimPatchResponse = { status: 200, body: { id: 100 } };
   fetchCalls = [];
   resetStaffDirectoryCache(); // 직원 디렉토리도 모듈 캐시 — 케이스 간 누수 차단(QuoteWorkbench.gate 관례).
+  // 30s 모듈 캐시도 케이스 간 누수 — PR3에서 생긴 리셋 API로 초기화. ⚠️ brands·trimColors 캐시는
+  // 의도적으로 남는다(승인이 못 바꾸는 축) — 브랜드를 케이스별로 바꾸는 테스트가 생기면 별도 리셋 필요.
+  invalidateCatalogAfterApproval();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       fetchCalls.push([url, init]);
       if (url === "/api/catalog/brands") return new Response(JSON.stringify(BRANDS), { status: 200 });
+      // ⚠️ 분기 순서: 아래 startsWith("/api/catalog/models")·("/api/catalog/trims")·
+      // ("/api/catalog/change-requests")가 광범위 매칭이라, 구체 URL은 반드시 그 위에 둔다.
+      if (url === "/api/catalog/models/10/change-requests") return new Response(JSON.stringify(modelPendingRows), { status: 200 });
+      if (url === "/api/catalog/change-requests?mine=1") return new Response(JSON.stringify(myRequests), { status: 200 });
+      if (init?.method === "DELETE" && url.startsWith("/api/catalog/change-requests/"))
+        return new Response(JSON.stringify({ status: "canceled" }), { status: 200 });
+      if (init?.method === "PATCH" && url === "/api/catalog/trims/100")
+        return new Response(JSON.stringify(trimPatchResponse.body), { status: trimPatchResponse.status });
+      if (url === "/api/catalog/trims/100/options")
+        return new Response(JSON.stringify({ options: [{ id: 900, type: "basic", name: "선루프", price: 500000 }], relations: [] }), {
+          status: 200,
+        });
+      // 옵션 요약·색상은 빈 배열로 명시한다 — 광범위 models 분기에 흘려보내면 MODELS 배열을
+      // summary로 받는 셈이라, 옵션 배지가 "옵션 미입력"으로 뜨는 게 우연에 기대게 된다.
+      if (url === "/api/catalog/models/10/option-summary") return new Response("[]", { status: 200 });
+      if (url.endsWith("/trim-colors")) return new Response("[]", { status: 200 });
       if (url.startsWith("/api/catalog/trims")) return new Response(JSON.stringify(TRIMS), { status: 200 });
       if (url.startsWith("/api/catalog/models")) return new Response(JSON.stringify(MODELS), { status: 200 });
       if (url === "/api/staff") return new Response(JSON.stringify(STAFF), { status: 200 });
@@ -256,4 +283,169 @@ it("승인 클릭 시 approve API를 호출하고 행을 즉시 숨긴다", asyn
   await waitFor(() => {
     expect(screen.queryByRole("button", { name: "5 Series › 523d" })).toBeNull();
   });
+});
+
+// ── PR3: 팀장(canPropose) 개방 ────────────────────────────────────────────────
+it("팀장: 모델 추가·수정 진입은 열리고 선택(일괄삭제·순서변경) 토글은 없다", async () => {
+  renderPage("팀장");
+  await screen.findByText("그랜저");
+  expect(screen.getByRole("button", { name: /모델 추가/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "그랜저 수정" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^선택$/ })).toBeNull();
+});
+
+it("팀장 트림 뷰: 트림 추가·수정은 열리고 고유번호 할당은 없고 저장 버튼은 '승인 요청'", async () => {
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  expect(screen.getByRole("button", { name: /트림 추가/ })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /고유번호 할당/ })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
+  expect(await screen.findByRole("button", { name: "승인 요청" })).toBeInTheDocument();
+});
+
+it("팀장 저장(202 queued): 토스트가 뜨고 패널이 닫힌다", async () => {
+  trimPatchResponse = { status: 202, body: { queued: true, requestId: "cr-9" } };
+  const toasts: string[] = [];
+  const user = userEvent.setup();
+  renderPage("팀장", "/mc-master", (m) => toasts.push(m));
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
+  await user.click(await screen.findByRole("button", { name: "승인 요청" }));
+  await waitFor(() => {
+    expect(toasts).toContain("승인 요청됨 — 관리자 컨펌 후 반영됩니다");
+  });
+  expect(fetchCalls.some(([url, init]) => url === "/api/catalog/trims/100" && init?.method === "PATCH")).toBe(true);
+  // 패널 닫힘(성공 흐름) — 토스트와 setTrimPanel(null)은 같은 await 사슬의 다른 지점이라
+  // 마이크로태스크 타이밍에 기대지 않고 기다린다.
+  await waitFor(() => {
+    expect(screen.queryByRole("button", { name: "승인 요청" })).toBeNull();
+  });
+});
+
+it("팀장 저장(409 타인 pending): 패널에 서버 메시지가 뜨고 열려 있다", async () => {
+  trimPatchResponse = { status: 409, body: { error: "이미 승인 대기 중인 요청이 있습니다." } };
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
+  await user.click(await screen.findByRole("button", { name: "승인 요청" }));
+  expect(await screen.findByText("이미 승인 대기 중인 요청이 있습니다.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "승인 요청" })).toBeInTheDocument(); // 패널 유지
+});
+
+it("팀장 옵션 패널: 추가·수정은 열리고 삭제는 없고 제출 라벨은 '승인 요청'", async () => {
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  await user.click(screen.getByRole("button", { name: "옵션 미입력" }));
+  const editOption = await screen.findByRole("button", { name: "선루프 수정" });
+  expect(screen.queryByRole("button", { name: "선루프 삭제" })).toBeNull();
+  expect(screen.getByRole("button", { name: /기본 옵션 추가/ })).toBeInTheDocument();
+  // 옵션 추가·수정도 큐 8종이라 결말이 202 적재다 — 인라인 에디터 제출 라벨도 같은 축이어야
+  // "추가/저장을 눌렀는데 목록이 안 바뀌었다"로 읽히지 않는다(spec §7.1).
+  await user.click(editOption);
+  expect(await screen.findByRole("button", { name: "승인 요청" })).toBeInTheDocument();
+});
+
+// ── PR3 Task 6: 행 "승인 대기" 배지 + 트림 뷰 헤더 pill(spec §7.2) ────────────────
+// 시도 전에 보여 409(타인 pending)를 예방하는 게 목적이라 admin·manager 공통이다. 아래 케이스는
+// 팀장으로 렌더한다 — admin 화면에는 헤더 대기열 버튼이 함께 있고, 그 버튼의 **로딩 구간
+// 텍스트가 정확히 "승인 대기"**(ChangeRequestQueue의 visibleRows === null — 카운트 미표시)라
+// 완전일치 매처가 두 요소를 동시에 물 수 있다.
+it("승인 대기 중인 트림 행에 배지가 뜬다(호버 title = 요청자·경과·작업)", async () => {
+  // 같은 트림에 2건 — title이 줄바꿈으로 누적되는 경로까지 잠근다.
+  modelPendingRows = [
+    { ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 },
+    {
+      ...PENDING_ROW,
+      id: "cr-3",
+      kind: "trim.no-option.set",
+      payload: {},
+      snapshot: {},
+      targetId: 100,
+      targetBrandId: 1,
+      targetModelId: 10,
+      targetTrimId: 100,
+    },
+  ];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  const badge = await screen.findByText("승인 대기"); // 행 배지(팀장에겐 헤더 대기열 버튼이 없어 유일)
+  expect(badge.getAttribute("title")).toContain("박서준");
+  expect(badge.getAttribute("title")).toContain("트림 수정");
+  expect(badge.getAttribute("title")).toContain("무옵션 확정"); // 2건이 한 배지 title에 누적
+  expect(badge.getAttribute("title")).toMatch(/분 전|시간 전/); // 경과 세그먼트
+});
+
+it("트림 행에 못 붙는 요청(트림 추가 등)은 트림 뷰 헤더 pill로 집계된다", async () => {
+  modelPendingRows = [
+    {
+      ...PENDING_ROW,
+      id: "cr-2",
+      kind: "trim.create",
+      targetId: null,
+      targetBrandId: 1,
+      targetModelId: 10,
+      targetTrimId: null,
+      payload: { modelId: 10, trimName: "새 트림", price: 1, modelYear: 2027, fuelType: "가솔린" },
+      snapshot: {},
+    },
+  ];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  expect(await screen.findByText("승인 대기 1")).toBeInTheDocument();
+});
+
+// ── PR3 Task 7: 팀장 "내 요청 (N)" 팝오버(spec §7.3) ─────────────────────────
+it("팀장: 내 요청 (N) — 반려 사유가 보이고 pending 행 취소가 DELETE를 쏜다", async () => {
+  myRequests = [
+    { ...PENDING_ROW, id: "cr-p", status: "pending" },
+    { ...PENDING_ROW, id: "cr-r", status: "rejected", rejectReason: "가격 근거 부족" },
+  ];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await screen.findByText("그랜저");
+  await user.click(await screen.findByRole("button", { name: "내 요청 (1)" })); // (N)=pending만
+  expect(await screen.findByText(/반려 사유: 가격 근거 부족/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "취소" }));
+  await waitFor(() => {
+    expect(fetchCalls.some(([url, init]) => url === "/api/catalog/change-requests/cr-p" && init?.method === "DELETE")).toBe(true);
+  });
+  // done 즉시 숨김 × (N) 상호작용 — 재조회가 끝나기 전에도 행이 사라지고 카운트가 따라 준다.
+  await waitFor(() => expect(screen.queryByRole("button", { name: "취소" })).toBeNull());
+  expect(screen.getByRole("button", { name: "내 요청 (0)" })).toBeInTheDocument();
+});
+
+it("내 요청 버튼은 팀장 전용 — 관리자·상담사에겐 없다", async () => {
+  const admin = renderPage("최고관리자");
+  await screen.findByText("그랜저");
+  expect(screen.queryByRole("button", { name: /내 요청/ })).toBeNull();
+  admin.unmount();
+
+  renderPage("상담사");
+  await screen.findByText("그랜저");
+  expect(screen.queryByRole("button", { name: /내 요청/ })).toBeNull();
+});
+
+it("팀장 저장(202)이 큐에 쌓이면 행 배지가 즉시 나타난다(pub/sub 재조회)", async () => {
+  trimPatchResponse = { status: 202, body: { queued: true, requestId: "cr-9" } };
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  expect(screen.queryByText("승인 대기")).toBeNull(); // 저장 전엔 배지 없음
+  await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
+  // 저장이 202로 적재되면 onCatalogWriteQueued가 배지 훅을 재조회시킨다 — 재조회 시점의
+  // 스텁 응답을 pending 1건으로 바꿔 "적재 → 배지 등장"을 통합으로 잠근다.
+  modelPendingRows = [{ ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 }];
+  await user.click(await screen.findByRole("button", { name: "승인 요청" }));
+  expect(await screen.findByText("승인 대기")).toBeInTheDocument();
 });

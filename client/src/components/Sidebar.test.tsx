@@ -60,9 +60,8 @@ describe("Sidebar 인박스 진입점 role 게이트", () => {
   });
 });
 
-// MC 마스터 admin 진입점 role 게이트(PR2, 2026-07-30) — canViewAdminMenu(최고관리자 전용)라
-// 팀장에게는 뜨지 않는다(같은 canViewTeamMenu 구역의 "팀원 관리"·"경영 리포트"와 같은 층위).
-// 배지(pendingChangeRequestCount)는 App.tsx 60s 폴링이 채우는 승인 대기 건수 표시를 잠근다.
+// MC 마스터 진입점 role 게이트 — admin은 관리 구역(배지 포함), 팀장은 PR3(제안 축 개방)로
+// 팀 구역에 배지 없는 항목이 생겼다(배지 = 승인 대기 건수 = admin의 일감 — App 폴링도 admin 전용).
 describe("Sidebar MC 마스터 메뉴 role 게이트 + 승인 대기 배지", () => {
   it("최고관리자 — MC 마스터 항목 노출 + 승인 대기 배지(3) 표시", () => {
     render(<Sidebar {...baseProps} roleTab="최고관리자" pendingChangeRequestCount={3} onViewChange={vi.fn()} />);
@@ -71,8 +70,10 @@ describe("Sidebar MC 마스터 메뉴 role 게이트 + 승인 대기 배지", ()
     expect(button).toHaveTextContent("3");
   });
 
-  it("팀장 — MC 마스터 항목 미노출(canViewAdminMenu 게이트)", () => {
+  it("팀장 — MC 마스터 항목 노출(PR3 제안 진입점) · 승인 대기 배지는 없음", () => {
     render(<Sidebar {...baseProps} roleTab="팀장" pendingChangeRequestCount={3} onViewChange={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: /MC 마스터/ })).toBeNull();
+    const button = screen.getByRole("button", { name: "MC 마스터" });
+    expect(button).toBeInTheDocument();
+    expect(button.textContent).not.toContain("3");
   });
 });

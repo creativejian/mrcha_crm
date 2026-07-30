@@ -39,10 +39,17 @@ export function resetStaffDirectoryCache(): void {
 
 // 컴포넌트용: 마운트 시 디렉토리 로드. 실패는 빈 목록(호출부가 disabled 처리) — 배정은
 // 재시도 가능한 보조 동작이라 에러 UI를 띄우지 않는다.
-export function useStaffDirectory(): { staff: StaffEntry[]; loading: boolean } {
+// enabled=false면 fetch 자체를 보내지 않는다 — MC 마스터 배지가 admin·manager에서만 이름을 쓴다
+// (딜러 세션에서 /api/staff 요청 억제(상담사는 타 화면이 이미 로드 — MC 마스터가 추가 요청만 안 보낸다)).
+export function useStaffDirectory(enabled = true): { staff: StaffEntry[]; loading: boolean } {
   const [staff, setStaff] = useState<StaffEntry[]>(cache ?? []);
-  const [loading, setLoading] = useState(cache === null);
+  // enabled=false면 fetch를 안 보내므로 loading이 영원히 true로 매달린다 — 초기값 계산에
+  // enabled를 반영해 "로딩 중"이 실제로 요청이 나간 경우에만 참이 되게 한다.
+  // ⚠️ enabled는 마운트 1회 계산 — 동적으로 false→true 뒤집는 소비부가 생기면 effect 안
+  // setLoading으로 옮길 것(현 소비부는 role 파생이라 세션 내 불변).
+  const [loading, setLoading] = useState(cache === null && enabled);
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     fetchStaffDirectory()
       .then((rows) => {
@@ -55,6 +62,6 @@ export function useStaffDirectory(): { staff: StaffEntry[]; loading: boolean } {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [enabled]);
   return { staff, loading };
 }

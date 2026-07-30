@@ -5,7 +5,17 @@ vi.mock("@/lib/supabase", () => ({
   supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
 }));
 
-import { fetchOptionsCached, getCachedOptions, prefetchOptions } from "./catalog-cache";
+import {
+  fetchBrandsCached,
+  fetchModelsCached,
+  fetchOptionSummaryCached,
+  fetchOptionsCached,
+  fetchTrimColorsCached,
+  fetchTrimsCached,
+  getCachedOptions,
+  invalidateCatalogAfterApproval,
+  prefetchOptions,
+} from "./catalog-cache";
 
 const BUNDLE = {
   options: [{ id: 1, type: "basic", name: "파노라마 선루프", price: 1200000 }],
@@ -48,4 +58,51 @@ it("prefetchOptions는 캐시를 채운다", async () => {
   prefetchOptions(trimId);
   // prefetch는 fire-and-forget이라 마이크로태스크가 끝날 때까지 대기
   await vi.waitFor(() => expect(getCachedOptions(trimId)).toBeDefined());
+});
+
+it("invalidateCatalogAfterApproval: 모델·트림·옵션요약·옵션 캐시를 비워 다음 load가 다시 fetch한다", async () => {
+  const id = 9101;
+  const calls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      calls.push(url);
+      if (url.includes("/options")) return new Response(JSON.stringify(BUNDLE), { status: 200 });
+      return new Response("[]", { status: 200 });
+    }),
+  );
+  await fetchModelsCached(id);
+  await fetchTrimsCached(id);
+  await fetchOptionSummaryCached(id);
+  await fetchOptionsCached(id);
+  const before = calls.length;
+  await fetchModelsCached(id); // 신선(30s 내) — fetch 없음
+  expect(calls.length).toBe(before);
+
+  invalidateCatalogAfterApproval();
+  await fetchModelsCached(id);
+  await fetchTrimsCached(id);
+  await fetchOptionSummaryCached(id);
+  await fetchOptionsCached(id);
+  expect(calls.length).toBe(before + 4);
+});
+
+it("invalidateCatalogAfterApproval: 브랜드·트림색상 캐시는 유지된다(승인 kind가 못 바꾸는 축)", async () => {
+  const trimColorId = 9102; // 9101은 앞 케이스가 쓰므로 모듈 캐시 격리를 위해 다른 id
+  const calls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      calls.push(url);
+      return new Response("[]", { status: 200 });
+    }),
+  );
+  await fetchBrandsCached();
+  await fetchTrimColorsCached(trimColorId);
+  const before = calls.length;
+  expect(before).toBeGreaterThan(0); // 0이면 아래 toBe(before) 단언이 공허해진다
+  invalidateCatalogAfterApproval();
+  await fetchBrandsCached();
+  await fetchTrimColorsCached(trimColorId);
+  expect(calls.length).toBe(before);
 });

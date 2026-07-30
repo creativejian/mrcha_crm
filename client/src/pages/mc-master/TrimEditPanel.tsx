@@ -25,6 +25,7 @@ export function TrimEditPanel({
   onSubmit,
   busy,
   error,
+  submitLabel = "저장", // 팀장 제안 축은 "승인 요청" — 같은 폼, 다른 결말(spec §7.1)
 }: {
   trim: CatalogTrim | null;
   modelStatus: VehicleStatus | null;
@@ -32,6 +33,7 @@ export function TrimEditPanel({
   onSubmit: (values: TrimInput) => void;
   busy: boolean;
   error: string | null;
+  submitLabel?: string;
 }) {
   const isEdit = trim !== null;
   const [trimName, setTrimName] = useState(trim?.trimName ?? "");
@@ -197,7 +199,7 @@ export function TrimEditPanel({
             })
           }
         >
-          {busy ? "저장 중…" : "저장"}
+          {busy ? `${submitLabel} 중…` : submitLabel}
         </button>
       </div>
     </EditDrawer>

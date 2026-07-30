@@ -906,7 +906,10 @@
   font-size: 12px;
   color: var(--muted);
 }
-.va-cr-row-head > span:first-child {
+/* 요청자 이름 강조 — 구 선택자는 `> span:first-child`(위치 기반)였다. "내 요청" 팝오버(§7.3)가
+   같은 셸을 쓰면서 첫 자식이 상태 칩으로 바뀌자, 이 규칙의 특이도(0,2,1)가 칩 색(0,1,0)을
+   눌러 대기/승인/반려 색 구분이 죽었다 — 위치가 아니라 의미로 가리키게 바꿨다. */
+.va-cr-requester {
   font-weight: 600;
   color: var(--text);
 }
@@ -956,4 +959,55 @@
 .va-cr-reject-input input {
   flex: 1;
   min-width: 0;
+}
+
+/* ── 행 "승인 대기" 배지(PR3 spec §7.2) — 시도 전에 보여 409(타인 pending)를 예방한다.
+   title 속성에 "요청자 · 경과 · 작업"(여러 건은 줄바꿈)이 실린다. 앰버 리터럴은 이 레포의
+   대기/보류 어휘 색(quote-inbox.css·customer-console.css의 #b45309와 같은 축)이다. */
+.va-cr-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  background: rgba(180, 83, 9, 0.12);
+  color: #b45309;
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+/* 트림 뷰 헤더 pill은 flex 컨테이너(.va-head-back, gap 8px)의 자식이라 margin-left가 14px로
+   합산된다 — gap에 맡긴다(vertical-align은 flex item에서 무효라 그대로 둔다: 행 배지 전용). */
+.va-head-back .va-cr-badge {
+  margin-left: 0;
+}
+
+/* ── 내 요청 상태 칩(PR3 spec §7.3) — 팀장 "내 요청" 팝오버 행 머리의 대기/승인/반려 표식.
+   대기 앰버는 위 .va-cr-badge와 같은 축, 승인 초록·반려 빨강은 이 레포 결과 어휘 색이다. */
+.va-cr-status {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.va-cr-status-pending {
+  background: rgba(180, 83, 9, 0.12);
+  color: #b45309;
+}
+.va-cr-status-approved {
+  background: rgba(21, 128, 61, 0.12);
+  color: #15803d;
+}
+/* 칩만 #b91c1c(살짝 짙은 빨강) — 자기 배경 틴트 위에 얹혀서 본문 에러 빨강(#c02626)으로는
+   대비가 모자란다. 배경 없는 사유 문구는 아래처럼 팝오버 공용 에러색을 그대로 쓴다. */
+.va-cr-status-rejected {
+  background: rgba(185, 28, 28, 0.12);
+  color: #b91c1c;
+}
+.va-cr-reason {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #c02626;
 }

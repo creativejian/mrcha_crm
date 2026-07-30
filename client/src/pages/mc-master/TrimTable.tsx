@@ -5,7 +5,7 @@ import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer
 import type { TrimProposals } from "@/lib/discount-proposals";
 import type { AdoptHandler, UndoHandler } from "./admin-discount-cells";
 import { SelectAllHeadCell, SelectCheckCell, SelectableRow } from "./table-select";
-import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
+import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells, TrimPendingBadge } from "./trim-cells";
 
 // 평면 트림 테이블(전체 trim_name). 국산차 '순서 관리' 탭 / 수입차 기본 뷰에서 쓴다.
 // 드래그 순서변경/일괄삭제는 '선택' 모드에서만(앱과 동일).
@@ -32,6 +32,7 @@ export function TrimTable({
   onAdopt,
   onUndo,
   flashTrimId,
+  pendingBadgeByTrim,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -44,6 +45,8 @@ export function TrimTable({
   onUndo?: UndoHandler;
   /** ?hl= 딥링크 착지 마킹 대상 — 해당 행에 플래시 클래스와 스크롤 앵커(data-trim-id)를 단다. */
   flashTrimId?: number | null;
+  /** 트림별 "승인 대기" 배지 title(요청자·경과·작업 — MCMasterPage가 합성). 없으면 미표시. */
+  pendingBadgeByTrim?: Map<number, string>;
   isDomestic: boolean;
   selectMode: boolean;
   selected: Set<number>;
@@ -91,7 +94,10 @@ export function TrimTable({
               label={`${t.trimName} 선택`}
             />
             <td className="va-th-trim">
-              <div className="va-trim-name">{t.trimName}</div>
+              <div className="va-trim-name">
+                {t.trimName}
+                <TrimPendingBadge title={pendingBadgeByTrim?.get(t.id)} />
+              </div>
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
             </td>
             <TrimMetaCells
