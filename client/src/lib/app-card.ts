@@ -42,6 +42,8 @@ export type AppCardModelInput = {
   incidentalIncluded: boolean;
   registrationCost: number;
   acquisitionCost: number;
+  // 기타비용(불포함 항목 합 = 고객 부담) — computePricing 산출. 앱 카드 신설 행(앱팀 요청 2026-07-30).
+  otherCost: number;
   exteriorColorName: string | null;
   interiorColorName: string | null;
   guidance: QuoteGuidance;
@@ -96,6 +98,8 @@ export type AppCardModel = {
   incidentalIncludedLabel: string;
   registrationCostLabel: string;
   acquisitionCostLabel: string;
+  // 기타비용 행(취득원가 ①+② 아래, 0원도 표시 — 유슨생 결정 ⓐ). 과거 카드는 필드 부재 → 앱이 행 숨김.
+  otherCostLabel: string;
   // 섹션 3 — 추천 견적 조건(대표 시나리오 전체)
   hasScenario: boolean;
   lenderLabel: string;
@@ -183,6 +187,7 @@ export function buildAppCardModel(input: AppCardModelInput): AppCardModel {
     incidentalIncludedLabel: costIncludedLabelOf(input.incidentalIncluded),
     registrationCostLabel: formatMoney(input.registrationCost),
     acquisitionCostLabel: formatMoney(input.acquisitionCost),
+    otherCostLabel: formatMoney(input.otherCost),
     hasScenario: s != null,
     lenderLabel: s?.lender ?? "금융사 미정",
     downPaymentLabel: s ? moneyModeLabel(s.downPaymentMode, s.downPaymentValue, fvp, { noneLabel: "없음", percentFirst: true }) : "없음",

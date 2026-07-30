@@ -94,6 +94,7 @@ CREATE POLICY "Staff can view all advisor quotes" ON public.advisor_quotes
 | `basePriceLabel` `optionTotalLabel` `finalVehiclePriceLabel` `acquisitionTaxLabel` `bondLabel` `deliveryFeeLabel` `incidentalLabel` `registrationCostLabel` `acquisitionCostLabel` | string | 취득원가 구성 아코디언 금액 9필드 — **맨숫자** "59,000,000"·"0" (콤마 포함, '원' 없음). 앱이 `{값}원`으로 정적 부착(CRM AppCardPreview 미러) |
 | `acquisitionTaxModeLabel` | string | 세율 모드 텍스트 "일반/하이브리드 감면/전기차 감면/직접 입력" — 그대로 표기('원' 부착 대상 아님) |
 | `bondIncludedLabel` `deliveryFeeIncludedLabel` `incidentalIncludedLabel` | string | (2026-07-30 추가) 포함/불포함 제목 어휘 — "포함" 또는 "불포함·고객 부담". 행 **제목**에 조합: `공채 (${bondIncludedLabel})` — acquisitionTaxModeLabel과 동형. 필드 부재(구 카드)면 제목 그대로 "공채". '원' 부착 대상 아님. 요청문 = `ref/2026-07-30-app-advisor-quote-cost-title-request.md` |
+| `otherCostLabel` | string | (2026-07-30 앱팀 요청) 기타비용 = 불포함 항목 합(고객 부담, computePricing otherCost) — **맨숫자**, 앱이 `{값}원` 부착. 표시 위치 = 취득원가 ①+② 바로 아래, 제목 "기타비용 (취득원가 불포함, 고객 부담)"(앱 하드코딩). **0원도 전송·표시**(유슨생 결정 ⓐ). 필드 부재(구 카드)면 행 자체 숨김 |
 
 | 키 | 타입 | 설명(섹션 3 — 추천 견적 조건) |
 |---|---|---|

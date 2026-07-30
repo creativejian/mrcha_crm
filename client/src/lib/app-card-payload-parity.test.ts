@@ -178,6 +178,7 @@ function buildBoth(scenario: AdvisorPayloadScenarioRow | null): { clientModel: A
     ...COST_FLAGS,
     registrationCost: pricing.registrationCost,
     acquisitionCost: pricing.acquisitionCost,
+    otherCost: pricing.otherCost,
     exteriorColorName: "알파인 화이트",
     interiorColorName: "블랙",
     guidance,
