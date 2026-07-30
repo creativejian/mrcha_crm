@@ -29,6 +29,8 @@ function dbErrorMessage(e: unknown): string {
   // link 경합·채번 경합에서 그대로 노출되면 완전히 오도된다(0713 감사).
   if (/customers_app_user_id_unique/i.test(msg)) return "이 앱 계정은 이미 다른 고객에 연결돼 있습니다.";
   if (/customers_customer_code_unique/i.test(msg)) return "고객 번호 채번이 겹쳤습니다. 잠시 후 다시 시도해 주세요.";
+  // submitChangeRequest가 자체 catch로 409를 주지만, 이 매핑은 다른 경로로 새는 경우의 문구 방어선이다.
+  if (/catalog_change_requests_pending_target_unique/i.test(msg)) return "이미 승인 대기 중인 요청이 있습니다.";
   if (/duplicate key|unique constraint|23505/i.test(msg)) return "같은 모델에 동일한 트림명 또는 고유번호가 있습니다.";
   // phone 배타 CHECK(app_user_id ↔ phone, 마이그 0034) — PATCH 409 게이트 통과 후 동시 link가 끼어든
   // TOCTOU의 최후 방어선. generic 23514 문구로는 사유가 불투명해 constraint 이름 선매칭(위 23505 선례).
