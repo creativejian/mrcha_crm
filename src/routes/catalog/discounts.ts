@@ -8,10 +8,10 @@ import { type CatalogApp, id, run } from "./shared";
 
 // 딜러 할인 제안 조회·채택(슬라이스 C) — **admin 전용**.
 //
-// ⚠️ requireRoles를 명시로 붙이는 이유: catalog 라우터에는 role 게이트가 없어서 staff도 카탈로그를
-// 쓸 수 있는 상태다(기존 정책 — 이번에 바꾸지 않는다). 그 위에 그냥 얹으면 ①staff가 남의 딜러
-// 제안을 열람하고 ②확정 할인을 채택할 수 있다. dealerWriteGate는 **쓰기만** 보므로 GET을 막지
-// 않아 딜러가 경쟁사 제안을 들여다보는 경로도 열린다.
+// ⚠️ requireRoles를 명시로 붙이는 이유: 딜러 제안 열람·채택은 admin 전용이다. dealerWriteGate는
+// **쓰기만** 보므로 GET을 막지 않아 딜러가 경쟁사 제안을 들여다보는 경로도 열린다.
+// (2026-07-30부터 catalog 쓰기 전 라우트에 role 게이트가 붙었다 — 큐 8종 admin·manager,
+// 삭제/이동/mc_code/reorder admin 전용. spec: 2026-07-30-crm-catalog-change-approval-design.md §6.2)
 // spec: ref/specs/2026-07-27-crm-dealer-discount-proposal-design.md §6.3·§7.2
 // field 어휘는 client/src/lib/discount-adoption.ts가 SSOT다 — 여기 리터럴을 다시 적으면
 // 스키마·쿼리·클라 팝오버가 어긋날 수 있다(어긋나도 타입은 통과한다).

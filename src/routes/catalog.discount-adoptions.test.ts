@@ -8,10 +8,12 @@ import { getDefaultDb } from "../db/client";
 import { catalogDiscountAdoptions } from "../db/schema";
 
 // ── 채택 라우트 게이트(슬라이스 C) ──────────────────────────────────────────
-// catalog 라우터엔 role 게이트가 없어 **staff도 카탈로그를 쓸 수 있는 상태**다(기존 정책).
-// 그 위에 그냥 얹으면 staff가 남의 딜러 제안을 열람하고 확정 할인까지 채택한다. dealerWriteGate는
-// 쓰기만 보므로 GET은 딜러에게도 열린다 — 경쟁사 할인 전략 노출이다.
+// 딜러 제안 열람·채택은 admin 전용이다 — 그 위에 게이트가 없으면 staff가 남의 딜러 제안을
+// 열람하고 확정 할인까지 채택한다. dealerWriteGate는 쓰기만 보므로 GET은 딜러에게도 열린다 —
+// 경쟁사 할인 전략 노출이다.
 // 그래서 두 라우트 모두 requireRoles(["admin"])를 명시로 붙였고, 이 파일이 그 축을 잠근다.
+// (2026-07-30부터 catalog 쓰기 전 라우트에도 role 게이트가 붙었다 — 큐 8종 admin·manager,
+// 삭제/이동/mc_code/reorder admin 전용. spec: 2026-07-30-crm-catalog-change-approval-design.md §6.2)
 //
 // ⚠️ 이 파일은 **실제 채택을 하지 않는다.** 라우트가 자기 트랜잭션을 열기 때문에(dbMiddleware
 // 관례) 바깥에서 롤백할 수 없고, 채택이 커밋되면 앱 고객에게 보이는 확정 할인이 바뀐다.
