@@ -864,3 +864,89 @@
 .va-trim-table tr.va-row-flash > td {
   animation: va-row-flash 2.4s ease-out;
 }
+
+/* ── 관리자 승인 대기열 팝오버(PR2 Task 4, 2026-07-30) ───────────────────────
+   딜러 "입력 트림" 팝오버(.org-dealer-trims-pop, dashboard.css)와 같은 골격 — fixed(표가
+   .table-scroll 안이라 absolute는 잘린다)·내부 스크롤(목록이 길면)·좌표는 여는 순간 버튼
+   rect에서 인라인으로 준다(popoverPosFromRect, 콘솔 fixed 선례와 같은 축). 이 팝오버는
+   대상 라벨·diff 여러 줄·승인/반려 액션까지 얹혀 카드가 더 커서 폭 상한을 680으로 넉넉히
+   잡는다 — popoverPosFromRect의 left 클램프(736 = 720+여백)가 보수적이라 680 폭에서도
+   우측이 화면 밖으로 잘리지 않는다(736 여유분이 곧 안전 마진). */
+.va-cr-pop {
+  position: fixed;
+  z-index: 70;
+  overflow-y: auto;
+  min-width: 420px;
+  max-width: min(680px, calc(100vw - 24px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+}
+.va-cr-note {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.va-cr-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.va-cr-row:last-child {
+  border-bottom: 0;
+}
+.va-cr-row-head {
+  font-size: 12px;
+  color: var(--muted);
+}
+.va-cr-row-head > span:first-child {
+  font-weight: 600;
+  color: var(--text);
+}
+/* 대상 트림/모델로 착지 이동 — 링크풍(밑줄+브랜드색). 삭제된 대상(좌표 null)은 눌러도
+   갈 곳이 없으므로 아래 .va-cr-target-text로 텍스트만 남긴다. */
+.va-cr-target {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.va-cr-target-text {
+  font-size: 12px;
+  color: var(--muted);
+}
+.va-cr-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 4px;
+  font-size: 11px;
+  color: var(--text);
+}
+.va-cr-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.va-cr-error {
+  font-size: 11px;
+  color: #c02626;
+}
+.va-cr-reject-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.va-cr-reject-input input {
+  flex: 1;
+  min-width: 0;
+}
