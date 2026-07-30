@@ -10,6 +10,7 @@ import {
   fetchModelsCached,
   fetchOptionSummaryCached,
   fetchOptionsCached,
+  fetchTrimColorsCached,
   fetchTrimsCached,
   getCachedOptions,
   invalidateCatalogAfterApproval,
@@ -86,7 +87,8 @@ it("invalidateCatalogAfterApproval: 모델·트림·옵션요약·옵션 캐시�
   expect(calls.length).toBe(before + 4);
 });
 
-it("invalidateCatalogAfterApproval: 브랜드 캐시는 유지된다(승인 kind가 못 바꾸는 축)", async () => {
+it("invalidateCatalogAfterApproval: 브랜드·트림색상 캐시는 유지된다(승인 kind가 못 바꾸는 축)", async () => {
+  const trimColorId = 9102; // 9101은 앞 케이스가 쓰므로 모듈 캐시 격리를 위해 다른 id
   const calls: string[] = [];
   vi.stubGlobal(
     "fetch",
@@ -96,8 +98,11 @@ it("invalidateCatalogAfterApproval: 브랜드 캐시는 유지된다(승인 kind
     }),
   );
   await fetchBrandsCached();
+  await fetchTrimColorsCached(trimColorId);
   const before = calls.length;
+  expect(before).toBeGreaterThan(0); // 0이면 아래 toBe(before) 단언이 공허해진다
   invalidateCatalogAfterApproval();
   await fetchBrandsCached();
+  await fetchTrimColorsCached(trimColorId);
   expect(calls.length).toBe(before);
 });
