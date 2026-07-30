@@ -15,6 +15,7 @@ import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
 import { customerCodeFromLocation, customerListPath, customerModeFromSearch } from "@/lib/customer-route";
 import { financeListPath, financeModeFromSearch, financeModeMeta } from "@/lib/finance-route";
+import { getJson } from "@/lib/http";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
@@ -101,6 +102,7 @@ export function App() {
   // 인박스 2종(앱 견적요청·상담 신청 DB) = admin·manager 전용(2026-07-21 유슨생 결정 — pending
   // 항목 16). 서버 403이 진짜 게이트(requireRoles)·여기는 UX 보조(라우트 홈 폴백 + 배지 구독 생략).
   const canViewInbox = roleTab === "최고관리자" || roleTab === "팀장";
+  const isAdmin = roleTab === "최고관리자";
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersError, setCustomersError] = useState(false);
   const [customersLoaded, setCustomersLoaded] = useState(false);
@@ -167,6 +169,7 @@ export function App() {
   const markAppRequestsRead = useCallback(() => setNewAppRequestCount(0), []);
   const [pendingChatCount, setPendingChatCount] = useState(0);
   const markChatRequestsRead = useCallback(() => setPendingChatCount(0), []);
+  const [pendingChangeRequestCount, setPendingChangeRequestCount] = useState(0);
 
   // 콜백이 항상 현재 경로를 읽도록 ref 동기화. useLayoutEffect라 paint 전(commit 단계)에 갱신돼
   // 내비 직후 race를 제거하면서 react-hooks/refs(렌더 중 ref 갱신 금지)도 위반하지 않는다.
@@ -202,6 +205,25 @@ export function App() {
       showToast("새 상담원 연결 요청이 도착했습니다");
     });
   }, [auth.authed, showToast]);
+
+  // MC 마스터 승인 대기 배지 — Realtime 구독까지는 과함(내부 승인 큐·소량). 60s 폴링 + 창 focus
+  // 재조회(관리자가 다른 탭에 가 있다 돌아오는 순간이 갱신 적기 — dealer-roster 선례). manager는
+  // 서버가 403이라 admin(isAdmin)만 조회.
+  useEffect(() => {
+    if (!auth.authed || !isAdmin) return;
+    const refresh = () => {
+      getJson<unknown[]>("/api/catalog/change-requests?status=pending")
+        .then((rows) => setPendingChangeRequestCount(rows.length))
+        .catch(() => {}); // 실패 무소음 — 배지는 최선 노력
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [auth.authed, isAdmin]);
 
   useEffect(() => () => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
@@ -385,8 +407,6 @@ export function App() {
     return () => document.body.classList.remove("customer-drawer-open");
   }, [isDrawerOpen]);
 
-  const isAdmin = roleTab === "최고관리자";
-
   function renderView() {
     return (
       <Routes>
@@ -461,7 +481,7 @@ export function App() {
 
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} onCustomerModeChange={handleCustomerModeChange} onFinanceModeChange={handleFinanceModeChange} onViewChange={handleViewChange} />
+      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} pendingChangeRequestCount={pendingChangeRequestCount} onCustomerModeChange={handleCustomerModeChange} onFinanceModeChange={handleFinanceModeChange} onViewChange={handleViewChange} />
       <main className="main">
         <Topbar
           sidebarCollapsed={sidebarCollapsed}
