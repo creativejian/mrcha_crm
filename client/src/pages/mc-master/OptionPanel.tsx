@@ -28,6 +28,7 @@ export function OptionPanel({
   canEdit,
   canDelete,
   summary,
+  submitLabel,
   onClose,
   onChanged,
 }: {
@@ -36,6 +37,8 @@ export function OptionPanel({
   // 삭제는 admin 전용 — canEdit(팀장 개방과 함께 admin|manager로 넓어지는 쓰기 축)과 축이 다르다(spec §3.2)
   canDelete: boolean;
   summary: TrimOptionSummary | undefined;
+  // 팀장 제안 축은 "승인 요청" — 추가/수정 모두 결말이 큐 적재라 라벨 하나로 덮는다(spec §7.1)
+  submitLabel?: string;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -151,7 +154,9 @@ export function OptionPanel({
     setErr(null);
   }
 
-  const editor = (onSubmit: () => void, submitLabel: string) => (
+  // 두 번째 인자는 prop submitLabel과 이름을 겹치지 않게 label로 둔다(같은 이름이면 섀도잉으로
+  // "폼 기본 라벨"과 "팀장 축 오버라이드"가 한 함수 안에서 구분되지 않는다).
+  const editor = (onSubmit: () => void, label: string) => (
     <div className="va-opt-edit">
       <input className="input" value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder="옵션명" />
       <input
@@ -163,7 +168,7 @@ export function OptionPanel({
       />
       <span className="va-opt-unit">만원</span>
       <button type="button" className="btn primary" disabled={busy || name.trim() === ""} onClick={onSubmit}>
-        {submitLabel}
+        {label}
       </button>
       <button type="button" className="btn" disabled={busy} onClick={resetForm}>
         취소
@@ -233,7 +238,7 @@ export function OptionPanel({
           return (
             <li key={o.id} className="va-opt-row">
               {editId === o.id ? (
-                editor(submitEdit, "저장")
+                editor(submitEdit, submitLabel ?? "저장")
               ) : (
                 <>
                   <span className="va-opt-dot-slot">
@@ -274,7 +279,7 @@ export function OptionPanel({
         })}
       </ul>
 
-      {canEdit && adding && editor(submitAdd, "추가")}
+      {canEdit && adding && editor(submitAdd, submitLabel ?? "추가")}
       {canEdit && !adding && editId == null && !noOption && (
         <button
           type="button"

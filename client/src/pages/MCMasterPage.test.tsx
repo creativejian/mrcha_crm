@@ -134,6 +134,10 @@ beforeEach(() => {
         return new Response(JSON.stringify({ options: [{ id: 900, type: "basic", name: "선루프", price: 500000 }], relations: [] }), {
           status: 200,
         });
+      // 옵션 요약·색상은 빈 배열로 명시한다 — 광범위 models 분기에 흘려보내면 MODELS 배열을
+      // summary로 받는 셈이라, 옵션 배지가 "옵션 미입력"으로 뜨는 게 우연에 기대게 된다.
+      if (url === "/api/catalog/models/10/option-summary") return new Response("[]", { status: 200 });
+      if (url.endsWith("/trim-colors")) return new Response("[]", { status: 200 });
       if (url.startsWith("/api/catalog/trims")) return new Response(JSON.stringify(TRIMS), { status: 200 });
       if (url.startsWith("/api/catalog/models")) return new Response(JSON.stringify(MODELS), { status: 200 });
       if (url === "/api/staff") return new Response(JSON.stringify(STAFF), { status: 200 });
@@ -312,7 +316,11 @@ it("팀장 저장(202 queued): 토스트가 뜨고 패널이 닫힌다", async (
     expect(toasts).toContain("승인 요청됨 — 관리자 컨펌 후 반영됩니다");
   });
   expect(fetchCalls.some(([url, init]) => url === "/api/catalog/trims/100" && init?.method === "PATCH")).toBe(true);
-  expect(screen.queryByRole("button", { name: "승인 요청" })).toBeNull(); // 패널 닫힘(성공 흐름)
+  // 패널 닫힘(성공 흐름) — 토스트와 setTrimPanel(null)은 같은 await 사슬의 다른 지점이라
+  // 마이크로태스크 타이밍에 기대지 않고 기다린다.
+  await waitFor(() => {
+    expect(screen.queryByRole("button", { name: "승인 요청" })).toBeNull();
+  });
 });
 
 it("팀장 저장(409 타인 pending): 패널에 서버 메시지가 뜨고 열려 있다", async () => {
@@ -327,13 +335,17 @@ it("팀장 저장(409 타인 pending): 패널에 서버 메시지가 뜨고 열�
   expect(screen.getByRole("button", { name: "승인 요청" })).toBeInTheDocument(); // 패널 유지
 });
 
-it("팀장 옵션 패널: 추가·수정은 열리고 삭제는 없다", async () => {
+it("팀장 옵션 패널: 추가·수정은 열리고 삭제는 없고 제출 라벨은 '승인 요청'", async () => {
   const user = userEvent.setup();
   renderPage("팀장");
   await user.click(await screen.findByRole("button", { name: "그랜저" }));
   await screen.findByText("캐스퍼 1.0");
   await user.click(screen.getByRole("button", { name: "옵션 미입력" }));
-  expect(await screen.findByRole("button", { name: "선루프 수정" })).toBeInTheDocument();
+  const editOption = await screen.findByRole("button", { name: "선루프 수정" });
   expect(screen.queryByRole("button", { name: "선루프 삭제" })).toBeNull();
   expect(screen.getByRole("button", { name: /기본 옵션 추가/ })).toBeInTheDocument();
+  // 옵션 추가·수정도 큐 8종이라 결말이 202 적재다 — 인라인 에디터 제출 라벨도 같은 축이어야
+  // "추가/저장을 눌렀는데 목록이 안 바뀌었다"로 읽히지 않는다(spec §7.1).
+  await user.click(editOption);
+  expect(await screen.findByRole("button", { name: "승인 요청" })).toBeInTheDocument();
 });

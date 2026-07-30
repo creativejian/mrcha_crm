@@ -215,9 +215,10 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   }, [modelId, models, trims]);
 
   // 팀장 저장의 202 큐 적재 공통 처리(spec §7.1) — 쓰기 헬퍼(catalog.ts)가 감지·알림하고 여기
-  // 한 곳만 토스트를 단다. 저장 흐름은 성공 경로 그대로(패널 닫힘·재조회 no-op)라 호출부 개별
-  // 수술이 없다. 409(타인 pending)는 기존 catch → panelError로 흐른다(요청자·시각은 행 배지가
-  // 예방선으로 이미 보여준다 — HttpError 확장 안 함, PR3 결정).
+  // 한 곳만 토스트를 단다. 저장 흐름은 성공 경로 그대로라 호출부 개별 수술이 없다(패널 닫힘 +
+  // 재조회는 실제로 나가지만 반영 전이라 같은 값을 다시 받는 무해한 왕복이다).
+  // 409(타인 pending)는 기존 catch → panelError로 흐른다(요청자·시각은 행 배지가 예방선으로
+  // 이미 보여준다 — HttpError 확장 안 함, PR3 결정).
   useEffect(() => onCatalogWriteQueued(() => onToast("승인 요청됨 — 관리자 컨펌 후 반영됩니다")), [onToast]);
 
   // 승인 반영 후 재조회 — 승인 대상이 현재 화면 밖 모델일 수 있어 전 모델 캐시를 먼저 비운다
@@ -595,6 +596,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
           canEdit={canWrite}
           canDelete={canEdit}
           summary={optionByTrim.get(optionPanelTrim.id)}
+          submitLabel={canPropose ? "승인 요청" : undefined}
           onClose={() => setOptionPanelTrim(null)}
           onChanged={reloadOptionSummary}
         />
