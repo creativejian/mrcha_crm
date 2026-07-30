@@ -1013,6 +1013,28 @@
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
+/* 모델 구분 헤더(2026-07-30 유슨생) — 수십 건에서 모델 경계를 훑게 한다. 팝오버가 스크롤
+   컨테이너라 sticky가 그 안에서 동작한다(top -8px = 팝오버 padding 상쇄, 배경 필수 — 없으면
+   행이 비쳐 보인다). */
+.org-dealer-trim-group-head {
+  position: sticky;
+  top: -8px;
+  z-index: 1;
+  padding: 6px 8px 4px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 750;
+  color: #5f6872;
+}
+.org-dealer-trim-group-count {
+  margin-left: 2px;
+  font-weight: 600;
+  color: var(--muted);
+}
+/* 그룹 안의 행은 살짝 들여 쓴다 — 헤더와의 위계. */
+.org-dealer-trim-group .org-dealer-trim-row {
+  padding-left: 14px;
+}
 /* 제안변경일(2026-07-29 유슨생) — 이 값이 언제 것인지가 채택 판단의 일부다. */
 .org-dealer-trim-date {
   white-space: nowrap;
