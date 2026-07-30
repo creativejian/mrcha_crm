@@ -211,6 +211,14 @@ it("상담사는 승인 대기 버튼을 렌더하지 않는다", async () => {
   expect(screen.queryByRole("button", { name: /승인 대기/ })).toBeNull();
 });
 
+// PR 3에서 canPropose(팀장 제안 축)가 이 헤더로 넓어질 때, 팀장이 승인 버튼까지 함께 얻는
+// 회귀를 잠근다 — 승인 대기열은 canEdit(최고관리자 전용)에만 붙어야 한다(팀장은 제안만 가능).
+it("팀장은 승인 대기 버튼을 렌더하지 않는다(PR3 canPropose 확장 대비 잠금)", async () => {
+  renderPage("팀장");
+  await screen.findByText("그랜저");
+  expect(screen.queryByRole("button", { name: /승인 대기/ })).toBeNull();
+});
+
 it("딜러는 승인 대기 버튼을 렌더하지 않는다", async () => {
   renderPage("딜러");
   // 딜러는 브랜드 스코프가 확정되기 전엔 모델 fetch 자체를 보내지 않으므로(SCOPE_BRAND_PENDING)

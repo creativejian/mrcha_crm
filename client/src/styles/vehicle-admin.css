@@ -932,6 +932,10 @@
   font-size: 11px;
   color: var(--text);
 }
+.va-cr-diff-empty {
+  color: var(--muted);
+  font-style: italic;
+}
 .va-cr-actions {
   display: flex;
   justify-content: flex-end;

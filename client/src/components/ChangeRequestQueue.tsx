@@ -38,7 +38,9 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
   const popRef = useRef<HTMLDivElement>(null);
 
   // 반려 사유를 입력하는 동안은 바깥 클릭으로 닫히지 않게 — 타이핑 중 오조작 방지.
-  usePopoverDismiss(popRef, open, () => setOpen(false), {
+  // (Esc는 guard 대상이 아니라 그대로 닫힌다 — usePopoverDismiss 원 동작. closePopover가 그 잔여
+  // rejecting 상태를 정리한다.)
+  usePopoverDismiss(popRef, open, () => closePopover(), {
     guard: () => Object.values(rowStates).some((s) => s.phase === "rejecting"),
   });
 
@@ -49,9 +51,29 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
     setRowStates((prev) => ({ ...prev, [id]: s }));
   }
 
+  // 팝오버를 닫으며 rejecting/error 같은 일시 상태를 idle로 되돌린다(busy·done은 유지) — Esc로
+  // 닫혔던 반려 입력이 다음 열림에도 남아 있으면 usePopoverDismiss guard가 바깥 클릭 닫기를
+  // 계속 막는다(리뷰 지적). dismiss·점프 등 setOpen(false)로 닫는 모든 경로가 이걸 통해야 한다.
+  function closePopover() {
+    setOpen(false);
+    setRowStates((prev) => {
+      let changed = false;
+      const next: Record<string, RowState> = {};
+      for (const [id, s] of Object.entries(prev)) {
+        if (s.phase === "rejecting" || s.phase === "error") {
+          changed = true;
+          next[id] = IDLE_STATE;
+        } else {
+          next[id] = s;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }
+
   function toggle() {
     if (open) {
-      setOpen(false);
+      closePopover();
       return;
     }
     setPos(popoverPosFromRect(btnRef.current?.getBoundingClientRect()));
@@ -98,13 +120,18 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
     }
   }
 
+  // targetBrandId만 있으면 점프 가능 — targetModelId까지 있으면 기존대로 모델(+하이라이트 트림)
+  // 뷰로, 없으면(model.create — 대상 모델이 아직 없다) 브랜드의 모델 목록으로 이동한다.
   function jumpTo(row: ChangeRequestItem) {
-    if (row.targetBrandId == null || row.targetModelId == null) return;
-    const dest = `${mcMasterPath(row.targetBrandId, row.targetModelId)}${
-      row.targetTrimId != null ? `&hl=${row.targetTrimId}` : ""
-    }`;
+    if (row.targetBrandId == null) return;
+    const dest =
+      row.targetModelId != null
+        ? `${mcMasterPath(row.targetBrandId, row.targetModelId)}${
+            row.targetTrimId != null ? `&hl=${row.targetTrimId}` : ""
+          }`
+        : mcMasterPath(row.targetBrandId, undefined);
     navigate(dest);
-    setOpen(false);
+    closePopover();
   }
 
   // 성공(done) 행은 서버 rows가 아직 갱신되지 않았어도 로컬에서 먼저 걷어낸다.
@@ -113,7 +140,9 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
   return (
     <>
       <button className="btn" onClick={toggle} ref={btnRef} type="button">
-        승인 대기{rows != null ? ` (${rows.length})` : ""}
+        {/* done 숨김을 반영한 visibleRows 기준 — rows.length를 쓰면 마지막 행 승인 직후 재조회
+            전까지 "(1)" 잔상이 남는다(리뷰 지적). */}
+        승인 대기{visibleRows != null ? ` (${visibleRows.length})` : ""}
       </button>
       {open && (
         <div
@@ -136,7 +165,7 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
           {visibleRows?.map((row) => {
             const state = stateOf(row.id);
             const diff = buildChangeDiff(row);
-            const canJump = row.targetBrandId != null && row.targetModelId != null;
+            const canJump = row.targetBrandId != null;
             const busy = state.phase === "busy";
             return (
               <div className="va-cr-row" key={row.id}>
@@ -154,7 +183,7 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
                 ) : (
                   <span className="va-cr-target-text">{row.targetLabel}</span>
                 )}
-                {diff.length > 0 && (
+                {diff.length > 0 ? (
                   <div className="va-cr-diff">
                     {diff.map((d) => (
                       <div key={d.label}>
@@ -162,6 +191,10 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
                       </div>
                     ))}
                   </div>
+                ) : (
+                  // update kind인데 diff가 빈 배열 = 필터 후 바뀐 필드가 없다(승인해도 catalog 무변) —
+                  // 무옵션 토글(diff 없음이 기본)은 제외하고 update류만 이 안내를 보여 승인자 판단 재료로 쓴다.
+                  row.kind.endsWith(".update") && <div className="va-cr-diff va-cr-diff-empty">변경 값 없음(현재 값과 동일)</div>
                 )}
                 {state.phase === "error" && <div className="va-cr-error">{state.message}</div>}
                 {state.phase === "rejecting" ? (

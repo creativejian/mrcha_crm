@@ -34,3 +34,7 @@ export const CHANGE_FIELD_LABELS: Record<string, string> = {
   // name은 모델명/옵션명 공용 통칭 — 행에 kind 라벨("모델 추가" 등)이 함께 떠 문맥으로 구분된다.
   name: "이름", type: "종류",
 };
+
+// 옵션 type 값 어휘(OptionPanel 화면 표기와 동형) — diff의 "종류" 줄이 원문 basic/tuning이
+// 아니라 이 라벨로 뜨게 한다. buildChangeDiff(catalog-change-requests.ts)가 key==="type"일 때 적용.
+export const OPTION_TYPE_VALUE_LABELS: Record<string, string> = { basic: "기본 옵션", tuning: "튜닝 옵션" };

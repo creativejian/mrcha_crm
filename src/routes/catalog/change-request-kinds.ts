@@ -23,7 +23,8 @@ import {
 
 // kind 레지스트리 — 적재(스냅샷)와 승인 replay(재검증·드리프트·실행)의 단일 소스(spec §5).
 // admin 직접 실행 라우트와 승인 경로가 같은 execute를 부르므로 두 경로가 갈라질 수 없다.
-// kind 어휘는 schema.ts의 CHANGE_REQUEST_KINDS가 SSOT다(DB CHECK와 이 레지스트리가 같은 배열 파생).
+// kind 어휘 SSOT는 client/src/lib/catalog-change-kinds.ts다(schema.ts는 re-export 경유 —
+// DB CHECK와 이 레지스트리가 같은 배열 파생).
 //
 // buildSnapshot 계약: null = 대상/부모 없음(적재 시 404, 승인 시 드리프트 409).
 // update 계약: snapshot은 payload가 건드리는 필드의 현재 값만 담는다(spec §5.1 — 무관 필드의

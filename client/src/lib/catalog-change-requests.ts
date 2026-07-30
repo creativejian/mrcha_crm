@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { CHANGE_FIELD_LABELS, type ChangeRequestKind } from "./catalog-change-kinds";
+import { CHANGE_FIELD_LABELS, OPTION_TYPE_VALUE_LABELS, type ChangeRequestKind } from "./catalog-change-kinds";
 import { getJson, sendJson } from "./http";
 
 // MC 마스터 변경 승인 대기열 — 관리자 팝오버(ChangeRequestQueue, Task 4)가 소비한다.
@@ -99,6 +99,7 @@ const COMMA_EXEMPT_KEYS = new Set(["modelYear"]);
 
 function formatValue(v: unknown, key: string): string | null {
   if (v == null) return null;
+  if (key === "type") return OPTION_TYPE_VALUE_LABELS[String(v)] ?? String(v); // OptionPanel 화면 어휘(basic/tuning 원문 폴백)
   if (typeof v === "number") return COMMA_EXEMPT_KEYS.has(key) ? String(v) : v.toLocaleString("ko-KR");
   return String(v);
 }
@@ -109,11 +110,13 @@ export function buildChangeDiff(row: Pick<ChangeRequestItem, "kind" | "payload" 
   }
   const isCreate = row.kind.endsWith(".create");
   const snapshot = row.snapshot ?? {};
-  return Object.keys(row.payload)
-    .filter((k) => !PARENT_ID_KEYS.has(k))
-    .map((k) => ({
-      label: CHANGE_FIELD_LABELS[k] ?? k,
-      before: isCreate ? null : formatValue(snapshot[k], k),
-      after: formatValue(row.payload[k], k) ?? "—",
-    }));
+  const keys = Object.keys(row.payload).filter((k) => !PARENT_ID_KEYS.has(k));
+  // update는 미변경 줄을 걸러낸다 — 팀장 폼이 13필드 전체를 전송하므로 안 거르면 diff가
+  // "같은 값 → 같은 값"으로 도배돼 승인자가 바뀐 줄을 눈으로 찾아야 한다.
+  const changedKeys = isCreate ? keys : keys.filter((k) => (snapshot[k] ?? null) !== (row.payload[k] ?? null));
+  return changedKeys.map((k) => ({
+    label: CHANGE_FIELD_LABELS[k] ?? k,
+    before: isCreate ? null : formatValue(snapshot[k], k),
+    after: formatValue(row.payload[k], k) ?? "—",
+  }));
 }

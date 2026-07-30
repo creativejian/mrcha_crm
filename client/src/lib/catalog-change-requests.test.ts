@@ -60,4 +60,52 @@ describe("buildChangeDiff", () => {
       }),
     ).toEqual([{ label: "unknownField", before: "이전값", after: "값" }]);
   });
+
+  // TrimEditPanel은 13필드 전체를 매번 PATCH한다 — 그중 실제로 바뀐 필드만 diff에 남아야
+  // 승인자가 눈으로 바뀐 줄을 찾을 수 있다(미필터 시 "45,000,000 → 45,000,000" 도배).
+  const TRIM_UPDATE_COMMON = {
+    trimName: "520i",
+    price: 50000000,
+    modelYear: 2026,
+    fuelType: "가솔린",
+    driveSystem: "FWD",
+    displacementCc: 1998,
+    transmissionType: "A/T",
+    bodyStyle: "세단",
+    seatingCapacity: 5,
+    status: "판매중",
+    financialDiscountAmount: 1000000,
+    partnerDiscountAmount: null,
+    cashDiscountAmount: null,
+  };
+
+  it("trim.update — 13필드 payload에서 1필드만 다름 → 미변경 줄은 걸러지고 diff 1줄만 남는다", () => {
+    expect(
+      buildChangeDiff({
+        kind: "trim.update",
+        payload: { ...TRIM_UPDATE_COMMON, price: 55000000 },
+        snapshot: TRIM_UPDATE_COMMON,
+      }),
+    ).toEqual([{ label: "가격", before: "50,000,000", after: "55,000,000" }]);
+  });
+
+  it("trim.update — 13필드 전부 동일(null 필드 포함) → 빈 배열", () => {
+    expect(
+      buildChangeDiff({
+        kind: "trim.update",
+        payload: TRIM_UPDATE_COMMON,
+        snapshot: TRIM_UPDATE_COMMON,
+      }),
+    ).toEqual([]);
+  });
+
+  it("option.update — type 값은 화면 라벨(기본 옵션/튜닝 옵션)로 표시", () => {
+    expect(
+      buildChangeDiff({
+        kind: "option.update",
+        payload: { type: "tuning" },
+        snapshot: { type: "basic" },
+      }),
+    ).toEqual([{ label: "종류", before: "기본 옵션", after: "튜닝 옵션" }]);
+  });
 });
