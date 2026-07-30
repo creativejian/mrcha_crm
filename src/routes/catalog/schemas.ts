@@ -16,8 +16,8 @@ export const modelUpdateBody = z.object({
   status: status.optional(),
 });
 
-// 트림 본문 스키마. create는 modelId를 더해 그대로, patch는 .partial()로 전부 optional.
-export const trimBody = z.object({
+// 트림 본문 스키마(내부 전용). create는 modelId를 더해 그대로, patch는 .partial()로 전부 optional.
+const trimBody = z.object({
   trimName: z.string().min(1),
   price: z.number().int().nonnegative(),
   modelYear: z.number().int(),
