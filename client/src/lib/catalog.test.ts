@@ -13,6 +13,8 @@ import {
   fetchBrands,
   fetchModels,
   fetchTrims,
+  isCatalogWriteQueued,
+  onCatalogWriteQueued,
   reorderModels,
   reorderTrims,
   updateModel,
@@ -86,4 +88,31 @@ it("reorderModels/Trims: POST ids", async () => {
   expect(JSON.parse(String(spy.mock.calls[0][1]?.body))).toEqual({ ids: [3, 1, 2] });
   await reorderTrims([2, 1]);
   expect(spy.mock.calls[1][0]).toBe("/api/catalog/trims/reorder");
+});
+
+it("202 {queued}: 쓰기 헬퍼가 queued 표식을 반환하고 구독자에게 알린다", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify({ queued: true, requestId: "cr-1" }), { status: 202 })),
+  );
+  let notified = 0;
+  const unsub = onCatalogWriteQueued(() => {
+    notified += 1;
+  });
+  const r = await updateTrim(1, { price: 2 });
+  unsub();
+  expect(isCatalogWriteQueued(r)).toBe(true);
+  expect(notified).toBe(1);
+});
+
+it("200 정상 응답은 queued로 오인하지 않고 알림도 없다", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ id: 1 }), { status: 200 })));
+  let notified = 0;
+  const unsub = onCatalogWriteQueued(() => {
+    notified += 1;
+  });
+  const r = await updateTrim(1, { price: 2 });
+  unsub();
+  expect(isCatalogWriteQueued(r)).toBe(false);
+  expect(notified).toBe(0);
 });

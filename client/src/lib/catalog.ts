@@ -2,6 +2,37 @@ import type { VehicleStatus } from "@/data/vehicle-taxonomy";
 import { getJson, sendJson, sendVoid } from "./http";
 
 // ── 차량 관리(admin) ───────────────────────────────────────────────────────────
+// ── 변경 승인 큐 202 공통 감지(PR3, 2026-07-30) ────────────────────────────────
+// manager의 catalog 쓰기는 서버가 즉시 실행하지 않고 202 { queued, requestId }로 큐에 쌓는다
+// (src/routes/catalog/change-request-kinds.ts submitChangeRequest). 큐 대상 8종 헬퍼는 아래
+// sendCatalogWrite를 거쳐 queued 응답을 감지·알림한다 — 호출부는 성공 흐름을 그대로 타고
+// (패널 닫힘·재조회 — catalog가 안 바뀌었으니 재조회는 무해한 no-op), 토스트·배지 갱신은
+// 구독자(MCMasterPage·배지 훅)가 담당한다(spec §7.1 "호출부 개별 수술 없음").
+// 삭제·reorder·move·assign-codes는 admin 전용(202 불가)이라 sendJson 직행을 유지한다.
+type CatalogWriteQueued = { queued: true; requestId: string };
+
+export function isCatalogWriteQueued(value: unknown): value is CatalogWriteQueued {
+  return typeof value === "object" && value !== null && (value as { queued?: unknown }).queued === true;
+}
+
+const writeQueuedListeners = new Set<() => void>();
+export function onCatalogWriteQueued(listener: () => void): () => void {
+  writeQueuedListeners.add(listener);
+  return () => {
+    writeQueuedListeners.delete(listener);
+  };
+}
+
+async function sendCatalogWrite<T>(
+  url: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body?: unknown,
+): Promise<T | CatalogWriteQueued> {
+  const result = await sendJson<T | CatalogWriteQueued>(url, method, body);
+  if (isCatalogWriteQueued(result)) for (const l of writeQueuedListeners) l();
+  return result;
+}
+
 export type CatalogBrand = {
   id: number;
   name: string;
@@ -38,15 +69,15 @@ export async function createModel(input: {
   name: string;
   category: string | null;
   status: VehicleStatus;
-}): Promise<CatalogModel> {
-  return sendJson("/api/catalog/models", "POST", input);
+}): Promise<CatalogModel | CatalogWriteQueued> {
+  return sendCatalogWrite("/api/catalog/models", "POST", input);
 }
 
 export async function updateModel(
   id: number,
   input: { category?: string | null; status?: VehicleStatus },
-): Promise<CatalogModel> {
-  return sendJson(`/api/catalog/models/${id}`, "PATCH", input);
+): Promise<CatalogModel | CatalogWriteQueued> {
+  return sendCatalogWrite(`/api/catalog/models/${id}`, "PATCH", input);
 }
 
 export async function deleteModel(id: number): Promise<{ id: number }> {
@@ -108,12 +139,12 @@ export async function fetchTrimColors(modelId: number): Promise<TrimColor[]> {
   return getJson(`/api/catalog/models/${modelId}/trim-colors`);
 }
 
-export async function createTrim(modelId: number, input: TrimInput): Promise<CatalogTrim> {
-  return sendJson("/api/catalog/trims", "POST", { modelId, ...input });
+export async function createTrim(modelId: number, input: TrimInput): Promise<CatalogTrim | CatalogWriteQueued> {
+  return sendCatalogWrite("/api/catalog/trims", "POST", { modelId, ...input });
 }
 
-export async function updateTrim(id: number, input: Partial<TrimInput>): Promise<CatalogTrim> {
-  return sendJson(`/api/catalog/trims/${id}`, "PATCH", input);
+export async function updateTrim(id: number, input: Partial<TrimInput>): Promise<CatalogTrim | CatalogWriteQueued> {
+  return sendCatalogWrite(`/api/catalog/trims/${id}`, "PATCH", input);
 }
 
 export async function deleteTrim(id: number): Promise<{ id: number }> {
@@ -145,24 +176,27 @@ export async function fetchOptions(trimId: number): Promise<OptionsBundle> {
 export async function createOption(
   trimId: number,
   input: { type: OptionType; name: string; price: number | null },
-): Promise<CatalogOption> {
-  return sendJson(`/api/catalog/trims/${trimId}/options`, "POST", input);
+): Promise<CatalogOption | CatalogWriteQueued> {
+  return sendCatalogWrite(`/api/catalog/trims/${trimId}/options`, "POST", input);
 }
 
-export async function updateOption(id: number, input: { name?: string; price?: number | null }): Promise<CatalogOption> {
-  return sendJson(`/api/catalog/options/${id}`, "PATCH", input);
+export async function updateOption(
+  id: number,
+  input: { name?: string; price?: number | null },
+): Promise<CatalogOption | CatalogWriteQueued> {
+  return sendCatalogWrite(`/api/catalog/options/${id}`, "PATCH", input);
 }
 
 export async function deleteOption(id: number): Promise<{ id: number }> {
   return sendJson(`/api/catalog/options/${id}`, "DELETE");
 }
 
-export async function setNoOption(trimId: number): Promise<{ ok: boolean }> {
-  return sendJson(`/api/catalog/trims/${trimId}/no-option`, "POST");
+export async function setNoOption(trimId: number): Promise<{ ok: boolean } | CatalogWriteQueued> {
+  return sendCatalogWrite(`/api/catalog/trims/${trimId}/no-option`, "POST");
 }
 
-export async function unsetNoOption(trimId: number): Promise<{ ok: boolean }> {
-  return sendJson(`/api/catalog/trims/${trimId}/no-option`, "DELETE");
+export async function unsetNoOption(trimId: number): Promise<{ ok: boolean } | CatalogWriteQueued> {
+  return sendCatalogWrite(`/api/catalog/trims/${trimId}/no-option`, "DELETE");
 }
 
 // 순서변경: orderedIds 위치(1..N) = sort_order.
