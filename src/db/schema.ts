@@ -480,3 +480,45 @@ export const catalogDiscountAdoptions = crm.table(
     check("catalog_discount_adoptions_field_check", sql`${table.field} in ('financial','partner','cash')`),
   ],
 );
+
+// MC 마스터 변경 요청 큐(2026-07-30) — 팀장(manager)의 catalog 쓰기는 여기에만 쌓이고,
+// catalog 반영은 admin 승인 replay로만 일어난다. 대기열이자 감사 기록을 겸한다(요청자·
+// 승인자·전값 snapshot·반려 사유가 전부 남는다).
+// 딜러 할인 제안과 반대로 **대상+작업당 pending 1건**(부분 UNIQUE) — 내부 업무 분담이라
+// 같은 대상을 두 명이 고칠 이유가 없다(경쟁 견적이던 딜러와 다르다). kind가 UNIQUE 축에
+// 있는 이유: 같은 트림에 "가격 수정"과 "무옵션 확정"은 다른 작업이라 공존해야 한다.
+// payload = 원 라우트 zod 검증을 통과한 body 그대로(승인 시 재검증). snapshot = 요청 시점
+// 현재 값(update: payload가 건드리는 필드만 · create: 부모 존재 확인의 {} · 드리프트 근거).
+// spec: ref/specs/2026-07-30-crm-catalog-change-approval-design.md §4
+export const catalogChangeRequests = crm.table(
+  "catalog_change_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    kind: text("kind").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: bigint("target_id", { mode: "number" }), // → catalog.*(loose id 관례). create는 NULL
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>(),
+    status: text("status").default("pending").notNull(),
+    requestedBy: uuid("requested_by").notNull(), // → public.profiles.id(loose id 관례)
+    rejectReason: text("reject_reason"),
+    decidedBy: uuid("decided_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "catalog_change_requests_kind_check",
+      sql`${table.kind} in ('model.create','model.update','trim.create','trim.update','option.create','option.update','trim.no-option.set','trim.no-option.unset')`,
+    ),
+    check("catalog_change_requests_target_type_check", sql`${table.targetType} in ('model','trim','option')`),
+    check(
+      "catalog_change_requests_status_check",
+      sql`${table.status} in ('pending','approved','rejected','canceled')`,
+    ),
+    uniqueIndex("catalog_change_requests_pending_target_unique")
+      .on(table.targetType, table.targetId, table.kind)
+      .where(sql`${table.status} = 'pending' and ${table.targetId} is not null`),
+  ],
+);
