@@ -97,10 +97,10 @@ export function OrgMembersPage() {
                   ))}
                 </tbody>
               </table>
-
-              <DealerRosterTable brands={brands} />
             </div>
           )}
+
+          {tab === "members" && <DealerRosterTable brands={brands} />}
 
           {tab === "teams" && (
             <div className="ops-card-grid">
@@ -179,19 +179,30 @@ function DealerProposalTrimsCell({ entry }: { entry: DealerRosterEntry }) {
       });
   }
 
+  // 명부 쪽 건수가 바뀌면(focus 재조회·삭제 후 reload) 들고 있던 목록이 더 낡은 값이다 — 버린다
+  // (렌더 중 setState = 'Adjusting state when a prop changes' 패턴, useMcMasterCatalog 선례).
+  const [prevCount, setPrevCount] = useState(entry.proposalCount);
+  if (prevCount !== entry.proposalCount) {
+    setPrevCount(entry.proposalCount);
+    setRows(null);
+  }
+
+  // 건수는 팝오버가 받아온 최신 목록을 우선한다(2026-07-30 유슨생) — 명부 응답(proposalCount)은
+  // 화면 진입 시점 값이라, 열어서 확인한 뒤에도 버튼이 옛 숫자를 말하면 서로 어긋나 보인다.
+  const shownCount = rows?.length ?? entry.proposalCount;
   return (
     <td className="org-dealer-trims">
       <button
         className="badge purple org-dealer-action"
-        disabled={entry.proposalCount === 0}
+        disabled={shownCount === 0}
         onClick={toggle}
         onFocus={() => prefetchDealerProposalTrims(entry.dealerUserId)}
         onMouseEnter={() => prefetchDealerProposalTrims(entry.dealerUserId)}
         ref={btnRef}
-        title={entry.proposalCount === 0 ? "입력한 트림이 없습니다." : undefined}
+        title={shownCount === 0 ? "입력한 트림이 없습니다." : undefined}
         type="button"
       >
-        보기{entry.proposalCount > 0 ? ` (${entry.proposalCount})` : ""}
+        보기{shownCount > 0 ? ` (${shownCount})` : ""}
       </button>
       {open && <ProposalTrimsPopover failed={failed} popRef={popRef} pos={pos} rows={rows} />}
     </td>
@@ -237,7 +248,11 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
       <div className="ops-tabs org-dealer-label">
         <span className="active">딜러</span>
       </div>
-      <table className="org-members-table org-dealer-table">
+      {/* 자기 스크롤 컨테이너(2026-07-30 실기) — 구성원 표와 한 래퍼를 쓰면 딜러 표(nowrap,
+          6열)가 넘칠 때 오른쪽 열이 잘리고 스크롤이 구성원 표까지 같이 민다. 팝오버는 fixed라
+          이 래퍼의 클리핑과 무관하다. */}
+      <div className="table-scroll">
+        <table className="org-members-table org-dealer-table">
         <thead><tr><th>이름</th><th>연락처</th><th>브랜드</th><th>비고</th><th>입력 트림</th><th>데이터 관리</th></tr></thead>
         <tbody>
           {loading && <tr><td colSpan={6}>딜러 불러오는 중…</td></tr>}
@@ -276,7 +291,8 @@ function DealerRosterTable({ brands }: { brands: { id: number; name: string }[] 
           ))}
           {error && <tr><td className="org-dealer-error" colSpan={6}>{error}</td></tr>}
         </tbody>
-      </table>
+        </table>
+      </div>
     </>
   );
 }

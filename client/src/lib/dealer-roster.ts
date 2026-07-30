@@ -125,6 +125,18 @@ export function useDealerRoster(): {
     setRoster(await fetchRoster());
   }, []);
 
+  // 창 focus 시 조용히 재조회(2026-07-30 유슨생) — 딜러가 다른 세션에서 제안을 넣는 동안 관리자가
+  // 다른 탭에 가 있는 게 전형이라, 돌아오는 순간이 갱신 적기다. 실패는 기존 표시를 유지(무소음).
+  useEffect(() => {
+    function onFocus() {
+      fetchRoster()
+        .then(setRoster)
+        .catch(() => {});
+    }
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
   // 삭제 후에는 **목록 전체를 다시 받는다**: 제안 수가 0이 되고, 해제면 행이 사라지거나 브랜드가
   // 비워진다(role이 dealer면 행은 남는다). 응답으로 부분 갱신하면 그 분기를 클라가 또 계산해야 한다.
   // 실패는 그대로 throw — 호출한 화면이 알려야 한다(삼키면 지워진 줄 안다).
