@@ -3,6 +3,7 @@ import { eq, ne, sql } from "drizzle-orm";
 
 import { modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
+import { createOption, deleteOption } from "./catalog-admin";
 import {
   cancelOwnPending, claimPending, listChangeRequests, listModelPendingRequests, listMyChangeRequests,
   markRejected, upsertPendingRequest,
@@ -164,6 +165,35 @@ test("payload에 trimId가 없는 option.create도 목록 조회가 죽지 않�
     const rows = await listChangeRequests("pending", tx);
     const mine = rows.find((row) => row.id === r.id);
     expect(mine?.targetLabel.startsWith("삭제됨")).toBe(true);
+    // NaN 가드 폴백 — payload에 trimId가 없으면 좌표 3개 모두 null(점프 비활성).
+    expect(mine?.targetTrimId).toBeNull();
+    expect(mine?.targetModelId).toBeNull();
+    expect(mine?.targetBrandId).toBeNull();
+  });
+});
+
+// admin이 대상을 직접 지운 뒤에도 pending이 남아있는 실운영 시나리오 — coordsFromOption이 optionById
+// miss를 만나 noCoords로 떨어지는지 확인(라벨의 "삭제됨" 폴백과 대칭인 좌표 그물).
+test("대상이 실제로 삭제되면 좌표가 전부 null로 떨어진다(option.update 대상 소실)", async () => {
+  await inRollback(async (tx) => {
+    const option = await createOption({ trimId, type: "basic", name: "승인요청검증좌표소실옵션", price: 1000 }, tx);
+    const r = await upsertPendingRequest(
+      {
+        kind: "option.update", targetType: "option", targetId: option!.id,
+        payload: { price: 2000 }, snapshot: { price: 1000 }, requestedBy: requester(),
+      },
+      tx,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) throw new Error("적재 실패");
+    await deleteOption(option!.id, tx);
+
+    const rows = await listChangeRequests("pending", tx);
+    const mine = rows.find((row) => row.id === r.id);
+    expect(mine?.targetLabel).toBe("삭제됨");
+    expect(mine?.targetBrandId).toBeNull();
+    expect(mine?.targetModelId).toBeNull();
+    expect(mine?.targetTrimId).toBeNull();
   });
 });
 

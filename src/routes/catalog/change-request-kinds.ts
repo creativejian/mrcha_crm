@@ -30,6 +30,8 @@ import {
 // admin 직접 수정은 승인을 막지 않는다). 값은 payload와 같은 JS 타입으로 정규화한다
 // (detectSnapshotDrift가 타입까지 엄격 비교 — price numeric의 Number() 정규화가 그 예).
 
+// payload 계약: submit/approve가 넘기는 payload는 bodySchema 파싱(+default 적용) 완료 값이다.
+// execute 내부의 재파싱은 의도적 방어선(이중 parse) — transform 없는 스키마만 쓰므로 멱등하다.
 type KindDef = {
   targetType: "model" | "trim" | "option";
   bodySchema: z.ZodTypeAny;
