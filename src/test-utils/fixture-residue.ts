@@ -57,6 +57,8 @@ export type FixtureResidue = {
    * `previous_amount`다. 먼저 지우면 복원 정보가 사라진다 — 그래서 되돌리기 SQL을 안내만 한다.
    */
   orphanAdoptions: { trimId: number; field: string; previousAmount: number | null; adoptedAt: string }[];
+  /** 고아 변경 요청 — profiles에 없는 requested_by(테스트 uuid). crm 소유·미반영 큐라 `--clean`이 지운다. */
+  orphanChangeRequests: { id: string; kind: string; status: string }[];
 };
 
 // 채택 필드 → catalog.trims 컬럼. 되돌리기 SQL 안내에 쓴다(형식은 client/src/lib/discount-adoption.ts의
@@ -71,7 +73,8 @@ export function residueCount(r: FixtureResidue): number {
   return (
     r.customers.length + r.quotes.length + r.orphanEmbeddings + r.orphanAppCards +
     r.consultations.length + r.deletionAudits.length +
-    r.orphanDealerProfiles.length + r.orphanDealerDiscounts.length + r.orphanAdoptions.length
+    r.orphanDealerProfiles.length + r.orphanDealerDiscounts.length + r.orphanAdoptions.length +
+    r.orphanChangeRequests.length
   );
 }
 
@@ -112,6 +115,12 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
     select a.trim_id, a.field, a.previous_amount, a.adopted_at::text from crm.catalog_discount_adoptions a
     where not exists (select 1 from public.profiles p where p.id = a.adopted_by)
     order by a.adopted_at`);
+  // 변경 요청 큐 — 라우트 테스트의 requested_by가 랜덤 uuid라 고아 판정으로 잡는다(딜러 3테이블과
+  // 같은 이유: uuid PK/FK라 코드 리터럴 registry로는 탐지 불가). status 무관 전수 — canceled도 잔재다.
+  const orphanChangeRequests = await asRows<{ id: string; kind: string; status: string }>(sql`
+    select r.id::text, r.kind, r.status from crm.catalog_change_requests r
+    where not exists (select 1 from public.profiles p where p.id = r.requested_by)
+    order by r.created_at`);
 
   return {
     customers: customers.map((c) => ({ customerCode: c.customer_code, name: c.name, createdAt: c.created_at })),
@@ -132,6 +141,7 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
       previousAmount: a.previous_amount === null ? null : Number(a.previous_amount),
       adoptedAt: a.adopted_at,
     })),
+    orphanChangeRequests: orphanChangeRequests.map((cr) => ({ id: cr.id, kind: cr.kind, status: cr.status })),
   };
 }
 
@@ -157,6 +167,9 @@ export function formatResidue(r: FixtureResidue): string {
     );
   }
   if (r.orphanAdoptions.length > 0) lines.push("", ...restoreAdoptionSql(r.orphanAdoptions));
+  for (const cr of r.orphanChangeRequests) {
+    lines.push(`변경 요청 ${cr.id} · ${cr.kind} · ${cr.status} (crm.catalog_change_requests — profiles에 없는 요청자)`);
+  }
   return lines.join("\n");
 }
 
