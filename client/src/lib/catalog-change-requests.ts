@@ -79,9 +79,14 @@ export type ChangeDiffLine = { label: string; before: string | null; after: stri
 // 부모 id류(brandId/modelId/trimId)는 diff에서 제외 — targetLabel이 이미 대상을 말한다.
 const PARENT_ID_KEYS = new Set(["brandId", "modelId", "trimId"]);
 
-function formatValue(v: unknown): string | null {
+// 연식은 콤마 없이 표기한다(2,024는 한국어 관례상 오표기). 나머지 숫자(가격·할인·배기량)는
+// 천단위 콤마가 자연스럽다. boolean/객체 값은 현행 8종 스키마에 없다 — 새 kind/필드 추가 시
+// formatValue 분기를 함께 챙길 것(String(true) = "true" 영문 노출).
+const COMMA_EXEMPT_KEYS = new Set(["modelYear"]);
+
+function formatValue(v: unknown, key: string): string | null {
   if (v == null) return null;
-  if (typeof v === "number") return v.toLocaleString("ko-KR");
+  if (typeof v === "number") return COMMA_EXEMPT_KEYS.has(key) ? String(v) : v.toLocaleString("ko-KR");
   return String(v);
 }
 
@@ -95,7 +100,7 @@ export function buildChangeDiff(row: Pick<ChangeRequestItem, "kind" | "payload" 
     .filter((k) => !PARENT_ID_KEYS.has(k))
     .map((k) => ({
       label: CHANGE_FIELD_LABELS[k] ?? k,
-      before: isCreate ? null : formatValue(snapshot[k]),
-      after: formatValue(row.payload[k]) ?? "—",
+      before: isCreate ? null : formatValue(snapshot[k], k),
+      after: formatValue(row.payload[k], k) ?? "—",
     }));
 }

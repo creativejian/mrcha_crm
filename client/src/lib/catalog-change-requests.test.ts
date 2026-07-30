@@ -41,6 +41,16 @@ describe("buildChangeDiff", () => {
     expect(buildChangeDiff({ kind: "trim.no-option.unset", payload: {}, snapshot: {} })).toEqual([]);
   });
 
+  it("modelYear — 콤마 없이 표기(2,024는 오표기)", () => {
+    expect(
+      buildChangeDiff({
+        kind: "trim.update",
+        payload: { modelYear: 2027 },
+        snapshot: { modelYear: 2026 },
+      }),
+    ).toEqual([{ label: "연식", before: "2026", after: "2027" }]);
+  });
+
   it("알 수 없는 키 — 라벨 폴백(키 그대로)", () => {
     expect(
       buildChangeDiff({
