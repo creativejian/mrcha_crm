@@ -86,7 +86,10 @@
   border: 1px solid #e5e5e2;
   border-radius: 6px;
   background: #f8f8f7;
-  overflow: hidden;
+  /* 좁은 폭에서 표(min-width 1160)가 잘리기만 하고 스크롤이 없었다(2026-07-30 실기 — 고객 관리
+     하위 전 화면). auto도 radius 클리핑은 유지한다. 내부 팝오버는 전부 fixed(아래 escape 선례)
+     + 스크롤 시 닫힘(document capture)이라 hidden에 기대는 소비자는 없다. */
+  overflow-x: auto;
 }
 
 /* 셀 골격(padding·정렬·폰트·줄바꿈) — 전역 th,td(customer-list.css)와 동일 값 명시(배치 5 4-A:
