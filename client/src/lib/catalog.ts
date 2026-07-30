@@ -8,7 +8,8 @@ import { getJson, sendJson, sendVoid } from "./http";
 // (패널 닫힘·재조회 — catalog가 안 바뀌었으니 재조회는 무해한 no-op), 토스트·배지 갱신은
 // 구독자(MCMasterPage·배지 훅)가 담당한다(spec §7.1 "호출부 개별 수술 없음").
 // ⚠️ 유일한 예외 = OptionPanel 무옵션 토글: 재조회가 아니라 응답 후 로컬 플립이라, 그 호출부만
-// isCatalogWriteQueued로 queued를 걸러 플립을 건너뛴다(반영 전인데 화면이 바뀌면 안 된다).
+// isCatalogWriteQueued로 queued를 걸러 플립을 건너뛰어야 한다(반영 전인데 화면이 바뀌면 안 된다
+// — 팀장 편집 개방과 함께 그 호출부에 배선한다).
 // 삭제·reorder·move·assign-codes는 admin 전용(202 불가)이라 sendJson 직행을 유지한다.
 type CatalogWriteQueued = { queued: true; requestId: string };
 
