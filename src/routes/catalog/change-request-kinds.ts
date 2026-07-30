@@ -197,7 +197,9 @@ export async function approveChangeRequest(id: string, decidedBy: string, tx: Ex
   if (!def) throw new ConflictError("알 수 없는 요청 종류입니다. 반려 처리하세요.");
   const parsed = def.bodySchema.safeParse(claimed.payload); // ② 재검증
   if (!parsed.success) throw new ConflictError("요청 내용이 현재 스키마와 맞지 않습니다. 반려 후 재요청을 안내하세요.");
-  const current = await def.buildSnapshot(claimed.targetId, claimed.payload, tx); // ③ 드리프트
+  // 재검증 출력(data)을 흘린다 — 저장 payload가 구 스키마여도 default 보정된 값으로 스냅샷·실행이 일치한다.
+  const data = parsed.data as Record<string, unknown>;
+  const current = await def.buildSnapshot(claimed.targetId, data, tx); // ③ 드리프트
   if (current === null) throw new ConflictError("대상이 그 사이 삭제되어 승인할 수 없습니다. 반려 후 재요청을 안내하세요.");
   // snapshot NULL은 앱 경로로 불가(submitChangeRequest가 404) — psql 조작 흔적이므로 검사 생략 대신 거부.
   if (claimed.snapshot == null) throw new ConflictError("요청에 스냅샷이 없습니다. 반려 처리하세요.");
@@ -205,7 +207,7 @@ export async function approveChangeRequest(id: string, decidedBy: string, tx: Ex
   if (drifted.length > 0) {
     throw new ConflictError(`그 사이 값이 바뀌어 승인할 수 없습니다(${drifted.join(", ")}). 반려 후 재요청을 안내하세요.`);
   }
-  return def.execute(claimed.targetId, claimed.payload, { decidedBy }, tx); // ④ replay (⑤ 스탬프는 ①에서 — 같은 tx라 원자)
+  return def.execute(claimed.targetId, data, { decidedBy }, tx); // ④ replay (⑤ 스탬프는 ①에서 — 같은 tx라 원자)
 }
 
 type CatalogContext = Context<{ Variables: AuthVariables & DbVariables }>;
@@ -220,7 +222,11 @@ export async function submitChangeRequest(
 ): Promise<Response> {
   const def = CHANGE_KINDS[kind];
   try {
-    const snapshot = await def.buildSnapshot(targetId, payload, c.var.db);
+    // 저장 payload = zod 파싱 출력(2026-07-30 PR2) — default(카테고리 null 등)가 적용된 "실행될 값"을
+    // 저장해야 승인 replay·diff 화면·감사 기록이 같은 값을 본다(PR 1 리뷰 합의). 라우트 zValidator를
+    // 이미 통과한 값이라 parse가 던질 일은 사실상 없다(던지면 errorResponse 500 — 코딩 오류 신호).
+    const parsedPayload = def.bodySchema.parse(payload) as Record<string, unknown>;
+    const snapshot = await def.buildSnapshot(targetId, parsedPayload, c.var.db);
     if (snapshot === null) return c.json({ error: def.notFoundMsg }, 404);
     // 옵션 있는 트림의 무옵션 확정은 승인 시점에 반드시 실패한다(setTrimNoOption이 거부) —
     // "절대 승인될 수 없는 요청"을 큐에 받으면 제3자(관리자) 화면에서 500으로 터지므로
@@ -229,7 +235,7 @@ export async function submitChangeRequest(
       return c.json({ error: "옵션이 있는 트림은 '옵션 없음'으로 확정할 수 없습니다." }, 409);
     }
     const result = await upsertPendingRequest(
-      { kind, targetType: def.targetType, targetId, payload, snapshot, requestedBy: c.var.user.id },
+      { kind, targetType: def.targetType, targetId, payload: parsedPayload, snapshot, requestedBy: c.var.user.id },
       c.var.db,
     );
     if (!result.ok) {

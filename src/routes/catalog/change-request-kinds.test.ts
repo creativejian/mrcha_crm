@@ -75,6 +75,29 @@ test("trim.update 승인 replay가 catalog를 실제로 바꾸고 할인 감사�
   });
 });
 
+test("submit 저장 payload는 파싱 출력이다 — model.create의 category default가 채워진다", async () => {
+  await inRollback(async (tx) => {
+    // enqueue 헬퍼는 파싱 전 payload를 그대로 넣으므로 여기선 submitChangeRequest 경로의 계약을
+    // 쿼리 레벨로 재현한다: bodySchema.parse가 default를 채우는지 + 그 값이 저장되는지.
+    const def = CHANGE_KINDS["model.create"];
+    const parsed = def.bodySchema.parse({ brandId, name: "승인요청검증모델" }) as Record<string, unknown>;
+    expect(parsed.category).toBeNull();
+    expect(parsed.status).toBe("판매중");
+
+    const snapshot = await def.buildSnapshot(null, parsed, tx);
+    const r = await upsertPendingRequest(
+      { kind: "model.create", targetType: "model", targetId: null, payload: parsed, snapshot, requestedBy: crypto.randomUUID() },
+      tx,
+    );
+    if (!r.ok) throw new Error("적재 실패");
+    const [row] = (await tx.execute(
+      sql`select payload from crm.catalog_change_requests where id = ${r.id}`,
+    )) as unknown as Array<{ payload: Record<string, unknown> }>;
+    expect(row!.payload.category).toBeNull();
+    expect(row!.payload.status).toBe("판매중");
+  });
+});
+
 test("드리프트: 요청 후 admin이 직접 고치면 승인이 ConflictError로 죽고 행은 롤백된다", async () => {
   await inRollback(async (tx) => {
     const [before] = await tx

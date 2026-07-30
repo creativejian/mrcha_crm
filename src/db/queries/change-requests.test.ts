@@ -228,20 +228,28 @@ test("모델 단위 pending 조회가 trim 대상·trim.create payload를 모두
     const kinds = rows.map((r) => r.kind).sort();
     expect(kinds).toContain("trim.update");
     expect(kinds).toContain("trim.create");
+    // trim.create는 target_id가 없다 — 점프 좌표는 payload.modelId에서 파생돼야 한다(트림은 아직 없음).
+    const created = rows.find((r) => r.kind === "trim.create");
+    expect(created?.targetModelId).toBe(modelId);
+    expect(created?.targetTrimId).toBeNull();
   });
 });
 
-test("목록 조회에 대상 라벨이 붙는다", async () => {
+test("목록 조회에 대상 라벨과 점프 좌표가 붙는다", async () => {
   await inRollback(async (tx) => {
     const me = requester();
     await upsertPendingRequest(trimUpdateInput(me), tx);
     const [model] = await tx
-      .select({ name: modelsInCatalog.name })
+      .select({ name: modelsInCatalog.name, brandId: modelsInCatalog.brandId })
       .from(modelsInCatalog)
       .where(eq(modelsInCatalog.id, modelId));
     const all = await listChangeRequests("pending", tx);
     const mineRow = all.find((r) => r.requestedBy === me);
     expect(mineRow?.targetLabel).toContain(model!.name);
+    // trim.update 대상이므로 세 좌표 모두 채워져야 한다(클라가 /mc-master/:modelId?brand=&hl= 조립).
+    expect(mineRow?.targetModelId).toBe(modelId);
+    expect(mineRow?.targetTrimId).toBe(trimId);
+    expect(mineRow?.targetBrandId).toBe(model!.brandId);
     const mine = await listMyChangeRequests(me, tx);
     expect(mine.length).toBe(1);
   });
