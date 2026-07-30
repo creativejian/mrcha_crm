@@ -251,13 +251,16 @@
   border: 1px solid rgba(17, 17, 17, 0.18);
   flex: 0 0 auto;
 }
-/* hover 시 색상명 말풍선(차선생 메인 컬러, 꼬리 포함). */
+/* hover 시 색상명 말풍선(차선생 메인 컬러, 꼬리 포함).
+   칩 중앙 정렬(left:50%+translateX(-50%))이 아니라 **칩 왼쪽 기준 우측 펼침**인 이유:
+   칩이 트림명 sticky 열(컨테이너 왼쪽 끝)에 살아서, 첫 칩에서 중앙 정렬하면 말풍선
+   절반이 .table-scroll 왼쪽 경계 밖으로 나가 잘린다(2026-07-30 실기). 오른쪽은 표
+   본문이라 공간이 항상 넉넉하다. 꼬리(::before)는 칩 중앙 유지. */
 .va-color-chip:hover::after {
   content: attr(data-name);
   position: absolute;
-  left: 50%;
+  left: -8px;
   bottom: calc(100% + 6px);
-  transform: translateX(-50%);
   z-index: 60;
   padding: 4px 8px;
   border-radius: 6px;
