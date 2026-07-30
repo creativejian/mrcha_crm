@@ -15,6 +15,7 @@ import {
   deleteModel,
   deleteTrim,
   moveTrims,
+  onCatalogWriteQueued,
   reorderModels,
   reorderTrims,
   updateModel,
@@ -25,7 +26,12 @@ import { useDealerMe } from "@/lib/dealer-profiles";
 import type { DiscountField } from "@/lib/discount-adoption";
 import { useTrimProposals } from "@/lib/discount-proposals";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
-import { prefetchModels, prefetchOptions, prefetchTrims } from "./mc-master/catalog-cache";
+import {
+  invalidateCatalogAfterApproval,
+  prefetchModels,
+  prefetchOptions,
+  prefetchTrims,
+} from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
 import { brandIdFromSearch, highlightTrimIdFromSearch, mcMasterPath } from "./mc-master/mc-master-route";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
@@ -45,8 +51,13 @@ type ModelPanelState = { mode: "add" } | { mode: "edit"; model: CatalogModel } |
 type TrimPanelState = { mode: "add" } | { mode: "edit"; trim: CatalogTrim } | null;
 type TrimTab = "list" | "order";
 
-export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
+export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: (message: string) => void }) {
   const canEdit = roleTab === "최고관리자";
+  // 팀장 제안 축(PR3, spec §7.1) — 편집 UI는 admin과 같게 열되 저장의 결말이 다르다(202 큐 적재).
+  // canEdit 전용으로 남는 것: 삭제·모델 이동·선택 모드(=드래그 reorder 관문)·고유번호·딜러 제안
+  // 채택·승인 대기열 버튼(테스트 "팀장은 승인 대기 버튼을 렌더하지 않는다"가 잠금).
+  const canPropose = roleTab === "팀장";
+  const canWrite = canEdit || canPropose;
   const navigate = useNavigate();
   const { modelId } = useParams();
   const { search } = useLocation();
@@ -203,6 +214,23 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     scrollRef.current.scrollTop = modelId ? (mcMasterViewState.trimScrollTop.get(modelId) ?? 0) : mcMasterViewState.modelScrollTop;
   }, [modelId, models, trims]);
 
+  // 팀장 저장의 202 큐 적재 공통 처리(spec §7.1) — 쓰기 헬퍼(catalog.ts)가 감지·알림하고 여기
+  // 한 곳만 토스트를 단다. 저장 흐름은 성공 경로 그대로(패널 닫힘·재조회 no-op)라 호출부 개별
+  // 수술이 없다. 409(타인 pending)는 기존 catch → panelError로 흐른다(요청자·시각은 행 배지가
+  // 예방선으로 이미 보여준다 — HttpError 확장 안 함, PR3 결정).
+  useEffect(() => onCatalogWriteQueued(() => onToast("승인 요청됨 — 관리자 컨펌 후 반영됩니다")), [onToast]);
+
+  // 승인 반영 후 재조회 — 승인 대상이 현재 화면 밖 모델일 수 있어 전 모델 캐시를 먼저 비운다
+  // (30s 스테일 이월 항목 해소, catalog-cache invalidateCatalogAfterApproval 주석 참조).
+  const handleQueueApplied = () => {
+    invalidateCatalogAfterApproval();
+    reloadModels();
+    if (modelId) {
+      reloadTrims();
+      reloadOptionSummary();
+    }
+  };
+
   function selectBrand(id: number) {
     resetSelect();
     mcMasterViewState.modelScrollTop = 0; // 브랜드가 바뀌면 모델 목록은 맨 위부터(앱 admin과 동일).
@@ -342,7 +370,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
     extra: ReactNode = null,
     onMove: (() => void) | null = null,
   ) =>
-    canEdit ? (
+    canWrite ? (
       <div className="va-head-actions">
         {allowSelect && selectMode && selected.size > 0 && (
           <button type="button" className="btn va-danger-btn" onClick={bulkDelete}>
@@ -360,7 +388,10 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
             <Plus size={15} /> {addLabel}
           </button>
         )}
-        {allowSelect && (
+        {/* 선택 모드는 일괄삭제·드래그 reorder의 유일한 관문(table-select draggable={selectMode})
+            — canEdit로 잠그면 팀장에게 둘 다 함께 닫힌다(spec §3.2 admin 전용 9종). 위의 삭제/이동
+            버튼은 selectMode 안에서만 렌더되므로 팀장 화면에는 애초에 도달하지 않는다. */}
+        {canEdit && allowSelect && (
           <button
             type="button"
             className={`btn${selectMode ? " va-select-on" : ""}`}
@@ -387,17 +418,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 {openModel ? ` (${trims.length})` : ""}
               </h2>
             </div>
-            {canEdit && (
-              <ChangeRequestQueueButton
-                onApplied={() => {
-                  reloadModels();
-                  if (modelId) {
-                    reloadTrims();
-                    reloadOptionSummary();
-                  }
-                }}
-              />
-            )}
+            {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
             {editActions(
               () => {
                 setPanelError(null);
@@ -423,17 +444,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
                 한눈에 보고, 행 클릭으로 그 트림에 착지한다. 브랜드 미지정 딜러는 제안 자체가
                 불가능하니(쓰기 403) 프로필이 있을 때만 낸다. */}
             {dealerMode && dealerMeLoaded && dealerMe != null && <MyProposalTrimsButton />}
-            {canEdit && (
-              <ChangeRequestQueueButton
-                onApplied={() => {
-                  reloadModels();
-                  if (modelId) {
-                    reloadTrims();
-                    reloadOptionSummary();
-                  }
-                }}
-              />
-            )}
+            {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
             {brandId != null &&
               editActions(() => {
                 setPanelError(null);
@@ -477,7 +488,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
               groupedView ? (
                 <GroupedTrimTable
                   trims={trims}
-                  canEdit={canEdit}
+                  canEdit={canWrite}
                   dealerProposals={dealerMode ? dealerProposals : undefined}
                   onSaveProposal={dealerMode ? saveProposal : undefined}
                   proposalsByTrim={canEdit ? trimProposals : undefined}
@@ -498,7 +509,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
               ) : (
                 <TrimTable
                   trims={trims}
-                  canEdit={canEdit}
+                  canEdit={canWrite}
                   dealerProposals={dealerMode ? dealerProposals : undefined}
                   onSaveProposal={dealerMode ? saveProposal : undefined}
                   proposalsByTrim={canEdit ? trimProposals : undefined}
@@ -527,7 +538,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
             ) : (
               <ModelTable
                 models={models}
-                canEdit={canEdit}
+                canEdit={canWrite}
                 selectMode={selectMode}
                 selected={selected}
                 draggingId={draggingId}
@@ -552,6 +563,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
           model={modelPanel.mode === "edit" ? modelPanel.model : null}
           busy={busy}
           error={panelError}
+          submitLabel={canPropose ? "승인 요청" : "저장"}
           onClose={() => setModelPanel(null)}
           onSubmit={submitModel}
         />
@@ -562,6 +574,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
           modelStatus={openModel?.status ?? null}
           busy={busy}
           error={panelError}
+          submitLabel={canPropose ? "승인 요청" : "저장"}
           onClose={() => setTrimPanel(null)}
           onSubmit={submitTrim}
         />
@@ -579,7 +592,7 @@ export function MCMasterPage({ roleTab }: { roleTab: RoleTab }) {
         <OptionPanel
           key={optionPanelTrim.id}
           trim={optionPanelTrim}
-          canEdit={canEdit}
+          canEdit={canWrite}
           canDelete={canEdit}
           summary={optionByTrim.get(optionPanelTrim.id)}
           onClose={() => setOptionPanelTrim(null)}
