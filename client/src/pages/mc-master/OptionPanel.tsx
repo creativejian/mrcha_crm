@@ -33,7 +33,7 @@ export function OptionPanel({
 }: {
   trim: CatalogTrim;
   canEdit: boolean;
-  // 삭제는 admin 전용 — canEdit(쓰기 개방=admin|manager)와 축이 다르다(spec §3.2)
+  // 삭제는 admin 전용 — canEdit(팀장 개방과 함께 admin|manager로 넓어지는 쓰기 축)과 축이 다르다(spec §3.2)
   canDelete: boolean;
   summary: TrimOptionSummary | undefined;
   onClose: () => void;

@@ -199,7 +199,7 @@ export function TrimEditPanel({
             })
           }
         >
-          {busy ? "저장 중…" : submitLabel}
+          {busy ? `${submitLabel} 중…` : submitLabel}
         </button>
       </div>
     </EditDrawer>

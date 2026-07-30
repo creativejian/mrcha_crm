@@ -78,7 +78,7 @@ export function ModelEditPanel({
           disabled={!canSubmit || busy}
           onClick={() => onSubmit({ name: name.trim(), category: category || null, status })}
         >
-          {busy ? "저장 중…" : submitLabel}
+          {busy ? `${submitLabel} 중…` : submitLabel}
         </button>
       </div>
     </EditDrawer>
