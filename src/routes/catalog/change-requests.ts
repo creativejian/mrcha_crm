@@ -12,7 +12,7 @@ import { type CatalogApp, id, run } from "./shared";
 // 승인은 트랜잭션 하나(선점→재검증→드리프트→replay) — approveChangeRequest 주석 참조.
 const listQuery = z.object({
   status: z.enum(["pending", "approved", "rejected", "canceled"]).default("pending"),
-  mine: z.string().optional(), // "1"일 때만 내 요청 모드(전 status 최근 50건)
+  mine: z.literal("1").optional(), // "1"만 유효 — 다른 값은 400(오탈자가 조용히 admin 분기로 새지 않게)
 });
 
 export function registerChangeRequestRoutes(catalog: CatalogApp) {
