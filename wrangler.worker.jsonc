@@ -1,0 +1,30 @@
+// Workers 마이그레이션 전용 설정 — Pages 병행 기간 동안 wrangler.jsonc(Pages 빌드가 읽음)와
+// 분리해 둔다. 전환(도메인 스위치·Pages 폐기) 완료 후 이 파일이 wrangler.jsonc를 대체한다.
+// 배포: bun run deploy:worker — 빌드 후 client/dist/_redirects를 지우고 deploy한다.
+//   _redirects의 SPA 캐치올(/* /index.html 200)은 Pages 전용이다. wrangler가 assets 루트의
+//   _redirects를 설정 파일로 특수 취급(.assetsignore로 제외 불가)하며 그 룰을 무한 루프로
+//   거부한다 — Workers에선 아래 not_found_handling이 같은 역할. Pages 폐기 때 파일도 지운다.
+// 시크릿: bunx wrangler secret put <NAME> -c wrangler.worker.jsonc (7종 — 체크리스트는
+//         ref/plans/2026-07-31-crm-workers-migration.md)
+{
+  "name": "mrcha-crm",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-03-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "client/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // 정식 Custom Domain(2026-07-31 전환 완료 — 구 CNAME은 유슨생이 대시보드에서 삭제, DNS 레코드는
+  // Custom Domain이 소유). 과도기에 쓰던 zone route(crm.mrcha.app/*)는 제거됨 — 전말과 롤백 절차는
+  // ref/plans/2026-07-31-crm-workers-migration.md ④.
+  "routes": [{ "pattern": "crm.mrcha.app", "custom_domain": true }],
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "a09fec47fb084b1f9f4af474df1cd119" }],
+  // Workers Logs(7일 보존·검색) — 이번 마이그레이션의 목적. Pages엔 실시간 tail뿐이었다.
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_ENV": "development",
+    "SUPABASE_URL": "https://wmkbmlespgzkeekliwio.supabase.co"
+  }
+}

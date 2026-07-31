@@ -1,6 +1,7 @@
 {
   "entry": [
     "src/app.ts",
+    "src/worker.ts",
     "functions/[[path]].ts",
     "client/src/**/*.stories.tsx",
     "*.config.ts",
