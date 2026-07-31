@@ -23,6 +23,7 @@ export type ChangeRequestItem = {
   requestedBy: string;
   rejectReason: string | null;
   createdAt: string;
+  decidedAt: string | null; // 승인/반려 시각 — "내 요청" 자동 소멸 창의 기준(filterMyRequestVisible)
   targetLabel: string;
   targetBrandId: number | null;
   targetModelId: number | null;
@@ -144,6 +145,37 @@ export function buildChangeDiff(row: Pick<ChangeRequestItem, "kind" | "payload" 
     before: isCreate ? null : formatValue(snapshot[k], k),
     after: formatValue(row.payload[k], k) ?? "—",
   }));
+}
+
+// "내 요청" 자동 소멸(순수, 2026-07-31 유슨생 — spec §7.3 "최근 approved" 의도의 실현):
+// 아무도 지우지 않아도 팝오버가 "지금 볼 것"만 보여준다.
+//  - pending: 항상(행동 대상)
+//  - rejected: 같은 대상+작업의 재요청(pending)이 생기면 즉시 숨김(반려 확인→수정→재요청 루프
+//    완료 = 용무 끝) · 재요청 없어도 반려 7일 뒤 소멸. create류(targetId null)는 재요청 매칭이
+//    불가능해(새 행도 null) 7일 창만 적용된다.
+//  - approved: 24시간만(반영 확인 용도 — 결과는 카탈로그 화면이 이미 보여준다)
+//  - canceled: 항상 숨김(기존 규칙 이관)
+// 창 기준은 decidedAt(승인/반려 시각), 방어 폴백 createdAt. 행 데이터는 남는다(감사 기록) —
+// 이건 표시 필터일 뿐이다.
+const MY_REJECTED_WINDOW_MS = 7 * 24 * 3_600_000;
+const MY_APPROVED_WINDOW_MS = 24 * 3_600_000;
+
+export function filterMyRequestVisible<
+  T extends Pick<ChangeRequestItem, "status" | "kind" | "targetId" | "createdAt" | "decidedAt">,
+>(rows: T[], now: Date): T[] {
+  const pendingKeys = new Set(
+    rows.filter((r) => r.status === "pending" && r.targetId != null).map((r) => `${r.kind}:${r.targetId}`),
+  );
+  const decidedAgo = (r: T) => now.getTime() - Date.parse(r.decidedAt ?? r.createdAt);
+  return rows.filter((r) => {
+    if (r.status === "pending") return true;
+    if (r.status === "rejected") {
+      if (r.targetId != null && pendingKeys.has(`${r.kind}:${r.targetId}`)) return false;
+      return decidedAgo(r) < MY_REJECTED_WINDOW_MS;
+    }
+    if (r.status === "approved") return decidedAgo(r) < MY_APPROVED_WINDOW_MS;
+    return false;
+  });
 }
 
 // 변경 요청 행 → 착지 경로(순수) — 두 팝오버(대기열·내 요청)가 같은 계약을 복제하지 않게 SSOT.

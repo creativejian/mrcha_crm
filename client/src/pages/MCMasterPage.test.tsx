@@ -116,6 +116,7 @@ const PENDING_ROW: ChangeRequestItem = {
   requestedBy: STAFF_ID,
   rejectReason: null,
   createdAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+  decidedAt: null, // rejected/approved 파생 픽스처는 null 폴백(createdAt 기준 창)으로 충분히 최근
   targetLabel: "5 Series › 523d",
   targetBrandId: 3,
   targetModelId: 30,
@@ -435,7 +436,9 @@ it("트림 행에 못 붙는 요청(트림 추가 등)은 트림 뷰 헤더 pill
 it("팀장: 내 요청 (N) — 반려 사유가 보이고 pending 행 취소가 DELETE를 쏜다", async () => {
   myRequests = [
     { ...PENDING_ROW, id: "cr-p", status: "pending" },
-    { ...PENDING_ROW, id: "cr-r", status: "rejected", rejectReason: "가격 근거 부족" },
+    // 반려 행은 **다른 대상**(301)이어야 보인다 — 같은 대상+작업에 재요청(pending)을 내면
+    // 자동 소멸 규칙(filterMyRequestVisible)이 반려 행을 즉시 걷어낸다(루프 완료).
+    { ...PENDING_ROW, id: "cr-r", status: "rejected", rejectReason: "가격 근거 부족", targetId: 301, targetTrimId: 301 },
   ];
   const user = userEvent.setup();
   renderPage("팀장");
