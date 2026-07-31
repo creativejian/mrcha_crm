@@ -21,8 +21,9 @@ import { expect, test } from "bun:test";
 // 쓰기가 필요해지면 이 테스트를 우회하지 말고 **앱 팀에 서버 경로를 요청**한다(그쪽 확약).
 // 예외를 뚫어야 한다면 여기에 명시적으로 등록해 "언제 누가 왜 열었는지"가 커밋에 남게 한다.
 
-// functions/(CF Pages 엔트리)·scripts/(시드 등 수동 스크립트)도 postgres 롤 코드가 살 수 있는 루트다.
-const SCAN_ROOTS = ["src", "client/src", "supabase/functions", "functions", "scripts"];
+// scripts/(시드 등 수동 스크립트)도 postgres 롤 코드가 살 수 있는 루트다. 존재하지 않는 루트를
+// 넣으면 Glob.scan이 throw한다 — 구 functions/(CF Pages 엔트리)는 2026-07-31 Workers 전환으로 삭제됨.
+const SCAN_ROOTS = ["src", "client/src", "supabase/functions", "scripts"];
 const SELF = "src/db/profiles-write-guard.test.ts";
 
 // 주석 안의 "profiles를 UPDATE 하지 않는다" 같은 설명문이 탐지에 걸리지 않게 먼저 걷어낸다.

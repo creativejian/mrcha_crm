@@ -1,9 +1,24 @@
+// CF Workers 설정(2026-07-31 Pages→Workers 마이그레이션 완료 — 전말·함정·롤백 =
+// ref/plans/2026-07-31-crm-workers-migration.md).
+// 배포: git push → Workers Builds 자동(watch paths: ref/*·*.md 제외). 수동 폴백 = bun run deploy:worker.
+// 시크릿 7종: bunx wrangler secret put <NAME> (체크리스트·값 출처는 위 plans 문서 — 대시보드에서 이관 불가).
 {
   "name": "mrcha-crm",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-03-17",
-  "pages_build_output_dir": "client/dist",
   "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "client/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // 정식 Custom Domain(2026-07-31 전환 완료 — 구 CNAME은 유슨생이 대시보드에서 삭제, DNS 레코드는
+  // Custom Domain이 소유). 과도기에 쓰던 zone route(crm.mrcha.app/*)는 제거됨 — 전말과 롤백 절차는
+  // ref/plans/2026-07-31-crm-workers-migration.md ④.
+  "routes": [{ "pattern": "crm.mrcha.app", "custom_domain": true }],
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "a09fec47fb084b1f9f4af474df1cd119" }],
+  // Workers Logs(7일 보존·검색) — 이번 마이그레이션의 목적. Pages엔 실시간 tail뿐이었다.
+  "observability": { "enabled": true },
   "vars": {
     "APP_ENV": "development",
     "SUPABASE_URL": "https://wmkbmlespgzkeekliwio.supabase.co"
