@@ -212,6 +212,12 @@ export function useCustomerWorkflow({
       );
       return;
     }
+    // ⚠️ 이 text 분기에는 savePatch가 없다 — 화면과 토스트만 바뀌고 서버에는 아무것도 안 간다.
+    // 지금은 **도달 불가**라 무해하다(범용 <form>으로 렌더되는 key가 phone/phoneSecondary뿐이고,
+    // job·location·source·advisor는 전용 에디터, assignedAt은 openStatusEditor가 토스트로 차단).
+    // 하지만 범용 폼을 쓰는 필드를 하나 추가하는 순간 "수정 완료라는데 새로고침하면 사라진다"가
+    // 조용히 살아난다 — knip·lint가 못 잡는 종류다. 필드를 늘리려면 위 분기들처럼 savePatch(patch,
+    // rollback)를 먼저 배선할 것. (2026-07-31 타깃 렌즈 배치 발굴)
     setStatusValues((current) => ({ ...current, [key]: submit.value }));
     setOpenEditor(null);
     markRecentUpdate("고객 정보");

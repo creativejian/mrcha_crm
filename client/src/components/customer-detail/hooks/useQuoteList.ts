@@ -148,11 +148,25 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     };
   }, [pinnedQuoteStatus]);
 
+  // 낙관 카드(`kim-` temp id)는 아직 서버에 없다. 이 상태에서 행 액션을 실행하면 아래 가드들이
+  // API 호출만 조용히 건너뛰고 **성공 토스트는 그대로 나가서**, 사용자는 "지웠다/보냈다"고 믿는데
+  // 서버엔 반영이 없다(삭제 확인창은 "고객 앱 견적함에서도 사라지며, 되돌릴 수 없습니다"까지
+  // 약속한다). 창은 INSERT 왕복 동안이고, 워크벤치가 "작성 후 발송"에서 동기적으로 닫혀 낙관
+  // 카드가 즉시 노출되므로 실제로 열린다. 서류함 훅은 같은 레이스를 보상 삭제로 이미 막고 있다
+  // (useCustomerDocuments의 removedTempIdsRef) — 견적은 그 보상이 없어 여기서 막는다.
+  // customer.id가 없는 경로(서버 없는 로컬 표시)는 원래 API를 부르지 않으므로 그대로 통과시킨다.
+  function blockedWhileQuoteSaving(quoteId: string) {
+    if (!customer.id || !quoteId.startsWith("kim-")) return false;
+    onToast("견적을 저장하는 중입니다. 잠시 후 다시 시도해 주세요.");
+    return true;
+  }
+
   function attachQuoteFileToQuote(quoteId: string, file: File) {
     if (!file.type.startsWith("image/") && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       onToast("이미지 또는 PDF 파일만 첨부할 수 있습니다.");
       return;
     }
+    if (blockedWhileQuoteSaving(quoteId)) return;
     const quoteTitle = quotes.find((quote) => quote.id === quoteId)?.title ?? "견적";
     const prevQuotes = quotes;
     const objectUrl = URL.createObjectURL(file);
@@ -182,6 +196,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
   }
 
   function removeQuoteOriginal(quoteId: string) {
+    if (blockedWhileQuoteSaving(quoteId)) return;
     const prevQuotes = quotes;
     const target = quotes.find((quote) => quote.id === quoteId);
     if (target?.objectUrl) URL.revokeObjectURL(target.objectUrl);
@@ -213,6 +228,10 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
   }
 
   function deleteQuote(id: string) {
+    if (blockedWhileQuoteSaving(id)) {
+      setConfirmingQuoteDeleteId(null); // 안내만 하고 확인 팝오버는 닫는다(열린 채 남으면 재클릭이 막힌다)
+      return;
+    }
     const targetQuote = quotes.find((quote) => quote.id === id);
     if (targetQuote?.objectUrl) URL.revokeObjectURL(targetQuote.objectUrl);
     const prevQuotes = quotes;
@@ -242,6 +261,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
   }
 
   function sendQuoteToApp(id: string) {
+    if (blockedWhileQuoteSaving(id)) return;
     const sentAt = formatKoreanShortTime();
     const prevQuotes = quotes;
     setQuotes((current) => current.map((quote) => (
@@ -261,6 +281,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
   }
 
   function updateQuoteDecisionStatus(id: string, decisionStatus: QuoteItem["decisionStatus"]) {
+    if (blockedWhileQuoteSaving(id)) return;
     const prevQuotes = quotes;
     setQuotes((current) => current.map((quote) => (
       quote.id === id ? { ...quote, decisionStatus } : quote
@@ -312,6 +333,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
   }
 
   function setPrimaryScenario(quoteId: string, scenarioId: string) {
+    if (blockedWhileQuoteSaving(quoteId)) return;
     const prevQuotes = quotes;
     setQuotes((current) => current.map((quote) => {
       if (quote.id !== quoteId) return quote;

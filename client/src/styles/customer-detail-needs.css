@@ -1113,10 +1113,13 @@
   box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.06);
 }
 
+/* fixed + JS 좌표(ConfirmPopover → useFixedPopoverPosition) — 형제 3카드(할일·일정·서류)가
+   #366/#414에서 이주한 것과 같은 계약이다. 메모 바디도 고정 높이 overflow-y:auto라 absolute는
+   위/아래 어느 방향이든 카드 경계에서 잘렸고, 방향 결정이 실측이 아니라 인덱스 휴리스틱
+   (마지막 행만 위로)이라 중간 행에서 아래가 잘렸다. ⚠️좌표는 JS가 인라인으로 주입한다 —
+   이 클래스를 raw div로 렌더하면 좌표 없는 fixed가 되어 화면 밖에 그려진다(#414 사고). */
 .kim-customer-memo-delete-popover {
-  position: absolute;
-  top: calc(50% + 18px);
-  right: 14px;
+  position: fixed;
   z-index: 8;
   width: 172px;
   border: 1px solid #e4e4e2;
@@ -1126,11 +1129,6 @@
   background: #fff;
   padding: 9px;
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1), 0 0 0 1px rgba(15, 23, 42, 0.02);
-}
-
-.kim-customer-memo-delete-popover.is-above {
-  top: auto;
-  bottom: calc(50% + 18px);
 }
 
 .kim-customer-memo-delete-popover p {

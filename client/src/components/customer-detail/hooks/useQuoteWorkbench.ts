@@ -1560,7 +1560,14 @@ export function useQuoteWorkbench({
             quoteList.setQuotes((current) => current.map((q) => (q.id === tempId ? { ...q, id, quoteCode } : q)));
             persistedQuoteIdRef.current = id; // 이후 작성완료/발송은 같은 견적 UPDATE (editingQuoteId/key는 안 건드림)
             if (send && !id.startsWith("kim-")) {
-              void apiUpdateQuote(cid, id, { status: "고객 확인 전", appStatus: "sent", bumpRevision: true }).catch(() => onToast("발송에 실패했습니다."));
+              void apiUpdateQuote(cid, id, { status: "고객 확인 전", appStatus: "sent", bumpRevision: true }).catch(() => {
+                // 위 UPDATE 분기와 동일하게 낙관 갱신을 되돌린다(그쪽만 롤백이 있던 비대칭 해소).
+                // 안 되돌리면 서버는 draft인데 행만 "발송 완료"로 굳고, 행 액션이 "앱 발송" 대신
+                // "발송 견적 보기"로 바뀌어 재발송 경로가 한 단계 숨는다. quotes는 detail과
+                // 재동기화되지 않아(초기화 함수로만 읽는다) 드로어를 닫기 전까진 자가 회복도 없다.
+                quoteList.setQuotes((current) => current.map((q) => (q.id === id ? { ...q, appStatus: "draft" as const } : q)));
+                onToast("발송에 실패했습니다.");
+              });
             }
             // 인박스 캐시는 admin·manager 전용 API(#302) — staff는 403 무음(배치 12 K1-c, useQuoteList 미러).
             if (sourceQuoteRequestId) { void fetchAppQuoteRequestsCached(true).catch(() => {}); reloadAppRequests(); } // 견적요청→견적 INSERT 시 인박스 캐시 + 니즈 카드 배지 갱신

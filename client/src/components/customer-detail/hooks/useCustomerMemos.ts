@@ -5,6 +5,7 @@ import { addMemo, updateMemo, deleteMemo } from "@/lib/customer-children";
 import { formatActivity, type CustomerDetailData } from "@/lib/customers";
 import { formatKoreanShortTime } from "@/lib/detail-utils";
 import { sortCustomerMemosByCreatedAt, type CustomerMemoItem } from "@/lib/schedule-items";
+import { usePopoverViewportClose } from "@/lib/use-popover-viewport-close";
 
 type UseCustomerMemosArgs = {
   detail: CustomerDetailData; // 초기 customerMemos 매핑 소스
@@ -59,6 +60,9 @@ export function useCustomerMemos({ detail, customer, onToast, markRecentUpdate }
       document.removeEventListener("keydown", closeConfirmByKeyboard);
     };
   }, [confirmingCustomerMemoDeleteId]);
+
+  // 삭제 확인 팝오버가 fixed로 이주했으므로(형제 3카드와 동일) 뷰포트 시프트 닫기가 필수다.
+  usePopoverViewportClose(Boolean(confirmingCustomerMemoDeleteId), () => setConfirmingCustomerMemoDeleteId(null));
 
   useEffect(() => {
     if (!editingCustomerMemoId) return;

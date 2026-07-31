@@ -104,6 +104,14 @@ export function useCustomerPurchase({
     setOpenEditor(next);
   }
 
+  // ⚠️ 9개 필드를 통째로 로컬 갱신하고 "수정 완료" 토스트까지 띄우는데 **savePatch 호출이 없다** —
+  // 서버에 아무것도 안 간다. 지금은 도달 불가라 무해하다: 렌더 조건이 `openEditor?.kind === "purchase"`
+  // (PurchaseConditions의 renderPurchaseEditor)인데 `{ kind: "purchase" }`를 만드는 코드가 레포에
+  // 0건이다(types.ts의 타입 선언과 editorMatches 비교만 존재). 되살리려면 이 함수에 savePatch부터
+  // 배선할 것 — 안 그러면 "수정 완료라는데 새로고침하면 사라진다"가 된다. 덧붙여 그 에디터를 다시
+  // 열려면 fixed 래퍼 경로에 얹어야 한다(.kim-workspace-band .kim-purchase-conditions가 overflow:hidden
+  // 이라 absolute 팝오버는 저장 버튼이 잘린다 — 다른 9개 kind가 그래서 이주했다).
+  // (2026-07-31 타깃 렌즈 배치 발굴)
   function savePurchaseConditions(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
