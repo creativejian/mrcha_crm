@@ -32,6 +32,10 @@ bare 커맨드 자연 동작). Pages 프로젝트 삭제 완료(앱 `mr-cha-app`
 
 ## ▶ 다음
 
+- **제프 서비스(mc.mrcha.app) 이사님 CF 계정 이전 + Workers 구축(08-01 예정 · 유슨생 확정)**:
+  계획 공유문서 = `~/Downloads/2026-07-31-제프-CF-Workers-이전-계획.md`(8단계 절차·담당 포함).
+  근거: Workers Custom Domain은 zone 동일 계정 필수 → 제프 계정 잔류 시 mc.mrcha.app 불가.
+  이사님 결정 대기 = 제프 계정 접근 범위(멤버 권한이 거침). 레시피 = CRM plans 문서 그대로.
 - **타깃 렌즈 배치(#414 계급 · 새 세션 · Opus로 충분 — 유슨생 승인)**: fail-silent UI 경로 수색.
   ①`useFixedPopoverPosition` 소비처 전수의 anchorSelector 실검증(미매칭=무경고 영구 hidden 계약)
   ②공유 CSS 클래스에 JS 좌표 주입 계약이 붙은 패턴 전수 ③서류 훅 `kim-` temp id 삭제의 조용한
