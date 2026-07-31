@@ -867,6 +867,23 @@
 .va-trim-table tr.va-row-flash > td {
   animation: va-row-flash 2.4s ease-out;
 }
+/* sticky 셀(트림명·등급)은 불투명 등가색으로 플래시한다 — 위의 반투명 틴트가 sticky의 흰
+   가림막(#fff — 가로 스크롤로 뒤에 지나가는 열을 가리는 수단)을 대체하면, 표가 오른쪽으로
+   밀린 상태에선 고유번호·연식·가격 셀이 2.4초 동안 비쳐 겹쳐 보인다(2026-07-31 실기 — 내 요청
+   착지에서 발견). rgb(225, 219, 255) = #fff 위에 brand(88,54,255) 18%를 미리 섞은 값이라
+   눈에는 위 플래시와 동일하다. */
+@keyframes va-row-flash-sticky {
+  from {
+    background-color: rgb(225, 219, 255);
+  }
+  to {
+    background-color: #fff;
+  }
+}
+.va-trim-table tr.va-row-flash > td.va-th-trim,
+.va-trim-table tr.va-row-flash > td.va-grade-cell {
+  animation: va-row-flash-sticky 2.4s ease-out;
+}
 
 /* ── 관리자 승인 대기열 팝오버(PR2 Task 4, 2026-07-30) ───────────────────────
    딜러 "입력 트림" 팝오버(.org-dealer-trims-pop, dashboard.css)와 같은 골격 — fixed(표가
@@ -946,6 +963,17 @@
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+}
+/* 행 액션 칩(.badge를 버튼으로 입음 — MyProposalTrims 선례) — badge 룰은 span 전제라
+   버튼 어포던스(커서·비활성)만 여기서 보강한다. */
+.va-cr-actions .badge,
+.va-cr-reject-input .badge {
+  cursor: pointer;
+}
+.va-cr-actions .badge:disabled,
+.va-cr-reject-input .badge:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 .va-cr-error {
   font-size: 11px;

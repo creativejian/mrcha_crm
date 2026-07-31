@@ -164,8 +164,14 @@ export function MyChangeRequestsButton() {
                 )}
                 {state.phase === "error" && <div className="va-cr-error">{state.message}</div>}
                 {row.status === "pending" && (
+                  // 대기열 팝오버와 같은 칩 액션(.badge — 무채색 = 파괴 아님·자기 요청 철회).
                   <div className="va-cr-actions">
-                    <button type="button" onClick={() => void handleCancel(row)} disabled={state.phase === "busy"}>
+                    <button
+                      type="button"
+                      className="badge"
+                      onClick={() => void handleCancel(row)}
+                      disabled={state.phase === "busy"}
+                    >
                       취소
                     </button>
                   </div>
