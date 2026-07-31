@@ -56,7 +56,7 @@ Default handoff behavior:
 - Customer management logic changes: run `bun run test:unit client/src/pages/CustomerManagementPage.test.tsx`.
 - Large visual layout changes: 실화면을 **눈으로 1회** 확인한다(매 미세 조정마다 하지 않는다). 로그인이 카카오 OAuth뿐이라 브라우저를 띄우려면 아래 "로컬 브라우저 스모크 로그인 우회"의 magiclink 절차를 쓴다.
   ⚠️ **자동 스크린샷/픽셀 비교 하네스는 폐기됐다**(2026-07-22 배치 13). 구 `visual:crm`·`screenshot:crm`과 spec 3종은 전부 `page.goto("/")` 직후 CRM 화면을 기대해, 2026-06-18 로그인 게이트(#36) 도입 후 **약 두 달간 실행 자체가 불가능**했는데도 이 문구가 계속 그 도구를 가리키고 있었다(= 아무도 안 돌리는 규칙). `playwright.config.ts`만 재도입용으로 남겼다 — 되살릴 때는 **로그인 처리(storageState)부터** 붙일 것.
-- **커밋 메시지 `[skip ci]` 토큰 주의**: feature 브랜치 커밋(spec/plan/brief 포함)에 넣으면 GitHub squash가 본문에 합쳐 **CF Pages 배포가 스킵**된다(2026-06-19 #51·#53서 2회 사고). 그 토큰은 머지와 무관한 **main 직접 docs 커밋에만** 사용. 스킵됐으면 마커 없는 빈 커밋 push 또는 CF 대시보드 수동 빌드로 보정.
+- **커밋 메시지 `[skip ci]` 토큰 전면 금지(2026-07-31 build watch paths로 대체)**: CF Pages `mrcha-crm`에 build watch paths(`path_excludes: ref/*, *.md`)가 설정돼 **문서만 바뀐 push는 빌드가 자동 스킵**된다 — 구 용례(main 직접 docs 커밋)에도 토큰이 더는 필요 없다. 토큰은 이제 사고 원인만 남는다: feature 브랜치 커밋 → squash 본문 전파 → 배포 스킵(2026-06-19 #51·#53), 설명하느라 글자로 적어도 substring으로 발동(누적 5회). 코드+문서 혼합 push는 정상 빌드, 빈 커밋 push는 경로 판정 없이 무조건 빌드(재트리거 요령 유지). 스킵 보정 = 마커 없는 빈 커밋 push 또는 CF 대시보드 수동 빌드.
 
 ### 리팩토링 배치 감사 — 트리거 기반·경량 (2026-07-22 배치 15 이후 · 유슨생 승인)
 

@@ -46,7 +46,7 @@ Codex 사용자는 `AGENTS.md`를 따른다. 이 문서는 그 내용을 그대�
   - **knip·format:check는 기준선 0**이다 — 미사용 export 하나, 포맷 어긋남 하나로 PR이 빨개진다. 정당한 예외는 `knip.json`에 사유와 함께 등록한다.
   - ⚠️ `test:server`는 공유 master DB에 붙어 운영 알림까지 발사하므로 **CI에 넣지 않는다** — 로컬 전용이다.
 - 변경은 가급적 브랜치 → PR → squash 머지 → 브랜치 삭제 흐름으로 올린다. 커밋/푸시는 사용자가 지시할 때 한다.
-- **squash 머지 시 `[skip ci]` 전파 주의**: PR 안의 커밋(문서 포함)에 `[skip ci]`가 있으면 squash 머지 커밋 **본문**에 합쳐져, Cloudflare Pages가 main prod 배포를 통째로 스킵한다(상태 `skipped` = 빌드 미시작). squash로 올릴 PR에는 `[skip ci]`를 붙이지 말 것. 이미 스킵됐으면 CF 대시보드 `배포 관리 → Retry deployment`, 또는 `[skip ci]` 없는 새 커밋(빈 커밋도 가능)을 main에 push해 재트리거한다. (2026-06-19 #52에서 발생)
+- **커밋 메시지 `[skip ci]` 토큰 전면 금지(2026-07-31 build watch paths로 대체)**: CF Pages `mrcha-crm`에 build watch paths(`path_excludes: ref/*, *.md`)가 설정돼 **문서만 바뀐 push는 빌드가 자동 스킵**된다 — 구 용례였던 main 직접 docs 커밋에도 토큰이 더는 필요 없다. 이제 토큰은 사고 원인만 남는다: ①PR 커밋에 있으면 squash 머지 본문에 전파돼 main prod 배포가 통째로 스킵(2026-06-19 #51·#53) ②문제를 *설명*하느라 글자로 적어도 substring으로 발동(누적 5회 재발) — 커밋 메시지에서 가리킬 땐 "스킵 마커"처럼 풀어 쓴다. 코드+문서 혼합 push는 정상 빌드, 빈 커밋 push는 경로 판정 없이 무조건 빌드(재트리거 요령 유지). 이미 스킵됐으면 CF 대시보드 `배포 관리 → Retry deployment` 또는 빈 커밋 push로 보정.
 - TypeScript **6.0.3** 사용: `tsconfig`는 `baseUrl` 없이 `paths`만 쓴다. deprecated 타입(`FormEvent` 등) 대신 `SyntheticEvent`를 쓴다.
 - 의도적으로 lint 룰을 끌 때는 `eslint-disable-next-line <rule> -- <사유>` 형식으로 사유를 남긴다.
 - `db:push` 금지(스크립트도 제거됨) — `DATABASE_URL`이 master라 `db:push`는 schemaFilter 밖 스키마(public 앱 19테이블·catalog 9테이블)를 DROP할 수 있다. 스키마 변경은 `db:generate` → `db:migrate`만, 항상 `schemaFilter:["crm"]`로 crm만. (차량은 master `catalog` 직접 read — 거울/sync 폐기됨, history: `ref/vehicle-mirror-db.md`)
