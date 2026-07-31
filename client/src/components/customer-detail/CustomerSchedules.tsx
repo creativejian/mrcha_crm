@@ -5,6 +5,7 @@ import { SCHEDULE_TYPE_OPTIONS } from "@/data/customers";
 import { formatDateInputValue, formatScheduleDateLabel, scheduleHourOptions, scheduleMinuteOptions, parseScheduleTimeParts } from "@/lib/detail-utils";
 import { scheduleRecordKey, type ScheduleItem } from "@/lib/schedule-items";
 
+import { ConfirmPopover } from "./ConfirmPopover";
 import type { useCustomerSchedules } from "./hooks/useCustomerSchedules";
 
 type CustomerSchedulesProps = ReturnType<typeof useCustomerSchedules>;
@@ -106,11 +107,9 @@ export function CustomerSchedules({
         <div className="kim-schedule-list">
           {items.length === 0 && !adding ? (
             <div className="kim-list-empty">예정된 일정이 없습니다.</div>
-          ) : items.map((schedule, index) => {
+          ) : items.map((schedule) => {
             const isCompleted = completedKeys.includes(scheduleRecordKey(schedule));
             const isEditing = editingId === schedule.id;
-            const shouldOpenScheduleCompleteAbove = !adding && index > 0 && index === items.length - 1;
-            const shouldOpenScheduleDeleteAbove = !adding && index > 0 && index === items.length - 1;
             if (isEditing) return renderInlineForm(schedule);
             return (
               <div
@@ -156,22 +155,22 @@ export function CustomerSchedules({
                   </button>
                 </div>
                 {confirming.completeId === schedule.id ? (
-                  <div className={`kim-check-confirm-popover${shouldOpenScheduleCompleteAbove ? " is-above" : ""}`} ref={completeRef} role="dialog" aria-label="예정 일정 상태 변경 확인" onClick={(event) => event.stopPropagation()}>
+                  <ConfirmPopover anchorSelector=".kim-schedule-row" ariaLabel="예정 일정 상태 변경 확인" className="kim-check-confirm-popover" popRef={completeRef}>
                     <p>{isCompleted ? "완료한 일정을 되돌릴까요?" : "해당 일정을 완료 처리할까요?"}</p>
                     <div>
                       <button type="button" onClick={() => handlers.cancelComplete()}>취소</button>
                       <button className={isCompleted ? "neutral" : "primary"} type="button" onClick={() => handlers.toggleDone(schedule)}>{isCompleted ? "되돌림" : "완료"}</button>
                     </div>
-                  </div>
+                  </ConfirmPopover>
                 ) : null}
                 {confirming.deleteId === schedule.id ? (
-                  <div className={`kim-check-confirm-popover delete${shouldOpenScheduleDeleteAbove ? " is-above" : ""}`} ref={deleteRef} role="dialog" aria-label="예정 일정 삭제 확인" onClick={(event) => event.stopPropagation()}>
+                  <ConfirmPopover anchorSelector=".kim-schedule-row" ariaLabel="예정 일정 삭제 확인" className="kim-check-confirm-popover delete" popRef={deleteRef}>
                     <p>해당 일정을 삭제하시겠습니까?</p>
                     <div>
                       <button type="button" onClick={() => handlers.cancelDelete()}>아니요</button>
                       <button className="danger" type="button" onClick={() => handlers.confirmDelete(schedule.id)}>삭제</button>
                     </div>
-                  </div>
+                  </ConfirmPopover>
                 ) : null}
               </div>
             );

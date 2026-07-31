@@ -4,6 +4,7 @@ import { DOC_TYPE_OPTIONS } from "@/data/customers";
 import { formatFileSize, documentFileKind } from "@/lib/detail-utils";
 import { bindSelect } from "@/lib/select-bind";
 
+import { ConfirmPopover } from "./ConfirmPopover";
 import type { useCustomerDocuments } from "./hooks/useCustomerDocuments";
 
 type CustomerDocumentsProps = ReturnType<typeof useCustomerDocuments>;
@@ -67,8 +68,7 @@ export function CustomerDocuments({
                 <strong>등록된 서류가 없습니다.</strong>
                 <p>면허증, 등본, 소득서류, 계약서류, 등록서류 등 이미지, PDF 파일을 올리면 자동으로 인식됩니다.</p>
               </div>
-            ) : documents.map((doc, index) => {
-              const shouldOpenDocumentDeleteAbove = index > 0 && index === documents.length - 1;
+            ) : documents.map((doc) => {
               const fileKind = documentFileKind(doc.mimeType, doc.fileName);
               return (
               <div
@@ -112,13 +112,13 @@ export function CustomerDocuments({
                   </button>
                 </div>
                 {confirmingDeleteId === doc.id ? (
-                  <div className={`kim-check-confirm-popover delete${shouldOpenDocumentDeleteAbove ? " is-above" : ""}`} ref={deleteRef} role="dialog" aria-label="서류 항목 삭제 확인">
+                  <ConfirmPopover anchorSelector=".kim-doc-row" ariaLabel="서류 항목 삭제 확인" className="kim-check-confirm-popover delete" popRef={deleteRef}>
                     <p>해당 서류를 삭제하시겠습니까?</p>
                     <div>
                       <button type="button" onClick={handlers.cancelDelete}>아니요</button>
                       <button className="danger" type="button" onClick={() => handlers.confirmDelete(doc.id)}>삭제</button>
                     </div>
-                  </div>
+                  </ConfirmPopover>
                 ) : null}
               </div>
               );
