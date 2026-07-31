@@ -1,13 +1,39 @@
 /* ── 차량 관리(mc-master) ───────────────────────────────────────────── */
+/* ── 뷰포트 맞춤 레이아웃(2026-07-31 유슨생 — "표를 끝까지 내리면 타이틀이 밀린다") ──
+   종전엔 표 스크롤러가 max-height: calc(100vh - 210px) **근사**였고, 실제 상단 크롬(글로벌바+
+   타이틀+카드 헤더)이 210px보다 커서 그 차이만큼 페이지(윈도)가 넘쳤다 — 표 끝에서 스크롤
+   체이닝이 그 잔여를 소진하며 타이틀이 상단바 밑으로 밀렸다. 근사 상수 대신 페이지 스크롤
+   자체를 없앤다: main을 화면 높이로 잠그고 카드가 남은 높이를 flex로 채운다.
+   :has 스코프는 .va-card가 있는 mc-master에서만 발동(레포 :has 선례: va-trim-table) —
+   타 페이지의 윈도 스크롤은 그대로다. 팝오버·드로어는 전부 fixed라 overflow:hidden 무영향. */
+.main:has(.va-card) {
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* 글로벌바·타이틀은 눌리지 않는다 — 남는 높이는 아래 카드만 먹는다. */
+.main:has(.va-card) > * {
+  flex-shrink: 0;
+}
+.main:has(.va-card) > .va-card {
+  flex: 1 1 0;
+  min-height: 0;
+}
 .va-subtitle {
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--muted);
 }
+.va-card {
+  display: flex;
+  flex-direction: column;
+}
 /* 모델/트림 뷰 전환 시 헤더 높이 고정(점프 방지). */
 .va-card > .panel-head {
   min-height: 64px;
   align-items: center;
+  flex-shrink: 0;
 }
 .va-head-thumb {
   width: 52px;
@@ -17,11 +43,16 @@
 }
 .va-body {
   padding: 0;
+  flex: 1;
+  min-height: 0;
 }
 .va-layout {
   display: grid;
   grid-template-columns: 140px minmax(0, 1fr);
-  min-height: 420px;
+  height: 100%;
+  /* 구 min-height: 420px 폐기 — 뷰포트 맞춤에선 height 100%가 지배하고, 낮은 창에서 420 고정은
+     main overflow:hidden에 잘려 스크롤 불능이 된다(내부 스크롤이 살아 있는 편이 낫다). */
+  min-height: 0;
 }
 /* 딜러 모드 — 브랜드 열을 렌더하지 않으므로 표가 전폭을 쓴다(MCMasterPage 주석 참조). */
 .va-layout-full {
@@ -166,17 +197,18 @@
   font-variant-numeric: tabular-nums;
   color: #5f6872;
 }
-/* 모델/트림 테이블 영역만 세로 스크롤, 브랜드 사이드바는 고정. 210px≈상단바+카드헤더+여백(근사). */
+/* 모델/트림 테이블 영역만 세로 스크롤 — 높이는 뷰포트 맞춤 그리드(위 .va-layout height:100%)가
+   준다(구 calc(100vh - 210px) 근사 폐기 — 파일 상단 뷰포트 맞춤 주석 참조). min-height: 0은
+   그리드 아이템의 암묵 min-height:auto가 내용 높이만큼 행을 키워 스크롤을 무력화하는 것 방지. */
 .va-layout > .table-scroll,
 .va-layout > .va-empty {
-  max-height: calc(100vh - 210px);
+  min-height: 0;
   overflow-y: auto;
 }
+/* 브랜드 열도 자기 스크롤 — 구 sticky+max-height는 페이지 스크롤 세계의 장치였다(이제 페이지가
+   안 흐르므로 그리드 stretch가 곧 고정이고, 목록이 넘치면 열 안에서만 흐른다). */
 .va-brand-sidebar {
-  align-self: start;
-  position: sticky;
-  top: 0;
-  max-height: calc(100vh - 210px);
+  min-height: 0;
   overflow-y: auto;
 }
 .va-head-actions {
