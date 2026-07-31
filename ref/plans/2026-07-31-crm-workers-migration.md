@@ -12,7 +12,8 @@
 | ② env·시크릿 재입력 | ✅ 2026-07-31 | 아래 체크리스트 — 7종 전부 `secret bulk` 입력·검증 |
 | ③ workers.dev 전체 스모크 | ✅ 2026-07-31 | 아래 스모크 결과 |
 | ④ crm.mrcha.app 스위치 | ✅ 2026-07-31 | **zone route 방식**(아래) — 롤백 = Pages 도메인 재부착 |
-| ⑤ Workers Builds + watch paths | ⏸ 다음 | 자동 이관 없음 — 대시보드 수동 설정 |
+| ⑤ Workers Builds + watch paths | ✅ 2026-07-31 저녁 | 유슨생 대시보드 설정 + 첫 자동 빌드 success·배포 `c633d7a6` 실측 |
+| ⑥ Pages 폐기 정리 | ⏸ 며칠 안정 확인 후 | 아래 "전환 후 정리 목록" |
 
 ## 구성 (커밋된 파일)
 
@@ -53,7 +54,7 @@
 | `GEMINI_PROXY_URL` | **재구성** `https://wmkbmlespgzkeekliwio.supabase.co/functions/v1/crm-gemini-proxy` | `.env.local`에 없음(로컬은 직결). POST 401(verify_jwt) = 도달 확인 |
 
 빌드타임 `VITE_SUPABASE_URL`·`VITE_SUPABASE_PUBLISHABLE_KEY`는 로컬 빌드가 `.env.local`에서
-주입(vite `envDir` = 레포 루트). Workers Builds 전환 시 빌드 env로 등록 필요(⑤에서).
+주입(vite `envDir` = 레포 루트). Workers Builds에도 빌드 변수로 등록 완료(⑤).
 
 ## 스모크 결과 (2026-07-31, workers.dev)
 
@@ -98,25 +99,25 @@ wrangler가 안 지워서 API DELETE로 수동 제거(⚠️ wrangler deploy는 
 스모크 대화 원복 완료.
 
 **최종 상태**: DNS 레코드는 Custom Domain이 소유(대시보드에 Worker 타입으로 표시),
-zone route 0, CNAME 0. Pages 프로젝트·pages.dev 배포는 유지(⑤에서 폐기). workers.dev
+zone route 0, CNAME 0. Pages 프로젝트·pages.dev 배포는 유지(⑥에서 폐기). workers.dev
 서브도메인은 비활성(공개 표면 축소 — 의도 유지).
 
 **롤백**(이제 3단계): ①Worker Custom Domain 제거(`DELETE …/workers/domains/{id}`) ②CNAME
 재생성(crm → mrcha-crm.pages.dev, 프록시 on — 대시보드) ③Pages 도메인 재부착
 (`POST …/pages/projects/mrcha-crm/domains` {"name":"crm.mrcha.app"}).
 
-## ⚠️ 과도기 배포 규칙 (Workers Builds 연결 전 — 지금 유효)
+## ~~과도기 배포 규칙~~ (2026-07-31 저녁 해제)
 
-**main 머지 ≠ prod 배포.** git push는 Pages만 자동 빌드하는데 그 결과는 이제 아무도 안 보는
-pages.dev로만 간다 — prod(crm.mrcha.app = Worker)는 **`bun run deploy:worker`를 손으로 돌려야**
-갱신된다. 머지 후 배포를 잊으면 에러 없이 구버전이 계속 서빙된다(조용한 스테일).
-Workers Builds 연결(아래 ⑤)이 이 규칙을 해소한다.
+~~main 머지 ≠ prod 배포 — 수동 `deploy:worker` 필수~~ → **Workers Builds 가동으로 해소.**
+설정: 빌드 `bun install && bun run build && rm -f client/dist/_redirects` · 배포
+`npx wrangler deploy -c wrangler.worker.jsonc` · 빌드 변수 `VITE_SUPABASE_URL`·
+`VITE_SUPABASE_PUBLISHABLE_KEY`(값 OCR 기계 대조 검증) · watch paths 제외 `ref/*`·`*.md` ·
+브랜치 빌드 off · 빌드 캐시 on. PR `#412` 머지 push의 첫 자동 빌드 success + 새 배포
+`c633d7a6` 100% 활성 실측(번들 해시가 로컬 빌드와 동일 = 빌드 변수 정합 증명).
+함정: 연결 다이얼로그가 "내부 오류" 토스트를 띄워도 **실제로는 저장됐을 수 있다** — 재제출하면
+"A trigger already exists". 설정 페이지 새로고침으로 실상태 확인이 정답.
 
-## ⑤ 전환 후 정리 목록 (Pages 폐기 시)
-
-- Workers Builds 연결(빌드 `bun install && bun run build && rm -f client/dist/_redirects`,
-  배포 `wrangler deploy -c wrangler.worker.jsonc`) + **watch paths 재설정**(`ref/*`·`*.md`
-  제외 — Pages 설정은 자동 이관 안 됨) + 빌드 env에 `VITE_*` 2종
+## ⑥ 전환 후 정리 목록 (Pages 폐기 시)
 - `wrangler.worker.jsonc` → `wrangler.jsonc`로 승격(파일 교체), `functions/[[path]].ts` 삭제,
   `src/app.test.ts`의 onRequest 테스트 제거, `knip.json` entry 정리
 - `client/public/_redirects` 삭제 + `deploy:worker`의 `rm` 단계 제거

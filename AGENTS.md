@@ -56,7 +56,7 @@ Default handoff behavior:
 - Customer management logic changes: run `bun run test:unit client/src/pages/CustomerManagementPage.test.tsx`.
 - Large visual layout changes: 실화면을 **눈으로 1회** 확인한다(매 미세 조정마다 하지 않는다). 로그인이 카카오 OAuth뿐이라 브라우저를 띄우려면 아래 "로컬 브라우저 스모크 로그인 우회"의 magiclink 절차를 쓴다.
   ⚠️ **자동 스크린샷/픽셀 비교 하네스는 폐기됐다**(2026-07-22 배치 13). 구 `visual:crm`·`screenshot:crm`과 spec 3종은 전부 `page.goto("/")` 직후 CRM 화면을 기대해, 2026-06-18 로그인 게이트(#36) 도입 후 **약 두 달간 실행 자체가 불가능**했는데도 이 문구가 계속 그 도구를 가리키고 있었다(= 아무도 안 돌리는 규칙). `playwright.config.ts`만 재도입용으로 남겼다 — 되살릴 때는 **로그인 처리(storageState)부터** 붙일 것.
-- **커밋 메시지 `[skip ci]` 토큰 전면 금지(2026-07-31 build watch paths로 대체)**: CF Pages `mrcha-crm`에 build watch paths(`path_excludes: ref/*, *.md`)가 설정돼 **문서만 바뀐 push는 빌드가 자동 스킵**된다 — 구 용례(main 직접 docs 커밋)에도 토큰이 더는 필요 없다. 토큰은 이제 사고 원인만 남는다: feature 브랜치 커밋 → squash 본문 전파 → 배포 스킵(2026-06-19 #51·#53), 설명하느라 글자로 적어도 substring으로 발동(누적 5회). 코드+문서 혼합 push는 정상 빌드, 빈 커밋 push는 경로 판정 없이 무조건 빌드(재트리거 요령 유지). 스킵 보정 = 마커 없는 빈 커밋 push 또는 CF 대시보드 수동 빌드.
+- **커밋 메시지 `[skip ci]` 토큰 전면 금지(2026-07-31 build watch paths로 대체)**: prod 배포 파이프라인(**Workers Builds** `mrcha-crm` — 2026-07-31 저녁 Workers 전환, 상세 `ref/plans/2026-07-31-crm-workers-migration.md`. 병행 잔존 Pages도 동일 설정)에 build watch paths(제외: `ref/*`·`*.md`)가 설정돼 **문서만 바뀐 push는 빌드가 자동 스킵**된다 — 구 용례(main 직접 docs 커밋)에도 토큰이 더는 필요 없다. 토큰은 이제 사고 원인만 남는다: feature 브랜치 커밋 → squash 본문 전파 → 배포 스킵(2026-06-19 #51·#53), 설명하느라 글자로 적어도 substring으로 발동(누적 5회). 코드+문서 혼합 push는 정상 빌드, 빈 커밋 push는 경로 판정 없이 무조건 빌드(재트리거 요령 유지). 스킵 보정 = 마커 없는 빈 커밋 push 또는 대시보드 해당 빌드 Retry.
 
 ### 리팩토링 배치 감사 — 트리거 기반·경량 (2026-07-22 배치 15 이후 · 유슨생 승인)
 
@@ -70,7 +70,7 @@ Default handoff behavior:
   - **`test:pure`(2026-07-25, 0725 경량 체크 후속)** = `test:server` 중 **DB·시크릿 무관 부분집합**(도입 시점 32/78파일)을 CI에서 돌린다 — `profiles-write-guard`·`roles-parity`·`fixture-codes` 드리프트 같은 **계약 tripwire가 이전엔 로컬 test:server를 돌려야만 검증**됐다. 선별은 **제외 registry(fail-closed)**: `src/test-utils/db-bound-tests.ts`에 등록된 파일만 빼고 전부 돈다 — **새 DB 의존 테스트는 거기 등록**해야 CI가 초록이 된다(미등록 = 조용한 공백이 아니라 시끄러운 red). 러너(`src/scripts/run-pure-tests.ts`)는 `--env-file=/dev/null`+민감 env 제거로 **로컬 실행 = CI 동형**(bun이 `.env.local`을 자동 로드해 로컬 판별이 가려지는 함정 차단 — 재판별은 `.env.local` 없는 worktree에서).
   - ⚠️ **`test:server`를 CI에 추가하지 말 것** — 공유 master DB에 실제로 붙어 픽스처 행·운영 알림·실 Gemini 9콜이 나간다(로컬 전용). 워크플로우 주석에 같은 경고를 박아뒀다.
   - ~~knip·format:check도 제외~~ **⚠️ 구 서술(정정 2026-07-23): 둘 다 이미 CI에 있다.** 도입 시점엔 선재 red라(knip 7/9 · format warn 20건) 제외했지만 **기준선을 0으로 만든 뒤 2026-07-22에 추가됐고**, 실측으로 지금도 **둘 다 0**이다(`bun run knip` · `bun run format:check` 통과). 즉 **미사용 export 하나·포맷 어긋남 하나로 PR이 빨개진다** → 로컬 검증에 포함할 것(아래 "검증 예산" 참조). 정당한 예외는 `knip.json`에 사유와 함께 등록한다.
-  - CI는 시크릿을 쓰지 않는다(`VITE_*` 더미값 2개만 — `client/src/lib/supabase.ts`가 모듈 로드 시점에 요구해서다). 실제 배포 빌드는 Cloudflare Pages가 자기 환경에서 따로 수행하므로 CI 산출물과 무관하다.
+  - CI는 시크릿을 쓰지 않는다(`VITE_*` 더미값 2개만 — `client/src/lib/supabase.ts`가 모듈 로드 시점에 요구해서다). 실제 배포 빌드는 Cloudflare(Workers Builds, 2026-07-31 Workers 전환)가 자기 환경에서 따로 수행하므로 CI 산출물과 무관하다.
 - **풀 감사를 돌릴 때 유지할 것**: 에이전트별 **worktree 격리** + 변이 **5단계 자가검증**(전 GREEN 확인 → 주입 → 재실행 → 원복 → `git status` clean). 배치 15에서 41개 에이전트 전원이 원복해 **메인 워킹트리 무손상**을 확인했다(배치 14 오염의 재발 0).
 - 판정 SSOT는 `ref/plans/YYYY-MM-DD-crm-refactor-batch-N.md`에 남긴다.
 
