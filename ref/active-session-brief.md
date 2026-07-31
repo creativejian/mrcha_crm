@@ -7,7 +7,7 @@ Last updated: 2026-07-31 (저녁)
 ## 지금 상태
 
 **main 전량 green · 브랜치 0 · prod = CF Workers 전환 + Pages 폐기까지 완결**(PR `#412`·`#413`).
-git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = `wrangler.jsonc`. unit **1272**.
+git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = `wrangler.jsonc`. unit **1276**.
 
 ## 직전 세션 요약 (07-31 밤 · 유슨생 — 타깃 렌즈 배치)
 
@@ -17,19 +17,15 @@ git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = 
 - **결과: 상 0 · 중 1 · 하 9** — 수색이 낸 중 6건 중 **5건이 적대 검증에서 하로 강등**(과장 회수).
   **#414 원형(앵커 미매칭 → 무경고 영구 hidden) 잔존 0건** — 훅 소비처 5곳(컴포넌트 7개)과
   좌표 없는 fixed 클래스 8개 전수가 모두 좌표 공급 배선.
-- **중 1건 수리·배포 완료**(`d9ee4ff`): 드로어 3카드(할일·일정·서류) 확인 팝오버가 스크롤·
-  리사이즈에 안 닫혔다 — 훅 주석이 명시한 "닫기는 호출부 책임"을 목록만 이행하고 드로어는
-  미이행. **실측: 드로어 400px 스크롤 시 행은 400px 이동, 팝오버는 0px** → "삭제하시겠습니까?"가
-  구매조건 섹션 위에 떠 대상 오인 유발(드로어가 100vh/auto라 항목 1건에서도 발현).
-  공용 훅 `use-popover-viewport-close.ts`로 목록·드로어 **한 벌**화 + 회귀 5케이스(변이 자가검증
-  통과) + **prod 실기 확인 완주**.
-- **하 등급 후속 5건도 수리·머지 완료**(PR `#415` — 유슨생 지시). ①계산기 "조회 완료" 오표시
-  (`isVehicleReady` 가드) ②견적 CREATE 발송 실패 미원복(UPDATE 분기와 대칭 롤백) ③견적 temp id
-  무음 스킵 6함수(`blockedWhileQuoteSaving` 조기 반환 + 회귀 4케이스·변이 검증) ④메모 삭제
-  팝오버 `ConfirmPopover` 이주(형제 3카드와 동일 계약) ⑤`heightDep` Boolean→문자열.
-  도달 불가 저장 핸들러 2건엔 경고 주석. unit **1276** · CI 8단계 · **prod 실기 완주**.
-  남긴 것 = `.va-disc-pop`(실기에 딜러 제안 실데이터 필요·오늘 피해 0) · 죽은 modifier 4종
-  (제거/CSS복구 중 원 의도 불명 — 지우면 정보만 잃는다).
+- **중 1건 수리·배포**(`d9ee4ff`): 드로어 3카드(할일·일정·서류) 확인 팝오버가 스크롤·리사이즈에
+  안 닫혔다(계약 "닫기는 호출부 책임"을 목록만 이행). **실측 400px 스크롤 시 행 400px·팝오버 0px**
+  → "삭제하시겠습니까?"가 구매조건 섹션 위에 떠 대상 오인(드로어 100vh/auto라 항목 1건도 발현).
+  공용 훅 `use-popover-viewport-close.ts`로 목록·드로어 한 벌화 + 회귀 5케이스.
+- **하 등급 후속 5건도 수리·머지**(PR `#415`): ①계산기 "조회 완료" 오표시(`isVehicleReady` 가드)
+  ②견적 CREATE 발송 실패 미원복(UPDATE와 대칭 롤백) ③견적 temp id 무음 스킵 6함수
+  (`blockedWhileQuoteSaving` + 회귀 4케이스) ④메모 삭제 팝오버 `ConfirmPopover` 이주
+  ⑤`heightDep` Boolean→문자열. 도달 불가 저장 핸들러 2건엔 경고 주석. 두 PR 다 **변이 자가검증 +
+  prod 실기 완주**.
 - ⚠️ **main 직행 사고**: 첫 커밋에서 feature 브랜치로 커밋했는데 push가 main까지 밀었다(병렬
   세션 공유 워킹트리 + jj bookmark). 이후 push는 **SHA 고정 refspec**으로 바꿔 재발 0(`#415`는
   브랜치에만 착지 확인). 재발 방지 = 메모리 `parallel-session-shared-worktree-git-race`.
