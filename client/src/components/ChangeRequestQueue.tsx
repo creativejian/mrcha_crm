@@ -207,21 +207,24 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
                     />
                     <button
                       type="button"
+                      className="badge red"
                       onClick={() => void confirmReject(row)}
                       disabled={state.busy || !state.reason.trim()}
                     >
                       확인
                     </button>
-                    <button type="button" onClick={() => cancelReject(row.id)} disabled={state.busy}>
+                    <button type="button" className="badge" onClick={() => cancelReject(row.id)} disabled={state.busy}>
                       취소
                     </button>
                   </div>
                 ) : (
+                  // 액션은 고객 목록 칩(.badge — customer-list.css 1벌 룰)을 그대로 입는다(2026-07-31
+                  // 유슨생) — 무클래스 버튼이 평문처럼 읽혀 행 액션으로 안 보였다. 버튼 선례 = MyProposalTrims.
                   <div className="va-cr-actions">
-                    <button type="button" onClick={() => void handleApprove(row)} disabled={busy}>
+                    <button type="button" className="badge green" onClick={() => void handleApprove(row)} disabled={busy}>
                       승인
                     </button>
-                    <button type="button" onClick={() => startReject(row.id)} disabled={busy}>
+                    <button type="button" className="badge red" onClick={() => startReject(row.id)} disabled={busy}>
                       반려
                     </button>
                   </div>
