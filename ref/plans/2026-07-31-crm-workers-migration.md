@@ -13,7 +13,7 @@
 | ③ workers.dev 전체 스모크 | ✅ 2026-07-31 | 아래 스모크 결과 |
 | ④ crm.mrcha.app 스위치 | ✅ 2026-07-31 | **zone route 방식**(아래) — 롤백 = Pages 도메인 재부착 |
 | ⑤ Workers Builds + watch paths | ✅ 2026-07-31 저녁 | 유슨생 대시보드 설정 + 첫 자동 빌드 success·배포 `c633d7a6` 실측 |
-| ⑥ Pages 폐기 정리 | ⏸ 며칠 안정 확인 후 | 아래 "전환 후 정리 목록" |
+| ⑥ Pages 폐기 정리 | ✅ 2026-07-31 저녁 | 같은 날 완결(유슨생 "지금 폐기" 지시 — SEND_PUSH_SECRET 프로브 실증으로 앞당김). PR `#413` + 프로젝트 삭제 |
 
 ## 구성 (커밋된 파일)
 
@@ -117,9 +117,17 @@ zone route 0, CNAME 0. Pages 프로젝트·pages.dev 배포는 유지(⑥에서 
 함정: 연결 다이얼로그가 "내부 오류" 토스트를 띄워도 **실제로는 저장됐을 수 있다** — 재제출하면
 "A trigger already exists". 설정 페이지 새로고침으로 실상태 확인이 정답.
 
-## ⑥ 전환 후 정리 목록 (Pages 폐기 시)
-- `wrangler.worker.jsonc` → `wrangler.jsonc`로 승격(파일 교체), `functions/[[path]].ts` 삭제,
-  `src/app.test.ts`의 onRequest 테스트 제거, `knip.json` entry 정리
-- `client/public/_redirects` 삭제 + `deploy:worker`의 `rm` 단계 제거
-- Pages 프로젝트 삭제(또는 보관), 문서 갱신(AGENTS.md·CLAUDE.md의 CF Pages 서술 → Workers)
-- 프리뷰 보호(Access)·rate limiting 등 CF 잔여 권고는 브리프 참조
+## ⑥ 전환 후 정리 — ✅ 완료 (2026-07-31 저녁, PR `#413` squash `b7a16de`)
+
+- ✅ `wrangler.worker.jsonc` → `wrangler.jsonc` 승격(bare wrangler 커맨드 자연 동작 — tail `-c`
+  필수 함정 소멸), `functions/[[path]].ts`·`client/public/_redirects` 삭제, `deploy:worker` rm
+  단계 제거, app.test.ts는 Workers 엔트리 동일성 잠금(`export default app === app`)으로 교체.
+- ✅ **머지 전 대시보드 선행**: Workers Builds 배포 명령 `-c` 제거(유슨생) → 머지 빌드 success ·
+  배포 `ba250b10` · `/quotes` 딥링크 200(`_redirects` 없이 SPA 폴백 검증).
+- ✅ **Pages 프로젝트 삭제**: 배포 1,273개를 API 루프로 선삭제해야 했다(프로젝트 DELETE가
+  8000076 "too many deployments"로 거부 — 라이브 배포 1개는 남아도 삭제 통과). 앱
+  `mr-cha-app` 프로젝트는 불가침 확인. ⚠️ 함정 2: ①이 삭제 루프를 zsh에서 돌리면
+  `for id in $ids`가 워드 분리를 안 해 전량 000 실패한다(bash 스크립트로 실행할 것)
+  ②`functions/` 삭제는 `profiles-write-guard.test.ts`의 `SCAN_ROOTS`를 던지게 했다(존재하지
+  않는 루트 = Glob.scan throw — CI test:pure가 잡음, 로컬 test:pure를 건너뛴 실수).
+- 잔여 CF 권고(rate limiting·AI Gateway 실측·프리뷰 재평가)는 브리프 참조.

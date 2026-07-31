@@ -6,8 +6,9 @@ Last updated: 2026-07-31 (저녁)
 
 ## 지금 상태
 
-**main 전량 green · 브랜치 0 · prod = CF Workers 전환 완료**(PR `#412` squash `cf44904`).
-git push → **Workers Builds 자동 빌드·배포** 가동(첫 빌드 success·배포 `c633d7a6` 실측). unit 1267.
+**main 전량 green · 브랜치 0 · prod = CF Workers 전환 + Pages 폐기까지 완결**(PR `#412`·`#413`).
+git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = `wrangler.jsonc`(승격 —
+bare 커맨드 자연 동작). Pages 프로젝트 삭제 완료(앱 `mr-cha-app` 불가침). unit 1267.
 
 ## 직전 세션 요약 (07-31 오후~저녁 · 유슨생 — Workers 마이그레이션 완결)
 
@@ -21,15 +22,14 @@ git push → **Workers Builds 자동 빌드·배포** 가동(첫 빌드 success�
   빌드 후 rm ②Custom Domain은 기존 CNAME이 있으면 100117 거부 + wrangler 토큰에 DNS 스코프
   없음 ③Pages 커스텀 도메인 > zone route 우선 ④`wrangler tail`은 `-c wrangler.worker.jsonc`
   필수 ⑤대시보드 "내부 오류" 토스트≠실패("trigger already exists"=사실 저장됨).
-- 스위치 첫 시도 순서 실수로 **522 약 1분 1회**(즉시 복구), 이후 무중단. 수동 `deploy:worker`
-  규칙은 Workers Builds 가동으로 **해제**(과도기 종료).
+- 스위치 첫 시도 순서 실수로 **522 약 1분 1회**(즉시 복구), 이후 무중단. **Pages 폐기까지 같은 날
+  완결**(`#413` — SEND_PUSH_SECRET 인증 프로브 실증으로 앞당김·배포 1,273개 루프 삭제·프로젝트
+  삭제). 남은 미실증 = 서류 업로드(쓰기) 1건 — 다음 실사용이 곧 확인.
 
 ## ▶ 다음
 
-- **Pages 폐기**(며칠 안정 확인 후 · 절차 = plans ⑤): wrangler.worker.jsonc→wrangler.jsonc 승격
-  ·`functions/` 삭제·`_redirects` 삭제·app.test.ts onRequest 정리·Pages 프로젝트 삭제·문서 갱신.
 - CF 잔여 권고(07-31 조사): rate limiting `/api/assistant*` · AI Gateway(서울 핀 충돌 실측 선행).
-  프리뷰 Access 보호는 Workers 전환+브랜치 빌드 off로 표면 자체가 축소됨 — 재평가.
+  프리뷰 Access 보호는 Workers 전환+브랜치 빌드 off로 표면 자체가 소멸 — 사실상 종결.
 - 잔여 실기 확인(오전분 유지): ① `#410` 레이아웃(admin·팀장·딜러 전폭) ② 팀장 폼 할인 섹션
   부재+admin 폼 유지 ③ 교차 세션 실시간 ④ PR `#404` 체크리스트 잔여.
 
