@@ -23,9 +23,16 @@ git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = 
   구매조건 섹션 위에 떠 대상 오인 유발(드로어가 100vh/auto라 항목 1건에서도 발현).
   공용 훅 `use-popover-viewport-close.ts`로 목록·드로어 **한 벌**화 + 회귀 5케이스(변이 자가검증
   통과) + **prod 실기 확인 완주**.
-- ⚠️ **main 직행 사고**: feature 브랜치로 커밋했는데 push가 main까지 밀었다(병렬 세션 공유
-  워킹트리 + jj bookmark). 커밋 자체는 검증 5종 그린이라 유지, 브랜치는 정리. 재발 방지 =
-  메모리 `parallel-session-shared-worktree-git-race`.
+- **하 등급 후속 5건도 수리·머지 완료**(PR `#415` — 유슨생 지시). ①계산기 "조회 완료" 오표시
+  (`isVehicleReady` 가드) ②견적 CREATE 발송 실패 미원복(UPDATE 분기와 대칭 롤백) ③견적 temp id
+  무음 스킵 6함수(`blockedWhileQuoteSaving` 조기 반환 + 회귀 4케이스·변이 검증) ④메모 삭제
+  팝오버 `ConfirmPopover` 이주(형제 3카드와 동일 계약) ⑤`heightDep` Boolean→문자열.
+  도달 불가 저장 핸들러 2건엔 경고 주석. unit **1276** · CI 8단계 · **prod 실기 완주**.
+  남긴 것 = `.va-disc-pop`(실기에 딜러 제안 실데이터 필요·오늘 피해 0) · 죽은 modifier 4종
+  (제거/CSS복구 중 원 의도 불명 — 지우면 정보만 잃는다).
+- ⚠️ **main 직행 사고**: 첫 커밋에서 feature 브랜치로 커밋했는데 push가 main까지 밀었다(병렬
+  세션 공유 워킹트리 + jj bookmark). 이후 push는 **SHA 고정 refspec**으로 바꿔 재발 0(`#415`는
+  브랜치에만 착지 확인). 재발 방지 = 메모리 `parallel-session-shared-worktree-git-race`.
 
 ## ▶ 다음
 
@@ -33,12 +40,11 @@ git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = 
   계획 공유문서 = `~/Downloads/2026-07-31-제프-CF-Workers-이전-계획.md`(8단계 절차·담당 포함).
   근거: Workers Custom Domain은 zone 동일 계정 필수 → 제프 계정 잔류 시 mc.mrcha.app 불가.
   이사님 결정 대기 = 제프 계정 접근 범위(멤버 권한이 거침). 레시피 = CRM plans 문서 그대로.
-- ~~타깃 렌즈 배치~~ **완료(07-31 밤)** → 위 요약. **보류 하 9건**은 판정 문서에 근거까지 박제.
-  착수 가치 상위 3건(전부 한 줄~소규모): ①계산기 "조회 완료" 오표시(payload null인데 스냅샷
-  선커밋 — 더티 경고가 거짓 완료로 뒤집힘, fail-silent 계급 일치) ②견적 CREATE 분기 발송 실패
-  미원복(같은 함수 UPDATE 분기는 롤백 — 비대칭) ③견적 temp id 무음 스킵 6함수(가드 밖 성공
-  토스트. 서류 훅엔 같은 레이스 보상이 이미 있음). ②③ 공통 뿌리 = `useQuoteList.quotes`가
-  `detail.quotes`와 재동기화되지 않는 구조.
+- ~~타깃 렌즈 배치~~ **완료(07-31 밤 · 후속 수리까지 종결)** → 위 요약. 판정·잔여 근거는
+  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`. **잔여 2건은 승격 조건 대기**:
+  `.va-disc-pop`(제안이 쌓여 긴 모델 아래쪽 행에 걸리면 중 — 그때 `popoverPosFromRect` + fixed
+  한 벌) · 죽은 상태 modifier 4종. 구조 개선 후보 = `useQuoteList.quotes`가 `detail.quotes`와
+  재동기화되지 않는 것(개별 롤백·보상보다 근본 지점 — 다만 낙관 갱신 덮어쓰기 설계가 선행 필요).
 
 - ~~CF 잔여 권고~~ **전부 종결(07-31 저녁)**: rate limiting 가동(`assistant-ask-rate-limit` —
   IP당 5회/10초, 실측 429. ⚠️Free라 경로 eq만 가능) · AI Gateway 보류 · 프리뷰 Access 종결.
