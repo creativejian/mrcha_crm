@@ -949,8 +949,10 @@
 .org-dealer-trims-pop {
   position: fixed;
   z-index: 70;
-  /* 목록이 길면 안에서 스크롤 — max-height는 여는 순간 화면 남은 높이로 인라인 지정된다. */
+  /* 목록이 길면 안에서 스크롤 — max-height는 여는 순간 화면 남은 높이로 인라인 지정된다.
+     경계 체이닝 차단(overscroll)은 va-cr-pop과 같은 이유(2026-07-31). */
   overflow-y: auto;
+  overscroll-behavior: contain;
   /* 내용만큼 자란다 — 고정 상한은 3금액 행에서 트림명을 눌렀다(실기: 5 Series · 5…).
      상한(720px/화면 폭)에 닿을 때만 이름 열(그리드 1fr)이 말줄임된다. */
   width: max-content;
