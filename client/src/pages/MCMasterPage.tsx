@@ -696,6 +696,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
           error={panelError}
           notice={trimPendingPatch ? PENDING_PREFILL_NOTICE : null}
           submitLabel={canPropose ? "승인 요청" : "저장"}
+          showDiscounts={canEdit}
           onClose={() => setTrimPanel(null)}
           onSubmit={submitTrim}
         />

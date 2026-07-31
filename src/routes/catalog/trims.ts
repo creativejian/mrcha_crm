@@ -15,6 +15,9 @@ import { submitChangeRequest } from "./change-request-kinds";
 import { trimCreateBody, trimUpdateBody } from "./schemas";
 import { type CatalogApp, id, run } from "./shared";
 
+// 확정 할인 3필드 키 — 팀장 제안 payload에서 제거하는 축(아래 stripDiscountProposal 주석 참조).
+const DISCOUNT_KEYS = ["financialDiscountAmount", "partnerDiscountAmount", "cashDiscountAmount"] as const;
+
 // /api/catalog/trims* — 트림 CRUD/순서/모델 이동.
 //
 // ⚠️ 큐 8종은 역할로 결말이 갈린다 — admin 즉시 실행 / manager 202 적재(spec §6.1).
@@ -52,9 +55,20 @@ export function registerTrimRoutes(catalog: CatalogApp) {
     return c.json(visible.map((t) => ({ ...t, price: Number(t.price) })));
   });
 
+  // 할인 3필드는 딜러 제안→관리자 채택 체계 소유(spec §3.1 정정 2026-07-31) — 팀장 제안에서
+  // 서버가 제거한다(UI 숨김만으로는 API 직접 호출이 뚫린다 — 게이트 fail-closed 관례).
+  // 부수 효과 둘: ①폼 오픈 시점 구 할인값이 payload에 실려 승인 replay가 그 사이 채택된 딜러
+  // 할인을 되돌리는 사고 차단 ②snapshot에 할인 키가 안 실려 채택이 팀장 요청의 드리프트
+  // 409를 유발하는 간섭 차단. admin 직접 실행은 계속 포함(채택 외 수동 조정 경로).
+  function stripDiscountProposal<T extends Partial<Record<(typeof DISCOUNT_KEYS)[number], unknown>>>(body: T): T {
+    const proposal = { ...body };
+    for (const key of DISCOUNT_KEYS) delete proposal[key];
+    return proposal;
+  }
+
   catalog.post("/trims", requireRoles(["admin", "manager"]), zValidator("json", trimCreateBody), async (c) => {
     const body = c.req.valid("json");
-    if (c.var.user.role === "manager") return submitChangeRequest(c, "trim.create", null, body);
+    if (c.var.user.role === "manager") return submitChangeRequest(c, "trim.create", null, stripDiscountProposal(body));
     return run(c, () => createTrim(body, c.var.db));
   });
 
@@ -69,7 +83,7 @@ export function registerTrimRoutes(catalog: CatalogApp) {
     async (c) => {
       const trimId = c.req.valid("param").id;
       const patch = c.req.valid("json");
-      if (c.var.user.role === "manager") return submitChangeRequest(c, "trim.update", trimId, patch);
+      if (c.var.user.role === "manager") return submitChangeRequest(c, "trim.update", trimId, stripDiscountProposal(patch));
       const adoptedBy = c.var.user.id;
       return run(
         c,

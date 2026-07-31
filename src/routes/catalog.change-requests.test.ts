@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, ne } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
@@ -221,6 +221,35 @@ test("manager 202 순회: 라우트→kind 배선이 표와 일치한다(생성 
     expect(`${rc.kind}/${row!.kind}`).toBe(`${rc.kind}/${rc.kind}`);
     expect(row!.targetType).toBe(rc.targetType);
   }
+});
+
+// 할인 3필드는 딜러 제안→관리자 채택 체계 소유(spec §3.1 정정 2026-07-31) — 팀장 제안
+// payload에서 서버가 제거하고, 그 결과 snapshot에도 안 실려 채택이 드리프트 409를 유발하지
+// 않는다(폼 오픈 시점 구 할인값이 채택값을 되돌리는 사고 차단).
+test("manager trim.update 202: 할인 3필드는 payload·snapshot에서 제거된다", async () => {
+  const c = await makeClient("manager");
+  // ⚠️ optionedTrimId를 쓰면 순회 테스트가 남긴 pending과 충돌한다 — makeClient는 호출마다
+  // 다른 유저라 "타인 pending" 409가 난다. pending 없는 다른 트림으로 순서 의존 없이 간다.
+  const [other] = await db
+    .select({ id: trimsInCatalog.id, modelYear: trimsInCatalog.modelYear })
+    .from(trimsInCatalog)
+    .where(ne(trimsInCatalog.id, optionedTrimId))
+    .limit(1);
+  const res = await c.request("PATCH", `/api/catalog/trims/${other!.id}`, {
+    modelYear: other!.modelYear ?? 2020,
+    financialDiscountAmount: 123456,
+    partnerDiscountAmount: 234567,
+    cashDiscountAmount: 345678,
+  });
+  expect(res.status).toBe(202);
+  const { requestId } = (await res.json()) as { requestId: string };
+  createdIds.push(requestId);
+  const [row] = await db
+    .select({ payload: catalogChangeRequests.payload, snapshot: catalogChangeRequests.snapshot })
+    .from(catalogChangeRequests)
+    .where(eq(catalogChangeRequests.id, requestId));
+  expect(Object.keys(row!.payload)).toEqual(["modelYear"]);
+  expect(Object.keys(row!.snapshot ?? {})).toEqual(["modelYear"]);
 });
 
 test("대기열 조회: admin 200 · manager(mine 없이) 403 · staff 403 · dealer 403", async () => {
