@@ -42,7 +42,18 @@ export async function listMyTrimDiscounts(
 
 // 제안 저장. UNIQUE(trim_id, dealer_user_id) 충돌을 UPDATE로 흡수해 신규/변경이 한 경로다.
 // updated_at은 인라인 sql`now()` — 앱 시계로 찍으면 스탬프가 과거로 되돌아간다(#334·#335).
-export async function upsertDealerTrimDiscount(
+//
+// **세 금액이 모두 비면 행을 지운다**(2026-07-31 유슨생: "입력했다 삭제하면 기록에도 없어야 한다").
+// 빈 값 = 그 필드는 미제안이므로, 셋 다 비면 그 행이 주장하는 사실이 하나도 없다. 남겨두면
+// 딜러 명부 "보기(N)"·내 입력 트림 목록에 **아무 금액도 없는 유령 행**으로 뜬다(실기 발견).
+// 표시 쪽에서 거르지 않고 여기서 지우는 이유: 카운트(dealer-profiles.ts의 proposal_count
+// 서브쿼리)와 목록(listDealerProposalTrims)이 서로 다른 쿼리라, 읽기에서 거르면 두 곳을 늘 같이
+// 고쳐야 하고 한쪽만 바뀌면 "보기(4)인데 3건"이 된다. 관리자 할인 셀도 이미 필드별로 따로
+// 거르고 있어서, 원천에서 지우는 편이 규칙이 한 곳에 남는다.
+// ⚠️채택 이력은 안 끊긴다 — crm.catalog_discount_adoptions가 별도 테이블이라 이 행이 사라져도
+// "누가·언제·어느 딜러 값을" 감사가 남는다. 재입력도 UNIQUE upsert라 그냥 새로 만들어진다.
+// 반환 null = **삭제됨**(신규/변경은 row) — 호출부는 이 둘을 구분해서 화면을 갱신해야 한다.
+export async function saveDealerTrimDiscount(
   input: {
     trimId: number;
     dealerUserId: string;
@@ -52,6 +63,17 @@ export async function upsertDealerTrimDiscount(
   },
   executor: Executor = getDefaultDb(),
 ) {
+  if (input.financialAmount === null && input.partnerAmount === null && input.cashAmount === null) {
+    await executor
+      .delete(dealerTrimDiscounts)
+      .where(
+        and(
+          eq(dealerTrimDiscounts.trimId, input.trimId),
+          eq(dealerTrimDiscounts.dealerUserId, input.dealerUserId),
+        ),
+      );
+    return null;
+  }
   const [row] = await executor
     .insert(dealerTrimDiscounts)
     .values(input)
