@@ -24,8 +24,13 @@ git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = 
 - **하 등급 후속 5건도 수리·머지**(PR `#415`): ①계산기 "조회 완료" 오표시(`isVehicleReady` 가드)
   ②견적 CREATE 발송 실패 미원복(UPDATE와 대칭 롤백) ③견적 temp id 무음 스킵 6함수
   (`blockedWhileQuoteSaving` + 회귀 4케이스) ④메모 삭제 팝오버 `ConfirmPopover` 이주
-  ⑤`heightDep` Boolean→문자열. 도달 불가 저장 핸들러 2건엔 경고 주석. 두 PR 다 **변이 자가검증 +
-  prod 실기 완주**.
+  ⑤`heightDep` Boolean→문자열. 도달 불가 저장 핸들러 2건엔 경고 주석.
+- **`.va-disc-pop`(MC 마스터 할인 채택)은 하→중 승격 후 수리**(PR `#416`): 유슨생이 딜러 계정으로
+  5 Series 마지막 트림(550e)에 제안을 넣자 prod에서 즉시 재현 — **가시 0px·[채택] y=872로
+  뷰포트 800 초과라 클릭 자체 불가**("오늘 피해 0"이던 근거는 제안 1건이 첫 행이었기 때문).
+  `useFixedPopoverPosition`(앵커 `.va-disc-cell`·align end)로 fixed 전환 + `max-height:60vh` +
+  뷰포트 시프트 닫기. **flip-up이 필수라 `popoverPosFromRect`(아래로만 열림)를 쓰지 않았다.**
+  실측: 첫 행 아래로·마지막 행 위로·둘 다 [채택] 히트테스트 통과.
 - ⚠️ **main 직행 사고**: 첫 커밋에서 feature 브랜치로 커밋했는데 push가 main까지 밀었다(병렬
   세션 공유 워킹트리 + jj bookmark). 이후 push는 **SHA 고정 refspec**으로 바꿔 재발 0(`#415`는
   브랜치에만 착지 확인). 재발 방지 = 메모리 `parallel-session-shared-worktree-git-race`.
@@ -36,10 +41,11 @@ git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = 
   계획 공유문서 = `~/Downloads/2026-07-31-제프-CF-Workers-이전-계획.md`(8단계 절차·담당 포함).
   근거: Workers Custom Domain은 zone 동일 계정 필수 → 제프 계정 잔류 시 mc.mrcha.app 불가.
   이사님 결정 대기 = 제프 계정 접근 범위(멤버 권한이 거침). 레시피 = CRM plans 문서 그대로.
-- ~~타깃 렌즈 배치~~ **완료(07-31 밤 · 후속 수리까지 종결)** → 위 요약. 판정·잔여 근거는
-  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`. **잔여 2건 = 승격 조건 대기**(`.va-disc-pop`
-  — 제안이 쌓여 긴 모델 아래쪽 행에 걸리면 중 · 죽은 상태 modifier 4종). 구조 개선 후보 =
-  `useQuoteList.quotes`가 `detail.quotes`와 재동기화되지 않는 것(개별 롤백보다 근본 지점).
+- ~~타깃 렌즈 배치~~ **완료(07-31 밤 · 후속 3PR까지 종결)** → 위 요약. 근거 =
+  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`. **잔여 = 죽은 상태 modifier 4종**(no-op 확인·
+  제거/CSS복구 중 원 의도 불명). 구조 개선 후보 = `useQuoteList.quotes`가 `detail.quotes`와
+  재동기화되지 않는 것(개별 롤백보다 근본 지점). ⚠️`#416` **prod 실기는 유슨생이 직접 확인 예정** ·
+  검증용 딜러 제안(550e 자사200/제휴220/타사240만, 채택 전이라 확정 할인 무영향) 정리 여부도 판단 대기.
 - ~~CF 잔여 권고~~ **전부 종결(07-31 저녁)**: rate limiting 가동(IP당 5회/10초·실측 429) ·
   AI Gateway 보류 · 프리뷰 Access 종결.
 - 잔여 실기 확인(오전분 유지): ①`#410` 레이아웃(admin·팀장·딜러) ②팀장 폼 할인 섹션 부재
