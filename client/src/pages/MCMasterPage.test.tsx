@@ -10,10 +10,22 @@ import { resetStaffDirectoryCache } from "@/lib/staff";
 import { invalidateCatalogAfterApproval } from "./mc-master/catalog-cache";
 import { mcMasterViewState } from "./mc-master/view-state";
 
-// apiFetch(../lib/api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
-vi.mock("@/lib/supabase", () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
-}));
+// apiFetch(../lib/api)가 supabase.auth.getSession()을 호출하고, 큐 훅들이 실시간 신호 채널
+// (catalog-change-realtime)을 열므로 auth + channel 둘 다 스텁한다(채널은 체이닝만 흉내).
+vi.mock("@/lib/supabase", () => {
+  const channelStub = {
+    on: () => channelStub,
+    subscribe: () => channelStub,
+    send: async () => "ok",
+  };
+  return {
+    supabase: {
+      auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+      channel: () => channelStub,
+      removeChannel: async () => "ok",
+    },
+  };
+});
 
 // MCMasterPage가 프리필의 "내 요청" 판별에 useAuth().userId를 쓴다 — Provider 없이 렌더하므로
 // 목업(값은 아래 STAFF_ID와 동일 리터럴 — vi.mock 호이스팅 때문에 상수를 참조할 수 없다).

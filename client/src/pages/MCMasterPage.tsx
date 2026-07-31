@@ -507,22 +507,29 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 </span>
               )}
             </div>
-            {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
-            {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
-            {canPropose && <MyChangeRequestsButton />}
-            {editActions(
-              () => {
-                setPanelError(null);
-                setTrimPanel({ mode: "add" });
-              },
-              "트림 추가",
-              !groupedView,
-              canEdit && trims.some((t) => !t.mcCode) ? (
-                <button type="button" className="btn" onClick={assignCodes} disabled={busy}>
-                  <Hash size={15} /> 고유번호 할당
-                </button>
-              ) : null,
-              () => setMoveOpen(true),
+            {/* 도구 묶음(va-head-tools) — panel-head가 space-between이라 낱개로 두면 제목 폭
+                (모델명·브랜드명)에 따라 버튼 위치가 뷰마다 흘러 다닌다(2026-07-31 유슨생) —
+                묶어서 오른쪽 끝에 고정한다. 모델 목록 분기와 같은 구성. */}
+            {canWrite && (
+              <div className="va-head-tools">
+                {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
+                {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
+                {canPropose && <MyChangeRequestsButton />}
+                {editActions(
+                  () => {
+                    setPanelError(null);
+                    setTrimPanel({ mode: "add" });
+                  },
+                  "트림 추가",
+                  !groupedView,
+                  canEdit && trims.some((t) => !t.mcCode) ? (
+                    <button type="button" className="btn" onClick={assignCodes} disabled={busy}>
+                      <Hash size={15} /> 고유번호 할당
+                    </button>
+                  ) : null,
+                  () => setMoveOpen(true),
+                )}
+              </div>
             )}
           </>
         ) : (
@@ -535,14 +542,19 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 한눈에 보고, 행 클릭으로 그 트림에 착지한다. 브랜드 미지정 딜러는 제안 자체가
                 불가능하니(쓰기 403) 프로필이 있을 때만 낸다. */}
             {dealerMode && dealerMeLoaded && dealerMe != null && <MyProposalTrimsButton />}
-            {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
-            {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
-            {canPropose && <MyChangeRequestsButton />}
-            {brandId != null &&
-              editActions(() => {
-                setPanelError(null);
-                setModelPanel({ mode: "add" });
-              }, "모델 추가")}
+            {/* 도구 묶음 — 트림 뷰 분기와 같은 구성·같은 오른쪽 고정(위 주석 참조). */}
+            {canWrite && (
+              <div className="va-head-tools">
+                {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
+                {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
+                {canPropose && <MyChangeRequestsButton />}
+                {brandId != null &&
+                  editActions(() => {
+                    setPanelError(null);
+                    setModelPanel({ mode: "add" });
+                  }, "모델 추가")}
+              </div>
+            )}
           </>
         )}
       </div>

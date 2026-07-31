@@ -4,6 +4,7 @@ import { mcMasterPath } from "@/pages/mc-master/mc-master-route";
 
 import { onCatalogWriteQueued } from "./catalog";
 import { CHANGE_FIELD_LABELS, OPTION_TYPE_VALUE_LABELS, type ChangeRequestKind } from "./catalog-change-kinds";
+import { broadcastCatalogQueueChanged, onCatalogQueueRemoteChanged } from "./catalog-change-realtime";
 import { getJson, sendJson } from "./http";
 
 // MC 마스터 변경 승인 대기열 — admin 대기열 팝오버(ChangeRequestQueue) + manager 행 배지·내 요청
@@ -87,17 +88,23 @@ export function useChangeRequestQueue(enabled: boolean): {
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
+  // 다른 세션(팀장 적재/취소)의 변동을 리로딩 없이 반영한다(broadcast — catalog-change-realtime).
+  useEffect(() => (enabled ? onCatalogQueueRemoteChanged(() => setTick((t) => t + 1)) : undefined), [enabled]);
+
   // 성공 시에만 재조회 — 실패(409 드리프트 등)는 throw로 올라가 호출한 팝오버가 행별로 표시한다.
+  // broadcast는 상대 세션(팀장 배지·내 요청) 몫 — 내 화면은 tick·notify가 즉시 갱신한다.
   const approve = useCallback(async (id: string) => {
     await sendJson(`/api/catalog/change-requests/${id}/approve`, "POST");
     setTick((t) => t + 1);
     notifyQueueUpdated();
+    broadcastCatalogQueueChanged();
   }, []);
 
   const reject = useCallback(async (id: string, reason: string) => {
     await sendJson(`/api/catalog/change-requests/${id}/reject`, "POST", { reason });
     setTick((t) => t + 1);
     notifyQueueUpdated(); // 반려도 pending 카운트가 줄어드므로 승인과 동일하게 알린다.
+    broadcastCatalogQueueChanged();
   }, []);
 
   return { rows, failed, reload, approve, reject };
@@ -174,8 +181,10 @@ export function useModelPendingRequests(modelId: number | null, enabled: boolean
   }, [enabled, modelId, tick]);
   useEffect(() => onCatalogWriteQueued(() => setTick((t) => t + 1)), []);
   useEffect(() => onChangeRequestQueueUpdated(() => setTick((t) => t + 1)), []);
-  // 타 세션(다른 팀장·admin)의 적재/처리는 이 탭에 이벤트가 오지 않는다 — 탭 복귀 시점에
-  // 재검증한다(사이드바 배지의 focus 재조회 선례). 상시 interval은 두지 않는다: 최종 방어는
+  // 타 세션의 변동은 broadcast 신호로 즉시 따라온다(catalog-change-realtime — 2026-07-31).
+  useEffect(() => (enabled ? onCatalogQueueRemoteChanged(() => setTick((t) => t + 1)) : undefined), [enabled]);
+  // broadcast가 못 닿는 구간(채널 미가입 사이·전송 유실)의 그물 — 탭 복귀 시점에 재검증한다
+  // (사이드바 배지의 focus 재조회 선례). 상시 interval은 두지 않는다: 최종 방어는
   // 서버 부분 UNIQUE고, 배지는 예방선이라 탭 복귀 신선도면 충분하다.
   useEffect(() => {
     if (!enabled) return;
@@ -216,14 +225,17 @@ export function useMyChangeRequests(enabled: boolean): {
     };
   }, [enabled, tick]);
   useEffect(() => onCatalogWriteQueued(() => setTick((t) => t + 1)), []);
-  // onChangeRequestQueueUpdated는 구독하지 않는다 — 승인/반려는 admin 세션(다른 사용자·다른
-  // 브라우저)에서 일어나는 이벤트라 이 훅이 들을 수 없고(모듈 pub/sub은 탭 내부 한정), 내 취소는
-  // cancel이 직접 tick을 올리므로 별도 구독이 필요 없다.
+  // onChangeRequestQueueUpdated는 구독하지 않는다 — 같은 탭의 승인/반려는 admin 화면 이벤트라
+  // 이 훅과 세션이 겹치지 않고, 내 취소는 cancel이 직접 tick을 올린다. **타 세션의** 승인/반려는
+  // 아래 broadcast 신호가 실어 나른다(catalog-change-realtime — 2026-07-31): 관리자가 처리하면
+  // 팀장 팝오버의 상태 칩이 리로딩 없이 뒤집힌다.
+  useEffect(() => (enabled ? onCatalogQueueRemoteChanged(() => setTick((t) => t + 1)) : undefined), [enabled]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const cancel = useCallback(async (id: string) => {
     await sendJson(`/api/catalog/change-requests/${id}`, "DELETE");
     setTick((t) => t + 1);
     notifyQueueUpdated();
+    broadcastCatalogQueueChanged(); // 관리자 대기열에서 그 행이 리로딩 없이 빠지게.
   }, []);
   return { rows, failed, reload, cancel };
 }
