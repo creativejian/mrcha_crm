@@ -731,12 +731,20 @@
 .customer-table tr:has(.va-disc-pop) {
   z-index: 120;
 }
+/* fixed + JS 좌표(useFixedPopoverPosition, 앵커 `.va-disc-cell`·align end = 구 right:0 정렬).
+   absolute였을 때는 표(`.table-scroll`, 양축 overflow) 하단 행에서 화면 밖에 그려졌다 —
+   2026-07-31 prod 실측: 표를 끝까지 내린 뒤 마지막 트림(550e) 셀을 누르면 **가시 0px**,
+   [채택] 버튼 y=872로 스크롤러 하단 777·뷰포트 800을 모두 넘어 elementFromPoint가 잡지 못했다
+   (= "눌러도 아무 일 없음"). 형제 `.va-cr-pop`·`.org-dealer-trims-pop`이 같은 이유로 fixed다.
+   ⚠️좌표는 JS가 인라인으로 준다 — 이 클래스를 raw div로 렌더하면 좌표 없는 fixed가 되어 화면
+   밖에 그려진다(#414 사고). max-height는 제안이 쌓여도 뷰포트를 넘지 않게 하는 상한이자,
+   훅이 **이 높이를 읽어 위/아래 방향을 정하는** 입력이기도 하다. */
 .va-disc-pop {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
+  position: fixed;
   z-index: 70;
   width: 340px;
+  max-height: 60vh;
+  overflow-y: auto;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;

@@ -59,8 +59,25 @@
 | 4 메모 삭제 팝오버 absolute | `ConfirmPopover`(`.kim-customer-memo-row`)로 이주 + fixed CSS + 뷰포트 시프트 닫기 배선 | 실기 3행 계측 |
 | 6 `heightDep={Boolean(notice)}` | `notice` 문자열 자체를 전달(메시지→메시지 전환 포착) | — |
 
+### 5 `.va-disc-pop` — **하 → 중 승격 후 수리 완료**(같은 날 밤, 유슨생이 실데이터 투입)
+
+원 판정은 "오늘 피해 0(제안 1건이 13행 표의 **첫 행**)"이라 하였다. 유슨생이 딜러 계정으로
+**5 Series 마지막 트림(550e, sort_order 13)에 제안을 넣자 prod에서 즉시 재현**됐다.
+
+| | 팝오버 top | 화면에 보이는 높이 | [채택] 버튼 |
+|---|---|---|---|
+| 수정 전(prod) | 781 (버튼 727 아래) | **0 / 130px** | y=872 → 스크롤러 하단 777·뷰포트 800 초과, `elementFromPoint` 미검출 = **클릭 불가** |
+| 수정 후(로컬) | **578 (위로 열림)** | **130 / 130px** | y=669 → `button.tiny-btn` 검출 = 클릭 가능 |
+
+즉 "잘려서 스크롤하면 보인다"가 아니라 **클릭 순간 아무것도 안 보이는** #414 계급이 맞았다.
+수리 = `useFixedPopoverPosition`(앵커 `.va-disc-cell` · `align: "end"` = 구 `right: 0` 정렬)로
+fixed 전환 + `max-height: 60vh; overflow-y: auto` + `usePopoverViewportClose`.
+`popoverPosFromRect`(형제 팝오버용)가 아니라 이 훅을 쓴 이유는 **표 하단 행에서는 아래 공간이
+없어 flip-up이 필수**이기 때문이다(그 함수는 아래로만 연다).
+회귀 실측: 첫 행은 아래로(y 258→314) · 마지막 행은 위로(y 727→578) · 둘 다 [채택] 클릭 가능 ·
+표 120px 스크롤 시 정상 종료.
+
 **의도적으로 남긴 것**:
-- **5 `.va-disc-pop`** — fixed 전환에 좌표 계산·`max-height`·`overflow`를 새로 도입해야 하고, 실기 검증에 딜러 제안 실데이터(공유 master 쓰기)가 필요하다. 오늘 피해 0(제안 1건이 13행 표의 첫 행)이라 승격 조건이 올 때 함께 한다.
 - **7 죽은 상태 modifier 4종** — CSS·JS 참조 모두 0건인 완전한 no-op으로 재확인했다. 다만 "제거"와 "누락된 CSS 복구" 중 어느 쪽이 원 의도인지 확증이 없어, 지워서 흔적을 없애는 대신 이 문서에만 남긴다.
 - **8 도달 불가 저장 핸들러 2건** — 코드에 **경고 주석을 박았다**(`savePurchaseConditions` · `saveStatusField`의 text 분기). 지금 고치면 도달 불가 경로에 미검증 코드를 넣는 셈이라, 되살릴 사람이 `savePatch`를 먼저 배선하도록 지시만 남긴다.
 - **9 `.kim-edit-popover.schedule`** — 사소한 CSS 잔존물.
