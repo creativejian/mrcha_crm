@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode, type RefObject } from "react";
 
 import type { CatalogTrim } from "@/lib/catalog";
-import { DISCOUNT_FIELDS, DISCOUNT_FIELD_LABELS, type DiscountField } from "@/lib/discount-adoption";
+import { DISCOUNT_FIELDS, DISCOUNT_FIELD_LABELS, DISCOUNT_FIELD_SHORT, type DiscountField } from "@/lib/discount-adoption";
 import type { TrimProposals } from "@/lib/discount-proposals";
 import { useFixedPopoverPosition } from "@/lib/use-fixed-popover-position";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
@@ -137,7 +137,19 @@ export function AdminDiscountCells({
                 onClick={() => setOpenField(open ? null : field)}
                 type="button"
               >
-                {discountText(confirmed, trim.price)}
+                {/* 확정 할인이 없으면 `—`뿐이라, 빈 셀 셋이 나란하면 우측 상단 배지가 어느 할인
+                    건지 알 수 없다(2026-07-31 유슨생). 클릭할 이유가 있는 셀(=제안이 있어 이
+                    버튼이 렌더된 셀)에만 필드명을 병기한다 — 제안 0건 셀은 위 정적 분기라
+                    라벨이 붙지 않아 표가 시끄러워지지 않는다. 채택 후에는 금액이 사실을
+                    말하므로 지금대로 둔다. */}
+                {confirmed ? (
+                  discountText(confirmed, trim.price)
+                ) : (
+                  <>
+                    <span className="va-disc-field">{DISCOUNT_FIELD_SHORT[field]}</span>
+                    {discountText(confirmed, trim.price)}
+                  </>
+                )}
                 <span className="va-disc-count">{offers.length}</span>
               </button>
             )}

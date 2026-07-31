@@ -708,6 +708,14 @@
 /* 개수 배지는 **셀 위로 띄운다**(2026-07-27 실기): inline으로 두면 확정값이 채워진 순간
    `5,000,000원(6.5%)` + 배지가 va-c-disc 열 폭을 넘겨 옆 열을 밀어낸다. absolute면 폭을
    전혀 차지하지 않고, 금액은 우측 정렬·배지는 위쪽이라 세로로 분리돼 겹치지도 않는다. */
+/* 빈 할인 셀의 필드 접두("자사 —") — 배지가 어느 할인 건지 셀 안에서 읽히게(2026-07-31).
+   금액보다 약하게 둔다: 확정값이 들어오면 이 라벨은 사라지고 금액이 주인공이 된다. */
+.va-disc-field {
+  margin-right: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
 .va-disc-count {
   position: absolute;
   top: 4px;
@@ -893,6 +901,22 @@
   position: sticky;
   left: 0;
   z-index: 2;
+}
+/* 헤더 세로 고정 — 트림이 수십~119개인 모델에서 아래로 스크롤하면 열 이름이 사라져,
+   "지금 보는 이 칸이 자사인지 제휴인지"를 알 수 없었다(2026-07-31 유슨생: 확정 할인이 없어
+   `—`만 셋 나란할 때). 스크롤 컨테이너는 .table-scroll이고 th에는 배경(#f7f7f6,
+   customer-list.css)이 이미 있어 아래 내용이 비치지 않는다.
+   ⚠️트림명·선택 열 헤더는 이미 sticky left다 — 같은 요소에 top이 더해지면 양방향 고정이 되고,
+   그 교차 지점은 일반 헤더보다 위에 있어야 해서 z-index를 한 단계 올린다(안 올리면 가로 스크롤
+   시 다른 헤더가 트림명 헤더를 덮는다). */
+.va-trim-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.va-trim-table thead th.va-th-trim,
+.va-trim-table thead th.va-col-sel {
+  z-index: 4;
 }
 .va-trim-table td.va-col-sel {
   background: #fff;
