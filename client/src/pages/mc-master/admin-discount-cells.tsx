@@ -1,9 +1,11 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 
 import type { CatalogTrim } from "@/lib/catalog";
 import { DISCOUNT_FIELDS, DISCOUNT_FIELD_LABELS, type DiscountField } from "@/lib/discount-adoption";
 import type { TrimProposals } from "@/lib/discount-proposals";
+import { useFixedPopoverPosition } from "@/lib/use-fixed-popover-position";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
+import { usePopoverViewportClose } from "@/lib/use-popover-viewport-close";
 import { discountText, fmtDate } from "./trim-format";
 
 // 관리자 할인 3셀 — 확정값을 보여주고, 딜러 제안이 들어온 필드에만 개수 단서를 달아 팝오버로
@@ -36,6 +38,30 @@ const STATE_BADGE: Record<string, { text: string; tone: string; hint: string }> 
   },
 };
 
+// 할인 채택 팝오버 셸 — `.va-disc-cell`(td)을 앵커로 fixed 좌표를 인라인 주입한다. absolute였을
+// 때는 표(`.table-scroll`, 양축 overflow) 하단 행에서 화면 밖에 그려져 [채택] 버튼이 클릭 자체가
+// 안 됐다(2026-07-31 prod 실측: 마지막 트림에서 가시 0px). 팝오버를 별도 컴포넌트로 둔 이유는
+// 훅이 **팝오버가 마운트된 시점에** 좌표를 재도록 하기 위해서다(부모에서 부르면 popRef가 아직
+// 비어 pos가 null로 남는다 — 드로어의 ConfirmPopover와 같은 구조).
+// heightDep: 실패 메시지가 붙으면 높이가 바뀌므로 방향·좌표를 다시 계산한다.
+function DiscountPopover({ children, heightDep, popRef }: {
+  children: ReactNode;
+  heightDep?: unknown;
+  popRef: RefObject<HTMLDivElement | null>;
+}) {
+  const pos = useFixedPopoverPosition(popRef, ".va-disc-cell", heightDep, "end");
+  return (
+    <div
+      className="va-disc-pop"
+      ref={popRef}
+      role="dialog"
+      style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function AdminDiscountCells({
   trim,
   entry,
@@ -52,6 +78,9 @@ export function AdminDiscountCells({
   const [failed, setFailed] = useState<"adopt" | "undo" | null>(null);
   const popRef = useRef<HTMLDivElement>(null);
   usePopoverDismiss(popRef, openField !== null, () => setOpenField(null));
+  // fixed는 스크롤·리사이즈를 따라가지 못한다 — 앵커에서 분리되기 전에 닫는다(드로어 확인
+  // 팝오버·목록 stage/chance/delivery와 같은 한 벌).
+  usePopoverViewportClose(openField !== null, () => setOpenField(null));
 
   async function adopt(field: DiscountField, dealerUserId: string) {
     if (!onAdopt || busy) return;
@@ -114,7 +143,7 @@ export function AdminDiscountCells({
             )}
 
             {open && (
-              <div className="va-disc-pop" ref={popRef}>
+              <DiscountPopover heightDep={failed} popRef={popRef}>
                 <div className="va-disc-pop-head">
                   {DISCOUNT_FIELD_LABELS[field]} — {trim.trimName}
                   {trim.mcCode ? <span className="va-disc-pop-code">{trim.mcCode}</span> : null}
@@ -229,7 +258,7 @@ export function AdminDiscountCells({
                     {failed === "undo" ? "되돌리기에 실패했습니다 — 다시 시도해 주세요." : "채택에 실패했습니다 — 다시 시도해 주세요."}
                   </div>
                 )}
-              </div>
+              </DiscountPopover>
             )}
           </td>
         );
