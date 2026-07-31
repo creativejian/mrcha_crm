@@ -11,8 +11,8 @@
 | ① Worker 병행 생성 | ✅ 2026-07-31 | `mrcha-crm` → https://mrcha-crm.dolcejian.workers.dev |
 | ② env·시크릿 재입력 | ✅ 2026-07-31 | 아래 체크리스트 — 7종 전부 `secret bulk` 입력·검증 |
 | ③ workers.dev 전체 스모크 | ✅ 2026-07-31 | 아래 스모크 결과 |
-| ④ crm.mrcha.app 스위치 | ⏸ 유슨생 확인 대기 | 롤백 = 도메인 되돌리기 |
-| ⑤ Workers Builds + watch paths | ⏸ ④ 이후 | 자동 이관 없음 — 수동 재설정 |
+| ④ crm.mrcha.app 스위치 | ✅ 2026-07-31 | **zone route 방식**(아래) — 롤백 = Pages 도메인 재부착 |
+| ⑤ Workers Builds + watch paths | ⏸ 다음 | 자동 이관 없음 — 대시보드 수동 설정 |
 
 ## 구성 (커밋된 파일)
 
@@ -70,12 +70,33 @@
 
 미실시: 서류 **업로드**(쓰기)·FCM 실발송 — 도메인 스위치 후 실기 1회에서 확인 권장.
 
-## ④ 도메인 스위치 절차 (대기 중)
+## ④ 도메인 스위치 — 실행 결과 (2026-07-31 완료, zone route 방식)
 
-1. CF 대시보드: Pages `mrcha-crm` → Custom domains에서 `crm.mrcha.app` 제거
-2. Worker `mrcha-crm` → Settings → Domains & Routes → Custom Domain `crm.mrcha.app` 추가
-3. 즉시 스모크: 로그인(카카오 OAuth — 오리진 불변이라 allowlist 무관)·고객 목록·업무 AI 1문
-4. **롤백** = 역순(Worker 도메인 제거 → Pages에 재추가). Pages 배포는 그대로 살아 있다.
+**Custom Domain이 아니라 zone route**(`crm.mrcha.app/*` → `mrcha-crm`, wrangler.worker.jsonc
+`routes`)로 전환했다. 함정 실측 3건이 방식을 결정했다:
+
+1. **Custom Domain API는 기존 CNAME이 있으면 100117로 거부**("externally managed DNS records").
+   crm의 CNAME(→ mrcha-crm.pages.dev)이 zone에 남아 있어 부착 불가.
+2. **wrangler OAuth 토큰엔 DNS 쓰기 스코프가 없다**(dns_records 조회조차 Authentication error)
+   — CNAME을 지울 수 없어 Custom Domain 경로가 막혔다. (이 과정에서 Pages 도메인을 먼저 뗐다가
+   1분가량 522 — 즉시 재부착으로 복구. **순서 교훈: 뗄 준비가 다 되기 전에 떼지 말 것**.)
+3. **Pages 커스텀 도메인이 살아 있는 동안 zone route는 그 호스트를 못 받는다**(Pages 우선).
+   route 배포 후에도 Pages가 계속 서빙했고, Pages 도메인을 떼자 route가 인수했다.
+
+**판별법**(전파 중 프로브 착시 주의): 응답 본문의 vite 번들 해시로 판별한다 —
+`curl -s https://crm.mrcha.app/ | grep -o 'assets/index-[^"]*\.js'`가 Worker 배포본
+(`client/dist/index.html`)과 일치하면 Worker 서빙. `/api/*`는 `bunx wrangler tail -c
+wrangler.worker.jsonc`로 요청 이벤트 수신 확인(⚠️ `-c` 없이 돌리면 cwd의 Pages 설정 탓에
+"Pages project" 에러). 미존재 `.txt` 200/404 프로브는 캐시·SPA fallback 차이로 신뢰 불가.
+
+**롤백** = Pages에 도메인 재부착 한 방(`POST …/pages/projects/mrcha-crm/domains`
+{"name":"crm.mrcha.app"}) — Pages 우선 규칙 덕에 route 제거 없이도 즉시 Pages로 복귀한다
+(실측 ~10초). Pages 배포·CNAME은 그대로 살아 있다.
+
+**현 상태**: DNS CNAME(crm → pages.dev)·Pages 프로젝트 유지(병행 안전망). workers.dev
+서브도메인은 route 추가 시 wrangler 기본값으로 비활성화됨(공개 표면 축소 — 의도 유지).
+스위치 후 prod 스모크: `/api/customers` 24 · SSE ask 200(text+done) · 스모크 대화 원복 완료.
+**정식 Custom Domain 전환은 Pages 폐기 때**(CNAME 삭제 가능 시점) 아래 ⑤와 함께.
 
 ## ⑤ 전환 후 정리 목록 (Pages 폐기 시)
 
