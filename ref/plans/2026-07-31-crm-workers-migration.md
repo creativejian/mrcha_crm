@@ -98,6 +98,13 @@ wrangler.worker.jsonc`로 요청 이벤트 수신 확인(⚠️ `-c` 없이 돌�
 스위치 후 prod 스모크: `/api/customers` 24 · SSE ask 200(text+done) · 스모크 대화 원복 완료.
 **정식 Custom Domain 전환은 Pages 폐기 때**(CNAME 삭제 가능 시점) 아래 ⑤와 함께.
 
+## ⚠️ 과도기 배포 규칙 (Workers Builds 연결 전 — 지금 유효)
+
+**main 머지 ≠ prod 배포.** git push는 Pages만 자동 빌드하는데 그 결과는 이제 아무도 안 보는
+pages.dev로만 간다 — prod(crm.mrcha.app = Worker)는 **`bun run deploy:worker`를 손으로 돌려야**
+갱신된다. 머지 후 배포를 잊으면 에러 없이 구버전이 계속 서빙된다(조용한 스테일).
+Workers Builds 연결(아래 ⑤)이 이 규칙을 해소한다.
+
 ## ⑤ 전환 후 정리 목록 (Pages 폐기 시)
 
 - Workers Builds 연결(빌드 `bun install && bun run build && rm -f client/dist/_redirects`,
