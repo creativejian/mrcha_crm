@@ -7,6 +7,26 @@
 > 분리 사유: 이 내용이 142k자까지 자라 매 세션 컨텍스트의 14%를 차지했고,
 > AGENTS.md의 "60줄 이하 / 과거 로그 누적 금지" 규칙과도 어긋나 있었다(2026-07-21).
 
+## 2026-07-31 (오후~저녁) — Workers 마이그레이션 완결 + #414 팝오버 오프스크린 수리 (유슨생)
+
+- **Pages→Workers 전 절차 완료**: Worker `mrcha-crm`(`src/worker.ts`+assets
+  `run_worker_first: /api/*`·Hyperdrive·**Workers Logs on**) · 시크릿 7종 재입력 · workers.dev+
+  prod 전 스택 스모크(로그인·SSE·catalog·서류 서명 URL·브라우저) · **crm.mrcha.app 정식 Custom
+  Domain**(CNAME 삭제=유슨생 대시보드, 구 zone route 제거) · **Workers Builds 연결**(빌드/배포
+  명령·VITE 2종·watch paths `ref/*`·`*.md` 제외·캐시 on). 판정 SSOT+시크릿 체크리스트+롤백 =
+  `ref/plans/2026-07-31-crm-workers-migration.md`.
+- **함정 실측**: ①`_redirects` SPA 룰을 Workers가 거부·`.assetsignore` 무효 → deploy 스크립트가
+  빌드 후 rm ②Custom Domain은 기존 CNAME이 있으면 100117 거부 + wrangler 토큰에 DNS 스코프
+  없음 ③Pages 커스텀 도메인 > zone route 우선 ④`wrangler tail`은 `-c wrangler.worker.jsonc`
+  필수 ⑤대시보드 "내부 오류" 토스트≠실패("trigger already exists"=사실 저장됨).
+- 스위치 첫 시도 순서 실수로 **522 약 1분 1회**(즉시 복구), 이후 무중단. **Pages 폐기까지 같은 날
+  완결**(`#413` — SEND_PUSH_SECRET 인증 프로브 실증으로 앞당김·배포 1,273개 루프 삭제·프로젝트
+  삭제). 서류 업로드(쓰기)+AI 분류까지 유슨생 실기 확인(17:19) — **미실증 경로 0**.
+- **`#414` 서류·일정 확인 팝오버 오프스크린 수리**(마이그레이션 무관 — `#366` 07-26 회귀 발굴):
+  fixed 전환 시 좌표 훅이 할일에만 배선돼 **서류 삭제·일정 완료/삭제가 5일간 조용히 불능**
+  ("눌러도 아무 일 없음"). 공용 `ConfirmPopover`(anchorSelector)로 3카드 배선·prod 실기 완주.
+  진단 전말(뷰포트 밖 렌더 실측·네트워크 0건 판별) = PR `#414` 본문.
+
 ## 2026-07-31 (오후) — CF 최적화: watch paths·Hyperdrive 캐싱 실측·Workers Paid (유슨생)
 
 - **build watch paths 적용**(CF API PATCH): `path_excludes: ["ref/*", "*.md"]` — 문서만 바뀐

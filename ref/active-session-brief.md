@@ -7,28 +7,25 @@ Last updated: 2026-07-31 (저녁)
 ## 지금 상태
 
 **main 전량 green · 브랜치 0 · prod = CF Workers 전환 + Pages 폐기까지 완결**(PR `#412`·`#413`).
-git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = `wrangler.jsonc`(승격 —
-bare 커맨드 자연 동작). Pages 프로젝트 삭제 완료(앱 `mr-cha-app` 불가침). unit 1267.
+git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = `wrangler.jsonc`. unit **1272**.
 
-## 직전 세션 요약 (07-31 오후~저녁 · 유슨생 — Workers 마이그레이션 완결)
+## 직전 세션 요약 (07-31 밤 · 유슨생 — 타깃 렌즈 배치)
 
-- **Pages→Workers 전 절차 완료**: Worker `mrcha-crm`(`src/worker.ts`+assets
-  `run_worker_first: /api/*`·Hyperdrive·**Workers Logs on**) · 시크릿 7종 재입력 · workers.dev+
-  prod 전 스택 스모크(로그인·SSE·catalog·서류 서명 URL·브라우저) · **crm.mrcha.app 정식 Custom
-  Domain**(CNAME 삭제=유슨생 대시보드, 구 zone route 제거) · **Workers Builds 연결**(빌드/배포
-  명령·VITE 2종·watch paths `ref/*`·`*.md` 제외·캐시 on). 판정 SSOT+시크릿 체크리스트+롤백 =
-  `ref/plans/2026-07-31-crm-workers-migration.md`.
-- **함정 실측**: ①`_redirects` SPA 룰을 Workers가 거부·`.assetsignore` 무효 → deploy 스크립트가
-  빌드 후 rm ②Custom Domain은 기존 CNAME이 있으면 100117 거부 + wrangler 토큰에 DNS 스코프
-  없음 ③Pages 커스텀 도메인 > zone route 우선 ④`wrangler tail`은 `-c wrangler.worker.jsonc`
-  필수 ⑤대시보드 "내부 오류" 토스트≠실패("trigger already exists"=사실 저장됨).
-- 스위치 첫 시도 순서 실수로 **522 약 1분 1회**(즉시 복구), 이후 무중단. **Pages 폐기까지 같은 날
-  완결**(`#413` — SEND_PUSH_SECRET 인증 프로브 실증으로 앞당김·배포 1,273개 루프 삭제·프로젝트
-  삭제). 서류 업로드(쓰기)+AI 분류까지 유슨생 실기 확인(17:19) — **미실증 경로 0**.
-- **`#414` 서류·일정 확인 팝오버 오프스크린 수리**(마이그레이션 무관 — `#366` 07-26 회귀 발굴):
-  fixed 전환 시 좌표 훅이 할일에만 배선돼 **서류 삭제·일정 완료/삭제가 5일간 조용히 불능**
-  ("눌러도 아무 일 없음"). 공용 `ConfirmPopover`(anchorSelector)로 3카드 배선·prod 실기 완주.
-  진단 전말(뷰포트 밖 렌더 실측·네트워크 0건 판별) = PR `#414` 본문.
+- **fail-silent UI 경로 수색 완료**(`#414` 계급). 판정 SSOT =
+  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`. 규모 = 감사 정책 기본형(2앵글+실측 렌즈 1 ·
+  적대 검증 상/중만 · 에이전트 7 · 전원 읽기 전용, 워킹트리 무손상).
+- **결과: 상 0 · 중 1 · 하 9** — 수색이 낸 중 6건 중 **5건이 적대 검증에서 하로 강등**(과장 회수).
+  **#414 원형(앵커 미매칭 → 무경고 영구 hidden) 잔존 0건** — 훅 소비처 5곳(컴포넌트 7개)과
+  좌표 없는 fixed 클래스 8개 전수가 모두 좌표 공급 배선.
+- **중 1건 수리·배포 완료**(`d9ee4ff`): 드로어 3카드(할일·일정·서류) 확인 팝오버가 스크롤·
+  리사이즈에 안 닫혔다 — 훅 주석이 명시한 "닫기는 호출부 책임"을 목록만 이행하고 드로어는
+  미이행. **실측: 드로어 400px 스크롤 시 행은 400px 이동, 팝오버는 0px** → "삭제하시겠습니까?"가
+  구매조건 섹션 위에 떠 대상 오인 유발(드로어가 100vh/auto라 항목 1건에서도 발현).
+  공용 훅 `use-popover-viewport-close.ts`로 목록·드로어 **한 벌**화 + 회귀 5케이스(변이 자가검증
+  통과) + **prod 실기 확인 완주**.
+- ⚠️ **main 직행 사고**: feature 브랜치로 커밋했는데 push가 main까지 밀었다(병렬 세션 공유
+  워킹트리 + jj bookmark). 커밋 자체는 검증 5종 그린이라 유지, 브랜치는 정리. 재발 방지 =
+  메모리 `parallel-session-shared-worktree-git-race`.
 
 ## ▶ 다음
 
@@ -36,18 +33,15 @@ bare 커맨드 자연 동작). Pages 프로젝트 삭제 완료(앱 `mr-cha-app`
   계획 공유문서 = `~/Downloads/2026-07-31-제프-CF-Workers-이전-계획.md`(8단계 절차·담당 포함).
   근거: Workers Custom Domain은 zone 동일 계정 필수 → 제프 계정 잔류 시 mc.mrcha.app 불가.
   이사님 결정 대기 = 제프 계정 접근 범위(멤버 권한이 거침). 레시피 = CRM plans 문서 그대로.
-- **타깃 렌즈 배치(#414 계급 · 새 세션 · Opus로 충분 — 유슨생 승인)**: fail-silent UI 경로 수색.
-  ①`useFixedPopoverPosition` 소비처 전수의 anchorSelector 실검증(미매칭=무경고 영구 hidden 계약)
-  ②공유 CSS 클래스에 JS 좌표 주입 계약이 붙은 패턴 전수 ③서류 훅 `kim-` temp id 삭제의 조용한
-  no-op 경합(업로드 직후 삭제 시 API 미호출 가능성 — useCustomerDocuments.deleteDocument 참조)
-  ④낙관적 UI + `.catch(()=>toast)` 조합의 실패 삼킴(화면 미복원). 규모 = 감사 정책 기본형
-  (2앵글+실측 렌즈 1 · 적대 검증은 상/중만 · 1~2시간). 배경·발단 = PR `#414` 본문.
+- ~~타깃 렌즈 배치~~ **완료(07-31 밤)** → 위 요약. **보류 하 9건**은 판정 문서에 근거까지 박제.
+  착수 가치 상위 3건(전부 한 줄~소규모): ①계산기 "조회 완료" 오표시(payload null인데 스냅샷
+  선커밋 — 더티 경고가 거짓 완료로 뒤집힘, fail-silent 계급 일치) ②견적 CREATE 분기 발송 실패
+  미원복(같은 함수 UPDATE 분기는 롤백 — 비대칭) ③견적 temp id 무음 스킵 6함수(가드 밖 성공
+  토스트. 서류 훅엔 같은 레이스 보상이 이미 있음). ②③ 공통 뿌리 = `useQuoteList.quotes`가
+  `detail.quotes`와 재동기화되지 않는 구조.
 
-- ~~CF 잔여 권고~~ **전부 종결(07-31 저녁)**: ✅rate limiting — zone 속도 제한 규칙
-  `assistant-ask-rate-limit`(`/api/assistant/ask` eq · IP당 5회/10초 · 차단 10초, Free 포함분
-  1/1 사용. 실측 401×5→429×3→11초 후 해제. ⚠️Free라 호스트·메서드 조건 불가 — 경로 eq로 대체) ·
-  AI Gateway 보류 박제(Workers Logs가 가치 상당 커버·서울 핀 충돌 리스크 — 재론 = 비용
-  대시보드가 필요해질 때) · 프리뷰 Access 보호는 표면 소멸로 종결.
+- ~~CF 잔여 권고~~ **전부 종결(07-31 저녁)**: rate limiting 가동(`assistant-ask-rate-limit` —
+  IP당 5회/10초, 실측 429. ⚠️Free라 경로 eq만 가능) · AI Gateway 보류 · 프리뷰 Access 종결.
 - 잔여 실기 확인(오전분 유지): ① `#410` 레이아웃(admin·팀장·딜러 전폭) ② 팀장 폼 할인 섹션
   부재+admin 폼 유지 ③ 교차 세션 실시간 ④ PR `#404` 체크리스트 잔여.
 
