@@ -53,9 +53,16 @@ export function useDealerDiscounts(
 
   // 저장 성공 시 **응답 row로 Map을 갱신**한다(재조회 왕복 없음).
   // 실패는 그대로 throw — 호출한 셀이 "저장 실패"를 표시해야 한다(삼키면 조용히 유실된다).
+  // 응답 null = 세 금액을 다 비워 **서버가 행을 지웠다**(saveDealerTrimDiscount 계약) → Map에서도
+  // 지운다. null을 그대로 set하면 이후 셀이 빈 객체를 제안으로 읽는다.
   const save = useCallback(async (trimId: number, amounts: DealerDiscountAmounts) => {
-    const row = await sendJson<DealerDiscountProposal>(`/api/dealer/discounts/${trimId}`, "PUT", amounts);
-    setByTrim((prev) => new Map(prev).set(trimId, row));
+    const row = await sendJson<DealerDiscountProposal | null>(`/api/dealer/discounts/${trimId}`, "PUT", amounts);
+    setByTrim((prev) => {
+      const next = new Map(prev);
+      if (row) next.set(trimId, row);
+      else next.delete(trimId);
+      return next;
+    });
     invalidateMyProposalTrims(); // "내 입력 트림" 목록·건수가 낡는다(헤더 버튼 캐시)
   }, []);
 

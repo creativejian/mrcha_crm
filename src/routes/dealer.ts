@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { brandIdOfTrim, listMyTrimDiscounts, upsertDealerTrimDiscount } from "../db/queries/dealer-discounts";
+import { brandIdOfTrim, listMyTrimDiscounts, saveDealerTrimDiscount } from "../db/queries/dealer-discounts";
 import {
   deleteDealerProfile,
   deleteDealerProposals,
@@ -127,7 +127,9 @@ dealer.put(
     if (!profile || trimBrandId === null || profile.brandId !== trimBrandId) {
       return c.json({ error: "권한이 없습니다." }, 403);
     }
-    const row = await upsertDealerTrimDiscount(
+    // row = 저장된 제안 / null = **세 금액이 다 비어 삭제됨**(saveDealerTrimDiscount 계약).
+    // 클라(useDealerDiscounts.save)는 null이면 Map에서 지운다 — 상태는 200으로 같다.
+    const row = await saveDealerTrimDiscount(
       { trimId, dealerUserId: c.var.user.id, ...c.req.valid("json") },
       c.var.db,
     );

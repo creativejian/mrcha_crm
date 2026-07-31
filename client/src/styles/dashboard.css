@@ -970,10 +970,15 @@
   color: var(--muted);
 }
 .org-dealer-trim-row {
-  /* 3열 그리드 — 이름만 말줄임 대상이고 코드·금액은 항상 온전히 보인다(코드가 이름 span 안에
-     있으면 말줄임에 같이 잘린다 — 실기: MC0705…). */
+  /* 4열 그리드 — 이름만 말줄임 대상이고 코드·금액은 항상 온전히 보인다(코드가 이름 span 안에
+     있으면 말줄임에 같이 잘린다 — 실기: MC0705…).
+     ⚠️열 정의는 **부모(.org-dealer-trim-group)가 소유하고 여기선 subgrid로 물려받는다** —
+     행마다 독립 grid였을 때는 auto 열이 그 행의 내용 폭만 차지해서, 금액이 3개인 행과 1개인 행,
+     아예 없는 행의 코드·날짜가 제각각 다른 x에 놓였다(2026-07-31 실기: 4행의 코드 위치가 전부
+     달랐다). subgrid면 그룹 안의 모든 행이 같은 열을 공유한다. */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: baseline;
   gap: 12px;
   width: 100%;
@@ -1023,7 +1028,15 @@
 /* 모델 구분 헤더(2026-07-30 유슨생) — 수십 건에서 모델 경계를 훑게 한다. 팝오버가 스크롤
    컨테이너라 sticky가 그 안에서 동작한다(top -8px = 팝오버 padding 상쇄, 배경 필수 — 없으면
    행이 비쳐 보인다). */
+/* 열 정의의 **소유자** — 행(.org-dealer-trim-row)이 subgrid로 이 열을 물려받아, 그룹 안의
+   코드·금액·날짜가 금액 개수와 무관하게 같은 x에 정렬된다. 열 폭은 그룹 내용에 맞춰 자동이라
+   금융사가 늘어 금액 표기가 길어져도 손볼 곳이 없다. */
+.org-dealer-trim-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+}
 .org-dealer-trim-group-head {
+  grid-column: 1 / -1; /* 헤더는 열을 가로지른다 */
   position: sticky;
   top: -8px;
   z-index: 1;
