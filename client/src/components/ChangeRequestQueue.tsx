@@ -204,6 +204,9 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
                       onChange={(e) => changeReject(row.id, e.target.value)}
                       placeholder="반려 사유"
                       disabled={state.busy}
+                      // 반려를 누른 의도 = 사유 입력 — 바로 타이핑하게 포커스(포커스 링이 곧
+                      // "여기 입력" 신호다. 2026-07-31 실기: 클릭 전엔 입력칸인지 안 읽혔다).
+                      autoFocus
                     />
                     <button
                       type="button"
