@@ -1,4 +1,5 @@
 import type { VehicleStatus } from "@/data/vehicle-taxonomy";
+import { broadcastCatalogQueueChanged } from "./catalog-change-realtime";
 import { getJson, sendJson, sendVoid } from "./http";
 
 // ── 변경 승인 큐 202 공통 감지(PR3, 2026-07-30) ────────────────────────────────
@@ -45,6 +46,7 @@ async function sendCatalogWrite<T>(
         // 알림은 부가 효과 — 실패해도 저장 결과에 영향을 주지 않는다.
       }
     }
+    broadcastCatalogQueueChanged(); // 타 세션(admin 대기열·배지)도 리로딩 없이 따라오게(신호 전용).
   }
   return result;
 }

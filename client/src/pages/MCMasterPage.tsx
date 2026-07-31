@@ -22,7 +22,8 @@ import {
   updateModel,
   updateTrim,
 } from "@/lib/catalog";
-import { CHANGE_KIND_LABELS } from "@/lib/catalog-change-kinds";
+import { useAuth } from "@/auth/AuthProvider";
+import { CHANGE_KIND_LABELS, type ChangeRequestKind } from "@/lib/catalog-change-kinds";
 import { type ChangeRequestItem, useModelPendingRequests } from "@/lib/catalog-change-requests";
 import { waitingLabel } from "@/lib/chat";
 import { useDealerDiscounts } from "@/lib/dealer-discounts";
@@ -55,6 +56,8 @@ import { mcMasterViewState } from "./mc-master/view-state";
 type ModelPanelState = { mode: "add" } | { mode: "edit"; model: CatalogModel } | null;
 type TrimPanelState = { mode: "add" } | { mode: "edit"; trim: CatalogTrim } | null;
 type TrimTab = "list" | "order";
+
+const PENDING_PREFILL_NOTICE = "대기 중인 승인 요청을 이어서 수정합니다 — 저장하면 기존 요청이 이 내용으로 대체됩니다";
 
 // 모델 단위 pending → 행 배지 title(트림별) + 헤더 pill 줄(트림에 못 붙는 요청)로 갈라 담는다.
 // targetTrimId가 있는 요청(트림 수정·무옵션·옵션류)은 그 트림 행에, 없는 요청(트림 추가·모델
@@ -90,6 +93,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   // 채택·승인 대기열 버튼(테스트 "팀장은 승인 대기 버튼을 렌더하지 않는다"가 잠금).
   const canPropose = roleTab === "팀장";
   const canWrite = canEdit || canPropose;
+  const { userId } = useAuth(); // 프리필의 "내 요청" 판별용 — pendingRows는 모델 전체(타인 포함)라 requestedBy 대조가 필요하다.
   const navigate = useNavigate();
   const { modelId } = useParams();
   const { search } = useLocation();
@@ -192,6 +196,40 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   const [trimPanel, setTrimPanel] = useState<TrimPanelState>(null);
   const [busy, setBusy] = useState(false);
   const [panelError, setPanelError] = useState<string | null>(null);
+
+  // 팀장 프리필(2026-07-31 유슨생): 같은 대상 재제출은 기존 pending을 **교체**한다(spec §6.1) —
+  // 폼이 카탈로그 원값에서 시작하면 나눠 저장할 때 앞서 낸 변경분이 교체와 함께 소리 없이
+  // 빠진다. 그래서 **내** pending payload(PR2 일원화로 zod 파싱 출력 = 폼 필드와 동형)를 폼
+  // 초기값에 겹쳐 "이어서 수정"이 되게 한다. 내 것만 겹친다 — 타인 pending은 저장이 409로
+  // 막히는 별개 흐름이고 배지가 예방선이다. (배지 로드 전에 연필을 열면 프리필이 빠질 수
+  // 있다 — 배지가 보이는 시점 = 로드 완료. 패널은 mount 시 useState 초기화라 이후 도착분을
+  // 소급 주입하지 않는다: 입력 중 값이 뒤바뀌는 게 더 나쁘다.)
+  const myPendingPayload = (kind: ChangeRequestKind, targetId: number): Record<string, unknown> | undefined =>
+    canPropose && userId != null
+      ? pendingRows.find((r) => r.kind === kind && r.targetId === targetId && r.requestedBy === userId)?.payload
+      : undefined;
+  const trimPendingPatch =
+    trimPanel?.mode === "edit"
+      ? (myPendingPayload("trim.update", trimPanel.trim.id) as Partial<TrimInput> | undefined)
+      : undefined;
+  const modelPendingPatch =
+    modelPanel?.mode === "edit"
+      ? (myPendingPayload("model.update", modelPanel.model.id) as
+          | Partial<Pick<CatalogModel, "category" | "status">>
+          | undefined)
+      : undefined;
+  // 옵션 인라인 에디터용 — 옵션 id → 내 pending payload(name·price). OptionPanel이 startEdit
+  // 시점에 겹친다(같은 교체 함정의 옵션 축).
+  const myPendingOptionPayloads = useMemo(() => {
+    const map = new Map<number, { name?: string; price?: number | null }>();
+    if (!canPropose || userId == null) return map;
+    for (const r of pendingRows) {
+      if (r.kind === "option.update" && r.targetId != null && r.requestedBy === userId) {
+        map.set(r.targetId, r.payload as { name?: string; price?: number | null });
+      }
+    }
+    return map;
+  }, [pendingRows, userId, canPropose]);
   const [optionPanelTrim, setOptionPanelTrim] = useState<CatalogTrim | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
   const [trimTab, setTrimTab] = useState<TrimTab>("list");
@@ -469,22 +507,29 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 </span>
               )}
             </div>
-            {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
-            {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
-            {canPropose && <MyChangeRequestsButton />}
-            {editActions(
-              () => {
-                setPanelError(null);
-                setTrimPanel({ mode: "add" });
-              },
-              "트림 추가",
-              !groupedView,
-              canEdit && trims.some((t) => !t.mcCode) ? (
-                <button type="button" className="btn" onClick={assignCodes} disabled={busy}>
-                  <Hash size={15} /> 고유번호 할당
-                </button>
-              ) : null,
-              () => setMoveOpen(true),
+            {/* 도구 묶음(va-head-tools) — panel-head가 space-between이라 낱개로 두면 제목 폭
+                (모델명·브랜드명)에 따라 버튼 위치가 뷰마다 흘러 다닌다(2026-07-31 유슨생) —
+                묶어서 오른쪽 끝에 고정한다. 모델 목록 분기와 같은 구성. */}
+            {canWrite && (
+              <div className="va-head-tools">
+                {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
+                {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
+                {canPropose && <MyChangeRequestsButton />}
+                {editActions(
+                  () => {
+                    setPanelError(null);
+                    setTrimPanel({ mode: "add" });
+                  },
+                  "트림 추가",
+                  !groupedView,
+                  canEdit && trims.some((t) => !t.mcCode) ? (
+                    <button type="button" className="btn" onClick={assignCodes} disabled={busy}>
+                      <Hash size={15} /> 고유번호 할당
+                    </button>
+                  ) : null,
+                  () => setMoveOpen(true),
+                )}
+              </div>
             )}
           </>
         ) : (
@@ -497,14 +542,19 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 한눈에 보고, 행 클릭으로 그 트림에 착지한다. 브랜드 미지정 딜러는 제안 자체가
                 불가능하니(쓰기 403) 프로필이 있을 때만 낸다. */}
             {dealerMode && dealerMeLoaded && dealerMe != null && <MyProposalTrimsButton />}
-            {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
-            {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
-            {canPropose && <MyChangeRequestsButton />}
-            {brandId != null &&
-              editActions(() => {
-                setPanelError(null);
-                setModelPanel({ mode: "add" });
-              }, "모델 추가")}
+            {/* 도구 묶음 — 트림 뷰 분기와 같은 구성·같은 오른쪽 고정(위 주석 참조). */}
+            {canWrite && (
+              <div className="va-head-tools">
+                {canEdit && <ChangeRequestQueueButton onApplied={handleQueueApplied} />}
+                {/* 팀장 셀프 현황(spec §7.3) — 관리자 대기열 버튼과 같은 자리, 다른 역할. */}
+                {canPropose && <MyChangeRequestsButton />}
+                {brandId != null &&
+                  editActions(() => {
+                    setPanelError(null);
+                    setModelPanel({ mode: "add" });
+                  }, "모델 추가")}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -617,9 +667,16 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
       </div>
       {modelPanel && (
         <ModelEditPanel
-          model={modelPanel.mode === "edit" ? modelPanel.model : null}
+          model={
+            modelPanel.mode === "edit"
+              ? modelPendingPatch
+                ? { ...modelPanel.model, ...modelPendingPatch }
+                : modelPanel.model
+              : null
+          }
           busy={busy}
           error={panelError}
+          notice={modelPendingPatch ? PENDING_PREFILL_NOTICE : null}
           submitLabel={canPropose ? "승인 요청" : "저장"}
           onClose={() => setModelPanel(null)}
           onSubmit={submitModel}
@@ -627,10 +684,17 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
       )}
       {trimPanel && (
         <TrimEditPanel
-          trim={trimPanel.mode === "edit" ? trimPanel.trim : null}
+          trim={
+            trimPanel.mode === "edit"
+              ? trimPendingPatch
+                ? { ...trimPanel.trim, ...trimPendingPatch }
+                : trimPanel.trim
+              : null
+          }
           modelStatus={openModel?.status ?? null}
           busy={busy}
           error={panelError}
+          notice={trimPendingPatch ? PENDING_PREFILL_NOTICE : null}
           submitLabel={canPropose ? "승인 요청" : "저장"}
           onClose={() => setTrimPanel(null)}
           onSubmit={submitTrim}
@@ -652,6 +716,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
           canEdit={canWrite}
           canDelete={canEdit}
           summary={optionByTrim.get(optionPanelTrim.id)}
+          myPendingOptionPayloads={myPendingOptionPayloads}
           submitLabel={canPropose ? "승인 요청" : undefined}
           onClose={() => setOptionPanelTrim(null)}
           onChanged={reloadOptionSummary}

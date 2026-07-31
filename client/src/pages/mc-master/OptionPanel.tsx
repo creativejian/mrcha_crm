@@ -28,6 +28,7 @@ export function OptionPanel({
   canEdit,
   canDelete,
   summary,
+  myPendingOptionPayloads,
   submitLabel,
   onClose,
   onChanged,
@@ -37,6 +38,9 @@ export function OptionPanel({
   // 삭제는 admin 전용 — canEdit(팀장 개방과 함께 admin|manager로 넓어지는 쓰기 축)과 축이 다르다(spec §3.2)
   canDelete: boolean;
   summary: TrimOptionSummary | undefined;
+  // 옵션 id → 내 pending payload(팀장 프리필 — 재제출은 교체라, 폼이 카탈로그 원값에서 시작하면
+  // 나눠 저장할 때 앞서 낸 변경분이 빠진다. MCMasterPage가 내 것만 걸러 내려준다.)
+  myPendingOptionPayloads?: Map<number, { name?: string; price?: number | null }>;
   // 팀장 제안 축은 "승인 요청" — 추가/수정 모두 결말이 큐 적재라 라벨 하나로 덮는다(spec §7.1)
   submitLabel?: string;
   onClose: () => void;
@@ -147,10 +151,13 @@ export function OptionPanel({
     });
   }
   function startEdit(o: CatalogOption) {
+    // 내 pending이 있으면 그 제안값에서 이어서 수정한다(카탈로그 원값이면 교체 때 앞 변경분 소실).
+    const pending = myPendingOptionPayloads?.get(o.id);
+    const price = pending?.price !== undefined ? pending.price : o.price;
     setAdding(false);
     setEditId(o.id);
-    setName(o.name);
-    setPrice(o.price != null ? formatThousands(String(o.price / 10000)) : "");
+    setName(pending?.name ?? o.name);
+    setPrice(price != null ? formatThousands(String(price / 10000)) : "");
     setErr(null);
   }
 

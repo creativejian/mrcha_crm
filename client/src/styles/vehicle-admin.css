@@ -184,6 +184,16 @@
   align-items: center;
   gap: 8px;
 }
+/* 헤더 우측 도구 묶음(승인 대기·내 요청·추가/선택) — panel-head가 space-between이라 낱개로
+   두면 제목 폭(모델명 등)에 따라 버튼 위치가 뷰마다 흘러 다녔다(2026-07-31 유슨생). 묶어서
+   오른쪽 끝에 고정한다. */
+.va-head-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .va-select-on {
   border-color: rgba(var(--brand-rgb), 0.4);
   color: var(--brand);
