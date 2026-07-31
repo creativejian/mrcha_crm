@@ -48,7 +48,7 @@ crm.catalog_change_requests  →  [승인 시 replay 실행]  →  catalog.*  �
 | `model.create` | POST /models | model (target_id NULL) | |
 | `model.update` | PATCH /models/:id | model | category·status(단종 포함) |
 | `trim.create` | POST /trims | trim (target_id NULL) | |
-| `trim.update` | PATCH /trims/:id | trim | 할인 3필드 포함 — 승인 시 기존 감사(`recordAdminDiscountEdits`)가 **승인자 명의**로 남는다 |
+| `trim.update` | PATCH /trims/:id | trim | ~~할인 3필드 포함~~ **할인 3필드는 팀장 제안에서 제외**(2026-07-31 유슨생 정정 — 확정 할인은 딜러 제안→관리자 채택 체계 소유. 서버가 202 적재 시 payload에서 제거해 ①폼 오픈 시점 구 할인값이 승인 replay로 채택값을 되돌리는 사고 ②채택발 드리프트 409 간섭을 차단. 팀장 폼도 할인 섹션 숨김. admin 직접 PATCH는 계속 포함 — 그 경로의 `recordAdminDiscountEdits` 감사는 현행 유지) |
 | `option.create` | POST /trims/:id/options | option (target_id NULL, trim은 payload) | |
 | `option.update` | PATCH /options/:id | option | |
 | `trim.no-option.set` | POST /trims/:id/no-option | trim | 무옵션 확정 |

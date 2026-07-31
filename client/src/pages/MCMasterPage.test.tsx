@@ -518,3 +518,34 @@ it("타인 pending은 프리필하지 않는다 — 폼은 카탈로그 값, 안
   expect(await screen.findByDisplayValue("15,000,000")).toBeInTheDocument();
   expect(screen.queryByText(/이어서 수정합니다/)).toBeNull();
 });
+
+// ── 할인 3필드 제외(spec §3.1 정정, 2026-07-31): 확정 할인은 딜러 제안→관리자 채택 체계 소유 —
+// 팀장 폼에서 숨기고 제출 payload에서도 뺀다(서버 strip과 이중 방어).
+it("팀장 폼엔 할인 정보가 없고 제출 payload에도 할인 키가 안 실린다", async () => {
+  trimPatchResponse = { status: 202, body: { queued: true, requestId: "cr-9" } };
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
+  await screen.findByRole("button", { name: "승인 요청" });
+  expect(screen.queryByText("자사 할인(원)")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "승인 요청" }));
+  await waitFor(() => {
+    expect(fetchCalls.some(([url, init]) => url === "/api/catalog/trims/100" && init?.method === "PATCH")).toBe(true);
+  });
+  const patch = fetchCalls.find(([url, init]) => url === "/api/catalog/trims/100" && init?.method === "PATCH")!;
+  const sent = JSON.parse(String(patch[1]?.body)) as Record<string, unknown>;
+  expect("financialDiscountAmount" in sent).toBe(false);
+  expect("partnerDiscountAmount" in sent).toBe(false);
+  expect("cashDiscountAmount" in sent).toBe(false);
+});
+
+it("admin 폼엔 할인 정보가 그대로 있다(채택 외 수동 조정 경로 유지)", async () => {
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
+  expect(await screen.findByText("자사 할인(원)")).toBeInTheDocument();
+});

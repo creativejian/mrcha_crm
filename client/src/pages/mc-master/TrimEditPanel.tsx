@@ -27,6 +27,7 @@ export function TrimEditPanel({
   error,
   notice = null,
   submitLabel = "저장", // 팀장 제안 축은 "승인 요청" — 같은 폼, 다른 결말(spec §7.1)
+  showDiscounts = true,
 }: {
   trim: CatalogTrim | null;
   modelStatus: VehicleStatus | null;
@@ -37,6 +38,9 @@ export function TrimEditPanel({
   // 프리필 안내(팀장 — 대기 중인 내 요청을 이어서 수정) 등 비에러 공지. 에러와 별개 슬롯.
   notice?: string | null;
   submitLabel?: string;
+  // 할인 3필드는 딜러 제안→관리자 채택 체계 소유(spec §3.1 정정 2026-07-31) — 팀장 폼에선
+  // 숨기고 제출 값에서도 뺀다(서버도 202 적재 시 제거하는 이중 방어).
+  showDiscounts?: boolean;
 }) {
   const isEdit = trim !== null;
   const [trimName, setTrimName] = useState(trim?.trimName ?? "");
@@ -145,37 +149,41 @@ export function TrimEditPanel({
         <span>인승</span>
         <input className="input" inputMode="numeric" value={seatingCapacity} onChange={(e) => setSeatingCapacity(e.currentTarget.value)} />
       </label>
-      <div className="va-form-section">할인 정보</div>
-      <label className="va-field">
-        <span>자사 할인(원)</span>
-        <input
-          className="input va-num"
-          inputMode="numeric"
-          value={financialDiscount}
-          onChange={(e) => applyThousandsInput(e, setFinancialDiscount)}
-          placeholder="예: 1,000,000"
-        />
-      </label>
-      <label className="va-field">
-        <span>제휴 할인(원)</span>
-        <input
-          className="input va-num"
-          inputMode="numeric"
-          value={partnerDiscount}
-          onChange={(e) => applyThousandsInput(e, setPartnerDiscount)}
-          placeholder="예: 500,000"
-        />
-      </label>
-      <label className="va-field">
-        <span>타사 할인(원)</span>
-        <input
-          className="input va-num"
-          inputMode="numeric"
-          value={cashDiscount}
-          onChange={(e) => applyThousandsInput(e, setCashDiscount)}
-          placeholder="예: 500,000"
-        />
-      </label>
+      {showDiscounts && (
+        <>
+          <div className="va-form-section">할인 정보</div>
+          <label className="va-field">
+            <span>자사 할인(원)</span>
+            <input
+              className="input va-num"
+              inputMode="numeric"
+              value={financialDiscount}
+              onChange={(e) => applyThousandsInput(e, setFinancialDiscount)}
+              placeholder="예: 1,000,000"
+            />
+          </label>
+          <label className="va-field">
+            <span>제휴 할인(원)</span>
+            <input
+              className="input va-num"
+              inputMode="numeric"
+              value={partnerDiscount}
+              onChange={(e) => applyThousandsInput(e, setPartnerDiscount)}
+              placeholder="예: 500,000"
+            />
+          </label>
+          <label className="va-field">
+            <span>타사 할인(원)</span>
+            <input
+              className="input va-num"
+              inputMode="numeric"
+              value={cashDiscount}
+              onChange={(e) => applyThousandsInput(e, setCashDiscount)}
+              placeholder="예: 500,000"
+            />
+          </label>
+        </>
+      )}
       {error && <div className="notice-box error">{error}</div>}
       <div className="va-form-actions">
         <button type="button" className="btn" onClick={onClose} disabled={busy}>
@@ -197,9 +205,14 @@ export function TrimEditPanel({
               bodyStyle: bodyStyle.trim() || null,
               seatingCapacity: parseWon(seatingCapacity),
               status,
-              financialDiscountAmount: parseWon(financialDiscount),
-              partnerDiscountAmount: parseWon(partnerDiscount),
-              cashDiscountAmount: parseWon(cashDiscount),
+              // 할인 3필드는 폼에 안 보일 때 제출 값에서도 뺀다 — 서버 제거의 클라 쪽 절반(위 prop 주석).
+              ...(showDiscounts
+                ? {
+                    financialDiscountAmount: parseWon(financialDiscount),
+                    partnerDiscountAmount: parseWon(partnerDiscount),
+                    cashDiscountAmount: parseWon(cashDiscount),
+                  }
+                : {}),
             })
           }
         >
