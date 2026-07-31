@@ -89,14 +89,21 @@
 wrangler.worker.jsonc`로 요청 이벤트 수신 확인(⚠️ `-c` 없이 돌리면 cwd의 Pages 설정 탓에
 "Pages project" 에러). 미존재 `.txt` 200/404 프로브는 캐시·SPA fallback 차이로 신뢰 불가.
 
-**롤백** = Pages에 도메인 재부착 한 방(`POST …/pages/projects/mrcha-crm/domains`
-{"name":"crm.mrcha.app"}) — Pages 우선 규칙 덕에 route 제거 없이도 즉시 Pages로 복귀한다
-(실측 ~10초). Pages 배포·CNAME은 그대로 살아 있다.
+**같은 날 오후 정식 Custom Domain 전환까지 완료**(유슨생 "지금 깔끔하게" 지시): 유슨생이
+대시보드에서 crm CNAME 삭제(토큰에 DNS 스코프가 없어 사람 몫) → 5초 간격 재시도 루프가 삭제를
+감지해 Custom Domain 즉시 부착(다운타임 체감 0 — DNS 캐시가 공백을 가림) → 설정을
+`{"pattern":"crm.mrcha.app","custom_domain":true}`로 교체·재배포 → 과도기 zone route는
+wrangler가 안 지워서 API DELETE로 수동 제거(⚠️ wrangler deploy는 config에서 뺀 route를
+회수하지 않는다). 스위치 직후 prod 스모크: `/api/customers` 24 · SSE ask 200(text+done) ·
+스모크 대화 원복 완료.
 
-**현 상태**: DNS CNAME(crm → pages.dev)·Pages 프로젝트 유지(병행 안전망). workers.dev
-서브도메인은 route 추가 시 wrangler 기본값으로 비활성화됨(공개 표면 축소 — 의도 유지).
-스위치 후 prod 스모크: `/api/customers` 24 · SSE ask 200(text+done) · 스모크 대화 원복 완료.
-**정식 Custom Domain 전환은 Pages 폐기 때**(CNAME 삭제 가능 시점) 아래 ⑤와 함께.
+**최종 상태**: DNS 레코드는 Custom Domain이 소유(대시보드에 Worker 타입으로 표시),
+zone route 0, CNAME 0. Pages 프로젝트·pages.dev 배포는 유지(⑤에서 폐기). workers.dev
+서브도메인은 비활성(공개 표면 축소 — 의도 유지).
+
+**롤백**(이제 3단계): ①Worker Custom Domain 제거(`DELETE …/workers/domains/{id}`) ②CNAME
+재생성(crm → mrcha-crm.pages.dev, 프록시 on — 대시보드) ③Pages 도메인 재부착
+(`POST …/pages/projects/mrcha-crm/domains` {"name":"crm.mrcha.app"}).
 
 ## ⚠️ 과도기 배포 규칙 (Workers Builds 연결 전 — 지금 유효)
 

@@ -16,12 +16,10 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
-  // 도메인 스위치는 Custom Domain이 아니라 zone route로 한다(2026-07-31 실측 결정):
-  // 기존 CNAME(crm → mrcha-crm.pages.dev)이 남아 있으면 Custom Domain API가 100117로 거부하고,
-  // wrangler OAuth 토큰엔 DNS 쓰기 스코프가 없어 레코드를 지울 수 없다. route는 같은 호스트의
-  // Pages 프로젝트보다 먼저 실행되므로 DNS·Pages 부착을 건드리지 않는 무중단 전환이 된다.
-  // 롤백 = 이 route 제거 후 재배포. Pages 폐기 시점에 CNAME 삭제 → Custom Domain으로 정식 전환.
-  "routes": [{ "pattern": "crm.mrcha.app/*", "zone_id": "51ff7d8269b7df65b39bb80ba9ab46f8" }],
+  // 정식 Custom Domain(2026-07-31 전환 완료 — 구 CNAME은 유슨생이 대시보드에서 삭제, DNS 레코드는
+  // Custom Domain이 소유). 과도기에 쓰던 zone route(crm.mrcha.app/*)는 제거됨 — 전말과 롤백 절차는
+  // ref/plans/2026-07-31-crm-workers-migration.md ④.
+  "routes": [{ "pattern": "crm.mrcha.app", "custom_domain": true }],
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "a09fec47fb084b1f9f4af474df1cd119" }],
   // Workers Logs(7일 보존·검색) — 이번 마이그레이션의 목적. Pages엔 실시간 tail뿐이었다.
   "observability": { "enabled": true },
