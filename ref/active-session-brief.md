@@ -37,15 +37,13 @@ git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = 
   근거: Workers Custom Domain은 zone 동일 계정 필수 → 제프 계정 잔류 시 mc.mrcha.app 불가.
   이사님 결정 대기 = 제프 계정 접근 범위(멤버 권한이 거침). 레시피 = CRM plans 문서 그대로.
 - ~~타깃 렌즈 배치~~ **완료(07-31 밤 · 후속 수리까지 종결)** → 위 요약. 판정·잔여 근거는
-  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`. **잔여 2건은 승격 조건 대기**:
-  `.va-disc-pop`(제안이 쌓여 긴 모델 아래쪽 행에 걸리면 중 — 그때 `popoverPosFromRect` + fixed
-  한 벌) · 죽은 상태 modifier 4종. 구조 개선 후보 = `useQuoteList.quotes`가 `detail.quotes`와
-  재동기화되지 않는 것(개별 롤백·보상보다 근본 지점 — 다만 낙관 갱신 덮어쓰기 설계가 선행 필요).
-
-- ~~CF 잔여 권고~~ **전부 종결(07-31 저녁)**: rate limiting 가동(`assistant-ask-rate-limit` —
-  IP당 5회/10초, 실측 429. ⚠️Free라 경로 eq만 가능) · AI Gateway 보류 · 프리뷰 Access 종결.
-- 잔여 실기 확인(오전분 유지): ① `#410` 레이아웃(admin·팀장·딜러 전폭) ② 팀장 폼 할인 섹션
-  부재+admin 폼 유지 ③ 교차 세션 실시간 ④ PR `#404` 체크리스트 잔여.
+  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`. **잔여 2건 = 승격 조건 대기**(`.va-disc-pop`
+  — 제안이 쌓여 긴 모델 아래쪽 행에 걸리면 중 · 죽은 상태 modifier 4종). 구조 개선 후보 =
+  `useQuoteList.quotes`가 `detail.quotes`와 재동기화되지 않는 것(개별 롤백보다 근본 지점).
+- ~~CF 잔여 권고~~ **전부 종결(07-31 저녁)**: rate limiting 가동(IP당 5회/10초·실측 429) ·
+  AI Gateway 보류 · 프리뷰 Access 종결.
+- 잔여 실기 확인(오전분 유지): ①`#410` 레이아웃(admin·팀장·딜러) ②팀장 폼 할인 섹션 부재
+  +admin 폼 유지 ③교차 세션 실시간 ④PR `#404` 체크리스트 잔여.
 
 ## 대기
 
