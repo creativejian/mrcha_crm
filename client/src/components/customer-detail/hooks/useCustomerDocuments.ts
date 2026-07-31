@@ -6,6 +6,7 @@ import { type CustomerDetailData } from "@/lib/customers";
 import { classifyDocumentWithAI } from "@/lib/document-classify";
 import type { MergeSource } from "@/lib/document-merge";
 import { isDocumentFileDrag, documentFileKind, nowMs } from "@/lib/detail-utils";
+import { usePopoverViewportClose } from "@/lib/use-popover-viewport-close";
 import { type DocumentItem } from "@/components/customer-detail/types";
 
 type UseCustomerDocumentsArgs = {
@@ -92,6 +93,8 @@ export function useCustomerDocuments({ detail, customer, onToast, markRecentUpda
       document.removeEventListener("keydown", closeDocumentDeleteByKeyboard);
     };
   }, [confirmingDocumentDeleteId]);
+
+  usePopoverViewportClose(Boolean(confirmingDocumentDeleteId), () => setConfirmingDocumentDeleteId(null));
 
   async function addDocumentFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList).filter((file) => {

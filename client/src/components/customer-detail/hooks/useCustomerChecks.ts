@@ -6,6 +6,7 @@ import { type CustomerDetailData } from "@/lib/customers";
 import { normalizeDateText } from "@/lib/datetime-text";
 import { formatShortDateLabel, checkDueOptions, checkDueSelection } from "@/lib/detail-utils";
 import { sortCheckItemsByWorkRule, type CheckItem } from "@/lib/schedule-items";
+import { usePopoverViewportClose } from "@/lib/use-popover-viewport-close";
 
 type UseCustomerChecksArgs = {
   detail: CustomerDetailData; // 초기 checkItems / completedCheckItems 매핑 소스
@@ -75,6 +76,8 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate,
     };
   }, [confirmingCheckItemTitle]);
 
+  usePopoverViewportClose(Boolean(confirmingCheckItemTitle), () => setConfirmingCheckItemTitle(null));
+
   useEffect(() => {
     if (!confirmingCheckItemDeleteId) return;
 
@@ -94,6 +97,8 @@ export function useCustomerChecks({ detail, customer, onToast, markRecentUpdate,
       document.removeEventListener("keydown", closeCheckDeleteByKeyboard);
     };
   }, [confirmingCheckItemDeleteId]);
+
+  usePopoverViewportClose(Boolean(confirmingCheckItemDeleteId), () => setConfirmingCheckItemDeleteId(null));
 
   useEffect(() => {
     if (!editingCheckItemId) return;

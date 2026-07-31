@@ -6,6 +6,7 @@ import { type CustomerDetailData } from "@/lib/customers";
 import { normalizeDateText } from "@/lib/datetime-text";
 import { nowMs, scheduleTimeFromFormData } from "@/lib/detail-utils";
 import { sortSchedulesByDateTime, scheduleRecordKey, type ScheduleItem } from "@/lib/schedule-items";
+import { usePopoverViewportClose } from "@/lib/use-popover-viewport-close";
 
 type UseCustomerSchedulesArgs = {
   detail: CustomerDetailData; // 초기 schedules / completedScheduleKeys 매핑 소스
@@ -60,6 +61,8 @@ export function useCustomerSchedules({ detail, customer, onToast, markRecentUpda
     };
   }, [confirmingScheduleCompleteId]);
 
+  usePopoverViewportClose(Boolean(confirmingScheduleCompleteId), () => setConfirmingScheduleCompleteId(null));
+
   useEffect(() => {
     if (!confirmingScheduleDeleteId) return;
 
@@ -79,6 +82,8 @@ export function useCustomerSchedules({ detail, customer, onToast, markRecentUpda
       document.removeEventListener("keydown", closeScheduleDeleteByKeyboard);
     };
   }, [confirmingScheduleDeleteId]);
+
+  usePopoverViewportClose(Boolean(confirmingScheduleDeleteId), () => setConfirmingScheduleDeleteId(null));
 
   useEffect(() => {
     if (!editingScheduleId) return;

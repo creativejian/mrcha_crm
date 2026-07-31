@@ -5,6 +5,7 @@ import { aiHintPlainText, badgeClass, chanceBadgeClass, firstResponseDisplay, re
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
 import { normalizeSearchValue } from "@/lib/global-customer-search";
+import { usePopoverViewportClose } from "@/lib/use-popover-viewport-close";
 import { createCustomer, prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
@@ -95,28 +96,18 @@ function useTablePopoverDismiss({ active, containerRef, onClose, suppressRef, cl
       if (event.key === "Escape") onClose();
     }
 
-    function closeOnShift() {
-      onClose();
-    }
-
     document.addEventListener("pointerdown", closeFromOutside, true);
     document.addEventListener("click", suppressOutsideClick, true);
     document.addEventListener("keydown", closeByKeyboard);
-    if (closeOnViewportShift) {
-      // (scroll capture — 테이블 내부 스크롤 포함. 팝오버 내부엔 스크롤 요소가 없어 오탐 없음)
-      document.addEventListener("scroll", closeOnShift, true);
-      window.addEventListener("resize", closeOnShift);
-    }
     return () => {
       document.removeEventListener("pointerdown", closeFromOutside, true);
       document.removeEventListener("click", suppressOutsideClick, true);
       document.removeEventListener("keydown", closeByKeyboard);
-      if (closeOnViewportShift) {
-        document.removeEventListener("scroll", closeOnShift, true);
-        window.removeEventListener("resize", closeOnShift);
-      }
     };
-  }, [active, containerRef, onClose, suppressRef, closeOnViewportShift]);
+  }, [active, containerRef, onClose, suppressRef]);
+
+  // 뷰포트 시프트 닫기는 공용 훅이 담당한다(드로어 확인 팝오버와 같은 한 벌 — 2026-07-31).
+  usePopoverViewportClose(active && closeOnViewportShift, onClose);
 }
 
 function modeFilter(mode: CustomerMode, customer: Customer) {
