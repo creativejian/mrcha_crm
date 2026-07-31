@@ -11,29 +11,23 @@ git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = 
 
 ## 직전 세션 요약 (07-31 밤 · 유슨생 — 타깃 렌즈 배치)
 
-- **fail-silent UI 경로 수색 완료**(`#414` 계급). 판정 SSOT =
-  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`. 규모 = 감사 정책 기본형(2앵글+실측 렌즈 1 ·
-  적대 검증 상/중만 · 에이전트 7 · 전원 읽기 전용, 워킹트리 무손상).
-- **결과: 상 0 · 중 1 · 하 9** — 수색이 낸 중 6건 중 **5건이 적대 검증에서 하로 강등**(과장 회수).
-  **#414 원형(앵커 미매칭 → 무경고 영구 hidden) 잔존 0건** — 훅 소비처 5곳(컴포넌트 7개)과
-  좌표 없는 fixed 클래스 8개 전수가 모두 좌표 공급 배선.
-- **중 1건 수리·배포**(`d9ee4ff`): 드로어 3카드(할일·일정·서류) 확인 팝오버가 스크롤·리사이즈에
-  안 닫혔다(계약 "닫기는 호출부 책임"을 목록만 이행). **실측 400px 스크롤 시 행 400px·팝오버 0px**
-  → "삭제하시겠습니까?"가 구매조건 섹션 위에 떠 대상 오인(드로어 100vh/auto라 항목 1건도 발현).
-  공용 훅 `use-popover-viewport-close.ts`로 목록·드로어 한 벌화 + 회귀 5케이스.
-- **하 등급 후속 5건도 수리·머지**(PR `#415`): ①계산기 "조회 완료" 오표시(`isVehicleReady` 가드)
-  ②견적 CREATE 발송 실패 미원복(UPDATE와 대칭 롤백) ③견적 temp id 무음 스킵 6함수
-  (`blockedWhileQuoteSaving` + 회귀 4케이스) ④메모 삭제 팝오버 `ConfirmPopover` 이주
-  ⑤`heightDep` Boolean→문자열. 도달 불가 저장 핸들러 2건엔 경고 주석.
-- **`.va-disc-pop`(MC 마스터 할인 채택)은 하→중 승격 후 수리**(PR `#416`): 유슨생이 딜러 계정으로
-  5 Series 마지막 트림(550e)에 제안을 넣자 prod에서 즉시 재현 — **가시 0px·[채택] y=872로
-  뷰포트 800 초과라 클릭 자체 불가**("오늘 피해 0"이던 근거는 제안 1건이 첫 행이었기 때문).
-  `useFixedPopoverPosition`(앵커 `.va-disc-cell`·align end)로 fixed 전환 + `max-height:60vh` +
-  뷰포트 시프트 닫기. **flip-up이 필수라 `popoverPosFromRect`(아래로만 열림)를 쓰지 않았다.**
-  실측: 첫 행 아래로·마지막 행 위로·둘 다 [채택] 히트테스트 통과.
-- ⚠️ **main 직행 사고**: 첫 커밋에서 feature 브랜치로 커밋했는데 push가 main까지 밀었다(병렬
-  세션 공유 워킹트리 + jj bookmark). 이후 push는 **SHA 고정 refspec**으로 바꿔 재발 0(`#415`는
-  브랜치에만 착지 확인). 재발 방지 = 메모리 `parallel-session-shared-worktree-git-race`.
+- **fail-silent UI 경로 수색**(`#414` 계급, 감사 정책 기본형 · 에이전트 7 · 워킹트리 무손상).
+  **상 0 · 중 1 · 하 9** — 수색이 낸 중 6건 중 **5건이 적대 검증에서 강등**(과장 회수).
+  **#414 원형(앵커 미매칭 → 무경고 영구 hidden) 잔존 0건.** 판정 SSOT =
+  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`.
+- **중 1건**(`d9ee4ff`): 드로어 3카드 확인 팝오버가 스크롤·리사이즈에 안 닫혔다(계약 "닫기는
+  호출부 책임"을 목록만 이행). **실측 400px 스크롤 시 행 400px·팝오버 0px** → 확인창이 구매조건
+  섹션 위에 떠 대상 오인. 공용 훅 `use-popover-viewport-close.ts`로 한 벌화 + 회귀 5케이스.
+- **하 5건**(PR `#415`): ①계산기 "조회 완료" 오표시(`isVehicleReady` 가드) ②견적 CREATE 발송
+  실패 미원복(UPDATE와 대칭 롤백) ③견적 temp id 무음 스킵 6함수(`blockedWhileQuoteSaving`
+  +회귀 4) ④메모 팝오버 `ConfirmPopover` 이주 ⑤`heightDep` Boolean→문자열. +도달 불가 저장
+  핸들러 2건 경고 주석.
+- **`.va-disc-pop` 하→중 승격 후 수리**(PR `#416`): 딜러 계정으로 5 Series 마지막 트림(550e)에
+  제안을 넣자 prod 즉시 재현 — **가시 0px·[채택] y=872로 뷰포트 800 초과 = 클릭 불가**.
+  `useFixedPopoverPosition`(앵커 `.va-disc-cell`·align end) + `max-height:60vh` + 시프트 닫기.
+  **flip-up 필수라 `popoverPosFromRect`(아래로만)를 쓰지 않았다.**
+- ⚠️ **main 직행 사고**: 첫 커밋 push가 main까지 밀었다(병렬 세션 공유 워킹트리 + jj bookmark).
+  이후 **SHA 고정 refspec**으로 재발 0. 재발 방지 = 메모리 `parallel-session-shared-worktree-git-race`.
 
 ## ▶ 다음
 
