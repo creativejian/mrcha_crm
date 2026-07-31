@@ -32,6 +32,13 @@ bare 커맨드 자연 동작). Pages 프로젝트 삭제 완료(앱 `mr-cha-app`
 
 ## ▶ 다음
 
+- **타깃 렌즈 배치(#414 계급 · 새 세션 · Opus로 충분 — 유슨생 승인)**: fail-silent UI 경로 수색.
+  ①`useFixedPopoverPosition` 소비처 전수의 anchorSelector 실검증(미매칭=무경고 영구 hidden 계약)
+  ②공유 CSS 클래스에 JS 좌표 주입 계약이 붙은 패턴 전수 ③서류 훅 `kim-` temp id 삭제의 조용한
+  no-op 경합(업로드 직후 삭제 시 API 미호출 가능성 — useCustomerDocuments.deleteDocument 참조)
+  ④낙관적 UI + `.catch(()=>toast)` 조합의 실패 삼킴(화면 미복원). 규모 = 감사 정책 기본형
+  (2앵글+실측 렌즈 1 · 적대 검증은 상/중만 · 1~2시간). 배경·발단 = PR `#414` 본문.
+
 - ~~CF 잔여 권고~~ **전부 종결(07-31 저녁)**: ✅rate limiting — zone 속도 제한 규칙
   `assistant-ask-rate-limit`(`/api/assistant/ask` eq · IP당 5회/10초 · 차단 10초, Free 포함분
   1/1 사용. 실측 401×5→429×3→11초 후 해제. ⚠️Free라 호스트·메서드 조건 불가 — 경로 eq로 대체) ·
