@@ -1,12 +1,11 @@
 import { Check, Trash2 } from "lucide-react";
-import type { ReactNode, RefObject } from "react";
 
 import { DateTextField } from "@/components/DateTextField";
 import { TASK_CATEGORY_OPTIONS } from "@/data/customers";
 import { checkDueOptions, parseCheckDueDate } from "@/lib/detail-utils";
 import { type CheckItem } from "@/lib/schedule-items";
-import { useFixedPopoverPosition } from "@/lib/use-fixed-popover-position";
 
+import { ConfirmPopover } from "./ConfirmPopover";
 import type { useCustomerChecks } from "./hooks/useCustomerChecks";
 
 type CustomerChecksProps = ReturnType<typeof useCustomerChecks>;
@@ -16,26 +15,7 @@ type CustomerChecksProps = ReturnType<typeof useCustomerChecks>;
 // 카드 머리에서 절단되던 실사고 — 2026-07-26 유슨생). 목록 행 팝오버들과 같은 fixed 탈출로 전환 —
 // 방향(위/아래)은 훅이 뷰포트 기준으로 자동 선택하므로 구 is-above 인덱스 휴리스틱도 함께 폐기
 // (스크롤 컨테이너에선 "마지막 항목=아래 잘림" 가정 자체가 스크롤 위치에 따라 틀렸다).
-function CheckConfirmPopover({ ariaLabel, className, popRef, children }: {
-  ariaLabel: string;
-  className: string;
-  popRef: RefObject<HTMLDivElement | null>;
-  children: ReactNode;
-}) {
-  const pos = useFixedPopoverPosition(popRef, ".kim-check-row", undefined, "end");
-  return (
-    <div
-      aria-label={ariaLabel}
-      className={className}
-      onClick={(event) => event.stopPropagation()}
-      ref={popRef}
-      role="dialog"
-      style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
-    >
-      {children}
-    </div>
-  );
-}
+// 셸은 서류·일정 카드와 공용화 — ./ConfirmPopover.tsx (2026-07-31 미배선 카드 오프스크린 사고).
 
 export function CustomerChecks({
   items,
@@ -182,22 +162,22 @@ export function CustomerChecks({
                   </button>
                 </div>
                 {confirming.title === item.id ? (
-                  <CheckConfirmPopover ariaLabel="해야 할 일 상태 변경 확인" className="kim-check-confirm-popover" popRef={confirmRef}>
+                  <ConfirmPopover anchorSelector=".kim-check-row" ariaLabel="해야 할 일 상태 변경 확인" className="kim-check-confirm-popover" popRef={confirmRef}>
                     <p>{isCompleted ? "완료한 일을 다시 진행 중으로 되돌릴까요?" : "해당 할 일을 완료 처리할까요?"}</p>
                     <div>
                       <button type="button" onClick={() => handlers.cancelComplete()}>취소</button>
                       <button className={isCompleted ? "neutral" : "primary"} type="button" onClick={() => handlers.toggleDone(item.id)}>{isCompleted ? "되돌림" : "완료"}</button>
                     </div>
-                  </CheckConfirmPopover>
+                  </ConfirmPopover>
                 ) : null}
                 {confirming.deleteId === item.id ? (
-                  <CheckConfirmPopover ariaLabel="해야 할 일 삭제 확인" className="kim-check-confirm-popover delete" popRef={deleteRef}>
+                  <ConfirmPopover anchorSelector=".kim-check-row" ariaLabel="해야 할 일 삭제 확인" className="kim-check-confirm-popover delete" popRef={deleteRef}>
                     <p>해당 할 일을 삭제하시겠습니까?</p>
                     <div>
                       <button type="button" onClick={() => handlers.cancelDelete()}>아니요</button>
                       <button className="danger" type="button" onClick={() => handlers.confirmDelete(item.id)}>삭제</button>
                     </div>
-                  </CheckConfirmPopover>
+                  </ConfirmPopover>
                 ) : null}
               </div>
             );
