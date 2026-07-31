@@ -9,7 +9,7 @@
     "dev:ladle": "ladle serve --host 127.0.0.1",
     "build": "vite build --config client/vite.config.ts",
     "build:ladle": "ladle build",
-    "deploy:worker": "bun run build && rm -f client/dist/_redirects && wrangler deploy -c wrangler.worker.jsonc",
+    "deploy:worker": "bun run build && wrangler deploy",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier . --write",

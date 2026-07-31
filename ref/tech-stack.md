@@ -26,7 +26,7 @@
 | 요청 검증 | `@hono/zod-validator` | `^0.7.2` | Zod 스키마로 바디/쿼리/헤더 검증 |
 | 스키마 / 유효성 | `zod` | `^4.4.3` | 타입 안전 스키마. API contract 정의 |
 | 엔트리 (로컬) | `src/local-dev.ts` | — | `Bun.serve({ port, fetch: app.fetch })` |
-| 엔트리 (배포) | `functions/[[path]].ts` | — | Cloudflare Pages Functions adapter |
+| 엔트리 (배포) | `src/worker.ts` | — | Cloudflare Workers 모듈 워커(`export default app`, 2026-07-31 Pages→Workers 전환) |
 
 ```typescript
 // src/local-dev.ts (로컬 개발)
@@ -112,20 +112,23 @@ bun run db:migrate    # 마이그레이션 적용
 
 | 항목 | 선택 | 비고 |
 |---|---|---|
-| 정적 / 함수 호스팅 | **Cloudflare Pages** | `pages_build_output_dir: client/dist` |
-| API Functions | Cloudflare Pages Functions (`functions/[[path]].ts`) | Workers 기반 |
+| 호스팅 | **Cloudflare Workers** (2026-07-31 Pages→Workers 전환 — `ref/plans/2026-07-31-crm-workers-migration.md`) | assets `client/dist` + `run_worker_first: /api/*` |
+| API 엔트리 | `src/worker.ts` (모듈 워커) | Workers Logs 7일 보존·검색 |
 | Compatibility | `nodejs_compat` 플래그 활성 | postgres.js 지원 위해 필수 |
 | DB 커넥션 풀 | **Cloudflare Hyperdrive** | 바인딩 `HYPERDRIVE` |
-| 로컬 dev | `wrangler pages dev` 또는 `Bun.serve` (포트 8788) | |
+| 로컬 dev | `bun run dev` (`Bun.serve` 포트 8788 + vite 5173) — CF 무관 | |
 | Compatibility date | `2026-03-17` | |
 
 `wrangler.jsonc`:
 ```jsonc
 {
-  "name": "mg-lease-web",
+  "name": "mrcha-crm",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-03-17",
-  "pages_build_output_dir": "client/dist",
   "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "client/dist", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
+  "routes": [{ "pattern": "crm.mrcha.app", "custom_domain": true }],
+  "observability": { "enabled": true },
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "..." }]
 }
 ```

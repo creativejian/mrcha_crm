@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { onRequest } from "../functions/[[path]]";
 import { app } from "./app";
+import worker from "./worker";
 
 describe("app (Hono)", () => {
   test("GET /api/health returns service status", async () => {
@@ -22,39 +22,11 @@ describe("app (Hono)", () => {
     expect(await res.json()).toEqual({ error: "인증이 필요합니다." });
   });
 
-  // 2026-07-03 prod 524 사고 회귀 테스트: Pages 엔트리가 context를 ExecutionContext로 전달하지
-  // 않으면 waitUntil 로직이 전부 폴백 강등된다(dbMiddleware 데드락 — db.test.ts 참조).
-  test("Pages onRequest는 /api 요청에 context를 ExecutionContext로 전달한다", async () => {
-    const captured: unknown[] = [];
-    const origFetch = app.fetch;
-    (app as { fetch: typeof app.fetch }).fetch = ((req: Request, env?: unknown, ctx?: unknown) => {
-      captured.push(ctx);
-      return origFetch(req, env as never, ctx as never);
-    }) as typeof app.fetch;
-    try {
-      const context = {
-        request: new Request("http://local.test/api/health"),
-        env: {},
-        next: () => Promise.resolve(new Response("static")),
-        waitUntil: () => {},
-        passThroughOnException: () => {},
-      };
-      const res = await onRequest(context);
-      expect(res.status).toBe(200);
-      expect(captured[0]).toBe(context);
-    } finally {
-      (app as { fetch: typeof app.fetch }).fetch = origFetch;
-    }
-  });
-
-  test("Pages onRequest는 /api 밖 요청을 next(정적 자산)로 위임한다", async () => {
-    const res = await onRequest({
-      request: new Request("http://local.test/"),
-      env: {},
-      next: () => Promise.resolve(new Response("static")),
-      waitUntil: () => {},
-      passThroughOnException: () => {},
-    });
-    expect(await res.text()).toBe("static");
+  // Workers 엔트리(2026-07-31 Pages 폐기): 모듈 워커가 app 자체를 default export 해야
+  // ExecutionContext가 fetch 3번째 인자로 자동 전달된다(구 Pages 엔트리의 수동 전달 누락 →
+  // SSE 데드락 함정은 이 구조로 소멸 — 2026-07-03 prod 524 사고 배경은 db.test.ts 참조).
+  // 별도 래퍼 객체로 바꾸면 그 보장이 다시 코드 책임이 되므로 동일성 자체를 잠근다.
+  test("Workers 엔트리는 Hono app 자체를 default export 한다", () => {
+    expect(worker).toBe(app);
   });
 });
