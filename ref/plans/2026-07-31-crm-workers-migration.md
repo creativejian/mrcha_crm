@@ -48,7 +48,7 @@
 | `DATABASE_URL` | `.env.local` (session pooler) | prod에선 HYPERDRIVE가 항상 우선 — 폴백 전용 |
 | `SUPABASE_SECRET_KEY` | `.env.local` | 서류 서명 URL 스모크 200 |
 | `GEMINI_API_KEY` | `.env.local` | SSE ask 스모크 정상 |
-| `SEND_PUSH_SECRET` | `.env.local` | (실발송 스모크는 안 함 — 실기기 e2e 보류 항목) |
+| `SEND_PUSH_SECRET` | `.env.local` | ✅ 인증 프로브 실증(07-31 저녁): 존재하지 않는 UUID로 send-push 직접 호출 — 무키 401 / 유키 200 `sent:0`(발송 0건으로 값 유효성만 검증) |
 | `PARTNER_QUOTE_API_KEY` | `.env.local` | external support-matrix 200 / 무키 401 대조 |
 | `PARTNER_QUOTE_API_URL` | **재구성** `https://mc.mrcha.app/api/external/quotes/calculate` | ⚠️`.env.local` 값은 dev 릴레이(`…/api/quotes/calculate`)라 그대로 쓰면 안 됨 |
 | `GEMINI_PROXY_URL` | **재구성** `https://wmkbmlespgzkeekliwio.supabase.co/functions/v1/crm-gemini-proxy` | `.env.local`에 없음(로컬은 직결). POST 401(verify_jwt) = 도달 확인 |
@@ -69,7 +69,7 @@
 - 브라우저(agent-browser, 해시 세션 — Supabase redirect 허용목록 무관): 대시보드·고객 목록
   실데이터 렌더 확인
 
-미실시: 서류 **업로드**(쓰기)·FCM 실발송 — 도메인 스위치 후 실기 1회에서 확인 권장.
+미실시: 서류 **업로드**(쓰기)만 남음 — 다음 실사용이 곧 확인(SEND_PUSH_SECRET은 07-31 저녁 인증 프로브로 실증 완료, 아래 체크리스트).
 
 ## ④ 도메인 스위치 — 실행 결과 (2026-07-31 완료, zone route 방식)
 
