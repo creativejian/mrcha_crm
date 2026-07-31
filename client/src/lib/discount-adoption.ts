@@ -19,6 +19,15 @@ export const DISCOUNT_FIELD_LABELS: Record<DiscountField, string> = {
   cash: "타사할인",
 };
 
+// 셀 안 병기용 짧은 라벨 — 헤더는 "자사할인"이지만 할인 셀은 폭이 좁아 접두만 쓴다.
+// 확정 할인이 없어 `—`만 뜨는 셀에서 "이 배지가 어느 할인 건지" 알려주는 용도다
+// (2026-07-31 유슨생: 빈 셀 셋이 나란하면 자사·제휴·타사를 구분할 수 없다).
+export const DISCOUNT_FIELD_SHORT: Record<DiscountField, string> = {
+  financial: "자사",
+  partner: "제휴",
+  cash: "타사",
+};
+
 export function proposalState(input: {
   proposalAmount: number | null;
   adoptedAmount: number | null;
