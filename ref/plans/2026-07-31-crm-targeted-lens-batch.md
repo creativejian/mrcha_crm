@@ -47,6 +47,24 @@
 
 ---
 
+## 후속 수리 (2026-07-31 밤 · 유슨생 지시로 하 등급도 착수)
+
+아래 5건은 **후속 PR에서 수리 완료**했다. 각 항목의 원 서술은 그대로 두고 조치만 덧붙인다.
+
+| 건 | 조치 | 회귀 그물 |
+|---|---|---|
+| 1 계산기 "조회 완료" 오표시 | 재조회 분기 진입 전 `isVehicleReady` 가드 + `blockReason` 안내 | — (실기 경로) |
+| 2 견적 CREATE 발송 실패 미원복 | `.catch`에서 `appStatus: "draft"` 롤백(UPDATE 분기와 대칭) | — |
+| 3 견적 temp id 무음 스킵 6함수 | `blockedWhileQuoteSaving`로 조기 반환 — API도 로컬 변경도 없이 "저장하는 중" 안내 | `useQuoteList.temp-id-guard.test.tsx` 4케이스(변이 자가검증 통과) |
+| 4 메모 삭제 팝오버 absolute | `ConfirmPopover`(`.kim-customer-memo-row`)로 이주 + fixed CSS + 뷰포트 시프트 닫기 배선 | 실기 3행 계측 |
+| 6 `heightDep={Boolean(notice)}` | `notice` 문자열 자체를 전달(메시지→메시지 전환 포착) | — |
+
+**의도적으로 남긴 것**:
+- **5 `.va-disc-pop`** — fixed 전환에 좌표 계산·`max-height`·`overflow`를 새로 도입해야 하고, 실기 검증에 딜러 제안 실데이터(공유 master 쓰기)가 필요하다. 오늘 피해 0(제안 1건이 13행 표의 첫 행)이라 승격 조건이 올 때 함께 한다.
+- **7 죽은 상태 modifier 4종** — CSS·JS 참조 모두 0건인 완전한 no-op으로 재확인했다. 다만 "제거"와 "누락된 CSS 복구" 중 어느 쪽이 원 의도인지 확증이 없어, 지워서 흔적을 없애는 대신 이 문서에만 남긴다.
+- **8 도달 불가 저장 핸들러 2건** — 코드에 **경고 주석을 박았다**(`savePurchaseConditions` · `saveStatusField`의 text 분기). 지금 고치면 도달 불가 경로에 미검증 코드를 넣는 셈이라, 되살릴 사람이 `savePatch`를 먼저 배선하도록 지시만 남긴다.
+- **9 `.kim-edit-popover.schedule`** — 사소한 CSS 잔존물.
+
 ## 보류 — 하 9건 (조치 없음, 근거만 박제)
 
 우선순위 순. 전부 "오늘 사용자 피해가 없거나 조건이 매우 좁다"로 강등된 건이다.

@@ -168,6 +168,15 @@ function ConditionCard({
 
   const handleQueryClick = () => {
     if (!showResults || hasChanges) {
+      // 차량이 없으면 buildScenarioPayload가 null이라 CalculatorModal.handleCalculate가 조용히
+      // return한다 — 그런데 아래에서 스냅샷·showResults를 먼저 커밋하므로, 가드가 없으면 계산이
+      // 한 번도 돌지 않은 채 더티 경고(주황 "변경된 조건으로 다시 조회하기")가 거짓 완료(회색
+      // "○○으로 조회 완료")로 뒤집힌다. 버튼은 showResults가 true면 차량 미선택에도 활성이라
+      // (회색 버튼이 정렬 드롭다운을 열어야 해서 의도된 것) 이 경로는 실제로 도달한다.
+      if (!isVehicleReady) {
+        setBlockReason("차량을 먼저 선택해 주세요")
+        return
+      }
       // A#8 % 상한 + A#2 렌트 무제한 — 위반이면 조회를 시작하지 않는다(전 금융사 400 전사 낭비 + 무사유 은닉 차단).
       const guardReason = distanceGuardReason(state) ?? percentGuardReason(state)
       if (guardReason) {

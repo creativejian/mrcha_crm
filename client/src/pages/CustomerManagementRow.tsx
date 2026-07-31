@@ -616,8 +616,10 @@ function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: 
   const [date, setDate] = useState(initial?.date ?? "");
   const [time, setTime] = useState(initial?.time?.slice(0, 5) ?? "");
   const rootRef = useRef<HTMLDivElement>(null);
-  // notice 등장/소멸로 박스 높이가 바뀔 수 있어 heightDep로 재계산(날짜/시간 타이핑은 높이 무관 — 제외).
-  const pos = useFixedPopoverPosition(rootRef, ".delivery-schedule-wrap", Boolean(notice));
+  // notice 등장/소멸·**문구 교체**로 박스 높이가 바뀔 수 있어 heightDep로 재계산(날짜/시간 타이핑은
+  // 높이 무관 — 제외). ⚠️Boolean()으로 감싸면 안 된다 — 검증 오류가 연속으로 나면 saveDeliverySchedule의
+  // invalid 분기가 notice를 null 경유 없이 곧바로 교체해서, true→true가 되어 줄 수가 바뀌어도 재계산이 없다.
+  const pos = useFixedPopoverPosition(rootRef, ".delivery-schedule-wrap", notice);
 
   return (
     <div
@@ -710,7 +712,8 @@ function DeliveryInfoPopover({ customerName, draft: initialDraft, notice, saving
 }) {
   const [draft, setDraft] = useState(initialDraft);
   const rootRef = useRef<HTMLDivElement>(null);
-  const pos = useFixedPopoverPosition(rootRef, ".delivery-info-wrap", Boolean(notice));
+  // heightDep에 notice 문자열 자체를 넘긴다(Boolean 금지 — 위 DeliverySchedulePopover와 같은 사유).
+  const pos = useFixedPopoverPosition(rootRef, ".delivery-info-wrap", notice);
   const set = (patch: Partial<DeliveryInfoDraft>) => setDraft((d) => ({ ...d, ...patch }));
   return (
     <div

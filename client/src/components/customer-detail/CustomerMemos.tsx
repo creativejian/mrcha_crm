@@ -1,5 +1,6 @@
 import { FileText, Trash2 } from "lucide-react";
 
+import { ConfirmPopover } from "./ConfirmPopover";
 import type { useCustomerMemos } from "./hooks/useCustomerMemos";
 
 type CustomerMemosProps = ReturnType<typeof useCustomerMemos>;
@@ -28,9 +29,7 @@ export function CustomerMemos({ memos, count, adding, editingId, confirmingDelet
         <div className="kim-customer-memo-list">
           {memos.length === 0 && !adding ? (
             <div className="kim-list-empty">등록된 메모가 없습니다.</div>
-          ) : memos.map((item, index) => {
-            const shouldOpenDeletePopoverAbove = !adding && memos.length > 1 && index === memos.length - 1;
-
+          ) : memos.map((item) => {
             if (editingId === item.id) {
               return (
                 <form
@@ -80,12 +79,11 @@ export function CustomerMemos({ memos, count, adding, editingId, confirmingDelet
                   <Trash2 size={13} strokeWidth={2.3} />
                 </button>
                 {confirmingDeleteId === item.id ? (
-                  <div
-                    className={`kim-customer-memo-delete-popover${shouldOpenDeletePopoverAbove ? " is-above" : ""}`}
-                    ref={deleteRef}
-                    role="dialog"
-                    aria-label="고객 메모 삭제 확인"
-                    onClick={(event) => event.stopPropagation()}
+                  <ConfirmPopover
+                    anchorSelector=".kim-customer-memo-row"
+                    ariaLabel="고객 메모 삭제 확인"
+                    className="kim-customer-memo-delete-popover"
+                    popRef={deleteRef}
                   >
                     <p>해당 메모를 삭제하시겠습니까?</p>
                     <div>
@@ -98,7 +96,7 @@ export function CustomerMemos({ memos, count, adding, editingId, confirmingDelet
                         handlers.confirmDelete(item.id);
                       }}>삭제</button>
                     </div>
-                  </div>
+                  </ConfirmPopover>
                 ) : null}
               </article>
             );
