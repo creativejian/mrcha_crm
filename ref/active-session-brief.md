@@ -32,8 +32,11 @@ bare 커맨드 자연 동작). Pages 프로젝트 삭제 완료(앱 `mr-cha-app`
 
 ## ▶ 다음
 
-- CF 잔여 권고(07-31 조사): rate limiting `/api/assistant*` · AI Gateway(서울 핀 충돌 실측 선행).
-  프리뷰 Access 보호는 Workers 전환+브랜치 빌드 off로 표면 자체가 소멸 — 사실상 종결.
+- ~~CF 잔여 권고~~ **전부 종결(07-31 저녁)**: ✅rate limiting — zone 속도 제한 규칙
+  `assistant-ask-rate-limit`(`/api/assistant/ask` eq · IP당 5회/10초 · 차단 10초, Free 포함분
+  1/1 사용. 실측 401×5→429×3→11초 후 해제. ⚠️Free라 호스트·메서드 조건 불가 — 경로 eq로 대체) ·
+  AI Gateway 보류 박제(Workers Logs가 가치 상당 커버·서울 핀 충돌 리스크 — 재론 = 비용
+  대시보드가 필요해질 때) · 프리뷰 Access 보호는 표면 소멸로 종결.
 - 잔여 실기 확인(오전분 유지): ① `#410` 레이아웃(admin·팀장·딜러 전폭) ② 팀장 폼 할인 섹션
   부재+admin 폼 유지 ③ 교차 세션 실시간 ④ PR `#404` 체크리스트 잔여.
 
