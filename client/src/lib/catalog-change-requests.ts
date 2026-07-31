@@ -30,6 +30,19 @@ export type ChangeRequestItem = {
 
 const QUEUE_URL = "/api/catalog/change-requests?status=pending";
 
+// 마지막 응답의 모듈 캐시(dealer-roster getCachedMyProposalTrims 선례) — 헤더 버튼 (N)이
+// 재마운트 직후(메뉴 이동·모델 전환 재진입) 숫자 없는 라벨로 깜빡이지 않게 직전 값을 즉시
+// 보여주고, fetch가 도착하면 갱신한다. 브라우저 새로고침(F5)은 모듈이 초기화되므로 여전히
+// 첫 fetch 후에 뜬다 — 세션 스토리지 영속화는 stale 위험 대비 과함.
+let queueCache: ChangeRequestItem[] | null = null;
+let mineCache: ChangeRequestItem[] | null = null;
+
+// 테스트 전용 — 모듈 캐시 초기화(케이스 간 오염 방지, resetStaffDirectoryCache 관례).
+export function resetChangeRequestCachesForTest(): void {
+  queueCache = null;
+  mineCache = null;
+}
+
 // 대기열 변동 알림(모듈 레벨 pub/sub) — 팝오버에서 승인/반려하면 사이드바 배지(App 폴링)가
 // 60s를 기다리지 않고 즉시 재조회한다(dealer-roster의 invalidate 선례와 같은 결).
 const queueListeners = new Set<() => void>();
@@ -48,7 +61,7 @@ export function useChangeRequestQueue(enabled: boolean): {
   approve: (id: string) => Promise<void>;
   reject: (id: string, reason: string) => Promise<void>;
 } {
-  const [rows, setRows] = useState<ChangeRequestItem[] | null>(null);
+  const [rows, setRows] = useState<ChangeRequestItem[] | null>(queueCache);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -58,6 +71,7 @@ export function useChangeRequestQueue(enabled: boolean): {
     let alive = true;
     getJson<ChangeRequestItem[]>(QUEUE_URL)
       .then((list) => {
+        queueCache = list; // 다음 마운트의 (N) 즉시 표시용 — alive와 무관하게 최신값 보관.
         if (!alive) return;
         setRows(list);
         setFailed(false);
@@ -181,7 +195,7 @@ export function useMyChangeRequests(enabled: boolean): {
   reload: () => void;
   cancel: (id: string) => Promise<void>;
 } {
-  const [rows, setRows] = useState<ChangeRequestItem[] | null>(null);
+  const [rows, setRows] = useState<ChangeRequestItem[] | null>(enabled ? mineCache : null);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -189,6 +203,7 @@ export function useMyChangeRequests(enabled: boolean): {
     let alive = true;
     getJson<ChangeRequestItem[]>("/api/catalog/change-requests?mine=1")
       .then((list) => {
+        mineCache = list; // 다음 마운트의 (N) 즉시 표시용(queueCache와 같은 결).
         if (!alive) return;
         setRows(list);
         setFailed(false);

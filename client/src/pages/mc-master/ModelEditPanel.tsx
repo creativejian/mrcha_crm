@@ -12,6 +12,7 @@ export function ModelEditPanel({
   onSubmit,
   busy,
   error,
+  notice = null,
   submitLabel = "저장", // 팀장 제안 축은 "승인 요청" — 같은 폼, 다른 결말(spec §7.1)
 }: {
   model: CatalogModel | null;
@@ -19,6 +20,8 @@ export function ModelEditPanel({
   onSubmit: (values: { name: string; category: string | null; status: VehicleStatus }) => void;
   busy: boolean;
   error: string | null;
+  // 프리필 안내(팀장 — 대기 중인 내 요청을 이어서 수정) 등 비에러 공지. 에러와 별개 슬롯.
+  notice?: string | null;
   submitLabel?: string;
 }) {
   const isEdit = model !== null;
@@ -31,6 +34,7 @@ export function ModelEditPanel({
 
   return (
     <EditDrawer title={label} ariaLabel={label} onClose={onClose}>
+      {notice && <div className="notice-box">{notice}</div>}
       <label className="va-field">
         <span>모델명{isEdit ? " (수정 불가)" : " *"}</span>
         <input

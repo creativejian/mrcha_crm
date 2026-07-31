@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import type { RoleTab } from "@/data/roles";
-import type { ChangeRequestItem } from "@/lib/catalog-change-requests";
+import { resetChangeRequestCachesForTest, type ChangeRequestItem } from "@/lib/catalog-change-requests";
 import { resetStaffDirectoryCache } from "@/lib/staff";
 
 import { invalidateCatalogAfterApproval } from "./mc-master/catalog-cache";
@@ -13,6 +13,20 @@ import { mcMasterViewState } from "./mc-master/view-state";
 // apiFetch(../lib/api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
 vi.mock("@/lib/supabase", () => ({
   supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
+}));
+
+// MCMasterPage가 프리필의 "내 요청" 판별에 useAuth().userId를 쓴다 — Provider 없이 렌더하므로
+// 목업(값은 아래 STAFF_ID와 동일 리터럴 — vi.mock 호이스팅 때문에 상수를 참조할 수 없다).
+vi.mock("@/auth/AuthProvider", () => ({
+  useAuth: () => ({
+    loading: false,
+    authed: true,
+    roleTab: null,
+    roleClaim: null,
+    userId: "aaaaaaaa-0000-0000-0000-000000000001",
+    name: null,
+    avatarUrl: null,
+  }),
 }));
 
 import { MCMasterPage } from "./MCMasterPage";
@@ -116,6 +130,7 @@ beforeEach(() => {
   trimPatchResponse = { status: 200, body: { id: 100 } };
   fetchCalls = [];
   resetStaffDirectoryCache(); // 직원 디렉토리도 모듈 캐시 — 케이스 간 누수 차단(QuoteWorkbench.gate 관례).
+  resetChangeRequestCachesForTest(); // 대기열·내 요청 (N) 즉시 표시용 모듈 캐시 — 같은 이유로 초기화.
   // 30s 모듈 캐시도 케이스 간 누수 — PR3에서 생긴 리셋 API로 초기화. ⚠️ brands·trimColors 캐시는
   // 의도적으로 남는다(승인이 못 바꾸는 축) — 브랜드를 케이스별로 바꾸는 테스트가 생기면 별도 리셋 필요.
   invalidateCatalogAfterApproval();
@@ -448,4 +463,43 @@ it("팀장 저장(202)이 큐에 쌓이면 행 배지가 즉시 나타난다(pub
   modelPendingRows = [{ ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 }];
   await user.click(await screen.findByRole("button", { name: "승인 요청" }));
   expect(await screen.findByText("승인 대기")).toBeInTheDocument();
+});
+
+// ── 프리필(교체 함정 보완, 2026-07-31): 재제출 = 기존 pending 교체(spec §6.1)라, 폼이 카탈로그
+// 원값에서 시작하면 나눠 저장할 때 앞서 낸 변경분이 소리 없이 빠진다 — 내 pending payload를
+// 폼 초기값에 겹치는 것을 잠근다.
+it("팀장 프리필: 내 pending payload가 편집 폼에 겹쳐지고 안내가 뜬다", async () => {
+  modelPendingRows = [
+    { ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100, payload: { price: 99000000 } },
+  ];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  await screen.findByText("승인 대기"); // 행 배지 = pendingRows 도착 보장(프리필은 열기 전 로드 전제)
+  await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
+  expect(await screen.findByDisplayValue("99,000,000")).toBeInTheDocument(); // 카탈로그 15,000,000이 아니라 내 제안값
+  expect(screen.getByText(/대기 중인 승인 요청을 이어서 수정합니다/)).toBeInTheDocument();
+});
+
+it("타인 pending은 프리필하지 않는다 — 폼은 카탈로그 값, 안내 없음", async () => {
+  modelPendingRows = [
+    {
+      ...PENDING_ROW,
+      targetId: 100,
+      targetBrandId: 1,
+      targetModelId: 10,
+      targetTrimId: 100,
+      payload: { price: 99000000 },
+      requestedBy: "bbbbbbbb-0000-0000-0000-000000000002",
+    },
+  ];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  await screen.findByText("승인 대기");
+  await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
+  expect(await screen.findByDisplayValue("15,000,000")).toBeInTheDocument();
+  expect(screen.queryByText(/이어서 수정합니다/)).toBeNull();
 });
