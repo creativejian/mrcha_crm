@@ -906,6 +906,9 @@
   position: fixed;
   z-index: 70;
   overflow-y: auto;
+  /* 안쪽 스크롤이 끝(경계)에 닿아도 뒤 화면으로 전파(체이닝)되지 않게 — 긴 목록을 끝까지
+     내리면 배경 표가 따라 흐르던 문제(2026-07-31 유슨생 실기). */
+  overscroll-behavior: contain;
   min-width: 420px;
   max-width: min(680px, calc(100vw - 24px));
   padding: 8px;
