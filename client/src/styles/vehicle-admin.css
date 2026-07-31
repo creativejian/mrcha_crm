@@ -1032,6 +1032,12 @@
 .va-cr-reject-input input {
   flex: 1;
   min-width: 0;
+  /* 옆 칩(확인/취소, .badge 11px)과 같은 크기 — 기본 폰트가 placeholder를 행에서 제일 크게
+     만들어 위계가 뒤집혔다(2026-07-31 실기). 높이도 칩(min-height 24px)에 맞춘다. */
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
 }
 
 /* ── 행 "승인 대기" 배지(PR3 spec §7.2) — 시도 전에 보여 409(타인 pending)를 예방한다.
