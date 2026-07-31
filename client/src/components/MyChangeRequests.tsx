@@ -5,6 +5,7 @@ import { popoverPosFromRect, type PopoverPos } from "@/components/ProposalTrimsP
 import { CHANGE_KIND_LABELS } from "@/lib/catalog-change-kinds";
 import {
   buildChangeDiff,
+  filterMyRequestVisible,
   changeRequestDest,
   useMyChangeRequests,
   type ChangeRequestItem,
@@ -99,10 +100,13 @@ export function MyChangeRequestsButton() {
   // (서버)이라 승인·반려가 쌓이면 pending이 아래로 밀린다. 같은 상태 안에서는 서버 순서
   // (createdAt desc)를 그대로 둔다(안정 정렬). .sort는 in-place라 rows 원본이 아닌
   // .filter 결과(새 배열)에만 건다.
+  // 자동 소멸 필터(filterMyRequestVisible — canceled 숨김 포함) 위에 컴포넌트 로컬 done 숨김만 얹는다.
   const visibleRows =
-    rows
-      ?.filter((r) => r.status !== "canceled" && stateOf(r.id).phase !== "done")
-      .sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending")) ?? null;
+    rows == null
+      ? null
+      : filterMyRequestVisible(rows, new Date())
+          .filter((r) => stateOf(r.id).phase !== "done")
+          .sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending"));
   const pendingCount = visibleRows == null ? null : visibleRows.filter((r) => r.status === "pending").length;
 
   return (

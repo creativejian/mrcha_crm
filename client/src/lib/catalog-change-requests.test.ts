@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChangeDiff, changeRequestDest } from "./catalog-change-requests";
+import type { ChangeRequestKind } from "./catalog-change-kinds";
+import { buildChangeDiff, changeRequestDest, filterMyRequestVisible } from "./catalog-change-requests";
 
 describe("buildChangeDiff", () => {
   it("trim.update — 변경 필드만 전→후 표시(천단위 콤마)", () => {
@@ -125,4 +126,62 @@ describe("changeRequestDest", () => {
       "/mc-master/30?brand=3&hl=300",
     );
   });
+});
+
+// ── filterMyRequestVisible(자동 소멸, 2026-07-31 유슨생) — "지금 볼 것"만 남긴다:
+// pending 전부 · rejected는 재요청 시 즉시/7일 후 숨김 · approved는 24시간 · canceled 숨김.
+const NOW = new Date("2026-07-31T12:00:00Z");
+const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
+
+function myRow(over: {
+  status: string;
+  kind?: ChangeRequestKind;
+  targetId?: number | null;
+  createdAt?: string;
+  decidedAt?: string | null;
+}) {
+  return {
+    status: over.status,
+    kind: over.kind ?? ("trim.update" as ChangeRequestKind),
+    targetId: over.targetId !== undefined ? over.targetId : 100,
+    createdAt: over.createdAt ?? hoursAgo(1),
+    decidedAt: over.decidedAt !== undefined ? over.decidedAt : null,
+  };
+}
+
+it("filterMyRequestVisible: pending은 항상, canceled는 항상 숨김", () => {
+  const rows = [myRow({ status: "pending", createdAt: hoursAgo(24 * 30) }), myRow({ status: "canceled" })];
+  expect(filterMyRequestVisible(rows, NOW).map((r) => r.status)).toEqual(["pending"]);
+});
+
+it("filterMyRequestVisible: rejected는 같은 대상+작업의 재요청(pending)이 생기면 즉시 숨김", () => {
+  const rejected = myRow({ status: "rejected", decidedAt: hoursAgo(1) });
+  expect(filterMyRequestVisible([rejected], NOW)).toHaveLength(1); // 재요청 전엔 보인다
+  const resubmitted = [myRow({ status: "pending" }), rejected]; // 같은 trim.update:100 재요청
+  expect(filterMyRequestVisible(resubmitted, NOW).map((r) => r.status)).toEqual(["pending"]);
+  // 다른 대상의 pending은 무관 — 반려는 그대로 보인다
+  const other = [myRow({ status: "pending", targetId: 200 }), rejected];
+  expect(filterMyRequestVisible(other, NOW)).toHaveLength(2);
+});
+
+it("filterMyRequestVisible: rejected는 반려 7일 뒤 자연 소멸(기준 = decidedAt, 없으면 createdAt)", () => {
+  expect(filterMyRequestVisible([myRow({ status: "rejected", decidedAt: hoursAgo(24 * 6) })], NOW)).toHaveLength(1);
+  expect(filterMyRequestVisible([myRow({ status: "rejected", decidedAt: hoursAgo(24 * 8) })], NOW)).toHaveLength(0);
+  // decidedAt 없는 방어 폴백 — createdAt 기준
+  expect(
+    filterMyRequestVisible([myRow({ status: "rejected", createdAt: hoursAgo(24 * 8), decidedAt: null })], NOW),
+  ).toHaveLength(0);
+});
+
+it("filterMyRequestVisible: approved는 24시간만(반영 확인 용도 — 결과는 카탈로그가 보여준다)", () => {
+  expect(filterMyRequestVisible([myRow({ status: "approved", decidedAt: hoursAgo(23) })], NOW)).toHaveLength(1);
+  expect(filterMyRequestVisible([myRow({ status: "approved", decidedAt: hoursAgo(25) })], NOW)).toHaveLength(0);
+});
+
+it("filterMyRequestVisible: create류 rejected(targetId null)는 재요청 매칭 불가 — 7일 창만 적용", () => {
+  const rows = [
+    myRow({ status: "pending", kind: "trim.create" as ChangeRequestKind, targetId: null }),
+    myRow({ status: "rejected", kind: "trim.create" as ChangeRequestKind, targetId: null, decidedAt: hoursAgo(1) }),
+  ];
+  expect(filterMyRequestVisible(rows, NOW)).toHaveLength(2); // 새 create가 있어도 반려는 남는다
 });
