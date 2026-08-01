@@ -1,6 +1,6 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 
-import { resolvePhoneOnLink } from "../../lib/customer-phone";
+import { normalizePhoneDigits, resolvePhoneOnLink } from "../../lib/customer-phone";
 import { ConflictError, LinkConflictError } from "../../lib/errors";
 import { getDefaultDb, type Executor } from "../client";
 import { profiles } from "../public-app";
@@ -67,4 +67,43 @@ export async function applyAppUserLink(
     .where(eq(customers.id, customerId))
     .returning({ id: customers.id, customerCode: customers.customerCode, name: customers.name });
   return row ? { ...row, appUserId: userId, droppedPhone: transition.droppedPhone } : null;
+}
+
+// 연결 해제 SSOT(2026-08-01 회원탈퇴 spec §3b) — applyAppUserLink의 역방향. 탈퇴 실행 경로 전용.
+// mode 'purge'       = 연결만 끊는다(phone 미전이 — 호출 직후 고객 행 자체가 삭제되는 경로).
+// mode 'materialize' = ACTIVE_FULFILLMENT 보존: **단일 UPDATE**로 app_user_id=NULL과
+//   phone=profiles.phone_number(digits 정규화)를 동시에 기록한다. CHECK
+//   customers_phone_app_exclusive_check는 행 단위 평가라 같은 statement 안에서 통과한다 —
+//   두 UPDATE로 쪼개면 첫 번째가 CHECK에 걸리므로 쪼개지 말 것.
+//   profiles가 살아 있는 동안 호출해야 번호를 읽을 수 있다(앱이 CRM 성공 응답 전 profile을
+//   지우지 않는 계약이 이 순서를 보장 — 회신 §3).
+// 멱등: appUserId로 연결된 고객이 없으면 null(no-op) — 탈퇴 재시도·재호출 안전.
+export async function applyAppUserUnlink(
+  appUserId: string,
+  mode: "purge" | "materialize",
+  ex: Executor = getDefaultDb(),
+): Promise<{ customerId: string; customerCode: string; materializedPhone: string | null } | null> {
+  const [target] = await ex
+    .select({ id: customers.id, customerCode: customers.customerCode })
+    .from(customers)
+    .where(eq(customers.appUserId, appUserId));
+  if (!target) return null;
+
+  let materializedPhone: string | null = null;
+  if (mode === "materialize") {
+    const [profile] = await ex
+      .select({ phoneNumber: profiles.phoneNumber })
+      .from(profiles)
+      .where(eq(profiles.id, appUserId));
+    materializedPhone = normalizePhoneDigits(profile?.phoneNumber);
+  }
+  await ex
+    .update(customers)
+    .set({
+      appUserId: null,
+      ...(mode === "materialize" ? { phone: materializedPhone } : {}),
+      updatedAt: sql`now()`,
+    })
+    .where(eq(customers.id, target.id));
+  return { customerId: target.id, customerCode: target.customerCode, materializedPhone };
 }

@@ -13,6 +13,7 @@
 // 등록만 하고 정리를 빠뜨리면 ②가 실패한다.
 
 export const TEST_CUSTOMER_CODE_PREFIXES = [
+  "CU-ACCDEL-",     // db/queries/account-deletion.test.ts — 회원탈퇴 실행 경로(전 케이스 트랜잭션 롤백)
   "CU-ADVID-",      // routes/customers.test.ts — advisorId 배정 키
   "CU-AIHINT-",     // db/queries/ai-hint-sources.test.ts · routes/customers.ai-hint.test.ts
   "CU-AITOOL-",     // db/queries/assistant-tools.test.ts
@@ -64,6 +65,7 @@ export const TEST_CONSULTATION_NAMES: readonly string[] = [
 ];
 
 export const TEST_QUOTE_CODE_PREFIXES = [
+  "QT-ACCDEL-",     // db/queries/account-deletion.test.ts — 탈퇴 시 카드 회수 검증(트랜잭션 롤백)
   "QT-AIHINT-",     // db/queries/ai-hint-sources.test.ts
   "QT-AITOOL-",     // db/queries/assistant-tools.test.ts
   "QT-DLVI-",       // db/queries/customer-delivery.test.ts · routes/customers.delivery.test.ts — contracting 프리필 소스 견적

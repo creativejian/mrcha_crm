@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."customer_deletions" ALTER COLUMN "deleted_by" DROP NOT NULL;
