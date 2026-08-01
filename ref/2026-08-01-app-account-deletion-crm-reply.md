@@ -256,3 +256,21 @@ project — master 통합 A2 이전 CRM 전용 DB 잔재)이 남아 있었습니
    사전 공지.
 5. **`customer_deletions` 기존 행 전체 익명화**(§6) — 감사 기능(고객코드·처리자·시각)은
    유지, 이름은 감사에 불필요. 규칙 하나가 반쪽 소급보다 단순.
+
+## 12. 추가 합의(2026-08-01 오후) — retained 응답 확장 + 미해결 질문 1건
+
+앱 오케스트레이터 구현 중 추가 계약 수신: **200 retained 응답에 classification 외에 비어 있지
+않은 `retentionBasis`와 미래 시각 `retentionUntil` 필수** — 누락 시 앱이 완료로 인정하지 않고
+잠금 상태로 재시도.
+
+CRM 반영(PR `#423`): retained 응답이 다음을 싣는다.
+
+| 분류 | retentionBasis | retentionUntil |
+|---|---|---|
+| active_fulfillment | `customers.retention_basis`(기본 "출고 연락·조율" — 항상 비어 있지 않음) | `customers.retention_until`(확정 시 미래 검증 — 항상 충족) |
+| settlement_reference | 고정 "출고 후 정산·환수 참조 보존(개인정보 파기 완료)" | `clawback_until` 확정 시 그 값(그날 23:59:59 KST). **미확정이면 null** |
+
+**🟡 미해결 질문(영실 회신 필요)**: C 분류의 clawback 미확정 건(`review_required` — 원문 §2-C가
+직접 정의한 상태)은 확정 기한이 존재하지 않아 `retentionUntil`이 null입니다. ①null 수용(권장 —
+review_required의 정직한 표현. 임의 기한 조작 없음) ②null 불가라면 "기본 재검토 기한"을 정책으로
+정해야 합니다(그때 이사님 확정 1건 발생). 회신 전까지 CRM은 null을 보냅니다.

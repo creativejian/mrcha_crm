@@ -123,8 +123,40 @@ test("confirm settlement + clawbackUntil → 스켈레톤 pending 승격, 미입
       expect(settlement.lender).toBe("테스트캐피탈");
       expect(settlement.clawbackUntil).toBe("2027-01-31");
       expect(settlement.status).toBe("pending"); // 기일 입력 → 승격
-      // 앱 폴링 최종 상태 — retained + 분류.
-      expect(await getDeletionJobState(appUserId, tx)).toEqual({ status: "retained", classification: "settlement_reference" });
+      // 앱 폴링 최종 상태 — retained + 분류 + 보존 근거·기한(2026-08-01 오후 앱 추가 계약).
+      expect(await getDeletionJobState(appUserId, tx)).toEqual({
+        status: "retained",
+        classification: "settlement_reference",
+        retentionBasis: "출고 후 정산·환수 참조 보존(개인정보 파기 완료)",
+        retentionUntil: "2027-01-31T23:59:59+09:00",
+      });
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("confirm B(한시 보존): retained 응답에 retentionBasis + 미래 retentionUntil이 실린다(앱 계약)", async () => {
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const appUserId = crypto.randomUUID();
+      await tx.insert(customers).values({ customerCode: code(), name: "탈퇴보존응답테스트", appUserId });
+      await receiveAccountDeletion(appUserId, tx);
+      const [job] = await tx.select().from(accountDeletionJobs).where(eq(accountDeletionJobs.appUserId, appUserId));
+
+      const until = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+      const result = await confirmDeletionJob(
+        job.id,
+        { classification: "active_fulfillment", confirmedBy: crypto.randomUUID(), retentionUntil: until },
+        tx,
+      );
+      expect(result.outcome).toBe("executed");
+      const state = await getDeletionJobState(appUserId, tx);
+      expect(state).toEqual({
+        status: "retained",
+        classification: "active_fulfillment",
+        retentionBasis: "출고 연락·조율", // 라우트/디스패치 기본값 — 비어 있지 않음 보장
+        retentionUntil: until.toISOString(),
+      });
       throw new Error(ROLLBACK);
     }),
   ).rejects.toThrow(ROLLBACK);
@@ -154,7 +186,13 @@ test("autoExecuteJob: B 후보 D+5 폴백 = C-스켈레톤(회신 §4) — confi
       expect(after.executedVia).toBe("auto");
       expect(after.confirmedBy).toBeNull();
       // 실제 실행 분류가 기록돼 앱이 retained/settlement_reference를 받는다(제안값 B가 아니라).
-      expect(await getDeletionJobState(appUserId, tx)).toEqual({ status: "retained", classification: "settlement_reference" });
+      // 자동 폴백은 clawback 미확정(review_required) — retentionUntil null(영실 회신 대기 축).
+      expect(await getDeletionJobState(appUserId, tx)).toEqual({
+        status: "retained",
+        classification: "settlement_reference",
+        retentionBasis: "출고 후 정산·환수 참조 보존(개인정보 파기 완료)",
+        retentionUntil: null,
+      });
       throw new Error(ROLLBACK);
     }),
   ).rejects.toThrow(ROLLBACK);
