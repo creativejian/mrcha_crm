@@ -281,3 +281,11 @@ CRM 반영(PR `#423`): retained 응답이 다음을 싣는다.
   (pending 승격) 시 주기 해제(NULL).
 - **헤더 통일**: CRM 수신 헤더를 앱 병합 계약의 **`X-App-Deletion-Secret`**으로 개명(구
   `x-deletion-secret` 폐기). 배포 후 202 handshake 실측 확인.
+
+**앱 확정(2026-08-01 저녁)**: ①classification 대소문자는 **앱이 정규화** — CRM은 이 표의 소문자
+유지 ②reviewStatus/reviewDueAt **앱 수용은 후속**(이전 작업본 폐기 — 추가 필드는 무해하게 무시됨)
+③`CRM_ACCOUNT_DELETION_URL` 앱 secrets 등록 완료.
+**🟡 열린 리스크**: 앱 현 파서는 null `retentionUntil`을 여전히 거부한다(logic.ts crm_contract_error)
+— 후속 수용 배포 전까지 **C-미확정(review_required) 건은 앱 완료 인정이 안 돼 잠금 재시도**(앱
+DB·Auth 삭제 중단 = 앱 쪽 SLA 위험. 재시도 루프라 후속 배포 시 자동 회복). **null 수용을 앱 출시
+게이트에 포함할 것을 권고**(탈퇴 셀프서비스 차단 해제 전 필수 — CRM 전달 완료).
