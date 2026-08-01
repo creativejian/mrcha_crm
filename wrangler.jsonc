@@ -19,6 +19,9 @@
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "a09fec47fb084b1f9f4af474df1cd119" }],
   // Workers Logs(7일 보존·검색) — 이번 마이그레이션의 목적. Pages엔 실시간 tail뿐이었다.
   "observability": { "enabled": true },
+  // 탈퇴 잡 일일 크론(2026-08-01) — 01:00 UTC = 10:00 KST(D+3 재촉이 업무 시간에 닿게).
+  // 핸들러 = src/worker.ts scheduled → runAccountDeletionCron.
+  "triggers": { "crons": ["0 1 * * *"] },
   "vars": {
     "APP_ENV": "development",
     "SUPABASE_URL": "https://wmkbmlespgzkeekliwio.supabase.co"

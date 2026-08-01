@@ -28,6 +28,7 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/db/queries/customers.next-delivery.test.ts",
   "src/db/queries/dealer-discounts.test.ts",
   "src/db/queries/dealer-profiles.test.ts",
+  "src/db/queries/deletion-jobs.test.ts",
   "src/db/queries/discount-adoptions.test.ts",
   "src/db/queries/embed-sources.test.ts",
   "src/db/queries/embeddings-meta.test.ts",
@@ -46,6 +47,8 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   //    얹혀 있다(test:server 1회당 실 9콜 계측의 출처 — 배치 15 M7). ────────────
   "src/middleware/db.test.ts",
   "src/middleware/role-gate.test.ts",
+  "src/routes/account-deletions.test.ts",
+  "src/routes/app-account-deletion.test.ts",
   "src/routes/assistant.test.ts",
   "src/routes/catalog.change-requests.test.ts",
   "src/routes/catalog.discount-adoptions.test.ts",

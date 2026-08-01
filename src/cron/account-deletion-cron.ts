@@ -1,0 +1,55 @@
+// 탈퇴 잡 일일 크론(2026-08-01 spec §3d) — D+3 Discord 재촉 · D+5 자동 실행.
+// Workers scheduled 핸들러에서 호출된다(웹 요청 밖 — Hono c.env가 없어 env를 직접 받는다).
+// 스케줄 = wrangler.jsonc triggers.crons "0 1 * * *"(01:00 UTC = 10:00 KST — 재촉이 업무 시간에 닿게).
+import { createDbClient, getDefaultDb } from "../db/client";
+import { autoExecuteDueJobs, listRemindDueJobs } from "../db/queries/deletion-jobs";
+import { removeObjects } from "../lib/storage";
+
+export type DeletionCronEnv = {
+  HYPERDRIVE?: { connectionString: string };
+  /** 미설정이면 재촉은 로그만 남기고 스킵(화면 인박스가 1차 알림 — spec §3d). */
+  DELETION_DISCORD_WEBHOOK?: string;
+  SUPABASE_URL?: string;
+  SUPABASE_SECRET_KEY?: string;
+};
+
+export async function runAccountDeletionCron(env: DeletionCronEnv): Promise<void> {
+  // prod = Hyperdrive 요청별 클라이언트(웹 요청과 동일 관례 — Workers는 소켓 재사용 불가).
+  // 로컬·테스트 = 싱글톤 폴백.
+  const made = env.HYPERDRIVE?.connectionString ? createDbClient(env.HYPERDRIVE.connectionString) : null;
+  const db = made?.db ?? getDefaultDb();
+  try {
+    const remindDue = await listRemindDueJobs(db);
+    if (remindDue.length > 0) await notifyDiscordReminder(env, remindDue);
+
+    const result = await autoExecuteDueJobs(db);
+    if (result.executed > 0) {
+      console.log(`[account-deletion] D+5 자동 실행 ${result.executed}건`);
+      await removeObjects(
+        { SUPABASE_URL: env.SUPABASE_URL, SUPABASE_SECRET_KEY: env.SUPABASE_SECRET_KEY },
+        result.storagePaths,
+      ).catch((e: unknown) => console.error("[account-deletion] Storage 정리 실패:", e));
+    }
+  } finally {
+    if (made) await made.client.end();
+  }
+}
+
+async function notifyDiscordReminder(
+  env: DeletionCronEnv,
+  jobs: { customerCode: string | null }[],
+): Promise<void> {
+  const url = env.DELETION_DISCORD_WEBHOOK;
+  if (!url) {
+    console.log(`[account-deletion] D+3 재촉 대상 ${jobs.length}건 — Discord 웹훅 미설정으로 스킵(화면 인박스만)`);
+    return;
+  }
+  const codes = jobs.map((j) => j.customerCode ?? "(미연결)").join(", ");
+  const content = `🔔 회원탈퇴 확인 대기 D+3 — ${codes}. 이틀 뒤(D+5) 자동 실행됩니다. CRM 고객 목록에서 확인해 주세요.`;
+  // ⚠️ Workers에서 fetch는 전역 직접 호출(plain call)만 — 객체 메서드 경유 시 Illegal invocation(AGENTS.md).
+  await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content }),
+  }).catch((e: unknown) => console.error("[account-deletion] Discord 재촉 실패:", e));
+}

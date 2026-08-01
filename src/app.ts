@@ -4,6 +4,8 @@ import type { JWTVerifyGetKey } from "jose";
 import { createAuthMiddleware } from "./middleware/auth";
 import { dbMiddleware } from "./middleware/db";
 import { dealerWriteGate } from "./middleware/role-gate";
+import { accountDeletions } from "./routes/account-deletions";
+import { appAccountDeletion } from "./routes/app-account-deletion";
 import { assistant } from "./routes/assistant";
 import { catalog } from "./routes/catalog";
 import { consultations } from "./routes/consultations";
@@ -49,6 +51,11 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   protect("/api/staff/*");
   protect("/api/me/*");
   protect("/api/dealer/*");
+  protect("/api/account-deletions/*"); // 탈퇴 인지 큐(스태프 — JWT)
+
+  // 앱 탈퇴 오케스트레이터 전용 — JWT가 아니라 공유 시크릿(라우트 내부 미들웨어가 검증).
+  // auth/dealerWriteGate를 태우지 않고 db만 배선한다(호출자 = 앱 Edge Function, 사용자 세션 없음).
+  app.use("/api/app/account-deletion/*", dbMiddleware);
 
   app.route("/api/vehicles", vehicles);
   app.route("/api/catalog", catalog);
@@ -62,6 +69,8 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.route("/api/staff", staff);
   app.route("/api/me", me);
   app.route("/api/dealer", dealer);
+  app.route("/api/account-deletions", accountDeletions);
+  app.route("/api/app/account-deletion", appAccountDeletion);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));
   // 처리되지 않은 에러는 CF 실시간 로그로 진단할 수 있게 console.error로 남기되,
