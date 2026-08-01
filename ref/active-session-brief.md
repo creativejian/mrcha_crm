@@ -2,7 +2,7 @@
 
 > **자동 로드 · 60줄 이하 유지**(AGENTS.md). 과거 로그 = `ref/session-archive.md` · 지속 결정 = `AGENTS.md` · 설계 = `ref/specs/*` · 장기 상태 = `ref/current-working-state.md`.
 
-Last updated: 2026-08-01 (오후)
+Last updated: 2026-08-01 (밤)
 
 ## 지금 상태
 
@@ -38,8 +38,9 @@ Last updated: 2026-08-01 (오후)
 
 ## ▶ 다음
 
-- **앱 몫**: 영실 탈퇴 오케스트레이터(#609) — 엔드포인트 호출 + "200 수신 전 profile 미삭제".
-  유슨생 = Supabase Edge secret(`APP_DELETION_SECRET`) 등록 + 이사님 값 전달.
+- ~~앱 몫~~ ✅ **완료(08-01 밤)**: 오케스트레이터 배포 + §12 null retentionUntil 수용(앱 PR `#787`,
+  `account-deletion` v4) — 회신 문서 열린 리스크 종결(CRM 추가 조치 불요). 앱 잔여 게이트 =
+  Partner 계약·E2E·푸시 큐 드레인(8월말).
 - **CRM 후속(30일 내 무공백)**: 업무 AI 기존 메시지 일괄 정리(**앱 출시 게이트** — 실행 시점 직원
   공지만) · 30일 rolling cron · assistant provenance 계측 · `customer_deletions` 기존 행 backfill.
 - **이월(07-31)**: 제프 mc.mrcha.app CF Workers 이전이 08-01 새벽 실행됨(유슨생 언급) —

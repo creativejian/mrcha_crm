@@ -289,3 +289,8 @@ CRM 반영(PR `#423`): retained 응답이 다음을 싣는다.
 — 후속 수용 배포 전까지 **C-미확정(review_required) 건은 앱 완료 인정이 안 돼 잠금 재시도**(앱
 DB·Auth 삭제 중단 = 앱 쪽 SLA 위험. 재시도 루프라 후속 배포 시 자동 회복). **null 수용을 앱 출시
 게이트에 포함할 것을 권고**(탈퇴 셀프서비스 차단 해제 전 필수 — CRM 전달 완료).
+
+**✅ 위 리스크 종결(2026-08-01 밤 — 앱 배포 완료)**: 앱 PR `#787` 머지·운영 반영(파서 + jobs CHECK
+완화 + RPC 시그니처 교체 migration + `account-deletion` v4). 인정 조건은 위 계약 그대로 구현
+(`reviewStatus "review_required"` + 미래 `reviewDueAt`, classification 선례처럼 대소문자·공백
+정규화). 기잠금 C-미확정 건은 다음 재시도 사이클(백오프 최대 6h)에 자동 회복. CRM 측 추가 조치 불요.
