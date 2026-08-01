@@ -2,58 +2,55 @@
 
 > **자동 로드 · 60줄 이하 유지**(AGENTS.md). 과거 로그 = `ref/session-archive.md` · 지속 결정 = `AGENTS.md` · 설계 = `ref/specs/*` · 장기 상태 = `ref/current-working-state.md`.
 
-Last updated: 2026-07-31 (저녁)
+Last updated: 2026-08-01 (오후)
 
 ## 지금 상태
 
-**main 전량 green · 브랜치 0 · prod = CF Workers 전환 + Pages 폐기까지 완결**(PR `#412`·`#413`).
-git push → **Workers Builds 자동 빌드·배포** 가동. wrangler 설정 = `wrangler.jsonc`. unit **1276**.
+**main 전량 green · 회원탈퇴 CRM 전량 완결**(정책→구현→스모크→배선, PR `#420`~`#422` 머지·prod
+배포). unit **1276**. 탈퇴 크론 가동 = 매일 01:00 UTC(10:00 KST, D+3 재촉·D+5 자동 실행).
 
-## 직전 세션 요약 (07-31 밤 · 유슨생 — 타깃 렌즈 배치)
+## 직전 세션 요약 (08-01 · 유슨생 — 회원탈퇴 전면 구현)
 
-- **fail-silent UI 경로 수색**(`#414` 계급, 감사 정책 기본형 · 에이전트 7 · 워킹트리 무손상).
-  **상 0 · 중 1 · 하 9** — 수색이 낸 중 6건 중 **5건이 적대 검증에서 강등**(과장 회수).
-  **#414 원형(앵커 미매칭 → 무경고 영구 hidden) 잔존 0건.** 판정 SSOT =
-  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`.
-- **중 1건**(`d9ee4ff`): 드로어 3카드 확인 팝오버가 스크롤·리사이즈에 안 닫혔다(계약 "닫기는
-  호출부 책임"을 목록만 이행 — 실측 400px 스크롤 시 행 400px·팝오버 0px, 확인창이 구매조건 섹션
-  위에 떠 대상 오인). 공용 훅 `use-popover-viewport-close.ts`로 한 벌화 + 회귀 5케이스.
-- **하 5건**(PR `#415`): ①계산기 "조회 완료" 오표시(`isVehicleReady` 가드) ②견적 CREATE 발송
-  실패 미원복(UPDATE와 대칭 롤백) ③견적 temp id 무음 스킵 6함수(`blockedWhileQuoteSaving`)
-  ④메모 팝오버 `ConfirmPopover` 이주 ⑤`heightDep` Boolean→문자열. +도달 불가 저장 핸들러 2건 주석.
-- **`.va-disc-pop` 하→중 승격 후 수리**(PR `#416`): 5 Series 마지막 트림(550e)에 제안이 들어오자
-  prod 즉시 재현 — **가시 0px·[채택] y=872로 뷰포트 800 초과 = 클릭 불가**. `useFixedPopoverPosition`
-  (앵커 `.va-disc-cell`·align end)+`max-height:60vh`+시프트 닫기. **flip-up 필수라
-  `popoverPosFromRect`(아래로만)를 쓰지 않았다.**
-- **딜러 제안 목록 2건**(PR `#417`): ①열이 행마다 어긋남(행별 독립 grid) → 열 정의를 그룹으로
-  올리고 행은 **subgrid**(폭 자동 유지) ②빈 제안 행 → **`saveDealerTrimDiscount`가 셋 다 null이면
-  DELETE**(구 upsert…). 원천 삭제인 이유 = 카운트(`proposal_count`)와 목록이 **다른 쿼리**라 읽기
-  필터는 두 곳 동시 수정 필요("보기(4)인데 3건"). ⚠️채택 이력은 `catalog_discount_adoptions`
-  별도 테이블이라 무손상·재입력은 UNIQUE upsert로 복구·권한 게이트 불변.
-- ⚠️ **main 직행 사고**: 첫 커밋 push가 main까지 밀었다(병렬 세션 공유 워킹트리 + jj bookmark).
-  이후 **SHA 고정 refspec**으로 재발 0. 재발 방지 = 메모리 `parallel-session-shared-worktree-git-race`.
+- **정책**: 이사님 앱 원문(#609 handoff) → CRM 회신 `ref/2026-08-01-app-account-deletion-crm-reply.md`
+  (**디스코드로 영실 전달 완료** — 수정 시 전달본과 드리프트 주의). 4분류 수용 · 정책성 5건은
+  "기본값+거부권"으로 확정 · **탈퇴 인지 큐 = 이사님 직접 결정**(즉시 삭제 금지·확인=가속기·삭제
+  거부권 아님) · SLA 5일 = 표준 개인정보 보호지침 "5일 이내"(상한 — 연장 불가) · DB project 일치
+  실측(앱이 본 불일치 정황 = `.env.local` 주석 잔재). 구현 spec =
+  `ref/specs/2026-08-01-crm-account-deletion-flow-design.md`.
+- **PR-1 `#420`**: 마이그 0046·0047(`account_deletion_jobs`·`settlement_references`·customers
+  retention 2컬럼·`customer_deletions` name/deleted_by nullable) · `applyAppUserUnlink`(단일
+  UPDATE로 phone CHECK 통과) · 3분류 실행 경로(#212 코어 공유·탈퇴는 발송 카드 가드 생략).
+  🟡 **행위 변경 박제**: 스태프 삭제(#212) 감사행도 name·app_user_id 미기록(회신 §6 전체 익명화
+  정합 — 유슨생 머지 승인).
+- **PR-2 `#421`**: `/api/app/account-deletion`(공유 시크릿·멱등·202/200·미설정 503 fail-closed) ·
+  잡 상태기계(D+5 폴백 = B후보→C스켈레톤 · 실제 실행 분류를 confirmed에 기록) · **worker.ts
+  scheduled 전환**(app.test 엔트리 잠금은 `worker.fetch === app.fetch` 참조 동일성으로 변경).
+- **PR-3 `#422`**: 목록 상단 탈퇴 알림·행 "탈퇴 접수" 배지·드로어 배너+탈퇴확인 **인라인 패널**
+  (팝오버 아님 — #414 축 구조 회피) · 발송 차단 409(spec §3e) · `quoteWritable` 합성 잠금.
+- **실기 스모크 통과**: CU-SMOKE 픽스처 → magiclink → 알림·배지·배너·확정 실행(purge) → 감사
+  익명(name·appUserId NULL) 실측 → 잔재 0.
+- **배선 완료**: `APP_DELETION_SECRET`(CF secret + CRM/앱 `.env.local` 3곳 동일 값 — prod 401
+  실측) · `DELETION_DISCORD_WEBHOOK`(CF secret + 테스트 204, "잡도리 알람" 채널).
 
 ## ▶ 다음
 
-- **제프 서비스(mc.mrcha.app) 이사님 CF 계정 이전 + Workers 구축(08-01 예정 · 유슨생 확정)**:
-  계획 = `~/Downloads/2026-07-31-제프-CF-Workers-이전-계획.md`(8단계·담당 포함). 근거: Workers
-  Custom Domain은 zone 동일 계정 필수. 이사님 결정 대기 = 제프 계정 접근 범위(멤버 권한이 거침).
-- ~~타깃 렌즈 배치~~ **완료 · 유슨생 prod 실기 확인까지 종결**(PR 4건). 검증용 딜러 제안 2건도
-  **실경로(딜러 토큰 PUT null×3)로 정리 완료** — 남은 건 07-29자 523d 1건뿐(별건).
-  **잔여 = 죽은 상태 modifier 4종**(no-op·제거/CSS복구 중 원 의도 불명) · 구조 후보 =
-  `useQuoteList.quotes` 미재동기화.
-- ~~CF 잔여 권고~~ **전부 종결**(rate limiting 5회/10초 · AI Gateway 보류 · 프리뷰 Access).
-- 잔여 실기(오전분): ①`#410` 레이아웃 ②팀장 폼 할인 섹션 부재+admin 유지 ③교차 세션 실시간
-  ④PR `#404` 체크리스트 잔여.
+- **앱 몫**: 영실 탈퇴 오케스트레이터(#609) — 엔드포인트 호출 + "200 수신 전 profile 미삭제".
+  유슨생 = Supabase Edge secret(`APP_DELETION_SECRET`) 등록 + 이사님 값 전달.
+- **CRM 후속(30일 내 무공백)**: 업무 AI 기존 메시지 일괄 정리(**앱 출시 게이트** — 실행 시점 직원
+  공지만) · 30일 rolling cron · assistant provenance 계측 · `customer_deletions` 기존 행 backfill.
+- **이월(07-31)**: 제프 mc.mrcha.app CF Workers 이전이 08-01 새벽 실행됨(유슨생 언급) —
+  `bun run check:lenders` 실측 확인 권장 · 죽은 상태 modifier 4종 · `useQuoteList.quotes`
+  미재동기화 · 오전분 실기 4건(#410 레이아웃·팀장 폼 할인·교차 세션 실시간·#404 체크리스트).
 
 ## 대기
 
-**이사님** = 기존 항목 그대로(07-29 브리프 → 아카이브).
+**이사님** = 기존 항목 그대로. + Supabase 대시보드 **"EXCEEDING USAGE LIMITS" 배지** 목격
+(2026-08-01) — 플랜 한도 확인 권장.
 
 ## Boot
 
-`AGENTS.md` → 이 파일 → `git status --short --branch` · `git log --oneline -5`. 승인 워크플로
-상세 = `ref/specs/2026-07-30-crm-catalog-change-approval-design.md`(§3.1 정정 포함) · plans pr1~3.
+`AGENTS.md` → 이 파일 → `git status --short --branch` · `git log --oneline -5`. 회원탈퇴 상세 =
+위 회신·spec 2문서.
 
 ## 세션 마무리 규칙
 

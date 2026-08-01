@@ -7,6 +7,32 @@
 > 분리 사유: 이 내용이 142k자까지 자라 매 세션 컨텍스트의 14%를 차지했고,
 > AGENTS.md의 "60줄 이하 / 과거 로그 누적 금지" 규칙과도 어긋나 있었다(2026-07-21).
 
+## 2026-07-31 (밤) — 타깃 렌즈 배치(fail-silent UI 수색) + 딜러 제안 수리 (유슨생)
+
+- **fail-silent UI 경로 수색**(`#414` 계급, 감사 정책 기본형 · 에이전트 7 · 워킹트리 무손상).
+  **상 0 · 중 1 · 하 9** — 수색이 낸 중 6건 중 **5건이 적대 검증에서 강등**(과장 회수).
+  **#414 원형(앵커 미매칭 → 무경고 영구 hidden) 잔존 0건.** 판정 SSOT =
+  `ref/plans/2026-07-31-crm-targeted-lens-batch.md`.
+- **중 1건**(`d9ee4ff`): 드로어 3카드 확인 팝오버가 스크롤·리사이즈에 안 닫혔다(계약 "닫기는
+  호출부 책임"을 목록만 이행 — 실측 400px 스크롤 시 행 400px·팝오버 0px, 확인창이 구매조건 섹션
+  위에 떠 대상 오인). 공용 훅 `use-popover-viewport-close.ts`로 한 벌화 + 회귀 5케이스.
+- **하 5건**(PR `#415`): ①계산기 "조회 완료" 오표시(`isVehicleReady` 가드) ②견적 CREATE 발송
+  실패 미원복(UPDATE와 대칭 롤백) ③견적 temp id 무음 스킵 6함수(`blockedWhileQuoteSaving`)
+  ④메모 팝오버 `ConfirmPopover` 이주 ⑤`heightDep` Boolean→문자열. +도달 불가 저장 핸들러 2건 주석.
+- **`.va-disc-pop` 하→중 승격 후 수리**(PR `#416`): 5 Series 마지막 트림(550e)에 제안이 들어오자
+  prod 즉시 재현 — **가시 0px·[채택] y=872로 뷰포트 800 초과 = 클릭 불가**. `useFixedPopoverPosition`
+  (앵커 `.va-disc-cell`·align end)+`max-height:60vh`+시프트 닫기. **flip-up 필수라
+  `popoverPosFromRect`(아래로만)를 쓰지 않았다.**
+- **딜러 제안 목록 2건**(PR `#417`): ①열이 행마다 어긋남(행별 독립 grid) → 열 정의를 그룹으로
+  올리고 행은 **subgrid**(폭 자동 유지) ②빈 제안 행 → **`saveDealerTrimDiscount`가 셋 다 null이면
+  DELETE**(구 upsert…). 원천 삭제인 이유 = 카운트(`proposal_count`)와 목록이 **다른 쿼리**라 읽기
+  필터는 두 곳 동시 수정 필요("보기(4)인데 3건"). ⚠️채택 이력은 `catalog_discount_adoptions`
+  별도 테이블이라 무손상·재입력은 UNIQUE upsert로 복구·권한 게이트 불변.
+- ⚠️ **main 직행 사고**: 첫 커밋 push가 main까지 밀었다(병렬 세션 공유 워킹트리 + jj bookmark).
+  이후 **SHA 고정 refspec**으로 재발 0. 재발 방지 = 메모리 `parallel-session-shared-worktree-git-race`.
+- 검증용 딜러 제안 2건 실경로 정리 완료(딜러 토큰 PUT null×3) — 남은 건 07-29자 523d 1건(별건).
+  CF 잔여 권고 전부 종결(rate limiting 5회/10초 · AI Gateway 보류 · 프리뷰 Access).
+
 ## 2026-07-31 (오후~저녁) — Workers 마이그레이션 완결 + #414 팝오버 오프스크린 수리 (유슨생)
 
 - **Pages→Workers 전 절차 완료**: Worker `mrcha-crm`(`src/worker.ts`+assets
