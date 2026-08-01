@@ -22,11 +22,14 @@ describe("app (Hono)", () => {
     expect(await res.json()).toEqual({ error: "인증이 필요합니다." });
   });
 
-  // Workers 엔트리(2026-07-31 Pages 폐기): 모듈 워커가 app 자체를 default export 해야
-  // ExecutionContext가 fetch 3번째 인자로 자동 전달된다(구 Pages 엔트리의 수동 전달 누락 →
-  // SSE 데드락 함정은 이 구조로 소멸 — 2026-07-03 prod 524 사고 배경은 db.test.ts 참조).
-  // 별도 래퍼 객체로 바꾸면 그 보장이 다시 코드 책임이 되므로 동일성 자체를 잠근다.
-  test("Workers 엔트리는 Hono app 자체를 default export 한다", () => {
-    expect(worker).toBe(app);
+  // Workers 엔트리(2026-07-31 Pages 폐기 → 2026-08-01 탈퇴 크론 scheduled 추가로 핸들러 객체 전환):
+  // fetch는 반드시 **app.fetch 참조 그대로**여야 한다 — 손으로 쓴 래퍼
+  // (`fetch: (req, env) => app.fetch(req, env)`)는 ExecutionContext 3번째 인자를 빠뜨릴 수 있고,
+  // 그 누락이 2026-07-03 prod 524(SSE 데드락)의 배경이다(상세 db.test.ts). 모듈 워커 런타임은
+  // 등록된 fetch에 (request, env, ctx) 3인자를 직접 넘기므로, 참조 동일성만 잠그면 인자 유실
+  // 래퍼의 재도입이 기계로 걸린다. (app.fetch는 Hono가 생성 시점에 바인딩한 프로퍼티라 참조 전달 안전.)
+  test("Workers 엔트리 fetch는 app.fetch 참조 그대로(인자 유실 래퍼 금지) + 탈퇴 크론 scheduled 존재", () => {
+    expect(worker.fetch).toBe(app.fetch);
+    expect(typeof worker.scheduled).toBe("function");
   });
 });

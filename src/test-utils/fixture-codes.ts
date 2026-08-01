@@ -13,7 +13,7 @@
 // 등록만 하고 정리를 빠뜨리면 ②가 실패한다.
 
 export const TEST_CUSTOMER_CODE_PREFIXES = [
-  "CU-ACCDEL-",     // db/queries/account-deletion.test.ts — 회원탈퇴 실행 경로(전 케이스 트랜잭션 롤백)
+  "CU-ACCDEL-",     // 회원탈퇴 4파일(db/queries/account-deletion·deletion-jobs, routes/app-account-deletion·account-deletions) — 쿼리는 롤백·라우트는 finally 정리
   "CU-ADVID-",      // routes/customers.test.ts — advisorId 배정 키
   "CU-AIHINT-",     // db/queries/ai-hint-sources.test.ts · routes/customers.ai-hint.test.ts
   "CU-AITOOL-",     // db/queries/assistant-tools.test.ts
