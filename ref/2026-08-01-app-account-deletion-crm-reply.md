@@ -270,7 +270,14 @@ CRM 반영(PR `#423`): retained 응답이 다음을 싣는다.
 | active_fulfillment | `customers.retention_basis`(기본 "출고 연락·조율" — 항상 비어 있지 않음) | `customers.retention_until`(확정 시 미래 검증 — 항상 충족) |
 | settlement_reference | 고정 "출고 후 정산·환수 참조 보존(개인정보 파기 완료)" | `clawback_until` 확정 시 그 값(그날 23:59:59 KST). **미확정이면 null** |
 
-**🟡 미해결 질문(영실 회신 필요)**: C 분류의 clawback 미확정 건(`review_required` — 원문 §2-C가
-직접 정의한 상태)은 확정 기한이 존재하지 않아 `retentionUntil`이 null입니다. ①null 수용(권장 —
-review_required의 정직한 표현. 임의 기한 조작 없음) ②null 불가라면 "기본 재검토 기한"을 정책으로
-정해야 합니다(그때 이사님 확정 1건 발생). 회신 전까지 CRM은 null을 보냅니다.
+**✅ 종결(2026-08-01 오후 영실 2차 회신 → PR `#424` 반영)** — "null 허용 + 안전장치" 합의:
+
+- C의 clawback 미확정 건은 `retentionUntil: null` 유지(임의 기한 조작 없음 — 양측 동일 판단).
+- 대신 retained/settlement_reference 응답에 **`reviewStatus`**(settlement status 그대로 —
+  legal_hold도 같은 문법 공유)와 **`reviewDueAt`**(다음 의무 재검토일)을 동봉한다. null
+  retentionUntil의 앱 완료 인정 조건 = `reviewStatus: "review_required"` + 미래 `reviewDueAt`.
+- **30일 재검토 주기**(영실 권장 채택): `settlement_references.review_due_at`(마이그 0048, 생성
+  기본 +30일) — 크론이 도래 건을 Discord 재알림 후 +30일 갱신(무기한 방치 방지). clawback 확정
+  (pending 승격) 시 주기 해제(NULL).
+- **헤더 통일**: CRM 수신 헤더를 앱 병합 계약의 **`X-App-Deletion-Secret`**으로 개명(구
+  `x-deletion-secret` 폐기). 배포 후 202 handshake 실측 확인.

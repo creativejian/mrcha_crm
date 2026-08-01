@@ -6,10 +6,12 @@ import { getDefaultDb } from "../client";
 import { accountDeletionJobs, customerDeletions, customerDeliveries, customers, settlementReferences } from "../schema";
 import {
   autoExecuteJob,
+  bumpSettlementReviewDue,
   confirmDeletionJob,
   getDeletionJobState,
   listAutoDueJobs,
   listRemindDueJobs,
+  listReviewDueSettlements,
   receiveAccountDeletion,
 } from "./deletion-jobs";
 
@@ -123,12 +125,15 @@ test("confirm settlement + clawbackUntil → 스켈레톤 pending 승격, 미입
       expect(settlement.lender).toBe("테스트캐피탈");
       expect(settlement.clawbackUntil).toBe("2027-01-31");
       expect(settlement.status).toBe("pending"); // 기일 입력 → 승격
-      // 앱 폴링 최종 상태 — retained + 분류 + 보존 근거·기한(2026-08-01 오후 앱 추가 계약).
+      // 앱 폴링 최종 상태 — retained + 분류 + 보존 근거·기한 + 재검토 필드(영실 2차 회신).
+      // clawback 확정 = pending 승격 + 재검토 주기 해제(reviewDueAt null).
       expect(await getDeletionJobState(appUserId, tx)).toEqual({
         status: "retained",
         classification: "settlement_reference",
         retentionBasis: "출고 후 정산·환수 참조 보존(개인정보 파기 완료)",
         retentionUntil: "2027-01-31T23:59:59+09:00",
+        reviewStatus: "pending",
+        reviewDueAt: null,
       });
       throw new Error(ROLLBACK);
     }),
@@ -186,13 +191,42 @@ test("autoExecuteJob: B 후보 D+5 폴백 = C-스켈레톤(회신 §4) — confi
       expect(after.executedVia).toBe("auto");
       expect(after.confirmedBy).toBeNull();
       // 실제 실행 분류가 기록돼 앱이 retained/settlement_reference를 받는다(제안값 B가 아니라).
-      // 자동 폴백은 clawback 미확정(review_required) — retentionUntil null(영실 회신 대기 축).
-      expect(await getDeletionJobState(appUserId, tx)).toEqual({
+      // 자동 폴백 = clawback 미확정: retentionUntil null + **안전장치**(영실 2차 회신 계약) —
+      // reviewStatus review_required + 미래 reviewDueAt(30일 주기)이 앱 완료 인정 조건.
+      const state = await getDeletionJobState(appUserId, tx);
+      expect(state).toMatchObject({
         status: "retained",
         classification: "settlement_reference",
         retentionBasis: "출고 후 정산·환수 참조 보존(개인정보 파기 완료)",
         retentionUntil: null,
+        reviewStatus: "review_required",
       });
+      const reviewDueAt = state?.status === "retained" ? state.reviewDueAt : null;
+      expect(reviewDueAt).not.toBeNull();
+      expect(new Date(reviewDueAt!).getTime()).toBeGreaterThan(Date.now());
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("정산 재검토 30일 주기: 도래 건 선별 → bump 후 창에서 빠진다", async () => {
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const [due] = await tx
+        .insert(settlementReferences)
+        .values({ lender: "재검토테스트캐피탈", reviewDueAt: sql`now() - interval '1 day'` })
+        .returning({ id: settlementReferences.id });
+      const [notDue] = await tx
+        .insert(settlementReferences)
+        .values({ lender: "재검토테스트캐피탈" }) // DB 기본값 = +30일(미래)
+        .returning({ id: settlementReferences.id });
+
+      const dueIds = (await listReviewDueSettlements(tx)).map((s) => s.id);
+      expect(dueIds).toContain(due.id);
+      expect(dueIds).not.toContain(notDue.id);
+
+      await bumpSettlementReviewDue([due.id], tx);
+      expect((await listReviewDueSettlements(tx)).map((s) => s.id)).not.toContain(due.id);
       throw new Error(ROLLBACK);
     }),
   ).rejects.toThrow(ROLLBACK);

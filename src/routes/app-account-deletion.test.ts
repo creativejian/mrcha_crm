@@ -22,7 +22,7 @@ const app = createApp();
 const post = (body: unknown, secret?: string) =>
   app.request("/api/app/account-deletion", {
     method: "POST",
-    headers: { "content-type": "application/json", ...(secret ? { "x-deletion-secret": secret } : {}) },
+    headers: { "content-type": "application/json", ...(secret ? { "x-app-deletion-secret": secret } : {}) },
     body: JSON.stringify(body),
   });
 
@@ -46,7 +46,7 @@ test("POST 잘못된 body → 400 (uuid 아님·JSON 깨짐)", async () => {
   expect((await post({ appUserId: "not-a-uuid" }, TEST_SECRET)).status).toBe(400);
   const broken = await app.request("/api/app/account-deletion", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-deletion-secret": TEST_SECRET },
+    headers: { "content-type": "application/json", "x-app-deletion-secret": TEST_SECRET },
     body: "{broken",
   });
   expect(broken.status).toBe(400);
@@ -64,7 +64,7 @@ test("POST 미연결 유저 → 200 purged 즉시 종결 + 멱등 + status 폴�
     expect(await again.json()).toEqual({ status: "purged" });
 
     const status = await app.request(`/api/app/account-deletion/status?appUserId=${appUserId}`, {
-      headers: { "x-deletion-secret": TEST_SECRET },
+      headers: { "x-app-deletion-secret": TEST_SECRET },
     });
     expect(status.status).toBe(200);
     expect(await status.json()).toEqual({ status: "purged" });
@@ -85,7 +85,7 @@ test("POST 연결 고객 → 202 review_pending(인지 큐) + 고객 무손상",
     expect(await res.json()).toEqual({ status: "review_pending" });
 
     const status = await app.request(`/api/app/account-deletion/status?appUserId=${appUserId}`, {
-      headers: { "x-deletion-secret": TEST_SECRET },
+      headers: { "x-app-deletion-secret": TEST_SECRET },
     });
     expect(status.status).toBe(202);
 
@@ -99,7 +99,7 @@ test("POST 연결 고객 → 202 review_pending(인지 큐) + 고객 무손상",
 
 test("status: 이력 없는 유저 → 404", async () => {
   const res = await app.request(`/api/app/account-deletion/status?appUserId=${crypto.randomUUID()}`, {
-    headers: { "x-deletion-secret": TEST_SECRET },
+    headers: { "x-app-deletion-secret": TEST_SECRET },
   });
   expect(res.status).toBe(404);
 });

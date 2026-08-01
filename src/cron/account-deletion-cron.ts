@@ -2,7 +2,7 @@
 // Workers scheduled 핸들러에서 호출된다(웹 요청 밖 — Hono c.env가 없어 env를 직접 받는다).
 // 스케줄 = wrangler.jsonc triggers.crons "0 1 * * *"(01:00 UTC = 10:00 KST — 재촉이 업무 시간에 닿게).
 import { createDbClient, getDefaultDb } from "../db/client";
-import { autoExecuteDueJobs, listRemindDueJobs } from "../db/queries/deletion-jobs";
+import { autoExecuteDueJobs, bumpSettlementReviewDue, listRemindDueJobs, listReviewDueSettlements } from "../db/queries/deletion-jobs";
 import { removeObjects } from "../lib/storage";
 
 export type DeletionCronEnv = {
@@ -30,9 +30,37 @@ export async function runAccountDeletionCron(env: DeletionCronEnv): Promise<void
         result.storagePaths,
       ).catch((e: unknown) => console.error("[account-deletion] Storage 정리 실패:", e));
     }
+
+    // 정산 재검토 30일 주기(영실 회신 안전장치) — review_required && 재검토일 도래 건을 재알림하고
+    // +30일 굴린다. 웹훅이 없어도 로그는 남고 주기는 굴러간다(알림 채널은 best-effort — 정산
+    // 목록 화면은 후속 UI 몫이고, 이 주기의 목적은 "무기한 방치 방지" 흔적을 기계로 남기는 것).
+    const reviewDue = await listReviewDueSettlements(db);
+    if (reviewDue.length > 0) {
+      console.log(`[account-deletion] 정산 재검토 도래 ${reviewDue.length}건`);
+      await notifyDiscordSettlementReview(env, reviewDue);
+      await bumpSettlementReviewDue(reviewDue.map((s) => s.id), db);
+    }
   } finally {
     if (made) await made.client.end();
   }
+}
+
+async function notifyDiscordSettlementReview(
+  env: DeletionCronEnv,
+  rows: { id: string; lender: string | null; createdAt: Date }[],
+): Promise<void> {
+  const url = env.DELETION_DISCORD_WEBHOOK;
+  if (!url) return;
+  const lines = rows
+    .map((s) => `· ${s.lender ?? "금융사 미상"} (${s.createdAt.toISOString().slice(0, 10)} 생성, id ${s.id.slice(0, 8)}…)`)
+    .join("\n");
+  const content = `📋 탈퇴 정산 참조 재검토 도래 ${rows.length}건 — 환수 기한(clawback) 확정 또는 정산 종결 여부를 확인해 주세요. 다음 재검토는 30일 후입니다.\n${lines}`;
+  // ⚠️ Workers에서 fetch는 전역 직접 호출(plain call)만 — 객체 메서드 경유 시 Illegal invocation(AGENTS.md).
+  await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content }),
+  }).catch((e: unknown) => console.error("[account-deletion] 정산 재검토 알림 실패:", e));
 }
 
 async function notifyDiscordReminder(
