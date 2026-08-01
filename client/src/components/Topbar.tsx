@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AiAssistantPanel } from "@/components/ai/AiAssistantPanel";
 import { useAssistantThread } from "@/components/ai/useAssistantThread";
 import { type Customer } from "@/data/customers";
@@ -455,11 +456,22 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
           )}
         </div>
         <button className={`icon-btn calculator-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => { if (shouldIgnoreTopbarAction()) return; setCalculatorOpen(true); }} type="button" aria-label="계산기"><CalculatorIcon /></button>
-        {calculatorOpen && (
-          <Suspense fallback={null}>
-            <CalculatorModal onClose={() => setCalculatorOpen(false)} />
-          </Suspense>
-        )}
+        {/* ⚠️body 직속 portal — 이 자리(.globalbar 안)에 그대로 두면 모달의 z-index 400이
+            **globalbar가 만든 스태킹 컨텍스트 안에서만** 유효해 실효 레벨이 globalbar의 60이
+            된다(.globalbar는 position:sticky + z-index:60이라 컨텍스트를 만든다).
+            Safari에서 MC 마스터로 들어간 뒤 계산기를 열면 사이드바(z-index 30)가 모달을 덮는
+            것이 그 증상이다(2026-08-01 유슨생 실기 — Chromium·playwright WebKit으로는 재현되지
+            않아 엔진별 sticky 스태킹 차이로 판단). portal로 빼면 400이 화면 전체 기준이 되어
+            엔진 차이와 무관해지고, 앞으로 다른 z-index가 늘어도 안전하다.
+            React 트리는 그대로라 onClose·상태는 이 컴포넌트가 계속 소유한다(이벤트도 React
+            트리를 따라 버블링되므로 Topbar 쪽 핸들러 계약은 불변). */}
+        {calculatorOpen &&
+          createPortal(
+            <Suspense fallback={null}>
+              <CalculatorModal onClose={() => setCalculatorOpen(false)} />
+            </Suspense>,
+            document.body,
+          )}
         <button className={`icon-btn chat-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon />{pendingChatCount > 0 && <span className="chat-queue-count num">{pendingChatCount}</span>}</button>
         <div className="notifications-wrap" ref={notificationsRef}>
           <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon />{(newAppRequestCount + pendingChatCount) > 0 && <span className="notification-count num">{newAppRequestCount + pendingChatCount}</span>}</button>
