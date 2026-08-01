@@ -1661,3 +1661,22 @@ th input:focus-visible {
 .customer-title-breadcrumb svg {
   color: #9aa1a8;
 }
+
+/* 회원탈퇴 접수 배지(2026-08-01 spec §4-1) — stage-new-badge와 같은 기하, 경고 적색 톤. */
+.withdrawal-badge {
+  height: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 5px;
+  padding: 1px 5px 0;
+  background: #d92d20;
+  box-shadow: 0 1px 3px rgba(217, 45, 32, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}

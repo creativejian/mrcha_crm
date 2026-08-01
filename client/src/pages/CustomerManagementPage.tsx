@@ -6,6 +6,7 @@ import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
 import { normalizeSearchValue } from "@/lib/global-customer-search";
 import { usePopoverViewportClose } from "@/lib/use-popover-viewport-close";
+import { fetchDeletionJobsCached, subscribeDeletionJobs, type DeletionJob } from "@/lib/account-deletions";
 import { createCustomer, prefetchCustomerDetail } from "@/lib/customers";
 import { resolveUpdateBadge } from "@/lib/manage-status";
 import { bindSelect } from "@/lib/select-bind";
@@ -227,6 +228,23 @@ export function CustomerManagementPage({
   const [openPageSize, setOpenPageSize] = useState(false);
   // 고객 삭제 — admin만. 서버가 진짜 게이트이고(403 fail-closed) 여기 숨김은 UX 보조다.
   const canDeleteCustomers = roleTab === "최고관리자";
+  // 탈퇴 인지 큐(2026-08-01 spec §4) — 상단 알림 + 행 배지. 캐시 공유·구독(드로어 확인 실행 시
+  // 즉시 반영) + 60초 폴링 폴백(MC 마스터 승인 대기 배지 선례). 딜러는 서버 403이라 아예 안 부른다.
+  const [deletionJobs, setDeletionJobs] = useState<DeletionJob[]>([]);
+  useEffect(() => {
+    if (roleTab === "딜러") return;
+    const unsubscribe = subscribeDeletionJobs(setDeletionJobs);
+    void fetchDeletionJobsCached().catch(() => {});
+    const interval = window.setInterval(() => void fetchDeletionJobsCached(true).catch(() => {}), 60_000);
+    return () => {
+      unsubscribe();
+      window.clearInterval(interval);
+    };
+  }, [roleTab]);
+  const withdrawalCustomerIds = useMemo(
+    () => new Set(deletionJobs.map((j) => j.customerId).filter((v): v is string => !!v)),
+    [deletionJobs],
+  );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
@@ -864,7 +882,7 @@ export function CustomerManagementPage({
     };
 
     const check = <CustomerSelectCell checked={selected.includes(customer.no)} onToggle={(checked) => toggleCustomerSelected(customer.no, checked)} />;
-    const customerCell = <CustomerInfoCell customer={customer} />;
+    const customerCell = <CustomerInfoCell customer={customer} withdrawalPending={!!customer.id && withdrawalCustomerIds.has(customer.id)} />;
     const vehicleCell = <CustomerVehicleCell contractContext={mode === "contract"} customer={customer} extraPopoverRef={extraPopoverRef} onToggleExtra={toggleExtraPopover} openExtraFor={openExtraFor} />;
     const stageCell = <CustomerStageCell customer={customer} onChangePrimary={changeTwoStepPrimaryStage} onChangeSecondary={changeTwoStepSecondaryStage} onOpenPicker={openTwoStepStagePicker} pickerLevel={twoStepPickerOpen} stagePickerRef={stagePickerRef} />;
     const chanceCell = <CustomerChanceCell chance={chance} chanceNoticeFor={chanceNoticeFor} chancePopoverRef={chancePopoverRef} customer={customer} onChange={changeCustomerChance} onToggle={toggleChancePopover} openChanceFor={openChanceFor} />;
@@ -1142,6 +1160,17 @@ export function CustomerManagementPage({
               )}
             </div>
           </div>
+          {deletionJobs.length > 0 ? (
+            <div className="withdrawal-notice" role="status">
+              <strong>회원탈퇴 확인 대기 {deletionJobs.length}건</strong>
+              <span>
+                {deletionJobs
+                  .map((j) => `${j.customerName ?? "이름 미상"}${j.customerCode ? `(${j.customerCode})` : ""}`)
+                  .join(", ")}
+                {" — 고객을 열어 탈퇴확인을 진행하세요. 미확인 시 접수 5일 후 자동 처리됩니다."}
+              </span>
+            </div>
+          ) : null}
           <div className="list-headbar customer-console-headbar">
             <div className="list-head-left"></div>
             <div className="top-actions">

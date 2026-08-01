@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
-import { accountDeletionJobs, customerDeletions, customers } from "../db/schema";
+import { accountDeletionJobs, customerDeletions, customers, quotes } from "../db/schema";
 
 // 탈퇴 인지 큐 스태프 라우트 통합 검증 — 권한(딜러 차단·담당자 스코프)과 확인 실행.
 // 라우트가 자기 트랜잭션을 커밋하므로 픽스처는 finally 정리(잡·감사행·고객 —
@@ -97,6 +97,36 @@ test("staff 담당자 스코프: 비담당 403 · 담당자는 실행 가능", a
     });
     expect(ok.status).toBe(200);
   } finally {
+    await cleanup(f);
+  }
+});
+
+test("탈퇴 접수 고객은 견적 앱 발송이 409로 막힌다(spec §3e — 유령 카드 방지)", async () => {
+  const { token, keyResolver, issuer } = await makeTestAuth("admin", crypto.randomUUID());
+  const app = createApp({ keyResolver, issuer });
+  const f = await seed();
+  const [q] = await db
+    .insert(quotes)
+    .values({ quoteCode: `QT-ACCDEL-${crypto.randomUUID().slice(0, 8)}`, customerId: f.customerId })
+    .returning({ id: quotes.id });
+  try {
+    const res = await app.request(`/api/customers/${f.customerId}/quotes/${q.id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ appStatus: "sent" }),
+    });
+    expect(res.status).toBe(409);
+    // 발송 전이가 기록되지 않았다(차단은 실행 전) — 다른 편집(appStatus 외)은 막지 않는다.
+    const [row] = await db.select({ appStatus: quotes.appStatus }).from(quotes).where(eq(quotes.id, q.id));
+    expect(row.appStatus).not.toBe("sent");
+    const edit = await app.request(`/api/customers/${f.customerId}/quotes/${q.id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ note: "탈퇴 접수 중 메모 편집" }),
+    });
+    expect(edit.status).toBe(200);
+  } finally {
+    await db.delete(quotes).where(eq(quotes.id, q.id));
     await cleanup(f);
   }
 });

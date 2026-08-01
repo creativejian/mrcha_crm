@@ -1425,3 +1425,93 @@
 .kim-timeline-popover-body .kim-consult-timeline {
   padding: 0;
 }
+
+/* 회원탈퇴 인지 배너(2026-08-01 spec §4-1·§4-3) — 드로어 헤더 직하 인라인 카드(팝오버 아님 —
+   앵커·뷰포트 닫기 축 자체가 없는 구조). 확인 패널은 배너 안 인라인 확장. */
+.kim-withdrawal-banner {
+  margin: 8px 0 4px;
+  padding: 10px 14px;
+  border: 1px solid #fecdca;
+  border-radius: 10px;
+  background: #fef3f2;
+}
+.kim-withdrawal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: #b42318;
+}
+.kim-withdrawal-head strong { font-weight: 700; }
+.kim-withdrawal-head span { color: #912018; }
+.kim-withdrawal-toggle {
+  margin-left: auto;
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid #d92d20;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #b42318;
+  cursor: pointer;
+}
+.kim-withdrawal-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #912018;
+}
+.kim-withdrawal-confirm {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #fecdca;
+  display: grid;
+  gap: 8px;
+  max-width: 460px;
+}
+.kim-withdrawal-confirm label {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #5f6872;
+}
+.kim-withdrawal-confirm select,
+.kim-withdrawal-confirm input {
+  height: 28px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 12px;
+  background: #fff;
+}
+.kim-withdrawal-confirm > p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #7f858c;
+}
+.kim-withdrawal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.kim-withdrawal-actions button {
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid #dededb;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.kim-withdrawal-actions button.danger {
+  border-color: #d92d20;
+  background: #d92d20;
+  color: #fff;
+  font-weight: 600;
+}
+.kim-withdrawal-actions button:disabled { opacity: 0.6; cursor: default; }

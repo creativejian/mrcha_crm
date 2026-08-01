@@ -78,10 +78,15 @@ export function CustomerSelectCell({ checked, onToggle }: { checked: boolean; on
   );
 }
 
-export function CustomerInfoCell({ customer }: { customer: Customer }) {
+export function CustomerInfoCell({ customer, withdrawalPending = false }: { customer: Customer; withdrawalPending?: boolean }) {
   return (
     <td>
-      <strong className="customer-name">{customer.name}<span className="customer-code num">{customer.customerId}</span></strong>
+      <strong className="customer-name">
+        {customer.name}
+        {/* 회원탈퇴 접수 배지(2026-08-01 spec §4-1) — 행 비활성 톤과 한 쌍. 데이터는 탈퇴 인지 큐. */}
+        {withdrawalPending ? <span className="withdrawal-badge">탈퇴 접수</span> : null}
+        <span className="customer-code num">{customer.customerId}</span>
+      </strong>
       <span className="customer-meta">{customerMeta(customer)}</span>
       {/* 추가 연락처 병기(2026-07-17 결정 — 목록에도 노출). 주 번호 = 서버 합성(앱 연결이면 앱 번호).
           값 있는 항목만 잇는다 — 주 번호 공란+추가만 있으면 선행 " · " 없이(배치 8 C#9). */}
