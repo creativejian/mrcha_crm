@@ -110,6 +110,17 @@ export async function getDeletionJob(jobId: string, ex: Executor = getDefaultDb(
   return job ?? null;
 }
 
+// 대고객 액션 차단 판정(spec §3e) — 탈퇴 접수(received) 고객이면 true. 발송 라우트 409 게이트가
+// 쓴다. 확인 실행과의 경합 창은 수렴한다: 실행이 먼저면 발송 UPDATE가 빈 행(404), 발송이 먼저면
+// 실행의 deleteQuote가 카드를 회수한다 — 이 게이트는 UX 차단이지 최후 방벽이 아니다.
+export async function hasReceivedDeletionJob(customerId: string, ex: Executor = getDefaultDb()): Promise<boolean> {
+  const [job] = await ex
+    .select({ id: accountDeletionJobs.id })
+    .from(accountDeletionJobs)
+    .where(and(eq(accountDeletionJobs.customerId, customerId), eq(accountDeletionJobs.status, "received")));
+  return !!job;
+}
+
 export type ConfirmDeletionInput = {
   classification: DeletionClassification;
   confirmedBy: string;

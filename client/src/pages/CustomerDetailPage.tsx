@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/auth/AuthProvider";
 import { type Customer, type CustomerChanceOption, type CustomerManageStatus } from "@/data/customers";
-import { fetchCustomerDetail, formatActivity, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
+import { fetchDeletionJobsCached, subscribeDeletionJobs, type DeletionJob } from "@/lib/account-deletions";
+import { fetchCustomerDetail, formatActivity, invalidateCustomerDetail, updateCustomer, type CustomerDetailData, type CustomerWritePatch } from "@/lib/customers";
 import { canWriteQuote } from "@/lib/quote-write-access";
 import { canAssignAdvisor } from "@/lib/advisor-assign-access";
 import { nowMs } from "@/lib/detail-utils";
 import { type PurchasePopoverFrame, isPurchaseFloatingKind } from "@/lib/popover-frames";
 import { type RecentUpdate, type OpenEditorState } from "@/components/customer-detail/types";
 import { CustomerDetailHeader } from "@/components/customer-detail/CustomerDetailHeader";
+import { WithdrawalBanner } from "@/components/customer-detail/WithdrawalBanner";
 import { CustomerMemos } from "@/components/customer-detail/CustomerMemos";
 import { useCustomerMemos } from "@/components/customer-detail/hooks/useCustomerMemos";
 import { CustomerChecks } from "@/components/customer-detail/CustomerChecks";
@@ -69,6 +71,7 @@ function CustomerDetailContent({
   chanceOverride,
   customer,
   detail,
+  onBack,
   onEditorOpenChange,
   onToast,
   onWorkflowChange,
@@ -81,6 +84,8 @@ function CustomerDetailContent({
   chanceOverride?: CustomerChanceOption;
   customer: Customer;
   detail: CustomerDetailData;
+  // 탈퇴확인(purge·정산 보존) 실행 후 드로어/페이지 이탈용 — 고객 행이 사라져 머물 화면이 없다.
+  onBack?: () => void;
   onEditorOpenChange?: CustomerDetailPageProps["onEditorOpenChange"];
   onToast: (message: string) => void;
   onWorkflowChange?: CustomerDetailPageProps["onWorkflowChange"];
@@ -145,7 +150,21 @@ function CustomerDetailContent({
   // 게이트고 이 파생은 UX 보조(버튼 숨김). workflow.advisorId = 배정 저장 낙관 최신이라
   // "본인 배정 → 즉시 견적 작성"이 리로드 없이 성립한다.
   const { userId, roleClaim } = useAuth();
-  const quoteWritable = canWriteQuote({ id: userId ?? "", role: roleClaim ?? "" }, workflow.advisorId);
+  // 탈퇴 인지 큐(2026-08-01 spec §4) — 이 고객의 대기 잡. 캐시 공유 + 구독(확인 실행 시 즉시 반영).
+  const [deletionJob, setDeletionJob] = useState<DeletionJob | null>(null);
+  useEffect(() => {
+    if (!customer.id || roleClaim === "dealer") return;
+    const apply = (jobs: DeletionJob[]) => setDeletionJob(jobs.find((j) => j.customerId === customer.id) ?? null);
+    const unsubscribe = subscribeDeletionJobs(apply);
+    void fetchDeletionJobsCached().then(apply).catch(() => {});
+    return unsubscribe;
+  }, [customer.id, roleClaim]);
+  // 탈퇴 접수 중엔 대고객 액션(발송·견적 편집 진입) 전부 잠금 — 서버 409(spec §3e)가 진짜 게이트고
+  // 이 합성은 UX 보조(버튼 숨김). quoteWritable 한 축이 발송·수정·계약·원본첨부를 함께 닫는다.
+  const quoteWritable = !deletionJob && canWriteQuote({ id: userId ?? "", role: roleClaim ?? "" }, workflow.advisorId);
+  // 탈퇴확인 권한 = 관리자·팀장 전체 / 상담사는 담당 고객만(서버 스코프와 동일 판정).
+  const deletionConfirmable =
+    roleClaim === "admin" || roleClaim === "manager" || (roleClaim === "staff" && !!userId && workflow.advisorId === userId);
   // 담당자 배정 권한(2026-07-21 유슨생 결정 — staff 실기 감사). 서버 403이 진짜 게이트고 이 파생은
   // UX 보조: staff에게 배지를 읽기 전용으로 만들어, 눌러서 고른 뒤 403을 보는 헛수고를 막는다.
   const advisorAssignable = canAssignAdvisor({ role: roleClaim ?? "" });
@@ -216,6 +235,21 @@ function CustomerDetailContent({
     <div className="kim-customer-dashboard">
       <div className="kim-left-dashboard">
         <CustomerDetailHeader now={recentUpdateNow} recentUpdate={recentUpdate} name={detail.name} customerCode={detail.customerCode} receivedLabel={formatActivity(detail.receivedAt)} />
+        {deletionJob ? (
+          <WithdrawalBanner
+            canConfirm={deletionConfirmable}
+            job={deletionJob}
+            onConfirmed={(classification) => {
+              if (customer.id) invalidateCustomerDetail(customer.id);
+              onCustomerListChanged?.();
+              // B(한시 보존)는 행이 남는다 — 스크럽·번호 materialize가 반영된 상세를 다시 읽는다.
+              // purge·정산 보존은 고객 행 자체가 사라져 머물 화면이 없다 — 목록으로 이탈.
+              if (classification === "active_fulfillment") onQuotesPersisted?.();
+              else onBack?.();
+            }}
+            onToast={onToast}
+          />
+        ) : null}
         <StatusWorkflow
           allCustomers={allCustomers}
           customer={customer}
@@ -284,6 +318,7 @@ export function CustomerDetailPage({
   allCustomers,
   chanceOverride,
   customer,
+  onBack,
   onEditorOpenChange,
   onToast,
   onWorkflowChange,
@@ -334,6 +369,7 @@ export function CustomerDetailPage({
           detail={detail}
           chanceOverride={chanceOverride}
           customer={customer}
+          onBack={onBack}
           onEditorOpenChange={onEditorOpenChange}
           onToast={onToast}
           onWorkflowChange={onWorkflowChange}

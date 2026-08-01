@@ -14,6 +14,7 @@ import {
 import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDocuments, updateDocument } from "../db/queries/customer-documents";
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
 import { deleteCustomer, quoteStoragePath } from "../db/queries/customer-delete";
+import { hasReceivedDeletionJob } from "../db/queries/deletion-jobs";
 import { upsertCustomerDelivery } from "../db/queries/customer-delivery";
 import { getStaffName } from "../db/queries/staff";
 import { resolveCustomerScope } from "../lib/assistant-scope";
@@ -699,6 +700,11 @@ customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValida
   const denied = await quoteWriteGate(c, p.id);
   if (denied) return denied;
   const body = c.req.valid("json");
+  // 탈퇴 접수 고객 발송 차단(2026-08-01 회원탈퇴 spec §3e) — 탈퇴한 유저의 앱 수신함에 새 카드를
+  // 만들지 않는다(실행 시 어차피 회수·삭제될 유령 카드). 발송 전이만 막고 다른 편집은 그대로.
+  if (body.appStatus === "sent" && (await hasReceivedDeletionJob(p.id, c.var.db))) {
+    return c.json({ error: "회원탈퇴가 접수된 고객입니다. 앱 발송은 할 수 없습니다." }, 409);
+  }
   return run(c, async () => {
     const row = await c.var.db.transaction((tx) => updateQuote(p.id, p.childId, body, tx));
     if (row) {
