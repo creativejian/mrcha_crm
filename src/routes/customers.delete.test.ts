@@ -186,10 +186,11 @@ test("DELETE /api/customers/:id — 자식 전부 CASCADE + 임베딩 0건 + 감
     const [alive] = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, cid));
     expect(alive).toBeUndefined();
 
-    // 감사 — 되돌릴 수 없는 조작이라 누가·언제·무엇을이 남는다
+    // 감사 — 되돌릴 수 없는 조작이라 누가·언제·무엇을이 남는다.
+    // name은 기록하지 않는다(2026-08-01 회원탈퇴 회신 §6 전체 익명화 — code·주체·시각으로 성립).
     const audit = await db.select().from(customerDeletions).where(eq(customerDeletions.customerId, cid));
     expect(audit).toHaveLength(1);
-    expect(audit[0].name).toBe("삭제테스트");
+    expect(audit[0].name).toBeNull();
     expect(audit[0].quoteCount).toBe(1);
     expect(audit[0].deletedBy).toBe(DELETED_BY);
 
@@ -212,7 +213,7 @@ test("DELETE /api/customers/:id — 앱 계정 연결 고객도 삭제된다(카
     expect(res.status).toBe(200);
 
     const [audit] = await db.select().from(customerDeletions).where(eq(customerDeletions.customerId, cid));
-    expect(audit.appUserId).toBe(userId); // 앱 연결 고객이었음이 기록된다
+    expect(audit.appUserId).toBeNull(); // 앱 user ID도 감사행에 남기지 않는다(2026-08-01 회신 §6 익명화)
 
     // 앱 계정은 그대로 — 다음 견적요청 때 인박스에 승격 대기로 다시 뜬다
     const [p] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.id, userId));

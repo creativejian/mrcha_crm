@@ -49,6 +49,13 @@ const DECISION_STATUSES = ["none", "considering", "confirmed", "contracting"];
 const ACQ_TAX_MODES = ["normal", "hybrid", "electric", "manual"];
 const EMBEDDING_SOURCE_TYPES = ["memo", "task", "need_memo", "need_customer_note", "need_review_note", "consultation", "quote", "customer_profile", "schedule", "customer_documents", "quote_request"];
 const ASSISTANT_ROLES = ["user", "assistant"];
+// 회원탈퇴 분류(2026-08-01 spec) — 회신 §1: purge=계약 전 전량 삭제 · active_fulfillment=출고
+// 업무 한시 보존 · settlement_reference=정산 전용 레코드 분리. legal_hold는 분류가 아니라
+// settlement_references.status 값이다(4번째 데이터 모델을 만들지 않는다).
+const DELETION_CLASSIFICATIONS = ["purge", "active_fulfillment", "settlement_reference"];
+const DELETION_JOB_STATUSES = ["received", "executed"];
+const DELETION_EXECUTED_VIA = ["confirm", "auto"];
+const SETTLEMENT_STATUSES = ["pending", "settled", "review_required", "legal_hold"];
 
 // nullable 컬럼 IN CHECK(기존 null 보존). 값=코드 상수 SSOT에서 sql.join. 종속(그룹-상태)은 앱 검증.
 // 값은 sql.raw로 리터럴 inline(마이그에 박제). param(`sql`${v}``)이면 $1 placeholder로 새 나가 깨짐.
@@ -122,6 +129,10 @@ export const customers = crm.table("customers", {
   // ⚠️ 파생 필드 read-only 판정 기준이 app_user_id가 아니라 **이 컬럼**이다(설계 D2) — 요청 0건
   //    고객이 파생 소스도 없이 수기 입력까지 막혀 영원히 못 채우는 상태가 되는 것을 막는다.
   featuredRequestId: uuid("featured_request_id"),
+  // 회원탈퇴 ACTIVE_FULFILLMENT 한시 보존(2026-08-01 spec §2b) — B 분류로 보존된 고객만 채워진다.
+  // retention_until 도래 시 잡이 PURGE로 수렴시킨다(연락처·개인정보 파기). 일반 고객은 항상 NULL.
+  retentionBasis: text("retention_basis"),
+  retentionUntil: timestamp("retention_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
@@ -390,10 +401,14 @@ export const customerDeletions = crm.table("customer_deletions", {
   id: uuid("id").primaryKey().defaultRandom(),
   customerId: uuid("customer_id").notNull(), // 삭제된 고객의 원 id (FK 없음 — 대상이 사라진다)
   customerCode: text("customer_code").notNull(),
-  name: text("name").notNull(),
+  // 회원탈퇴발 삭제는 name·app_user_id를 기록하지 않는다(2026-08-01 회신 §6 — PII 잔존 방지.
+  // 감사 목적 "누가·언제·무엇을"은 customer_code·deleted_by·deleted_at으로 충분). 스태프 발
+  // 수동 삭제도 익명 원칙을 따르며, 기존 행은 전체 익명화 backfill 대상.
+  name: text("name"),
   appUserId: uuid("app_user_id"), // 앱 연결 고객이었나 (loose id)
-  quoteCount: integer("quote_count").notNull().default(0), // 함께 사라진 견적 수(전부 미발송 — 발송분은 409로 막힌다)
-  deletedBy: uuid("deleted_by").notNull(), // JWT sub (loose id, public FK 보류 관례)
+  quoteCount: integer("quote_count").notNull().default(0), // 함께 사라진 견적 수(스태프 경로는 발송분 409 가드 — 탈퇴 경로는 카드 회수 포함이라 발송분도 셈)
+  // NULL = 회원탈퇴 D+5 자동 실행(사람 아님 — 2026-08-01 spec §3c). 스태프/탈퇴확인 경로는 JWT sub.
+  deletedBy: uuid("deleted_by"), // (loose id, public FK 보류 관례)
   deletedAt: timestamp("deleted_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -543,3 +558,56 @@ export const catalogChangeRequests = crm.table(
       .where(sql`${table.status} = 'pending' and ${table.targetId} is not null`),
   ],
 );
+
+// ── 회원탈퇴 (2026-08-01, spec: ref/specs/2026-08-01-crm-account-deletion-flow-design.md) ────
+// 탈퇴 잡 — 앱 탈퇴 오케스트레이터 요청당 1행(app_user_id 멱등 키). 인지 큐의 영속 상태이자
+// 감사 기록(요청·확인·실행 시각/주체). **PII를 담지 않는다** — 고객명·전화 금지, customer_code만.
+// customer_id에 FK를 걸지 않는다 — 실행(PURGE)이 그 행을 지운 뒤에도 잡은 남아야 한다
+// (customer_deletions.customer_id와 같은 사유).
+// app_user_id가 nullable인 이유: 실행 완료 30일 후 정리 잡이 NULL로 스크럽한다(앱 user ID 잔존
+// 최소화 — 회신 §2a. UNIQUE는 NULL 다중 허용이라 스크럽과 공존). 생성 시엔 항상 채운다.
+export const accountDeletionJobs = crm.table("account_deletion_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  appUserId: uuid("app_user_id").unique(), // → public.profiles.id(loose id). 멱등 키
+  customerId: uuid("customer_id"), // 연결 CRM 고객(없으면 NULL — 큐 없이 즉시 종결된 케이스)
+  customerCode: text("customer_code"), // 알림·감사 표시용(이름 저장 금지)
+  // 자동 분류 제안(잡 생성 시 1회 계산·저장 — 화면과 D+5 자동 실행이 같은 값을 본다)
+  proposedClassification: text("proposed_classification").notNull(),
+  confirmedClassification: text("confirmed_classification"), // 탈퇴확인에서 확정된 값
+  status: text("status").default("received").notNull(),
+  executedVia: text("executed_via"), // confirm=탈퇴확인 버튼 | auto=D+5 자동 실행
+  requestedAt: timestamp("requested_at", { withTimezone: true }).defaultNow().notNull(), // D+3/D+5 기산점
+  confirmedBy: uuid("confirmed_by"), // JWT sub(loose id 관례)
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  executedAt: timestamp("executed_at", { withTimezone: true }),
+}, (t) => [
+  check("account_deletion_jobs_proposed_check", inListCheck(t.proposedClassification, DELETION_CLASSIFICATIONS)),
+  check("account_deletion_jobs_confirmed_check", inListCheck(t.confirmedClassification, DELETION_CLASSIFICATIONS)),
+  check("account_deletion_jobs_status_check", inListCheck(t.status, DELETION_JOB_STATUSES)),
+  check("account_deletion_jobs_executed_via_check", inListCheck(t.executedVia, DELETION_EXECUTED_VIA)),
+]);
+
+// 정산 전용 레코드(SETTLEMENT_REFERENCE) — 탈퇴 고객의 일반 CRM 레코드를 지우고 정산·환수에
+// 필요한 최소만 분리 보관한다(회신 §2-C · 표준지침 "다른 법령 보존분 분리 저장·관리" 대응).
+// **개인정보 금지**: 고객명·전화·이메일·앱 user ID·상담·AI 요약을 두지 않는다. 컬럼 집합은
+// 원문 §2-C 목록 그대로이며 임의 확장하지 않는다. 업무 AI corpus source type에도 등록하지
+// 않는다(임베딩 제외 — 미등록 = 구조적 제외, fail-closed).
+// status: review_required가 기본(clawback_until 미확정 = 무기한 보존이 아니라 재검토 대상).
+// 실제 환수·분쟁 건만 legal_hold로 전환. deletion_job_id = 생성 출처 잡(provenance, PII 아님).
+export const settlementReferences = crm.table("settlement_references", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  lender: text("lender"), // 금융사(deliveries.lender 스냅샷 계승 — 자유 텍스트)
+  product: text("product"), // 상품
+  settlementNo: text("settlement_no"), // 정산번호
+  contractRef: text("contract_ref"), // 계약 참조번호
+  amount: numeric("amount"), // 정산금액
+  expectedDate: date("expected_date"), // 정산 예정일
+  settledDate: date("settled_date"), // 정산일
+  status: text("status").default("review_required").notNull(),
+  clawbackUntil: date("clawback_until"), // C 확정 담당자가 입력. NULL = review_required 사유
+  deletionJobId: uuid("deletion_job_id"), // → crm.account_deletion_jobs.id (감사 역추적)
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  check("settlement_references_status_check", inListCheck(t.status, SETTLEMENT_STATUSES)),
+]);

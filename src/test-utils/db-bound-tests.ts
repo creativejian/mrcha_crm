@@ -12,6 +12,7 @@
 
 export const DB_BOUND_TEST_FILES: readonly string[] = [
   // ── 쿼리 레이어 — getDefaultDb()가 실 master에 직결 ─────────────────────────
+  "src/db/queries/account-deletion.test.ts",
   "src/db/queries/advisor-quotes.test.ts",
   "src/db/queries/ai-hint-sources.test.ts",
   "src/db/queries/app-user-link.test.ts",

@@ -1,0 +1,205 @@
+import { expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
+
+import { normalizePhoneDigits } from "../../lib/customer-phone";
+import { EMBEDDING_DIM } from "../../lib/gemini-embed";
+import { withNotifyGuard } from "../../test-utils/notify-gate";
+import { anyUnlinkedProfileId } from "../../test-utils/profiles-fixture";
+import { getDefaultDb } from "../client";
+import { advisorQuotes, consultationRequests, profiles } from "../public-app";
+import {
+  consultationDismissals,
+  customerDeletions,
+  customerDeliveries,
+  customerMemos,
+  customers,
+  embeddings,
+  quotes,
+  settlementReferences,
+} from "../schema";
+import { applyAppUserUnlink } from "./app-user-link";
+import { executeAccountPurge, executeActiveFulfillment, executeSettlementReference, proposeClassification } from "./account-deletion";
+
+// 회원탈퇴 실행 경로(2026-08-01 spec §3c) 실 DB 검증.
+// 전 케이스 **트랜잭션 롤백**(잔재 0 — app-user-link.test.ts 패턴). 알림 트리거 테이블
+// (advisor_quotes INSERT = FCM · consultations INSERT = 디스코드)을 쓰므로 withNotifyGuard 필수
+// — 롤백이 pg_net을 취소하지만(실측) 가드까지 이중으로 건다.
+
+const db = getDefaultDb();
+const ROLLBACK = "__rollback__";
+const code = () => `CU-ACCDEL-${crypto.randomUUID().slice(0, 8)}`;
+const qcode = () => `QT-ACCDEL-${crypto.randomUUID().slice(0, 8)}`;
+
+test("PURGE: 발송 카드 있어도 실행(회수) + 자식·dismissal 정리 + 익명 감사", async () => {
+  const userId = await anyUnlinkedProfileId();
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const [c] = await tx
+        .insert(customers)
+        .values({ customerCode: code(), name: "탈퇴테스트", appUserId: userId })
+        .returning({ id: customers.id });
+      const quoteCode = qcode();
+      const [q] = await tx
+        .insert(quotes)
+        .values({ quoteCode, customerId: c.id })
+        .returning({ id: quotes.id });
+      // 발송 카드 — 스태프 삭제(#212)라면 409로 막히는 상태. 탈퇴는 회수가 의도라 뚫려야 한다.
+      await tx.insert(advisorQuotes).values({
+        userId,
+        crmQuoteId: q.id,
+        quoteCode,
+        revision: 0,
+        vehicleLabel: "탈퇴테스트차",
+        payload: {},
+        sentAt: new Date().toISOString(),
+      });
+      // 앱 상담신청 + CRM dismissal — 탈퇴 시 dismissal(우리 행)만 치우고 원본은 앱 소유라 불가침.
+      const consultationId = crypto.randomUUID();
+      await tx.insert(consultationRequests).values({
+        id: consultationId,
+        userId,
+        customerName: "상담테스트-탈퇴",
+        phoneNumber: "01000000000",
+        createdAt: new Date().toISOString(),
+      });
+      await tx.insert(consultationDismissals).values({ consultationId });
+
+      const result = await executeAccountPurge(c.id, userId, null, tx);
+      expect(result).not.toBeNull();
+
+      const count = async (t: typeof quotes | typeof customers | typeof consultationDismissals | typeof advisorQuotes) => {
+        if (t === quotes) return (await tx.select({ id: quotes.id }).from(quotes).where(eq(quotes.customerId, c.id))).length;
+        if (t === customers) return (await tx.select({ id: customers.id }).from(customers).where(eq(customers.id, c.id))).length;
+        if (t === consultationDismissals)
+          return (await tx.select({ id: consultationDismissals.consultationId }).from(consultationDismissals).where(eq(consultationDismissals.consultationId, consultationId))).length;
+        return (await tx.select({ id: advisorQuotes.id }).from(advisorQuotes).where(eq(advisorQuotes.crmQuoteId, q.id))).length;
+      };
+      expect(await count(customers)).toBe(0);
+      expect(await count(quotes)).toBe(0);
+      expect(await count(advisorQuotes)).toBe(0); // 카드 회수됨
+      expect(await count(consultationDismissals)).toBe(0);
+      // 원본 상담신청(앱 소유)은 그대로 — CRM은 read만 했다.
+      const [orig] = await tx.select({ id: consultationRequests.id }).from(consultationRequests).where(eq(consultationRequests.id, consultationId));
+      expect(orig?.id).toBe(consultationId);
+
+      // 감사 익명(회신 §6) — name·app_user_id 미기록, deletedBy NULL = 자동 실행.
+      const [audit] = await tx.select().from(customerDeletions).where(eq(customerDeletions.customerId, c.id));
+      expect(audit.name).toBeNull();
+      expect(audit.appUserId).toBeNull();
+      expect(audit.deletedBy).toBeNull();
+      expect(audit.quoteCount).toBe(1);
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("ACTIVE_FULFILLMENT: phone materialize + 스크럽 + 부분 삭제(deliveries 유지) + retention 기록", async () => {
+  const userId = await anyUnlinkedProfileId();
+  const [profile] = await db.select({ phoneNumber: profiles.phoneNumber }).from(profiles).where(eq(profiles.id, userId));
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const [c] = await tx
+        .insert(customers)
+        .values({
+          customerCode: code(),
+          name: "탈퇴보존테스트",
+          appUserId: userId,
+          needModel: "BMW 5",
+          aiSummary: "요약",
+          aiSummarySourceHash: "hash",
+          phoneSecondary: "01099998888",
+          residence: "서울",
+        })
+        .returning({ id: customers.id });
+      const [memo] = await tx.insert(customerMemos).values({ customerId: c.id, body: "메모" }).returning({ id: customerMemos.id });
+      await tx.insert(customerDeliveries).values({
+        customerId: c.id,
+        contractVehicle: "BMW 테스트",
+        lender: "테스트캐피탈",
+        contractDate: "2026-07-01",
+      });
+      await tx.insert(embeddings).values({
+        sourceType: "memo",
+        sourceId: memo.id,
+        customerId: c.id,
+        content: "메모",
+        contentHash: `accdel-${crypto.randomUUID()}`,
+        embedding: new Array(EMBEDDING_DIM).fill(0),
+      });
+
+      expect(await proposeClassification(c.id, tx)).toBe("active_fulfillment");
+
+      const until = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+      const result = await executeActiveFulfillment(userId, { basis: "출고 연락·조율", until }, tx);
+      expect(result?.customerId).toBe(c.id);
+      expect(result?.materializedPhone).toBe(normalizePhoneDigits(profile?.phoneNumber));
+
+      const [row] = await tx.select().from(customers).where(eq(customers.id, c.id));
+      expect(row.appUserId).toBeNull();
+      expect(row.phone).toBe(normalizePhoneDigits(profile?.phoneNumber)); // CHECK 통과 = 단일 UPDATE 증명
+      expect(row.needModel).toBeNull();
+      expect(row.aiSummary).toBeNull();
+      expect(row.aiSummarySourceHash).toBeNull();
+      expect(row.phoneSecondary).toBeNull();
+      expect(row.residence).toBeNull();
+      expect(row.retentionBasis).toBe("출고 연락·조율");
+      expect(row.retentionUntil).not.toBeNull();
+
+      expect((await tx.select({ id: customerMemos.id }).from(customerMemos).where(eq(customerMemos.customerId, c.id))).length).toBe(0);
+      expect((await tx.select({ id: embeddings.id }).from(embeddings).where(eq(embeddings.customerId, c.id))).length).toBe(0);
+      // 출고 정보는 보존 목적 그 자체 — 남는다.
+      expect((await tx.select({ id: customerDeliveries.id }).from(customerDeliveries).where(eq(customerDeliveries.customerId, c.id))).length).toBe(1);
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("SETTLEMENT_REFERENCE: 정산 스켈레톤 분리(lender 계승·review_required) 후 고객 삭제", async () => {
+  const userId = await anyUnlinkedProfileId();
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const [c] = await tx
+        .insert(customers)
+        .values({ customerCode: code(), name: "탈퇴정산테스트", appUserId: userId })
+        .returning({ id: customers.id });
+      await tx.insert(customerDeliveries).values({
+        customerId: c.id,
+        lender: "테스트캐피탈",
+        contractDate: "2026-06-01",
+        deliveredDate: "2026-07-15",
+      });
+
+      expect(await proposeClassification(c.id, tx)).toBe("settlement_reference");
+
+      const result = await executeSettlementReference(c.id, userId, null, null, tx);
+      expect(result).not.toBeNull();
+
+      const [gone] = await tx.select({ id: customers.id }).from(customers).where(eq(customers.id, c.id));
+      expect(gone).toBeUndefined();
+      const [settlement] = await tx.select().from(settlementReferences).where(eq(settlementReferences.id, result!.settlementId));
+      expect(settlement.lender).toBe("테스트캐피탈");
+      expect(settlement.status).toBe("review_required"); // clawback 미확정 = 무기한 보존이 아니라 재검토
+      const [audit] = await tx.select().from(customerDeletions).where(eq(customerDeletions.customerId, c.id));
+      expect(audit.name).toBeNull();
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("proposeClassification: 출고 정보 없는 고객 → purge", async () => {
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const [c] = await tx
+        .insert(customers)
+        .values({ customerCode: code(), name: "탈퇴분류테스트" })
+        .returning({ id: customers.id });
+      expect(await proposeClassification(c.id, tx)).toBe("purge");
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("applyAppUserUnlink: 연결 고객 없는 유저 → null(멱등 no-op, 재시도 안전)", async () => {
+  const result = await applyAppUserUnlink(crypto.randomUUID(), "materialize");
+  expect(result).toBeNull();
+});
