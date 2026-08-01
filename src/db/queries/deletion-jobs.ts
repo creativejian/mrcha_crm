@@ -12,14 +12,57 @@ import {
   type DeletionClassification,
 } from "./account-deletion";
 
-// 앱 폴링 응답 상태(회신 §4 표) — purged/retained = 앱이 profile/Auth 삭제를 진행해도 된다.
+// 앱 폴링 응답 상태(회신 §4 표 + 2026-08-01 오후 앱 추가 계약) — purged/retained = 앱이
+// profile/Auth 삭제를 진행해도 된다. retained에는 classification과 함께 **retentionBasis(비어
+// 있지 않음)·retentionUntil**을 싣는다(앱이 완료 인정 조건으로 요구 — 누락 시 잠금 재시도).
+// retentionUntil이 null인 유일한 경로 = C(정산 보존)의 clawback 미확정(review_required — 원문
+// §2-C상 확정 기한이 존재하지 않는 상태). null 수용 여부는 영실 회신 대기(회신 문서 §12).
 export type DeletionJobState =
   | { status: "review_pending" }
   | { status: "purged" }
-  | { status: "retained"; classification: "active_fulfillment" | "settlement_reference" };
+  | {
+      status: "retained";
+      classification: "active_fulfillment" | "settlement_reference";
+      retentionBasis: string;
+      retentionUntil: string | null;
+    };
 
-function stateOfExecuted(classification: DeletionClassification): DeletionJobState {
-  return classification === "purge" ? { status: "purged" } : { status: "retained", classification };
+// C(정산 보존)의 고정 보존 근거 — 고객 행이 사라져 저장처가 없는 분류라 상수가 SSOT.
+const SETTLEMENT_RETENTION_BASIS = "출고 후 정산·환수 참조 보존(개인정보 파기 완료)";
+
+async function stateOfExecuted(
+  job: { customerId: string | null; confirmedClassification: string | null; proposedClassification: string; id: string },
+  ex: Executor,
+): Promise<DeletionJobState> {
+  const classification = finalClassification(job);
+  if (classification === "purge") return { status: "purged" };
+  if (classification === "active_fulfillment") {
+    const [row] = job.customerId
+      ? await ex
+          .select({ retentionBasis: customers.retentionBasis, retentionUntil: customers.retentionUntil })
+          .from(customers)
+          .where(eq(customers.id, job.customerId))
+      : [];
+    return {
+      status: "retained",
+      classification,
+      // 실행 경로가 항상 기록하지만(라우트 기본값 "출고 연락·조율"), 이후 수동 정리로 행이
+      // 사라졌을 폴백까지 비어 있지 않게 유지한다(앱 계약 — 빈 문자열 금지).
+      retentionBasis: row?.retentionBasis ?? "출고 연락·조율(보존 종료)",
+      retentionUntil: row?.retentionUntil?.toISOString() ?? null,
+    };
+  }
+  const [settlement] = await ex
+    .select({ clawbackUntil: settlementReferences.clawbackUntil })
+    .from(settlementReferences)
+    .where(eq(settlementReferences.deletionJobId, job.id));
+  return {
+    status: "retained",
+    classification,
+    retentionBasis: SETTLEMENT_RETENTION_BASIS,
+    // date 컬럼(YYYY-MM-DD) → 그날까지 보존(KST 자정 직전). 미확정(review_required)은 null.
+    retentionUntil: settlement?.clawbackUntil ? `${settlement.clawbackUntil}T23:59:59+09:00` : null,
+  };
 }
 
 // 실행된 잡의 최종 분류 — 사람 확정(confirmed)이 있으면 그것, 없으면(자동 실행 전 스킴) 제안값.
@@ -42,7 +85,7 @@ export async function receiveAccountDeletion(
     .from(accountDeletionJobs)
     .where(eq(accountDeletionJobs.appUserId, appUserId));
   if (existing) {
-    if (existing.status === "executed") return stateOfExecuted(finalClassification(existing));
+    if (existing.status === "executed") return stateOfExecuted(existing, ex);
     return { status: "review_pending" };
   }
 
@@ -81,7 +124,7 @@ export async function getDeletionJobState(
     .from(accountDeletionJobs)
     .where(eq(accountDeletionJobs.appUserId, appUserId));
   if (!job) return null;
-  if (job.status === "executed") return stateOfExecuted(finalClassification(job));
+  if (job.status === "executed") return stateOfExecuted(job, ex);
   return { status: "review_pending" };
 }
 
