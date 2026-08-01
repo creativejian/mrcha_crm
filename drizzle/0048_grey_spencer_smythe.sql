@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."settlement_references" ADD COLUMN "review_due_at" timestamp with time zone DEFAULT now() + interval '30 days';

@@ -605,6 +605,10 @@ export const settlementReferences = crm.table("settlement_references", {
   settledDate: date("settled_date"), // 정산일
   status: text("status").default("review_required").notNull(),
   clawbackUntil: date("clawback_until"), // C 확정 담당자가 입력. NULL = review_required 사유
+  // 다음 의무 재검토일(2026-08-01 오후 영실 회신 — "안전장치 없는 null 금지"). 미확정(review_required)
+  // 건은 30일 주기로 재검토·Discord 재알림을 반복한다(크론이 도래 시 알림 후 +30일 갱신).
+  // DB 기본값 +30일 = 생성 즉시 첫 주기 시작. clawback 확정(pending 승격) 시 NULL로 끈다.
+  reviewDueAt: timestamp("review_due_at", { withTimezone: true }).default(sql`now() + interval '30 days'`),
   deletionJobId: uuid("deletion_job_id"), // → crm.account_deletion_jobs.id (감사 역추적)
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

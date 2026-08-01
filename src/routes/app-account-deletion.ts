@@ -19,10 +19,12 @@ export const appAccountDeletion = new Hono<{ Variables: DbVariables }>();
 
 // 시크릿 미설정 = 기능 비활성(503 fail-closed) — 배선 전에 엔드포인트가 열리는 사고 방지.
 // 값 등록: CF `bunx wrangler secret put APP_DELETION_SECRET` + 앱 Edge secret(양쪽 동일 값).
+// 헤더명은 앱 병합 계약에 통일(2026-08-01 오후 영실 회신 — 구 x-deletion-secret에서 개명.
+// 앱 유무가 아니라 `app` 세그먼트 유무가 달랐다). HTTP 헤더 조회는 대소문자 무관.
 appAccountDeletion.use("*", async (c, next) => {
   const secret = resolveSecret(c.env);
   if (!secret) return c.json({ error: "탈퇴 연동이 아직 설정되지 않았습니다." }, 503);
-  if (c.req.header("x-deletion-secret") !== secret) return c.json({ error: "인증 실패" }, 401);
+  if (c.req.header("x-app-deletion-secret") !== secret) return c.json({ error: "인증 실패" }, 401);
   await next();
 });
 

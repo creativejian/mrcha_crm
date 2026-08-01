@@ -1,6 +1,6 @@
 // 탈퇴 잡 상태기계(2026-08-01 spec §2a·§4) — 접수(멱등)·확인 실행·D+3/D+5 판정.
 // 정책 = ref/2026-08-01-app-account-deletion-crm-reply.md · spec = ref/specs/2026-08-01-crm-account-deletion-flow-design.md
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Db, type Executor } from "../client";
 import { accountDeletionJobs, customers, settlementReferences } from "../schema";
@@ -25,6 +25,11 @@ export type DeletionJobState =
       classification: "active_fulfillment" | "settlement_reference";
       retentionBasis: string;
       retentionUntil: string | null;
+      // C(정산 보존) 전용(2026-08-01 오후 영실 회신 — "안전장치 없는 null 금지"): retentionUntil이
+      // null이면 reviewStatus="review_required" + 미래 reviewDueAt이 앱 완료 인정 조건이다.
+      // legal_hold도 같은 문법 공유(reviewStatus에 settlement status가 그대로 실린다).
+      reviewStatus?: string;
+      reviewDueAt?: string | null;
     };
 
 // C(정산 보존)의 고정 보존 근거 — 고객 행이 사라져 저장처가 없는 분류라 상수가 SSOT.
@@ -53,7 +58,11 @@ async function stateOfExecuted(
     };
   }
   const [settlement] = await ex
-    .select({ clawbackUntil: settlementReferences.clawbackUntil })
+    .select({
+      clawbackUntil: settlementReferences.clawbackUntil,
+      reviewStatus: settlementReferences.status,
+      reviewDueAt: settlementReferences.reviewDueAt,
+    })
     .from(settlementReferences)
     .where(eq(settlementReferences.deletionJobId, job.id));
   return {
@@ -62,6 +71,8 @@ async function stateOfExecuted(
     retentionBasis: SETTLEMENT_RETENTION_BASIS,
     // date 컬럼(YYYY-MM-DD) → 그날까지 보존(KST 자정 직전). 미확정(review_required)은 null.
     retentionUntil: settlement?.clawbackUntil ? `${settlement.clawbackUntil}T23:59:59+09:00` : null,
+    reviewStatus: settlement?.reviewStatus ?? "review_required",
+    reviewDueAt: settlement?.reviewDueAt?.toISOString() ?? null,
   };
 }
 
@@ -285,12 +296,35 @@ async function dispatchExecution(
   const r = await executeSettlementReference(customerId, appUserId, opts.jobId, opts.deletedBy, ex);
   if (r && opts.clawbackUntil) {
     // 확인 화면에서 clawback 기일을 받았으면 스켈레톤을 pending으로 승격(모르면 review_required 유지).
+    // 기한이 확정됐으므로 30일 재검토 주기(review_due_at)는 끈다.
     await ex
       .update(settlementReferences)
-      .set({ clawbackUntil: opts.clawbackUntil, status: "pending", updatedAt: sql`now()` })
+      .set({ clawbackUntil: opts.clawbackUntil, status: "pending", reviewDueAt: null, updatedAt: sql`now()` })
       .where(eq(settlementReferences.id, r.settlementId));
   }
   return r?.storagePaths ?? [];
+}
+
+// 정산 재검토 도래 건(영실 회신 — 30일 주기 안전장치): review_required && 재검토일 경과.
+// 크론이 Discord 재알림 후 bumpSettlementReviewDue로 +30일 갱신한다(다음 주기).
+export async function listReviewDueSettlements(ex: Executor = getDefaultDb()) {
+  return ex
+    .select({ id: settlementReferences.id, lender: settlementReferences.lender, createdAt: settlementReferences.createdAt })
+    .from(settlementReferences)
+    .where(
+      and(
+        eq(settlementReferences.status, "review_required"),
+        sql`${settlementReferences.reviewDueAt} <= now()`,
+      ),
+    );
+}
+
+export async function bumpSettlementReviewDue(ids: string[], ex: Executor = getDefaultDb()): Promise<void> {
+  if (ids.length === 0) return;
+  await ex
+    .update(settlementReferences)
+    .set({ reviewDueAt: sql`now() + interval '30 days'`, updatedAt: sql`now()` })
+    .where(inArray(settlementReferences.id, ids));
 }
 
 // 크론 오케스트레이터 — 잡별 독립 트랜잭션(1건 실패가 나머지를 막지 않는다). Db가 필요해

@@ -337,6 +337,13 @@
       "when": 1785555249745,
       "tag": "0047_public_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1785560965540,
+      "tag": "0048_grey_spencer_smythe",
+      "breakpoints": true
     }
   ]
 }
