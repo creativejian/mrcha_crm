@@ -29,14 +29,12 @@ Last updated: 2026-08-01 (오후)
   (팝오버 아님 — #414 축 구조 회피) · 발송 차단 409(spec §3e) · `quoteWritable` 합성 잠금.
 - **실기 스모크 통과**: CU-SMOKE 픽스처 → magiclink → 알림·배지·배너·확정 실행(purge) → 감사
   익명(name·appUserId NULL) 실측 → 잔재 0.
-- **배선 완료**: `APP_DELETION_SECRET`(CF secret + CRM/앱 `.env.local` 3곳 동일 값 — prod 401
-  실측 · 유출 사고 1회로 **rotate 완료**, Supabase 대시보드 값도 신값 재등록 필요했음) ·
-  `DELETION_DISCORD_WEBHOOK`(CF secret + 테스트 204, "잡도리 알람" 채널).
-- **오후 2차 — 영실 계약 회신 반영(PR `#423`·`#424`)**: retained 응답에 retentionBasis·
-  retentionUntil 동봉 → 2차 회신("안전장치 없는 null 불허")로 `reviewStatus`·`reviewDueAt` 추가
-  (마이그 0048 `review_due_at` 기본 +30일 · 크론이 도래 시 재알림+30일 굴림 · clawback 확정 시
-  해제) + 수신 헤더 **`X-App-Deletion-Secret`** 통일. **prod 202 handshake 실측 완료**(무헤더
-  401·구헤더 401·연결 고객 POST 202 → 잔재 0). 계약 종결 박제 = 회신 문서 §12.
+- **배선 완료**: `APP_DELETION_SECRET`(CF+CRM/앱 env 3곳 동일 — prod 401 실측. 유출 1회 →
+  **rotate 완료**, Supabase 대시보드도 신값) · `DELETION_DISCORD_WEBHOOK`(테스트 204, 잡도리 알람).
+- **오후 2차 — 영실 계약 회신(PR `#423`·`#424`, 종결 = 회신 문서 §12)**: retained 응답에
+  retentionBasis·retentionUntil + `reviewStatus`·`reviewDueAt`(마이그 0048 기본 +30일 — 크론이
+  도래 시 재알림+30일 굴림·clawback 확정 시 해제) · 수신 헤더 **`X-App-Deletion-Secret`** 통일.
+  **prod 202 handshake 실측**(무헤더 401·구헤더 401·연결 고객 POST 202·잔재 0).
 
 ## ▶ 다음
 
