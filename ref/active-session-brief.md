@@ -42,7 +42,9 @@ Last updated: 2026-08-01 (밤)
   `account-deletion` v4) — 회신 문서 열린 리스크 종결(CRM 추가 조치 불요). 앱 잔여 게이트 =
   Partner 계약·E2E·푸시 큐 드레인(8월말).
 - **CRM 후속(30일 내 무공백)**: 업무 AI 기존 메시지 일괄 정리(**앱 출시 게이트** — 실행 시점 직원
-  공지만) · 30일 rolling cron · assistant provenance 계측 · `customer_deletions` 기존 행 backfill.
+  공지만) · 30일 rolling cron · assistant provenance 계측 · `customer_deletions` 기존 행 backfill ·
+  **`retention_until` 도래 시 PURGE 수렴 잡**(회신 §2-B "§4의 잡이 담당" 약속·미구현 — 08-02 감사
+  발굴. B 확정 0건인 지금은 무해하나 첫 B 확정 전에 크론에 붙일 것).
 - **이월(07-31)**: 제프 mc.mrcha.app CF Workers 이전이 08-01 새벽 실행됨(유슨생 언급) —
   `bun run check:lenders` 실측 확인 권장 · 죽은 상태 modifier 4종 · `useQuoteList.quotes`
   미재동기화 · 오전분 실기 4건(#410 레이아웃·팀장 폼 할인·교차 세션 실시간·#404 체크리스트).

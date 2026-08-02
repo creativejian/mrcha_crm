@@ -87,17 +87,21 @@ function finalClassification(job: { confirmedClassification: string | null; prop
 // 연결 고객이 없으면 인지할 대상이 없어 큐 없이 즉시 종결(잡은 감사로 남긴다 — spec §1).
 // 경합 주의: 동시 첫 POST 2건은 UNIQUE(app_user_id)가 두 번째를 거부한다(23505 → 500) —
 // 앱 재시도가 기존 잡을 읽어 수렴하므로 별도 잠금은 두지 않는다.
+// queuedCustomerCode = **이번 호출이** 인지 큐 잡을 새로 만들었을 때만 실림(멱등 재호출엔 없음) —
+// 라우트의 D+0 Discord 알림(회신 §1 "CRM 화면 + Discord")이 이 신호로 1회만 발화한다.
+export type ReceiveDeletionResult = { state: DeletionJobState; queuedCustomerCode?: string | null };
+
 export async function receiveAccountDeletion(
   appUserId: string,
   ex: Executor = getDefaultDb(),
-): Promise<DeletionJobState> {
+): Promise<ReceiveDeletionResult> {
   const [existing] = await ex
     .select()
     .from(accountDeletionJobs)
     .where(eq(accountDeletionJobs.appUserId, appUserId));
   if (existing) {
-    if (existing.status === "executed") return stateOfExecuted(existing, ex);
-    return { status: "review_pending" };
+    if (existing.status === "executed") return { state: await stateOfExecuted(existing, ex) };
+    return { state: { status: "review_pending" } };
   }
 
   const [customer] = await ex
@@ -112,7 +116,7 @@ export async function receiveAccountDeletion(
       executedVia: "auto",
       executedAt: sql`now()`,
     });
-    return { status: "purged" };
+    return { state: { status: "purged" } };
   }
 
   const proposed = await proposeClassification(customer.id, ex);
@@ -122,7 +126,7 @@ export async function receiveAccountDeletion(
     customerCode: customer.customerCode,
     proposedClassification: proposed,
   });
-  return { status: "review_pending" };
+  return { state: { status: "review_pending" }, queuedCustomerCode: customer.customerCode };
 }
 
 // 앱 폴링(GET status) — 잡 이력이 없으면 null(404).
@@ -178,7 +182,7 @@ export async function hasReceivedDeletionJob(customerId: string, ex: Executor = 
 export type ConfirmDeletionInput = {
   classification: DeletionClassification;
   confirmedBy: string;
-  /** B 전용 — 라우트가 필수 검증. 기본 문구는 라우트 zod가 채운다. */
+  /** B 전용 — 라우트가 필수 검증. 기본 문구는 dispatchExecution의 retentionBasis 폴백이 채운다. */
   retentionBasis?: string;
   retentionUntil?: Date;
   /** C 전용 — 확인 화면 입력(모르면 생략 = review_required 유지). YYYY-MM-DD. */
@@ -192,16 +196,18 @@ export type ConfirmDeletionResult =
 
 // 탈퇴확인(스태프) — 분류 확정 + 그 자리에서 실행. 반드시 트랜잭션 안에서 호출한다.
 // 확인 = 인지 + 분류 확정이지 삭제 거부권이 아니다(이사님 결정 2026-08-01) — 취소 경로는 없다.
+// FOR UPDATE = D+5 크론·다른 세션 confirm과의 이중 실행 잠금(autoExecuteJob과 한 쌍) — 잠금 없인
+// 두 트랜잭션이 같은 received를 읽고 각자 실행해 정산 행 중복·감사 중복이 난다.
 export async function confirmDeletionJob(
   jobId: string,
   input: ConfirmDeletionInput,
   ex: Executor = getDefaultDb(),
 ): Promise<ConfirmDeletionResult> {
-  const [job] = await ex.select().from(accountDeletionJobs).where(eq(accountDeletionJobs.id, jobId));
+  const [job] = await ex.select().from(accountDeletionJobs).where(eq(accountDeletionJobs.id, jobId)).for("update");
   if (!job) return { outcome: "not_found" };
   if (job.status !== "received" || !job.appUserId || !job.customerId) return { outcome: "already_executed" };
 
-  const storagePaths = await dispatchExecution(job.customerId, job.appUserId, input.classification, {
+  const executed = await dispatchExecution(job.customerId, job.appUserId, input.classification, {
     deletedBy: input.confirmedBy,
     retentionBasis: input.retentionBasis,
     retentionUntil: input.retentionUntil,
@@ -214,13 +220,15 @@ export async function confirmDeletionJob(
     .set({
       status: "executed",
       executedVia: "confirm",
-      confirmedClassification: input.classification,
+      // 실제 실행된 분류(effective) — 고객이 이미 없어 no-op이면 요청 분류가 아니라 purge를 기록해야
+      // 앱 폴링이 "아무것도 보존되지 않은 retained"(null 필드 → 앱 잠금 재시도)를 받지 않는다.
+      confirmedClassification: executed.effective,
       confirmedBy: input.confirmedBy,
       confirmedAt: sql`now()`,
       executedAt: sql`now()`,
     })
     .where(eq(accountDeletionJobs.id, jobId));
-  return { outcome: "executed", storagePaths };
+  return { outcome: "executed", storagePaths: executed.storagePaths };
 }
 
 // D+5 자동 실행 대상(회신 §4) — received && 접수 후 5일 경과. 크론과 테스트가 공유하는 판정 SSOT.
@@ -249,49 +257,62 @@ export async function listRemindDueJobs(ex: Executor = getDefaultDb()) {
 // D+5 잡 1건 자동 실행 — 폴백(회신 §4): purge 제안은 purge 그대로, B·C 후보는 C-스켈레톤
 // (개인정보 0 보존 + 나머지 파기 — 미결정 시 계속 보유는 원문 정책 위반이라 대안이 아니다).
 // 반드시 트랜잭션 안에서 호출한다(크론이 잡별 트랜잭션을 연다 — 1건 실패가 나머지를 막지 않게).
+// 인자 job은 트랜잭션 **밖**(listAutoDueJobs)에서 읽은 스냅샷일 수 있다 — 그 사이 스태프가
+// 탈퇴확인(B 보존 등)을 커밋했으면 stale 실행이 보존 확정 고객을 재파기한다. 그래서 tx 안에서
+// FOR UPDATE 재조회 + status 재확인으로 잠근다(confirmDeletionJob과 한 쌍 — skipped 반환).
 export async function autoExecuteJob(
-  job: { id: string; customerId: string | null; appUserId: string | null; proposedClassification: string },
+  job: { id: string },
   ex: Executor,
-): Promise<{ storagePaths: string[] }> {
+): Promise<{ storagePaths: string[]; skipped?: boolean }> {
+  const [fresh] = await ex.select().from(accountDeletionJobs).where(eq(accountDeletionJobs.id, job.id)).for("update");
+  if (!fresh || fresh.status !== "received") return { storagePaths: [], skipped: true };
+
   const classification: DeletionClassification =
-    job.proposedClassification === "purge" ? "purge" : "settlement_reference";
-  const storagePaths =
-    job.customerId && job.appUserId
-      ? await dispatchExecution(job.customerId, job.appUserId, classification, { deletedBy: null, jobId: job.id }, ex)
-      : [];
+    fresh.proposedClassification === "purge" ? "purge" : "settlement_reference";
+  const executed =
+    fresh.customerId && fresh.appUserId
+      ? await dispatchExecution(fresh.customerId, fresh.appUserId, classification, { deletedBy: null, jobId: fresh.id }, ex)
+      : { storagePaths: [], effective: "purge" as const };
   await ex
     .update(accountDeletionJobs)
     .set({
       status: "executed",
       executedVia: "auto",
-      // 실제 실행된 분류를 기록(위 finalClassification 참조) — confirmedBy는 NULL 유지(사람 아님).
-      confirmedClassification: classification,
+      // 실제 실행된 분류(effective)를 기록 — confirmedBy는 NULL 유지(사람 아님). 고객이 이미 없어
+      // no-op이면 purge 기록(confirmDeletionJob의 effective 주석 참조 — 앱 잠금 방지).
+      confirmedClassification: executed.effective,
       executedAt: sql`now()`,
     })
-    .where(eq(accountDeletionJobs.id, job.id));
-  return { storagePaths };
+    .where(eq(accountDeletionJobs.id, fresh.id));
+  return { storagePaths: executed.storagePaths };
 }
 
-// 분류 → 실행 경로 디스패치. 실행 함수가 null(고객 이미 없음 — psql 수동 삭제 등)이어도
-// 잡은 executed로 닫는다(재시도 루프 방지 — 감사는 customer_deletions가 이미 담당).
+// 분류 → 실행 경로 디스패치. 실행 함수가 null(고객 이미 없음 — psql 수동 삭제·#212 등)이어도
+// 잡은 executed로 닫는다(재시도 루프 방지 — 감사는 customer_deletions가 이미 담당). 단 그 경우
+// **effective = purge** — 아무것도 보존되지 않았는데 retained 분류를 박제하면 앱 폴링이
+// retentionUntil null·reviewDueAt null인 retained를 받아 완료 인정 조건 미달로 영구 잠금 재시도한다.
 async function dispatchExecution(
   customerId: string,
   appUserId: string,
   classification: DeletionClassification,
   opts: { deletedBy: string | null; retentionBasis?: string; retentionUntil?: Date; clawbackUntil?: string; jobId: string | null },
   ex: Executor,
-): Promise<string[]> {
+): Promise<{ storagePaths: string[]; effective: DeletionClassification }> {
   if (classification === "purge") {
     const r = await executeAccountPurge(customerId, appUserId, opts.deletedBy, ex);
-    return r?.storagePaths ?? [];
+    return { storagePaths: r?.storagePaths ?? [], effective: "purge" };
   }
   if (classification === "active_fulfillment") {
+    // 라우트 zod가 필수 검증하는 값 — 여기 도달했는데 없으면 호출 경로 버그다. 조용한 방어 기본값
+    // (구 `?? new Date()`)은 "즉시 과거가 되는 보존 기한"이라 앱 계약(미래 retentionUntil) 위반값이
+    // 된다 — 시끄럽게 죽는 쪽이 안전(트랜잭션 롤백 → 5xx → 앱 재시도).
+    if (!opts.retentionUntil) throw new Error("active_fulfillment 실행에는 retentionUntil이 필수입니다");
     const r = await executeActiveFulfillment(
       appUserId,
-      { basis: opts.retentionBasis ?? "출고 연락·조율", until: opts.retentionUntil ?? new Date() },
+      { basis: opts.retentionBasis ?? "출고 연락·조율", until: opts.retentionUntil },
       ex,
     );
-    return r?.storagePaths ?? [];
+    return { storagePaths: r?.storagePaths ?? [], effective: r ? "active_fulfillment" : "purge" };
   }
   const r = await executeSettlementReference(customerId, appUserId, opts.jobId, opts.deletedBy, ex);
   if (r && opts.clawbackUntil) {
@@ -302,7 +323,7 @@ async function dispatchExecution(
       .set({ clawbackUntil: opts.clawbackUntil, status: "pending", reviewDueAt: null, updatedAt: sql`now()` })
       .where(eq(settlementReferences.id, r.settlementId));
   }
-  return r?.storagePaths ?? [];
+  return { storagePaths: r?.storagePaths ?? [], effective: r ? "settlement_reference" : "purge" };
 }
 
 // 정산 재검토 도래 건(영실 회신 — 30일 주기 안전장치): review_required && 재검토일 경과.
@@ -336,7 +357,8 @@ export async function autoExecuteDueJobs(db: Db = getDefaultDb()): Promise<{ exe
   for (const job of due) {
     try {
       const r = await db.transaction((tx) => autoExecuteJob(job, tx));
-      executed += 1;
+      // skipped = 조회~실행 사이 스태프 확인이 선점(autoExecuteJob의 FOR UPDATE 재확인) — 실행 아님.
+      if (!r.skipped) executed += 1;
       storagePaths.push(...r.storagePaths);
     } catch (e) {
       console.error(`[account-deletion] D+5 자동 실행 실패 job=${job.id}:`, e);

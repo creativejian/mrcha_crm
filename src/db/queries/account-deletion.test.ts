@@ -11,7 +11,9 @@ import {
   consultationDismissals,
   customerDeletions,
   customerDeliveries,
+  customerDocuments,
   customerMemos,
+  customerTasks,
   customers,
   embeddings,
   quotes,
@@ -112,6 +114,15 @@ test("ACTIVE_FULFILLMENT: phone materialize + 스크럽 + 부분 삭제(deliveri
         })
         .returning({ id: customers.id });
       const [memo] = await tx.insert(customerMemos).values({ customerId: c.id, body: "메모" }).returning({ id: customerMemos.id });
+      // 할일 body는 자유 텍스트라 연락처류 PII 가능 — 화이트리스트 밖이므로 스크럽 대상.
+      await tx.insert(customerTasks).values({ customerId: c.id, body: "배우자 010-1234-5678로 출고 연락" });
+      // 서류 Storage 경로 수집 검증용 — filePath·thumbPath 둘 다 수집돼야 파기 후 잔존이 없다.
+      await tx.insert(customerDocuments).values({
+        customerId: c.id,
+        fileName: "탈퇴보존서류.pdf",
+        filePath: "accdel-test/doc.pdf",
+        thumbPath: "accdel-test/doc-thumb.jpg",
+      });
       await tx.insert(customerDeliveries).values({
         customerId: c.id,
         contractVehicle: "BMW 테스트",
@@ -133,6 +144,10 @@ test("ACTIVE_FULFILLMENT: phone materialize + 스크럽 + 부분 삭제(deliveri
       const result = await executeActiveFulfillment(userId, { basis: "출고 연락·조율", until }, tx);
       expect(result?.customerId).toBe(c.id);
       expect(result?.materializedPhone).toBe(normalizePhoneDigits(profile?.phoneNumber));
+      // Storage 경로 수집 — 회귀 시 파기 후 탈퇴 고객 서류가 Storage에 조용히 잔존한다(DB 행은
+      // 지워져 화면 증상 없음 — thumb_path 누락이 대표 사례).
+      expect(result?.storagePaths).toContain("accdel-test/doc.pdf");
+      expect(result?.storagePaths).toContain("accdel-test/doc-thumb.jpg");
 
       const [row] = await tx.select().from(customers).where(eq(customers.id, c.id));
       expect(row.appUserId).toBeNull();
@@ -146,6 +161,8 @@ test("ACTIVE_FULFILLMENT: phone materialize + 스크럽 + 부분 삭제(deliveri
       expect(row.retentionUntil).not.toBeNull();
 
       expect((await tx.select({ id: customerMemos.id }).from(customerMemos).where(eq(customerMemos.customerId, c.id))).length).toBe(0);
+      expect((await tx.select({ id: customerTasks.id }).from(customerTasks).where(eq(customerTasks.customerId, c.id))).length).toBe(0);
+      expect((await tx.select({ id: customerDocuments.id }).from(customerDocuments).where(eq(customerDocuments.customerId, c.id))).length).toBe(0);
       expect((await tx.select({ id: embeddings.id }).from(embeddings).where(eq(embeddings.customerId, c.id))).length).toBe(0);
       // 출고 정보는 보존 목적 그 자체 — 남는다.
       expect((await tx.select({ id: customerDeliveries.id }).from(customerDeliveries).where(eq(customerDeliveries.customerId, c.id))).length).toBe(1);

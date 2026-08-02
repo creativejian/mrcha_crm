@@ -39,6 +39,16 @@ export type FixtureResidue = {
   /** crm.customer_deletions 감사 잔재 — 고객 행이 이미 없어도 남는다. `--clean`이 같은 술어로 지운다. */
   deletionAudits: { customerCode: string; name: string }[];
   /**
+   * crm.account_deletion_jobs 잔재(2026-08-02) — 라우트 테스트가 **커밋**한 잡이 실행 중단 시 남고,
+   * received 잡은 leftJoin 목록이라 **스태프 목록 상단 "회원탈퇴 확인 대기 N건" 알림에 유령으로
+   * 계속 뜬다**(고객 행을 지워도 잡은 loose id라 남는다 — 07-09 유령 고객 사건과 동형).
+   * 판정 = customer_code 접두사. ⚠️ 미연결 유저 잡(customer_code NULL)은 실 탈퇴 감사 잡과 서명이
+   * 같아 기계 판별이 불가능하다(딜러 3테이블 주석과 같은 한계) — 라우트 finally 정리에 의존.
+   */
+  deletionJobs: { customerCode: string; status: string }[];
+  /** 픽스처 잡에 매달린 crm.settlement_references — `--clean`이 잡보다 먼저 지운다(loose id). */
+  fixtureSettlements: number;
+  /**
    * 딜러 3테이블의 잔재 — 판별식이 고객과 다르다. PK/FK가 uuid라 **코드 리터럴 registry로는
    * 탐지할 수 없어서**(`fixture-codes.ts`가 CU-/QT-/PUSH- 접두사만 본다) 딜러 테스트는 스스로
    * "잔재를 탐지할 수 없다"고 주석에 적어둔 채 그물 밖에 있었다(2026-07-27 실측: 고아 제안 1행이
@@ -77,6 +87,7 @@ export function residueCount(r: FixtureResidue): number {
   return (
     r.customers.length + r.quotes.length + r.orphanEmbeddings + r.orphanAppCards +
     r.consultations.length + r.deletionAudits.length +
+    r.deletionJobs.length + r.fixtureSettlements +
     r.orphanDealerProfiles.length + r.orphanDealerDiscounts.length + r.orphanAdoptions.length +
     r.orphanChangeRequests.length
   );
@@ -104,6 +115,13 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
   // customerResidueWhere()(코드 정규식 + 이름 registry)를 그대로 재사용한다(--clean과 동일 술어).
   const deletionAudits = await asRows<{ customer_code: string; name: string }>(sql`
     select customer_code, name from crm.customer_deletions where ${customerResidueWhere()} order by deleted_at`);
+  // 탈퇴 잡·정산 참조(2026-08-02) — 잡은 코드 접두사, 정산은 픽스처 잡 연결(loose id join)로 판정.
+  const deletionJobs = await asRows<{ customer_code: string; status: string }>(sql`
+    select customer_code, status from crm.account_deletion_jobs
+    where customer_code ~ ${CUSTOMER_CODE_REGEX} order by requested_at`);
+  const [fixtureSettlements] = await asRows<{ n: number }>(sql`
+    select count(*)::int as n from crm.settlement_references s
+    where s.deletion_job_id in (select id from crm.account_deletion_jobs where customer_code ~ ${CUSTOMER_CODE_REGEX})`);
   // 딜러 3테이블 — 고아 판정(위 타입 주석 참조). profiles는 **읽기만** 한다(계약 준수).
   const orphanDealerProfiles = await asRows<{ dealer_user_id: string; brand_id: number }>(sql`
     select dp.dealer_user_id::text, dp.brand_id from crm.dealer_profiles dp
@@ -134,6 +152,8 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
     orphanAppCards: Number(cards?.n ?? 0),
     consultations: consultations.map((c) => ({ id: c.id, customerName: c.customer_name, createdAt: c.created_at })),
     deletionAudits: deletionAudits.map((d) => ({ customerCode: d.customer_code, name: d.name })),
+    deletionJobs: deletionJobs.map((j) => ({ customerCode: j.customer_code, status: j.status })),
+    fixtureSettlements: Number(fixtureSettlements?.n ?? 0),
     orphanDealerProfiles: orphanDealerProfiles.map((d) => ({
       dealerUserId: d.dealer_user_id, brandId: Number(d.brand_id),
     })),
@@ -160,6 +180,11 @@ export function formatResidue(r: FixtureResidue): string {
     lines.push(`상담신청 ${c.customerName} · ${c.createdAt} — public 소유, --clean 미삭제(수동 psql DELETE)`);
   }
   for (const d of r.deletionAudits) lines.push(`삭제 감사 ${d.customerCode} · ${d.name} (crm.customer_deletions)`);
+  for (const j of r.deletionJobs) {
+    const ghost = j.status === "received" ? " — ⚠️ 스태프 목록 '탈퇴 확인 대기' 알림에 유령으로 뜹니다" : "";
+    lines.push(`탈퇴 잡 ${j.customerCode} · ${j.status} (crm.account_deletion_jobs)${ghost}`);
+  }
+  if (r.fixtureSettlements > 0) lines.push(`정산 참조 ${r.fixtureSettlements}건 (crm.settlement_references — 픽스처 잡 연결)`);
   for (const d of r.orphanDealerProfiles) {
     lines.push(`딜러 매칭 ${d.dealerUserId} · 브랜드 ${d.brandId} (crm.dealer_profiles — profiles에 없는 유저)`);
   }
