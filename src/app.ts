@@ -14,6 +14,7 @@ import { customers } from "./routes/customers";
 import { dealer } from "./routes/dealer";
 import { me } from "./routes/me";
 import { quoteRequests } from "./routes/quote-requests";
+import { reports } from "./routes/reports";
 import { solution } from "./routes/solution";
 import { staff } from "./routes/staff";
 import { vehicles } from "./routes/vehicles";
@@ -48,6 +49,7 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   protect("/api/knowledge/*");
   protect("/api/assistant/*");
   protect("/api/solution/*");
+  protect("/api/reports/*");
   protect("/api/staff/*");
   protect("/api/me/*");
   protect("/api/dealer/*");
@@ -66,6 +68,7 @@ export function createApp(authOpts?: { keyResolver: JWTVerifyGetKey; issuer: str
   app.route("/api/knowledge", knowledgeRoute);
   app.route("/api/assistant", assistant);
   app.route("/api/solution", solution);
+  app.route("/api/reports", reports);
   app.route("/api/staff", staff);
   app.route("/api/me", me);
   app.route("/api/dealer", dealer);

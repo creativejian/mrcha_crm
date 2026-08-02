@@ -35,6 +35,7 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/db/queries/embeddings.test.ts",
   "src/db/queries/quote-requests.test.ts",
   "src/db/queries/quote-requests.confirm.test.ts",
+  "src/db/queries/reports.test.ts", // 읽기 전용(픽스처 0)이지만 집계 대상이 실 master다
   "src/db/queries/staff.test.ts",
   "src/db/queries/vehicles.test.ts",
   "src/lib/promotion-embeds.test.ts",
@@ -71,6 +72,7 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/routes/inbox-role-gate.test.ts",
   "src/routes/me.test.ts",
   "src/routes/quote-requests.test.ts",
+  "src/routes/reports.test.ts",
   "src/routes/solution.test.ts",
   "src/routes/staff.test.ts",
   "src/routes/vehicles.test.ts",
