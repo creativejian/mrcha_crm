@@ -46,6 +46,44 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
 
   const quoteBodyRef = useRef<HTMLDivElement>(null);
   const prevQuoteLenRef = useRef(0); // 견적함 자동 하단스크롤: 첫 로드(0→N) 제외, 새 추가(N→N+1)만
+  const pendingQuoteWritesRef = useRef(0); // 진행 중 낙관 쓰기 수 — 아래 재동기화 effect의 게이트
+
+  // 서버 재동기화(07-31 타깃 렌즈 배치 "공통 뿌리" 이월): quotes는 detail.quotes를 초기값으로만
+  // 읽었고 key={customer.id}라 리마운트도 없어, reloadDetail(견적 persist 후)·applyDetailPatch가
+  // 가져온 서버 진실이 이 목록에는 영영 반영되지 않았다. 갱신이 오면 서버 목록으로 재구성하되
+  // ①낙관 쓰기 비행 중이면 이번 스냅샷은 버린다 — 스냅샷이 쓰기 전 상태일 수 있어, 늦게 적용하면
+  //   방금 쓴 값이 화면에서 되돌아간다(다음 갱신이 다시 맞춘다)
+  // ②아직 서버에 없는 낙관 temp 카드(kim-)는 보존한다(워크벤치 INSERT 왕복 중)
+  // ③업로드 직후 로컬 파일 필드(objectUrl 미리보기 등)는 id가 같으면 보존한다.
+  const lastSyncedDetailQuotesRef = useRef(detail.quotes);
+  useEffect(() => {
+    if (detail.quotes === lastSyncedDetailQuotesRef.current) return;
+    lastSyncedDetailQuotesRef.current = detail.quotes;
+    if (pendingQuoteWritesRef.current > 0) return;
+    const now = Date.now();
+    setQuotes((current) => {
+      const localById = new Map(current.map((quote) => [quote.id, quote]));
+      const next = detail.quotes.map((q) => {
+        const item = toQuoteItem(q, now);
+        const local = localById.get(item.id);
+        return local?.objectUrl
+          ? { ...item, fileName: local.fileName, fileSize: local.fileSize, mimeType: local.mimeType, objectUrl: local.objectUrl, file: local.file }
+          : item;
+      });
+      const serverIds = new Set(next.map((quote) => quote.id));
+      return [...next, ...current.filter((quote) => quote.id.startsWith("kim-") && !serverIds.has(quote.id))];
+    });
+  }, [detail.quotes]);
+
+  // 낙관 쓰기 추적 — 재동기화 게이트용 카운터만 얹고 원 promise를 그대로 돌려줘 호출부 then/catch 불변.
+  function trackQuoteWrite<T>(write: Promise<T>): Promise<T> {
+    pendingQuoteWritesRef.current += 1;
+    const release = () => {
+      pendingQuoteWritesRef.current -= 1;
+    };
+    write.then(release, release);
+    return write;
+  }
 
   const openQuoteAction = quotes.find((quote) => quote.id === openQuoteActionId) ?? null;
   const activeQuoteStatusTooltip = pinnedQuoteStatus ?? hoveredQuoteStatus;
@@ -186,7 +224,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     )));
     markRecentUpdate("견적함");
     if (customer.id && !quoteId.startsWith("kim-")) {
-      void uploadQuoteOriginal(customer.id, quoteId, file).catch(() => {
+      void trackQuoteWrite(uploadQuoteOriginal(customer.id, quoteId, file)).catch(() => {
         URL.revokeObjectURL(objectUrl);
         setQuotes(prevQuotes);
         onToast("원본 업로드에 실패했습니다.");
@@ -205,7 +243,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     )));
     setPreviewQuoteId((current) => (current === quoteId ? null : current));
     if (customer.id && !quoteId.startsWith("kim-")) {
-      void deleteQuoteOriginal(customer.id, quoteId).catch(() => { setQuotes(prevQuotes); onToast("원본 삭제에 실패했습니다."); });
+      void trackQuoteWrite(deleteQuoteOriginal(customer.id, quoteId)).catch(() => { setQuotes(prevQuotes); onToast("원본 삭제에 실패했습니다."); });
     }
     markRecentUpdate("견적함");
     onToast("견적 원본을 삭제했습니다.");
@@ -243,7 +281,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     // 드로어 Escape가 영구 차단된다(V2 시나리오 b 후반 실증).
     setContractStageNudgeQuoteId((current) => (current === id ? null : current));
     if (customer.id && !id.startsWith("kim-")) {
-      void apiDeleteQuote(customer.id, id)
+      void trackQuoteWrite(apiDeleteQuote(customer.id, id))
         .then(() => {
           // 승격 견적 삭제 시 니즈 카드 배지/버튼과 인박스 캐시를 서버 확정 후 갱신(생성 경로 useQuoteWorkbench와 대칭 —
           // 즉시 갱신하면 서버가 아직 옛 카운트를 반환해 리로딩 전까지 어긋난다).
@@ -274,7 +312,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
       } : quote
     )));
     if (customer.id && !id.startsWith("kim-")) {
-      void apiUpdateQuote(customer.id, id, { status: "고객 확인 전", appStatus: "sent" }).catch(() => { setQuotes(prevQuotes); onToast("발송 저장에 실패했습니다."); });
+      void trackQuoteWrite(apiUpdateQuote(customer.id, id, { status: "고객 확인 전", appStatus: "sent" })).catch(() => { setQuotes(prevQuotes); onToast("발송 저장에 실패했습니다."); });
     }
     markRecentUpdate("견적함");
     onToast(`${customer.name} 고객 앱 견적함으로 발송했습니다. 대상: ${customer.customerId}`);
@@ -288,7 +326,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     )));
     if (customer.id && !id.startsWith("kim-") && decisionStatus) {
       // 2-인자 then — 리로드 자체의 실패(reject 없는 계약이지만)가 롤백 분기로 새지 않게 분리.
-      void apiUpdateQuote(customer.id, id, { decisionStatus }).then(
+      void trackQuoteWrite(apiUpdateQuote(customer.id, id, { decisionStatus })).then(
         () => { onCustomerListChanged?.(); },
         () => {
           setQuotes(prevQuotes);
@@ -342,7 +380,7 @@ export function useQuoteList({ detail, customer, onToast, markRecentUpdate, relo
     }));
     if (customer.id && !quoteId.startsWith("kim-")) {
       // contracting 견적의 대표 변경 = 목록 contractingQuote.lender 입력(배치 11 B#4 — 마킹 경로 관례).
-      void apiUpdateQuote(customer.id, quoteId, { primaryScenarioId: scenarioId }).then(
+      void trackQuoteWrite(apiUpdateQuote(customer.id, quoteId, { primaryScenarioId: scenarioId })).then(
         () => { onCustomerListChanged?.(); },
         () => { setQuotes(prevQuotes); onToast("대표 시나리오 저장에 실패했습니다."); },
       );

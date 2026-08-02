@@ -45,7 +45,6 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
     openQuoteActionId,
     quoteActionFrame,
     openQuoteAction,
-    pinnedQuoteStatus,
     expandedQuoteId,
     activeQuoteStatusTooltip,
     activeQuoteStatusDetail,
@@ -133,7 +132,7 @@ export function QuoteList({ quoteList, customer, appUserId, onToast, onOpenNewWo
                 <span className="kim-quote-status-stack">
                   {quote.appStatus === "sent" ? (
                     <button
-                      className={`kim-quote-status-detail send-sent${pinnedQuoteStatus?.id === quote.id ? " is-pinned" : ""}`}
+                      className="kim-quote-status-detail send-sent"
                       onClick={(event) => {
                         event.stopPropagation();
                         const nextFrame = calculateQuoteStatusTooltip(event.currentTarget, quote.id);
