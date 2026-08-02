@@ -7,6 +7,35 @@
 > 분리 사유: 이 내용이 142k자까지 자라 매 세션 컨텍스트의 14%를 차지했고,
 > AGENTS.md의 "60줄 이하 / 과거 로그 누적 금지" 규칙과도 어긋나 있었다(2026-07-21).
 
+## 2026-08-01 — 회원탈퇴 전면 구현(정책→구현→스모크→배선) + 오후 영실 계약 회신 (유슨생)
+
+- **정책**: 이사님 앱 원문(#609 handoff) → CRM 회신 `ref/2026-08-01-app-account-deletion-crm-reply.md`
+  (**디스코드로 영실 전달 완료** — 수정 시 전달본과 드리프트 주의). 4분류 수용 · 정책성 5건은
+  "기본값+거부권"으로 확정 · **탈퇴 인지 큐 = 이사님 직접 결정**(즉시 삭제 금지·확인=가속기·삭제
+  거부권 아님) · SLA 5일 = 표준 개인정보 보호지침 "5일 이내"(상한 — 연장 불가) · DB project 일치
+  실측(앱이 본 불일치 정황 = `.env.local` 주석 잔재). 구현 spec =
+  `ref/specs/2026-08-01-crm-account-deletion-flow-design.md`.
+- **PR-1 `#420`**: 마이그 0046·0047(`account_deletion_jobs`·`settlement_references`·customers
+  retention 2컬럼·`customer_deletions` name/deleted_by nullable) · `applyAppUserUnlink`(단일
+  UPDATE로 phone CHECK 통과) · 3분류 실행 경로(#212 코어 공유·탈퇴는 발송 카드 가드 생략).
+  🟡 **행위 변경 박제**: 스태프 삭제(#212) 감사행도 name·app_user_id 미기록(회신 §6 전체 익명화
+  정합 — 유슨생 머지 승인).
+- **PR-2 `#421`**: `/api/app/account-deletion`(공유 시크릿·멱등·202/200·미설정 503 fail-closed) ·
+  잡 상태기계(D+5 폴백 = B후보→C스켈레톤 · 실제 실행 분류를 confirmed에 기록) · **worker.ts
+  scheduled 전환**(app.test 엔트리 잠금은 `worker.fetch === app.fetch` 참조 동일성으로 변경).
+- **PR-3 `#422`**: 목록 상단 탈퇴 알림·행 "탈퇴 접수" 배지·드로어 배너+탈퇴확인 **인라인 패널**
+  (팝오버 아님 — #414 축 구조 회피) · 발송 차단 409(spec §3e) · `quoteWritable` 합성 잠금.
+- **실기 스모크 통과**: CU-SMOKE 픽스처 → magiclink → 알림·배지·배너·확정 실행(purge) → 감사
+  익명(name·appUserId NULL) 실측 → 잔재 0.
+- **배선 완료**: `APP_DELETION_SECRET`(CF+CRM/앱 env 3곳 동일 — prod 401 실측. 유출 1회 →
+  **rotate 완료**, Supabase 대시보드도 신값) · `DELETION_DISCORD_WEBHOOK`(테스트 204, 잡도리 알람).
+- **오후 2차 — 영실 계약 회신(PR `#423`·`#424`, 종결 = 회신 문서 §12)**: retained 응답에
+  retentionBasis·retentionUntil + `reviewStatus`·`reviewDueAt`(마이그 0048 기본 +30일 — 크론이
+  도래 시 재알림+30일 굴림·clawback 확정 시 해제) · 수신 헤더 **`X-App-Deletion-Secret`** 통일.
+  **prod 202 handshake 실측**(무헤더 401·구헤더 401·연결 고객 POST 202·잔재 0).
+- **밤 종결**: 앱 오케스트레이터 배포 + §12 null retentionUntil 수용(앱 PR `#787`,
+  `account-deletion` v4) — 회신 문서 열린 리스크 종결(CRM 추가 조치 불요). 탈퇴 크론 가동 개시.
+
 ## 2026-07-31 (밤) — 타깃 렌즈 배치(fail-silent UI 수색) + 딜러 제안 수리 (유슨생)
 
 - **fail-silent UI 경로 수색**(`#414` 계급, 감사 정책 기본형 · 에이전트 7 · 워킹트리 무손상).

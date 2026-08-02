@@ -2,62 +2,56 @@
 
 > **자동 로드 · 60줄 이하 유지**(AGENTS.md). 과거 로그 = `ref/session-archive.md` · 지속 결정 = `AGENTS.md` · 설계 = `ref/specs/*` · 장기 상태 = `ref/current-working-state.md`.
 
-Last updated: 2026-08-01 (밤)
+Last updated: 2026-08-02 (낮)
 
 ## 지금 상태
 
-**main 전량 green · 회원탈퇴 CRM 전량 완결**(정책→구현→스모크→배선, PR `#420`~`#422` 머지·prod
-배포). unit **1276**. 탈퇴 크론 가동 = 매일 01:00 UTC(10:00 KST, D+3 재촉·D+5 자동 실행).
+**main 전량 green · 회원탈퇴 CRM+앱 계약 전량 종결**(파트너 계약까지 — 앱 PR `#788`·`#789`).
+unit **1280** · pure **272**. 탈퇴 크론 = 매일 10:00 KST **4스텝**(D+3 재촉·D+5 자동 실행·
+보존 기한 도래 수렴·정산 재검토).
 
-## 직전 세션 요약 (08-01 · 유슨생 — 회원탈퇴 전면 구현)
+## 직전 세션 요약 (08-02 · 유슨생 — 탈퇴 감사·이월 정리·수렴 잡·딜러 UI)
 
-- **정책**: 이사님 앱 원문(#609 handoff) → CRM 회신 `ref/2026-08-01-app-account-deletion-crm-reply.md`
-  (**디스코드로 영실 전달 완료** — 수정 시 전달본과 드리프트 주의). 4분류 수용 · 정책성 5건은
-  "기본값+거부권"으로 확정 · **탈퇴 인지 큐 = 이사님 직접 결정**(즉시 삭제 금지·확인=가속기·삭제
-  거부권 아님) · SLA 5일 = 표준 개인정보 보호지침 "5일 이내"(상한 — 연장 불가) · DB project 일치
-  실측(앱이 본 불일치 정황 = `.env.local` 주석 잔재). 구현 spec =
-  `ref/specs/2026-08-01-crm-account-deletion-flow-design.md`.
-- **PR-1 `#420`**: 마이그 0046·0047(`account_deletion_jobs`·`settlement_references`·customers
-  retention 2컬럼·`customer_deletions` name/deleted_by nullable) · `applyAppUserUnlink`(단일
-  UPDATE로 phone CHECK 통과) · 3분류 실행 경로(#212 코어 공유·탈퇴는 발송 카드 가드 생략).
-  🟡 **행위 변경 박제**: 스태프 삭제(#212) 감사행도 name·app_user_id 미기록(회신 §6 전체 익명화
-  정합 — 유슨생 머지 승인).
-- **PR-2 `#421`**: `/api/app/account-deletion`(공유 시크릿·멱등·202/200·미설정 503 fail-closed) ·
-  잡 상태기계(D+5 폴백 = B후보→C스켈레톤 · 실제 실행 분류를 confirmed에 기록) · **worker.ts
-  scheduled 전환**(app.test 엔트리 잠금은 `worker.fetch === app.fetch` 참조 동일성으로 변경).
-- **PR-3 `#422`**: 목록 상단 탈퇴 알림·행 "탈퇴 접수" 배지·드로어 배너+탈퇴확인 **인라인 패널**
-  (팝오버 아님 — #414 축 구조 회피) · 발송 차단 409(spec §3e) · `quoteWritable` 합성 잠금.
-- **실기 스모크 통과**: CU-SMOKE 픽스처 → magiclink → 알림·배지·배너·확정 실행(purge) → 감사
-  익명(name·appUserId NULL) 실측 → 잔재 0.
-- **배선 완료**: `APP_DELETION_SECRET`(CF+CRM/앱 env 3곳 동일 — prod 401 실측. 유출 1회 →
-  **rotate 완료**, Supabase 대시보드도 신값) · `DELETION_DISCORD_WEBHOOK`(테스트 204, 잡도리 알람).
-- **오후 2차 — 영실 계약 회신(PR `#423`·`#424`, 종결 = 회신 문서 §12)**: retained 응답에
-  retentionBasis·retentionUntil + `reviewStatus`·`reviewDueAt`(마이그 0048 기본 +30일 — 크론이
-  도래 시 재알림+30일 굴림·clawback 확정 시 해제) · 수신 헤더 **`X-App-Deletion-Secret`** 통일.
-  **prod 202 handshake 실측**(무헤더 401·구헤더 401·연결 고객 POST 202·잔재 0).
+- **앱쪽 완결 확인(읽기 전용)**: 파트너 trace 삭제 계약 종결(수탁 확정·로그 "직접 식별자 없음+
+  7일 자동 소멸" 확약·`/api/external/quotes/deletion` 실측). 앱 잔여 게이트 = E2E·푸시 큐
+  드레인(8월말)·처리방침(§D). **CRM 몫 앱 출시 게이트 = 업무 AI 기존 메시지 일괄 정리뿐.**
+- **탈퇴 감사 → PR `#426`**(트리거 기반 2앵글+상/중 적대 검증): ①**경합 잠금** — confirm·D+5
+  크론 양쪽 FOR UPDATE+상태 재확인(stale 자동 실행이 보존 확정 고객을 재파기 가능했음)
+  ②no-op 실행(고객 선삭제)은 **effective purge 기록**(구현대로면 앱이 "정산행 없는 retained"로
+  영구 잠금) ③🟡B 스크럽에 customer_tasks 삭제(화이트리스트 정합) ④🟡D+0 접수 Discord 알림
+  (회신 §1 이행 · NODE_ENV=test 게이트 필수 — 없으면 로컬 test:server가 실알림 발사) ⑤시크릿
+  게이트 pure 분리(CI 272) ⑥잔재 그물에 `account_deletion_jobs`·`settlement_references`
+  (received 잔재 = 목록 유령 알림). 🟡 2건 = 유슨생 현장 승인 박제.
+- **PR `#427`**: `retention_until` 도래 수렴 잡 — 회신 §2-B 약속 이행(출고 완료 흔적 있으면 정산
+  스켈레톤 축소·없으면 전체 파기·익명 감사·Discord 코드 알림). B 확정 0건 창에 무위험 배포.
+- **이월 정리 PR `#425`**: `useQuoteList` 재동기화(낙관 쓰기 비행 중 스냅샷 폐기 = 되돌림 방지·
+  temp 카드/objectUrl 보존·회귀 4케이스) + 죽은 modifier 4종 제거(**git 전 이력 CSS 0건 실측**
+  — 07-31 "원 의도 미확증" 해소). 07-31 이월 중 실기 4건만 잔존.
+- **딜러 UI 2건(main 직접)**: 할인 입력칸 "원" 단위(`6f9ae50`) · 상단바 내부 도구 5종(검색·업무
+  AI·계산기·상담 대기·알림)을 disabled 노출 → **미표시** 전환(`62e2d6a`).
+- **보류 박제(PR #426 본문)**: D+5 최악 6일차(일 1회 크론 — SLA 해석은 이사님 몫) · 크론 글루
+  무테스트(커밋 실행이라 테스트 사고 위험 > 실익) · 채팅 §3e(실경로 없음).
+- ⚠️ main 직접 push **첫 시도 실패 2회 반복**(재시도 즉시 성공 — jj ref 경합 추정, 재발 시 조사).
+- ⚠️ 팀 공통 함정: 로컬 CF 토큰을 `.env.local`에 둘 때 변수명 `CLOUDFLARE_API_TOKEN` 금지 —
+  **wrangler v4가 `.env.local`을 직접 로드**해 OAuth를 가린다(유슨생 PC는 `CF_WORKERS_LOGS_TOKEN`
+  으로 개명 완료·저장 로그 query API 전용).
 
 ## ▶ 다음
 
-- ~~앱 몫~~ ✅ **완료(08-01 밤)**: 오케스트레이터 배포 + §12 null retentionUntil 수용(앱 PR `#787`,
-  `account-deletion` v4) — 회신 문서 열린 리스크 종결(CRM 추가 조치 불요). 앱 잔여 게이트 =
-  Partner 계약·E2E·푸시 큐 드레인(8월말).
 - **CRM 후속(30일 내 무공백)**: 업무 AI 기존 메시지 일괄 정리(**앱 출시 게이트** — 실행 시점 직원
   공지만) · 30일 rolling cron · assistant provenance 계측 · `customer_deletions` 기존 행 backfill.
-  ~~`retention_until` 도래 PURGE 수렴 잡~~ ✅ **구현 완료(08-02)** — 크론 스텝 추가(출고 완료
-  흔적 있으면 정산 스켈레톤 축소·없으면 전체 파기·익명 감사·Discord 코드 알림).
-- **이월(07-31)**: 제프 mc.mrcha.app CF Workers 이전이 08-01 새벽 실행됨(유슨생 언급) —
-  `bun run check:lenders` 실측 확인 권장 · 죽은 상태 modifier 4종 · `useQuoteList.quotes`
-  미재동기화 · 오전분 실기 4건(#410 레이아웃·팀장 폼 할인·교차 세션 실시간·#404 체크리스트).
+- **이월(07-31 잔여)**: `bun run check:lenders` 실측(제프 Workers 이전 08-01 새벽 후 미확인) ·
+  오전분 실기 4건(#410 레이아웃·팀장 폼 할인·교차 세션 실시간·#404 체크리스트).
 
 ## 대기
 
-**이사님** = 기존 항목 그대로. + Supabase 대시보드 **"EXCEEDING USAGE LIMITS" 배지** 목격
-(2026-08-01) — 플랜 한도 확인 권장.
+**이사님** = 기존 항목 그대로 + Supabase **"EXCEEDING USAGE LIMITS" 배지**(08-01) 플랜 확인 권장 +
+**D+5 자동 실행 최악 6일차** SLA 해석(당기려면 D+4 판정+재촉 문구 변경 — 질문 전달은 유슨생 지시 시).
 
 ## Boot
 
 `AGENTS.md` → 이 파일 → `git status --short --branch` · `git log --oneline -5`. 회원탈퇴 상세 =
-위 회신·spec 2문서.
+회신·spec 2문서 + 감사 전말 = PR `#426` 본문.
 
 ## 세션 마무리 규칙
 
