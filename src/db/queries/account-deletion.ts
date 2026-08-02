@@ -9,6 +9,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { getDefaultDb, type Executor } from "../client";
 import { consultationRequests } from "../public-app";
 import {
+  accountDeletionJobs,
   consultationDismissals,
   customerDeletions,
   customerDeliveries,
@@ -154,6 +155,47 @@ export async function executeActiveFulfillment(
     .where(eq(customers.id, customerId));
 
   return { customerId, materializedPhone: unlinked.materializedPhone, storagePaths };
+}
+
+// ── 보존 기한 도래 수렴(회신 §2-B "도래 시 §4의 잡이 담당 — PURGE로 수렴") ──────────
+// B(한시 보존) 고객의 retention_until 경과 건 선별 — 이 컬럼은 B 실행만 기록하므로 값이
+// 있다 = 보존 고객이다(앱 연결은 이미 해제 상태).
+export async function listRetentionDueCustomers(ex: Executor = getDefaultDb()) {
+  return ex
+    .select({ id: customers.id, customerCode: customers.customerCode })
+    .from(customers)
+    .where(sql`${customers.retentionUntil} <= now()`);
+}
+
+// 도래 고객 1건 수렴 — 개인정보 전량 파기. 출고 완료 흔적(deliveredDate)이 있으면 정산
+// 스켈레톤으로 축소(원문 §4-2 "출고가 끝나면 연락처를 삭제하고 정산 참조로 축소" — 스켈레톤은
+// 개인정보 0이라 회신의 "PURGE로 수렴" 문구와 양립), 없으면 전체 파기로 끝낸다.
+// dismissals 정리는 불요 — 원 탈퇴 실행(B) 시점에 이미 치웠고 profile도 그때 이후 소멸했다.
+// 반환 null = 고객 이미 없음(수동 삭제 등 — 멱등 재시도 안전). 반드시 트랜잭션 안에서 호출.
+export async function executeRetentionConvergence(
+  customerId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<{ storagePaths: string[]; settlementId: string | null } | null> {
+  const [delivery] = await ex
+    .select({ lender: customerDeliveries.lender, deliveredDate: customerDeliveries.deliveredDate })
+    .from(customerDeliveries)
+    .where(eq(customerDeliveries.customerId, customerId));
+
+  const purged = await purgeCustomerCore(customerId, ex);
+  if (!purged) return null;
+  await insertAnonymousDeletionAudit(purged, null, ex);
+
+  if (!delivery?.deliveredDate) return { storagePaths: purged.storagePaths, settlementId: null };
+  // 감사 역추적 — 원 탈퇴 잡이 남아 있으면 잇는다(loose id — 없으면 NULL로 생성).
+  const [job] = await ex
+    .select({ id: accountDeletionJobs.id })
+    .from(accountDeletionJobs)
+    .where(eq(accountDeletionJobs.customerId, customerId));
+  const [settlement] = await ex
+    .insert(settlementReferences)
+    .values({ lender: delivery.lender ?? null, deletionJobId: job?.id ?? null })
+    .returning({ id: settlementReferences.id });
+  return { storagePaths: purged.storagePaths, settlementId: settlement.id };
 }
 
 // ── SETTLEMENT_REFERENCE(회신 §2-C) — 정산 스켈레톤 분리 후 PURGE와 동일 삭제 ──────
