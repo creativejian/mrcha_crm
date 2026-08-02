@@ -14,6 +14,7 @@ import {
   customerDeliveries,
   customerDocuments,
   customerMemos,
+  customerTasks,
   consultations,
   customers,
   embeddings,
@@ -95,7 +96,7 @@ export async function executeAccountPurge(
 
 // ── ACTIVE_FULFILLMENT(회신 §2-B) — 고객 행 유지 + 화이트리스트 스크럽 ─────────────
 // 유지: name·phone(materialize)·advisor/team·운영 상태값·deliveries·schedules.
-// 삭제: 서류(Storage 포함)·메모·CRM 상담·견적(카드 회수 포함)·임베딩 전량.
+// 삭제: 서류(Storage 포함)·메모·할일·CRM 상담·견적(카드 회수 포함)·임베딩 전량.
 // NULL 스크럽: 니즈 전 필드·ai_summary/hash·phone_secondary·residence(주소=개인정보)·
 //   customer_type_detail·source_consultation_id·featured_request_id.
 //   (featured_request_id NULL → 니즈 파생 read-only가 수기 입력 가능으로 풀린다 — 설계 D2 정합.)
@@ -127,6 +128,9 @@ export async function executeActiveFulfillment(
   for (const q of quoteRows) await deleteQuote(customerId, q.id, ex);
   await ex.delete(customerDocuments).where(eq(customerDocuments.customerId, customerId));
   await ex.delete(customerMemos).where(eq(customerMemos.customerId, customerId));
+  // 할일도 삭제 — 회신 §2-B 유지 화이트리스트(name·phone·advisor·deliveries·schedules)에 없고,
+  // body가 자유 텍스트라 연락처류 개인정보를 담을 수 있다(화이트리스트 스크럽 원칙).
+  await ex.delete(customerTasks).where(eq(customerTasks.customerId, customerId));
   await ex.delete(consultations).where(eq(consultations.customerId, customerId));
   // 임베딩은 소스별이 아니라 고객 전량 — 남는 소스(deliveries·schedules)도 개인정보 최소화 원칙상
   // 코퍼스에서 뺀다(보존 고객은 업무 AI 검색 대상이 아니다 — 회신 §7 legal hold 제외와 같은 방향).

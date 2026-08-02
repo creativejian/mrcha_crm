@@ -28,14 +28,15 @@ test("receive: 연결 고객 없는 유저 → 즉시 purged + 잡 executed(감�
   await expect(
     withNotifyGuard(db, async (tx) => {
       const appUserId = crypto.randomUUID();
-      const state = await receiveAccountDeletion(appUserId, tx);
-      expect(state).toEqual({ status: "purged" });
+      const r = await receiveAccountDeletion(appUserId, tx);
+      expect(r.state).toEqual({ status: "purged" });
+      expect(r.queuedCustomerCode).toBeUndefined(); // 큐 미생성 = D+0 알림 없음
       const [job] = await tx.select().from(accountDeletionJobs).where(eq(accountDeletionJobs.appUserId, appUserId));
       expect(job.status).toBe("executed");
       expect(job.executedVia).toBe("auto");
       expect(job.customerId).toBeNull();
       // 재호출 멱등 — 같은 상태, 잡 1행 유지.
-      expect(await receiveAccountDeletion(appUserId, tx)).toEqual({ status: "purged" });
+      expect((await receiveAccountDeletion(appUserId, tx)).state).toEqual({ status: "purged" });
       throw new Error(ROLLBACK);
     }),
   ).rejects.toThrow(ROLLBACK);
@@ -50,9 +51,12 @@ test("receive: 연결 고객 → 202 review_pending(인지 큐) + 멱등 + 고�
         .values({ customerCode: code(), name: "탈퇴큐테스트", appUserId })
         .returning({ id: customers.id, customerCode: customers.customerCode });
 
-      const state = await receiveAccountDeletion(appUserId, tx);
-      expect(state).toEqual({ status: "review_pending" });
-      expect(await receiveAccountDeletion(appUserId, tx)).toEqual({ status: "review_pending" });
+      const r = await receiveAccountDeletion(appUserId, tx);
+      expect(r.state).toEqual({ status: "review_pending" });
+      expect(r.queuedCustomerCode).toBe(c.customerCode); // 신규 큐 = 라우트 D+0 알림 신호
+      const again = await receiveAccountDeletion(appUserId, tx);
+      expect(again.state).toEqual({ status: "review_pending" });
+      expect(again.queuedCustomerCode).toBeUndefined(); // 멱등 재호출은 재알림하지 않는다
       expect(await getDeletionJobState(appUserId, tx)).toEqual({ status: "review_pending" });
 
       const jobs = await tx.select().from(accountDeletionJobs).where(eq(accountDeletionJobs.appUserId, appUserId));
@@ -204,6 +208,103 @@ test("autoExecuteJob: B 후보 D+5 폴백 = C-스켈레톤(회신 §4) — confi
       const reviewDueAt = state?.status === "retained" ? state.reviewDueAt : null;
       expect(reviewDueAt).not.toBeNull();
       expect(new Date(reviewDueAt!).getTime()).toBeGreaterThan(Date.now());
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("autoExecuteJob: purge 제안 잡 자동 실행 — 고객 파기 + effective purge 기록 + 폴링 purged", async () => {
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const appUserId = crypto.randomUUID();
+      const [c] = await tx
+        .insert(customers)
+        .values({ customerCode: code(), name: "탈퇴자동퍼지테스트", appUserId })
+        .returning({ id: customers.id });
+      const [job] = await tx
+        .insert(accountDeletionJobs)
+        .values({ appUserId, customerId: c.id, customerCode: code(), proposedClassification: "purge" })
+        .returning();
+
+      const r = await autoExecuteJob(job, tx);
+      expect(r.skipped).toBeUndefined();
+
+      const [gone] = await tx.select({ id: customers.id }).from(customers).where(eq(customers.id, c.id));
+      expect(gone).toBeUndefined();
+      const [after] = await tx.select().from(accountDeletionJobs).where(eq(accountDeletionJobs.id, job.id));
+      expect(after.status).toBe("executed");
+      expect(after.executedVia).toBe("auto");
+      expect(after.confirmedClassification).toBe("purge");
+      expect(await getDeletionJobState(appUserId, tx)).toEqual({ status: "purged" });
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("경합 방어: 확인(confirm)이 선점한 잡은 stale 스냅샷 autoExecuteJob이 skip한다(보존 고객 재파기 금지)", async () => {
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const appUserId = crypto.randomUUID();
+      const [c] = await tx
+        .insert(customers)
+        .values({ customerCode: code(), name: "탈퇴경합테스트", appUserId })
+        .returning({ id: customers.id });
+      // 크론이 트랜잭션 밖에서 읽었을 stale 스냅샷 역할 — 이 시점엔 received.
+      const [staleJob] = await tx
+        .insert(accountDeletionJobs)
+        .values({ appUserId, customerId: c.id, customerCode: code(), proposedClassification: "active_fulfillment" })
+        .returning();
+
+      // 스태프가 먼저 B(보존)로 확정.
+      const until = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+      const confirmed = await confirmDeletionJob(
+        staleJob.id,
+        { classification: "active_fulfillment", confirmedBy: crypto.randomUUID(), retentionUntil: until },
+        tx,
+      );
+      expect(confirmed.outcome).toBe("executed");
+
+      // 크론의 stale 실행 — FOR UPDATE 재확인이 잡아 skip해야 한다.
+      const r = await autoExecuteJob(staleJob, tx);
+      expect(r.skipped).toBe(true);
+      expect(r.storagePaths).toEqual([]);
+
+      // 보존 고객 무손상 + 잡은 confirm 기록 그대로(C 폴백으로 덮어쓰지 않음) + 정산 스켈레톤 없음.
+      const [alive] = await tx.select({ id: customers.id, retentionBasis: customers.retentionBasis }).from(customers).where(eq(customers.id, c.id));
+      expect(alive.id).toBe(c.id);
+      const [after] = await tx.select().from(accountDeletionJobs).where(eq(accountDeletionJobs.id, staleJob.id));
+      expect(after.executedVia).toBe("confirm");
+      expect(after.confirmedClassification).toBe("active_fulfillment");
+      const settlements = await tx.select().from(settlementReferences).where(eq(settlementReferences.deletionJobId, staleJob.id));
+      expect(settlements).toHaveLength(0);
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("no-op 실행(고객이 이미 없음): 요청 분류 대신 effective purge를 기록해 앱 잠금을 막는다", async () => {
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const appUserId = crypto.randomUUID();
+      const [c] = await tx
+        .insert(customers)
+        .values({ customerCode: code(), name: "탈퇴선삭제테스트", appUserId })
+        .returning({ id: customers.id });
+      const [job] = await tx
+        .insert(accountDeletionJobs)
+        .values({ appUserId, customerId: c.id, customerCode: code(), proposedClassification: "settlement_reference" })
+        .returning();
+      // 스태프 수동 삭제(#212 등)로 고객이 잡보다 먼저 사라진 상황.
+      await tx.delete(customers).where(eq(customers.id, c.id));
+
+      await autoExecuteJob(job, tx);
+
+      const [after] = await tx.select().from(accountDeletionJobs).where(eq(accountDeletionJobs.id, job.id));
+      expect(after.status).toBe("executed");
+      // settlement_reference 그대로 박제하면 앱이 "정산행 없는 retained"(retentionUntil null +
+      // reviewDueAt null)를 받아 완료 인정 조건 미달로 영구 재시도한다 — purge가 실제 결과다.
+      expect(after.confirmedClassification).toBe("purge");
+      expect(await getDeletionJobState(appUserId, tx)).toEqual({ status: "purged" });
       throw new Error(ROLLBACK);
     }),
   ).rejects.toThrow(ROLLBACK);

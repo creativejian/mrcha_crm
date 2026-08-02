@@ -12,7 +12,7 @@ import { sql } from "drizzle-orm";
 
 import { getDefaultDb } from "../db/client";
 import {
-  customerResidueWhere, formatResidue, QUOTE_CODE_REGEX, residueCount, scanFixtureResidue,
+  CUSTOMER_CODE_REGEX, customerResidueWhere, formatResidue, QUOTE_CODE_REGEX, residueCount, scanFixtureResidue,
 } from "../test-utils/fixture-residue";
 
 const db = getDefaultDb();
@@ -54,6 +54,11 @@ await db.transaction(async (tx) => {
   await tx.execute(sql`delete from crm.customer_deletions where customer_code in (select customer_code from crm.customers where ${customerResidueWhere()})`);
   await tx.execute(sql`delete from crm.customers where ${customerResidueWhere()}`);
   await tx.execute(sql`delete from crm.customer_deletions where ${customerResidueWhere()}`);
+  // 탈퇴 잡·정산 참조(2026-08-02) — 정산을 먼저(잡 id로 join하는 loose 연결이라 잡을 먼저 지우면
+  // 정산이 영구 고아가 된다). received 잔재 잡은 스태프 목록 "탈퇴 확인 대기" 알림에 유령으로 뜬다.
+  await tx.execute(sql`delete from crm.settlement_references
+    where deletion_job_id in (select id from crm.account_deletion_jobs where customer_code ~ ${CUSTOMER_CODE_REGEX})`);
+  await tx.execute(sql`delete from crm.account_deletion_jobs where customer_code ~ ${CUSTOMER_CODE_REGEX}`);
   // 딜러 잔재는 고아 판정으로 지운다(scan과 동일 술어) — crm 소유이고 catalog에 영향이 없다.
   // **채택 감사(crm.catalog_discount_adoptions)는 여기 없다** — 지우면 catalog.trims를 되돌릴
   // previous_amount가 사라진다. 보고만 하고 사람이 처리한다(위 안내 SQL).
