@@ -1,7 +1,8 @@
-// 탈퇴 잡 일일 크론(2026-08-01 spec §3d) — D+3 Discord 재촉 · D+5 자동 실행.
+// 탈퇴 잡 일일 크론(2026-08-01 spec §3d) — D+3 Discord 재촉 · D+5 자동 실행 · 보존 기한 도래 수렴 · 정산 재검토.
 // Workers scheduled 핸들러에서 호출된다(웹 요청 밖 — Hono c.env가 없어 env를 직접 받는다).
 // 스케줄 = wrangler.jsonc triggers.crons "0 1 * * *"(01:00 UTC = 10:00 KST — 재촉이 업무 시간에 닿게).
 import { createDbClient, getDefaultDb } from "../db/client";
+import { executeRetentionConvergence, listRetentionDueCustomers } from "../db/queries/account-deletion";
 import { autoExecuteDueJobs, bumpSettlementReviewDue, listRemindDueJobs, listReviewDueSettlements } from "../db/queries/deletion-jobs";
 import { removeObjects } from "../lib/storage";
 
@@ -29,6 +30,34 @@ export async function runAccountDeletionCron(env: DeletionCronEnv): Promise<void
         { SUPABASE_URL: env.SUPABASE_URL, SUPABASE_SECRET_KEY: env.SUPABASE_SECRET_KEY },
         result.storagePaths,
       ).catch((e: unknown) => console.error("[account-deletion] Storage 정리 실패:", e));
+    }
+
+    // 보존 기한 도래 수렴(회신 §2-B "§4의 잡이 담당") — retention_until이 지난 B 보존 고객의
+    // 개인정보를 파기한다. 출고 완료 흔적이 있으면 정산 스켈레톤으로 축소, 없으면 전체 파기.
+    // 고객별 독립 트랜잭션(D+5 자동 실행과 같은 격리 관례 — 1건 실패가 나머지를 막지 않는다).
+    const retentionDue = await listRetentionDueCustomers(db);
+    if (retentionDue.length > 0) {
+      console.log(`[account-deletion] 보존 기한 도래 ${retentionDue.length}건`);
+      const retentionPaths: string[] = [];
+      const converged: { customerCode: string; settlement: boolean }[] = [];
+      for (const c of retentionDue) {
+        try {
+          const r = await db.transaction((tx) => executeRetentionConvergence(c.id, tx));
+          if (r) {
+            retentionPaths.push(...r.storagePaths);
+            converged.push({ customerCode: c.customerCode, settlement: r.settlementId !== null });
+          }
+        } catch (e) {
+          console.error(`[account-deletion] 보존 기한 수렴 실패 customer=${c.customerCode}:`, e);
+        }
+      }
+      if (retentionPaths.length > 0) {
+        await removeObjects(
+          { SUPABASE_URL: env.SUPABASE_URL, SUPABASE_SECRET_KEY: env.SUPABASE_SECRET_KEY },
+          retentionPaths,
+        ).catch((e: unknown) => console.error("[account-deletion] Storage 정리 실패:", e));
+      }
+      if (converged.length > 0) await notifyDiscordRetentionConverged(env, converged);
     }
 
     // 정산 재검토 30일 주기(영실 회신 안전장치) — review_required && 재검토일 도래 건을 재알림하고
@@ -61,6 +90,22 @@ async function notifyDiscordSettlementReview(
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ content }),
   }).catch((e: unknown) => console.error("[account-deletion] 정산 재검토 알림 실패:", e));
+}
+
+async function notifyDiscordRetentionConverged(
+  env: DeletionCronEnv,
+  rows: { customerCode: string; settlement: boolean }[],
+): Promise<void> {
+  const url = env.DELETION_DISCORD_WEBHOOK;
+  if (!url) return;
+  const lines = rows.map((r) => `· ${r.customerCode} (${r.settlement ? "정산 참조로 축소" : "전체 파기"})`).join("\n");
+  const content = `⏳ 탈퇴 보존 기한 도래 — ${rows.length}건의 개인정보를 파기했습니다.\n${lines}`;
+  // ⚠️ Workers에서 fetch는 전역 직접 호출(plain call)만 — 객체 메서드 경유 시 Illegal invocation(AGENTS.md).
+  await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content }),
+  }).catch((e: unknown) => console.error("[account-deletion] 보존 기한 파기 알림 실패:", e));
 }
 
 async function notifyDiscordReminder(

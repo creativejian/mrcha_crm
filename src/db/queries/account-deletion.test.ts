@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { normalizePhoneDigits } from "../../lib/customer-phone";
 import { EMBEDDING_DIM } from "../../lib/gemini-embed";
@@ -8,6 +8,7 @@ import { anyUnlinkedProfileId } from "../../test-utils/profiles-fixture";
 import { getDefaultDb } from "../client";
 import { advisorQuotes, consultationRequests, profiles } from "../public-app";
 import {
+  accountDeletionJobs,
   consultationDismissals,
   customerDeletions,
   customerDeliveries,
@@ -20,7 +21,14 @@ import {
   settlementReferences,
 } from "../schema";
 import { applyAppUserUnlink } from "./app-user-link";
-import { executeAccountPurge, executeActiveFulfillment, executeSettlementReference, proposeClassification } from "./account-deletion";
+import {
+  executeAccountPurge,
+  executeActiveFulfillment,
+  executeRetentionConvergence,
+  executeSettlementReference,
+  listRetentionDueCustomers,
+  proposeClassification,
+} from "./account-deletion";
 
 // 회원탈퇴 실행 경로(2026-08-01 spec §3c) 실 DB 검증.
 // 전 케이스 **트랜잭션 롤백**(잔재 0 — app-user-link.test.ts 패턴). 알림 트리거 테이블
@@ -219,4 +227,80 @@ test("proposeClassification: 출고 정보 없는 고객 → purge", async () =>
 test("applyAppUserUnlink: 연결 고객 없는 유저 → null(멱등 no-op, 재시도 안전)", async () => {
   const result = await applyAppUserUnlink(crypto.randomUUID(), "materialize");
   expect(result).toBeNull();
+});
+
+test("보존 기한 도래 수렴: 선별 창 + 출고 완료 흔적 → 정산 스켈레톤 축소 + 익명 감사", async () => {
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      // 도래 건(어제 만료) vs 미도래 건(30일 뒤) — 선별 창 검증.
+      const [due] = await tx
+        .insert(customers)
+        .values({
+          customerCode: code(),
+          name: "보존만료테스트",
+          retentionBasis: "출고 연락·조율",
+          retentionUntil: sql`now() - interval '1 day'`,
+        })
+        .returning({ id: customers.id });
+      const [notDue] = await tx
+        .insert(customers)
+        .values({
+          customerCode: code(),
+          name: "보존진행테스트",
+          retentionBasis: "출고 연락·조율",
+          retentionUntil: sql`now() + interval '30 days'`,
+        })
+        .returning({ id: customers.id });
+      const dueIds = (await listRetentionDueCustomers(tx)).map((c) => c.id);
+      expect(dueIds).toContain(due.id);
+      expect(dueIds).not.toContain(notDue.id);
+
+      // 출고 완료 흔적 + 원 탈퇴 잡(역추적 대상) 픽스처.
+      await tx.insert(customerDeliveries).values({ customerId: due.id, lender: "테스트캐피탈", deliveredDate: "2026-07-20" });
+      const [job] = await tx
+        .insert(accountDeletionJobs)
+        .values({ appUserId: crypto.randomUUID(), customerId: due.id, customerCode: code(), proposedClassification: "active_fulfillment", status: "executed" })
+        .returning({ id: accountDeletionJobs.id });
+
+      const result = await executeRetentionConvergence(due.id, tx);
+      expect(result?.settlementId).not.toBeNull();
+
+      // 고객 파기 + 스켈레톤(lender 계승·review_required·잡 역추적) + 익명 감사(deletedBy NULL = 기계).
+      const [gone] = await tx.select({ id: customers.id }).from(customers).where(eq(customers.id, due.id));
+      expect(gone).toBeUndefined();
+      const [settlement] = await tx.select().from(settlementReferences).where(eq(settlementReferences.deletionJobId, job.id));
+      expect(settlement.lender).toBe("테스트캐피탈");
+      expect(settlement.status).toBe("review_required");
+      const [audit] = await tx.select().from(customerDeletions).where(eq(customerDeletions.customerId, due.id));
+      expect(audit.name).toBeNull();
+      expect(audit.deletedBy).toBeNull();
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+test("보존 기한 도래 수렴: 출고 흔적 없으면 전체 파기(스켈레톤 없음) + 고객 소멸 시 null 멱등", async () => {
+  await expect(
+    withNotifyGuard(db, async (tx) => {
+      const [c] = await tx
+        .insert(customers)
+        .values({
+          customerCode: code(),
+          name: "보존만료퍼지테스트",
+          retentionBasis: "출고 연락·조율",
+          retentionUntil: sql`now() - interval '1 day'`,
+        })
+        .returning({ id: customers.id });
+
+      const result = await executeRetentionConvergence(c.id, tx);
+      expect(result).not.toBeNull();
+      expect(result?.settlementId).toBeNull(); // 출고 흔적 없음 = 전체 파기로 종결
+
+      const [gone] = await tx.select({ id: customers.id }).from(customers).where(eq(customers.id, c.id));
+      expect(gone).toBeUndefined();
+      // 재실행(고객 이미 없음) — null 멱등(크론 재시도 안전).
+      expect(await executeRetentionConvergence(c.id, tx)).toBeNull();
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
 });
