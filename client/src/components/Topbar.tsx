@@ -369,6 +369,11 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
         </div>
       )}
       <div className="global-right">
+        {/* 딜러(외부 사용자)에겐 내부 업무 도구 5종(검색·업무 AI·계산기·상담 대기·알림)을 렌더하지
+            않는다(2026-08-02 유슨생 — 구 disabled 회색 노출을 미표시로 전환). 검색은 딜러 고객
+            접근이 서버에서 403이라 항상 빈 결과였고, 나머지는 영구 무관 기능이다. 데이터 차단은
+            서버 몫이고 이건 UX 정리다. 딜러 상단바 = 사이드바 토글 + 계정 버튼. */}
+        {!dealerMode && (<>
         <div className="global-search-wrap" ref={globalSearchRef}>
           <button className={`global-search-trigger ${globalSearchOpen ? "active" : ""}`} onClick={openGlobalSearch} type="button" aria-label="고객 통합 검색" aria-expanded={globalSearchOpen}>
             <GlobalSearchIcon />
@@ -429,7 +434,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
           )}
         </div>
         <div className="work-ai-wrap" ref={workAiRef}>
-          <button className={`icon-btn work-ai-btn ${workAiOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openWorkAi} type="button" aria-label="업무 AI" aria-expanded={workAiOpen}><WorkAiIcon /><span className="ai-status-dot" /></button>
+          <button className={`icon-btn work-ai-btn ${workAiOpen ? "active" : ""}`} onClick={openWorkAi} type="button" aria-label="업무 AI" aria-expanded={workAiOpen}><WorkAiIcon /><span className="ai-status-dot" /></button>
           {workAiOpen && (
             <>
               <div
@@ -455,7 +460,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
             </>
           )}
         </div>
-        <button className={`icon-btn calculator-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => { if (shouldIgnoreTopbarAction()) return; setCalculatorOpen(true); }} type="button" aria-label="계산기"><CalculatorIcon /></button>
+        <button className="icon-btn calculator-btn" onClick={() => { if (shouldIgnoreTopbarAction()) return; setCalculatorOpen(true); }} type="button" aria-label="계산기"><CalculatorIcon /></button>
         {/* ⚠️body 직속 portal — 이 자리(.globalbar 안)에 그대로 두면 모달의 z-index 400이
             **globalbar가 만든 스태킹 컨텍스트 안에서만** 유효해 실효 레벨이 globalbar의 60이
             된다(.globalbar는 position:sticky + z-index:60이라 컨텍스트를 만든다).
@@ -472,9 +477,9 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
             </Suspense>,
             document.body,
           )}
-        <button className={`icon-btn chat-queue-btn ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon />{pendingChatCount > 0 && <span className="chat-queue-count num">{pendingChatCount}</span>}</button>
+        <button className="icon-btn chat-queue-btn" onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon />{pendingChatCount > 0 && <span className="chat-queue-count num">{pendingChatCount}</span>}</button>
         <div className="notifications-wrap" ref={notificationsRef}>
-          <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""} ${dealerMode ? "disabled" : ""}`} disabled={dealerMode} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon />{(newAppRequestCount + pendingChatCount) > 0 && <span className="notification-count num">{newAppRequestCount + pendingChatCount}</span>}</button>
+          <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""}`} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon />{(newAppRequestCount + pendingChatCount) > 0 && <span className="notification-count num">{newAppRequestCount + pendingChatCount}</span>}</button>
           {notificationsOpen && (
             <>
               <div
@@ -528,6 +533,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
             </>
           )}
         </div>
+        </>)}
         <div className="settings-wrap account-menu-wrap" ref={settingsMenuRef}>
           <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={canManageLiveConsulting ? `${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}` : `${displayName}, ${roleTab}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setFailedAvatarUrl(userAvatarUrl ?? null)} /> : <AccountDefaultIcon />}</span>{canManageLiveConsulting && <span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" />}</button>
           {settingsOpen && (
