@@ -191,6 +191,13 @@
     width: 100%;
   }
 
+  /* 툴바가 세로로 쌓이는 폭에서는 우측 정렬(margin-left:auto)이 의미를 잃는다 — 아래로 붙인다. */
+  .report-toolbar-actions {
+    margin-left: 0;
+    margin-top: 8px;
+    padding-left: 0;
+  }
+
   .report-tabs {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -234,19 +241,41 @@
   padding: 10px 16px;
 }
 
-.report-toolbar strong,
-.report-toolbar span {
+/* ⚠️ 셀렉터를 `.report-toolbar span`으로 되돌리지 말 것 — 툴바 우측에 배지(span.badge)가 생겨서
+   그 규칙이 배지까지 block·muted·12px로 덮어쓴다(2026-08-02 리포트 배선). 카피 영역으로 좁힌다. */
+.report-toolbar-copy strong,
+.report-toolbar-copy span {
   display: block;
 }
 
-.report-toolbar strong {
+.report-toolbar-copy strong {
   font-size: 15px;
 }
 
-.report-toolbar span {
+.report-toolbar-copy span {
   margin-top: 3px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.report-toolbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 14px;
+}
+
+.report-toolbar-actions .select {
+  width: auto;
+  min-width: 132px;
+}
+
+/* 실데이터 영역의 빈 상태 — 샘플로 폴백하지 않으므로 이 자리가 로딩·실패·0건을 함께 말한다. */
+.report-empty {
+  padding: 18px 16px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .report-tabbar {
@@ -325,16 +354,20 @@
   padding: 14px 16px;
 }
 
-.advisor-performance-head strong,
-.advisor-performance-head span {
+/* ⚠️ 셀렉터를 `.advisor-performance-head span`으로 넓히지 말 것 — 헤더 우측 배지(span.badge)까지
+   잡아 `display:block`이 배지의 inline-flex를 덮어쓴다. 그러면 배지 안 글자의 가운데 정렬
+   (align-items/justify-content)이 통째로 무효가 되어 텍스트가 박스 위쪽에 붙는다(2026-08-02 실측).
+   카피 래퍼 div 안쪽만 대상으로 한다. */
+.advisor-performance-head div strong,
+.advisor-performance-head div span {
   display: block;
 }
 
-.advisor-performance-head strong {
+.advisor-performance-head div strong {
   font-size: 16px;
 }
 
-.advisor-performance-head span {
+.advisor-performance-head div span {
   margin-top: 3px;
   color: var(--muted);
   font-size: 12px;

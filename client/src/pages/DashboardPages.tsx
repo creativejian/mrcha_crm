@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { adminBriefs, advisors, brands } from "@/data/prototype";
+import { bindSelect } from "@/lib/select-bind";
+import { fetchAdminReport, formatMonthLabel, recentMonthOptions, type AdminReport } from "@/lib/reports";
 
 function Stat({ label, value, note }: { label: string; value: string; note: string }) {
   return <div className="card stat"><span>{label}</span><strong className="num">{value}</strong><em>{note}</em></div>;
@@ -9,6 +11,10 @@ function BriefList({ items }: { items: readonly (readonly [string, string])[] })
   return <div className="brief-list">{items.map(([title, desc]) => <div className="brief" key={title}><strong>{title}</strong><span>{desc}</span></div>)}</div>;
 }
 
+// ⚠️ **샘플 값이다**(2026-08-02 리포트 spec §1). 실데이터화하지 않은 이유는 원천이 없어서가 아니라
+// "실적을 어느 시점에 인식하는가"(견적/계약/출고/입금)가 이사님 합의 사항이기 때문이다 — 기준을
+// 정하지 않은 채 그럴듯한 숫자를 띄우는 쪽이 목업보다 위험하다. 화면은 "샘플" 배지로 이를 알린다.
+// 상단바 요약(Topbar)도 같은 값 계통이라 함께 목업으로 남아 있다.
 const adminMonthlyPerformance = [
   ["전체 출고", "86", "대", "+15"],
   ["리스 실적", "4,867,469,860", "원", "+1,236,457,689"],
@@ -27,6 +33,9 @@ const reportOptions = [
 
 type ReportOption = typeof reportOptions[number];
 
+// "전체 운영" 탭은 실데이터로 대체됐다(아래 buildOverviewStats) — 이 상수의 "전체 운영" 항목은
+// 실데이터를 못 받았을 때의 폴백이 **아니라** 나머지 6탭용 샘플이다. 실패 시엔 폴백 대신 에러를
+// 보여준다(샘플로 조용히 갈아끼우면 이사님이 그걸 실적으로 읽는다).
 const reportStats: Record<ReportOption, Array<[string, string, string]>> = {
   "전체 운영": [["신규 유입", "18", "어제보다 +4"], ["상담 진행중", "46", "응답 대기 6건"], ["견적 발송", "29", "전환 후보 11건"], ["계약 완료", "7", "이번 주 누적"], ["출고 예정", "5", "탁송 조율 2건"]],
   "상담 전환": [["상담 시작", "64", "앱 AI상담 포함"], ["상담원 연결", "21", "연결률 32.8%"], ["견적 요청", "13", "전환 후보"], ["계약 후보", "6", "우선 통화"], ["이탈", "9", "재컨택 필요"]],
@@ -223,19 +232,108 @@ export function DashboardPreviewPage() {
   );
 }
 
+// 실데이터 5칩(2026-08-02 리포트 spec §2). 스냅샷 지표는 note에 **"현재 기준"**을 명시한다 —
+// 상태 전이 시각이 없어 과거 월을 골라도 오늘 값이 나오기 때문이다(§2a). 전이 이력이 생겨
+// 월 스코프가 가능해지면 그 표기를 함께 걷어야 한다.
+function buildOverviewStats(report: AdminReport): Array<[string, string, string]> {
+  const { newInflow, inProgress, quotesSent, contracted, upcomingDeliveries } = report.overview;
+  const delta = newInflow.count - newInflow.prevCount;
+  const deltaNote = delta === 0 ? "전월과 같음" : `전월 ${newInflow.prevCount}건 · ${delta > 0 ? "+" : ""}${delta}`;
+  return [
+    ["신규 유입", String(newInflow.count), deltaNote],
+    ["상담 진행중", String(inProgress.count), "현재 기준"],
+    ["견적 발송", String(quotesSent.count), `고객 열람 ${quotesSent.viewedCount}건`],
+    ["계약 완료", String(contracted.count), "현재 기준"],
+    [
+      "출고 예정",
+      String(upcomingDeliveries.count),
+      upcomingDeliveries.overdueCount > 0 ? `예정일 지남 ${upcomingDeliveries.overdueCount}건` : "미완료 일정",
+    ],
+  ];
+}
+
+// 견적/계약 퍼널 — 비율 기준은 '작성'이다(월 코호트의 출발점). 작성이 0이면 전부 0%로 그린다.
+function buildFunnelBars(report: AdminReport): Array<[string, number, string]> {
+  const { created, sent, viewed, contracting } = report.quoteFunnel;
+  const pct = (value: number) => (created > 0 ? Math.round((value / created) * 100) : 0);
+  return [
+    ["견적 작성", pct(created), `${created}건`],
+    ["앱 송출", pct(sent), `${sent}건`],
+    ["고객 열람", pct(viewed), `${viewed}건`],
+    ["계약 진행", pct(contracting), `${contracting}건`],
+  ];
+}
+
 export function AdminDashboardPage() {
   const [activeReport, setActiveReport] = useState<ReportOption>("전체 운영");
-  const max = Math.max(...brands.map(([, count]) => count));
-  const stats = reportStats[activeReport];
-  const bars = reportBars[activeReport];
+  // undefined = 서버가 정한 현재 월(KST). 클라가 현재 월을 스스로 계산하지 않는다 — 기준 시각의
+  // 소유자를 서버 한 곳으로 둔다(로컬 타임존이 다른 접속에서도 같은 달을 본다).
+  const [selectedMonth, setSelectedMonth] = useState<string | undefined>(undefined);
+  // 응답과 "그 응답이 어느 요청의 것인지"를 한 상태로 묶는다 — 로딩 플래그를 따로 두면 effect
+  // 본문에서 setState(true)를 해야 하고 그건 cascading render 룰(react-hooks/set-state-in-effect)에
+  // 걸린다. requested !== selectedMonth인 동안이 곧 "요청 중"이다.
+  const [loaded, setLoaded] = useState<{
+    requested: string | undefined;
+    report: AdminReport | null;
+    error: string | null;
+  } | null>(null);
+  // 월 선택 옵션의 기준 — **첫 응답의 월로 고정**한다. report.month를 그대로 쓰면 과거 달을 고르는
+  // 순간 옵션이 그 달 기준으로 다시 만들어져 최근 달로 돌아올 수 없다.
+  const [baseMonth, setBaseMonth] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAdminReport(selectedMonth)
+      .then((next) => {
+        if (cancelled) return;
+        setBaseMonth((prev) => prev ?? next.month);
+        setLoaded({ requested: selectedMonth, report: next, error: null });
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const message = e instanceof Error ? e.message : "알 수 없는 오류입니다.";
+        setLoaded({ requested: selectedMonth, report: null, error: message });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMonth]);
+
+  const loading = loaded?.requested !== selectedMonth;
+  const report = loaded?.report ?? null;
+  const error = loaded?.error ?? null;
+  const isOverview = activeReport === "전체 운영";
+  // 로딩 중에는 직전 월 데이터를 그대로 두지 않는다 — 라벨(선택한 달)과 숫자(이전 달)가 어긋난다.
+  const live = isOverview && !loading ? report : null;
+  const monthOptions = recentMonthOptions(baseMonth ?? report?.month ?? "");
+  // 라벨은 **선택한 달**을 따른다(응답 대기 중에도) — 응답의 month를 쓰면 전환 중 한 프레임 동안
+  // 이전 달 이름이 남는다.
+  const shownMonth = selectedMonth ?? report?.month ?? null;
+  // 실데이터 탭에서 응답이 없으면 **샘플로 폴백하지 않고 비운다**. 폴백하면 로딩·실패 상태가
+  // 그럴듯한 숫자로 가려져 이사님이 그걸 실적으로 읽는다.
+  const stats = live ? buildOverviewStats(live) : isOverview ? [] : reportStats[activeReport];
+  const bars = live ? buildFunnelBars(live) : isOverview ? [] : reportBars[activeReport];
   const focus = reportFocus[activeReport];
+  const brandRows: readonly (readonly [string, number])[] = live
+    ? live.brandInquiries.rows.map((row) => [row.brand, row.count] as const)
+    : isOverview
+      ? []
+      : brands;
+  const max = Math.max(1, ...brandRows.map(([, count]) => count));
+  // 월 초에는 이번 달이 통째로 비는 게 정상이다(그게 사실이다) — 다만 "고장"으로 읽히지 않게
+  // 바로 위 월 선택으로 안내한다.
+  const emptyNote = loading
+    ? "불러오는 중…"
+    : error
+      ? "표시할 수 없습니다."
+      : "이 달 기록이 아직 없습니다. 위에서 다른 달을 선택해 보세요.";
 
   return (
     <>
       <section className="card advisor-performance admin-performance">
         <div className="advisor-performance-head">
-          <div><strong>2026년 5월 관리자 핵심 지표</strong><span>리포트 상세 분석 전 확인하는 월간 실적 요약입니다.</span></div>
-          <span className="badge blue">관리자</span>
+          <div><strong>관리자 핵심 지표</strong><span>실적 인식 기준(계약·출고·입금) 확정 전이라 예시 값으로 표시합니다.</span></div>
+          <span className="badge yellow">샘플</span>
         </div>
         <div className="advisor-performance-grid admin-performance-grid">
           {adminMonthlyPerformance.map(([label, value, unit, delta]) => (
@@ -250,9 +348,41 @@ export function AdminDashboardPage() {
       <div className="report-toolbar">
         <div className="report-toolbar-copy">
           <strong>{activeReport}</strong>
-          <span>차선생 전체 흐름을 리포트 단위로 확인합니다.</span>
+          <span>
+            {isOverview
+              ? `${shownMonth ? formatMonthLabel(shownMonth) : "이번 달"} 실적입니다. 상담 진행중·계약 완료는 현재 기준입니다.`
+              : "차선생 전체 흐름을 리포트 단위로 확인합니다."}
+          </span>
+        </div>
+        <div className="report-toolbar-actions">
+          {isOverview ? (
+            <>
+              {/* controlled select — Safari는 선택 시 input→(React 복원)→change 순서로 발화해
+                  onChange만 들으면 선택이 유실된다. bindSelect가 onChange+onInput을 함께 건다. */}
+              <select
+                aria-label="리포트 기준 월"
+                className="select"
+                disabled={!baseMonth}
+                {...bindSelect(selectedMonth ?? report?.month ?? "", (next) => setSelectedMonth(next))}
+              >
+                {monthOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {formatMonthLabel(option)}
+                  </option>
+                ))}
+              </select>
+              <span className="badge green">실데이터</span>
+            </>
+          ) : (
+            <span className="badge yellow">샘플</span>
+          )}
         </div>
       </div>
+      {isOverview && error ? (
+        <div className="report-error card" role="alert">
+          리포트를 불러오지 못했습니다. {error}
+        </div>
+      ) : null}
       <div className="report-tabbar">
         <div className="report-tabs" role="tablist" aria-label="리포트 종류">
           {reportOptions.map((option) => (
@@ -269,32 +399,46 @@ export function AdminDashboardPage() {
           ))}
         </div>
       </div>
-      <div className="grid stats">
-        {stats.map(([label, value, note]) => <Stat key={label} label={label} value={value} note={note} />)}
-      </div>
+      {stats.length > 0 ? (
+        <div className="grid stats">
+          {stats.map(([label, value, note]) => <Stat key={label} label={label} value={value} note={note} />)}
+        </div>
+      ) : (
+        <div className="card report-empty">{emptyNote}</div>
+      )}
       <div className="grid dashboard-layout">
         <section className="card">
-          <div className="panel-head"><h2>{activeReport === "전체 운영" ? "브랜드별 문의 현황" : `${activeReport} 핵심 흐름`}</h2><span className="badge blue">리포트</span></div>
+          <div className="panel-head">
+            <h2>{isOverview ? "브랜드별 문의 현황" : `${activeReport} 핵심 흐름`}</h2>
+            <span className={isOverview ? "badge green" : "badge yellow"}>{isOverview ? "앱 견적요청" : "샘플"}</span>
+          </div>
           <div className="panel-body bar-list">
-            {activeReport === "전체 운영"
-              ? brands.map(([brand, count]) => <div className="bar-row" key={brand}><span>{brand}</span><div className="bar-track"><div className="bar-fill" style={{ width: `${(count / max) * 100}%` }} /></div><strong className="num">{count}</strong></div>)
+            {isOverview
+              ? brandRows.length > 0
+                ? brandRows.map(([brand, count]) => <div className="bar-row" key={brand}><span>{brand}</span><div className="bar-track"><div className="bar-fill" style={{ width: `${(count / max) * 100}%` }} /></div><strong className="num">{count}</strong></div>)
+                : <p className="report-empty">{emptyNote}</p>
               : bars.map(([label, pct, value]) => <div className="bar-row" key={label}><span>{label}</span><div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div><strong className="num">{value}</strong></div>)}
           </div>
         </section>
         <section className="card">
-          <div className="panel-head"><h2>담당자 관점</h2><span className="badge">오늘</span></div>
+          <div className="panel-head"><h2>담당자 관점</h2><span className="badge yellow">샘플</span></div>
           <div className="panel-body advisor-list">
             {advisors.map(([name, desc, initial]) => <div className="advisor-item" key={name}><div className="avatar small">{initial}</div><div><strong>{name}</strong><span>{desc}</span></div></div>)}
           </div>
         </section>
         <section className="card">
-          <div className="panel-head"><h2>확인 포인트</h2><span className="badge yellow">리스크 3건</span></div>
+          <div className="panel-head"><h2>확인 포인트</h2><span className="badge yellow">샘플</span></div>
           <div className="panel-body"><BriefList items={focus} /></div>
         </section>
         <section className="card">
-          <div className="panel-head"><h2>전환 / 성과 흐름</h2><span className="badge green">요약</span></div>
+          <div className="panel-head">
+            <h2>{isOverview ? "견적 / 계약 퍼널" : "전환 / 성과 흐름"}</h2>
+            <span className={isOverview ? "badge green" : "badge yellow"}>{isOverview ? "실데이터" : "샘플"}</span>
+          </div>
           <div className="panel-body bar-list">
-            {bars.map(([label, pct, value]) => <div className="bar-row" key={label}><span>{label}</span><div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div><strong className="num">{value}</strong></div>)}
+            {bars.length > 0
+              ? bars.map(([label, pct, value]) => <div className="bar-row" key={label}><span>{label}</span><div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div><strong className="num">{value}</strong></div>)
+              : <p className="report-empty">{emptyNote}</p>}
           </div>
         </section>
       </div>

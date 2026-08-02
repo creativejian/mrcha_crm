@@ -176,6 +176,20 @@ export const customerStatusGroups: Record<string, string[]> = {
 // customers.test.ts가 드리프트를 잠근다.
 export const CONTRACT_ORDER_PATH_STATUSES: readonly string[] = ["딜러사계약중", "대리점발주중", "특판발주중"];
 
+// 종결 3그룹 — 더 이상 담당자 액션이 남지 않은 상태. 아래 진행중 파생의 재료라 export하지 않는다
+// (밖에서 넓히면 "진행중"의 정의가 두 곳에서 결정된다).
+const CLOSED_STATUS_GROUPS: readonly string[] = ["상담완료", "계약완료", "불발"];
+
+// 경영 리포트 "상담 진행중" 집계 대상(2026-08-02 리포트 spec §2). 리터럴 사본이 아니라
+// customerStatusGroups에서 종결 3그룹을 뺀 **파생**이다(delivery-console의 DELIVERY_STAGES 선례) —
+// 새 상태 그룹이 추가되면 자동으로 진행중에 들어오고, 그게 종결 성격이면 위 CLOSED에 넣어야 한다.
+export const IN_PROGRESS_STATUS_GROUPS: readonly string[] = Object.keys(customerStatusGroups).filter(
+  (group) => !CLOSED_STATUS_GROUPS.includes(group),
+);
+
+// 리포트 "계약 완료" 집계 대상. 전이 시각이 없어 월 스코프가 불가능한 스냅샷 지표다(spec §2a).
+export const CONTRACTED_STATUS_GROUP = "계약완료";
+
 // 고객 관리 서브메뉴·헤더 타이틀/서브타이틀의 단일 소스. 키 순서 = 사이드바 서브메뉴 순서.
 export const customerModeMeta: Record<CustomerMode, { title: string; desc: string }> = {
   all: { title: "전체 보기", desc: "고객 정보, 상담 상태, 담당자, 유입 경로를 빠르게 찾고 분류합니다." },
