@@ -155,6 +155,9 @@ test("createCustomerFromConsultation: 신규 고객 생성 — source/appUserId/
     expect(row.source).toBe("앱 상담신청");
     expect(row.statusGroup).toBe("신규");
     expect(row.status).toBe("상담접수");
+    // 계보 링크(2026-08-02) — source 텍스트는 경로만 말하고 어느 신청이었는지는 못 가리킨다.
+    // 이 단언이 없던 동안 컬럼이 전 행 NULL로 방치돼 상담 인박스의 처리 추적이 불가능했다.
+    expect(row.sourceConsultationId).toBe(consultationId);
   } finally {
     await db.delete(consultationRequests).where(eq(consultationRequests.id, consultationId));
     if (customerId) await db.delete(customers).where(eq(customers.id, customerId));

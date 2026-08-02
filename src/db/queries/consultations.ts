@@ -114,6 +114,12 @@ export async function createCustomerFromConsultation(
       appUserId: req.userId,
       needModel: req.carModel ?? null,
       source: APP_CONSULTATION_SOURCE,
+      // 어느 상담신청이 이 고객이 됐는지 — 계보 링크(2026-08-02). 이 줄이 없어서 컬럼이 스키마에만
+      // 존재하고 **전 행 NULL**이었다(실측 24/24). `source` 텍스트는 "앱 상담신청"이라는 경로만 말할
+      // 뿐 어느 건인지는 못 가리켜서, 상담 인박스 83건 중 무엇이 처리됐는지 추적할 방법이 없었다
+      // (견적요청 승격은 featuredRequestId로 이미 남기고 있어 두 인박스가 비대칭이었다).
+      // ⚠️ 소급 불가 — 과거 승격분은 어느 상담이 출처였는지 복원할 수 없다(오늘 이후분만 쌓인다).
+      sourceConsultationId: consultationId,
       statusGroup: "신규",
       status: "상담접수",
       receivedAt: new Date(req.createdAt),
