@@ -204,7 +204,11 @@ function DealerDiscountCells({
         const value = draft ? draft[field] : serverText(field);
         return (
           <td className="va-num va-c-disc va-dealer-disc" key={field}>
-            <input inputMode="numeric" onChange={change(field)} placeholder="—" value={value} />
+            {/* 단위 "원"은 입력칸 옆 고정 — 가격·확정 할인 셀의 "1,234,567원" 표기와 어휘 통일(2026-08-02). */}
+            <span className="va-dealer-disc-box">
+              <input inputMode="numeric" onChange={change(field)} placeholder="—" value={value} />
+              <span>원</span>
+            </span>
             {/* 상태는 마지막 셀에 한 번만 — 3셀에 각각 띄우면 노이즈다. */}
             {i === DISCOUNT_FIELDS.length - 1 && state !== "idle" && (
               <small className={state === "error" ? "va-dealer-disc-error" : undefined}>

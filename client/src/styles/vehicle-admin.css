@@ -497,6 +497,21 @@
 }
 /* 딜러 모드 할인 셀 — 위: 내 제안 입력칸, 아래: 확정값/저장 상태 보조표기(spec §7.1).
    입력칸을 셀 폭(152px)에 맞춰 가둬야 컬럼 리듬이 깨지지 않는다. */
+/* 입력칸 + 단위 "원" 한 줄 배치 — 단위는 줄어들지 않고 입력칸이 남는 폭을 채운다. */
+.va-trim-table .va-dealer-disc-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.va-trim-table .va-dealer-disc-box input {
+  flex: 1;
+  min-width: 0;
+}
+.va-trim-table .va-dealer-disc-box > span {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
 .va-trim-table .va-dealer-disc input {
   width: 100%;
   height: 28px;
