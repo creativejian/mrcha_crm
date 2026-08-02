@@ -43,12 +43,22 @@ function notDismissed(ex: Executor) {
   );
 }
 
-// 인박스: 미처리(pending) 상담신청 전체(최신순). CRM에서 숨김 처리한 건은 제외.
+// 인박스: 상담신청 전체(최신순). 표시 여부는 **CRM 숨김 기록만** 결정한다.
+//
+// ⚠️ 구 구현은 `status='pending'`을 함께 걸었다(2026-08-02 제거). 그 값은 `public.consultations`
+// 소유이고, 전이 경로는 **앱 관리자 화면 하나뿐**인데(consultation_list_screen: 대기/확인/완료/취소)
+// 상담 업무가 CRM으로 옮겨온 뒤로 아무도 쓰지 않는다 — 통산 1건(2026-04-21 admin이 눌러본 것)만
+// pending을 벗어났고, 그 1건은 **우리가 처리한 적이 없는데도 인박스에서 조용히 빠져 있었다**.
+// 즉 필터가 유일하게 한 일이 "미처리 건 감추기"였다.
+// 제거로 얻는 것: ①진실의 원천이 CRM 하나(앱 화면이 되살아나도 큐가 흔들리지 않는다)
+// ②앱이 초기값을 pending 아닌 값으로 바꿔도 신규 유입을 통째로 놓치지 않는다(구 구조의 조용한 사고)
+// ③listConsultationsByUser(고객 상세 카드)가 이미 상태 무관이라 두 조회의 기준이 일치한다.
+// 앱이 훗날 고객에게 진행 상태를 노출하기로 하면 그때 다시 논의한다(제품 결정 선행).
 export async function listConsultations(ex: Executor = getDefaultDb()): Promise<ConsultationRow[]> {
   return ex
     .select(consultationBaseSelect)
     .from(consultationRequests)
-    .where(and(eq(consultationRequests.status, "pending"), notDismissed(ex)))
+    .where(notDismissed(ex))
     .orderBy(desc(consultationRequests.createdAt));
 }
 
