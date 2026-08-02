@@ -66,7 +66,6 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
     editingQuoteId,
     guidance,
     quoteRequestPrefill,
-    recognizedQuoteFile,
     isQuoteWorkbenchOriginalDragActive,
     pricing,
     primaryDiscountUnit,
@@ -173,7 +172,7 @@ export function QuoteWorkbench({ workbench, customer, onToast }: QuoteWorkbenchP
         aria-label="솔루션 견적 워크벤치"
       >
         <div
-          className={`kim-quote-modal-head kim-quote-workbench-head${solutionWorkbenchEntryMode === "original" ? " is-original-input" : ""}${isQuoteWorkbenchOriginalDragActive ? " is-original-drop-active" : ""}${recognizedQuoteFile ? " has-original-file" : ""}`}
+          className={`kim-quote-modal-head kim-quote-workbench-head${isQuoteWorkbenchOriginalDragActive ? " is-original-drop-active" : ""}`}
           onDragEnter={(event) => {
             if (!isDocumentFileDrag(event)) return;
             event.preventDefault();
