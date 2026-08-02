@@ -354,16 +354,20 @@
   padding: 14px 16px;
 }
 
-.advisor-performance-head strong,
-.advisor-performance-head span {
+/* ⚠️ 셀렉터를 `.advisor-performance-head span`으로 넓히지 말 것 — 헤더 우측 배지(span.badge)까지
+   잡아 `display:block`이 배지의 inline-flex를 덮어쓴다. 그러면 배지 안 글자의 가운데 정렬
+   (align-items/justify-content)이 통째로 무효가 되어 텍스트가 박스 위쪽에 붙는다(2026-08-02 실측).
+   카피 래퍼 div 안쪽만 대상으로 한다. */
+.advisor-performance-head div strong,
+.advisor-performance-head div span {
   display: block;
 }
 
-.advisor-performance-head strong {
+.advisor-performance-head div strong {
   font-size: 16px;
 }
 
-.advisor-performance-head span {
+.advisor-performance-head div span {
   margin-top: 3px;
   color: var(--muted);
   font-size: 12px;
