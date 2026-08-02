@@ -89,15 +89,20 @@ test("listConsultations: pending 상담신청이 notes·phoneNumber와 함께 �
   }
 });
 
-test("listConsultations: pending이 아닌 상담신청은 제외된다", async () => {
+// 구 동작(pending만 표시)의 반대를 잠근다 — 2026-08-02 필터 제거. 앱 status는 전이 경로가 앱
+// 관리자 화면뿐이라 사실상 고정값이고, 그걸 믿으면 우리가 처리하지 않은 건이 인박스에서 사라진다
+// (실제로 통산 1건이 그렇게 감춰져 있었다). 표시 여부는 CRM 숨김 기록만 결정한다.
+test("listConsultations: 앱 status와 무관하게 포함된다 — 표시 여부는 CRM 숨김만 결정", async () => {
   const id = await insertConsultation({ status: "completed" });
   try {
     const rows = await listConsultations(db);
-    expect(rows.find((r) => r.id === id)).toBeUndefined();
+    expect(rows.find((r) => r.id === id)).toBeDefined();
   } finally {
     await db.delete(consultationRequests).where(eq(consultationRequests.id, id));
   }
 });
+
+// (숨김 → 인박스 제외는 아래 "dismissConsultation: 숨긴 상담신청은 …" 테스트가 이미 커버한다)
 
 test("listConsultationsByUser: 그 userId의 상담신청만 상태 무관 최신순 반환", async () => {
   const userId = await anyProfileId();
