@@ -40,7 +40,8 @@ export function MyChangeRequestsButton() {
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
-  usePopoverDismiss(popRef, open, () => closePopover());
+  // anchorRef = 버튼 재클릭 이중 발화 방지(닫기는 toggle 몫 — 2026-08-03).
+  usePopoverDismiss(popRef, open, () => closePopover(), { anchorRef: btnRef });
 
   function stateOf(id: string): RowState {
     return rowStates[id] ?? IDLE_STATE;

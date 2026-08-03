@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChangeRequestItem } from "@/lib/catalog-change-requests";
-import { splitModelPending } from "./pending-preview";
+import { pendingTrimCellPatch, splitModelPending } from "./pending-preview";
 
 // 모델 단위 pending 3분류(행 배지 · 신규 트림 미리보기 · 헤더 pill)의 순수 로직 잠금.
 // payload는 서버 zod 파싱 출력이라 실전에선 정상값이지만, 표시 전용 합성이 비정상 값에도
@@ -103,5 +103,30 @@ describe("splitModelPending", () => {
     expect(byTrim.size).toBe(0);
     expect(previews).toEqual([]);
     expect(headerRequests.map((r) => r.id)).toEqual(["cr-m"]);
+  });
+});
+
+// 셀 인라인 diff — 테이블 컬럼이 있는 4종만, 실제로 바뀐 필드만 patch 키가 생긴다.
+describe("pendingTrimCellPatch", () => {
+  it("trim.update의 바뀐 필드(4종 축)만 담는다 — 미변경·컬럼 없는 필드 제외", () => {
+    const update: ChangeRequestItem = {
+      ...BASE,
+      payload: { trimName: "새 이름", price: 43480000, modelYear: 2026, status: "판매중", fuelType: "디젤" },
+      snapshot: { trimName: "옛 이름", price: 43530000, modelYear: 2026, status: "판매중", fuelType: "가솔린" },
+    };
+    // modelYear·status 미변경 → 키 없음 · fuelType은 컬럼이 없어 축 밖.
+    expect(pendingTrimCellPatch([update])).toEqual({ trimName: "새 이름", price: 43480000 });
+  });
+
+  it("update가 없거나(무옵션 토글만) 바뀐 셀 필드가 없으면 null", () => {
+    expect(pendingTrimCellPatch(undefined)).toBeNull();
+    expect(pendingTrimCellPatch([{ ...BASE, kind: "trim.no-option.set", payload: {}, snapshot: {} }])).toBeNull();
+    expect(
+      pendingTrimCellPatch([{ ...BASE, payload: { price: 100, fuelType: "디젤" }, snapshot: { price: 100, fuelType: "가솔린" } }]),
+    ).toBeNull();
+  });
+
+  it("숫자 필드는 number로 강제 — 비정상 값은 키를 만들지 않는다", () => {
+    expect(pendingTrimCellPatch([{ ...BASE, payload: { price: "abc" }, snapshot: { price: 1 } }])).toBeNull();
   });
 });

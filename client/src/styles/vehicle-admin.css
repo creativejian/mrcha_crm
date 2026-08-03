@@ -1117,6 +1117,16 @@ button.va-cr-badge-btn:hover {
   background: rgba(180, 83, 9, 0.2);
 }
 
+/* 셀 인라인 diff(2026-08-03 이사님 요청) — trim.update pending이 건드리는 셀 아래 "→ 새값".
+   앰버 = 승인 대기 어휘 색(배지와 같은 축). 승인/반려는 배지 팝오버가 계속 담당한다. */
+.va-cell-pending {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b45309;
+  white-space: nowrap;
+}
+
 /* ── 신규 트림 미리보기 행(2026-08-03) — trim.create pending을 테이블 안에서 보여준다(승인
    전이라 실 데이터가 아님을 앰버 톤 + 이탤릭 트림명으로 구분). 배지 앰버(#b45309)와 같은 축. */
 .va-row-pending td {

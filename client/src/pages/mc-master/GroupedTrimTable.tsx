@@ -5,7 +5,7 @@ import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
 import type { TrimProposals } from "@/lib/discount-proposals";
 import type { AdoptHandler, UndoHandler } from "./admin-discount-cells";
-import type { PendingTrimPreview } from "./pending-preview";
+import type { PendingCellPatch, PendingTrimPreview } from "./pending-preview";
 import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 import { TRIM_BODY_COLS } from "./trim-format";
 import { groupTrimsBySubline, trimGrade, trimSubline } from "./trim-grouping";
@@ -41,6 +41,7 @@ export function GroupedTrimTable({
   onGroupDragStart,
   onGroupDragOver,
   onGroupDrop,
+  pendingPatchByTrim,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -64,6 +65,8 @@ export function GroupedTrimTable({
   onGroupDragStart?: (key: string) => void;
   onGroupDragOver?: (key: string) => void;
   onGroupDrop?: () => void;
+  /** trim.update pending의 셀 인라인 diff(트림명·가격·연식·상태 — pending-preview.ts). */
+  pendingPatchByTrim?: Map<number, PendingCellPatch>;
   colorsByTrim: Map<number, TrimColor[]>;
   optionByTrim: Map<number, TrimOptionSummary>;
   expanded: Set<string>;
@@ -173,6 +176,9 @@ export function GroupedTrimTable({
                           {trimGrade(t.trimName)}
                           {rowBadge?.(t.id)}
                         </div>
+                        {pendingPatchByTrim?.get(t.id)?.trimName != null && (
+                          <div className="va-cell-pending">→ {trimGrade(pendingPatchByTrim.get(t.id)!.trimName!)}</div>
+                        )}
                         <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
                       </td>
                       <TrimMetaCells
@@ -181,6 +187,7 @@ export function GroupedTrimTable({
                         onUndo={onUndo}
                         onSaveProposal={onSaveProposal}
                         proposalEntry={proposalsByTrim?.get(t.id)}
+                        pendingPatch={pendingPatchByTrim?.get(t.id)}
                         trim={t}
                       />
                       <td className="va-col-center">

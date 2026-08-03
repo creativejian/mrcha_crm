@@ -5,7 +5,7 @@ import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
 import type { TrimProposals } from "@/lib/discount-proposals";
 import type { AdoptHandler, UndoHandler } from "./admin-discount-cells";
-import type { PendingTrimPreview } from "./pending-preview";
+import type { PendingCellPatch, PendingTrimPreview } from "./pending-preview";
 import { SelectAllHeadCell, SelectCheckCell, SelectableRow } from "./table-select";
 import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 
@@ -40,6 +40,7 @@ export function TrimTable({
   rowBadge,
   pendingPreviews,
   renderPreviewRow,
+  pendingPatchByTrim,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -57,6 +58,8 @@ export function TrimTable({
   /** 신규 트림(trim.create pending) 미리보기 — 목록 끝에 붙는다(선택 모드에선 미표시). */
   pendingPreviews?: PendingTrimPreview[];
   renderPreviewRow?: (preview: PendingTrimPreview) => ReactNode;
+  /** trim.update pending의 셀 인라인 diff(트림명·가격·연식·상태 — pending-preview.ts). */
+  pendingPatchByTrim?: Map<number, PendingCellPatch>;
   isDomestic: boolean;
   selectMode: boolean;
   selected: Set<number>;
@@ -110,6 +113,9 @@ export function TrimTable({
                 {t.trimName}
                 {rowBadge?.(t.id)}
               </div>
+              {pendingPatchByTrim?.get(t.id)?.trimName != null && (
+                <div className="va-cell-pending">→ {pendingPatchByTrim.get(t.id)!.trimName}</div>
+              )}
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
             </td>
             <TrimMetaCells
@@ -118,6 +124,7 @@ export function TrimTable({
                       onUndo={onUndo}
                       onSaveProposal={onSaveProposal}
                       proposalEntry={proposalsByTrim?.get(t.id)}
+                      pendingPatch={pendingPatchByTrim?.get(t.id)}
                       trim={t}
                     />
             {isDomestic && (

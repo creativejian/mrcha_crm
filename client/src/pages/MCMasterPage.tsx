@@ -51,7 +51,7 @@ import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
 import { MoveTrimsDialog } from "./mc-master/MoveTrimsDialog";
 import { MyProposalTrimsButton } from "./mc-master/MyProposalTrims";
-import { splitModelPending, type PendingTrimPreview } from "./mc-master/pending-preview";
+import { pendingTrimCellPatch, splitModelPending, type PendingTrimPreview } from "./mc-master/pending-preview";
 import { PendingRequestBadge } from "./mc-master/PendingRequestBadge";
 import { PendingTrimPreviewRow } from "./mc-master/PendingTrimPreviewRow";
 import { trimSubline } from "./mc-master/trim-grouping";
@@ -166,6 +166,13 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   // `new Date()`를 쓴다 — 같은 축). pending은 모델당 한 자릿수라 렌더당 재계산은 무시 가능.
   const pendingSplit = splitModelPending(pendingRows);
   const headerLines = pendingHeaderLines(pendingSplit.headerRequests, staffNames, new Date());
+  // 셀 인라인 diff(2026-08-03 이사님 요청) — 수정 pending이 있는 행의 바뀌는 셀 아래 "→ 새값".
+  const pendingPatchByTrim = new Map(
+    [...pendingSplit.byTrim].flatMap(([trimId, requests]) => {
+      const patch = pendingTrimCellPatch(requests);
+      return patch ? [[trimId, patch] as const] : [];
+    }),
+  );
 
   // 딜러 모드: URL의 modelId가 내 브랜드 모델이 아니면 첫 모델로 교정한다.
   // brandId 스코프는 사이드바와 모델 목록을 좁히지만 **modelId는 독립 경로**다 — 손으로 고친 URL이나
@@ -722,6 +729,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                   rowBadge={rowBadge}
                   pendingPreviews={pendingSplit.previews}
                   renderPreviewRow={renderPreviewRow}
+                  pendingPatchByTrim={pendingPatchByTrim}
                   colorsByTrim={colorsByTrim}
                   optionByTrim={optionByTrim}
                   expanded={expandedGroups}
@@ -747,6 +755,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                   // 국산차 평면 = 순서 관리 탭 — 미리보기는 목록 보기(그룹 뷰) 몫이라 안 싣는다.
                   pendingPreviews={isDomestic ? undefined : pendingSplit.previews}
                   renderPreviewRow={renderPreviewRow}
+                  pendingPatchByTrim={pendingPatchByTrim}
                   isDomestic={isDomestic}
                   selectMode={selectMode}
                   selected={selected}
