@@ -380,6 +380,38 @@
   color: var(--brand);
   background: #f1edff;
 }
+/* ── 그룹 단위 순서 이동 패널(2026-08-03 이사님 요청) — 순서 관리 탭 상단, admin 전용.
+   탭 띠와 같은 sticky 규칙(가로 스크롤 시 왼쪽 고정 — .va-trim-tabs 주석 참조). */
+.va-group-order {
+  position: sticky;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 12px 11px;
+  max-width: calc(100% - 24px);
+}
+.va-group-order-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5f6872;
+}
+.va-group-order-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.va-group-order-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b4650;
+  margin-right: 4px;
+}
 /* 서브라인 그룹 헤더행. */
 .va-group-row > td {
   padding: 0;

@@ -128,6 +128,8 @@ let changeRequestQueue: ChangeRequestItem[] = [];
 let modelPendingRows: ChangeRequestItem[] = [];
 let myRequests: ChangeRequestItem[] = [];
 let trimPatchResponse: { status: number; body: unknown } = { status: 200, body: { id: 100 } };
+// 그룹 순서 이동 테스트가 다그룹 픽스처를 주입한다 — 기본은 기존 단일 트림(TRIMS).
+let trimsResponse: object[] = TRIMS;
 let fetchCalls: [string, RequestInit | undefined][] = [];
 
 beforeEach(() => {
@@ -141,6 +143,7 @@ beforeEach(() => {
   modelPendingRows = [];
   myRequests = [];
   trimPatchResponse = { status: 200, body: { id: 100 } };
+  trimsResponse = TRIMS;
   fetchCalls = [];
   resetStaffDirectoryCache(); // 직원 디렉토리도 모듈 캐시 — 케이스 간 누수 차단(QuoteWorkbench.gate 관례).
   resetChangeRequestCachesForTest(); // 대기열·내 요청 (N) 즉시 표시용 모듈 캐시 — 같은 이유로 초기화.
@@ -171,7 +174,7 @@ beforeEach(() => {
       // summary로 받는 셈이라, 옵션 배지가 "옵션 미입력"으로 뜨는 게 우연에 기대게 된다.
       if (url === "/api/catalog/models/10/option-summary") return new Response("[]", { status: 200 });
       if (url.endsWith("/trim-colors")) return new Response("[]", { status: 200 });
-      if (url.startsWith("/api/catalog/trims")) return new Response(JSON.stringify(TRIMS), { status: 200 });
+      if (url.startsWith("/api/catalog/trims")) return new Response(JSON.stringify(trimsResponse), { status: 200 });
       if (url.startsWith("/api/catalog/models")) return new Response(JSON.stringify(MODELS), { status: 200 });
       if (url === "/api/staff") return new Response(JSON.stringify(STAFF), { status: 200 });
       if (url === "/api/dealer/me") return new Response("null", { status: 200 });
@@ -629,4 +632,44 @@ it("admin 폼엔 할인 정보가 그대로 있다(채택 외 수동 조정 경�
   await screen.findByText("캐스퍼 1.0");
   await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
   expect(await screen.findByText("자사 할인(원)")).toBeInTheDocument();
+});
+
+// ── 그룹 단위 순서 이동(이사님 요청 2026-08-03) — 순서 관리 탭 상단 패널(admin 전용) ────
+const GROUP_TRIMS = [
+  { ...TRIMS[0], id: 100, name: "27년형 가솔린 1.0 - 스마트", trimName: "27년형 가솔린 1.0 - 스마트" },
+  { ...TRIMS[0], id: 101, name: "27년형 가솔린 1.0 - 디 에센셜", trimName: "27년형 가솔린 1.0 - 디 에센셜", sortOrder: 2 },
+  { ...TRIMS[0], id: 102, name: "26년형 가솔린 1.0 - 스마트", trimName: "26년형 가솔린 1.0 - 스마트", sortOrder: 3 },
+];
+
+it("admin 순서 관리: 그룹 '아래로' → 블록째 이동된 전체 id로 reorder API 발사", async () => {
+  trimsResponse = GROUP_TRIMS;
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await user.click(await screen.findByRole("button", { name: "순서 관리" }));
+  await user.click(await screen.findByRole("button", { name: "27년형 가솔린 1.0 아래로" }));
+  await waitFor(() => {
+    const call = fetchCalls.find(([url, init]) => url === "/api/catalog/trims/reorder" && init?.method === "POST");
+    expect(call).toBeTruthy();
+    // 27년형 그룹(100·101)이 26년형(102) 뒤로 — 그룹 내 순서 유지.
+    expect(JSON.parse(String(call![1]?.body))).toEqual({ ids: [102, 100, 101] });
+  });
+});
+
+it("그룹 순서 패널: 끝 방향 버튼은 비활성, 팀장에겐 패널 자체가 없다", async () => {
+  trimsResponse = GROUP_TRIMS;
+  const user = userEvent.setup();
+  const admin = renderPage("최고관리자");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await user.click(await screen.findByRole("button", { name: "순서 관리" }));
+  expect(await screen.findByText("그룹 순서")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "27년형 가솔린 1.0 위로" })).toBeDisabled(); // 첫 그룹
+  expect(screen.getByRole("button", { name: "26년형 가솔린 1.0 아래로" })).toBeDisabled(); // 마지막 그룹
+  admin.unmount();
+
+  renderPage("팀장");
+  await userEvent.setup().click(await screen.findByRole("button", { name: "그랜저" }));
+  // 팀장에게도 탭은 보이지만(읽기용 평면 목록) 그룹 순서 패널은 admin 전용(reorder 게이트와 동형).
+  await userEvent.setup().click(await screen.findByRole("button", { name: "순서 관리" }));
+  expect(screen.queryByText("그룹 순서")).toBeNull();
 });
