@@ -222,6 +222,9 @@
 .nav-count {
   min-width: 20px;
   height: 20px;
+  /* 좌우 여백 — 세 자리(100+)에서 숫자가 모서리에 닿아 좁아 보였다(2026-08-03 유슨생).
+     내용 폭에 따라 자연히 넓어지고, 한 자리는 min-width가 정사각을 유지한다. */
+  padding: 0 5px;
   margin-left: auto;
   border-radius: 5px;
   display: inline-grid;
