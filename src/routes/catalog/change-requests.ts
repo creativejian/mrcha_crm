@@ -5,10 +5,10 @@ import {
   cancelOwnPending, listChangeRequests, listModelPendingRequests, listMyChangeRequests, markRejected,
 } from "../../db/queries/change-requests";
 import { requireRoles } from "../../middleware/role-gate";
-import { approveChangeRequest } from "./change-request-kinds";
+import { approveChangeRequest, replaceOwnChangeRequest } from "./change-request-kinds";
 import { type CatalogApp, id, run } from "./shared";
 
-// 변경 요청 대기열(spec §6.3) — 목록·승인·반려는 admin, 내 요청·취소는 요청자 본인(manager).
+// 변경 요청 대기열(spec §6.3) — 목록·승인·반려는 admin, 내 요청·취소·교체(PUT)는 요청자 본인.
 // 승인은 트랜잭션 하나(선점→재검증→드리프트→replay) — approveChangeRequest 주석 참조.
 const listQuery = z.object({
   status: z.enum(["pending", "approved", "rejected", "canceled"]).default("pending"),
@@ -57,6 +57,17 @@ export function registerChangeRequestRoutes(catalog: CatalogApp) {
     zValidator("param", z.object({ id: z.uuid() })),
     async (c) =>
       run(c, () => cancelOwnPending(c.req.valid("param").id, c.var.user.id, c.var.db), "취소할 대기 요청이 없습니다."),
+  );
+
+  // 내 pending 요청 "이어서 수정"(2026-08-03) — payload 통째 교체. 본문은 kind별 bodySchema로
+  // 핸들러 안에서 파싱한다(kind가 행에 있어 라우트 시점엔 스키마를 못 고른다 — 여기 zValidator는
+  // JSON 객체 형태만 보장). 게이트는 취소(DELETE)와 동일 — 소유는 핸들러가 강제한다.
+  catalog.put(
+    "/change-requests/:id",
+    requireRoles(["admin", "manager"]),
+    zValidator("param", z.object({ id: z.uuid() })),
+    zValidator("json", z.record(z.string(), z.unknown())),
+    async (c) => replaceOwnChangeRequest(c, c.req.valid("param").id, c.req.valid("json")),
   );
 
   catalog.get(

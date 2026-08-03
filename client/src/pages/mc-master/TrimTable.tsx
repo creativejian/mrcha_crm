@@ -1,14 +1,19 @@
+import type { ReactNode } from "react";
 import { Pencil } from "lucide-react";
 
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
 import type { TrimProposals } from "@/lib/discount-proposals";
 import type { AdoptHandler, UndoHandler } from "./admin-discount-cells";
+import type { PendingTrimPreview } from "./pending-preview";
 import { SelectAllHeadCell, SelectCheckCell, SelectableRow } from "./table-select";
-import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells, TrimPendingBadge } from "./trim-cells";
+import { ColorChips, OptionBadgeButton, TrimHeadCells, TrimMetaCells } from "./trim-cells";
 
 // 평면 트림 테이블(전체 trim_name). 국산차 '순서 관리' 탭 / 수입차 기본 뷰에서 쓴다.
 // 드래그 순서변경/일괄삭제는 '선택' 모드에서만(앱과 동일).
+// 신규 트림 미리보기(trim.create pending)는 목록 끝에 붙는다 — 선택 모드에선 숨긴다(드래그
+// 대상이 아닌 행이 사이에 끼면 reorder 정합이 깨진다). 렌더링은 renderPreviewRow(MCMasterPage
+// 소유), 여기는 배치만(GroupedTrimTable과 같은 결, 2026-08-03).
 export function TrimTable({
   trims,
   canEdit,
@@ -32,7 +37,9 @@ export function TrimTable({
   onAdopt,
   onUndo,
   flashTrimId,
-  pendingBadgeByTrim,
+  rowBadge,
+  pendingPreviews,
+  renderPreviewRow,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -45,8 +52,11 @@ export function TrimTable({
   onUndo?: UndoHandler;
   /** ?hl= 딥링크 착지 마킹 대상 — 해당 행에 플래시 클래스와 스크롤 앵커(data-trim-id)를 단다. */
   flashTrimId?: number | null;
-  /** 트림별 "승인 대기" 배지 title(요청자·경과·작업 — MCMasterPage가 합성). 없으면 미표시. */
-  pendingBadgeByTrim?: Map<number, string>;
+  /** 트림 행 "승인 대기" 배지(diff 팝오버·승인/반려) — 데이터·액션은 MCMasterPage가 소유. */
+  rowBadge?: (trimId: number) => ReactNode;
+  /** 신규 트림(trim.create pending) 미리보기 — 목록 끝에 붙는다(선택 모드에선 미표시). */
+  pendingPreviews?: PendingTrimPreview[];
+  renderPreviewRow?: (preview: PendingTrimPreview) => ReactNode;
   isDomestic: boolean;
   selectMode: boolean;
   selected: Set<number>;
@@ -62,7 +72,9 @@ export function TrimTable({
   onDragOver: (id: number) => void;
   onDrop: () => void;
 }) {
-  if (trims.length === 0) return <div className="va-empty">트림이 없습니다. ‘트림 추가’로 등록하세요.</div>;
+  const previews = !selectMode && renderPreviewRow ? (pendingPreviews ?? []) : [];
+  if (trims.length === 0 && previews.length === 0)
+    return <div className="va-empty">트림이 없습니다. ‘트림 추가’로 등록하세요.</div>;
   const allChecked = trims.length > 0 && trims.every((t) => selected.has(t.id));
   return (
     <table className="customer-table va-trim-table">
@@ -96,7 +108,7 @@ export function TrimTable({
             <td className="va-th-trim">
               <div className="va-trim-name">
                 {t.trimName}
-                <TrimPendingBadge title={pendingBadgeByTrim?.get(t.id)} />
+                {rowBadge?.(t.id)}
               </div>
               <ColorChips colors={colorsByTrim.get(t.id) ?? []} />
             </td>
@@ -126,6 +138,7 @@ export function TrimTable({
             )}
           </SelectableRow>
         ))}
+        {previews.map((p) => renderPreviewRow?.(p))}
       </tbody>
     </table>
   );

@@ -19,11 +19,13 @@ import {
   onCatalogWriteQueued,
   reorderModels,
   reorderTrims,
+  replaceTrimChangeRequest,
   updateModel,
   updateTrim,
 } from "@/lib/catalog";
 import { useAuth } from "@/auth/AuthProvider";
 import { CHANGE_KIND_LABELS, type ChangeRequestKind } from "@/lib/catalog-change-kinds";
+import { onCatalogQueueRemoteChanged } from "@/lib/catalog-change-realtime";
 import { type ChangeRequestItem, useModelPendingRequests } from "@/lib/catalog-change-requests";
 import { waitingLabel } from "@/lib/chat";
 import { useDealerDiscounts } from "@/lib/dealer-discounts";
@@ -44,6 +46,9 @@ import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
 import { MoveTrimsDialog } from "./mc-master/MoveTrimsDialog";
 import { MyProposalTrimsButton } from "./mc-master/MyProposalTrims";
+import { splitModelPending, type PendingTrimPreview } from "./mc-master/pending-preview";
+import { PendingRequestBadge } from "./mc-master/PendingRequestBadge";
+import { PendingTrimPreviewRow } from "./mc-master/PendingTrimPreviewRow";
 import { trimSubline } from "./mc-master/trim-grouping";
 import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
@@ -54,36 +59,24 @@ import { useMcMasterSelection } from "./mc-master/useMcMasterSelection";
 import { mcMasterViewState } from "./mc-master/view-state";
 
 type ModelPanelState = { mode: "add" } | { mode: "edit"; model: CatalogModel } | null;
-type TrimPanelState = { mode: "add" } | { mode: "edit"; trim: CatalogTrim } | null;
+// continue = 내 pending trim.create "이어서 수정"(2026-08-03) — 추가 폼을 요청 payload로
+// 프리필해 열고, 저장이 그 요청을 통째로 교체한다(구 경로 = 취소 후 13필드 재입력뿐이었다).
+type TrimPanelState =
+  | { mode: "add" }
+  | { mode: "edit"; trim: CatalogTrim }
+  | { mode: "continue"; request: ChangeRequestItem }
+  | null;
 type TrimTab = "list" | "order";
 
 const PENDING_PREFILL_NOTICE = "대기 중인 승인 요청을 이어서 수정합니다 — 저장하면 기존 요청이 이 내용으로 대체됩니다";
 
-// 모델 단위 pending → 행 배지 title(트림별) + 헤더 pill 줄(트림에 못 붙는 요청)로 갈라 담는다.
-// targetTrimId가 있는 요청(트림 수정·무옵션·옵션류)은 그 트림 행에, 없는 요청(트림 추가·모델
-// 수정)은 헤더로 — 붙일 행이 없는 요청이 조용히 사라지지 않게 한다(spec §7.2).
-// now는 인자로 받는다(렌더 시각을 호출부가 준다 — 호출부 주석의 경과 표기 동결 참조).
-function buildPendingBadges(
-  rows: ChangeRequestItem[],
-  staffNames: Map<string, string>,
-  now: Date,
-): { byTrim: Map<number, string>; headerLines: string[] } {
-  const byTrim = new Map<number, string>();
-  const headerLines: string[] = [];
-  const linesByTrim = new Map<number, string[]>();
-  for (const r of rows) {
-    const line = `${staffNames.get(r.requestedBy) ?? "알 수 없음"} · ${waitingLabel(r.createdAt, now, "전")} · ${CHANGE_KIND_LABELS[r.kind]}`;
-    if (r.targetTrimId != null) {
-      const arr = linesByTrim.get(r.targetTrimId) ?? [];
-      arr.push(line);
-      linesByTrim.set(r.targetTrimId, arr);
-    } else {
-      headerLines.push(line);
-    }
-  }
-  // 한 트림에 여러 건(트림 수정 + 옵션 추가 등)이면 title에 줄바꿈으로 쌓는다.
-  for (const [trimId, lines] of linesByTrim) byTrim.set(trimId, lines.join("\n"));
-  return { byTrim, headerLines };
+// 모델 단위 pending의 3분류(트림 행 배지 · 신규 트림 미리보기 · 헤더 pill)는
+// splitModelPending(mc-master/pending-preview.ts — 순수·유닛 테스트)이 담당한다.
+// 헤더 pill 줄 텍스트만 여기서 합성한다(staffNames·렌더 시각 의존 — 경과 표기 동결 참조).
+function pendingHeaderLines(rows: ChangeRequestItem[], staffNames: Map<string, string>, now: Date): string[] {
+  return rows.map(
+    (r) => `${staffNames.get(r.requestedBy) ?? "알 수 없음"} · ${waitingLabel(r.createdAt, now, "전")} · ${CHANGE_KIND_LABELS[r.kind]}`,
+  );
 }
 
 export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: (message: string) => void }) {
@@ -162,10 +155,11 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   const { staff } = useStaffDirectory(canWrite);
   const pendingRows = useModelPendingRequests(modelId ? Number(modelId) : null, canWrite);
   const staffNames = useMemo(() => new Map(staff.map((s) => [s.id, s.name])), [staff]);
-  // ⚠️ 일부러 useMemo로 감싸지 않는다 — 경과 표기가 deps에 없는 `new Date()`에서 나오므로
-  // memo하면 재조회 전까지 "3분 전"이 못 박힌다(ChangeRequestQueue도 렌더 시점 인라인
+  // ⚠️ 일부러 useMemo로 감싸지 않는다 — 헤더 pill 경과 표기가 deps에 없는 `new Date()`에서
+  // 나오므로 memo하면 재조회 전까지 "3분 전"이 못 박힌다(ChangeRequestQueue도 렌더 시점 인라인
   // `new Date()`를 쓴다 — 같은 축). pending은 모델당 한 자릿수라 렌더당 재계산은 무시 가능.
-  const changeBadges = buildPendingBadges(pendingRows, staffNames, new Date());
+  const pendingSplit = splitModelPending(pendingRows);
+  const headerLines = pendingHeaderLines(pendingSplit.headerRequests, staffNames, new Date());
 
   // 딜러 모드: URL의 modelId가 내 브랜드 모델이 아니면 첫 모델로 교정한다.
   // brandId 스코프는 사이드바와 모델 목록을 좁히지만 **modelId는 독립 경로**다 — 손으로 고친 URL이나
@@ -312,6 +306,55 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     }
   };
 
+  // 타 세션의 **승인 반영 신호(applied)**에도 같은 재조회를 건다(2026-08-03) — 이전엔 큐 훅들만
+  // broadcast를 구독해 매니저 화면에서 "승인됨" 칩·배지만 뒤집히고 카탈로그 값은 리로딩해야
+  // 보였다. 반려·취소·적재는 catalog 무변이라 applied=false로 걸러진다.
+  // handleQueueApplied는 렌더마다 새 함수라(reload류가 훅의 일반 함수) ref로 최신본만 참조한다 —
+  // deps에 넣으면 매 렌더 재구독, useCallback 전환은 reload류 정체성까지 손대야 해 과하다.
+  const queueAppliedRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    queueAppliedRef.current = handleQueueApplied;
+  });
+  useEffect(
+    () =>
+      onCatalogQueueRemoteChanged((info) => {
+        if (info.applied) queueAppliedRef.current();
+      }),
+    [],
+  );
+
+  // 행 "승인 대기" 배지(클릭 팝오버 — diff·승인/반려)와 신규 트림 미리보기 행의 렌더 소유는
+  // 여기다(테이블은 배치만 안다). 승인 액션은 admin(canEdit)에게만 — 서버 게이트와 동형.
+  const rowBadge = (trimId: number) => (
+    <PendingRequestBadge
+      requests={pendingSplit.byTrim.get(trimId)}
+      staffNames={staffNames}
+      canApprove={canEdit}
+      onApplied={handleQueueApplied}
+    />
+  );
+  const renderPreviewRow = (p: PendingTrimPreview) => (
+    <PendingTrimPreviewRow
+      key={p.request.id}
+      preview={p}
+      grouped={groupedView}
+      showOptionCol={groupedView || isDomestic}
+      showEditCol={groupedView ? canWrite : canWrite && !selectMode}
+      staffNames={staffNames}
+      canApprove={canEdit}
+      onApplied={handleQueueApplied}
+      myUserId={userId}
+      onContinue={
+        canPropose
+          ? (request) => {
+              setPanelError(null);
+              setTrimPanel({ mode: "continue", request });
+            }
+          : undefined
+      }
+    />
+  );
+
   function selectBrand(id: number) {
     resetSelect();
     mcMasterViewState.modelScrollTop = 0; // 브랜드가 바뀌면 모델 목록은 맨 위부터(앱 admin과 동일).
@@ -359,6 +402,14 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     try {
       if (trimPanel.mode === "add") {
         await createTrim(Number(modelId), values);
+      } else if (trimPanel.mode === "continue") {
+        // 이어서 수정 — 새 요청 적재가 아니라 내 pending 요청의 payload 교체(중복 적재 방지).
+        // modelId는 원 요청의 부모 좌표를 그대로 싣는다(서버도 부모 키를 원 요청 값으로 고정).
+        await replaceTrimChangeRequest(
+          trimPanel.request.id,
+          Number(trimPanel.request.payload.modelId ?? modelId),
+          values,
+        );
       } else {
         await updateTrim(trimPanel.trim.id, values);
       }
@@ -498,12 +549,12 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 {openModel?.name ?? "트림"}
                 {openModel ? ` (${trims.length})` : ""}
               </h2>
-              {/* 트림 행에 붙일 곳이 없는 pending(트림 추가·모델 수정)의 집계(spec §7.2) — 없으면
-                  그 요청이 화면 어디에도 안 보인다. 409 예방은 model.update에만 해당하고(부분
-                  UNIQUE가 target_id 있는 행만 잠금), create류는 중복 적재 인지가 목적이다. */}
-              {changeBadges.headerLines.length > 0 && (
-                <span className="va-cr-badge" title={changeBadges.headerLines.join("\n")}>
-                  승인 대기 {changeBadges.headerLines.length}
+              {/* 트림 행에 붙일 곳이 없는 pending 집계(spec §7.2) — 없으면 그 요청이 화면
+                  어디에도 안 보인다. trim.create는 2026-08-03부터 미리보기 행으로 내려가
+                  여기엔 model.update류만 남는다(부분 UNIQUE 409의 예방선). */}
+              {headerLines.length > 0 && (
+                <span className="va-cr-badge" title={headerLines.join("\n")}>
+                  승인 대기 {headerLines.length}
                 </span>
               )}
             </div>
@@ -600,7 +651,9 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                   onAdopt={canEdit ? handleAdopt : undefined}
                   onUndo={canEdit ? handleUndo : undefined}
                   flashTrimId={hlTrimId}
-                  pendingBadgeByTrim={changeBadges.byTrim}
+                  rowBadge={rowBadge}
+                  pendingPreviews={pendingSplit.previews}
+                  renderPreviewRow={renderPreviewRow}
                   colorsByTrim={colorsByTrim}
                   optionByTrim={optionByTrim}
                   expanded={expandedGroups}
@@ -622,7 +675,10 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                   onAdopt={canEdit ? handleAdopt : undefined}
                   onUndo={canEdit ? handleUndo : undefined}
                   flashTrimId={hlTrimId}
-                  pendingBadgeByTrim={changeBadges.byTrim}
+                  rowBadge={rowBadge}
+                  // 국산차 평면 = 순서 관리 탭 — 미리보기는 목록 보기(그룹 뷰) 몫이라 안 싣는다.
+                  pendingPreviews={isDomestic ? undefined : pendingSplit.previews}
+                  renderPreviewRow={renderPreviewRow}
                   isDomestic={isDomestic}
                   selectMode={selectMode}
                   selected={selected}
@@ -691,10 +747,12 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 : trimPanel.trim
               : null
           }
+          // continue = 추가 폼(trim=null)을 내 pending create payload로 프리필(이어서 수정).
+          prefill={trimPanel.mode === "continue" ? (trimPanel.request.payload as Partial<TrimInput>) : null}
           modelStatus={openModel?.status ?? null}
           busy={busy}
           error={panelError}
-          notice={trimPendingPatch ? PENDING_PREFILL_NOTICE : null}
+          notice={trimPanel.mode === "continue" || trimPendingPatch ? PENDING_PREFILL_NOTICE : null}
           submitLabel={canPropose ? "승인 요청" : "저장"}
           showDiscounts={canEdit}
           onClose={() => setTrimPanel(null)}

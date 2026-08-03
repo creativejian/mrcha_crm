@@ -259,3 +259,26 @@ tx {
 - 딜러 제안 도착 배지를 사이드바 배지에 합산 (§7.5)
 - 상담사(staff) 개방 여부 재론 — 필요해지면 `requireRoles`에 한 단어 + `canPropose` 확장으로 열린다
 - 대기열 알림(FCM/디스코드) — 지금은 배지 폴링만
+
+## 부록 C. 2026-08-03 UX 확장 (이사님 요청 · 유슨생 세션)
+
+첫 주 실운영(팀장 2명, pending 120건+)에서 드러난 공백 4개를 메운다. 큐·kind·승인 트랜잭션의
+기존 계약은 불변 — 전부 그 위에 올라탄 소비 UI/전파 확장이다.
+
+- **§7.2 확장 — 행 배지 = 클릭 팝오버**: 구 hover title(요청자·경과·작업 텍스트)을 diff 팝오버로
+  승격. 어떤 값이 바뀌는지(전→후)를 행에서 바로 보고, **admin은 그 자리에서 승인/반려**한다
+  (헤더 대기열 왕복 제거). manager에겐 같은 팝오버가 읽기 전용. `PendingRequestBadge`.
+- **신규 트림 미리보기 행**: trim.create pending을 텍스트 요약이 아니라 **트림 테이블 안의 행**
+  으로 보여준다(payload → CatalogTrim 합성, `pending-preview.ts` + `PendingTrimPreviewRow`).
+  국산차 그룹 뷰는 서브라인 매칭으로 편입(없는 서브라인은 "승인 대기 N건" 합성 그룹), 수입차
+  평면 뷰는 목록 끝. 순서 관리 탭·선택 모드에선 미표시(reorder 정합). 헤더 pill에는 이제
+  model.update류만 남는다.
+- **create "이어서 수정"**: `PUT /api/catalog/change-requests/:id` — 내 pending 요청의 payload
+  통째 교체(kind bodySchema 재파싱 → 할인 3필드 제거 → 스냅샷 재구축, 202 동형 응답).
+  create류는 target_id가 없어 §6.1 upsert 갱신 분기가 못 잡던 축 — 구 경로는 취소 후 13필드
+  재입력뿐이었다. **부모 좌표(brandId/modelId/trimId)는 원 요청 값으로 고정**(대상 불변 계약).
+  진입점 = 미리보기 행의 연필(본인 요청만) → 추가 폼 프리필(`TrimEditPanel prefill`).
+- **승인 실시간 반영(교차 세션)**: broadcast payload에 `applied` 플래그 — 승인 성공만 true.
+  MCMasterPage가 applied 신호에서 카탈로그 재조회(`handleQueueApplied`)까지 한다. 이전엔 큐
+  훅 3곳만 구독해 매니저 화면에서 "승인됨" 칩만 뒤집히고 **값은 리로딩해야 보였다**. 반려·취소·
+  적재는 applied=false — 상대 세션의 불필요한 카탈로그 재조회를 만들지 않는다.

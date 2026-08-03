@@ -9,7 +9,9 @@ import type { Executor } from "../../db/client";
 import {
   createModel, createOption, createTrim, setTrimNoOption, unsetTrimNoOption, updateModel, updateOption,
 } from "../../db/queries/catalog-admin";
-import { claimPending, upsertPendingRequest } from "../../db/queries/change-requests";
+import {
+  claimPending, getChangeRequest, replaceOwnPendingPayload, upsertPendingRequest,
+} from "../../db/queries/change-requests";
 import { updateTrimWithDiscountAudit } from "../../db/queries/discount-adoptions";
 import { type ChangeRequestKind } from "../../db/schema";
 import { detectSnapshotDrift } from "../../lib/change-request-drift";
@@ -215,6 +217,17 @@ export async function approveChangeRequest(id: string, decidedBy: string, tx: Ex
 
 type CatalogContext = Context<{ Variables: AuthVariables & DbVariables }>;
 
+// 확정 할인 3필드 — 팀장 제안 payload에서 제거하는 축(딜러 제안→관리자 채택 체계 소유,
+// spec §3.1 정정 2026-07-31). trims.ts(적재 라우트)와 교체 경로(replaceOwnChangeRequest)가
+// 같은 규칙을 공유한다 — trims.ts에 두면 이 모듈이 역방향 import를 하게 돼 여기로 옮겼다.
+const DISCOUNT_KEYS = ["financialDiscountAmount", "partnerDiscountAmount", "cashDiscountAmount"] as const;
+
+export function stripDiscountProposal<T extends Partial<Record<(typeof DISCOUNT_KEYS)[number], unknown>>>(body: T): T {
+  const proposal = { ...body };
+  for (const key of DISCOUNT_KEYS) delete proposal[key];
+  return proposal;
+}
+
 // manager의 쓰기 → 큐 적재 + 202. 라우트 분기(spec §6.1)의 manager 쪽 절반.
 // 404(대상 없음)·409(타인 pending)·202(적재)를 스스로 응답한다 — run()은 200 고정이라 못 쓴다.
 export async function submitChangeRequest(
@@ -258,6 +271,52 @@ export async function submitChangeRequest(
     ) {
       return c.json({ error: "이미 승인 대기 중인 요청이 있습니다." }, 409);
     }
+    return errorResponse(c, e);
+  }
+}
+
+// 내 pending 요청 "이어서 수정"(2026-08-03) — payload 통째 교체를 적재와 같은 검증 경로
+// (bodySchema 파싱 → 할인 제거 → 스냅샷 재구축)로 태운다. create류(target_id 없음)는
+// upsertPendingRequest의 본인 갱신 분기가 못 잡는 축이라 이 경로가 유일한 수정 수단이다
+// (구 흐름 = 취소 후 13필드 재입력). 응답은 적재와 동형 202 { queued } — 클라 공통 감지
+// (sendCatalogWrite)가 토스트·배지 재조회·broadcast를 그대로 처리한다.
+//
+// 부모 좌표(brandId/modelId/trimId)는 **원 요청 값으로 고정** — 교체로 다른 부모에 갈아타면
+// 미리보기·배지가 다른 모델로 이동하고 스냅샷(부모 존재 확인)의 대상도 뒤바뀐다(대상 불변 계약).
+const PARENT_COORD_KEYS = ["brandId", "modelId", "trimId"] as const;
+
+export async function replaceOwnChangeRequest(
+  c: CatalogContext,
+  requestId: string,
+  rawBody: Record<string, unknown>,
+): Promise<Response> {
+  try {
+    const existing = await getChangeRequest(requestId, c.var.db);
+    // 소유·상태를 한 번에 404로 — 남의 요청 id를 찔러도 존재 여부가 새지 않는다(cancel과 같은 결).
+    if (!existing || existing.status !== "pending" || existing.requestedBy !== c.var.user.id) {
+      return c.json({ error: "수정할 대기 요청이 없습니다." }, 404);
+    }
+    const def = CHANGE_KINDS[existing.kind as ChangeRequestKind] as KindDef | undefined;
+    if (!def) return c.json({ error: "알 수 없는 요청 종류입니다." }, 409);
+    const parsed = def.bodySchema.safeParse(rawBody);
+    if (!parsed.success) return c.json({ error: "요청 본문이 올바르지 않습니다." }, 400);
+    // 이 라우트는 요청자 본인(팀장 제안) 전용 — 할인 3필드는 적재 라우트와 같은 규칙으로 제거.
+    const payload = stripDiscountProposal(parsed.data as Record<string, unknown>);
+    for (const k of PARENT_COORD_KEYS) {
+      if (k in existing.payload) payload[k] = existing.payload[k];
+    }
+    const snapshot = await def.buildSnapshot(existing.targetId, payload, c.var.db);
+    if (snapshot === null) return c.json({ error: def.notFoundMsg }, 404);
+    // 적재 시점과 같은 사전 봉쇄(submitChangeRequest 주석 참조) — 교체로도 "절대 승인 불가"
+    // 상태를 만들 수 없게 한다.
+    if (existing.kind === "trim.no-option.set" && Number(snapshot.optionCount) > 0) {
+      return c.json({ error: "옵션이 있는 트림은 '옵션 없음'으로 확정할 수 없습니다." }, 409);
+    }
+    const row = await replaceOwnPendingPayload(requestId, c.var.user.id, payload, snapshot, c.var.db);
+    // 선조회를 지나 승인/반려/취소와 경합 — pending이 아니게 됐으니 같은 404로.
+    if (!row) return c.json({ error: "수정할 대기 요청이 없습니다." }, 404);
+    return c.json({ queued: true, requestId: row.id }, 202);
+  } catch (e) {
     return errorResponse(c, e);
   }
 }

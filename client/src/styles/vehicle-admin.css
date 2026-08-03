@@ -1096,6 +1096,28 @@
 .va-head-back .va-cr-badge {
   margin-left: 0;
 }
+/* 배지의 클릭 팝오버 승격(2026-08-03) — 같은 앰버 pill 외형에 button 기본 크롬만 걷어낸다.
+   diff·승인/반려가 팝오버로 들어가며 배지가 행 안의 유일한 진입점이 된다. */
+button.va-cr-badge-btn {
+  border: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.va-cr-badge-btn:hover {
+  background: rgba(180, 83, 9, 0.2);
+}
+
+/* ── 신규 트림 미리보기 행(2026-08-03) — trim.create pending을 테이블 안에서 보여준다(승인
+   전이라 실 데이터가 아님을 앰버 톤 + 이탤릭 트림명으로 구분). 배지 앰버(#b45309)와 같은 축. */
+.va-row-pending td {
+  background: rgba(180, 83, 9, 0.05);
+}
+.va-row-pending .va-trim-name > span:first-child {
+  font-style: italic;
+  color: #92610a;
+}
 
 /* ── 내 요청 상태 칩(PR3 spec §7.3) — 팀장 "내 요청" 팝오버 행 머리의 대기/승인/반려 표식.
    대기 앰버는 위 .va-cr-badge와 같은 축, 승인 초록·반려 빨강은 이 레포 결과 어휘 색이다. */
