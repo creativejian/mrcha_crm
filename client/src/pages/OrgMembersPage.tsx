@@ -13,7 +13,8 @@ import {
 import { useOrgMembers } from "@/lib/org-members";
 import { formatPhone } from "@/lib/phone-format";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
-import { ProposalTrimsPopover, popoverPosFromRect, type PopoverPos } from "@/components/ProposalTrimsPopover";
+import { ProposalTrimsPopover } from "@/components/ProposalTrimsPopover";
+import { popoverPosFromRect, type PopoverPos } from "@/lib/popover-pos";
 import { fetchBrandsCached } from "@/pages/mc-master/catalog-cache";
 
 // ⚠️ 「조직」·「권한」 탭은 아직 목업이다(2026-07-25 유슨생 결정 — 구성원 탭만 실데이터화).

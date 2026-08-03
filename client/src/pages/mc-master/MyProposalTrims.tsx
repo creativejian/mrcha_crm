@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-import { ProposalTrimsPopover, popoverPosFromRect, type PopoverPos } from "@/components/ProposalTrimsPopover";
+import { ProposalTrimsPopover } from "@/components/ProposalTrimsPopover";
+import { popoverPosFromRect, type PopoverPos } from "@/lib/popover-pos";
 import {
   fetchMyProposalTrims,
   getCachedMyProposalTrims,

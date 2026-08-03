@@ -10,6 +10,8 @@
 // removeChannel(비동기) 중인 옛 채널 객체를 재사용해 조용히 죽는 문제 회피. topic은 전
 // 세션이 같아야 통신되므로 suffix 고유화 금지(같은 topic 공존 구독 충돌은 이 매니저의
 // 단일 채널 보유가 원천 차단한다).
+import { useEffect, useRef } from "react";
+
 import { supabase } from "./supabase";
 
 const TOPIC = "crm-catalog-change-queue";
@@ -68,4 +70,25 @@ export function broadcastCatalogQueueChanged(info?: { applied?: boolean }): void
     event: "queue-changed",
     payload: { applied: info?.applied === true },
   });
+}
+
+/**
+ * 타 세션의 **승인 반영(applied)** 신호에만 재조회를 건다(2026-08-03) — 이전엔 큐 훅들만
+ * broadcast를 구독해 매니저 화면에서 "승인됨" 칩·배지만 뒤집히고 카탈로그 값은 리로딩해야
+ * 보였다. 반려·취소·적재는 catalog 무변이라 걸러진다.
+ * 콜백이 렌더마다 새 함수여도 된다 — ref로 최신본만 참조해 매 렌더 재구독하지 않는다
+ * (재조회 함수들을 useCallback으로 바꾸는 것은 훅 내부 정체성까지 손대야 해 과하다).
+ */
+export function useCatalogQueueApplied(onApplied: () => void): void {
+  const appliedRef = useRef(onApplied);
+  useEffect(() => {
+    appliedRef.current = onApplied;
+  });
+  useEffect(
+    () =>
+      onCatalogQueueRemoteChanged((info) => {
+        if (info.applied) appliedRef.current();
+      }),
+    [],
+  );
 }
