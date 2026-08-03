@@ -15,6 +15,7 @@ const SAVED: CustomerDeliveryInfo = {
   contractDate: "2026-07-15",
   lender: "수기 금융사",
   deliveredDate: null,
+  contractConfirmedDate: null,
   deliveryMemo: null,
   sourceQuoteId: "q-old",
 };
@@ -23,6 +24,7 @@ const EMPTY: CustomerDeliveryInfo = {
   contractDate: null,
   lender: null,
   deliveredDate: null,
+  contractConfirmedDate: null,
   deliveryMemo: null,
   sourceQuoteId: null,
 };
@@ -56,7 +58,7 @@ describe("seedDeliveryInfoDraft (soft pipe — spec §5.3)", () => {
 
   it("contracting 견적이 없으면 빈 폼(저장값만)", () => {
     const draft = seedDeliveryInfoDraft(null, null);
-    expect(draft).toEqual({ contractVehicle: "", contractDate: "", lender: "", deliveredDate: "", deliveryMemo: "", sourceQuoteId: null, seededFields: [] });
+    expect(draft).toEqual({ contractVehicle: "", contractDate: "", lender: "", deliveredDate: "", contractConfirmedDate: "", deliveryMemo: "", sourceQuoteId: null, seededFields: [] });
   });
 
   it("seededFields는 저장 본문에 새지 않는다 — 표시용 메타", () => {
@@ -79,6 +81,7 @@ describe("resolveDeliveryInfoSubmit", () => {
     contractDate: "2026-07-15",
     lender: "",
     deliveredDate: "",
+    contractConfirmedDate: "",
     deliveryMemo: "  ",
     sourceQuoteId: "q-1",
     seededFields: ["contractVehicle"] as const,
@@ -93,6 +96,7 @@ describe("resolveDeliveryInfoSubmit", () => {
         contractDate: "2026-07-15",
         lender: null,
         deliveredDate: null,
+        contractConfirmedDate: null,
         deliveryMemo: null,
         sourceQuoteId: "q-1",
       },

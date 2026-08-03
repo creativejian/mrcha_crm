@@ -31,7 +31,7 @@ describe("listCustomers delivery·contractingQuote 파생 (출고 2단계 spec �
     const cid = await seedCustomer();
     await db.insert(customerDeliveries).values({ customerId: cid, contractVehicle: "BMW 520i", contractDate: "2026-07-15", lender: "iM캐피탈", deliveryMemo: "탁송 조율" });
     const mine = (await listCustomers(db)).find((r) => r.id === cid);
-    expect(mine?.delivery).toEqual({ contractVehicle: "BMW 520i", contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: null, deliveryMemo: "탁송 조율", sourceQuoteId: null });
+    expect(mine?.delivery).toEqual({ contractVehicle: "BMW 520i", contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: null, contractConfirmedDate: null, deliveryMemo: "탁송 조율", sourceQuoteId: null });
   });
 
   test("delivery 행·contracting 견적이 없으면 둘 다 null", async () => {
@@ -75,7 +75,7 @@ describe("listCustomers delivery·contractingQuote 파생 (출고 2단계 spec �
       return row.at ? new Date(row.at).getTime() : 0;
     };
     const before = await activityOf();
-    const saved = await upsertCustomerDelivery(cid, { contractVehicle: "활동편입검증", contractDate: null, lender: null, deliveredDate: null, deliveryMemo: null, sourceQuoteId: null }, db);
+    const saved = await upsertCustomerDelivery(cid, { contractVehicle: "활동편입검증", contractDate: null, lender: null, deliveredDate: null, contractConfirmedDate: null, deliveryMemo: null, sourceQuoteId: null }, db);
     expect(saved.kind).toBe("saved");
     expect(await activityOf()).toBeGreaterThan(before);
   });

@@ -782,6 +782,10 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
         <datalist id="delivery-lender-options">{SOLUTION_LENDERS.map((l) => <option key={l.code} value={l.label} />)}</datalist>
       </label>
       <label><span>출고 실측일</span><DateTextField onValueChange={(v) => set({ deliveredDate: v })} value={draft.deliveredDate} /></label>
+      {/* 계약 확정일 = **실적 귀속 기준**(2026-08-03 이사님). 인도 후 URL 인증까지 끝난 날이고,
+          월을 넘기면 확정된 달의 실적이다. 위 실측일과 나란히 두되 라벨을 구분한다 — 현장에서는
+          둘 다 "출고"라 부르지만 여기서는 어느 칸에 뭘 넣을지 명확해야 한다. */}
+      <label><span>계약 확정일</span><DateTextField onValueChange={(v) => set({ contractConfirmedDate: v })} value={draft.contractConfirmedDate} /></label>
       <label><span>탁송/정비 메모</span><textarea onChange={(e) => set({ deliveryMemo: e.target.value })} rows={3} value={draft.deliveryMemo} /></label>
       {/* 정산 — admin에게만 렌더된다. 서버가 진짜 게이트이고(requireRoles) 이건 UI 보조다. */}
       {canEditSettlement && (

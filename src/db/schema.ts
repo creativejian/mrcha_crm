@@ -425,6 +425,15 @@ export const customerDeliveries = crm.table("customer_deliveries", {
   contractDate: date("contract_date"),
   lender: text("lender"), // 금융사 스냅샷(자유 텍스트 — 솔루션 8사 어휘와 의도적 비결합, spec S4)
   deliveredDate: date("delivered_date"), // 출고 실측일 — 상태 전이와 완전 독립(spec S6, 결합 없음 원칙)
+  // ⚠️ **실적 귀속 기준은 아래 contractConfirmedDate다 — deliveredDate가 아니다**(2026-08-03 이사님).
+  // 차량 인도(deliveredDate) 후 상담사가 고객·금융사 사이에서 URL 인증·해피콜을 마무리하는 단계가
+  // 있고, **그게 끝나야 수수료가 집계된다**. 보통 당일~일주일이지만 월을 넘기면 확정된 달의 실적이다
+  // (7월 출고·8월 확정 = 8월 실적). 이 구간에서만 취소·지연이 생긴다(차량 문제·고객 변심) —
+  // 확정 이후에는 조건이 바뀌지 않으므로 실적 금액을 스냅샷으로 굳힐 필요도 없다.
+  // ⚠️ **현장에서는 이 확정을 그냥 "출고"라고 부른다**("7월 출고 86대"). 그래서 화면 라벨은 "출고"지만
+  // 코드에서는 두 날짜를 반드시 구분한다 — 같은 단어로 두 사건을 가리키다가 실제로 실적 집계를
+  // 인도일 기준으로 잘못 구현한 적이 있다(#432, 같은 날 정정).
+  contractConfirmedDate: date("contract_confirmed_date"),
   deliveryMemo: text("delivery_memo"), // 탁송/정비 메모
   // ── 정산(2026-08-03, spec 2026-08-03-crm-delivery-revenue-design §6) — **admin 전용 축** ──
   // 실적(출고 기준)과 다른 축이다: 실적은 취급 규모, 이것은 회사에 실제로 들어온 돈이다.

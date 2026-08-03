@@ -37,7 +37,7 @@ async function put(customerId: string, body: unknown, role = "admin"): Promise<R
   });
 }
 
-const FULL = { contractVehicle: "BMW 520i", contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: null, deliveryMemo: "탁송 조율", sourceQuoteId: null };
+const FULL = { contractVehicle: "BMW 520i", contractDate: "2026-07-15", lender: "iM캐피탈", deliveredDate: null, contractConfirmedDate: null, deliveryMemo: "탁송 조율", sourceQuoteId: null };
 
 test("PUT /delivery — 생성 → 갱신 왕복(고객당 1행 upsert) + DB 대조 + updated_at 스탬프", async () => {
   const cid = await seedCustomer();

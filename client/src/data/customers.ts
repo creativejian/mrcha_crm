@@ -117,7 +117,10 @@ export type CustomerDeliveryInfo = {
   contractVehicle: string | null;
   contractDate: string | null; // YYYY-MM-DD
   lender: string | null;
-  deliveredDate: string | null; // YYYY-MM-DD
+  deliveredDate: string | null; // YYYY-MM-DD — 차량 인도일
+  /** 계약 확정일 — **실적 귀속 기준**(2026-08-03 이사님). 인도 후 URL 인증까지 끝난 날.
+   * 현장에서는 이 확정을 "출고"라고 부르지만(화면 라벨도 "전체 출고") 인도일과는 다른 사건이다. */
+  contractConfirmedDate: string | null;
   deliveryMemo: string | null;
   sourceQuoteId: string | null;
 };

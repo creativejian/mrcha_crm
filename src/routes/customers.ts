@@ -671,6 +671,7 @@ const deliveryBody = z.object({
   contractDate: deliveryDateField,
   lender: deliveryTextField,
   deliveredDate: deliveryDateField,
+  contractConfirmedDate: deliveryDateField,
   deliveryMemo: deliveryTextField,
   sourceQuoteId: z.uuid().nullable(),
 });
