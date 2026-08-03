@@ -1105,6 +1105,19 @@
 /* font: inherit(축약형 — family 정규화: theme.css 컨트롤 규칙이 textarea 미포함)를 **먼저** 두고 크기를
    뒤에 — 역순이면 축약형이 font-size를 상속 11px로 재설정한다(배치 11 B#5. inherit 삭제는 비권장 박제). */
 .delivery-info-popover textarea { border: 1px solid #dededb; border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 12px; resize: vertical; }
+/* 프리필 힌트 — 저장값이 없어 계약 진행 견적에서 채운 칸에만 붙는다(soft pipe 규칙의 가시화).
+   라벨(grid) 안이라 span 자체는 블록이므로, 힌트만 inline으로 띄워 라벨 텍스트 옆에 붙인다. */
+.delivery-seed-hint {
+  margin-left: 6px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: #eef2f6;
+  color: #6b7280;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 /* 회원탈퇴 확인 대기 알림(2026-08-01 spec §4-2) — 목록 상단. 자동으로 사라지지 않는다(확인·자동
    실행으로 큐가 비면 소멸). 색은 실패 안내(#b42318) 계열 — 미확인 5일 후 자동 처리라 경고 톤. */

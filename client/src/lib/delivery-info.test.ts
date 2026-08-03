@@ -33,6 +33,7 @@ describe("seedDeliveryInfoDraft (soft pipe — spec §5.3)", () => {
     expect(draft.contractVehicle).toBe("BMW 5 Series 520i");
     expect(draft.lender).toBe("iM캐피탈");
     expect(draft.sourceQuoteId).toBe("q-1");
+    expect(draft.seededFields).toEqual(["contractVehicle", "lender"]);
   });
 
   it("저장값이 있으면 프리필하지 않는다(수기 우선) — sourceQuoteId는 기존값 승계", () => {
@@ -40,6 +41,8 @@ describe("seedDeliveryInfoDraft (soft pipe — spec §5.3)", () => {
     expect(draft.contractVehicle).toBe("수기 차량");
     expect(draft.lender).toBe("수기 금융사");
     expect(draft.sourceQuoteId).toBe("q-old");
+    // 저장값을 그대로 보여주는 것뿐이므로 "견적에서 가져옴" 힌트가 뜨면 안 된다.
+    expect(draft.seededFields).toEqual([]);
   });
 
   it("일부 필드만 비면 그 필드만 시드하고 sourceQuoteId는 시드 견적으로 갱신", () => {
@@ -47,11 +50,21 @@ describe("seedDeliveryInfoDraft (soft pipe — spec §5.3)", () => {
     expect(draft.contractVehicle).toBe("수기 차량");
     expect(draft.lender).toBe("iM캐피탈");
     expect(draft.sourceQuoteId).toBe("q-1");
+    // 힌트는 실제로 채운 칸에만 — 수기 차량에는 붙지 않는다.
+    expect(draft.seededFields).toEqual(["lender"]);
   });
 
   it("contracting 견적이 없으면 빈 폼(저장값만)", () => {
     const draft = seedDeliveryInfoDraft(null, null);
-    expect(draft).toEqual({ contractVehicle: "", contractDate: "", lender: "", deliveredDate: "", deliveryMemo: "", sourceQuoteId: null });
+    expect(draft).toEqual({ contractVehicle: "", contractDate: "", lender: "", deliveredDate: "", deliveryMemo: "", sourceQuoteId: null, seededFields: [] });
+  });
+
+  it("seededFields는 저장 본문에 새지 않는다 — 표시용 메타", () => {
+    const draft = seedDeliveryInfoDraft(null, QUOTE);
+    const submit = resolveDeliveryInfoSubmit(draft);
+    expect(submit.kind).toBe("save");
+    if (submit.kind !== "save") return;
+    expect(submit.body).not.toHaveProperty("seededFields");
   });
 
   it("트림이 모델을 포함하면 중복 없이(dedupedModelTrim 재사용)", () => {
@@ -68,6 +81,7 @@ describe("resolveDeliveryInfoSubmit", () => {
     deliveredDate: "",
     deliveryMemo: "  ",
     sourceQuoteId: "q-1",
+    seededFields: ["contractVehicle"] as const,
   };
 
   it("빈 문자열·공백은 null, 텍스트는 trim, 날짜는 정규화해 body로", () => {
