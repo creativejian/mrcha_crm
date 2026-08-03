@@ -2,13 +2,14 @@
 // CustomerManagementPage.renderRow가 이 셀들을 조립한다.
 // 셀별 props는 각 셀이 의존하는 상태/핸들러/ref와 1:1로 대응한다.
 import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
-import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
+import { CHANCE_OPTIONS, type Customer, type CustomerSettlement, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
-import { deliveryInfoSummary, seedDeliveryInfoDraft, type DeliveryInfoDraft, type SeedableDeliveryField } from "@/lib/delivery-info";
+import { deliveryInfoSummary, resolveSettlementSubmit, seedDeliveryInfoDraft, type DeliveryInfoDraft, type SeedableDeliveryField } from "@/lib/delivery-info";
+import { fetchCustomerSettlement } from "@/lib/customer-children";
 import { SOLUTION_LENDERS } from "@/lib/solution-quote";
 import { useFixedPopoverPosition } from "@/lib/use-fixed-popover-position";
 
@@ -650,6 +651,7 @@ function DeliverySchedulePopover({ initial, notice, saving, onDelete, onSave }: 
 
 // 출고 정보 셀(출고 2단계 spec §5.1·§5.3) — 요약 줄 버튼 + 폼형 팝오버(soft pipe 프리필).
 export function CustomerDeliveryInfoCell({
+  canEditSettlement = false,
   customer,
   notice,
   open,
@@ -658,12 +660,14 @@ export function CustomerDeliveryInfoCell({
   onSave,
   onToggle,
 }: {
+  /** 정산(입금일·실입금액) 섹션 노출 — admin만. **서버가 진짜 게이트**이고 이건 UI 보조다. */
+  canEditSettlement?: boolean;
   customer: Customer;
   notice: string | null;
   open: boolean;
   popoverRef: RefObject<HTMLDivElement | null>;
   saving: boolean;
-  onSave: (draft: DeliveryInfoDraft) => void;
+  onSave: (draft: DeliveryInfoDraft, settlement: CustomerSettlement | null) => void;
   onToggle: () => void;
 }) {
   const summary = deliveryInfoSummary(customer.delivery);
@@ -691,6 +695,8 @@ export function CustomerDeliveryInfoCell({
         </button>
         {open && (
           <DeliveryInfoPopover
+            canEditSettlement={canEditSettlement}
+            customerId={customer.id ?? null}
             customerName={customer.name}
             draft={seedDeliveryInfoDraft(customer.delivery ?? null, customer.contractingQuote ?? null)}
             notice={notice}
@@ -707,15 +713,38 @@ export function CustomerDeliveryInfoCell({
 // 출고 정보 팝오버 — 폼형(명시 저장·취소: 담당자 변경/고객 등록 관례. 출고 예정의 무취소·경량형과 다른 분류
 // — spec §5.3·B#10 각주). fixed 배치·notice 높이 재계산·스크롤 닫기는 출고 예정 팝오버(T13)와 동일 기계장치.
 // 팝오버는 열릴 때 마운트되므로 useState(draft) 초기값이 곧 시드 — 재오픈마다 새로 시드된다.
-function DeliveryInfoPopover({ customerName, draft: initialDraft, notice, saving, onCancel, onSave }: {
+function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draft: initialDraft, notice, saving, onCancel, onSave }: {
+  canEditSettlement: boolean;
+  customerId: string | null;
   customerName: string;
   draft: DeliveryInfoDraft;
   notice: string | null;
   saving: boolean;
   onCancel: () => void;
-  onSave: (draft: DeliveryInfoDraft) => void;
+  onSave: (draft: DeliveryInfoDraft, settlement: CustomerSettlement | null) => void;
 }) {
   const [draft, setDraft] = useState(initialDraft);
+  // 정산은 목록 응답에 없다(admin 전용 라우트로만 나간다) — 팝오버가 열릴 때 따로 조회한다.
+  // 입금액은 문자열로 들고 있다가 저장 때 파싱한다(입력 중 콤마·빈 칸을 그대로 두기 위해).
+  const [settledAt, setSettledAt] = useState("");
+  const [feeText, setFeeText] = useState("");
+  const [settlementError, setSettlementError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!canEditSettlement || !customerId) return;
+    let cancelled = false;
+    fetchCustomerSettlement(customerId)
+      .then((s) => {
+        if (cancelled) return;
+        setSettledAt(s.settledAt ?? "");
+        setFeeText(s.feeAmount == null ? "" : String(s.feeAmount));
+      })
+      .catch(() => {
+        if (!cancelled) setSettlementError("정산 정보를 불러오지 못했습니다.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canEditSettlement, customerId]);
   const rootRef = useRef<HTMLDivElement>(null);
   // heightDep에 notice 문자열 자체를 넘긴다(Boolean 금지 — 위 DeliverySchedulePopover와 같은 사유).
   const pos = useFixedPopoverPosition(rootRef, ".delivery-info-wrap", notice);
@@ -754,10 +783,37 @@ function DeliveryInfoPopover({ customerName, draft: initialDraft, notice, saving
       </label>
       <label><span>출고 실측일</span><DateTextField onValueChange={(v) => set({ deliveredDate: v })} value={draft.deliveredDate} /></label>
       <label><span>탁송/정비 메모</span><textarea onChange={(e) => set({ deliveryMemo: e.target.value })} rows={3} value={draft.deliveryMemo} /></label>
+      {/* 정산 — admin에게만 렌더된다. 서버가 진짜 게이트이고(requireRoles) 이건 UI 보조다. */}
+      {canEditSettlement && (
+        <div className="delivery-settlement">
+          <strong className="delivery-settlement-title">정산 <span className="badge">관리자</span></strong>
+          <label><span>입금일</span><DateTextField onValueChange={setSettledAt} value={settledAt} /></label>
+          <label>
+            <span>실입금액</span>
+            <span className="delivery-fee-input">
+              <input inputMode="numeric" onChange={(e) => setFeeText(e.target.value)} type="text" value={feeText} />
+              <em>원</em>
+            </span>
+          </label>
+          {settlementError && <p className="delivery-schedule-notice" role="alert">{settlementError}</p>}
+        </div>
+      )}
       {notice && <p className="delivery-schedule-notice" role="alert">{notice}</p>}
       <div className="delivery-schedule-actions">
         <button disabled={saving} onClick={onCancel} type="button">취소</button>
-        <button disabled={saving} onClick={() => onSave(draft)} type="button">{saving ? "저장 중…" : "저장"}</button>
+        <button
+          disabled={saving}
+          onClick={() => {
+            if (!canEditSettlement) return onSave(draft, null);
+            const submit = resolveSettlementSubmit(settledAt, feeText);
+            if (submit.kind === "invalid") return setSettlementError(submit.reason);
+            setSettlementError(null);
+            onSave(draft, submit.body);
+          }}
+          type="button"
+        >
+          {saving ? "저장 중…" : "저장"}
+        </button>
       </div>
     </div>
   );

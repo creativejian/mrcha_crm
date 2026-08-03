@@ -426,6 +426,15 @@ export const customerDeliveries = crm.table("customer_deliveries", {
   lender: text("lender"), // 금융사 스냅샷(자유 텍스트 — 솔루션 8사 어휘와 의도적 비결합, spec S4)
   deliveredDate: date("delivered_date"), // 출고 실측일 — 상태 전이와 완전 독립(spec S6, 결합 없음 원칙)
   deliveryMemo: text("delivery_memo"), // 탁송/정비 메모
+  // ── 정산(2026-08-03, spec 2026-08-03-crm-delivery-revenue-design §6) — **admin 전용 축** ──
+  // 실적(출고 기준)과 다른 축이다: 실적은 취급 규모, 이것은 회사에 실제로 들어온 돈이다.
+  // 리스·렌트는 슬라이딩 수수료(실적의 1% 내외)가, 할부·중고리스는 실입금액 자체가 매출이라
+  // 한 컬럼(feeAmount)이 두 경우를 모두 담는다. 수수료는 **출고 건당 1건**이고 보통 출고 다음 달에
+  // 1회 정산된다(이사님 확정) — 그래서 고객당 1행 구조를 그대로 쓴다(분할 정산 아님).
+  // ⚠️ **고객 목록 응답(queries/customers.ts deliveryInfo)에 이 두 필드를 넣지 말 것** — 읽기도 admin
+  // 전용이라 별도 라우트(/settlement)로만 나간다. customers.settlement-exposure.test.ts가 잠근다.
+  settledAt: date("settled_at"), // 입금일
+  feeAmount: bigint("fee_amount", { mode: "number" }), // 실입금액(리스·렌트=슬라이딩 수수료 / 할부·중고리스=입금액)
   // 프리필이 참조한 계약 진행 견적(provenance) — 견적 삭제 시 SET NULL. 파생 표시엔 안 쓴다(스냅샷이 진실).
   sourceQuoteId: uuid("source_quote_id").references(() => quotes.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

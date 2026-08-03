@@ -111,6 +111,8 @@ export const SCHEDULE_TYPE_OPTIONS: readonly string[] = ["재연락", "결정확
 export type NextDeliverySchedule = { id: string; date: string; time: string | null };
 
 // 출고 정보(crm.customer_deliveries) — 목록 파생·팝오버 편집 공유 shape(2026-07-20 출고 2단계 spec §3).
+// ⚠️ **정산 필드(settledAt·feeAmount)를 여기 넣지 말 것**(2026-08-03) — 이 타입은 고객 목록 응답에
+// 실려 전 역할에게 나가는데, 정산은 admin 전용 축이다. 아래 CustomerSettlement가 별도로 담당한다.
 export type CustomerDeliveryInfo = {
   contractVehicle: string | null;
   contractDate: string | null; // YYYY-MM-DD
@@ -118,6 +120,14 @@ export type CustomerDeliveryInfo = {
   deliveredDate: string | null; // YYYY-MM-DD
   deliveryMemo: string | null;
   sourceQuoteId: string | null;
+};
+
+// 정산 정보(crm.customer_deliveries의 admin 전용 2필드) — 읽기·쓰기 모두 admin만(유슨생 결정 2026-08-03).
+// 같은 테이블에 살지만 **타입을 분리**한다: 출고 팝오버가 쓰는 CustomerDeliveryInfo에 섞이면
+// 비admin 저장 요청이 정산 필드를 빈 값으로 실어 보내 덮어쓴다.
+export type CustomerSettlement = {
+  settledAt: string | null; // 입금일 YYYY-MM-DD
+  feeAmount: number | null; // 실입금액(원) — 리스·렌트는 슬라이딩 수수료, 할부·중고리스는 입금액 자체
 };
 
 // 계약 진행(decision_status='contracting') 견적 요약 — 출고 정보 팝오버 프리필 소스(소프트 파이프, spec §4).

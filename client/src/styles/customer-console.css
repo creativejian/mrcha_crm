@@ -1105,6 +1105,46 @@
 /* font: inherit(축약형 — family 정규화: theme.css 컨트롤 규칙이 textarea 미포함)를 **먼저** 두고 크기를
    뒤에 — 역순이면 축약형이 font-size를 상속 11px로 재설정한다(배치 11 B#5. inherit 삭제는 비권장 박제). */
 .delivery-info-popover textarea { border: 1px solid #dededb; border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 12px; resize: vertical; }
+/* 정산 섹션(2026-08-03) — admin에게만 렌더된다. 출고 정보와 다른 축이라 구분선으로 떼어낸다
+   (같은 팝오버지만 저장 라우트도 권한도 다르다). */
+.delivery-settlement {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line-soft, #eceae6);
+  padding-top: 10px;
+}
+.delivery-settlement-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #26313b;
+}
+.delivery-settlement-title .badge {
+  min-height: 18px;
+  padding: 0 6px;
+  font-size: 10px;
+}
+/* 금액 칸 — 단위를 칸 안 오른쪽에 붙인다(딜러 할인 입력칸과 같은 결). */
+.delivery-fee-input {
+  position: relative;
+  display: block;
+}
+.delivery-fee-input input {
+  width: 100%;
+  padding-right: 26px;
+  text-align: right;
+}
+.delivery-fee-input em {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
 /* 프리필 힌트 — 저장값이 없어 계약 진행 견적에서 채운 칸에만 붙는다(soft pipe 규칙의 가시화).
    라벨(grid) 안이라 span 자체는 블록이므로, 힌트만 inline으로 띄워 라벨 텍스트 옆에 붙인다. */
 .delivery-seed-hint {

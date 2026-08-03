@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
+import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, type CustomerSettlement, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
 import { aiHintPlainText, badgeClass, chanceBadgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
@@ -13,7 +13,7 @@ import { bindSelect } from "@/lib/select-bind";
 import { useStaffDirectory } from "@/lib/staff";
 import { changeAdvisorBulk } from "@/lib/customer-bulk-advisor";
 import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-delete";
-import { addSchedule, deleteSchedule, saveCustomerDelivery, updateSchedule } from "@/lib/customer-children";
+import { addSchedule, deleteSchedule, saveCustomerDelivery, saveCustomerSettlement, updateSchedule } from "@/lib/customer-children";
 import { compareDeliverySchedule, DELIVERY_PILL_IN_PROGRESS, DELIVERY_STAGE_PILLS, deliveryCountLabel, deliveryPillCounts, matchesDeliveryPill, resolveDeliveryScheduleSubmit } from "@/lib/delivery-console";
 import { resolveDeliveryInfoSubmit, type DeliveryInfoDraft } from "@/lib/delivery-info";
 import { prefetchCustomerConsultations } from "@/lib/consultations";
@@ -228,6 +228,8 @@ export function CustomerManagementPage({
   const [openPageSize, setOpenPageSize] = useState(false);
   // 고객 삭제 — admin만. 서버가 진짜 게이트이고(403 fail-closed) 여기 숨김은 UX 보조다.
   const canDeleteCustomers = roleTab === "최고관리자";
+  // 정산(입금일·실입금액)은 admin 단독 — 서버 requireRoles가 진짜 게이트이고 이건 UI 보조다.
+  const canEditSettlement = roleTab === "최고관리자";
   // 탈퇴 인지 큐(2026-08-01 spec §4) — 상단 알림 + 행 배지. 캐시 공유·구독(드로어 확인 실행 시
   // 즉시 반영) + 60초 폴링 폴백(MC 마스터 승인 대기 배지 선례). 딜러는 서버 403이라 아예 안 부른다.
   const [deletionJobs, setDeletionJobs] = useState<DeletionJob[]>([]);
@@ -764,7 +766,7 @@ export function CustomerManagementPage({
   }
 
   // 성공 반영 = 서버 리로드 규약(#234) + 리로드 false 실패 분기(배치 10 B#1) — saveDeliverySchedule 미러.
-  async function saveDeliveryInfo(customer: Customer, draft: DeliveryInfoDraft) {
+  async function saveDeliveryInfo(customer: Customer, draft: DeliveryInfoDraft, settlement: CustomerSettlement | null) {
     const submit = resolveDeliveryInfoSubmit(draft);
     if (submit.kind === "invalid") { setDeliveryInfoNotice({ no: customer.no, message: submit.reason }); return; }
     if (!customer.id) { setDeliveryInfoNotice({ no: customer.no, message: "목업 행에는 저장할 수 없습니다." }); return; }
@@ -773,6 +775,17 @@ export function CustomerManagementPage({
     setDeliveryInfoNotice(null);
     try {
       await saveCustomerDelivery(cid, submit.body);
+      // 정산은 별도 라우트(admin 전용)라 호출이 한 번 더 나간다. **출고 저장 뒤에** 부른다 —
+      // 출고 행이 없는 고객이면 정산 upsert가 그 행을 만들어 버려 계약 정보가 빈 행이 생긴다.
+      // 여기서 실패하면 출고는 이미 저장된 상태이므로 부분 성공을 정직하게 알린다.
+      if (settlement) {
+        try {
+          await saveCustomerSettlement(cid, settlement);
+        } catch {
+          setDeliveryInfoNotice({ no: customer.no, message: "출고 정보는 저장했지만 정산 저장에 실패했습니다." });
+          return;
+        }
+      }
       if (onCustomerListChanged) {
         const ok = await onCustomerListChanged();
         if (ok === false) {
@@ -957,12 +970,13 @@ export function CustomerManagementPage({
             onToggle={() => toggleDeliverySchedulePopover(customer.no)}
           />
           <CustomerDeliveryInfoCell
+            canEditSettlement={canEditSettlement}
             customer={customer}
             notice={deliveryInfoNotice?.no === customer.no ? deliveryInfoNotice.message : null}
             open={openDeliveryInfoFor === customer.no}
             popoverRef={deliveryInfoPopoverRef}
             saving={savingDeliveryInfoFor === customer.no}
-            onSave={(draft) => void saveDeliveryInfo(customer, draft)}
+            onSave={(draft, settlement) => void saveDeliveryInfo(customer, draft, settlement)}
             onToggle={() => toggleDeliveryInfoPopover(customer.no)}
           />
           <td>{customer.deliveryMethod || "—"}</td>

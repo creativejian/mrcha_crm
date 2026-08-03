@@ -15,7 +15,11 @@ import { addDocument, deleteDocument, getDocumentPath, nextSortOrder, reorderDoc
 import { createQuote, deleteQuote, updateQuote, setQuoteFile, clearQuoteFile, getQuoteFilePath } from "../db/queries/customer-quotes";
 import { deleteCustomer, quoteStoragePath } from "../db/queries/customer-delete";
 import { hasReceivedDeletionJob } from "../db/queries/deletion-jobs";
-import { upsertCustomerDelivery } from "../db/queries/customer-delivery";
+import {
+  getCustomerSettlement,
+  upsertCustomerDelivery,
+  upsertCustomerSettlement,
+} from "../db/queries/customer-delivery";
 import { getStaffName } from "../db/queries/staff";
 import { resolveCustomerScope } from "../lib/assistant-scope";
 import { normalizePhoneDigits } from "../lib/customer-phone";
@@ -27,6 +31,7 @@ import { createSignedUrl, removeObject, removeObjects, uploadObject, type Storag
 import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
 import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
+import { requireRoles } from "../middleware/role-gate";
 import { errorResponse, run } from "./shared";
 import { CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
 import { canWriteQuote, QUOTE_WRITE_DENIED_MESSAGE } from "../../client/src/lib/quote-write-access";
@@ -680,6 +685,40 @@ customers.put("/:id/delivery", zValidator("param", idParam), zValidator("json", 
     return errorResponse(c, e);
   }
 });
+
+// ── 정산(admin 전용 — 읽기·쓰기 모두, 유슨생 결정 2026-08-03) ──────────
+// 출고 정보(`PUT /:id/delivery`)와 **같은 행**을 쓰지만 라우트를 나눈다. 게이트를 라우트 단위로 두면
+// 필드 단위 마스킹(레포에 선례 없음)을 만들지 않아도 되고, 고객 목록 응답이 정산을 실어 나르지
+// 않으므로 읽기 차단이 구조적으로 달성된다(customers.settlement-exposure.test.ts가 잠근다).
+// ⚠️ manager(팀장)도 403이다 — 경영 리포트(admin 단독)와 같은 축으로 맞췄다. 팀장까지 열려면
+// 아래 두 곳의 배열에 "manager"를 더하면 된다(그건 이사님·유슨생 결정 사항).
+const settlementBody = z.object({
+  settledAt: deliveryDateField,
+  // 실입금액(원). 음수는 입금 개념상 성립하지 않아 zod에서 막는다(빈 칸은 null = 값 지우기).
+  feeAmount: z.number().int().nonnegative().nullable(),
+});
+
+customers.get("/:id/settlement", requireRoles(["admin"]), zValidator("param", idParam), async (c) => {
+  const row = await getCustomerSettlement(c.req.valid("param").id, c.var.db);
+  // 출고 정보 행 자체가 없는 고객도 팝오버를 열 수 있다 — 빈 값으로 응답해 클라가 분기하지 않게 한다.
+  return c.json(row ?? { settledAt: null, feeAmount: null });
+});
+
+customers.put(
+  "/:id/settlement",
+  requireRoles(["admin"]),
+  zValidator("param", idParam),
+  zValidator("json", settlementBody),
+  async (c) => {
+    try {
+      const result = await upsertCustomerSettlement(c.req.valid("param").id, c.req.valid("json"), c.var.db);
+      if (result.kind === "customer_not_found") return c.json({ error: "고객을 찾을 수 없습니다." }, 404);
+      return c.json(result.row);
+    } catch (e) {
+      return errorResponse(c, e);
+    }
+  },
+);
 
 // ── 견적 생성(composer 견적 작성 → quote + 대표 시나리오 INSERT) ──────
 customers.post("/:id/quotes", zValidator("param", idParam), zValidator("json", quoteCreateBody), async (c) => {
