@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 
-import { currentMonthKey, isMonthKey, monthRangeUtc, prevMonthKey } from "./report-month";
+import { currentMonthKey, isMonthKey, monthRangeDate, monthRangeUtc, prevMonthKey } from "./report-month";
 
 test("isMonthKey: YYYY-MM만 통과 — 형식 이탈은 라우트 400의 근거", () => {
   expect(isMonthKey("2026-07")).toBe(true);
@@ -41,6 +41,12 @@ test("monthRangeUtc: 12월은 다음 해로 넘어간다", () => {
   const { start, end } = monthRangeUtc("2026-12");
   expect(start.toISOString()).toBe("2026-11-30T15:00:00.000Z");
   expect(end.toISOString()).toBe("2026-12-31T15:00:00.000Z");
+});
+
+test("monthRangeDate: date 컬럼용 경계 — 다음 달 1일이 상한(배타)", () => {
+  expect(monthRangeDate("2026-07")).toEqual({ start: "2026-07-01", end: "2026-08-01" });
+  expect(monthRangeDate("2026-12")).toEqual({ start: "2026-12-01", end: "2027-01-01" });
+  expect(monthRangeDate("2026-01")).toEqual({ start: "2026-01-01", end: "2026-02-01" });
 });
 
 test("monthRangeUtc: 경계 시각이 정확히 한 달만 덮는다(월말 23:59:59 KST 포함·익월 00:00 제외)", () => {

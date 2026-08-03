@@ -27,6 +27,15 @@ export function prevMonthKey(month: string): string {
   return `${prev.y}-${String(prev.m).padStart(2, "0")}`;
 }
 
+// 그 달의 경계를 **날짜(date) 문자열**로. `customer_deliveries.delivered_date`처럼 timestamptz가 아니라
+// date인 컬럼용이다 — 사용자가 친 달력 날짜 그대로라 타임존 환산 대상이 아니고, UTC 시각으로 비교하면
+// 월 경계에서 하루가 밀린다. 상한 배타(다음 달 1일).
+export function monthRangeDate(month: string): { start: string; end: string } {
+  const { year, month: mon } = parse(month);
+  const next = mon === 12 ? { y: year + 1, m: 1 } : { y: year, m: mon + 1 };
+  return { start: `${month}-01`, end: `${next.y}-${String(next.m).padStart(2, "0")}-01` };
+}
+
 // 그 달의 KST 경계를 UTC 시각으로. 상한 배타 — 쿼리는 `>= start AND < end`로 쓴다
 // (`<= 말일 23:59:59`는 그 사이 마이크로초를 흘린다).
 export function monthRangeUtc(month: string): { start: Date; end: Date } {
