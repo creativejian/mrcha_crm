@@ -8,7 +8,7 @@ import { CHANCE_OPTIONS, type Customer, type CustomerSettlement, customerStatusG
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
-import { deliveryInfoSummary, resolveSettlementSubmit, seedDeliveryInfoDraft, type DeliveryInfoDraft, type SeedableDeliveryField } from "@/lib/delivery-info";
+import { deliveryInfoSummary, resolveSettlementSubmit, seedDeliveryInfoDraft, unconfirmedDeliveryDays, type DeliveryInfoDraft, type SeedableDeliveryField } from "@/lib/delivery-info";
 import { fetchCustomerSettlement } from "@/lib/customer-children";
 import { SOLUTION_LENDERS } from "@/lib/solution-quote";
 import { useFixedPopoverPosition } from "@/lib/use-fixed-popover-position";
@@ -671,6 +671,9 @@ export function CustomerDeliveryInfoCell({
   onToggle: () => void;
 }) {
   const summary = deliveryInfoSummary(customer.delivery);
+  // 인도됐는데 계약 확정이 안 된 건 — 취소·지연이 생기는 유일한 구간이라 상담사가 챙겨야 한다
+  // (2026-08-03 이사님: 1일 초과부터). 확정이 밀리면 실적 인식도 그만큼 밀린다.
+  const unconfirmedDays = unconfirmedDeliveryDays(customer.delivery);
   return (
     <td className="delivery-info-cell">
       <div className="delivery-info-wrap" ref={open ? popoverRef : undefined}>
@@ -686,7 +689,12 @@ export function CustomerDeliveryInfoCell({
           {summary ? (
             <span className="delivery-info-lines">
               {summary.contractLine && <span>{summary.contractLine}</span>}
-              {summary.deliveredLine && <span>{summary.deliveredLine}</span>}
+              {summary.deliveredLine && (
+                <span>
+                  {summary.deliveredLine}
+                  {unconfirmedDays != null && <em className="delivery-unconfirmed">미확정 {unconfirmedDays}일</em>}
+                </span>
+              )}
               {summary.fallback && <span>{summary.fallback}</span>}
             </span>
           ) : (

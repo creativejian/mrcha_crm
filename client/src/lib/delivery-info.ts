@@ -1,6 +1,7 @@
 import type { ContractingQuoteSummary, CustomerDeliveryInfo, CustomerSettlement } from "@/data/customers";
 import { dedupedModelTrim } from "@/lib/app-card-labels";
 import { normalizeDateText } from "@/lib/datetime-text";
+import { kstDayIndex } from "@/lib/manage-status";
 
 // ── 출고 정보 팝오버 순수 계층(2026-07-20 출고 2단계 spec §5.1·§5.3) — 전부 순수 함수 ──
 
@@ -102,6 +103,30 @@ export function resolveSettlementSubmit(settledAtText: string, feeText: string):
   const settledAt = normalizeDateText(dateRaw);
   if (!settledAt) return { kind: "invalid", reason: "입금일은 2026-09-10처럼 년-월-일 형식으로 입력해 주세요." };
   return { kind: "save", body: { settledAt, feeAmount } };
+}
+
+// ── 출고 후 미확정 추적(2026-08-03 이사님) ────────────────────────────────
+// 차량 인도와 계약 확정 사이가 **취소·지연이 생기는 유일한 구간**이다(차량 문제면 확정 지연,
+// 계약 문제면 확정까지 못 감). 확정이 늦어지면 그만큼 실적 인식도 밀리므로 상담사가 챙겨야 한다.
+//
+// 임계값 = **1일 초과부터**(이사님 컨펌). 출고 다음 날에도 확정이 안 됐으면 신호로 본다 —
+// 실무상 확정은 당일~일주일이지만 이사님은 하루만 넘겨도 보이길 원하셨다.
+// ⚠️ export하지 않는다 — 이 파일 안에서만 쓰는 값이라 밖으로 열면 knip이 잡는다(#333 선례).
+// 임계값을 바꾸려면 여기 숫자 하나만 고치면 된다.
+const UNCONFIRMED_ALERT_DAYS = 1;
+
+// 인도됐는데 아직 확정 안 된 건의 경과 일수. 임계 미만이거나 해당 없으면 null(배지 미표시).
+// ⚠️ 일수는 **KST 달력일** 기준이다(브라우저 로컬 tz가 아니라) — 해외에서 접속해도 서버 지표와
+// 같은 숫자여야 하고, 그 산술은 manage-status.kstDayIndex 한 벌을 공유한다.
+export function unconfirmedDeliveryDays(
+  info: CustomerDeliveryInfo | null | undefined,
+  now: Date = new Date(),
+): number | null {
+  if (!info?.deliveredDate || info.contractConfirmedDate) return null;
+  const delivered = new Date(`${info.deliveredDate}T00:00:00+09:00`);
+  if (Number.isNaN(delivered.getTime())) return null;
+  const days = kstDayIndex(now) - kstDayIndex(delivered);
+  return days >= UNCONFIRMED_ALERT_DAYS ? days : null;
 }
 
 export type DeliveryInfoSummary = { contractLine: string | null; deliveredLine: string | null; fallback: string | null };

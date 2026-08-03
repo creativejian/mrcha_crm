@@ -32,7 +32,7 @@ const KST_OFFSET_MS = 9 * 3_600_000;
 // KST 달력일 인덱스 — 서버 kst-date.kstDayIndex와 같은 산술(물리 공유 불가: 클라 런타임은 src/를 import
 // 하지 않는다). 브라우저 로컬 tz를 쓰면 해외 tz에서 서버 도구(stale_customers)와 일수가 갈린다.
 // 동치는 manage-status-parity.test.ts가 잠근다.
-const kstDayIndex = (d: Date) => Math.floor((d.getTime() + KST_OFFSET_MS) / MS_DAY);
+export const kstDayIndex = (d: Date) => Math.floor((d.getTime() + KST_OFFSET_MS) / MS_DAY);
 
 // 라벨(customer-table.operationDateValue가 파싱하는 "N월 N일 HH:mm" 계약 포맷)·days(KST 달력일)·atIso 조립 1벌.
 // deriveFinalUpdateInfo·manualUpdateInfo가 공유 — 파싱 계약 포맷 문자열이 이중 관리되던 것 해소(3-B).
