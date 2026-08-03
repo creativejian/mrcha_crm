@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { CHANGE_KIND_LABELS } from "@/lib/catalog-change-kinds";
@@ -65,9 +65,30 @@ export function PendingRequestBadge({
   const popRef = useRef<HTMLDivElement>(null);
 
   // 반려 사유 타이핑 중 바깥 클릭으로 닫히지 않게(대기열 팝오버와 같은 guard).
+  // anchorRef = 배지 버튼 재클릭이 pointerdown 닫기 → click 재열기로 이중 발화하지 않게(닫기는 toggle 몫).
   usePopoverDismiss(popRef, open, () => closePopover(), {
     guard: () => Object.values(rowStates).some((s) => s.phase === "rejecting"),
+    anchorRef: btnRef,
   });
+
+  // 스크롤이면 닫는다(2026-08-03 실기) — 좌표가 fixed(뷰포트 고정)라 표가 스크롤되면 팝오버만
+  // 제자리에 남아 엉뚱한 행 위를 떠다닌다. 팝오버 **안**의 스크롤(내용이 길 때 overflow-y)은
+  // 닫지 않는다. capture로 어느 스크롤 컨테이너든 잡는다(table-scroll·window 모두).
+  // closePopover는 렌더마다 새 함수 — ref로 최신본만 참조해 effect가 open에만 반응하게 한다
+  // (usePopoverDismiss의 onDismissRef와 같은 결).
+  const closePopoverRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    closePopoverRef.current = closePopover;
+  });
+  useEffect(() => {
+    if (!open) return;
+    const onScroll = (e: Event) => {
+      if (popRef.current?.contains(e.target as Node)) return;
+      closePopoverRef.current();
+    };
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, [open]);
 
   if (!requests || requests.length === 0) return null;
 

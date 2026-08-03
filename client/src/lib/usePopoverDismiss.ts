@@ -6,6 +6,10 @@ type PopoverDismissOptions = {
   // true를 반환하면 외부 pointerdown 닫기를 건너뛴다(예: 확인 모달이 떠 있을 때).
   // Esc(onDismiss)에는 적용하지 않는다 — 원본 동작과 동일.
   guard?: () => boolean;
+  // 토글 버튼(앵커) ref — 여기서 시작한 pointerdown은 닫지 않는다(2026-08-03). 없으면 앵커
+  // 클릭이 pointerdown(닫기) → click(토글이 다시 열기)로 이중 발화해 **버튼을 다시 눌러도
+  // 팝오버가 안 닫히는 것처럼** 보인다. 닫기는 버튼의 onClick 토글 한 곳이 담당하게 양보한다.
+  anchorRef?: RefObject<HTMLElement | null>;
 };
 
 // 팝오버가 열린(open) 동안 ref 영역 바깥 pointerdown 또는 Escape로 onDismiss를 호출한다.
@@ -32,6 +36,7 @@ export function usePopoverDismiss<T extends HTMLElement>(
 
     function handlePointerDown(event: PointerEvent) {
       if (optionsRef.current?.guard?.()) return;
+      if (optionsRef.current?.anchorRef?.current?.contains(event.target as Node)) return;
       if (!ref.current?.contains(event.target as Node)) onDismissRef.current();
     }
 

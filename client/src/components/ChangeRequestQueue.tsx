@@ -46,6 +46,7 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
   // rejecting 상태를 정리한다.)
   usePopoverDismiss(popRef, open, () => closePopover(), {
     guard: () => Object.values(rowStates).some((s) => s.phase === "rejecting"),
+    anchorRef: btnRef, // 버튼 재클릭 이중 발화 방지(닫기는 toggle 몫 — 2026-08-03)
   });
 
   function stateOf(id: string): RowState {

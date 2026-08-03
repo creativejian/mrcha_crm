@@ -71,3 +71,31 @@ export function splitModelPending(rows: ChangeRequestItem[]): ModelPendingSplit 
   }
   return { byTrim, previews, headerRequests };
 }
+
+// 트림 행 셀 인라인 diff(2026-08-03 이사님 요청) — trim.update pending이 건드리는 필드 중
+// **테이블에 컬럼이 있는 4종**(트림명·가격·연식·상태)만 현재 셀 아래 "→ 새값"으로 보여준다.
+// 나머지 필드(연료·구동·배기량 등)는 컬럼이 없어 배지 팝오버가 계속 담당한다.
+// 변경 판정은 buildChangeDiff와 같은 규칙(payload ≠ snapshot, null 동치) — 미변경 필드는
+// 키를 만들지 않아 렌더가 조용히 건너뛴다. 대상+작업당 pending 1건이라 update는 최대 1건.
+export type PendingCellPatch = { trimName?: string; price?: number; modelYear?: number; status?: string };
+
+const CELL_PATCH_KEYS = ["trimName", "price", "modelYear", "status"] as const;
+
+export function pendingTrimCellPatch(requests: ChangeRequestItem[] | undefined): PendingCellPatch | null {
+  const update = requests?.find((r) => r.kind === "trim.update");
+  if (!update) return null;
+  const snapshot = update.snapshot ?? {};
+  const patch: PendingCellPatch = {};
+  for (const key of CELL_PATCH_KEYS) {
+    if (!(key in update.payload)) continue;
+    const after = update.payload[key] ?? null;
+    if (after === null || after === (snapshot[key] ?? null)) continue;
+    if (key === "price" || key === "modelYear") {
+      const n = Number(after);
+      if (Number.isFinite(n)) patch[key] = n;
+    } else {
+      patch[key] = String(after);
+    }
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
+}

@@ -709,3 +709,14 @@ it("?hlreq= 착지: 접힌 합성 그룹이 펼쳐지고 미리보기 행에 플
   expect(row.className).toContain("va-row-flash");
   expect(row.getAttribute("data-request-id")).toBe("cr-2");
 });
+
+// ── 셀 인라인 diff(2026-08-03 이사님 요청) — 수정 pending의 바뀌는 셀 아래 "→ 새값" ────
+it("trim.update pending: 가격 셀 아래 앰버 '→ 새값'이 뜬다(팝오버 없이 행에서 확인)", async () => {
+  modelPendingRows = [{ ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 }];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  // payload {price: 50,000,000} vs snapshot {price: 45,000,000} — 가격 셀만 diff.
+  expect(await screen.findByText("→ 50,000,000원")).toBeInTheDocument();
+});

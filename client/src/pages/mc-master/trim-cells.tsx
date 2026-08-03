@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { ListChecks } from "lucide-react";
 
-import { statusBadgeTone, statusLabel } from "@/data/vehicle-taxonomy";
+import { statusBadgeTone, statusLabel, type VehicleStatus } from "@/data/vehicle-taxonomy";
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
 import type { TrimProposals } from "@/lib/discount-proposals";
 import { AdminDiscountCells, type AdoptHandler, type UndoHandler } from "./admin-discount-cells";
+import type { PendingCellPatch } from "./pending-preview";
 import { optionBadgeState } from "./option-badge";
 import { applyThousandsInput } from "./thousands-input";
 import { fmtDate, formatThousands, parseWon } from "./trim-format";
@@ -216,6 +217,8 @@ function DealerDiscountCells({
 
 // 트림명 다음 ~ 편집 전 공통 셀(평면/그룹 테이블 컬럼 동기화).
 // onSaveProposal이 있으면 **딜러 모드**다 — 할인 3셀이 내 제안 입력칸으로 바뀐다.
+// pendingPatch(2026-08-03 이사님 요청) = trim.update pending의 셀 인라인 diff — 바뀌는 셀
+// 아래 앰버 "→ 새값"(승인 대기 어휘 색). 팝오버를 안 열어도 무엇이 어떻게 바뀌는지 보인다.
 export function TrimMetaCells({
   trim,
   dealerProposal,
@@ -223,6 +226,7 @@ export function TrimMetaCells({
   proposalEntry,
   onAdopt,
   onUndo,
+  pendingPatch,
 }: {
   trim: CatalogTrim;
   dealerProposal?: DealerDiscountProposal;
@@ -231,12 +235,20 @@ export function TrimMetaCells({
   proposalEntry?: TrimProposals;
   onAdopt?: AdoptHandler;
   onUndo?: UndoHandler;
+  /** 승인 대기 중인 수정의 셀 diff(가격·연식·상태 — 트림명은 이름 셀 소유라 테이블 몫). */
+  pendingPatch?: PendingCellPatch | null;
 }) {
   return (
     <>
       <td className="va-num">{trim.mcCode ?? "—"}</td>
-      <td className="va-col-center va-num">{trim.modelYear ?? "—"}</td>
-      <td className="va-num">{trim.price.toLocaleString()}원</td>
+      <td className="va-col-center va-num">
+        {trim.modelYear ?? "—"}
+        {pendingPatch?.modelYear != null && <div className="va-cell-pending">→ {pendingPatch.modelYear}</div>}
+      </td>
+      <td className="va-num">
+        {trim.price.toLocaleString()}원
+        {pendingPatch?.price != null && <div className="va-cell-pending">→ {pendingPatch.price.toLocaleString()}원</div>}
+      </td>
       <td className="va-col-center va-num va-muted va-c-date">{fmtDate(trim.priceUpdatedAt)}</td>
       {onSaveProposal ? (
         <DealerDiscountCells onSave={onSaveProposal} proposal={dealerProposal} trim={trim} />
@@ -252,6 +264,9 @@ export function TrimMetaCells({
       </td>
       <td className="va-col-center">
         <span className={`badge ${statusBadgeTone(trim.status)}`}>{statusLabel(trim.status)}</span>
+        {pendingPatch?.status != null && (
+          <div className="va-cell-pending">→ {statusLabel(pendingPatch.status as VehicleStatus)}</div>
+        )}
       </td>
     </>
   );
