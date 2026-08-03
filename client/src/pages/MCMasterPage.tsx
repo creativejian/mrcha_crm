@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckSquare, FolderInput, Hash, Plus } from "lucide-react";
 
@@ -24,15 +24,13 @@ import {
   updateTrim,
 } from "@/lib/catalog";
 import { useAuth } from "@/auth/AuthProvider";
-import { CHANGE_KIND_LABELS, type ChangeRequestKind } from "@/lib/catalog-change-kinds";
-import { onCatalogQueueRemoteChanged } from "@/lib/catalog-change-realtime";
-import { type ChangeRequestItem, useModelPendingRequests } from "@/lib/catalog-change-requests";
-import { waitingLabel } from "@/lib/chat";
+import type { ChangeRequestKind } from "@/lib/catalog-change-kinds";
+import { useCatalogQueueApplied } from "@/lib/catalog-change-realtime";
+import type { ChangeRequestItem } from "@/lib/catalog-change-requests";
 import { useDealerDiscounts } from "@/lib/dealer-discounts";
 import { useDealerMe } from "@/lib/dealer-profiles";
 import type { DiscountField } from "@/lib/discount-adoption";
 import { useTrimProposals } from "@/lib/discount-proposals";
-import { useStaffDirectory } from "@/lib/staff";
 import { BrandSidebar } from "./mc-master/BrandSidebar";
 import {
   invalidateCatalogAfterApproval,
@@ -51,16 +49,20 @@ import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
 import { MoveTrimsDialog } from "./mc-master/MoveTrimsDialog";
 import { MyProposalTrimsButton } from "./mc-master/MyProposalTrims";
-import { pendingTrimCellPatch, splitModelPending, type PendingTrimPreview } from "./mc-master/pending-preview";
+import type { PendingTrimPreview } from "./mc-master/pending-preview";
 import { PendingRequestBadge } from "./mc-master/PendingRequestBadge";
 import { PendingTrimPreviewRow } from "./mc-master/PendingTrimPreviewRow";
 import { trimSubline } from "./mc-master/trim-grouping";
 import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
 import { TrimTable } from "./mc-master/TrimTable";
-import { moveGroupToKey, moveItem } from "./mc-master/reorder";
+import { moveItem } from "./mc-master/reorder";
+import { useGroupReorder } from "./mc-master/useGroupReorder";
+import { useHighlightLanding } from "./mc-master/useHighlightLanding";
 import { SCOPE_BRAND_PENDING, useMcMasterCatalog } from "./mc-master/useMcMasterCatalog";
 import { useMcMasterSelection } from "./mc-master/useMcMasterSelection";
+import { useModelPendingView } from "./mc-master/usePendingView";
+import { useMcMasterScrollRestore } from "./mc-master/useScrollRestore";
 import { mcMasterViewState } from "./mc-master/view-state";
 
 type ModelPanelState = { mode: "add" } | { mode: "edit"; model: CatalogModel } | null;
@@ -74,15 +76,6 @@ type TrimPanelState =
 type TrimTab = "list" | "order";
 
 const PENDING_PREFILL_NOTICE = "대기 중인 승인 요청을 이어서 수정합니다 — 저장하면 기존 요청이 이 내용으로 대체됩니다";
-
-// 모델 단위 pending의 3분류(트림 행 배지 · 신규 트림 미리보기 · 헤더 pill)는
-// splitModelPending(mc-master/pending-preview.ts — 순수·유닛 테스트)이 담당한다.
-// 헤더 pill 줄 텍스트만 여기서 합성한다(staffNames·렌더 시각 의존 — 경과 표기 동결 참조).
-function pendingHeaderLines(rows: ChangeRequestItem[], staffNames: Map<string, string>, now: Date): string[] {
-  return rows.map(
-    (r) => `${staffNames.get(r.requestedBy) ?? "알 수 없음"} · ${waitingLabel(r.createdAt, now, "전")} · ${CHANGE_KIND_LABELS[r.kind]}`,
-  );
-}
 
 export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: (message: string) => void }) {
   const canEdit = roleTab === "최고관리자";
@@ -156,23 +149,15 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     [undo, reloadTrims],
   );
 
-  // 행 "승인 대기" 배지 재료(spec §7.2, admin·manager) — 모델 단위 pending + 요청자 이름.
-  // 시도 전에 보여 409(대상+작업당 pending 1건)를 예방하는 게 목적이라 canWrite 축이다.
-  const { staff } = useStaffDirectory(canWrite);
-  const pendingRows = useModelPendingRequests(modelId ? Number(modelId) : null, canWrite);
-  const staffNames = useMemo(() => new Map(staff.map((s) => [s.id, s.name])), [staff]);
-  // ⚠️ 일부러 useMemo로 감싸지 않는다 — 헤더 pill 경과 표기가 deps에 없는 `new Date()`에서
-  // 나오므로 memo하면 재조회 전까지 "3분 전"이 못 박힌다(ChangeRequestQueue도 렌더 시점 인라인
-  // `new Date()`를 쓴다 — 같은 축). pending은 모델당 한 자릿수라 렌더당 재계산은 무시 가능.
-  const pendingSplit = splitModelPending(pendingRows);
-  const headerLines = pendingHeaderLines(pendingSplit.headerRequests, staffNames, new Date());
-  // 셀 인라인 diff(2026-08-03 이사님 요청) — 수정 pending이 있는 행의 바뀌는 셀 아래 "→ 새값".
-  const pendingPatchByTrim = new Map(
-    [...pendingSplit.byTrim].flatMap(([trimId, requests]) => {
-      const patch = pendingTrimCellPatch(requests);
-      return patch ? [[trimId, patch] as const] : [];
-    }),
-  );
+  // 행 "승인 대기" 배지·미리보기·헤더 pill의 재료 한 벌(spec §7.2, admin·manager) —
+  // 모델 단위 pending + 요청자 이름 + 표시 합성은 useModelPendingView(usePendingView.ts) 몫이다.
+  const {
+    rows: pendingRows,
+    staffNames,
+    split: pendingSplit,
+    headerLines,
+    patchByTrim: pendingPatchByTrim,
+  } = useModelPendingView(modelId, canWrite);
 
   // 딜러 모드: URL의 modelId가 내 브랜드 모델이 아니면 첫 모델로 교정한다.
   // brandId 스코프는 사이드바와 모델 목록을 좁히지만 **modelId는 독립 경로**다 — 손으로 고친 URL이나
@@ -260,71 +245,35 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     if (brandId !== urlBrandId) navigate(mcMasterPath(brandId, modelId), { replace: true });
   }, [brandId, urlBrandId, modelId, navigate]);
 
-  // 명부 딥링크(?hl=trimId — 2026-07-29 유슨생): 대상 트림이 접힌 서브라인 안이면 펼치고,
-  // 가운데로 스크롤한 뒤 플래시(va-row-flash)로 마킹한다. 파라미터는 애니메이션이 끝나면
-  // replace로 소비한다 — 남겨두면 새로고침·북마크마다 재발동한다. brand는 딥링크에 같이 실려
-  // 오므로 위 브랜드 정규화 effect가 hl을 지우는 경합은 없다(둘 다 mcMasterPath 조립).
-  // setState·DOM 접근은 전부 타이머 콜백에서 한다(effect 본문 setState는 lint 기준선 위반).
-  useEffect(() => {
-    if (hlTrimId == null || trims.length === 0) return;
-    const target = trims.find((t) => t.id === hlTrimId);
-    if (!target) return;
-    const group = isDomestic ? trimSubline(target.trimName) : null;
-    const t0 = window.setTimeout(() => {
-      if (group) expandGroup(group);
-    }, 0);
-    // 그룹 펼침 커밋 후의 DOM에서 찾아야 한다(접혀 있던 행은 그 전엔 존재하지 않는다).
-    const t1 = window.setTimeout(() => {
-      scrollRef.current
-        ?.querySelector(`tr[data-trim-id="${hlTrimId}"]`)
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 80);
-    const t2 = window.setTimeout(() => navigate(mcMasterPath(brandId, modelId), { replace: true }), 2600);
-    return () => {
-      window.clearTimeout(t0);
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, [hlTrimId, trims, isDomestic, expandGroup, brandId, modelId, navigate]);
+  // 딥링크 착지 마킹 2축 — 규칙(그룹 펼침 → 스크롤 → 플래시 → 파라미터 소비)은 공용
+  // useHighlightLanding이 갖고, 여기서는 "무엇을 찾을지"만 정한다.
+  // brand는 딥링크에 같이 실려 오므로 위 브랜드 정규화 effect가 hl을 지우는 경합은 없다
+  // (둘 다 mcMasterPath 조립).
+  const consumeHighlight = () => navigate(mcMasterPath(brandId, modelId), { replace: true });
+  // ① 명부·제안 딥링크(?hl=트림 id — 2026-07-29 유슨생): 실 트림 행.
+  const hlTrim = hlTrimId != null ? trims.find((t) => t.id === hlTrimId) : undefined;
+  useHighlightLanding({
+    selector: hlTrim ? `tr[data-trim-id="${hlTrimId}"]` : null,
+    group: hlTrim && isDomestic ? trimSubline(hlTrim.trimName) : null,
+    scrollRef,
+    expandGroup,
+    onConsume: consumeHighlight,
+  });
+  // ② 신규 트림 착지(?hlreq=요청 id — 2026-08-03): 대기열/내 요청의 trim.create 링크는 트림이
+  // 아직 없어 hl을 못 쓴다. pending 도착 후 미리보기 행을 요청 id로 찾는다 — 실기: 링크가
+  // 모델로만 떨어져 접힌 그룹 속 미리보기가 어디 있는지 안 보였다.
+  const hlRequest =
+    hlRequestId != null ? pendingRows.find((r) => r.id === hlRequestId && r.kind === "trim.create") : undefined;
+  useHighlightLanding({
+    selector: hlRequest ? `tr[data-request-id="${hlRequestId}"]` : null,
+    group: hlRequest && isDomestic ? trimSubline(String(hlRequest.payload.trimName ?? "")) : null,
+    scrollRef,
+    expandGroup,
+    onConsume: consumeHighlight,
+  });
 
-  // 신규 트림 착지(?hlreq=요청 id — 2026-08-03): 대기열/내 요청의 trim.create 링크는 트림이
-  // 아직 없어 hl을 못 쓴다. pending 도착 후 미리보기 행을 요청 id로 찾아 위 hl 효과와 같은
-  // 규칙(그룹 펼침 → 스크롤 → 플래시 → 소비)으로 마킹한다 — 실기: 링크가 모델로만 떨어져
-  // 접힌 그룹 속 미리보기가 어디 있는지 안 보였다.
-  useEffect(() => {
-    if (hlRequestId == null || pendingRows.length === 0) return;
-    const target = pendingRows.find((r) => r.id === hlRequestId && r.kind === "trim.create");
-    if (!target) return;
-    const group = isDomestic ? trimSubline(String(target.payload.trimName ?? "")) : null;
-    const t0 = window.setTimeout(() => {
-      if (group) expandGroup(group);
-    }, 0);
-    const t1 = window.setTimeout(() => {
-      scrollRef.current
-        ?.querySelector(`tr[data-request-id="${hlRequestId}"]`)
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 80);
-    const t2 = window.setTimeout(() => navigate(mcMasterPath(brandId, modelId), { replace: true }), 2600);
-    return () => {
-      window.clearTimeout(t0);
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, [hlRequestId, pendingRows, isDomestic, expandGroup, brandId, modelId, navigate]);
-
-  // 스크롤 위치 보존(모델 목록·트림 목록 각각): 트림 뷰 왕복은 물론 다른 메뉴에 갔다 와도 복원.
-  // 트림은 모델별로 나눠 담아 다른 모델에 들어갈 땐 맨 위에서 시작한다(view-state.ts).
-  function onScroll() {
-    if (!scrollRef.current) return;
-    if (modelId) mcMasterViewState.trimScrollTop.set(modelId, scrollRef.current.scrollTop);
-    else mcMasterViewState.modelScrollTop = scrollRef.current.scrollTop;
-  }
-  // 목록이 채워진 뒤(models/trims) 복원해야 한다 — 빈 목록에 scrollTop을 주면 0으로 잘린다.
-  // 그룹 접힘(expandedGroups)·탭 전환은 사용자가 방금 한 조작이라 일부러 deps에 넣지 않는다.
-  useLayoutEffect(() => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = modelId ? (mcMasterViewState.trimScrollTop.get(modelId) ?? 0) : mcMasterViewState.modelScrollTop;
-  }, [modelId, models, trims]);
+  // 스크롤 위치 보존(모델 목록·트림 목록 각각) — 규칙은 useMcMasterScrollRestore 몫.
+  const { onScroll } = useMcMasterScrollRestore(scrollRef, modelId, models, trims);
 
   // 팀장 저장의 202 큐 적재 공통 처리(spec §7.1) — 쓰기 헬퍼(catalog.ts)가 감지·알림하고 여기
   // 한 곳만 토스트를 단다. 저장 흐름은 성공 경로 그대로라 호출부 개별 수술이 없다(패널 닫힘 +
@@ -344,22 +293,8 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     }
   };
 
-  // 타 세션의 **승인 반영 신호(applied)**에도 같은 재조회를 건다(2026-08-03) — 이전엔 큐 훅들만
-  // broadcast를 구독해 매니저 화면에서 "승인됨" 칩·배지만 뒤집히고 카탈로그 값은 리로딩해야
-  // 보였다. 반려·취소·적재는 catalog 무변이라 applied=false로 걸러진다.
-  // handleQueueApplied는 렌더마다 새 함수라(reload류가 훅의 일반 함수) ref로 최신본만 참조한다 —
-  // deps에 넣으면 매 렌더 재구독, useCallback 전환은 reload류 정체성까지 손대야 해 과하다.
-  const queueAppliedRef = useRef<() => void>(() => {});
-  useEffect(() => {
-    queueAppliedRef.current = handleQueueApplied;
-  });
-  useEffect(
-    () =>
-      onCatalogQueueRemoteChanged((info) => {
-        if (info.applied) queueAppliedRef.current();
-      }),
-    [],
-  );
+  // 타 세션의 승인 반영에도 같은 재조회를 건다(구독 규약은 useCatalogQueueApplied 몫).
+  useCatalogQueueApplied(handleQueueApplied);
 
   // 행 "승인 대기" 배지(클릭 팝오버 — diff·승인/반려)와 신규 트림 미리보기 행의 렌더 소유는
   // 여기다(테이블은 배치만 안다). 승인 액션은 admin(canEdit)에게만 — 서버 게이트와 동형.
@@ -488,32 +423,13 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     }
   }
 
-  // 그룹(서브라인) 블록 드래그 — 목록 보기 '선택' 모드에서 그룹 헤더만 남기고 통째 옮긴다
-  // (이사님 요청 2026-08-03: 캐스퍼처럼 연식·라인 그룹이 많으면 트림 하나씩이 부담. 구 ↑/↓
-  // 패널은 드래그로 대체·폐기). 낙관 갱신 + 실패 시 재조회는 트림 드래그(onDrop)와 같은 규칙.
-  // 드래그 키는 문자열(서브라인)이라 선택 훅의 숫자 id 드래그 상태와 섞지 않고 따로 든다.
-  const groupDragKey = useRef<string | null>(null);
-  const [draggingGroupKey, setDraggingGroupKey] = useState<string | null>(null);
-  function onGroupDragStart(key: string) {
-    groupDragKey.current = key;
-    setDraggingGroupKey(key);
-  }
-  function onGroupDragOver(overKey: string) {
-    const cur = groupDragKey.current;
-    if (cur == null || cur === overKey) return;
-    setTrims((list) => moveGroupToKey(list, cur, overKey));
-  }
-  async function onGroupDrop() {
-    if (groupDragKey.current == null) return; // dragEnd 중복 발화 방어
-    groupDragKey.current = null;
-    setDraggingGroupKey(null);
-    try {
-      await reorderTrims(trims.map((t) => t.id));
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "순서변경 실패");
-      reloadTrims();
-    }
-  }
+  // 그룹(서브라인) 블록 드래그 — 상태·저장 규칙은 useGroupReorder(useGroupReorder.ts) 몫.
+  const { draggingGroupKey, onGroupDragStart, onGroupDragOver, onGroupDrop } = useGroupReorder(
+    trims,
+    setTrims,
+    reloadTrims,
+  );
+
   async function bulkDelete() {
     const ids = [...selected];
     if (ids.length === 0) return;
@@ -719,7 +635,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                   draggingGroupKey={draggingGroupKey}
                   onGroupDragStart={onGroupDragStart}
                   onGroupDragOver={onGroupDragOver}
-                  onGroupDrop={() => void onGroupDrop()}
+                  onGroupDrop={onGroupDrop}
                   dealerProposals={dealerMode ? dealerProposals : undefined}
                   onSaveProposal={dealerMode ? saveProposal : undefined}
                   proposalsByTrim={canEdit ? trimProposals : undefined}
