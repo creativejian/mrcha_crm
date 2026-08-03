@@ -137,6 +137,18 @@ export const CUSTOMER_TYPE_OPTIONS = ["개인", "개인사업자", "법인사업
 export const PURCHASE_METHOD_OPTIONS = ["장기렌트", "운용리스", "금융리스", "중고리스", "할부", "일시불"] as const;
 export type PurchaseMethod = (typeof PURCHASE_METHOD_OPTIONS)[number];
 
+// 실적(취급 규모) 산정 기준 — 이사님 확정 2026-08-03(spec 2026-08-03-crm-delivery-revenue-design §1a).
+// 운용리스는 취득원가, 장기렌트는 최종 차량가로 센다.
+//
+// ⚠️ **여기 없는 구매방식은 실적이 0이 아니라 "집계 대상이 아니다"**. 할부·중고리스는 슬라이딩 수수료
+// 개념이 없어 실입금액 자체가 매출이고 실적 지표를 따로 두지 않는다(이사님 명시). 금융리스·일시불은
+// 아직 언급된 적이 없어 같은 취급으로 둔다 — 정의가 오면 여기 한 줄을 더한다.
+// 단 **출고 대수에는 전 구매방식이 포함된다**(실적 금액만 갈린다).
+export const REVENUE_BASIS_BY_PURCHASE_METHOD: Readonly<Record<string, "acquisitionCost" | "finalVehiclePrice">> = {
+  운용리스: "acquisitionCost",
+  장기렌트: "finalVehiclePrice",
+};
+
 // 계약기간(need_contract_term) — 다중선택 닫힌 5종. DB CHECK 없음(' · ' 구분 다중 저장, 0010서 CHECK DROP). purchase-meta SSOT 공유.
 export const CONTRACT_TERM_OPTIONS: readonly string[] = ["12개월", "24개월", "36개월", "48개월", "60개월"];
 

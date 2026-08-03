@@ -19,6 +19,35 @@ test("getAdminReport: 데이터가 없는 미래 월은 기간 지표가 전부 
   expect(report.brandInquiries.total).toBe(0);
   expect(report.brandInquiries.rows).toEqual([]);
   expect(report.quoteFunnel).toEqual({ created: 0, sent: 0, viewed: 0, contracting: 0 });
+  expect(report.delivery).toEqual({
+    count: 0,
+    prevCount: 0,
+    leaseAmount: 0,
+    prevLeaseAmount: 0,
+    rentAmount: 0,
+    prevRentAmount: 0,
+  });
+});
+
+test("getAdminReport: 실적은 출고 달 기준 기간 지표 — 이번 달과 전월이 맞물린다", async () => {
+  // 스냅샷 지표(inProgress·contracted)와 달리 월 스코프가 실제로 작동해야 한다. 같은 데이터를
+  // 두 달에서 보면 "8월의 전월" == "7월의 이번 달"이어야 한다 — 어긋나면 월 경계가 틀린 것이다
+  // (delivered_date는 timestamptz가 아니라 date라 UTC 환산하면 하루가 밀린다).
+  const [jul, aug] = await Promise.all([getAdminReport("2026-07"), getAdminReport("2026-08")]);
+  expect(aug.delivery.prevCount).toBe(jul.delivery.count);
+  expect(aug.delivery.prevLeaseAmount).toBe(jul.delivery.leaseAmount);
+  expect(aug.delivery.prevRentAmount).toBe(jul.delivery.rentAmount);
+});
+
+test("getAdminReport: 실적 금액은 대수를 넘지 않는 관계 — 0건이면 금액도 0", async () => {
+  const report = await getAdminReport("2026-08");
+  if (report.delivery.count === 0) {
+    expect(report.delivery.leaseAmount).toBe(0);
+    expect(report.delivery.rentAmount).toBe(0);
+  }
+  // 금액은 음수가 될 수 없다(할인이 차량가를 넘기면 산식이 깨진 것).
+  expect(report.delivery.leaseAmount).toBeGreaterThanOrEqual(0);
+  expect(report.delivery.rentAmount).toBeGreaterThanOrEqual(0);
 });
 
 test("getAdminReport: 스냅샷 지표는 월과 무관하게 같다 — spec §2a 한계의 회귀 그물", async () => {

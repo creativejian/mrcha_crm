@@ -5,6 +5,8 @@ import {
   CONTRACTED_STATUS_GROUP,
   customerStatusGroups,
   IN_PROGRESS_STATUS_GROUPS,
+  PURCHASE_METHOD_OPTIONS,
+  REVENUE_BASIS_BY_PURCHASE_METHOD,
 } from "./customers";
 
 // 계약 진행 마킹 넛지의 발주 경로 어휘(2026-07-21 이사님 ①ⓑ, delivery-step2 spec §8).
@@ -40,5 +42,28 @@ describe("IN_PROGRESS_STATUS_GROUPS", () => {
   it("진행중과 계약완료를 합쳐도 전체 그룹을 넘지 않는다 — 중복 집계 방지", () => {
     expect(customerStatusGroups[CONTRACTED_STATUS_GROUP]).toBeDefined();
     expect(IN_PROGRESS_STATUS_GROUPS.length + 1).toBeLessThanOrEqual(Object.keys(customerStatusGroups).length);
+  });
+});
+
+// 실적 산정 기준(이사님 확정 2026-08-03). 구매방식 어휘가 개명되면 여기가 먼저 깨져서
+// 실적이 조용히 0으로 빠지는 것을 막는다.
+describe("REVENUE_BASIS_BY_PURCHASE_METHOD", () => {
+  it("운용리스=취득원가 · 장기렌트=최종차량가", () => {
+    expect(REVENUE_BASIS_BY_PURCHASE_METHOD["운용리스"]).toBe("acquisitionCost");
+    expect(REVENUE_BASIS_BY_PURCHASE_METHOD["장기렌트"]).toBe("finalVehiclePrice");
+  });
+
+  it("키는 실제 구매방식 어휘여야 한다 — 오타면 실적이 영구 0이 된다", () => {
+    for (const method of Object.keys(REVENUE_BASIS_BY_PURCHASE_METHOD)) {
+      expect(PURCHASE_METHOD_OPTIONS).toContain(method);
+    }
+  });
+
+  it("나머지 구매방식은 실적 집계 대상이 아니다(0이 아니라 '없음')", () => {
+    // 할부·중고리스는 슬라이딩 수수료 개념이 없어 실입금액이 곧 매출이다(이사님 명시).
+    // 금융리스·일시불은 아직 정의된 적이 없어 같은 취급 — 정의가 오면 상수에 한 줄 더한다.
+    for (const method of ["할부", "중고리스", "금융리스", "일시불"]) {
+      expect(REVENUE_BASIS_BY_PURCHASE_METHOD[method]).toBeUndefined();
+    }
   });
 });

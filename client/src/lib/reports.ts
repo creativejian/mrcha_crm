@@ -13,6 +13,16 @@ export type AdminReport = {
   };
   brandInquiries: { total: number; rows: Array<{ brand: string; count: number }> };
   quoteFunnel: { created: number; sent: number; viewed: number; contracting: number };
+  // 실적(취급 규모) — 출고 달 기준(2026-08-03 이사님 확정). 할부·중고리스는 대수에만 들어가고
+  // 금액에는 안 들어간다(실적 개념 자체가 없음 — spec 2026-08-03 §1a).
+  delivery: {
+    count: number;
+    prevCount: number;
+    leaseAmount: number;
+    prevLeaseAmount: number;
+    rentAmount: number;
+    prevRentAmount: number;
+  };
 };
 
 export function fetchAdminReport(month?: string): Promise<AdminReport> {

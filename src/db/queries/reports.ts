@@ -1,15 +1,16 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
 
 import {
   CONTRACTED_STATUS_GROUP,
   DELIVERY_SCHEDULE_TYPE,
   IN_PROGRESS_STATUS_GROUPS,
+  REVENUE_BASIS_BY_PURCHASE_METHOD,
 } from "../../../client/src/data/customers"; // 순수 상수 leaf(부작용 0) — 상태 어휘 SSOT 공유
-import { monthRangeUtc, prevMonthKey } from "../../lib/report-month";
+import { monthRangeDate, monthRangeUtc, prevMonthKey } from "../../lib/report-month";
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
 import { getDefaultDb, type Executor } from "../client";
 import { advisorQuotes, quoteRequests } from "../public-app";
-import { customers, customerSchedules, quotes } from "../schema";
+import { customerDeliveries, customers, customerSchedules, quotes, quoteScenarios } from "../schema";
 
 // 경영 리포트 집계(2026-08-02) — spec: ref/specs/2026-08-02-crm-admin-report-live-design.md.
 // 기간 지표는 전부 KST 월 경계 [start, end)로 자른다(report-month.ts가 경계 계산 SSOT).
@@ -29,6 +30,16 @@ export type AdminReport = {
   };
   brandInquiries: { total: number; rows: Array<{ brand: string; count: number }> };
   quoteFunnel: { created: number; sent: number; viewed: number; contracting: number };
+  // 실적(취급 규모) — 2026-08-03 이사님 확정. **출고 달 기준**이라 기간 지표이고, 스냅샷 지표와 달리
+  // 월 스코프가 정상 작동한다. spec: ref/specs/2026-08-03-crm-delivery-revenue-design.md.
+  delivery: {
+    count: number;
+    prevCount: number;
+    leaseAmount: number;
+    prevLeaseAmount: number;
+    rentAmount: number;
+    prevRentAmount: number;
+  };
 };
 
 export async function getAdminReport(month: string, ex: Executor = getDefaultDb()): Promise<AdminReport> {
@@ -36,11 +47,12 @@ export async function getAdminReport(month: string, ex: Executor = getDefaultDb(
   const { start, end } = monthRangeUtc(month);
   const { start: prevStart, end: prevEnd } = monthRangeUtc(prev);
 
-  const [customerAgg, quoteAgg, deliveryAgg, brandRows] = await Promise.all([
+  const [customerAgg, quoteAgg, deliveryAgg, brandRows, deliveryRevenue] = await Promise.all([
     selectCustomerAggregate(ex, start, end, prevStart, prevEnd),
     selectQuoteAggregate(ex, start, end),
     selectDeliveryAggregate(ex),
     selectBrandInquiries(ex, start, end),
+    selectDeliveryRevenue(ex, month, prev),
   ]);
 
   return {
@@ -58,6 +70,7 @@ export async function getAdminReport(month: string, ex: Executor = getDefaultDb(
       rows: brandRows,
     },
     quoteFunnel: quoteAgg.funnel,
+    delivery: deliveryRevenue,
   };
 }
 
@@ -117,6 +130,75 @@ async function selectDeliveryAggregate(ex: Executor) {
     .from(customerSchedules)
     .where(and(eq(customerSchedules.type, DELIVERY_SCHEDULE_TYPE), eq(customerSchedules.done, false)));
   return row ?? { count: 0, overdue: 0 };
+}
+
+// 출고 실적(spec 2026-08-03) — **출고 실측일이 유일한 원천**이다. `customers.status='출고완료'`는
+// 날짜가 없어 월 집계가 불가능하고, 출고 예정 일정은 실측일이 아니다(세 신호는 서로 어긋나 있다).
+//
+// 금액은 그 고객의 **계약 진행 견적**에서 파생한다 — `customer_deliveries.source_quote_id`는
+// "프리필이 참조한 견적"이라 의미가 다르고 스키마 주석도 파생 표시에 쓰지 말라고 못박고 있다.
+// 선택 규칙은 `contractingQuoteSummary`(queries/customers.ts)와 **같은 축**이다(고객당 최대 1건 실측).
+// ⚠️ 파생이라 견적을 수정하면 지난달 실적이 소급해 바뀐다 — 정산 슬라이스에서 출고 시점 스냅샷을
+// 도입해 닫는다(spec §3b). 지금은 출고 건이 1건이라 실질 위험 0.
+//
+// 합산을 SQL이 아니라 JS에서 하는 이유: 구매방식별 산정 기준이 클라와 공유하는 상수
+// (REVENUE_BASIS_BY_PURCHASE_METHOD)라 SQL에 리터럴을 복제하지 않기 위해서다. 월 수십 건 규모.
+async function selectDeliveryRevenue(ex: Executor, month: string, prevMonth: string) {
+  const cur = monthRangeDate(month);
+  const prev = monthRangeDate(prevMonth);
+  const rows = await ex
+    .select({
+      deliveredDate: customerDeliveries.deliveredDate,
+      // 계약 진행 견적 1건을 json으로 — 세 값을 각각 서브쿼리로 뽑으면 같은 견적을 세 번 훑는다.
+      contractingQuote: sql<{
+        purchaseMethod: string | null;
+        acquisitionCost: number | null;
+        finalVehiclePrice: number | null;
+      } | null>`(
+        select json_build_object(
+          'purchaseMethod', (select s.purchase_method from ${quoteScenarios} s where s.id = q.primary_scenario_id),
+          'acquisitionCost', q.acquisition_cost,
+          'finalVehiclePrice', q.final_vehicle_price)
+        from ${quotes} q
+        where q.customer_id = ${customerDeliveries.customerId} and q.decision_status = 'contracting'
+        order by q.updated_at desc, q.id desc
+        limit 1
+      )`,
+    })
+    .from(customerDeliveries)
+    .where(
+      and(
+        isNotNull(customerDeliveries.deliveredDate),
+        // 두 달을 한 번에 가져와 JS에서 가른다(왕복 1회). date라 사전식 비교가 곧 날짜 비교다.
+        gte(customerDeliveries.deliveredDate, prev.start),
+        lt(customerDeliveries.deliveredDate, cur.end),
+      ),
+    );
+
+  const zero = { count: 0, leaseAmount: 0, rentAmount: 0 };
+  const tally = (from: string, to: string) =>
+    rows.reduce((acc, row) => {
+      const date = row.deliveredDate;
+      if (!date || date < from || date >= to) return acc;
+      // 대수는 **전 구매방식** 포함(금액만 갈린다 — spec §1a).
+      acc.count += 1;
+      const quote = row.contractingQuote;
+      const basis = quote?.purchaseMethod ? REVENUE_BASIS_BY_PURCHASE_METHOD[quote.purchaseMethod] : undefined;
+      if (basis === "acquisitionCost") acc.leaseAmount += quote?.acquisitionCost ?? 0;
+      if (basis === "finalVehiclePrice") acc.rentAmount += quote?.finalVehiclePrice ?? 0;
+      return acc;
+    }, { ...zero });
+
+  const current = tally(cur.start, cur.end);
+  const previous = tally(prev.start, prev.end);
+  return {
+    count: current.count,
+    prevCount: previous.count,
+    leaseAmount: current.leaseAmount,
+    prevLeaseAmount: previous.leaseAmount,
+    rentAmount: current.rentAmount,
+    prevRentAmount: previous.rentAmount,
+  };
 }
 
 // 브랜드별 문의 = 앱 견적요청 × catalog 3단 조인. innerJoin이라 **trim이 붙지 않은 요청은 빠진다**
