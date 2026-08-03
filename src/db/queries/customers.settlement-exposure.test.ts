@@ -31,12 +31,12 @@ test("고객 목록 응답에 정산 필드가 실리지 않는다", async () =>
   }
 });
 
-test("출고 정보 객체는 기대한 6필드만 가진다 — 새 필드가 조용히 끼어드는 것도 잡는다", async () => {
+test("출고 정보 객체는 기대한 7필드만 가진다 — 새 필드가 조용히 끼어드는 것도 잡는다", async () => {
   const rows = await listCustomers(db, "all");
   const withDelivery = rows.find((row) => row.delivery);
   if (!withDelivery?.delivery) return; // 출고 행이 없는 환경에서는 검증 불가
 
   expect(Object.keys(withDelivery.delivery).sort()).toEqual(
-    ["contractDate", "contractVehicle", "deliveredDate", "deliveryMemo", "lender", "sourceQuoteId"].sort(),
+    ["contractDate", "contractVehicle", "contractConfirmedDate", "deliveredDate", "deliveryMemo", "lender", "sourceQuoteId"].sort(),
   );
 });

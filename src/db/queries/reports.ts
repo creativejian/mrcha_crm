@@ -30,8 +30,9 @@ export type AdminReport = {
   };
   brandInquiries: { total: number; rows: Array<{ brand: string; count: number }> };
   quoteFunnel: { created: number; sent: number; viewed: number; contracting: number };
-  // 실적(취급 규모) — 2026-08-03 이사님 확정. **출고 달 기준**이라 기간 지표이고, 스냅샷 지표와 달리
-  // 월 스코프가 정상 작동한다. spec: ref/specs/2026-08-03-crm-delivery-revenue-design.md.
+  // 실적(취급 규모) — 2026-08-03 이사님 확정. 귀속은 **계약 확정 달**(차량 인도일이 아니다 —
+  // 현장 어휘로는 둘 다 "출고"라 부른다). 기간 지표라 스냅샷 지표와 달리 월 스코프가 정상 작동한다.
+  // spec: ref/specs/2026-08-03-crm-delivery-revenue-design.md.
   delivery: {
     count: number;
     prevCount: number;
@@ -132,14 +133,17 @@ async function selectDeliveryAggregate(ex: Executor) {
   return row ?? { count: 0, overdue: 0 };
 }
 
-// 출고 실적(spec 2026-08-03) — **출고 실측일이 유일한 원천**이다. `customers.status='출고완료'`는
-// 날짜가 없어 월 집계가 불가능하고, 출고 예정 일정은 실측일이 아니다(세 신호는 서로 어긋나 있다).
+// 실적(spec 2026-08-03) — 귀속 기준은 **계약 확정일**(`contract_confirmed_date`)이다.
 //
-// 금액은 그 고객의 **계약 진행 견적**에서 파생한다 — `customer_deliveries.source_quote_id`는
-// "프리필이 참조한 견적"이라 의미가 다르고 스키마 주석도 파생 표시에 쓰지 말라고 못박고 있다.
-// 선택 규칙은 `contractingQuoteSummary`(queries/customers.ts)와 **같은 축**이다(고객당 최대 1건 실측).
-// ⚠️ 파생이라 견적을 수정하면 지난달 실적이 소급해 바뀐다 — 정산 슬라이스에서 출고 시점 스냅샷을
-// 도입해 닫는다(spec §3b). 지금은 출고 건이 1건이라 실질 위험 0.
+// ⚠️ **차량 인도일(`delivered_date`)이 아니다.** 인도 후 상담사가 고객·금융사 사이에서 URL 인증을
+// 마무리해야 수수료가 집계된다(이사님 2026-08-03). 보통 당일~일주일이지만 월을 넘기면 확정된 달의
+// 실적이다 — 7월 출고·8월 확정 = **8월 실적**. 현장에서 그 확정을 "출고"라고 불러서(화면 라벨도
+// "전체 출고") 처음엔 인도일로 잘못 구현했다(#432 → 이 커밋에서 정정).
+//
+// 확정 이후에는 조건이 바뀌지 않으므로(이사님) **금액을 스냅샷으로 굳히지 않고 계약 진행 견적에서
+// 파생**한다 — 소급 변경 창이 원리적으로 닫혀 있다. 선택 규칙은 `contractingQuoteSummary`
+// (queries/customers.ts)와 같은 축(고객당 최대 1건 실측). `source_quote_id`는 "프리필이 참조한 견적"
+// 이라 의미가 달라 쓰지 않는다(스키마 주석 규약).
 //
 // 합산을 SQL이 아니라 JS에서 하는 이유: 구매방식별 산정 기준이 클라와 공유하는 상수
 // (REVENUE_BASIS_BY_PURCHASE_METHOD)라 SQL에 리터럴을 복제하지 않기 위해서다. 월 수십 건 규모.
@@ -148,7 +152,7 @@ async function selectDeliveryRevenue(ex: Executor, month: string, prevMonth: str
   const prev = monthRangeDate(prevMonth);
   const rows = await ex
     .select({
-      deliveredDate: customerDeliveries.deliveredDate,
+      confirmedDate: customerDeliveries.contractConfirmedDate,
       // 계약 진행 견적 1건을 json으로 — 세 값을 각각 서브쿼리로 뽑으면 같은 견적을 세 번 훑는다.
       contractingQuote: sql<{
         purchaseMethod: string | null;
@@ -168,17 +172,17 @@ async function selectDeliveryRevenue(ex: Executor, month: string, prevMonth: str
     .from(customerDeliveries)
     .where(
       and(
-        isNotNull(customerDeliveries.deliveredDate),
+        isNotNull(customerDeliveries.contractConfirmedDate),
         // 두 달을 한 번에 가져와 JS에서 가른다(왕복 1회). date라 사전식 비교가 곧 날짜 비교다.
-        gte(customerDeliveries.deliveredDate, prev.start),
-        lt(customerDeliveries.deliveredDate, cur.end),
+        gte(customerDeliveries.contractConfirmedDate, prev.start),
+        lt(customerDeliveries.contractConfirmedDate, cur.end),
       ),
     );
 
   const zero = { count: 0, leaseAmount: 0, rentAmount: 0 };
   const tally = (from: string, to: string) =>
     rows.reduce((acc, row) => {
-      const date = row.deliveredDate;
+      const date = row.confirmedDate;
       if (!date || date < from || date >= to) return acc;
       // 대수는 **전 구매방식** 포함(금액만 갈린다 — spec §1a).
       acc.count += 1;

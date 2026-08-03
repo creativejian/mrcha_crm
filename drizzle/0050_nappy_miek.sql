@@ -1,0 +1,1 @@
+ALTER TABLE "crm"."customer_deliveries" ADD COLUMN "contract_confirmed_date" date;

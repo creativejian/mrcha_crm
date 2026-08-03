@@ -62,6 +62,7 @@ const deliveryInfo = sql<CustomerDeliveryInfo | null>`(
     'contractDate', d.contract_date,
     'lender', d.lender,
     'deliveredDate', d.delivered_date,
+    'contractConfirmedDate', d.contract_confirmed_date,
     'deliveryMemo', d.delivery_memo,
     'sourceQuoteId', d.source_quote_id)
   from crm.customer_deliveries d

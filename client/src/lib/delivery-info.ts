@@ -12,6 +12,7 @@ export type DeliveryInfoDraft = {
   contractDate: string;
   lender: string;
   deliveredDate: string;
+  contractConfirmedDate: string;
   deliveryMemo: string;
   /** 프리필이 참조한 계약 진행 견적 id(soft pipe provenance) — 시드 미적용이면 기존 저장값 승계. */
   sourceQuoteId: string | null;
@@ -41,6 +42,7 @@ export function seedDeliveryInfoDraft(
     contractDate: existing?.contractDate ?? "",
     lender: existing?.lender ?? seedLender ?? "",
     deliveredDate: existing?.deliveredDate ?? "",
+    contractConfirmedDate: existing?.contractConfirmedDate ?? "",
     deliveryMemo: existing?.deliveryMemo ?? "",
     sourceQuoteId: seedVehicle || seedLender ? quote!.id : (existing?.sourceQuoteId ?? null),
     seededFields,
@@ -61,6 +63,8 @@ export function resolveDeliveryInfoSubmit(draft: DeliveryInfoDraft): DeliveryInf
   if (!contract.ok) return { kind: "invalid", reason: contract.reason };
   const delivered = dateOrInvalid(draft.deliveredDate, "출고 실측일");
   if (!delivered.ok) return { kind: "invalid", reason: delivered.reason };
+  const confirmed = dateOrInvalid(draft.contractConfirmedDate, "계약 확정일");
+  if (!confirmed.ok) return { kind: "invalid", reason: confirmed.reason };
   const textOrNull = (v: string) => (v.trim() ? v.trim() : null);
   return {
     kind: "save",
@@ -69,6 +73,7 @@ export function resolveDeliveryInfoSubmit(draft: DeliveryInfoDraft): DeliveryInf
       contractDate: contract.value,
       lender: textOrNull(draft.lender),
       deliveredDate: delivered.value,
+      contractConfirmedDate: confirmed.value,
       deliveryMemo: textOrNull(draft.deliveryMemo),
       // provenance는 §5.3 자체 규칙("수기 수정해도 유지·시드 없으면 기존값 승계")을 따른다 — "빈 폼
       // 저장 = 전 필드 null"의 '전 필드'는 표시 5필드 기준(배치 11 A#8 각주: 5필드 null + sourceQuoteId
