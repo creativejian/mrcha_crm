@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { ArrowLeft, CheckSquare, FolderInput, Hash, Plus } from "lucide-react";
+import { ArrowLeft, CheckSquare, ChevronDown, ChevronUp, FolderInput, Hash, Plus } from "lucide-react";
 
 import { ChangeRequestQueueButton } from "@/components/ChangeRequestQueue";
 import { MyChangeRequestsButton } from "@/components/MyChangeRequests";
@@ -49,11 +49,11 @@ import { MyProposalTrimsButton } from "./mc-master/MyProposalTrims";
 import { splitModelPending, type PendingTrimPreview } from "./mc-master/pending-preview";
 import { PendingRequestBadge } from "./mc-master/PendingRequestBadge";
 import { PendingTrimPreviewRow } from "./mc-master/PendingTrimPreviewRow";
-import { trimSubline } from "./mc-master/trim-grouping";
+import { groupTrimsBySubline, trimSubline } from "./mc-master/trim-grouping";
 import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
 import { TrimTable } from "./mc-master/TrimTable";
-import { moveItem } from "./mc-master/reorder";
+import { moveGroupBySubline, moveItem } from "./mc-master/reorder";
 import { SCOPE_BRAND_PENDING, useMcMasterCatalog } from "./mc-master/useMcMasterCatalog";
 import { useMcMasterSelection } from "./mc-master/useMcMasterSelection";
 import { mcMasterViewState } from "./mc-master/view-state";
@@ -448,6 +448,24 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
       else reloadModels();
     }
   }
+
+  // 그룹(서브라인) 블록 이동 — 순서 관리에서 트림 하나씩(드래그)이 아니라 그룹째 옮긴다
+  // (이사님 요청 2026-08-03: 캐스퍼처럼 연식·라인 그룹이 많으면 하나씩이 부담). 낙관 갱신 +
+  // 실패 시 재조회는 onDrop과 같은 규칙. busy 공유로 연타 중 API가 겹치지 않게 한다.
+  async function moveGroup(key: string, dir: -1 | 1) {
+    const next = moveGroupBySubline(trims, key, dir);
+    if (next === trims) return; // 끝 그룹 등 no-op — 원본 참조 그대로가 판별 계약(reorder.ts)
+    setTrims(next);
+    setBusy(true);
+    try {
+      await reorderTrims(next.map((t) => t.id));
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "순서변경 실패");
+      reloadTrims();
+    } finally {
+      setBusy(false);
+    }
+  }
   async function bulkDelete() {
     const ids = [...selected];
     if (ids.length === 0) return;
@@ -638,6 +656,36 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 >
                   순서 관리
                 </button>
+              </div>
+            )}
+            {/* 그룹 단위 순서 이동(이사님 요청 2026-08-03) — reorder는 admin 전용(spec §3.2)이라
+                canEdit 게이트. 그룹이 하나뿐이면 옮길 곳이 없어 패널 자체를 숨긴다. */}
+            {inTrimView && isDomestic && trimTab === "order" && canEdit && (
+              <div className="va-group-order">
+                <span className="va-group-order-title">그룹 순서</span>
+                {groupTrimsBySubline(trims).map((g, i, arr) => (
+                  <span className="va-group-order-item" key={g.key}>
+                    <span className="va-group-order-name">{g.key}</span>
+                    <button
+                      type="button"
+                      className="tiny-btn"
+                      aria-label={`${g.key} 위로`}
+                      disabled={busy || i === 0}
+                      onClick={() => void moveGroup(g.key, -1)}
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="tiny-btn"
+                      aria-label={`${g.key} 아래로`}
+                      disabled={busy || i === arr.length - 1}
+                      onClick={() => void moveGroup(g.key, 1)}
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </span>
+                ))}
               </div>
             )}
             {inTrimView ? (
