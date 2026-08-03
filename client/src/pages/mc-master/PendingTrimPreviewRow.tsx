@@ -13,6 +13,7 @@ import { trimGrade } from "./trim-grouping";
 // 요청자 본인(manager)에게는 연필 = "이어서 수정"(폼 프리필 → 저장 시 기존 요청 교체).
 export function PendingTrimPreviewRow({
   preview,
+  flash = false,
   grouped,
   showOptionCol,
   showEditCol,
@@ -23,6 +24,8 @@ export function PendingTrimPreviewRow({
   onContinue,
 }: {
   preview: PendingTrimPreview;
+  /** ?hlreq= 착지 마킹(대기열/내 요청의 신규 트림 링크) — 실 행의 flashTrimId와 같은 축. */
+  flash?: boolean;
   /** 그룹 뷰(국산차)는 등급만, 평면 뷰(수입차)는 전체 트림명 — 실 행과 같은 표기 규칙. */
   grouped: boolean;
   showOptionCol: boolean;
@@ -36,7 +39,8 @@ export function PendingTrimPreviewRow({
   const t = preview.trim;
   const mine = myUserId != null && preview.request.requestedBy === myUserId;
   return (
-    <tr className="va-row-pending">
+    // data-request-id = hlreq 스크롤 앵커(실 행의 data-trim-id와 같은 축).
+    <tr className={`va-row-pending${flash ? " va-row-flash" : ""}`} data-request-id={preview.request.id}>
       <td className={grouped ? "va-grade-cell" : "va-th-trim"}>
         <div className="va-trim-name">
           <span>{grouped ? trimGrade(t.trimName) : t.trimName}</span>

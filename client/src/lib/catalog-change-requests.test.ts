@@ -111,20 +111,37 @@ describe("buildChangeDiff", () => {
   });
 });
 
-// 착지 경로 SSOT — 두 팝오버(대기열·내 요청)가 공유하는 URL 계약(brand 쿼리 필수·트림 hl 플래시).
+// 착지 경로 SSOT — 두 팝오버(대기열·내 요청)가 공유하는 URL 계약(brand 쿼리 필수·트림 hl 플래시·
+// 신규 트림은 hlreq(요청 id) 마킹 — 트림이 아직 없어 hl을 못 쓴다, 2026-08-03).
 describe("changeRequestDest", () => {
+  const base = { id: "cr-1", kind: "trim.update" as const };
+
   it("브랜드 좌표가 없으면 null(삭제된 대상 — 갈 곳 없음)", () => {
-    expect(changeRequestDest({ targetBrandId: null, targetModelId: 30, targetTrimId: 300 })).toBeNull();
+    expect(changeRequestDest({ ...base, targetBrandId: null, targetModelId: 30, targetTrimId: 300 })).toBeNull();
   });
 
   it("모델이 없으면(model.create) 브랜드의 모델 목록으로", () => {
-    expect(changeRequestDest({ targetBrandId: 3, targetModelId: null, targetTrimId: null })).toBe("/mc-master?brand=3");
+    expect(
+      changeRequestDest({ ...base, kind: "model.create", targetBrandId: 3, targetModelId: null, targetTrimId: null }),
+    ).toBe("/mc-master?brand=3");
   });
 
   it("트림까지 있으면 모델 뷰 + hl 플래시", () => {
-    expect(changeRequestDest({ targetBrandId: 3, targetModelId: 30, targetTrimId: 300 })).toBe(
+    expect(changeRequestDest({ ...base, targetBrandId: 3, targetModelId: 30, targetTrimId: 300 })).toBe(
       "/mc-master/30?brand=3&hl=300",
     );
+  });
+
+  it("신규 트림(trim.create)은 hlreq=요청 id — 미리보기 행 마킹(그룹 펼침+플래시)", () => {
+    expect(
+      changeRequestDest({ id: "cr-9", kind: "trim.create", targetBrandId: 3, targetModelId: 30, targetTrimId: null }),
+    ).toBe("/mc-master/30?brand=3&hlreq=cr-9");
+  });
+
+  it("트림 좌표도 hlreq 축도 아니면(model.update) 모델 뷰만", () => {
+    expect(
+      changeRequestDest({ ...base, kind: "model.update", targetBrandId: 3, targetModelId: 30, targetTrimId: null }),
+    ).toBe("/mc-master/30?brand=3");
   });
 });
 

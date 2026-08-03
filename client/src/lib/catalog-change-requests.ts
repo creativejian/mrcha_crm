@@ -194,11 +194,15 @@ export function filterMyRequestVisible<
 // 변경 요청 행 → 착지 경로(순수) — 두 팝오버(대기열·내 요청)가 같은 계약을 복제하지 않게 SSOT.
 // brand 쿼리 없이는 정규화 effect가 hl을 지우므로 brandId 없으면 이동 불가(null).
 export function changeRequestDest(
-  row: Pick<ChangeRequestItem, "targetBrandId" | "targetModelId" | "targetTrimId">,
+  row: Pick<ChangeRequestItem, "id" | "kind" | "targetBrandId" | "targetModelId" | "targetTrimId">,
 ): string | null {
   if (row.targetBrandId == null) return null;
   if (row.targetModelId == null) return mcMasterPath(row.targetBrandId, undefined);
-  return `${mcMasterPath(row.targetBrandId, row.targetModelId)}${row.targetTrimId != null ? `&hl=${row.targetTrimId}` : ""}`;
+  // 신규 트림은 트림 id가 아직 없어 hl 마킹이 불가 — 미리보기 행을 요청 id(hlreq)로 마킹한다
+  // (접힌 그룹 펼침+스크롤+플래시, 2026-08-03 실기: 링크가 모델로만 떨어져 어딨는지 안 보였다).
+  const mark =
+    row.targetTrimId != null ? `&hl=${row.targetTrimId}` : row.kind === "trim.create" ? `&hlreq=${row.id}` : "";
+  return `${mcMasterPath(row.targetBrandId, row.targetModelId)}${mark}`;
 }
 
 const EMPTY_ROWS: ChangeRequestItem[] = [];

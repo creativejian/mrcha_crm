@@ -26,3 +26,9 @@ export function highlightTrimIdFromSearch(search: string): number | null {
   const id = Number(raw);
   return Number.isInteger(id) && id > 0 ? id : null;
 }
+
+// 신규 트림 하이라이트(?hlreq=요청 uuid, 2026-08-03) — trim.create pending은 트림 id가 아직
+// 없어 hl을 못 쓴다. 미리보기 행을 요청 id로 마킹한다(그룹 펼침+스크롤+플래시 — MCMasterPage).
+export function highlightRequestIdFromSearch(search: string): string | null {
+  return new URLSearchParams(search).get("hlreq") || null;
+}

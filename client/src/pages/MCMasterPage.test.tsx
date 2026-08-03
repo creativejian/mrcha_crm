@@ -673,3 +673,39 @@ it("팀장에겐 목록 보기 선택 버튼이 없다(그룹 순서 = reorder a
   await screen.findByText("스마트");
   expect(screen.queryByRole("button", { name: "선택" })).toBeNull();
 });
+
+// ── 신규 트림 착지(?hlreq= — 2026-08-03): 대기열/내 요청의 trim.create 링크는 트림 id가 없어
+// hl을 못 쓴다 — 접힌 그룹을 펼치고 미리보기 행에 플래시를 붙이는 hlreq 경로를 잠근다.
+it("?hlreq= 착지: 접힌 합성 그룹이 펼쳐지고 미리보기 행에 플래시가 붙는다", async () => {
+  // jsdom엔 scrollIntoView가 없다 — 착지 스크롤용 no-op 스텁(다른 케이스에 무해).
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    value: vi.fn(),
+    configurable: true,
+    writable: true,
+  });
+  modelPendingRows = [
+    {
+      ...PENDING_ROW,
+      id: "cr-2",
+      kind: "trim.create",
+      targetId: null,
+      targetBrandId: 1,
+      targetModelId: 10,
+      targetTrimId: null,
+      payload: {
+        modelId: 10,
+        trimName: "27년형 수소전기 - 프레스티지",
+        price: 88147000,
+        modelYear: 2027,
+        fuelType: "가솔린",
+      },
+      snapshot: {},
+    },
+  ];
+  renderPage("최고관리자", "/mc-master/10?brand=1&hlreq=cr-2");
+  // '27년형 수소전기'는 실 트림 없는 합성 그룹 — 기본 접힘이라 hlreq 효과가 펼쳐야만 보인다.
+  const grade = await screen.findByText("프레스티지");
+  const row = grade.closest("tr")!;
+  expect(row.className).toContain("va-row-flash");
+  expect(row.getAttribute("data-request-id")).toBe("cr-2");
+});

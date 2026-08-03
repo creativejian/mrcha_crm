@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { brandIdFromSearch, mcMasterPath } from "./mc-master-route";
+import { brandIdFromSearch, highlightRequestIdFromSearch, mcMasterPath } from "./mc-master-route";
+
+describe("highlightRequestIdFromSearch", () => {
+  it("?hlreq= 요청 uuid를 그대로 파싱한다(신규 트림 미리보기 착지)", () => {
+    expect(highlightRequestIdFromSearch("?brand=1&hlreq=aaaa-bbbb")).toBe("aaaa-bbbb");
+  });
+
+  it("없거나 비면 null", () => {
+    expect(highlightRequestIdFromSearch("?brand=1")).toBeNull();
+    expect(highlightRequestIdFromSearch("?hlreq=")).toBeNull();
+  });
+});
 
 describe("brandIdFromSearch", () => {
   it("?brand= 숫자를 파싱한다", () => {

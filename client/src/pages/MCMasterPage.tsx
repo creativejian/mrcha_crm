@@ -41,7 +41,12 @@ import {
   prefetchTrims,
 } from "./mc-master/catalog-cache";
 import { GroupedTrimTable } from "./mc-master/GroupedTrimTable";
-import { brandIdFromSearch, highlightTrimIdFromSearch, mcMasterPath } from "./mc-master/mc-master-route";
+import {
+  brandIdFromSearch,
+  highlightRequestIdFromSearch,
+  highlightTrimIdFromSearch,
+  mcMasterPath,
+} from "./mc-master/mc-master-route";
 import { ModelEditPanel } from "./mc-master/ModelEditPanel";
 import { ModelTable } from "./mc-master/ModelTable";
 import { MoveTrimsDialog } from "./mc-master/MoveTrimsDialog";
@@ -92,6 +97,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   const { search } = useLocation();
   const urlBrandId = brandIdFromSearch(search);
   const hlTrimId = highlightTrimIdFromSearch(search);
+  const hlRequestId = highlightRequestIdFromSearch(search);
 
   // 딜러 모드 — 자기 브랜드만 본다(유슨생 결정: 경쟁사 가격·할인 전략 비노출).
   // ⚠️ 이 차단은 **클라 스코프**다. catalog 읽기 API는 그대로 열려 있고, 그 데이터(기본가·MC코드·
@@ -274,6 +280,31 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     };
   }, [hlTrimId, trims, isDomestic, expandGroup, brandId, modelId, navigate]);
 
+  // 신규 트림 착지(?hlreq=요청 id — 2026-08-03): 대기열/내 요청의 trim.create 링크는 트림이
+  // 아직 없어 hl을 못 쓴다. pending 도착 후 미리보기 행을 요청 id로 찾아 위 hl 효과와 같은
+  // 규칙(그룹 펼침 → 스크롤 → 플래시 → 소비)으로 마킹한다 — 실기: 링크가 모델로만 떨어져
+  // 접힌 그룹 속 미리보기가 어디 있는지 안 보였다.
+  useEffect(() => {
+    if (hlRequestId == null || pendingRows.length === 0) return;
+    const target = pendingRows.find((r) => r.id === hlRequestId && r.kind === "trim.create");
+    if (!target) return;
+    const group = isDomestic ? trimSubline(String(target.payload.trimName ?? "")) : null;
+    const t0 = window.setTimeout(() => {
+      if (group) expandGroup(group);
+    }, 0);
+    const t1 = window.setTimeout(() => {
+      scrollRef.current
+        ?.querySelector(`tr[data-request-id="${hlRequestId}"]`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 80);
+    const t2 = window.setTimeout(() => navigate(mcMasterPath(brandId, modelId), { replace: true }), 2600);
+    return () => {
+      window.clearTimeout(t0);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [hlRequestId, pendingRows, isDomestic, expandGroup, brandId, modelId, navigate]);
+
   // 스크롤 위치 보존(모델 목록·트림 목록 각각): 트림 뷰 왕복은 물론 다른 메뉴에 갔다 와도 복원.
   // 트림은 모델별로 나눠 담아 다른 모델에 들어갈 땐 맨 위에서 시작한다(view-state.ts).
   function onScroll() {
@@ -337,6 +368,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     <PendingTrimPreviewRow
       key={p.request.id}
       preview={p}
+      flash={p.request.id === hlRequestId}
       grouped={groupedView}
       showOptionCol={groupedView || isDomestic}
       showEditCol={groupedView ? canWrite : canWrite && !selectMode}
