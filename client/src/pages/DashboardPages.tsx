@@ -11,15 +11,31 @@ function BriefList({ items }: { items: readonly (readonly [string, string])[] })
   return <div className="brief-list">{items.map(([title, desc]) => <div className="brief" key={title}><strong>{title}</strong><span>{desc}</span></div>)}</div>;
 }
 
-// ⚠️ **샘플 값이다**(2026-08-02 리포트 spec §1). 실데이터화하지 않은 이유는 원천이 없어서가 아니라
-// "실적을 어느 시점에 인식하는가"(견적/계약/출고/입금)가 이사님 합의 사항이기 때문이다 — 기준을
-// 정하지 않은 채 그럴듯한 숫자를 띄우는 쪽이 목업보다 위험하다. 화면은 "샘플" 배지로 이를 알린다.
-// 상단바 요약(Topbar)도 같은 값 계통이라 함께 목업으로 남아 있다.
-const adminMonthlyPerformance = [
-  ["전체 출고", "86", "대", "+15"],
-  ["리스 실적", "4,867,469,860", "원", "+1,236,457,689"],
-  ["렌트 실적", "2,987,654,300", "원", "+954,674,260"],
-] as const;
+// 상단바 요약(Topbar)은 아직 이 목업 값 계통이다 — 그쪽은 전 역할이 보는 자리라 admin 전용
+// 리포트 API를 그대로 쓸 수 없어 별도 슬라이스로 남긴다(2026-08-03 spec §5).
+
+// 히어로 3지표(2026-08-03 이사님 확정 — 출고 달 기준). 금액은 원 단위 정수로 받아 여기서 포맷한다.
+type HeroMetric = { label: string; value: string; unit: string; delta: string; up: boolean };
+
+function buildHeroPerformance(report: AdminReport): HeroMetric[] {
+  const { count, prevCount, leaseAmount, prevLeaseAmount, rentAmount, prevRentAmount } = report.delivery;
+  const won = (v: number) => v.toLocaleString("ko-KR");
+  const metric = (label: string, unit: string, cur: number, prev: number): HeroMetric => {
+    const diff = cur - prev;
+    return {
+      label,
+      value: won(cur),
+      unit,
+      delta: diff === 0 ? "±0" : `${diff > 0 ? "+" : ""}${won(diff)}`,
+      up: diff > 0,
+    };
+  };
+  return [
+    metric("전체 출고", "대", count, prevCount),
+    metric("리스 실적", "원", leaseAmount, prevLeaseAmount),
+    metric("렌트 실적", "원", rentAmount, prevRentAmount),
+  ];
+}
 
 const reportOptions = [
   "전체 운영",
@@ -327,23 +343,39 @@ export function AdminDashboardPage() {
     : error
       ? "표시할 수 없습니다."
       : "이 달 기록이 아직 없습니다. 위에서 다른 달을 선택해 보세요.";
+  // 히어로는 탭과 무관하게 항상 그 달의 실적을 보여준다(리포트 탭 전환에 영향받지 않음).
+  const hero = report ? buildHeroPerformance(report) : null;
+  const heroNote = loading ? "불러오는 중…" : error ? "실적을 표시할 수 없습니다." : "실적 데이터가 없습니다.";
+  // 0건은 고장이 아니라 사실이다 — 다만 원인이 "출고 실측일 미입력"인 경우가 대부분이라 안내한다
+  // (상태만 '출고완료'로 바꾸고 날짜를 비워두면 월 집계에 잡히지 않는다, spec §3a).
+  const heroHint =
+    report && report.delivery.count === 0
+      ? "이 달 출고 기록이 없습니다 — 출고 정보에 실측일을 입력하면 집계됩니다."
+      : "출고 실측일 기준입니다. 리스는 취득원가, 렌트는 차량가로 집계합니다.";
 
   return (
     <>
       <section className="card advisor-performance admin-performance">
         <div className="advisor-performance-head">
-          <div><strong>관리자 핵심 지표</strong><span>실적 인식 기준(계약·출고·입금) 확정 전이라 예시 값으로 표시합니다.</span></div>
-          <span className="badge yellow">샘플</span>
+          <div>
+            <strong>{shownMonth ? `${formatMonthLabel(shownMonth)} 핵심 지표` : "관리자 핵심 지표"}</strong>
+            <span>{heroHint}</span>
+          </div>
+          <span className="badge green">실데이터</span>
         </div>
-        <div className="advisor-performance-grid admin-performance-grid">
-          {adminMonthlyPerformance.map(([label, value, unit, delta]) => (
-            <div className="advisor-performance-item admin-performance-item" key={label}>
-              <span>{label}</span>
-              <strong><span className="num">{value}</span>{unit}</strong>
-              <em><span className="num">{delta}</span> 전월 대비</em>
-            </div>
-          ))}
-        </div>
+        {hero ? (
+          <div className="advisor-performance-grid admin-performance-grid">
+            {hero.map((metric) => (
+              <div className="advisor-performance-item admin-performance-item" key={metric.label}>
+                <span>{metric.label}</span>
+                <strong><span className="num">{metric.value}</span>{metric.unit}</strong>
+                <em className={metric.up ? "up" : undefined}><span className="num">{metric.delta}</span> 전월 대비</em>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="report-empty">{heroNote}</div>
+        )}
       </section>
       <div className="report-toolbar">
         <div className="report-toolbar-copy">
