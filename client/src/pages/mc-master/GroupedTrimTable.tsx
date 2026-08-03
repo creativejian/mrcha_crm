@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Pencil } from "lucide-react";
 
 import type { CatalogTrim, TrimColor, TrimOptionSummary } from "@/lib/catalog";
 import type { DealerDiscountAmounts, DealerDiscountProposal } from "@/lib/dealer-discounts";
@@ -11,7 +11,9 @@ import { TRIM_BODY_COLS } from "./trim-format";
 import { groupTrimsBySubline, trimGrade, trimSubline } from "./trim-grouping";
 
 // 국산차 '목록 보기': 서브라인 단위 접이식 그룹. 그룹 내에서는 등급만 표시한다(편집은 행별 ✎).
-// 순서변경/일괄삭제는 '순서 관리' 탭(평면 TrimTable)에서만 — 여기서는 읽기/개별 편집만.
+// 트림 단위 순서변경/일괄삭제는 '순서 관리' 탭(평면 TrimTable)에서만 — 여기서는 읽기/개별 편집,
+// 그리고 '선택' 토글의 **그룹 순서 모드**(2026-08-03 이사님 요청: 그룹 헤더만 남기고 그립
+// 드래그로 블록 이동 — 체크박스 없음, 저장·에러 처리는 MCMasterPage 소유).
 // 신규 트림 미리보기(trim.create pending)는 같은 서브라인 그룹 끝에 편입되고, 기존 그룹이
 // 없는 서브라인은 합성 그룹으로 뒤에 붙는다(2026-08-03) — 렌더링 자체는 renderPreviewRow
 // (MCMasterPage 소유)가 하고 여기는 배치만 안다(행 배지 rowBadge도 같은 결).
@@ -34,6 +36,11 @@ export function GroupedTrimTable({
   rowBadge,
   pendingPreviews,
   renderPreviewRow,
+  groupOrderMode = false,
+  draggingGroupKey,
+  onGroupDragStart,
+  onGroupDragOver,
+  onGroupDrop,
 }: {
   trims: CatalogTrim[];
   canEdit: boolean;
@@ -51,6 +58,12 @@ export function GroupedTrimTable({
   /** 신규 트림(trim.create pending) 미리보기 — 서브라인 매칭으로 그룹에 편입한다. */
   pendingPreviews?: PendingTrimPreview[];
   renderPreviewRow?: (preview: PendingTrimPreview) => ReactNode;
+  /** 그룹 순서 모드('선택' 토글) — 그룹 헤더만 남기고 그립 드래그로 블록 이동. */
+  groupOrderMode?: boolean;
+  draggingGroupKey?: string | null;
+  onGroupDragStart?: (key: string) => void;
+  onGroupDragOver?: (key: string) => void;
+  onGroupDrop?: () => void;
   colorsByTrim: Map<number, TrimColor[]>;
   optionByTrim: Map<number, TrimOptionSummary>;
   expanded: Set<string>;
@@ -95,6 +108,46 @@ export function GroupedTrimTable({
       </td>
     </tr>
   );
+
+  // 그룹 순서 모드 — 그룹 헤더만 남기고(트림·미리보기·합성 그룹 숨김: 합성 그룹은 실 트림이
+  // 없어 sort_order 이동 대상이 아니다) 그립 드래그로 블록을 옮긴다. 드래그 의미론은 순서 관리
+  // 트림 행(SelectableRow)과 동일: dragOver에서 낙관 이동, dragEnd에서 저장.
+  if (groupOrderMode) {
+    return (
+      <table className="customer-table va-trim-table">
+        <thead>
+          <tr>
+            <th className="va-th-trim">트림명</th>
+            <TrimHeadCells dealerMode={false} />
+            {canEdit && <th className="va-col-center va-th-edit" aria-label="편집" />}
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map((g) => (
+            <tr
+              key={g.key}
+              className={`va-group-row${draggingGroupKey === g.key ? " va-dragging" : ""}`}
+              draggable
+              onDragStart={() => onGroupDragStart?.(g.key)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                onGroupDragOver?.(g.key);
+              }}
+              onDragEnd={onGroupDrop}
+            >
+              <td colSpan={colSpan}>
+                <span className="va-group-label va-group-drag" aria-label={`${g.key} 순서 이동`}>
+                  <GripVertical className="va-grip" size={15} />
+                  <span className="va-group-name">{g.key}</span>
+                  <span className="va-group-count">{g.trims.length}개 트림</span>
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
 
   return (
     <table className="customer-table va-trim-table">

@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { ArrowLeft, CheckSquare, ChevronDown, ChevronUp, FolderInput, Hash, Plus } from "lucide-react";
+import { ArrowLeft, CheckSquare, FolderInput, Hash, Plus } from "lucide-react";
 
 import { ChangeRequestQueueButton } from "@/components/ChangeRequestQueue";
 import { MyChangeRequestsButton } from "@/components/MyChangeRequests";
@@ -49,11 +49,11 @@ import { MyProposalTrimsButton } from "./mc-master/MyProposalTrims";
 import { splitModelPending, type PendingTrimPreview } from "./mc-master/pending-preview";
 import { PendingRequestBadge } from "./mc-master/PendingRequestBadge";
 import { PendingTrimPreviewRow } from "./mc-master/PendingTrimPreviewRow";
-import { groupTrimsBySubline, trimSubline } from "./mc-master/trim-grouping";
+import { trimSubline } from "./mc-master/trim-grouping";
 import { OptionPanel } from "./mc-master/OptionPanel";
 import { TrimEditPanel } from "./mc-master/TrimEditPanel";
 import { TrimTable } from "./mc-master/TrimTable";
-import { moveGroupBySubline, moveItem } from "./mc-master/reorder";
+import { moveGroupToKey, moveItem } from "./mc-master/reorder";
 import { SCOPE_BRAND_PENDING, useMcMasterCatalog } from "./mc-master/useMcMasterCatalog";
 import { useMcMasterSelection } from "./mc-master/useMcMasterSelection";
 import { mcMasterViewState } from "./mc-master/view-state";
@@ -449,21 +449,30 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     }
   }
 
-  // 그룹(서브라인) 블록 이동 — 순서 관리에서 트림 하나씩(드래그)이 아니라 그룹째 옮긴다
-  // (이사님 요청 2026-08-03: 캐스퍼처럼 연식·라인 그룹이 많으면 하나씩이 부담). 낙관 갱신 +
-  // 실패 시 재조회는 onDrop과 같은 규칙. busy 공유로 연타 중 API가 겹치지 않게 한다.
-  async function moveGroup(key: string, dir: -1 | 1) {
-    const next = moveGroupBySubline(trims, key, dir);
-    if (next === trims) return; // 끝 그룹 등 no-op — 원본 참조 그대로가 판별 계약(reorder.ts)
-    setTrims(next);
-    setBusy(true);
+  // 그룹(서브라인) 블록 드래그 — 목록 보기 '선택' 모드에서 그룹 헤더만 남기고 통째 옮긴다
+  // (이사님 요청 2026-08-03: 캐스퍼처럼 연식·라인 그룹이 많으면 트림 하나씩이 부담. 구 ↑/↓
+  // 패널은 드래그로 대체·폐기). 낙관 갱신 + 실패 시 재조회는 트림 드래그(onDrop)와 같은 규칙.
+  // 드래그 키는 문자열(서브라인)이라 선택 훅의 숫자 id 드래그 상태와 섞지 않고 따로 든다.
+  const groupDragKey = useRef<string | null>(null);
+  const [draggingGroupKey, setDraggingGroupKey] = useState<string | null>(null);
+  function onGroupDragStart(key: string) {
+    groupDragKey.current = key;
+    setDraggingGroupKey(key);
+  }
+  function onGroupDragOver(overKey: string) {
+    const cur = groupDragKey.current;
+    if (cur == null || cur === overKey) return;
+    setTrims((list) => moveGroupToKey(list, cur, overKey));
+  }
+  async function onGroupDrop() {
+    if (groupDragKey.current == null) return; // dragEnd 중복 발화 방어
+    groupDragKey.current = null;
+    setDraggingGroupKey(null);
     try {
-      await reorderTrims(next.map((t) => t.id));
+      await reorderTrims(trims.map((t) => t.id));
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "순서변경 실패");
       reloadTrims();
-    } finally {
-      setBusy(false);
     }
   }
   async function bulkDelete() {
@@ -590,7 +599,9 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                     setTrimPanel({ mode: "add" });
                   },
                   "트림 추가",
-                  !groupedView,
+                  // 그룹 뷰에서도 선택을 연다(2026-08-03) — 의미가 다르다: 평면 뷰 = 체크박스
+                  // 일괄삭제·트림 드래그, 그룹 뷰 = 그룹 헤더만 남긴 그룹 드래그(체크박스 없음).
+                  true,
                   canEdit && trims.some((t) => !t.mcCode) ? (
                     <button type="button" className="btn" onClick={assignCodes} disabled={busy}>
                       <Hash size={15} /> 고유번호 할당
@@ -658,41 +669,18 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 </button>
               </div>
             )}
-            {/* 그룹 단위 순서 이동(이사님 요청 2026-08-03) — reorder는 admin 전용(spec §3.2)이라
-                canEdit 게이트. 그룹이 하나뿐이면 옮길 곳이 없어 패널 자체를 숨긴다. */}
-            {inTrimView && isDomestic && trimTab === "order" && canEdit && (
-              <div className="va-group-order">
-                <span className="va-group-order-title">그룹 순서</span>
-                {groupTrimsBySubline(trims).map((g, i, arr) => (
-                  <span className="va-group-order-item" key={g.key}>
-                    <span className="va-group-order-name">{g.key}</span>
-                    <button
-                      type="button"
-                      className="tiny-btn"
-                      aria-label={`${g.key} 위로`}
-                      disabled={busy || i === 0}
-                      onClick={() => void moveGroup(g.key, -1)}
-                    >
-                      <ChevronUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="tiny-btn"
-                      aria-label={`${g.key} 아래로`}
-                      disabled={busy || i === arr.length - 1}
-                      onClick={() => void moveGroup(g.key, 1)}
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
             {inTrimView ? (
               groupedView ? (
                 <GroupedTrimTable
                   trims={trims}
                   canEdit={canWrite}
+                  // 그룹 순서 모드(선택 토글, admin 전용 — 선택 버튼 자체가 canEdit 게이트) —
+                  // 그룹 헤더만 남기고 그립 드래그로 블록 이동(이사님 요청 2026-08-03).
+                  groupOrderMode={selectMode}
+                  draggingGroupKey={draggingGroupKey}
+                  onGroupDragStart={onGroupDragStart}
+                  onGroupDragOver={onGroupDragOver}
+                  onGroupDrop={() => void onGroupDrop()}
                   dealerProposals={dealerMode ? dealerProposals : undefined}
                   onSaveProposal={dealerMode ? saveProposal : undefined}
                   proposalsByTrim={canEdit ? trimProposals : undefined}

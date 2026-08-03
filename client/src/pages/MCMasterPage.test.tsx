@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -634,20 +634,29 @@ it("admin 폼엔 할인 정보가 그대로 있다(채택 외 수동 조정 경�
   expect(await screen.findByText("자사 할인(원)")).toBeInTheDocument();
 });
 
-// ── 그룹 단위 순서 이동(이사님 요청 2026-08-03) — 순서 관리 탭 상단 패널(admin 전용) ────
+// ── 그룹 순서 모드(이사님 요청 2026-08-03) — 목록 보기 '선택' → 그룹 헤더 그립 드래그 ────
 const GROUP_TRIMS = [
   { ...TRIMS[0], id: 100, name: "27년형 가솔린 1.0 - 스마트", trimName: "27년형 가솔린 1.0 - 스마트" },
   { ...TRIMS[0], id: 101, name: "27년형 가솔린 1.0 - 디 에센셜", trimName: "27년형 가솔린 1.0 - 디 에센셜", sortOrder: 2 },
   { ...TRIMS[0], id: 102, name: "26년형 가솔린 1.0 - 스마트", trimName: "26년형 가솔린 1.0 - 스마트", sortOrder: 3 },
 ];
 
-it("admin 순서 관리: 그룹 '아래로' → 블록째 이동된 전체 id로 reorder API 발사", async () => {
+it("admin 목록 보기 선택: 그룹 헤더만 남고, 드래그 → 블록째 이동된 전체 id로 reorder API 발사", async () => {
   trimsResponse = GROUP_TRIMS;
   const user = userEvent.setup();
   renderPage("최고관리자");
   await user.click(await screen.findByRole("button", { name: "그랜저" }));
-  await user.click(await screen.findByRole("button", { name: "순서 관리" }));
-  await user.click(await screen.findByRole("button", { name: "27년형 가솔린 1.0 아래로" }));
+  await screen.findByText("스마트"); // 그룹 뷰 로드(첫 그룹 펼침 상태)
+  await user.click(screen.getByRole("button", { name: "선택" }));
+  // 그룹 순서 모드 — 트림 행·체크박스 없이 그룹 헤더만 남는다.
+  expect(screen.queryByText("스마트")).toBeNull();
+  expect(screen.queryByRole("checkbox")).toBeNull();
+  const from = screen.getByText("27년형 가솔린 1.0").closest("tr")!;
+  const to = screen.getByText("26년형 가솔린 1.0").closest("tr")!;
+  // SelectableRow와 같은 드래그 의미론: dragOver에서 낙관 이동 → dragEnd에서 저장.
+  fireEvent.dragStart(from);
+  fireEvent.dragOver(to);
+  fireEvent.dragEnd(from);
   await waitFor(() => {
     const call = fetchCalls.find(([url, init]) => url === "/api/catalog/trims/reorder" && init?.method === "POST");
     expect(call).toBeTruthy();
@@ -656,20 +665,11 @@ it("admin 순서 관리: 그룹 '아래로' → 블록째 이동된 전체 id로
   });
 });
 
-it("그룹 순서 패널: 끝 방향 버튼은 비활성, 팀장에겐 패널 자체가 없다", async () => {
+it("팀장에겐 목록 보기 선택 버튼이 없다(그룹 순서 = reorder admin 전용과 동형)", async () => {
   trimsResponse = GROUP_TRIMS;
   const user = userEvent.setup();
-  const admin = renderPage("최고관리자");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
-  await user.click(await screen.findByRole("button", { name: "순서 관리" }));
-  expect(await screen.findByText("그룹 순서")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "27년형 가솔린 1.0 위로" })).toBeDisabled(); // 첫 그룹
-  expect(screen.getByRole("button", { name: "26년형 가솔린 1.0 아래로" })).toBeDisabled(); // 마지막 그룹
-  admin.unmount();
-
   renderPage("팀장");
-  await userEvent.setup().click(await screen.findByRole("button", { name: "그랜저" }));
-  // 팀장에게도 탭은 보이지만(읽기용 평면 목록) 그룹 순서 패널은 admin 전용(reorder 게이트와 동형).
-  await userEvent.setup().click(await screen.findByRole("button", { name: "순서 관리" }));
-  expect(screen.queryByText("그룹 순서")).toBeNull();
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("스마트");
+  expect(screen.queryByRole("button", { name: "선택" })).toBeNull();
 });
