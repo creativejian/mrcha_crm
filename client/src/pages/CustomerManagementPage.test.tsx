@@ -763,6 +763,60 @@ describe("출고 관리(delivery) 콘솔", () => {
 
   // ── 정산 섹션(2026-08-03, admin 단독 — 유슨생 결정) ────────────────────────
   // 서버 requireRoles가 진짜 게이트지만, UI가 새면 상담사 화면에 회사 수입 칸이 뜬다.
+  // 출고 후 미확정 배지(2026-08-03 이사님 — 1일 초과부터). 인도와 확정 사이가 취소·지연 구간이라
+  // 이 배지가 안 뜨면 상담사가 챙겨야 할 건을 놓친다.
+  it("인도됐는데 계약 확정이 안 된 건에 '미확정 N일' 배지가 뜬다", () => {
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-unconfirmed",
+        no: 90010,
+        customerId: "CU-2605-9010",
+        name: "미확정검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+        delivery: {
+          contractVehicle: "BMW 520i",
+          contractDate: null,
+          lender: null,
+          deliveredDate: "2020-01-01", // 충분히 과거 — 임계값 변경과 무관하게 항상 뜬다
+          contractConfirmedDate: null,
+          deliveryMemo: null,
+          sourceQuoteId: null,
+        },
+      },
+    ];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    expect(screen.getByText(/미확정 \d+일/)).toBeInTheDocument();
+  });
+
+  it("확정일이 채워지면 배지가 사라진다", () => {
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-confirmed",
+        no: 90011,
+        customerId: "CU-2605-9011",
+        name: "확정검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+        delivery: {
+          contractVehicle: "BMW 520i",
+          contractDate: null,
+          lender: null,
+          deliveredDate: "2020-01-01",
+          contractConfirmedDate: "2020-01-03",
+          deliveryMemo: null,
+          sourceQuoteId: null,
+        },
+      },
+    ];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    expect(screen.queryByText(/미확정 \d+일/)).toBeNull();
+  });
+
   it("정산 칸은 최고관리자에게만 보인다", () => {
     render(<CustomerManagementPage mode="delivery" roleTab="최고관리자" />);
     fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:|^출고 정보:/ })[0]);

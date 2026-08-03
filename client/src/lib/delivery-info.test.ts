@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContractingQuoteSummary, CustomerDeliveryInfo } from "@/data/customers";
-import { deliveryInfoSummary, resolveDeliveryInfoSubmit, resolveSettlementSubmit, seedDeliveryInfoDraft } from "./delivery-info";
+import { deliveryInfoSummary, resolveDeliveryInfoSubmit, resolveSettlementSubmit, seedDeliveryInfoDraft, unconfirmedDeliveryDays } from "./delivery-info";
 
 const QUOTE: ContractingQuoteSummary = {
   id: "q-1",
@@ -179,5 +179,41 @@ describe("resolveSettlementSubmit", () => {
       kind: "save",
       body: { settledAt: null, feeAmount: 1180000 },
     });
+  });
+});
+
+// 출고 후 미확정 추적(2026-08-03 이사님 — 1일 초과부터). 인도와 확정 사이가 취소·지연이 생기는
+// 유일한 구간이라, 이 판정이 틀리면 상담사가 챙겨야 할 건을 놓친다.
+describe("unconfirmedDeliveryDays", () => {
+  const NOW = new Date("2026-08-05T03:00:00Z"); // KST 8/5 12:00
+  const delivered = (d: string | null, confirmed: string | null = null): CustomerDeliveryInfo => ({
+    ...EMPTY,
+    deliveredDate: d,
+    contractConfirmedDate: confirmed,
+  });
+
+  it("확정됐으면 null — 신호가 아니다", () => {
+    expect(unconfirmedDeliveryDays(delivered("2026-08-01", "2026-08-03"), NOW)).toBeNull();
+  });
+
+  it("인도일이 없으면 null — 아직 출고 전이라 셀 것이 없다", () => {
+    expect(unconfirmedDeliveryDays(delivered(null), NOW)).toBeNull();
+    expect(unconfirmedDeliveryDays(null, NOW)).toBeNull();
+  });
+
+  it("당일 인도는 null(임계 미만), 다음 날부터 1일로 뜬다 — 1일 초과 규칙", () => {
+    expect(unconfirmedDeliveryDays(delivered("2026-08-05"), NOW)).toBeNull();
+    expect(unconfirmedDeliveryDays(delivered("2026-08-04"), NOW)).toBe(1);
+    expect(unconfirmedDeliveryDays(delivered("2026-08-01"), NOW)).toBe(4);
+  });
+
+  it("일수는 KST 달력일 — 브라우저 로컬 tz가 아니라 서버 지표와 같은 숫자여야 한다", () => {
+    // KST 8/5 00:30(= UTC 8/4 15:30)에도 "8/4 인도"는 1일이다(시각이 아니라 달력일 차이).
+    const justAfterKstMidnight = new Date("2026-08-04T15:30:00Z");
+    expect(unconfirmedDeliveryDays(delivered("2026-08-04"), justAfterKstMidnight)).toBe(1);
+  });
+
+  it("깨진 날짜 문자열은 null — 배지가 NaN일로 뜨지 않게", () => {
+    expect(unconfirmedDeliveryDays(delivered("내일"), NOW)).toBeNull();
   });
 });
