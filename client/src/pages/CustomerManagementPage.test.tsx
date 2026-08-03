@@ -781,8 +781,18 @@ describe("출고 관리(delivery) 콘솔", () => {
     ];
     render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 프리필검증" }));
-    expect(screen.getByLabelText("계약 차량")).toHaveValue("BMW 5 Series 520i");
-    expect(screen.getByLabelText("금융사")).toHaveValue("iM캐피탈");
+    // 라벨 매칭이 정규식인 이유: 프리필된 칸에는 "견적에서 가져옴" 힌트가 라벨 안에 붙는다
+    // (aria-hidden이어도 getByLabelText는 textContent를 보므로 정확 일치가 깨진다).
+    const vehicle = screen.getByLabelText(/계약 차량/);
+    const lender = screen.getByLabelText(/금융사/);
+    expect(vehicle).toHaveValue("BMW 5 Series 520i");
+    expect(lender).toHaveValue("iM캐피탈");
+    // 프리필 힌트 — 견적에서 채운 두 칸에만 붙는다(2026-08-03).
+    expect(screen.getAllByText("견적에서 가져옴")).toHaveLength(2);
+    // 사용자가 고치면 그 칸의 힌트만 사라진다(남으면 "견적값"이라는 거짓 표시가 된다).
+    fireEvent.change(vehicle, { target: { value: "직접 수정" } });
+    expect(screen.getAllByText("견적에서 가져옴")).toHaveLength(1);
+    expect(screen.getByLabelText(/금융사/)).toHaveValue("iM캐피탈");
   });
 
   it("저장은 정규화 body로 saveCustomerDelivery를 호출하고, 리로드 실패(false)면 팝오버 유지+안내(B#1 미러)", async () => {

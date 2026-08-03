@@ -8,7 +8,7 @@ import { CHANCE_OPTIONS, type Customer, customerStatusGroups, type NextDeliveryS
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
-import { deliveryInfoSummary, seedDeliveryInfoDraft, type DeliveryInfoDraft } from "@/lib/delivery-info";
+import { deliveryInfoSummary, seedDeliveryInfoDraft, type DeliveryInfoDraft, type SeedableDeliveryField } from "@/lib/delivery-info";
 import { SOLUTION_LENDERS } from "@/lib/solution-quote";
 import { useFixedPopoverPosition } from "@/lib/use-fixed-popover-position";
 
@@ -719,7 +719,17 @@ function DeliveryInfoPopover({ customerName, draft: initialDraft, notice, saving
   const rootRef = useRef<HTMLDivElement>(null);
   // heightDep에 notice 문자열 자체를 넘긴다(Boolean 금지 — 위 DeliverySchedulePopover와 같은 사유).
   const pos = useFixedPopoverPosition(rootRef, ".delivery-info-wrap", notice);
-  const set = (patch: Partial<DeliveryInfoDraft>) => setDraft((d) => ({ ...d, ...patch }));
+  // 사용자가 고친 칸은 더 이상 "견적에서 가져온" 값이 아니므로 힌트를 뗀다(남으면 거짓 표시).
+  const set = (patch: Partial<DeliveryInfoDraft>) =>
+    setDraft((d) => ({ ...d, ...patch, seededFields: d.seededFields.filter((f) => !(f in patch)) }));
+  // 프리필 힌트 — 저장값이 없어 견적으로 채운 칸에만 붙는다(soft pipe 규칙의 가시화, spec §5.3).
+  // ⚠️ aria-hidden 필수: 라벨 안에 있어서 그냥 두면 접근성 이름이 "계약 차량견적에서 가져옴"이 되고,
+  // 라벨로 요소를 찾는 코드·테스트가 전부 깨진다(getByLabelText 정확 일치 — 실제로 잡혔다).
+  // 값 자체는 input에서 읽히므로 보조 표시를 빼도 정보 손실이 아니다.
+  const seedHint = (field: SeedableDeliveryField) =>
+    draft.seededFields.includes(field) ? (
+      <em aria-hidden="true" className="delivery-seed-hint">견적에서 가져옴</em>
+    ) : null;
   return (
     <div
       aria-label="출고 정보 편집"
@@ -735,10 +745,10 @@ function DeliveryInfoPopover({ customerName, draft: initialDraft, notice, saving
     >
       {/* 폼형 관례(담당자 변경·고객 삭제·고객 등록 전부 가시 타이틀) + fixed 분리 대비 고객명 병기(배치 11 C#1·spec §6) */}
       <strong className="delivery-info-title">출고 정보 — {customerName}</strong>
-      <label><span>계약 차량</span><input onChange={(e) => set({ contractVehicle: e.target.value })} type="text" value={draft.contractVehicle} /></label>
+      <label><span>계약 차량{seedHint("contractVehicle")}</span><input onChange={(e) => set({ contractVehicle: e.target.value })} type="text" value={draft.contractVehicle} /></label>
       <label><span>계약일</span><DateTextField onValueChange={(v) => set({ contractDate: v })} value={draft.contractDate} /></label>
       <label>
-        <span>금융사</span>
+        <span>금융사{seedHint("lender")}</span>
         <input list="delivery-lender-options" onChange={(e) => set({ lender: e.target.value })} type="text" value={draft.lender} />
         <datalist id="delivery-lender-options">{SOLUTION_LENDERS.map((l) => <option key={l.code} value={l.label} />)}</datalist>
       </label>

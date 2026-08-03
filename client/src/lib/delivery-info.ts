@@ -4,6 +4,9 @@ import { normalizeDateText } from "@/lib/datetime-text";
 
 // ── 출고 정보 팝오버 순수 계층(2026-07-20 출고 2단계 spec §5.1·§5.3) — 전부 순수 함수 ──
 
+/** 견적에서 프리필될 수 있는 필드(soft pipe 대상) — 나머지는 항상 수기 입력이다. */
+export type SeedableDeliveryField = "contractVehicle" | "lender";
+
 export type DeliveryInfoDraft = {
   contractVehicle: string;
   contractDate: string;
@@ -12,6 +15,12 @@ export type DeliveryInfoDraft = {
   deliveryMemo: string;
   /** 프리필이 참조한 계약 진행 견적 id(soft pipe provenance) — 시드 미적용이면 기존 저장값 승계. */
   sourceQuoteId: string | null;
+  /**
+   * 이번 시드에서 **견적으로 채운** 필드. UI가 "견적에서 가져옴" 힌트를 띄우는 근거다.
+   * 저장 본문에는 들어가지 않는다(resolveDeliveryInfoSubmit이 무시) — 순수 표시용 메타.
+   * 사용자가 그 칸을 고치면 호출부가 목록에서 빼야 한다(힌트가 남으면 거짓말이 된다).
+   */
+  seededFields: readonly SeedableDeliveryField[];
 };
 
 // 프리필 시드(spec §5.3): 저장값이 비어 있는 필드만 contracting 견적에서 채운다(수기 우선).
@@ -24,6 +33,9 @@ export function seedDeliveryInfoDraft(
   const vehicleSeed = quote ? [quote.brandName, dedupedModelTrim(quote.modelName, quote.trimName)].filter(Boolean).join(" ") : "";
   const seedVehicle = !existing?.contractVehicle && vehicleSeed ? vehicleSeed : null;
   const seedLender = !existing?.lender && quote?.lender ? quote.lender : null;
+  const seededFields: SeedableDeliveryField[] = [];
+  if (seedVehicle) seededFields.push("contractVehicle");
+  if (seedLender) seededFields.push("lender");
   return {
     contractVehicle: existing?.contractVehicle ?? seedVehicle ?? "",
     contractDate: existing?.contractDate ?? "",
@@ -31,6 +43,7 @@ export function seedDeliveryInfoDraft(
     deliveredDate: existing?.deliveredDate ?? "",
     deliveryMemo: existing?.deliveryMemo ?? "",
     sourceQuoteId: seedVehicle || seedLender ? quote!.id : (existing?.sourceQuoteId ?? null),
+    seededFields,
   };
 }
 
