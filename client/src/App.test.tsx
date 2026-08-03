@@ -2,10 +2,23 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-// apiFetch(./lib/api)가 supabase.auth.getSession()을 호출하므로 supabase를 mock한다.
-vi.mock("@/lib/supabase", () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
-}));
+// apiFetch(./lib/api)가 supabase.auth.getSession()을 호출하고, mc-master가 마운트 시 실시간
+// 신호 채널(catalog-change-realtime)을 열므로 auth + channel 둘 다 mock한다(채널은 체이닝만 흉내
+// — MCMasterPage.test.tsx와 같은 결).
+vi.mock("@/lib/supabase", () => {
+  const channelStub = {
+    on: () => channelStub,
+    subscribe: () => channelStub,
+    send: async () => "ok",
+  };
+  return {
+    supabase: {
+      auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+      channel: () => channelStub,
+      removeChannel: async () => "ok",
+    },
+  };
+});
 
 import { App } from "./App";
 

@@ -101,6 +101,35 @@ export async function markRejected(
   return row ?? null;
 }
 
+export async function getChangeRequest(id: string, executor: Executor = getDefaultDb()): Promise<ChangeRequestRow | null> {
+  const [row] = await executor.select().from(catalogChangeRequests).where(eq(catalogChangeRequests.id, id));
+  return row ?? null;
+}
+
+// "이어서 수정"(2026-08-03) — 내 pending 요청의 payload/snapshot 통째 교체. create류(target_id
+// 없음)는 upsertPendingRequest의 본인 갱신 분기가 못 잡는 축이라 요청 id로 직접 교체한다.
+// 소유·상태 조건이 WHERE에 있어 승인/반려/취소와 경합하면 no-op(null) — 호출부가 404로 돌려보낸다.
+export async function replaceOwnPendingPayload(
+  id: string,
+  requesterId: string,
+  payload: Record<string, unknown>,
+  snapshot: Record<string, unknown> | null,
+  executor: Executor = getDefaultDb(),
+): Promise<ChangeRequestRow | null> {
+  const [row] = await executor
+    .update(catalogChangeRequests)
+    .set({ payload, snapshot, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(catalogChangeRequests.id, id),
+        eq(catalogChangeRequests.requestedBy, requesterId),
+        eq(catalogChangeRequests.status, "pending"),
+      ),
+    )
+    .returning();
+  return row ?? null;
+}
+
 export async function cancelOwnPending(
   id: string,
   requesterId: string,

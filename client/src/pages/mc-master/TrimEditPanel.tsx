@@ -20,6 +20,7 @@ const won = (v: number | null): string => (v != null ? v.toLocaleString() : "");
 
 export function TrimEditPanel({
   trim,
+  prefill = null,
   modelStatus,
   onClose,
   onSubmit,
@@ -30,6 +31,9 @@ export function TrimEditPanel({
   showDiscounts = true,
 }: {
   trim: CatalogTrim | null;
+  // 추가 폼(trim=null)의 초기값 — 내 pending trim.create "이어서 수정"(2026-08-03)이 요청
+  // payload를 싣는다. edit 모드의 프리필은 기존대로 trim에 겹쳐 내려온다(둘은 배타).
+  prefill?: Partial<TrimInput> | null;
   modelStatus: VehicleStatus | null;
   onClose: () => void;
   onSubmit: (values: TrimInput) => void;
@@ -43,18 +47,28 @@ export function TrimEditPanel({
   showDiscounts?: boolean;
 }) {
   const isEdit = trim !== null;
-  const [trimName, setTrimName] = useState(trim?.trimName ?? "");
-  const [price, setPrice] = useState(trim ? trim.price.toLocaleString() : "");
-  const [modelYear, setModelYear] = useState(String(trim?.modelYear ?? 2026));
-  const [fuelType, setFuelType] = useState(trim?.fuelType ?? "가솔린");
-  const [driveSystem, setDriveSystem] = useState(trim?.driveSystem ?? "FWD");
-  const [transmissionType, setTransmissionType] = useState(trim?.transmissionType ?? "A/T");
-  const [displacementCc, setDisplacementCc] = useState(trim?.displacementCc != null ? String(trim.displacementCc) : "");
-  const [bodyStyle, setBodyStyle] = useState(trim?.bodyStyle ?? "");
-  const [seatingCapacity, setSeatingCapacity] = useState(
-    trim?.seatingCapacity != null ? String(trim.seatingCapacity) : "",
+  const [trimName, setTrimName] = useState(trim?.trimName ?? prefill?.trimName ?? "");
+  const [price, setPrice] = useState(
+    trim ? trim.price.toLocaleString() : prefill?.price != null ? prefill.price.toLocaleString() : "",
   );
-  const [status, setStatus] = useState<VehicleStatus>(trim?.status ?? "판매중");
+  const [modelYear, setModelYear] = useState(String(trim?.modelYear ?? prefill?.modelYear ?? 2026));
+  const [fuelType, setFuelType] = useState(trim?.fuelType ?? prefill?.fuelType ?? "가솔린");
+  const [driveSystem, setDriveSystem] = useState(trim?.driveSystem ?? prefill?.driveSystem ?? "FWD");
+  const [transmissionType, setTransmissionType] = useState(
+    trim?.transmissionType ?? prefill?.transmissionType ?? "A/T",
+  );
+  const [displacementCc, setDisplacementCc] = useState(
+    (trim?.displacementCc ?? prefill?.displacementCc) != null
+      ? String(trim?.displacementCc ?? prefill?.displacementCc)
+      : "",
+  );
+  const [bodyStyle, setBodyStyle] = useState(trim?.bodyStyle ?? prefill?.bodyStyle ?? "");
+  const [seatingCapacity, setSeatingCapacity] = useState(
+    (trim?.seatingCapacity ?? prefill?.seatingCapacity) != null
+      ? String(trim?.seatingCapacity ?? prefill?.seatingCapacity)
+      : "",
+  );
+  const [status, setStatus] = useState<VehicleStatus>(trim?.status ?? prefill?.status ?? "판매중");
   const [financialDiscount, setFinancialDiscount] = useState(won(trim?.financialDiscountAmount ?? null));
   const [partnerDiscount, setPartnerDiscount] = useState(won(trim?.partnerDiscountAmount ?? null));
   const [cashDiscount, setCashDiscount] = useState(won(trim?.cashDiscountAmount ?? null));

@@ -158,6 +158,9 @@ beforeEach(() => {
       if (url === "/api/catalog/change-requests?mine=1") return new Response(JSON.stringify(myRequests), { status: 200 });
       if (init?.method === "DELETE" && url.startsWith("/api/catalog/change-requests/"))
         return new Response(JSON.stringify({ status: "canceled" }), { status: 200 });
+      // "이어서 수정" 교체(PUT) — 적재와 동형 202 { queued }로 응답한다(서버 계약).
+      if (init?.method === "PUT" && url.startsWith("/api/catalog/change-requests/"))
+        return new Response(JSON.stringify({ queued: true, requestId: "cr-2" }), { status: 202 });
       if (init?.method === "PATCH" && url === "/api/catalog/trims/100")
         return new Response(JSON.stringify(trimPatchResponse.body), { status: trimPatchResponse.status });
       if (url === "/api/catalog/trims/100/options")
@@ -380,13 +383,13 @@ it("팀장 옵션 패널: 추가·수정은 열리고 삭제는 없고 제출 �
   expect(await screen.findByRole("button", { name: "승인 요청" })).toBeInTheDocument();
 });
 
-// ── PR3 Task 6: 행 "승인 대기" 배지 + 트림 뷰 헤더 pill(spec §7.2) ────────────────
+// ── PR3 Task 6 → 2026-08-03 확장: 행 "승인 대기" 배지 = 클릭 팝오버(diff + admin 승인/반려).
 // 시도 전에 보여 409(타인 pending)를 예방하는 게 목적이라 admin·manager 공통이다. 아래 케이스는
 // 팀장으로 렌더한다 — admin 화면에는 헤더 대기열 버튼이 함께 있고, 그 버튼의 **로딩 구간
 // 텍스트가 정확히 "승인 대기"**(ChangeRequestQueue의 visibleRows === null — 카운트 미표시)라
 // 완전일치 매처가 두 요소를 동시에 물 수 있다.
-it("승인 대기 중인 트림 행에 배지가 뜬다(호버 title = 요청자·경과·작업)", async () => {
-  // 같은 트림에 2건 — title이 줄바꿈으로 누적되는 경로까지 잠근다.
+it("행 배지 클릭 → 팝오버에 요청자·작업·전후 diff — 팀장에겐 승인/반려가 없다", async () => {
+  // 같은 트림에 2건 — 한 배지 팝오버에 여러 요청이 쌓이는 경로까지 잠근다.
   modelPendingRows = [
     { ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 },
     {
@@ -405,14 +408,35 @@ it("승인 대기 중인 트림 행에 배지가 뜬다(호버 title = 요청자
   renderPage("팀장");
   await user.click(await screen.findByRole("button", { name: "그랜저" }));
   await screen.findByText("캐스퍼 1.0");
-  const badge = await screen.findByText("승인 대기"); // 행 배지(팀장에겐 헤더 대기열 버튼이 없어 유일)
-  expect(badge.getAttribute("title")).toContain("박서준");
-  expect(badge.getAttribute("title")).toContain("트림 수정");
-  expect(badge.getAttribute("title")).toContain("무옵션 확정"); // 2건이 한 배지 title에 누적
-  expect(badge.getAttribute("title")).toMatch(/분 전|시간 전/); // 경과 세그먼트
+  await user.click(await screen.findByRole("button", { name: "승인 대기" })); // 행 배지(팀장에겐 헤더 대기열 버튼이 없어 유일)
+  expect(await screen.findAllByText("박서준")).toHaveLength(2); // 요청 2건이 행별로 쌓인다
+  expect(screen.getByText("트림 수정")).toBeInTheDocument(); // kind 라벨
+  expect(screen.getByText("무옵션 확정")).toBeInTheDocument(); // 2건이 한 팝오버에 누적
+  expect(screen.getByText(/가격:\s*45,000,000\s*→\s*50,000,000/)).toBeInTheDocument(); // 전→후 diff
+  expect(screen.queryByRole("button", { name: "승인" })).toBeNull(); // 승인/반려는 admin 전용
+  expect(screen.queryByRole("button", { name: "반려" })).toBeNull();
 });
 
-it("트림 행에 못 붙는 요청(트림 추가 등)은 트림 뷰 헤더 pill로 집계된다", async () => {
+it("admin: 행 배지 팝오버에서 승인 → approve API 발사 + 행 즉시 숨김", async () => {
+  modelPendingRows = [{ ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 }];
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await screen.findByText("캐스퍼 1.0");
+  // 헤더 대기열 버튼이 "(0)"까지 붙기를 기다린다 — 로딩 구간 텍스트가 행 배지와 같은 "승인 대기"라
+  // 완전일치 매처가 두 요소를 물 수 있다(위 주석 참조).
+  await screen.findByRole("button", { name: "승인 대기 (0)" });
+  await user.click(screen.getByRole("button", { name: "승인 대기" }));
+  await user.click(await screen.findByRole("button", { name: "승인" }));
+  await waitFor(() => {
+    expect(fetchCalls.some(([url, init]) => url === "/api/catalog/change-requests/cr-1/approve" && init?.method === "POST")).toBe(true);
+  });
+  // 성공(done) 즉시 숨김 — 재조회 완료 전에도 배지가 사라진다(대기열 팝오버와 같은 규칙).
+  await waitFor(() => expect(screen.queryByRole("button", { name: "승인 대기" })).toBeNull());
+});
+
+// ── 2026-08-03: trim.create pending = 미리보기 행(구 헤더 pill 집계에서 승격) ────────
+it("trim.create pending은 미리보기 행으로 트림 테이블 안에 나타난다", async () => {
   modelPendingRows = [
     {
       ...PENDING_ROW,
@@ -422,14 +446,71 @@ it("트림 행에 못 붙는 요청(트림 추가 등)은 트림 뷰 헤더 pill
       targetBrandId: 1,
       targetModelId: 10,
       targetTrimId: null,
-      payload: { modelId: 10, trimName: "새 트림", price: 1, modelYear: 2027, fuelType: "가솔린" },
+      payload: { modelId: 10, trimName: "새 트림", price: 1234000, modelYear: 2027, fuelType: "가솔린" },
       snapshot: {},
     },
   ];
   const user = userEvent.setup();
   renderPage("팀장");
   await user.click(await screen.findByRole("button", { name: "그랜저" }));
-  expect(await screen.findByText("승인 대기 1")).toBeInTheDocument();
+  // "새 트림"은 ' - ' 없는 이름 → '기타' 서브라인 = 기존 트림(캐스퍼 1.0)과 같은 첫 그룹(펼침 상태).
+  expect(await screen.findByText("새 트림")).toBeInTheDocument();
+  expect(screen.getByText("1,234,000원")).toBeInTheDocument(); // payload 값이 행 셀로 보인다
+  expect(screen.getByRole("button", { name: "승인 대기(신규)" })).toBeInTheDocument();
+  expect(screen.queryByText("승인 대기 1")).toBeNull(); // 헤더 pill로는 더 안 올라간다
+});
+
+it("팀장: 미리보기 행 연필(이어서 수정) → 폼 프리필 + 저장이 PUT 교체를 쏜다", async () => {
+  modelPendingRows = [
+    {
+      ...PENDING_ROW,
+      id: "cr-2",
+      kind: "trim.create",
+      targetId: null,
+      targetBrandId: 1,
+      targetModelId: 10,
+      targetTrimId: null,
+      payload: { modelId: 10, trimName: "새 트림", price: 1234000, modelYear: 2027, fuelType: "가솔린" },
+      snapshot: {},
+    },
+  ];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await user.click(await screen.findByRole("button", { name: "새 트림 이어서 수정" }));
+  expect(await screen.findByDisplayValue("새 트림")).toBeInTheDocument(); // payload 프리필
+  expect(screen.getByDisplayValue("1,234,000")).toBeInTheDocument();
+  expect(screen.getByText(/대기 중인 승인 요청을 이어서 수정합니다/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "승인 요청" }));
+  await waitFor(() => {
+    const call = fetchCalls.find(([url, init]) => url === "/api/catalog/change-requests/cr-2" && init?.method === "PUT");
+    expect(call).toBeTruthy();
+    const sent = JSON.parse(String(call![1]?.body)) as Record<string, unknown>;
+    expect(sent.modelId).toBe(10); // 부모 좌표 동봉(서버 고정과 이중 방어)
+    expect(sent.trimName).toBe("새 트림");
+  });
+});
+
+it("타인의 미리보기 행에는 이어서 수정 연필이 없다(승인 대기 배지만)", async () => {
+  modelPendingRows = [
+    {
+      ...PENDING_ROW,
+      id: "cr-2",
+      kind: "trim.create",
+      targetId: null,
+      targetBrandId: 1,
+      targetModelId: 10,
+      targetTrimId: null,
+      requestedBy: "bbbbbbbb-0000-0000-0000-000000000002",
+      payload: { modelId: 10, trimName: "새 트림", price: 1234000, modelYear: 2027, fuelType: "가솔린" },
+      snapshot: {},
+    },
+  ];
+  const user = userEvent.setup();
+  renderPage("팀장");
+  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  expect(await screen.findByText("새 트림")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "새 트림 이어서 수정" })).toBeNull();
 });
 
 // ── PR3 Task 7: 팀장 "내 요청 (N)" 팝오버(spec §7.3) ─────────────────────────

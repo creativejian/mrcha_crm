@@ -95,20 +95,33 @@ export function useChangeRequestQueue(enabled: boolean): {
   // 성공 시에만 재조회 — 실패(409 드리프트 등)는 throw로 올라가 호출한 팝오버가 행별로 표시한다.
   // broadcast는 상대 세션(팀장 배지·내 요청) 몫 — 내 화면은 tick·notify가 즉시 갱신한다.
   const approve = useCallback(async (id: string) => {
-    await sendJson(`/api/catalog/change-requests/${id}/approve`, "POST");
+    await approveChangeRequestById(id);
     setTick((t) => t + 1);
-    notifyQueueUpdated();
-    broadcastCatalogQueueChanged();
   }, []);
 
   const reject = useCallback(async (id: string, reason: string) => {
-    await sendJson(`/api/catalog/change-requests/${id}/reject`, "POST", { reason });
+    await rejectChangeRequestById(id, reason);
     setTick((t) => t + 1);
-    notifyQueueUpdated(); // 반려도 pending 카운트가 줄어드므로 승인과 동일하게 알린다.
-    broadcastCatalogQueueChanged();
   }, []);
 
   return { rows, failed, reload, approve, reject };
+}
+
+// 승인/반려 단독 헬퍼(2026-08-03) — 헤더 대기열 팝오버(위 훅)와 행 배지 팝오버
+// (PendingRequestBadge)가 같은 전파 규약을 공유한다: 성공 시 같은 탭 구독자
+// (notifyQueueUpdated — 모델 배지·사이드바)와 타 세션(broadcast)에 알린다.
+// 실패는 throw — 호출한 팝오버가 행별 에러로 표시한다(삼키면 조용히 유실).
+export async function approveChangeRequestById(id: string): Promise<void> {
+  await sendJson(`/api/catalog/change-requests/${id}/approve`, "POST");
+  notifyQueueUpdated();
+  // applied=true — 승인만 catalog를 바꾼다. 상대 세션은 이 플래그로 카탈로그 재조회까지 한다.
+  broadcastCatalogQueueChanged({ applied: true });
+}
+
+export async function rejectChangeRequestById(id: string, reason: string): Promise<void> {
+  await sendJson(`/api/catalog/change-requests/${id}/reject`, "POST", { reason });
+  notifyQueueUpdated(); // 반려도 pending 카운트가 줄어드므로 승인과 동일하게 알린다.
+  broadcastCatalogQueueChanged();
 }
 
 export type ChangeDiffLine = { label: string; before: string | null; after: string };

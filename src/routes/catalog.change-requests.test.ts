@@ -268,3 +268,69 @@ test("승인·반려: manager 403 · admin은 없는 id에 404 · 반려 사유 
   expect((await a.request("POST", `/api/catalog/change-requests/${someId}/reject`, { reason: "" })).status).toBe(400);
   expect((await a.request("POST", `/api/catalog/change-requests/${someId}/reject`, { reason: "사유" })).status).toBe(404);
 });
+
+// ── "이어서 수정"(PUT — payload 통째 교체, 2026-08-03) ────────────────────────────
+// create류(target_id 없음)는 upsert 본인 갱신 분기가 못 잡아 요청 id 교체가 유일한 수정 경로다.
+test("manager PUT 교체: payload가 바뀌고 부모 좌표는 고정·할인은 제거된다(같은 행 202)", async () => {
+  const c = await makeClient("manager");
+  const res = await c.request("POST", "/api/catalog/trims", {
+    modelId,
+    trimName: "이어서수정검증 - 초판",
+    price: 1000,
+    modelYear: 2027,
+    fuelType: "가솔린",
+  });
+  expect(res.status).toBe(202);
+  const { requestId } = (await res.json()) as { requestId: string };
+  createdIds.push(requestId);
+
+  const put = await c.request("PUT", `/api/catalog/change-requests/${requestId}`, {
+    modelId: NO_MODEL, // 부모 좌표 변조 시도 — 서버가 원 요청 값으로 고정해야 한다
+    trimName: "이어서수정검증 - 개정",
+    price: 2000,
+    modelYear: 2028,
+    fuelType: "가솔린",
+    financialDiscountAmount: 999999, // 할인 3필드는 적재 라우트와 같은 규칙으로 제거
+  });
+  expect(put.status).toBe(202);
+  const putBody = (await put.json()) as { queued: boolean; requestId: string };
+  expect(putBody.queued).toBe(true);
+  expect(putBody.requestId).toBe(requestId); // 새 행 적재가 아니라 같은 행 교체
+
+  const [row] = await db
+    .select({ status: catalogChangeRequests.status, payload: catalogChangeRequests.payload })
+    .from(catalogChangeRequests)
+    .where(eq(catalogChangeRequests.id, requestId));
+  expect(row!.status).toBe("pending");
+  const payload = row!.payload as Record<string, unknown>;
+  expect(payload.trimName).toBe("이어서수정검증 - 개정");
+  expect(Number(payload.price)).toBe(2000);
+  expect(Number(payload.modelId)).toBe(modelId); // 변조 무시 — 원 좌표 유지
+  expect("financialDiscountAmount" in payload).toBe(false);
+});
+
+test("PUT 교체 가드: 타인 404 · 스키마 불일치 400 · 취소 후 404 · staff 403", async () => {
+  const mine = await makeClient("manager");
+  const res = await mine.request("POST", "/api/catalog/trims", {
+    modelId,
+    trimName: "이어서수정가드 - 초판",
+    price: 1000,
+    modelYear: 2027,
+    fuelType: "가솔린",
+  });
+  expect(res.status).toBe(202);
+  const { requestId } = (await res.json()) as { requestId: string };
+  createdIds.push(requestId);
+
+  const valid = { modelId, trimName: "이어서수정가드 - 개정", price: 1, modelYear: 2027, fuelType: "가솔린" };
+  // 타인(다른 manager) — 존재 여부가 새지 않게 404(취소와 같은 결)
+  const other = await makeClient("manager");
+  expect((await other.request("PUT", `/api/catalog/change-requests/${requestId}`, valid)).status).toBe(404);
+  // kind 스키마 불일치(trimName 등 누락) → 400
+  expect((await mine.request("PUT", `/api/catalog/change-requests/${requestId}`, { modelId })).status).toBe(400);
+  // 게이트: staff는 403(취소 DELETE와 동일 게이트)
+  expect((await (await makeClient("staff")).request("PUT", `/api/catalog/change-requests/${requestId}`, valid)).status).toBe(403);
+  // 취소 후엔 pending이 아니다 → 404
+  expect((await mine.request("DELETE", `/api/catalog/change-requests/${requestId}`)).status).toBe(200);
+  expect((await mine.request("PUT", `/api/catalog/change-requests/${requestId}`, valid)).status).toBe(404);
+});

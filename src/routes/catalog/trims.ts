@@ -11,12 +11,9 @@ import {
 import { updateTrimWithDiscountAudit } from "../../db/queries/discount-adoptions";
 import { visibleTrimsFor } from "../../lib/dealer-visibility";
 import { requireRoles } from "../../middleware/role-gate";
-import { submitChangeRequest } from "./change-request-kinds";
+import { stripDiscountProposal, submitChangeRequest } from "./change-request-kinds";
 import { trimCreateBody, trimUpdateBody } from "./schemas";
 import { type CatalogApp, id, run } from "./shared";
-
-// 확정 할인 3필드 키 — 팀장 제안 payload에서 제거하는 축(아래 stripDiscountProposal 주석 참조).
-const DISCOUNT_KEYS = ["financialDiscountAmount", "partnerDiscountAmount", "cashDiscountAmount"] as const;
 
 // /api/catalog/trims* — 트림 CRUD/순서/모델 이동.
 //
@@ -60,11 +57,7 @@ export function registerTrimRoutes(catalog: CatalogApp) {
   // 부수 효과 둘: ①폼 오픈 시점 구 할인값이 payload에 실려 승인 replay가 그 사이 채택된 딜러
   // 할인을 되돌리는 사고 차단 ②snapshot에 할인 키가 안 실려 채택이 팀장 요청의 드리프트
   // 409를 유발하는 간섭 차단. admin 직접 실행은 계속 포함(채택 외 수동 조정 경로).
-  function stripDiscountProposal<T extends Partial<Record<(typeof DISCOUNT_KEYS)[number], unknown>>>(body: T): T {
-    const proposal = { ...body };
-    for (const key of DISCOUNT_KEYS) delete proposal[key];
-    return proposal;
-  }
+  // (구현은 change-request-kinds.ts 공용 — "이어서 수정" 교체 경로와 같은 규칙을 공유한다.)
 
   catalog.post("/trims", requireRoles(["admin", "manager"]), zValidator("json", trimCreateBody), async (c) => {
     const body = c.req.valid("json");

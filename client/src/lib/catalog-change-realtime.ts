@@ -14,25 +14,33 @@ import { supabase } from "./supabase";
 
 const TOPIC = "crm-catalog-change-queue";
 
+// 신호 종류: applied = 승인이 catalog에 반영됐다 — 받은 쪽은 큐 재조회에 더해 **카탈로그
+// 데이터**(트림/모델)도 다시 읽어야 한다(2026-08-03: 매니저 화면이 "승인됨" 칩만 뒤집히고
+// 값은 리로딩해야 보이던 공백의 해소). 행 데이터는 여전히 싣지 않는다(서버가 SSOT) —
+// 이 플래그는 "무엇이 움직였나"의 분류일 뿐이다.
+export type CatalogQueueChangeInfo = { applied: boolean };
+
 type Entry = {
   channel: ReturnType<typeof supabase.channel>;
-  listeners: Set<() => void>;
+  listeners: Set<(info: CatalogQueueChangeInfo) => void>;
   teardownTimer: ReturnType<typeof setTimeout> | null;
 };
 let entry: Entry | null = null;
 
 // 다른 세션의 큐 변동 신호를 구독한다(반환 = 해지). 첫 구독이 채널을 열고 마지막 해지가 닫는다.
-export function onCatalogQueueRemoteChanged(listener: () => void): () => void {
+export function onCatalogQueueRemoteChanged(listener: (info: CatalogQueueChangeInfo) => void): () => void {
   if (entry?.teardownTimer != null) {
     clearTimeout(entry.teardownTimer);
     entry.teardownTimer = null;
   }
   if (entry == null) {
-    const listeners = new Set<() => void>();
+    const listeners = new Set<(info: CatalogQueueChangeInfo) => void>();
     const channel = supabase
       .channel(TOPIC)
-      .on("broadcast", { event: "queue-changed" }, () => {
-        for (const l of listeners) l();
+      .on("broadcast", { event: "queue-changed" }, (msg) => {
+        // 구 번들의 빈 payload({})도 applied=false로 안전 해석 — 배포 과도기 하위호환.
+        const applied = (msg as { payload?: { applied?: unknown } }).payload?.applied === true;
+        for (const l of listeners) l({ applied });
       })
       .subscribe();
     entry = { channel, listeners, teardownTimer: null };
@@ -52,7 +60,12 @@ export function onCatalogQueueRemoteChanged(listener: () => void): () => void {
 // 큐를 움직인 쪽이 부른다(승인·반려·취소·202 적재 성공 직후). 이 채널은 mc-master의 훅들이
 // 열어 두므로 실사용 경로에선 항상 열려 있고, 안 열려 있으면 조용히 스킵된다 — 상대 세션은
 // focus 재조회/폴링이 그물이다. 자기 자신에게는 에코되지 않는다(broadcast 기본 self:false —
-// 로컬 갱신은 모듈 pub/sub 몫).
-export function broadcastCatalogQueueChanged(): void {
-  void entry?.channel.send({ type: "broadcast", event: "queue-changed", payload: {} });
+// 로컬 갱신은 모듈 pub/sub 몫). applied는 **승인 성공 경로에서만** true로 싣는다 — 반려·취소·
+// 적재는 catalog가 안 바뀌므로 상대 세션의 카탈로그 재조회를 유발하면 낭비다.
+export function broadcastCatalogQueueChanged(info?: { applied?: boolean }): void {
+  void entry?.channel.send({
+    type: "broadcast",
+    event: "queue-changed",
+    payload: { applied: info?.applied === true },
+  });
 }

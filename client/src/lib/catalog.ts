@@ -32,7 +32,7 @@ export function onCatalogWriteQueued(listener: () => void): () => void {
 
 async function sendCatalogWrite<T>(
   url: string,
-  method: "POST" | "PATCH" | "DELETE",
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
   body?: unknown,
 ): Promise<T | CatalogWriteQueued> {
   const result = await sendJson<T | CatalogWriteQueued>(url, method, body);
@@ -168,6 +168,17 @@ export async function updateTrim(id: number, input: Partial<TrimInput>): Promise
 
 export async function deleteTrim(id: number): Promise<{ id: number }> {
   return sendJson(`/api/catalog/trims/${id}`, "DELETE");
+}
+
+// 내 pending trim.create "이어서 수정"(2026-08-03) — 새 요청 적재가 아니라 payload 통째 교체.
+// 202 { queued } 동형 응답이라 sendCatalogWrite의 공통 감지(토스트·배지 재조회·broadcast)를
+// 그대로 탄다. modelId = 원 요청의 부모 좌표(서버도 부모 키를 원 요청 값으로 고정하는 이중 방어).
+export async function replaceTrimChangeRequest(
+  requestId: string,
+  modelId: number,
+  input: TrimInput,
+): Promise<CatalogWriteQueued | unknown> {
+  return sendCatalogWrite(`/api/catalog/change-requests/${requestId}`, "PUT", { modelId, ...input });
 }
 
 // 모델의 mc_code 미부여 트림에 고유번호 일괄 부여.
