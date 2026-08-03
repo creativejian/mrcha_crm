@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { popoverPosFromRect, type PopoverPos } from "@/components/ProposalTrimsPopover";
 import { CHANGE_KIND_LABELS } from "@/lib/catalog-change-kinds";
 import { approveChangeRequestById, buildChangeDiff, rejectChangeRequestById, type ChangeRequestItem } from "@/lib/catalog-change-requests";
 import { waitingLabel } from "@/lib/chat";
@@ -23,6 +22,25 @@ type RowState =
 
 const IDLE_STATE: RowState = { phase: "idle" };
 
+// 배지 전용 좌표(popoverPosFromRect의 플립 확장) — 헤더 팝오버와 달리 배지는 테이블 **마지막
+// 행**에도 사는데, 항상 아래로 열면 min 높이(160) 강제로 뷰포트를 뚫고 내려가 잘린다
+// (2026-08-03 실기 — mc-master는 페이지 스크롤이 잠겨 있어 스크롤로도 못 본다). 아래 공간이
+// 모자라면 bottom 앵커로 **위로 편다**(높이 측정 불요 — 내용이 자라면 위로 자란다).
+export type BadgePopoverPos = { top?: number; bottom?: number; left: number; maxHeight: number };
+
+// eslint-disable-next-line react-refresh/only-export-components -- 좌표 계산은 이 배지 전용 순수 헬퍼라 같은 모듈에 둔다(popoverPosFromRect 선례)
+export function badgePopoverPos(
+  rect: DOMRect | undefined,
+  viewport: { width: number; height: number },
+): BadgePopoverPos | null {
+  if (!rect) return null;
+  const left = Math.max(8, Math.min(rect.left, viewport.width - 736));
+  const below = viewport.height - rect.bottom - 16;
+  // 240 = 요청 카드 1장(머리줄+diff 몇 줄+액션)이 잘리지 않는 최소치 — 이보다 좁으면 위로.
+  if (below >= 240) return { top: rect.bottom + 4, left, maxHeight: below };
+  return { bottom: viewport.height - rect.top + 4, left, maxHeight: Math.max(160, rect.top - 16) };
+}
+
 export function PendingRequestBadge({
   label = "승인 대기",
   requests,
@@ -41,7 +59,7 @@ export function PendingRequestBadge({
   onApplied: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<PopoverPos | null>(null);
+  const [pos, setPos] = useState<BadgePopoverPos | null>(null);
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -84,7 +102,12 @@ export function PendingRequestBadge({
       closePopover();
       return;
     }
-    setPos(popoverPosFromRect(btnRef.current?.getBoundingClientRect()));
+    setPos(
+      badgePopoverPos(btnRef.current?.getBoundingClientRect(), {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }),
+    );
     setOpen(true);
   }
 
@@ -147,7 +170,12 @@ export function PendingRequestBadge({
           헤더의 대기열 팝오버는 sticky 밖이라 portal이 필요 없다(Topbar 알림 portal 선례). */}
       {open &&
         createPortal(
-          <div className="va-cr-pop" ref={popRef} style={pos ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight } : undefined}>
+          <div
+            className="va-cr-pop"
+            ref={popRef}
+            // top/bottom 앵커 배타 — 위로 펼 때(bottom)는 top이 없어야 높이가 위로 자란다.
+            style={pos ? { top: pos.top, bottom: pos.bottom, left: pos.left, maxHeight: pos.maxHeight } : undefined}
+          >
             {visible.map((row) => {
               const state = stateOf(row.id);
               const diff = buildChangeDiff(row);
