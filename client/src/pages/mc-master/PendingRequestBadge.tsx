@@ -1,13 +1,9 @@
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { popoverPosFromRect, type PopoverPos } from "@/components/ProposalTrimsPopover";
 import { CHANGE_KIND_LABELS } from "@/lib/catalog-change-kinds";
-import {
-  approveChangeRequestById,
-  buildChangeDiff,
-  rejectChangeRequestById,
-  type ChangeRequestItem,
-} from "@/lib/catalog-change-requests";
+import { approveChangeRequestById, buildChangeDiff, rejectChangeRequestById, type ChangeRequestItem } from "@/lib/catalog-change-requests";
 import { waitingLabel } from "@/lib/chat";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
 
@@ -145,88 +141,78 @@ export function PendingRequestBadge({
       <button type="button" className="va-cr-badge va-cr-badge-btn" onClick={toggle} ref={btnRef}>
         {label}
       </button>
-      {open && (
-        <div
-          className="va-cr-pop"
-          ref={popRef}
-          style={pos ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight } : undefined}
-        >
-          {visible.map((row) => {
-            const state = stateOf(row.id);
-            const diff = buildChangeDiff(row);
-            const busy = state.phase === "busy";
-            return (
-              <div className="va-cr-row" key={row.id}>
-                <div className="va-cr-row-head">
-                  <span className="va-cr-requester">{staffNames.get(row.requestedBy) ?? "알 수 없음"}</span>
-                  {" · "}
-                  <span>{waitingLabel(row.createdAt, new Date(), "전")}</span>
-                  {" · "}
-                  <span>{CHANGE_KIND_LABELS[row.kind]}</span>
-                </div>
-                {diff.length > 0 ? (
-                  <div className="va-cr-diff">
-                    {diff.map((d) => (
-                      <div key={d.label}>
-                        {d.label}: {d.before ?? "—"} → {d.after}
-                      </div>
-                    ))}
+      {/* ⚠️ portal 필수(2026-08-03 실기 버그): 이 배지는 트림명 sticky 셀(z-index 2 — 쌓임 맥락)
+          안에 살아서, 팝오버를 제자리에 두면 fixed여도 그 맥락에 갇혀 **다른 행의 sticky 셀이
+          위를 덮는다**(왼쪽이 잘려 보임). body로 탈출시키면 z-index 70이 전역에서 유효하다.
+          헤더의 대기열 팝오버는 sticky 밖이라 portal이 필요 없다(Topbar 알림 portal 선례). */}
+      {open &&
+        createPortal(
+          <div className="va-cr-pop" ref={popRef} style={pos ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight } : undefined}>
+            {visible.map((row) => {
+              const state = stateOf(row.id);
+              const diff = buildChangeDiff(row);
+              const busy = state.phase === "busy";
+              return (
+                <div className="va-cr-row" key={row.id}>
+                  <div className="va-cr-row-head">
+                    <span className="va-cr-requester">{staffNames.get(row.requestedBy) ?? "알 수 없음"}</span>
+                    {" · "}
+                    <span>{waitingLabel(row.createdAt, new Date(), "전")}</span>
+                    {" · "}
+                    <span>{CHANGE_KIND_LABELS[row.kind]}</span>
                   </div>
-                ) : (
-                  // 대기열 팝오버와 같은 규칙: update류의 빈 diff = 승인해도 catalog 무변(안내),
-                  // 무옵션 토글은 kind 라벨이 전부라 안내 없음.
-                  row.kind.endsWith(".update") && (
-                    <div className="va-cr-diff va-cr-diff-empty">변경 값 없음(현재 값과 동일)</div>
-                  )
-                )}
-                {state.phase === "error" && <div className="va-cr-error">{state.message}</div>}
-                {canApprove &&
-                  (state.phase === "rejecting" ? (
-                    <div className="va-cr-reject-input">
-                      <input
-                        value={state.reason}
-                        onChange={(e) => changeReject(row.id, e.target.value)}
-                        placeholder="반려 사유"
-                        disabled={state.busy}
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        className="badge red"
-                        onClick={() => void confirmReject(row)}
-                        disabled={state.busy || !state.reason.trim()}
-                      >
-                        확인
-                      </button>
-                      <button
-                        type="button"
-                        className="badge"
-                        onClick={() => setRowState(row.id, IDLE_STATE)}
-                        disabled={state.busy}
-                      >
-                        취소
-                      </button>
+                  {diff.length > 0 ? (
+                    <div className="va-cr-diff">
+                      {diff.map((d) => (
+                        <div key={d.label}>
+                          {d.label}: {d.before ?? "—"} → {d.after}
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                    <div className="va-cr-actions">
-                      <button
-                        type="button"
-                        className="badge green"
-                        onClick={() => void handleApprove(row)}
-                        disabled={busy}
-                      >
-                        승인
-                      </button>
-                      <button type="button" className="badge red" onClick={() => startReject(row.id)} disabled={busy}>
-                        반려
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                    // 대기열 팝오버와 같은 규칙: update류의 빈 diff = 승인해도 catalog 무변(안내),
+                    // 무옵션 토글은 kind 라벨이 전부라 안내 없음.
+                    row.kind.endsWith(".update") && <div className="va-cr-diff va-cr-diff-empty">변경 값 없음(현재 값과 동일)</div>
+                  )}
+                  {state.phase === "error" && <div className="va-cr-error">{state.message}</div>}
+                  {canApprove &&
+                    (state.phase === "rejecting" ? (
+                      <div className="va-cr-reject-input">
+                        <input
+                          value={state.reason}
+                          onChange={(e) => changeReject(row.id, e.target.value)}
+                          placeholder="반려 사유"
+                          disabled={state.busy}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          className="badge red"
+                          onClick={() => void confirmReject(row)}
+                          disabled={state.busy || !state.reason.trim()}
+                        >
+                          확인
+                        </button>
+                        <button type="button" className="badge" onClick={() => setRowState(row.id, IDLE_STATE)} disabled={state.busy}>
+                          취소
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="va-cr-actions">
+                        <button type="button" className="badge green" onClick={() => void handleApprove(row)} disabled={busy}>
+                          승인
+                        </button>
+                        <button type="button" className="badge red" onClick={() => startReject(row.id)} disabled={busy}>
+                          반려
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
