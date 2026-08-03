@@ -45,10 +45,14 @@ export function usePopoverDismiss<T extends HTMLElement>(
       optionsRef.current?.onKeyDown?.(event);
     }
 
-    document.addEventListener("pointerdown", handlePointerDown);
+    // capture 단계(2026-08-03) — 버블 문서 리스너는 경로 위 어떤 핸들러든(확장 프로그램·서드파티
+    // 스크립트 포함) stopPropagation 한 번이면 죽는다. 실기에서 "바깥 클릭해도 안 닫힘"이 브라우저
+    // 전반에서 보고돼 fail-safe로 올린다(Topbar 알림 capture 선례). 판정은 target 포함 여부라
+    // 단계와 무관 — 기존 소비처 의미 불변.
+    document.addEventListener("pointerdown", handlePointerDown, true);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open, ref]);
