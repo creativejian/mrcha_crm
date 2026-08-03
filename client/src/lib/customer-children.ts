@@ -1,5 +1,5 @@
-import type { CustomerDeliveryInfo } from "@/data/customers";
-import { sendJson, sendVoid } from "./http";
+import type { CustomerDeliveryInfo, CustomerSettlement } from "@/data/customers";
+import { getJson, sendJson, sendVoid } from "./http";
 import { invalidateCustomerDetail } from "./customers";
 
 // 고객 자식(메모/할일/일정) CRUD. 쓰기는 apiFetch 재시도 대상 아님.
@@ -36,3 +36,9 @@ export const deleteSchedule = (cid: string, id: string) => done(cid, sendVoid(`/
 // 출고 정보 upsert(PUT — 전체 교체, 출고 2단계 spec §4.2). 드로어는 출고 정보를 안 보여주지만
 // 캐시 무효화는 관례대로 동반(무해·미래 편입 대비).
 export const saveCustomerDelivery = (cid: string, v: CustomerDeliveryInfo) => done(cid, sendVoid(`/api/customers/${cid}/delivery`, "PUT", v));
+
+// 정산(입금일·실입금액) — **admin 전용 라우트**(서버 requireRoles가 진짜 게이트, 유슨생 결정 2026-08-03).
+// 출고 정보와 같은 행이지만 경로를 나눠서, 고객 목록 응답이 정산을 실어 나르지 않는다(읽기 차단).
+// 그래서 팝오버는 열릴 때 이걸 따로 조회해야 한다 — 목록 데이터에는 정산이 없다.
+export const fetchCustomerSettlement = (cid: string) => getJson<CustomerSettlement>(`/api/customers/${cid}/settlement`);
+export const saveCustomerSettlement = (cid: string, v: CustomerSettlement) => done(cid, sendVoid(`/api/customers/${cid}/settlement`, "PUT", v));

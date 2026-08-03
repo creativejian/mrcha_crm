@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContractingQuoteSummary, CustomerDeliveryInfo } from "@/data/customers";
-import { deliveryInfoSummary, resolveDeliveryInfoSubmit, seedDeliveryInfoDraft } from "./delivery-info";
+import { deliveryInfoSummary, resolveDeliveryInfoSubmit, resolveSettlementSubmit, seedDeliveryInfoDraft } from "./delivery-info";
 
 const QUOTE: ContractingQuoteSummary = {
   id: "q-1",
@@ -135,6 +135,45 @@ describe("deliveryInfoSummary (셀 요약 — spec §5.1)", () => {
       contractLine: null,
       deliveredLine: null,
       fallback: "입력됨",
+    });
+  });
+});
+
+// 정산 제출 해석(admin 전용 축, 2026-08-03). 서버 zod가 최종 게이트지만 클라도 같은 규칙으로 막아
+// "저장 눌렀는데 400"이 되지 않게 한다.
+describe("resolveSettlementSubmit", () => {
+  it("빈 입력은 둘 다 null(값 지우기)", () => {
+    expect(resolveSettlementSubmit("", "")).toEqual({ kind: "save", body: { settledAt: null, feeAmount: null } });
+  });
+
+  it("콤마는 입력 편의라 지운다 — 1,180,000 → 1180000", () => {
+    expect(resolveSettlementSubmit("2026-09-10", "1,180,000")).toEqual({
+      kind: "save",
+      body: { settledAt: "2026-09-10", feeAmount: 1180000 },
+    });
+  });
+
+  it("유연 날짜(2026.9.10)를 ISO로 정규화한다(출고 날짜 칸과 같은 규약)", () => {
+    const submit = resolveSettlementSubmit("2026.9.10", "");
+    expect(submit.kind).toBe("save");
+    if (submit.kind === "save") expect(submit.body.settledAt).toBe("2026-09-10");
+  });
+
+  it("음수·문자는 invalid — 입금액에 음수는 없다", () => {
+    expect(resolveSettlementSubmit("", "-1").kind).toBe("invalid");
+    expect(resolveSettlementSubmit("", "백만원").kind).toBe("invalid");
+  });
+
+  it("해석 불가 날짜는 invalid(어느 칸인지 사유 명시)", () => {
+    const submit = resolveSettlementSubmit("내일", "");
+    expect(submit.kind).toBe("invalid");
+    if (submit.kind === "invalid") expect(submit.reason).toContain("입금일");
+  });
+
+  it("금액만 있고 날짜가 없어도 저장된다 — 입금 예정 전 수수료만 아는 경우", () => {
+    expect(resolveSettlementSubmit("", "1180000")).toEqual({
+      kind: "save",
+      body: { settledAt: null, feeAmount: 1180000 },
     });
   });
 });

@@ -9,6 +9,10 @@ vi.mock("@/lib/customer-children", () => ({
   updateSchedule: vi.fn().mockResolvedValue(undefined),
   deleteSchedule: vi.fn().mockResolvedValue(undefined),
   saveCustomerDelivery: vi.fn().mockResolvedValue(undefined),
+  // 정산(2026-08-03) — 팝오버가 admin일 때 열리자마자 조회한다. 기본 roleTab이 "최고관리자"라
+  // 기존 출고 테스트도 이 경로를 탄다(모킹이 없으면 전부 깨진다).
+  fetchCustomerSettlement: vi.fn().mockResolvedValue({ settledAt: null, feeAmount: null }),
+  saveCustomerSettlement: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("CustomerManagementPage", () => {
@@ -755,6 +759,29 @@ describe("출고 관리(delivery) 콘솔", () => {
     const dialog = screen.getByRole("dialog", { name: "출고 정보 편집" });
     expect(within(dialog).getByRole("button", { name: "저장" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "취소" })).toBeInTheDocument();
+  });
+
+  // ── 정산 섹션(2026-08-03, admin 단독 — 유슨생 결정) ────────────────────────
+  // 서버 requireRoles가 진짜 게이트지만, UI가 새면 상담사 화면에 회사 수입 칸이 뜬다.
+  it("정산 칸은 최고관리자에게만 보인다", () => {
+    render(<CustomerManagementPage mode="delivery" roleTab="최고관리자" />);
+    fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:|^출고 정보:/ })[0]);
+    const dialog = screen.getByRole("dialog", { name: "출고 정보 편집" });
+    expect(within(dialog).getByLabelText(/입금일/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/실입금액/)).toBeInTheDocument();
+  });
+
+  it("정산 칸은 팀장·상담사에게 보이지 않는다(출고 정보 칸은 그대로)", () => {
+    for (const roleTab of ["팀장", "상담사"] as const) {
+      const { unmount } = render(<CustomerManagementPage mode="delivery" roleTab={roleTab} />);
+      fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:|^출고 정보:/ })[0]);
+      const dialog = screen.getByRole("dialog", { name: "출고 정보 편집" });
+      expect(within(dialog).queryByLabelText(/입금일/)).toBeNull();
+      expect(within(dialog).queryByLabelText(/실입금액/)).toBeNull();
+      // 출고 정보 자체는 계속 편집 가능해야 한다 — 정산만 가리는 것이지 팝오버를 막는 게 아니다.
+      expect(within(dialog).getByLabelText(/계약 차량/)).toBeInTheDocument();
+      unmount();
+    }
   });
 
   it("팝오버는 contracting 견적에서 차량·금융사를 프리필한다(soft pipe)", () => {

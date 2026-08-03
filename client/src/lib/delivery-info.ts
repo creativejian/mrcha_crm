@@ -1,4 +1,4 @@
-import type { ContractingQuoteSummary, CustomerDeliveryInfo } from "@/data/customers";
+import type { ContractingQuoteSummary, CustomerDeliveryInfo, CustomerSettlement } from "@/data/customers";
 import { dedupedModelTrim } from "@/lib/app-card-labels";
 import { normalizeDateText } from "@/lib/datetime-text";
 
@@ -76,6 +76,27 @@ export function resolveDeliveryInfoSubmit(draft: DeliveryInfoDraft): DeliveryInf
       sourceQuoteId: draft.sourceQuoteId,
     },
   };
+}
+
+// ── 정산 제출 해석(admin 전용 축, 2026-08-03) ──────────────────────────────
+// 출고 정보와 분리한 이유는 저장 경로가 다르기 때문이다(별도 라우트·별도 권한). 여기서 검증해도
+// **서버가 최종 게이트**다 — zod가 음수·형식을 다시 막는다.
+export type SettlementSubmit = { kind: "save"; body: CustomerSettlement } | { kind: "invalid"; reason: string };
+
+export function resolveSettlementSubmit(settledAtText: string, feeText: string): SettlementSubmit {
+  // 콤마는 입력 편의라 지운다("1,180,000"). 마이너스는 정규식이 막는다 — 입금액에 음수는 없다.
+  const raw = feeText.trim().replace(/,/g, "");
+  let feeAmount: number | null = null;
+  if (raw) {
+    if (!/^\d+$/.test(raw)) return { kind: "invalid", reason: "실입금액은 숫자만 입력해 주세요." };
+    feeAmount = Number(raw);
+    if (!Number.isSafeInteger(feeAmount)) return { kind: "invalid", reason: "실입금액이 너무 큽니다." };
+  }
+  const dateRaw = settledAtText.trim();
+  if (!dateRaw) return { kind: "save", body: { settledAt: null, feeAmount } };
+  const settledAt = normalizeDateText(dateRaw);
+  if (!settledAt) return { kind: "invalid", reason: "입금일은 2026-09-10처럼 년-월-일 형식으로 입력해 주세요." };
+  return { kind: "save", body: { settledAt, feeAmount } };
 }
 
 export type DeliveryInfoSummary = { contractLine: string | null; deliveredLine: string | null; fallback: string | null };
