@@ -22,6 +22,10 @@ export function buildHeroPerformance(report: AdminReport): HeroMetric[] {
   };
   // 구매방식별 대수는 칩 안이 아니라 **아래 바 목록**이 보여준다(2026-08-04 유슨생 실물 판단 —
   // 스토리 A안/B안 비교 후 B 선택). 칩 안 한 줄(A안)은 폐기했다.
+  // ✅ **이사님 확정(2026-08-04 저녁)**: 현물을 보고 "이대로 유지". 이사님이 먼저 제안한
+  // **호버 툴팁**(칩에 마우스를 올려야 세부 대수가 보이는 안)은 이 확인으로 닫혔다 — 다시
+  // 올라오면 "이미 보고 유지로 결정"이 답이다(항상 보이는 쪽이 원래 의도에 더 가깝다).
+  // 경위·근거 = spec `ref/specs/2026-08-03-crm-delivery-revenue-design.md` §1.
   return [
     metric("전체 출고", "대", count, prevCount),
     metric("리스 실적", "원", leaseAmount, prevLeaseAmount),
