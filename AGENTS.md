@@ -76,7 +76,13 @@ Default handoff behavior:
 
 ## Current UI Focus
 
-- Work is centered on 김민준(`CU-2605-0020`) customer detail drawer only.
+- ⚠️ **시범 대상이던 김민준(`CU-2605-0020`)은 2026-08-04 회원탈퇴 실경로 테스트로 삭제됐다**
+  (앱 탈퇴 접수 → 전량 파기 확정 실행 · **복구 불가**). 견적 4·서류 4·메모 3·할일 4·일정 1을
+  갖춘 **유일한 풀세트 시드**였고, Storage 객체 6개까지 함께 지워졌다.
+- 그래서 상세 드로어 작업을 이어가려면 **①새 시범 고객 지정 ②그 고객에 풀세트 시드 생성**이
+  선행이다. 지금 남은 고객 중 그만한 데이터를 가진 고객은 없다(2026-08-04 실측 최다 =
+  제임스 `CU-2606-0002` 견적 7·임베딩 108이지만 **서류·메모 0**). 어느 고객으로 옮길지는
+  이사님 결정 영역이라 임의로 정하지 않는다.
 - Other customer detail screens and the customer list should stay unchanged unless explicitly requested.
 - The target direction is a customer state dashboard, not a dense task-entry form.
 
@@ -117,5 +123,5 @@ Default handoff behavior:
 - **같은 파일 참조는 라인 번호가 아니라 식별자로**: 주석에 `위 :436에서`처럼 bare 라인 번호를 적으면 **같은 커밋 안에서도 밀린다**(배치 14 K3-c: 레포의 그 관용구 5건이 5건 전부 스테일이었고, 한 건은 총 80줄 파일에서 `:265`를 가리켰다). `위 targetLender.value 대입에서`처럼 심볼·케이스 이름으로 가리킬 것. 다른 파일은 `파일명:심볼` 형태.
 - **마크다운 CSS 공용**: AI 답변 마크다운 스타일은 공용 `.md-body` + 컨텍스트별 `--md-*` 변수(index.css)로 단일 소스다. 업무 AI/채팅 콘솔별로 룰을 복제하지 말 것(#133 strong 회귀가 한쪽만 픽스되는 사고 방지).
 - **로컬 브라우저 스모크 로그인 우회**: 로그인이 카카오 OAuth뿐이라 자동화 브라우저로는 직접 로그인 불가. GoTrue admin `generate_link`(magiclink, `.env.local`의 `SUPABASE_SECRET_KEY`)로 발급한 verify URL을 **curl로 따라가** Location 헤더의 `#access_token…` 해시만 추출해 `http://127.0.0.1:5173/#<해시>`를 열면 supabase-js가 세션을 수립한다(verify 링크를 브라우저로 직접 열면 redirect 허용목록 때문에 prod(mrcha.app)가 토큰을 소비하니 주의). 테스트 계정 = 자메스관리자(`luck2here@naver.com`, admin). 스모크로 만든 데이터(서류·업무 AI 대화·배정)는 공유 master라 반드시 원복/삭제.
-- DB — vehicle catalog (master 직접): the car catalog (brands/models/trims/options/colors) lives in master Supabase's **`catalog` schema** (9 tables; CRM reads 7). CRM reads it **directly** via `src/db/client.ts` (`db`, `DATABASE_URL`=master) + `src/db/queries/vehicles.ts` + `src/routes/vehicles.ts` (`/api/vehicles`), wired into the Kim quote workbench via `client/src/components/VehiclePicker.tsx`. **거울/sync는 폐기됨(A2 Phase C, 2026-06-17)** — `src/sync/*`·`bun run sync`·`POST /api/catalog/sync`·`MRCHA_MASTER_*`·`ref/db_import/` 전부 제거. master catalog엔 `deleted_at`(거울 전용)이 없어 read 쿼리는 그 필터를 안 쓴다. `catalog.ts` 정의는 `bun run db:pull:catalog` 재introspect로 갱신(`status`는 cross-schema `public.car_status`라 text로 모델). History: `ref/vehicle-mirror-db.md`(폐기 표시).
+- DB — vehicle catalog (master 직접): the car catalog (brands/models/trims/options/colors) lives in master Supabase's **`catalog` schema** (9 tables; CRM reads 7). CRM reads it **directly** via `src/db/client.ts` (`db`, `DATABASE_URL`=master) + `src/db/queries/vehicles.ts` + `src/routes/vehicles.ts` (`/api/vehicles`), wired into the customer detail quote workbench via `client/src/components/VehiclePicker.tsx`. **거울/sync는 폐기됨(A2 Phase C, 2026-06-17)** — `src/sync/*`·`bun run sync`·`POST /api/catalog/sync`·`MRCHA_MASTER_*`·`ref/db_import/` 전부 제거. master catalog엔 `deleted_at`(거울 전용)이 없어 read 쿼리는 그 필터를 안 쓴다. `catalog.ts` 정의는 `bun run db:pull:catalog` 재introspect로 갱신(`status`는 cross-schema `public.car_status`라 text로 모델). History: `ref/vehicle-mirror-db.md`(폐기 표시).
 - DB — CRM domain (master 직접): master의 **`crm` 스키마에 14테이블**(초기 8 = `customers`+니즈 인라인·`customer_tasks`·`customer_schedules`·`customer_documents`·`customer_memos`·`consultations`·`quotes`·`quote_scenarios` + 이후 증설 6 = `embeddings`(0012)·`assistant_messages`(0014)·`staff_settings`(0024)·`consultation_dismissals`(0026)·`customer_deletions`(0027)·`customer_deliveries`(0036, 출고 2단계) — 2026-07-13 실측 정정+2026-07-20 갱신, 구 "8테이블" 서술은 초기 상태). drizzle은 `schemaFilter:["crm"]`로 **crm만** 관리(public 앱 19테이블·catalog 9테이블 불가침), `db:generate`→`db:migrate`만(`db:push` 제거됨). 마이그레이션: `drizzle/0000`(crm 8테이블)·`drizzle/0001`(crm.quotes→catalog FK, ON DELETE SET NULL). public FK는 loose id 보류. `DATABASE_URL`(master)은 `.env.local`. drizzle-kit이 `.env.local`을 자동 로드 안 해 `drizzle.config(.catalog).ts`가 직접 주입.
