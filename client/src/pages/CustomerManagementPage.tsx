@@ -1083,6 +1083,22 @@ export function CustomerManagementPage({
   return (
     <section className="customer-console-page">
       <section className="card customer-console-card">
+        {/* 회원탈퇴 확인 대기 알림(2026-08-01 spec §4-2) — **control-rail 밖**에 둔다(2026-08-04).
+            안에 두면 rail이 2열 grid(`auto minmax(0,1fr)`)라 배너가 **필터 행의 2열 자리를 차지**해
+            ①원래 그 자리에 오던 액션 버튼 행이 아래로 밀리고 ②좁은 화면에서 1fr이 좁아져 문구가
+            글자 단위로 세로로 쌓였다(실측). rail 밖 전체 폭 블록이면 둘 다 생기지 않고, 대기 건수만큼
+            고객명이 붙어 문구가 길어져도 자연스럽게 줄바꿈된다. */}
+        {deletionJobs.length > 0 ? (
+          <div className="withdrawal-notice" role="status">
+            <strong>회원탈퇴 확인 대기 {deletionJobs.length}건</strong>
+            <span>
+              {deletionJobs
+                .map((j) => `${j.customerName ?? "이름 미상"}${j.customerCode ? `(${j.customerCode})` : ""}`)
+                .join(", ")}
+              {" — 고객을 열어 탈퇴확인을 진행하세요. 미확인 시 접수 5일 후 자동 처리됩니다."}
+            </span>
+          </div>
+        ) : null}
         <div className="customer-console-control-rail" ref={consoleFilterRailRef}>
           <div className={mode === "delivery" ? "toolbar customer-console-toolbar customer-console-toolbar--delivery" : "toolbar customer-console-toolbar"}>
             <div className="total-count">{mode === "delivery" ? deliveryCountLabel(deliveryPill) : "전체"} <strong className="num">{loaded ? rows.length : ""}</strong><span>명</span></div>
@@ -1174,17 +1190,6 @@ export function CustomerManagementPage({
               )}
             </div>
           </div>
-          {deletionJobs.length > 0 ? (
-            <div className="withdrawal-notice" role="status">
-              <strong>회원탈퇴 확인 대기 {deletionJobs.length}건</strong>
-              <span>
-                {deletionJobs
-                  .map((j) => `${j.customerName ?? "이름 미상"}${j.customerCode ? `(${j.customerCode})` : ""}`)
-                  .join(", ")}
-                {" — 고객을 열어 탈퇴확인을 진행하세요. 미확인 시 접수 5일 후 자동 처리됩니다."}
-              </span>
-            </div>
-          ) : null}
           <div className="list-headbar customer-console-headbar">
             <div className="list-head-left"></div>
             <div className="top-actions">

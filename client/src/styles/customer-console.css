@@ -1175,12 +1175,17 @@
 }
 
 /* 회원탈퇴 확인 대기 알림(2026-08-01 spec §4-2) — 목록 상단. 자동으로 사라지지 않는다(확인·자동
-   실행으로 큐가 비면 소멸). 색은 실패 안내(#b42318) 계열 — 미확인 5일 후 자동 처리라 경고 톤. */
+   실행으로 큐가 비면 소멸). 색은 실패 안내(#b42318) 계열 — 미확인 5일 후 자동 처리라 경고 톤.
+   ⚠️ **control-rail 밖의 전체 폭 블록이라는 전제**로 만들어졌다(2026-08-04) — rail 안에 넣으면
+   2열 grid의 한 칸에 갇혀 좁은 화면에서 문구가 글자 단위로 쌓인다. 마크업을 옮기지 말 것. */
 .withdrawal-notice {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin: 0 0 8px;
+  /* 문구는 대기 건수만큼 고객명이 붙어 길어진다 — 좁은 화면에선 strong과 본문이 줄을 나눠 갖게
+     한다(nowrap으로 버티면 가로 스크롤이 생긴다). */
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 0 0 10px;
   padding: 8px 12px;
   border: 1px solid #fecdca;
   border-radius: 8px;
@@ -1190,4 +1195,6 @@
   color: #b42318;
 }
 .withdrawal-notice strong { flex: none; font-weight: 700; }
-.withdrawal-notice span { color: #912018; }
+/* 줄바꿈되면 본문이 그 줄 전체를 쓰게 한다(min-width:0이 없으면 flex 기본 min-content가
+   긴 고객명 나열에서 배너를 가로로 밀어낸다). */
+.withdrawal-notice span { flex: 1 1 auto; min-width: 0; color: #912018; }
