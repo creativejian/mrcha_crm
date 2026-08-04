@@ -32,7 +32,17 @@ export const CRM_ROLE_LABELS: Record<string, string> = {
 };
 
 // 실행기 반환: 사람이 읽는 행 텍스트 목록 — Gemini에 근거 블록으로 실리고, 행 수는 sources 요약에 쓰인다.
-export type AssistantToolResult = { label: string; lines: string[] };
+export type AssistantToolResult = {
+  label: string;
+  lines: string[];
+  /**
+   * 이 조회가 다룬 고객 id(provenance — 2026-08-04, 회원탈퇴 계약 §7). 탈퇴 시 그 고객의 대화만
+   * 골라 파기하는 근거다. **optional이 아니라 필수**다 — 새 도구가 수집을 빠뜨리면 provenance가
+   * 조용히 비는 대신 컴파일 에러가 나야 한다(고객을 다루지 않는 도구는 빈 배열을 명시).
+   * 상한(capReportLines)으로 잘린 행도 포함한다: 파기 범위가 넓어지는 쪽이 안전한 방향이다.
+   */
+  customerIds: string[];
+};
 
 // ── PR2: 자유 질문 모델 라우팅용 함수 선언(Gemini functionDeclarations) ────────────────────────────
 // 자유 질문마다 라우팅 호출에 동봉된다(2026-07-07 라우팅 우선 게이트 이후 — 구 "근거 0건에서만

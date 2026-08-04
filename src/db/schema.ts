@@ -373,8 +373,19 @@ export const assistantMessages = crm.table("assistant_messages", {
   role: text("role").notNull(), // user | assistant
   content: text("content").notNull(),
   sources: jsonb("sources"), // assistant RAG 근거 [{customerId,customerName,sourceType,snippet}], user는 null
+  // provenance(2026-08-04, 회원탈퇴 계약 회신 §7) — 탈퇴 고객의 관련 대화만 골라 파기하기 위한 계측.
+  // turn_id = user+assistant 한 쌍의 공통 키(질문만 남고 답변만 사라지는 반쪽 삭제 방지),
+  // subject_customer_ids = 그 턴이 다룬 고객(RAG 근거 + 도구 조회 대상).
+  // 둘 다 nullable = **도입 전 과거 행**(추적 불가). user 턴 자유 텍스트의 고객 언급은 원리적으로
+  // 못 잡으므로 30일 rolling(assistant-retention-cron)이 여전히 상한 방어선이다.
+  turnId: uuid("turn_id"),
+  subjectCustomerIds: uuid("subject_customer_ids").array(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, (t) => [check("assistant_messages_role_check", inListCheck(t.role, ASSISTANT_ROLES))]);
+}, (t) => [
+  check("assistant_messages_role_check", inListCheck(t.role, ASSISTANT_ROLES)),
+  // 탈퇴 파기가 `subject_customer_ids && ARRAY[고객id]`로 훑는다 — 배열 포함 검색은 GIN이라야 산다.
+  index("assistant_messages_subject_customer_ids_idx").using("gin", t.subjectCustomerIds),
+]);
 
 // 상담사 개인 설정 — 실시간 상담 수신 On/Off(배정 드롭다운 필터·Topbar 토글의 영속 소스).
 // staff_user_id=JWT sub(profiles.id), loose id(public FK 보류 관례). CRM 내부용(앱 미소비).

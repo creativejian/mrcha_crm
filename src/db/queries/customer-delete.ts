@@ -9,6 +9,7 @@ import { ConflictError } from "../../lib/errors";
 import { getDefaultDb, type Executor } from "../client";
 import { advisorQuotes } from "../public-app";
 import { customerDeletions, customerDocuments, customers, quotes } from "../schema";
+import { purgeAssistantMessagesForCustomer } from "./assistant-messages";
 import { deleteQuote } from "./customer-quotes";
 
 export type CustomerDeleteResult = {
@@ -51,6 +52,15 @@ export async function purgeCustomerCore(customerId: string, ex: Executor): Promi
   // 일괄 DELETE가 아니라 deleteQuote()를 견적당 호출한다. 카드 회수·요청 open 복원까지
   // deleteQuote()가 견적 해체의 SSOT이므로 그대로 쓴다 — 고객당 견적은 한 자릿수라 성능 논거가 없다.
   for (const q of quoteRows) await deleteQuote(customerId, q.id, ex);
+
+  // 업무 AI 대화 중 이 고객을 다룬 턴(provenance, 2026-08-04) — CASCADE가 닿지 않는다
+  // (assistant_messages는 고객이 아니라 직원 소유라 FK가 없다). 임베딩만 지우고 대화를 남기면
+  // "업무 AI가 이 고객을 완전히 잊는다"가 반쪽이 된다 — 코퍼스에선 사라졌는데 지난 답변에는
+  // 이름·연락처가 그대로 남는다. 회원탈퇴 회신 §7의 "탈퇴·파기 시 관련 turn 삭제"가 이 줄이고,
+  // 스태프 하드 삭제(#212)도 같은 파기라 같은 규칙을 받는다.
+  // ⚠️ provenance 도입 전 과거 행(배열 NULL)과 질문 텍스트에만 이름이 나온 턴은 못 잡는다 —
+  // 그 잔여는 30일 rolling(cron/assistant-retention-cron.ts)이 상한으로 막는다.
+  await purgeAssistantMessagesForCustomer(customerId, ex);
 
   // 자식 7종(메모·할일·일정·서류·상담·임베딩·출고 정보)은 FK CASCADE가 지운다.
   // 임베딩까지 함께 사라져야 업무 AI가 이 고객을 완전히 잊는다 — 테스트가 잠근다.
