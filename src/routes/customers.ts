@@ -19,6 +19,7 @@ import {
   getCustomerSettlement,
   upsertCustomerDelivery,
   upsertCustomerSettlement,
+  requestSettlement,
 } from "../db/queries/customer-delivery";
 import { getStaffName } from "../db/queries/staff";
 import { resolveCustomerScope } from "../lib/assistant-scope";
@@ -33,7 +34,7 @@ import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
 import { requireRoles } from "../middleware/role-gate";
 import { errorResponse, run } from "./shared";
-import { CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
+import { CUSTOMER_MANAGE_STATUSES, SETTLEMENT_COST_KINDS, SETTLEMENT_STATUS_OPTIONS, SOURCE_MANUAL_OPTIONS } from "../../client/src/data/customers";
 import { canWriteQuote, QUOTE_WRITE_DENIED_MESSAGE } from "../../client/src/lib/quote-write-access";
 import { canAssignAdvisor, ADVISOR_ASSIGN_DENIED_MESSAGE } from "../../client/src/lib/advisor-assign-access";
 
@@ -693,16 +694,48 @@ customers.put("/:id/delivery", zValidator("param", idParam), zValidator("json", 
 // 않으므로 읽기 차단이 구조적으로 달성된다(customers.settlement-exposure.test.ts가 잠근다).
 // ⚠️ manager(팀장)도 403이다 — 경영 리포트(admin 단독)와 같은 축으로 맞췄다. 팀장까지 열려면
 // 아래 두 곳의 배열에 "manager"를 더하면 된다(그건 이사님·유슨생 결정 사항).
+// 비용 1건(2026-08-04 이사님 확정). kind는 닫힌 5종이고, **"직접입력"만 label을 요구**한다 —
+// 라벨 없는 직접입력은 나중에 "이 15만원이 뭐였지"가 되고, 고정 항목에 라벨이 붙으면 집계 키가
+// 둘로 갈린다(썬팅인데 label="썬팅시공"). 그래서 양방향으로 막는다.
+const settlementCostItem = z
+  .object({
+    kind: z.enum(SETTLEMENT_COST_KINDS),
+    label: z.string().trim().min(1).max(40).nullable(),
+    // 원 단위 양수. **페이백도 양수**다(부호를 뒤집어 담으면 마진이 실제보다 커진다).
+    amount: z.number().int().nonnegative(),
+  })
+  .refine((c) => (c.kind === "직접입력" ? !!c.label : c.label === null), {
+    message: "직접입력은 항목명이 필요하고, 고정 항목에는 항목명을 넣지 않습니다.",
+  });
+
 const settlementBody = z.object({
   settledAt: deliveryDateField,
   // 실입금액(원). 음수는 입금 개념상 성립하지 않아 zod에서 막는다(빈 칸은 null = 값 지우기).
   feeAmount: z.number().int().nonnegative().nullable(),
+  // ⚠️ costs·status는 **optional**이다 — 정산 팝오버는 입금일·실입금액만 보내고, 담당자 요청은
+  // status만 바꾼다. 필수로 두면 한쪽이 다른 쪽 값을 빈 값으로 덮는다(upsert가 전달된 키만 SET).
+  costs: z.array(settlementCostItem).max(20).optional(),
+  status: z.enum(SETTLEMENT_STATUS_OPTIONS).optional(),
 });
 
 customers.get("/:id/settlement", requireRoles(["admin"]), zValidator("param", idParam), async (c) => {
   const row = await getCustomerSettlement(c.req.valid("param").id, c.var.db);
   // 출고 정보 행 자체가 없는 고객도 팝오버를 열 수 있다 — 빈 값으로 응답해 클라가 분기하지 않게 한다.
-  return c.json(row ?? { settledAt: null, feeAmount: null });
+  return c.json(row ?? { settledAt: null, feeAmount: null, costs: [], status: "미정산" });
+});
+
+// ── 담당자 정산 요청(2026-08-04 이사님 확정 §6) ──────────────────────────────
+// 정산 축은 admin 단독인데 **"정산요청"만 담당자 행위**다("담당자가 관리자에게"). 그래서 이 한
+// 경로만 역할 게이트 없이 열고, 대신 **할 수 있는 일을 전이 하나로 좁힌다**:
+//   · 미정산 → 정산요청 (그 외 전이는 불가 — 정산완료로 직접 갈 수 없다)
+//   · 금액(수수료·비용·마진)은 읽지도 쓰지도 못한다(응답에 담지 않는다)
+// 이렇게 두면 담당자에게 정산 금액이 노출되지 않으면서도 요청 행위가 시스템에 기록된다.
+customers.post("/:id/settlement/request", zValidator("param", idParam), async (c) => {
+  const result = await requestSettlement(c.req.valid("param").id, c.var.db);
+  if (result.kind === "no_delivery") return c.json({ error: "출고 정보가 아직 없습니다." }, 404);
+  // 이미 요청됐거나 정산이 끝난 건은 409 — 조용히 성공시키면 담당자가 "다시 요청됐다"고 오해한다.
+  if (result.kind === "already") return c.json({ error: `이미 '${result.status}' 상태입니다.` }, 409);
+  return c.json({ status: "정산요청" });
 });
 
 customers.put(

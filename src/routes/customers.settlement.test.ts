@@ -63,7 +63,9 @@ test("GET·PUT /settlement — staff·dealer는 어느 겹에서든 차단된다
 test("GET /settlement — admin은 통과하고, 출고 정보가 없는 고객도 빈 값으로 응답", async () => {
   const res = await reqFor("admin", `/api/customers/${SOME_ID}/settlement`);
   expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ settledAt: null, feeAmount: null });
+  // 출고 행이 없어도 화면이 분기하지 않도록 **빈 값 형태를 그대로 준다** — 비용은 빈 배열,
+  // 단계는 "미정산"이 기본이다(null이면 클라가 매번 ?? 로 메워야 하고 한 곳만 빠뜨려도 깨진다).
+  expect(await res.json()).toEqual({ settledAt: null, feeAmount: null, costs: [], status: "미정산" });
 });
 
 test("PUT /settlement — 없는 고객은 404 (admin이어도 만들어내지 않는다)", async () => {
@@ -100,7 +102,11 @@ test("PUT /settlement — 저장은 출고 정보 필드를 덮지 않는다(같
       body: JSON.stringify({ settledAt: "2026-09-10", feeAmount: 1180000 }),
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ settledAt: "2026-09-10", feeAmount: 1180000 });
+    // 비용·단계가 응답에 함께 실린다(2026-08-04) — 저장 body에 안 실은 두 필드는 기존 값을 유지한다.
+    const saved = (await res.json()) as { settledAt: string; feeAmount: number; costs: unknown[]; status: string };
+    expect(saved.settledAt).toBe("2026-09-10");
+    expect(saved.feeAmount).toBe(1180000);
+    expect(Array.isArray(saved.costs)).toBe(true);
 
     // 핵심: 계약 차량(출고 축)이 그대로여야 한다. 정산 저장이 출고 필드를 비우면 여기서 깨진다.
     const [after] = await db
@@ -113,6 +119,83 @@ test("PUT /settlement — 저장은 출고 정보 필드를 덮지 않는다(같
     await db
       .update(customerDeliveries)
       .set({ settledAt: before[0]?.settledAt ?? null, feeAmount: before[0]?.feeAmount ?? null })
+      .where(eq(customerDeliveries.customerId, existing.customerId));
+  }
+});
+
+// ── 비용·단계(2026-08-04 이사님 확정) ──────────────────────────────────────
+// 비용 항목은 썬팅·블랙박스·탁송·페이백·직접입력 5종이고 **"직접입력"만 항목명을 요구**한다.
+// 양방향으로 막는 이유: 라벨 없는 직접입력은 나중에 "이 15만원이 뭐였지"가 되고, 고정 항목에
+// 라벨이 붙으면 집계 키가 둘로 갈린다(썬팅인데 label="썬팅시공").
+test("PUT /settlement — 직접입력은 항목명이 없으면 400", async () => {
+  const res = await reqFor("admin", `/api/customers/${SOME_ID}/settlement`, {
+    method: "PUT",
+    body: JSON.stringify({
+      settledAt: null,
+      feeAmount: null,
+      costs: [{ kind: "직접입력", label: null, amount: 150000 }],
+    }),
+  });
+  expect(res.status).toBe(400);
+});
+
+test("PUT /settlement — 고정 항목에 항목명을 넣어도 400(집계 키가 갈린다)", async () => {
+  const res = await reqFor("admin", `/api/customers/${SOME_ID}/settlement`, {
+    method: "PUT",
+    body: JSON.stringify({
+      settledAt: null,
+      feeAmount: null,
+      costs: [{ kind: "썬팅", label: "썬팅시공", amount: 300000 }],
+    }),
+  });
+  expect(res.status).toBe(400);
+});
+
+test("PUT /settlement — 없는 비용 종류는 400(닫힌 5종)", async () => {
+  const res = await reqFor("admin", `/api/customers/${SOME_ID}/settlement`, {
+    method: "PUT",
+    body: JSON.stringify({
+      settledAt: null,
+      feeAmount: null,
+      costs: [{ kind: "광택", label: null, amount: 120000 }],
+    }),
+  });
+  expect(res.status).toBe(400);
+});
+
+// ── 담당자 정산 요청 ──────────────────────────────────────────────────────
+// 정산 축은 admin 단독인데 **요청만 담당자 행위**라(이사님: "정산요청(담당자가 관리자에게)")
+// 이 경로만 역할 게이트 없이 열되 **할 수 있는 일을 전이 하나로 좁힌다**. 금액은 응답에도 없다.
+test("POST /settlement/request — 출고 정보가 없으면 404", async () => {
+  const res = await reqFor("admin", `/api/customers/${SOME_ID}/settlement/request`, { method: "POST" });
+  expect(res.status).toBe(404);
+});
+
+test("POST /settlement/request — 미정산 → 정산요청, 재요청은 409(조용히 성공시키지 않는다)", async () => {
+  const [existing] = await db
+    .select({ customerId: customerDeliveries.customerId, status: customerDeliveries.settlementStatus })
+    .from(customerDeliveries)
+    .limit(1);
+  if (!existing) return; // 출고 행이 없는 환경에서는 검증 불가 — 조용히 통과(픽스처 생성 금지)
+
+  try {
+    await db
+      .update(customerDeliveries)
+      .set({ settlementStatus: "미정산" })
+      .where(eq(customerDeliveries.customerId, existing.customerId));
+
+    const ok = await reqFor("admin", `/api/customers/${existing.customerId}/settlement/request`, { method: "POST" });
+    expect(ok.status).toBe(200);
+    // 응답에 금액이 없어야 한다 — 담당자도 부르는 경로다.
+    expect(await ok.json()).toEqual({ status: "정산요청" });
+
+    // 같은 요청을 한 번 더 — 조건부 UPDATE가 0행을 내고 409로 떨어진다(경합 안전).
+    const dup = await reqFor("admin", `/api/customers/${existing.customerId}/settlement/request`, { method: "POST" });
+    expect(dup.status).toBe(409);
+  } finally {
+    await db
+      .update(customerDeliveries)
+      .set({ settlementStatus: existing.status })
       .where(eq(customerDeliveries.customerId, existing.customerId));
   }
 });

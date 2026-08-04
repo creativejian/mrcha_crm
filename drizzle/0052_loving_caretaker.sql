@@ -1,0 +1,3 @@
+ALTER TABLE "crm"."customer_deliveries" ADD COLUMN "settlement_costs" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "crm"."customer_deliveries" ADD COLUMN "settlement_status" text DEFAULT '미정산' NOT NULL;--> statement-breakpoint
+ALTER TABLE "crm"."customer_deliveries" ADD CONSTRAINT "customer_deliveries_settlement_status_check" CHECK ("crm"."customer_deliveries"."settlement_status" IS NULL OR "crm"."customer_deliveries"."settlement_status" IN ('미정산', '정산요청', '정산완료'));

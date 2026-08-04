@@ -1,4 +1,4 @@
-import type { ContractingQuoteSummary, CustomerDeliveryInfo, CustomerSettlement } from "@/data/customers";
+import type { ContractingQuoteSummary, CustomerDeliveryInfo, CustomerSettlementPatch } from "@/data/customers";
 import { dedupedModelTrim } from "@/lib/app-card-labels";
 import { normalizeDateText } from "@/lib/datetime-text";
 import { kstDayIndex } from "@/lib/manage-status";
@@ -87,7 +87,10 @@ export function resolveDeliveryInfoSubmit(draft: DeliveryInfoDraft): DeliveryInf
 // ── 정산 제출 해석(admin 전용 축, 2026-08-03) ──────────────────────────────
 // 출고 정보와 분리한 이유는 저장 경로가 다르기 때문이다(별도 라우트·별도 권한). 여기서 검증해도
 // **서버가 최종 게이트**다 — zod가 음수·형식을 다시 막는다.
-export type SettlementSubmit = { kind: "save"; body: CustomerSettlement } | { kind: "invalid"; reason: string };
+// body가 **부분 patch**인 것이 핵심이다 — 이 폼은 입금일·실입금액만 다루고 비용·단계는 손대지
+// 않는다. 전체 타입을 쓰면 안 보낸 필드가 빈 값으로 실려 나가 담당자가 올린 정산요청 단계나
+// 관리자가 입력한 비용을 조용히 덮는다(2026-08-04 비용/단계 도입).
+export type SettlementSubmit = { kind: "save"; body: CustomerSettlementPatch } | { kind: "invalid"; reason: string };
 
 export function resolveSettlementSubmit(settledAtText: string, feeText: string): SettlementSubmit {
   // 콤마는 입력 편의라 지운다("1,180,000"). 마이너스는 정규식이 막는다 — 입금액에 음수는 없다.

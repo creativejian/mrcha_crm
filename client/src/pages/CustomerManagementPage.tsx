@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, type CustomerSettlement, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
+import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, type CustomerSettlementPatch, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
 import { aiHintPlainText, badgeClass, chanceBadgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
@@ -766,7 +766,7 @@ export function CustomerManagementPage({
   }
 
   // 성공 반영 = 서버 리로드 규약(#234) + 리로드 false 실패 분기(배치 10 B#1) — saveDeliverySchedule 미러.
-  async function saveDeliveryInfo(customer: Customer, draft: DeliveryInfoDraft, settlement: CustomerSettlement | null) {
+  async function saveDeliveryInfo(customer: Customer, draft: DeliveryInfoDraft, settlement: CustomerSettlementPatch | null) {
     const submit = resolveDeliveryInfoSubmit(draft);
     if (submit.kind === "invalid") { setDeliveryInfoNotice({ no: customer.no, message: submit.reason }); return; }
     if (!customer.id) { setDeliveryInfoNotice({ no: customer.no, message: "목업 행에는 저장할 수 없습니다." }); return; }

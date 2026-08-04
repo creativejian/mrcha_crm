@@ -4,7 +4,7 @@
 import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
-import { CHANCE_OPTIONS, type Customer, type CustomerSettlement, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
+import { CHANCE_OPTIONS, type Customer, type CustomerSettlementPatch, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
@@ -667,7 +667,7 @@ export function CustomerDeliveryInfoCell({
   open: boolean;
   popoverRef: RefObject<HTMLDivElement | null>;
   saving: boolean;
-  onSave: (draft: DeliveryInfoDraft, settlement: CustomerSettlement | null) => void;
+  onSave: (draft: DeliveryInfoDraft, settlement: CustomerSettlementPatch | null) => void;
   onToggle: () => void;
 }) {
   const summary = deliveryInfoSummary(customer.delivery);
@@ -729,7 +729,7 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
   notice: string | null;
   saving: boolean;
   onCancel: () => void;
-  onSave: (draft: DeliveryInfoDraft, settlement: CustomerSettlement | null) => void;
+  onSave: (draft: DeliveryInfoDraft, settlement: CustomerSettlementPatch | null) => void;
 }) {
   const [draft, setDraft] = useState(initialDraft);
   // 정산은 목록 응답에 없다(admin 전용 라우트로만 나간다) — 팝오버가 열릴 때 따로 조회한다.
