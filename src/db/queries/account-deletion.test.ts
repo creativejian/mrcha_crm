@@ -9,6 +9,7 @@ import { getDefaultDb } from "../client";
 import { advisorQuotes, consultationRequests, profiles } from "../public-app";
 import {
   accountDeletionJobs,
+  assistantMessages,
   consultationDismissals,
   customerDeletions,
   customerDeliveries,
@@ -73,9 +74,25 @@ test("PURGE: 발송 카드 있어도 실행(회수) + 자식·dismissal 정리 +
         createdAt: new Date().toISOString(),
       });
       await tx.insert(consultationDismissals).values({ consultationId });
+      // 업무 AI 대화(provenance, 2026-08-04) — 고객 자식이 아니라 직원 소유라 CASCADE가 닿지
+      // 않는다. 파기 코어가 이 삭제를 빠뜨리면 임베딩만 사라지고 지난 답변에 이름·연락처가
+      // 남는다(단위 테스트는 그 누락을 못 잡는다 — 통합 경로에서 잠근다).
+      const [aiMsg] = await tx
+        .insert(assistantMessages)
+        .values({
+          staffUserId: crypto.randomUUID(),
+          role: "assistant",
+          content: "탈퇴테스트 고객 요약",
+          turnId: crypto.randomUUID(),
+          subjectCustomerIds: [c.id],
+        })
+        .returning({ id: assistantMessages.id });
 
       const result = await executeAccountPurge(c.id, userId, null, tx);
       expect(result).not.toBeNull();
+      expect(
+        (await tx.select({ id: assistantMessages.id }).from(assistantMessages).where(eq(assistantMessages.id, aiMsg.id))).length,
+      ).toBe(0);
 
       const count = async (t: typeof quotes | typeof customers | typeof consultationDismissals | typeof advisorQuotes) => {
         if (t === quotes) return (await tx.select({ id: quotes.id }).from(quotes).where(eq(quotes.customerId, c.id))).length;

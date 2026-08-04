@@ -7,6 +7,7 @@ import {
   deleteAssistantMessage,
   insertAssistantMessages,
   listRecentMessages,
+  purgeAssistantMessagesForCustomer,
   purgeAssistantMessagesOlderThan,
   updateAssistantMessage,
 } from "./assistant-messages";
@@ -19,8 +20,8 @@ afterAll(async () => { await db.delete(assistantMessages).where(eq(assistantMess
 test("insertAssistantMessages: user+assistant 원자 저장, createdAt 순서 보존", async () => {
   const now = new Date();
   const saved = await insertAssistantMessages([
-    { staffUserId: STAFF, role: "user", content: "질문1", sources: null, createdAt: now },
-    { staffUserId: STAFF, role: "assistant", content: "답1", sources: [{ customerId: "x" }], createdAt: new Date(now.getTime() + 1) },
+    { staffUserId: STAFF, role: "user", content: "질문1", sources: null, createdAt: now, turnId: crypto.randomUUID(), subjectCustomerIds: [] },
+    { staffUserId: STAFF, role: "assistant", content: "답1", sources: [{ customerId: "x" }], createdAt: new Date(now.getTime() + 1), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
   ], db);
   expect(saved).toHaveLength(2);
 });
@@ -35,7 +36,7 @@ test("listRecentMessages: 최근 N개 created_at 오름차순 반환", async () 
 test("listRecentMessages: limit 초과분은 최신 우선으로 잘림", async () => {
   const base = new Date();
   await insertAssistantMessages(
-    Array.from({ length: 4 }, (_, i) => ({ staffUserId: STAFF, role: "user" as const, content: `m${i}`, sources: null, createdAt: new Date(base.getTime() + 100 + i) })),
+    Array.from({ length: 4 }, (_, i) => ({ staffUserId: STAFF, role: "user" as const, content: `m${i}`, sources: null, createdAt: new Date(base.getTime() + 100 + i), turnId: crypto.randomUUID(), subjectCustomerIds: [] })),
     db,
   );
   const rows = await listRecentMessages(STAFF, 2, db);
@@ -47,7 +48,7 @@ test("listRecentMessages: before 커서로 더 오래된 페이지 로드(중복
   const S = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
   const base = new Date();
   await insertAssistantMessages(
-    Array.from({ length: 5 }, (_, i) => ({ staffUserId: S, role: "user" as const, content: `p${i}`, sources: null, createdAt: new Date(base.getTime() + i) })),
+    Array.from({ length: 5 }, (_, i) => ({ staffUserId: S, role: "user" as const, content: `p${i}`, sources: null, createdAt: new Date(base.getTime() + i), turnId: crypto.randomUUID(), subjectCustomerIds: [] })),
     db,
   );
   const page1 = await listRecentMessages(S, 2, db); // 최신 2개(p3,p4) 오름차순
@@ -62,7 +63,7 @@ test("updateAssistantMessage: 본인 것만 갱신, 타 staff는 null·미변경
   const S = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
   const OTHER = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
   const [saved] = await insertAssistantMessages([
-    { staffUserId: S, role: "assistant", content: "", sources: null, createdAt: new Date() },
+    { staffUserId: S, role: "assistant", content: "", sources: null, createdAt: new Date(), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
   ], db);
   // 타 staff로는 갱신 불가(null 반환·원본 미변경)
   const denied = await updateAssistantMessage(saved.id, OTHER, "탈취", [{ customerId: "y" }], db);
@@ -80,7 +81,7 @@ test("updateAssistantMessage: 본인 것만 갱신, 타 staff는 null·미변경
 test("deleteAssistantMessage: 삽입한 placeholder가 삭제돼 조회되지 않음", async () => {
   const S = "dddddddd-dddd-dddd-dddd-dddddddddddd";
   const [saved] = await insertAssistantMessages([
-    { staffUserId: S, role: "assistant", content: "", sources: null, createdAt: new Date() },
+    { staffUserId: S, role: "assistant", content: "", sources: null, createdAt: new Date(), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
   ], db);
   await deleteAssistantMessage(saved.id, S, db);
   const rows = await db.select().from(assistantMessages).where(eq(assistantMessages.id, saved.id));
@@ -102,8 +103,8 @@ test("purgeAssistantMessagesOlderThan: 기한 경과분만 파기하고 기한 �
         [
           // 31일 전 = 경과(파기 대상) · 29일 전 = 기한 내(보존). 경계 하루 안팎을 함께 둬
           // "30일"이 실제로 30일인지 잠근다(오프바이원이면 둘 중 하나가 뒤집힌다).
-          { staffUserId: staff, role: "user", content: "오래된 질문", sources: null, createdAt: daysAgo(31) },
-          { staffUserId: staff, role: "user", content: "최근 질문", sources: null, createdAt: daysAgo(29) },
+          { staffUserId: staff, role: "user", content: "오래된 질문", sources: null, createdAt: daysAgo(31), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
+          { staffUserId: staff, role: "user", content: "최근 질문", sources: null, createdAt: daysAgo(29), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
         ],
         tx,
       );
@@ -121,3 +122,33 @@ test("purgeAssistantMessagesOlderThan: 기한 경과분만 파기하고 기한 �
 function daysAgo(n: number): Date {
   return new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 }
+
+test("purgeAssistantMessagesForCustomer: 그 고객이 걸린 턴만 파기한다(다른 고객·무관 턴은 보존)", async () => {
+  const staff = crypto.randomUUID();
+  const target = crypto.randomUUID();
+  const other = crypto.randomUUID();
+  await expect(
+    db.transaction(async (tx) => {
+      const turn = crypto.randomUUID();
+      const [q, a, unrelated, noSubject] = await insertAssistantMessages(
+        [
+          // 대상 고객이 걸린 한 턴 — 질문·답변이 **함께** 사라져야 한다(반쪽 삭제 방지).
+          { staffUserId: staff, role: "user", content: "질문", sources: null, createdAt: new Date(), turnId: turn, subjectCustomerIds: [target] },
+          { staffUserId: staff, role: "assistant", content: "답변", sources: null, createdAt: new Date(), turnId: turn, subjectCustomerIds: [target] },
+          // 다른 고객만 걸린 턴 · provenance가 빈 턴(도구 current_user 등) — 남아야 한다.
+          { staffUserId: staff, role: "user", content: "남", sources: null, createdAt: new Date(), turnId: crypto.randomUUID(), subjectCustomerIds: [other] },
+          { staffUserId: staff, role: "user", content: "무관", sources: null, createdAt: new Date(), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
+        ],
+        tx,
+      );
+      const purged = await purgeAssistantMessagesForCustomer(target, tx);
+      expect(purged).toBe(2);
+      const left = await tx
+        .select({ id: assistantMessages.id })
+        .from(assistantMessages)
+        .where(inArray(assistantMessages.id, [q!.id, a!.id, unrelated!.id, noSubject!.id]));
+      expect(left.map((r) => r.id).sort()).toEqual([unrelated!.id, noSubject!.id].sort());
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});

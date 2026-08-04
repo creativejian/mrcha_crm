@@ -23,6 +23,7 @@ import {
   settlementReferences,
 } from "../schema";
 import { applyAppUserUnlink } from "./app-user-link";
+import { purgeAssistantMessagesForCustomer } from "./assistant-messages";
 import { deleteQuote } from "./customer-quotes";
 import { purgeCustomerCore } from "./customer-delete";
 
@@ -136,6 +137,10 @@ export async function executeActiveFulfillment(
   // 임베딩은 소스별이 아니라 고객 전량 — 남는 소스(deliveries·schedules)도 개인정보 최소화 원칙상
   // 코퍼스에서 뺀다(보존 고객은 업무 AI 검색 대상이 아니다 — 회신 §7 legal hold 제외와 같은 방향).
   await ex.delete(embeddings).where(eq(embeddings.customerId, customerId));
+  // 업무 AI 대화도 임베딩과 같은 이유로 지운다(회신 §7) — 보존 고객은 업무 AI의 대상이 아니고,
+  // 지난 답변에는 니즈·연락처가 문장으로 남아 있다(스크럽 화이트리스트 밖). PURGE 경로는
+  // purgeCustomerCore가 같은 일을 한다.
+  await purgeAssistantMessagesForCustomer(customerId, ex);
   await cleanupConsultationDismissals(appUserId, ex);
 
   await ex

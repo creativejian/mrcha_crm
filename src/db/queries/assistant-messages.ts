@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, arrayOverlaps, desc, eq, lt, or, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import { assistantMessages } from "../schema";
@@ -10,6 +10,10 @@ export type NewAssistantMessage = {
   content: string;
   sources: unknown;
   createdAt: Date;
+  /** user+assistant 한 쌍의 공통 키 — 반쪽만 남는 삭제를 막는다(provenance, 2026-08-04). */
+  turnId: string;
+  /** 이 턴이 다룬 고객 — 탈퇴 시 관련 대화만 골라 파기하는 근거. 없으면 빈 배열. */
+  subjectCustomerIds: string[];
 };
 
 export type MessageCursor = { createdAt: Date; id: string };
@@ -89,6 +93,19 @@ export async function purgeAssistantMessagesOlderThan(days: number, executor: Ex
   const rows = await executor
     .delete(assistantMessages)
     .where(lt(assistantMessages.createdAt, sql`now() - make_interval(days => ${days})`))
+    .returning({ id: assistantMessages.id });
+  return rows.length;
+}
+
+// 특정 고객이 걸린 대화 파기(탈퇴·파기 경로 — 회신 §7 "탈퇴·파기 시 관련 turn 삭제").
+// provenance(subject_customer_ids)가 붙은 턴만 걸린다: user·assistant 양쪽에 같은 배열을 싣기
+// 때문에 질문과 답변이 함께 사라진다. **도입(2026-08-04) 이전 과거 행은 배열이 NULL이라 안
+// 걸리고**, 질문 텍스트에만 이름이 나온 턴도 원리적으로 못 잡는다 — 그 잔여의 방어선이
+// 30일 rolling이다(이 한계를 앱 팀 회신에 명시했다).
+export async function purgeAssistantMessagesForCustomer(customerId: string, executor: Executor = getDefaultDb()): Promise<number> {
+  const rows = await executor
+    .delete(assistantMessages)
+    .where(arrayOverlaps(assistantMessages.subjectCustomerIds, [customerId]))
     .returning({ id: assistantMessages.id });
   return rows.length;
 }

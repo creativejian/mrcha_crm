@@ -230,6 +230,12 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
           return { customerId: h.customerId, customerName: name, sourceType: h.sourceType, snippet: stripChunkCustomerPrefix(h.content, name).slice(0, 120) };
         });
 
+    // provenance(2026-08-04, 회원탈퇴 계약 §7) — 이 턴이 다룬 고객. 도구 경로는 도구가 조회한
+    // 대상, RAG 경로는 근거 청크의 고객이다. 탈퇴 시 이 배열로 관련 대화를 골라 파기한다.
+    // ⚠️ **질문 텍스트 속 고객 언급은 여기 안 잡힌다**(자유 텍스트라 원리적으로 불가) — 그
+    // 한계의 방어선이 30일 rolling(cron/assistant-retention-cron.ts)이고, 앱 팀 회신에 명시했다.
+    const subjectCustomerIds = tool ? tool.customerIds : [...new Set(hits.map((h) => h.customerId))];
+
     // 오늘 날짜(KST)·현재 사용자 컨텍스트 — 절대 날짜 근거의 과거/미래 판단 기준 + 1인칭("나/내") 해석
     // 기준(양 경로 공통). 표시명 미상(profiles 없음)이어도 역할 라벨은 항상 실린다.
     const userLabel = `${staffName ?? "이름 미상"}(${CRM_ROLE_LABELS[c.var.user.role] ?? c.var.user.role})`;
@@ -240,14 +246,14 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
     if (c.req.valid("json").stream === true) {
       // await 필수: 선저장(insertAssistantMessages) 실패를 이 try/catch가 잡으려면 rejection이
       // 이 스코프 안에서 throw로 전환돼야 한다(그냥 return하면 catch를 건너뛰고 app.onError로 샌다).
-      return await streamAsk(c, { question, staffUserId, target, history, promptChunks, sources, systemPrompt, emptyAnswer });
+      return await streamAsk(c, { question, staffUserId, target, history, promptChunks, sources, subjectCustomerIds, systemPrompt, emptyAnswer });
     }
 
     const answer = promptChunks.length === 0
       ? emptyAnswer
       : await assistantDeps.generateAnswer(systemPrompt, buildUserPrompt(question, buildContextBlock(promptChunks)), target, { history });
 
-    const saved = await insertTurn(staffUserId, question, { content: answer, sources }, c.var.db);
+    const saved = await insertTurn(staffUserId, question, { content: answer, sources }, c.var.db, subjectCustomerIds);
     // 답변·출처는 saved[1]에 영속 — 클라이언트는 messages만 소비한다(이중 표현 금지).
     return c.json({ messages: saved });
   } catch (e) {
@@ -258,16 +264,20 @@ assistant.post("/ask", zValidator("json", askSchema), async (c) => {
 
 // user+assistant 2행 원자 저장 — createdAt now/now+1ms 규약은 (created_at,id) 복합 커서 정렬과 맞물린
 // 계약이라 두 저장 경로(논스트림=완성 답변, 스트림=빈 placeholder 선저장)가 반드시 공유한다.
+// provenance(2026-08-04): turn_id는 두 행이 공유하고, subject_customer_ids도 **양쪽에** 싣는다 —
+// 탈퇴 파기가 배열 한 번만 훑으면 질문·답변이 함께 사라진다(한쪽만 실으면 질문만 남는 반쪽 삭제).
 function insertTurn(
   staffUserId: string,
   question: string,
   assistant: { content: string; sources: unknown },
   db: DbVariables["db"],
+  subjectCustomerIds: string[],
 ): Promise<AssistantMessageRow[]> {
   const now = new Date();
+  const turnId = crypto.randomUUID();
   return assistantDeps.insertAssistantMessages([
-    { staffUserId, role: "user", content: question, sources: null, createdAt: now },
-    { staffUserId, role: "assistant", content: assistant.content, sources: assistant.sources, createdAt: new Date(now.getTime() + 1) },
+    { staffUserId, role: "user", content: question, sources: null, createdAt: now, turnId, subjectCustomerIds },
+    { staffUserId, role: "assistant", content: assistant.content, sources: assistant.sources, createdAt: new Date(now.getTime() + 1), turnId, subjectCustomerIds },
   ], db);
 }
 
@@ -281,6 +291,7 @@ type StreamAskArgs = {
   promptChunks: PromptChunk[]; // 구조 인라인 복제였음 — 연락처 축(2026-07-23)이 여기서 조용히 떨어져 SSOT로 교체
 
   sources: unknown;
+  subjectCustomerIds: string[]; // provenance — 선저장(빈 placeholder)부터 실린다(중단·실패해도 추적 가능)
   systemPrompt: string; // RAG(SYSTEM_PROMPT) vs 도구 리포트(TOOL_SYSTEM_PROMPT) — 호출부가 선택
   emptyAnswer: string; // promptChunks 0건일 때의 고정 답변(NO_HITS vs 범위 밖 안내) — 호출부가 선택
 };
@@ -293,7 +304,7 @@ const HEARTBEAT_WRITE_TIMEOUT_MS = 3_000; // SSE 쓰기는 정상 소비 시 즉
 // 어려움 — finalizeStreamedAnswer 유닛 + 브라우저 스모크(중지→리로드 시 "(중단됨)" 보존·빈 말풍선 없음)가 전담.
 async function streamAsk(c: AskContext, args: StreamAskArgs): Promise<Response> {
   const [userRow, placeholder] = (await insertTurn(
-    args.staffUserId, args.question, { content: "", sources: null }, c.var.db,
+    args.staffUserId, args.question, { content: "", sources: null }, c.var.db, args.subjectCustomerIds,
   )) as [AssistantMessageRow, AssistantMessageRow];
 
   // 스트림 수명 hold(dbHold+waitUntil 원자 등록) — 역할·사고 이력은 holdStreamLifetime 주석 참조.

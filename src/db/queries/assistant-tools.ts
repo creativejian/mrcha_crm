@@ -84,6 +84,12 @@ function nameFilterConds(scope: CustomerScope, f: { name?: string }, extra: SQL[
 
 const nameFilterLabel = (f: { name?: string }): string => (f.name ? `이름 ${f.name}` : "전체");
 
+// provenance 수집(2026-08-04) — 조회 결과에서 고객 id만 뽑아 중복 제거한다. 같은 고객이 여러 행에
+// 걸치는 도구(할일+일정, 견적 여러 건)가 흔해서 중복 제거는 여기 한 곳에서 한다.
+const uniqCustomerIds = (...groups: { id: string }[][]): string[] => [
+  ...new Set(groups.flat().map((r) => r.id)),
+];
+
 // params: 자유 질문 라우팅(PR2)의 모델 인자 — 버튼 결정론 경로(PR1)는 빈 객체를 넘긴다.
 // user: 현재 로그인 사용자(JWT) — current_user 리포트·mine 필터의 "나" 해석 기준(scope와 별개 식별자).
 export async function runAssistantTool(key: AssistantToolKey, params: Record<string, unknown>, scope: CustomerScope, user: AuthedUser, ex: Executor = getDefaultDb()): Promise<AssistantToolResult> {
@@ -94,12 +100,12 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       // 서로 독립인 두 SELECT — 병렬로 원격 DB 왕복 1회분 지연 제거(/ask 히스토리∥검색 병렬과 동일 사유).
       const [tasks, schedules] = await Promise.all([
         ex
-          .select({ name: customers.name, body: customerTasks.body, due: customerTasks.due })
+          .select({ id: customers.id, name: customers.name, body: customerTasks.body, due: customerTasks.due })
           .from(customerTasks)
           .innerJoin(customers, eq(customers.id, customerTasks.customerId))
           .where(and(eq(customerTasks.done, false), inArray(customerTasks.due, ["급함", "오늘"]), scopeCond(scope))),
         ex
-          .select({ name: customers.name, time: customerSchedules.scheduledTime, type: customerSchedules.type, memo: customerSchedules.memo })
+          .select({ id: customers.id, name: customers.name, time: customerSchedules.scheduledTime, type: customerSchedules.type, memo: customerSchedules.memo })
           .from(customerSchedules)
           .innerJoin(customers, eq(customers.id, customerSchedules.customerId))
           .where(and(eq(customerSchedules.done, false), eq(customerSchedules.scheduledDate, kstDateOf(new Date())), scopeCond(scope))),
@@ -108,19 +114,23 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         ...tasks.map((t) => `${t.name} — 할일: ${t.body ?? "(내용 없음)"} (기한 ${t.due})`),
         ...schedules.map((s) => `${s.name} — 일정: ${[s.time, s.type, s.memo].filter(Boolean).join(" · ")}`),
       ];
-      return { label, lines };
+      return { label, lines, customerIds: uniqCustomerIds(tasks, schedules) };
     }
 
     // customers.chance 순위(확정>높음>중간>보류>낮음) + 진행 상태 병기 — 상위 20.
     // chance는 자동 분기가 아니라 상담사가 진행 중 독립 판단으로 입력하는 수동 값(이사님 확인 07-06).
     case "chance_ranking": {
       const rows = await ex
-        .select({ name: customers.name, chance: customers.chance, statusGroup: customers.statusGroup, status: customers.status })
+        .select({ id: customers.id, name: customers.name, chance: customers.chance, statusGroup: customers.statusGroup, status: customers.status })
         .from(customers)
         .where(and(isNotNull(customers.chance), scopeCond(scope)))
         .orderBy(sql`case ${customers.chance} when '확정' then 0 when '높음' then 1 when '중간' then 2 when '보류' then 3 else 4 end`)
         .limit(20);
-      return { label, lines: rows.map((r, i) => `${i + 1}위 ${r.name} — 계약 가능성 ${r.chance} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`) };
+      return {
+        label,
+        lines: rows.map((r, i) => `${i + 1}위 ${r.name} — 계약 가능성 ${r.chance} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`),
+        customerIds: uniqCustomerIds(rows),
+      };
     }
 
     // 최근 활동 7일+ 무활동 고객(버킷 병기) — 액션 전(신규·상담접수)은 **파생 경로만** 제외(클라 관리
@@ -135,22 +145,23 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
     // 목록 배지가 정상이므로 리포트에서 제외(배지-리포트 모순 방지).
     case "stale_customers": {
       const rows = await ex
-        .select({ name: customers.name, statusGroup: customers.statusGroup, status: customers.status, recontacted: customers.recontacted, manageStatus: customers.manageStatus, manageStatusAt: customers.manageStatusAt, at: staffActivityAt })
+        .select({ id: customers.id, name: customers.name, statusGroup: customers.statusGroup, status: customers.status, recontacted: customers.recontacted, manageStatus: customers.manageStatus, manageStatusAt: customers.manageStatusAt, at: staffActivityAt })
         .from(customers)
         .where(scopeCond(scope));
-      const lines = rows
+      // 필터를 통과한 행을 먼저 굳힌다 — 라인 문자열로 바로 접으면 provenance용 id가 사라진다.
+      const picked = rows
         .map((r) => ({ ...r, days: daysSince(r.at), manual: manualManageStatusActive(r.manageStatusAt, r.at) ? r.manageStatus : null }))
         .filter((r) => r.manual != null || !isPreActionStatus(r.statusGroup, r.status))
         .filter((r): r is typeof r & { days: number } => r.days != null && (staleBucket(r.days) != null || r.manual != null))
         .filter((r) => r.manual !== "정상")
-        .sort((a, b) => b.days - a.days)
-        .map((r) => {
-          const badge = r.manual
-            ? r.manual === "재문의" ? "재문의(고객이 먼저 다시 연락)" : `${r.manual}(수동 지정)`
-            : r.recontacted ? "재문의(고객이 먼저 다시 연락)" : staleBucket(r.days);
-          return `${r.name} — ${r.days}일 무활동 (${badge}) · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`;
-        });
-      return { label, lines: capReportLines(lines, "명") };
+        .sort((a, b) => b.days - a.days);
+      const lines = picked.map((r) => {
+        const badge = r.manual
+          ? r.manual === "재문의" ? "재문의(고객이 먼저 다시 연락)" : `${r.manual}(수동 지정)`
+          : r.recontacted ? "재문의(고객이 먼저 다시 연락)" : staleBucket(r.days);
+        return `${r.name} — ${r.days}일 무활동 (${badge}) · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}`;
+      });
+      return { label, lines: capReportLines(lines, "명"), customerIds: uniqCustomerIds(picked) };
     }
 
     // 진행 상태 "견적" 단계 고객 ∪ 작성 중(draft) 견적 보유 고객 — 사유 병기(이사님 컨펌 07-06: 의도대로).
@@ -158,11 +169,11 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       // 서로 독립인 두 SELECT — today_actions와 동일 사유로 병렬.
       const [stage, drafts] = await Promise.all([
         ex
-          .select({ name: customers.name, status: customers.status })
+          .select({ id: customers.id, name: customers.name, status: customers.status })
           .from(customers)
           .where(and(eq(customers.statusGroup, "견적"), scopeCond(scope))),
         ex
-          .select({ name: customers.name, quoteCode: quotes.quoteCode, vehicle: quotes.modelName })
+          .select({ id: customers.id, name: customers.name, quoteCode: quotes.quoteCode, vehicle: quotes.modelName })
           .from(quotes)
           .innerJoin(customers, eq(customers.id, quotes.customerId))
           .where(and(eq(quotes.appStatus, "draft"), scopeCond(scope))),
@@ -171,31 +182,32 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         ...stage.map((r) => `${r.name} — 진행 상태 견적 단계(${r.status ?? "세부 미입력"})`),
         ...drafts.map((r) => `${r.name} — 작성 중 견적 ${r.quoteCode}${r.vehicle ? ` (${r.vehicle})` : ""} 미발송`),
       ];
-      return { label, lines };
+      return { label, lines, customerIds: uniqCustomerIds(stage, drafts) };
     }
 
     // 계약완료 단계 ∩ 7일+ 무활동 = "출고 준비·정산 준비 중 활동 공백"(이사님 컨펌 07-06: 계약완료
     // 단계는 '출고 준비 및 정산 준비' 개념 — 출고/정산 화면이 CRM에 구현되면 그 데이터 기반으로 쿼리 교체).
     case "delivery_risk": {
       const rows = await ex
-        .select({ name: customers.name, status: customers.status, recontacted: customers.recontacted, manageStatus: customers.manageStatus, manageStatusAt: customers.manageStatusAt, at: staffActivityAt })
+        .select({ id: customers.id, name: customers.name, status: customers.status, recontacted: customers.recontacted, manageStatus: customers.manageStatus, manageStatusAt: customers.manageStatusAt, at: staffActivityAt })
         .from(customers)
         .where(and(eq(customers.statusGroup, "계약완료"), scopeCond(scope)));
-      const lines = rows
+      // stale_customers와 같은 이유로 필터 결과를 먼저 굳힌다(provenance용 id 보존).
+      const picked = rows
         .map((r) => ({ ...r, days: daysSince(r.at), manual: manualManageStatusActive(r.manageStatusAt, r.at) ? r.manageStatus : null }))
         // 유효 수동 비'정상'은 임계 미달이어도 포함(항목 8 ① — stale_customers와 동일 사유).
         .filter((r): r is typeof r & { days: number } => r.days != null && (r.days >= STALE_THRESHOLDS.review || r.manual != null))
         // 유효 수동 "정상"은 목록 배지도 정상 — 리스크 리포트에서 제외(stale_customers와 동일 사유).
         .filter((r) => r.manual !== "정상")
-        .sort((a, b) => b.days - a.days)
-        // 재문의·수동 상태 병기 — stale_customers와 동일 사유(목록 배지와 라벨 통일, 이사님 2026-07-13 ①·⑦-①).
-        .map((r) => {
-          const tag = r.manual
-            ? r.manual === "재문의" ? " · 재문의(고객이 먼저 다시 연락)" : ` · ${r.manual}(수동 지정)`
-            : r.recontacted ? " · 재문의(고객이 먼저 다시 연락)" : "";
-          return `${r.name} — 계약완료 단계(${r.status ?? "세부 미입력"}) · ${r.days}일 무활동${tag}`;
-        });
-      return { label, lines: capReportLines(lines, "명") };
+        .sort((a, b) => b.days - a.days);
+      // 재문의·수동 상태 병기 — stale_customers와 동일 사유(목록 배지와 라벨 통일, 이사님 2026-07-13 ①·⑦-①).
+      const lines = picked.map((r) => {
+        const tag = r.manual
+          ? r.manual === "재문의" ? " · 재문의(고객이 먼저 다시 연락)" : ` · ${r.manual}(수동 지정)`
+          : r.recontacted ? " · 재문의(고객이 먼저 다시 연락)" : "";
+        return `${r.name} — 계약완료 단계(${r.status ?? "세부 미입력"}) · ${r.days}일 무활동${tag}`;
+      });
+      return { label, lines: capReportLines(lines, "명"), customerIds: uniqCustomerIds(picked) };
     }
 
     // 조건 검색(PR2 자유 질문 라우팅 전용): 이름/진행 상태/구매방식/상담경로 필터 조합 — 부분 일치는
@@ -217,6 +229,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       // many-to-one이라 행이 늘지 않는다.
       const rows = await ex
         .select({
+          id: customers.id,
           name: customers.name,
           phone: composedPhone,
           phoneSecondary: customers.phoneSecondary,
@@ -239,7 +252,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         // 없으면 "미입력"을 명시 — 침묵하면 모델이 "결과에 없다"와 "고객에게 없다"를 구분하지 못한다.
         `${r.name} — 연락처 ${r.phone ? formatPhone(r.phone) : "미입력"}${r.phoneSecondary ? ` · 추가 연락처 ${formatPhone(r.phoneSecondary)}` : ""}` +
         ` · 상담경로 ${r.source ?? "미입력"} · 진행 ${[r.statusGroup, r.status].filter(Boolean).join("·") || "미입력"}${r.needMethod ? ` · 구매방식 ${r.needMethod}` : ""}`);
-      return { label: `${label}(${filterLabel})`, lines };
+      return { label: `${label}(${filterLabel})`, lines, customerIds: uniqCustomerIds(rows) };
     }
 
     // 현재 로그인 사용자 리포트("난 누구야?") — 본인 정보라 scope 무관(고객 데이터는 담당 수 집계뿐).
@@ -250,7 +263,8 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       ]);
       const role = profile?.role ?? user.role;
       const line = `${profile?.name?.trim() || "이름 미상"} — 역할 ${CRM_ROLE_LABELS[role] ?? role}(${role}) · 담당 고객 ${assigned?.n ?? 0}명`;
-      return { label, lines: [line] };
+      // 담당 고객은 **개수만** 세고 누구인지는 답에 싣지 않는다 — provenance 대상 고객 0명.
+      return { label, lines: [line], customerIds: [] };
     }
 
     // 특정 고객의 견적 목록(코드·차종·발송 상태) — crm.quotes 직접 조회. 견적 개수/차종 질문에
@@ -261,7 +275,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       const conds = nameFilterConds(scope, f);
       const rows = await ex
         .select({
-          name: customers.name, code: quotes.quoteCode,
+          id: customers.id, name: customers.name, code: quotes.quoteCode,
           brand: quotes.brandName, model: quotes.modelName, trim: quotes.trimName,
           appStatus: quotes.appStatus, viewedAt: quotes.viewedAt, createdAt: quotes.createdAt,
         })
@@ -274,7 +288,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         const state = r.appStatus === "sent" ? (r.viewedAt ? "발송완료·고객 열람" : "발송완료") : "작성중";
         return `${r.name} · ${r.code} · ${car} · ${state}`;
       });
-      return { label: `${label}(${nameFilterLabel(f)})`, lines: capReportLines(lines, "건") };
+      return { label: `${label}(${nameFilterLabel(f)})`, lines: capReportLines(lines, "건"), customerIds: uniqCustomerIds(rows) };
     }
 
     // 특정 고객의 앱 상담신청 목록(관심 차종·문의 내용·신청일) — public.consultations를 CRM 고객(app_user_id)에
@@ -292,7 +306,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
       const conds = nameFilterConds(scope, f, [notDismissed]);
       const rows = await ex
         .select({
-          name: customers.name, carModel: consultationRequests.carModel,
+          id: customers.id, name: customers.name, carModel: consultationRequests.carModel,
           notes: consultationRequests.notes, createdAt: consultationRequests.createdAt,
         })
         .from(consultationRequests)
@@ -304,7 +318,7 @@ export async function runAssistantTool(key: AssistantToolKey, params: Record<str
         const note = r.notes?.trim() || "문의 내용 없음";
         return `${r.name} · ${kstDateOf(new Date(r.createdAt))} · ${car} · 문의: ${note}`;
       });
-      return { label: `${label}(${nameFilterLabel(f)})`, lines: capReportLines(lines, "건") };
+      return { label: `${label}(${nameFilterLabel(f)})`, lines: capReportLines(lines, "건"), customerIds: uniqCustomerIds(rows) };
     }
   }
 }

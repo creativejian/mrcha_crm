@@ -394,7 +394,7 @@ test("POST /ask tool 지정 → 검색 생략·도구 결과 근거·sources 리
     embedTexts: async () => { throw new Error("도구 경로에서 임베딩이 호출되면 안 됨"); },
     runAssistantTool: async (key) => {
       calledKey = key;
-      return { label: "오늘 처리할 일", lines: ["김민준 — GLC 재고 확인 (기한 오늘)", "박서연 — 월납입표 확인 (기한 급함)"] };
+      return { label: "오늘 처리할 일", lines: ["김민준 — GLC 재고 확인 (기한 오늘)", "박서연 — 월납입표 확인 (기한 급함)"] , customerIds: [] };
     },
     getCustomerMetaByIds: async () => new Map(),
     generateAnswer: async (sp: string, u: string) => { systemPrompt = sp; userPrompt = u; return "정리했습니다"; },
@@ -423,7 +423,7 @@ test("POST /ask tool 결과 0건 → NO_HITS가 아니라 '조회 결과 없음'
   let userPrompt = "";
   ragFakes({ inserted: [] }, {
     embedTexts: async () => { throw new Error("호출되면 안 됨"); },
-    runAssistantTool: async () => ({ label: "출고/정산 리스크", lines: [] }),
+    runAssistantTool: async () => ({ label: "출고/정산 리스크", lines: [] , customerIds: [] }),
     getCustomerMetaByIds: async () => new Map(),
     generateAnswer: async (_s: string, u: string) => { userPrompt = u; return "해당 고객이 없습니다"; },
   });
@@ -447,7 +447,7 @@ test("POST /ask stream:true + tool → 도구 근거로 스트림 생성(고정 
   const seen: { inserted: unknown[][]; updated?: { id: string; content: string } } = { inserted: [] };
   ragFakes(seen, {
     embedTexts: async () => { throw new Error("도구 경로에서 임베딩이 호출되면 안 됨"); },
-    runAssistantTool: async () => ({ label: "계약 가능성 순위", lines: ["1위 김민준 — 확정"] }),
+    runAssistantTool: async () => ({ label: "계약 가능성 순위", lines: ["1위 김민준 — 확정"] , customerIds: [] }),
     generateAnswerStream: async function* () { yield "1위는 "; yield "김민준입니다"; },
   });
 
@@ -486,7 +486,7 @@ test("POST /ask 라우팅 도구 경로: 근거가 있어도 getCustomerMetaById
   ragFakes({ inserted: [] }, {
     // ragFakes 기본 searchEmbeddings가 근거 1건을 낸다 — hits>0 상태에서 라우팅되는 실경로 재현.
     routeAssistantTool: async () => ({ kind: "call" as const, key: "customer_quotes" as const, params: { name: "김지안" } }),
-    runAssistantTool: async () => ({ label: "고객 견적(이름 김지안)", lines: ["김지안 · QT-2607-0005 · BMW 520i · 발송완료"] }),
+    runAssistantTool: async () => ({ label: "고객 견적(이름 김지안)", lines: ["김지안 · QT-2607-0005 · BMW 520i · 발송완료"] , customerIds: [] }),
     getCustomerMetaByIds: async () => { metaCalls += 1; return new Map(); },
     generateAnswer: async () => "김지안 고객의 견적은 2건입니다",
   });
@@ -506,7 +506,7 @@ test("POST /ask 근거 0건 + 라우팅 성공 → 도구 실행(params 전달)�
     routeAssistantTool: async () => ({ kind: "call" as const, key: "search_customers" as const, params: { source: "앱" } }),
     runAssistantTool: async (key, params) => {
       toolCall = { key, params };
-      return { label: "고객 검색(상담경로 앱)", lines: ["제임스 — 상담경로 앱 견적요청"] };
+      return { label: "고객 검색(상담경로 앱)", lines: ["제임스 — 상담경로 앱 견적요청"] , customerIds: [] };
     },
     getCustomerMetaByIds: async () => new Map(),
     generateAnswer: async (_s: string, u: string) => (u.includes("제임스") ? "제임스입니다" : "근거 누락"),
@@ -591,7 +591,7 @@ test("POST /ask 근거 있어도 라우터 call이면 도구로 답한다(집계
   const seenTool = { called: false };
   ragFakes({ inserted: [] }, {
     routeAssistantTool: async () => ({ kind: "call", key: "customer_quotes", params: { name: "김지안" } }),
-    runAssistantTool: async () => { seenTool.called = true; return { label: "고객 견적 목록(이름 김지안)", lines: ["김지안 · QT-1 · 기아 쏘렌토 · 작성중"] }; },
+    runAssistantTool: async () => { seenTool.called = true; return { label: "고객 견적 목록(이름 김지안)", lines: ["김지안 · QT-1 · 기아 쏘렌토 · 작성중"] , customerIds: [] }; },
     generateAnswer: async (_s: string, u: string) => (u.includes("쏘렌토") ? "견적 1개(쏘렌토)" : "RAG로 샘"),
   });
 
@@ -609,7 +609,7 @@ test("POST /ask 근거 있어도 라우터 call이면 도구로 답한다(집계
 test("POST /ask 라우팅 도구가 0건 + 근거 있음 → RAG 폴백(오라우팅 구제)", async () => {
   ragFakes({ inserted: [] }, {
     routeAssistantTool: async () => ({ kind: "call", key: "customer_consultations", params: { name: "박서연" } }),
-    runAssistantTool: async () => ({ label: "고객 상담신청 목록(이름 박서연)", lines: [] }), // 0건
+    runAssistantTool: async () => ({ label: "고객 상담신청 목록(이름 박서연)", lines: [] , customerIds: [] }), // 0건
     generateAnswer: async (_s: string, u: string) => (u.includes("근거") ? "RAG 근거 기반 답변" : "도구 0건으로 답함"),
   });
 
@@ -630,7 +630,7 @@ test("POST /ask 라우팅 도구 0건 + 근거도 0건 → 도구 경로 유지(
   ragFakes({ inserted: [] }, {
     searchEmbeddings: async () => [],
     routeAssistantTool: async () => ({ kind: "call", key: "customer_quotes", params: { name: "박서연" } }),
-    runAssistantTool: async () => ({ label: "고객 견적 목록(이름 박서연)", lines: [] }),
+    runAssistantTool: async () => ({ label: "고객 견적 목록(이름 박서연)", lines: [] , customerIds: [] }),
     generateAnswer: async (_s: string, u: string) => (u.includes("조회 결과 없음") ? "견적 내역이 없습니다" : "엉뚱한 경로"),
   });
 
@@ -697,7 +697,7 @@ test("POST /ask staff 토큰 → searchEmbeddings·runAssistantTool에 {advisorI
   ragFakes({ inserted: [] }, {
     searchEmbeddings: async (_v, scope) => { searchScope = scope; return []; },
     routeAssistantTool: async () => ({ kind: "call" as const, key: "search_customers" as const, params: {} }),
-    runAssistantTool: async (_k, _p, scope, user) => { toolScope = scope; toolUser = user; return { label: "조건 검색", lines: [] }; },
+    runAssistantTool: async (_k, _p, scope, user) => { toolScope = scope; toolUser = user; return { label: "조건 검색", lines: [] , customerIds: [] }; },
     getCustomerMetaByIds: async () => new Map(),
     generateAnswer: async () => "답변",
   });
@@ -727,7 +727,7 @@ test("골든: tool(빠른 질문 버튼) 지정 시 라우터를 아예 호출�
   ragFakes({ inserted: [] }, {
     embedTexts: async () => { throw new Error("도구 경로에서 임베딩이 호출되면 안 됨"); },
     routeAssistantTool: async () => { routeCalls += 1; return null; },
-    runAssistantTool: async () => ({ label: "오늘 처리할 일", lines: ["김민준 — GLC 재고 확인"] }),
+    runAssistantTool: async () => ({ label: "오늘 처리할 일", lines: ["김민준 — GLC 재고 확인"] , customerIds: [] }),
     generateAnswer: async () => "정리했습니다",
   });
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
@@ -767,7 +767,7 @@ test("골든: 라우터 call → runAssistantTool은 라우터가 resolve된 뒤
       order.push("route");
       return { kind: "call" as const, key: "customer_quotes" as const, params: { name: "김지안" } };
     },
-    runAssistantTool: async () => { order.push("run"); return { label: "고객 견적", lines: ["QT-0005"] }; },
+    runAssistantTool: async () => { order.push("run"); return { label: "고객 견적", lines: ["QT-0005"] , customerIds: [] }; },
     generateAnswer: async () => "2건입니다",
   });
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
@@ -782,7 +782,7 @@ test("골든: 임베딩 실패는 500 — 라우터가 call을 내도 도구를 
   ragFakes({ inserted: [] }, {
     embedTexts: async () => { throw new Error("boom"); },
     routeAssistantTool: async () => ({ kind: "call" as const, key: "customer_quotes" as const, params: {} }),
-    runAssistantTool: async () => { runCalls += 1; return { label: "x", lines: [] }; },
+    runAssistantTool: async () => { runCalls += 1; return { label: "x", lines: [] , customerIds: [] }; },
   });
   const { token, keyResolver, issuer } = await makeTestAuth("admin");
   const app = createApp({ keyResolver, issuer });
@@ -812,4 +812,55 @@ test("라우터는 임베딩→검색 완료 전에 시작한다(지연 겹침)"
   expect(events).toContain("route:start");
   // 직렬이면 route:start가 search:end 뒤에 온다. 병렬이면 embed가 끝나기도 전에 시작한다.
   expect(events.indexOf("route:start")).toBeLessThan(events.indexOf("embed:end"));
+});
+
+// ── provenance 계측(2026-08-04, 회원탈퇴 계약 §7) ────────────────────────────────
+// 저장 시점에 두 컬럼이 실제로 채워지는지 잠근다 — 비어 있으면 탈퇴 파기가 그 턴을 못 찾고,
+// 그 실패는 증상이 없다(대화가 조용히 남는다).
+type SavedRow = { role: string; turnId: string; subjectCustomerIds: string[] };
+
+test("provenance: RAG 경로는 근거 고객을 subject로 싣고 user·assistant가 turn_id를 공유한다", async () => {
+  const seen: RagSeen = { inserted: [] };
+  ragFakes(seen, { generateAnswer: async () => "답변" });
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  expect((await askJson(app, token, { question: "김민준 최근 상담" })).status).toBe(200);
+
+  const [user, assistant] = seen.inserted[0] as SavedRow[];
+  // 양쪽에 실려야 한다 — 한쪽만이면 파기가 답변만 지우고 질문을 남긴다(반쪽 삭제).
+  expect(user!.subjectCustomerIds).toEqual(["c1"]);
+  expect(assistant!.subjectCustomerIds).toEqual(["c1"]);
+  expect(user!.turnId).toBe(assistant!.turnId);
+});
+
+test("provenance: 도구 경로는 RAG 근거가 아니라 도구가 조회한 고객을 싣는다", async () => {
+  const seen: RagSeen = { inserted: [] };
+  ragFakes(seen, {
+    // 기본 스텁의 RAG 근거(c1)는 그대로 두고 도구를 태운다 — 라우팅 우선 게이트에서
+    // subject가 도구 대상(c9)으로 바뀌는지가 이 테스트의 요점이다.
+    routeAssistantTool: async () => ({ kind: "call", key: "customer_quotes", params: {} }) as never,
+    runAssistantTool: async () => ({ label: "고객 견적 목록(이름 김지안)", lines: ["김지안 · QT-1"], customerIds: ["c9"] }),
+    generateAnswer: async () => "답변",
+  });
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  expect((await askJson(app, token, { question: "김지안 견적 몇 개야" })).status).toBe(200);
+
+  const [user, assistant] = seen.inserted[0] as SavedRow[];
+  expect(user!.subjectCustomerIds).toEqual(["c9"]);
+  expect(assistant!.subjectCustomerIds).toEqual(["c9"]);
+});
+
+test("provenance: 스트리밍 경로도 선저장(빈 placeholder) 시점부터 subject를 싣는다", async () => {
+  const seen: RagSeen = { inserted: [] };
+  ragFakes(seen, { generateAnswerStream: async function* () { yield "답"; } as never });
+  const { token, keyResolver, issuer } = await makeTestAuth("admin");
+  const app = createApp({ keyResolver, issuer });
+  const res = await askJson(app, token, { question: "김민준", stream: true });
+  await res.text(); // 스트림 소진 — finalize까지 진행시킨다
+
+  // 중단·실패로 답변이 사라져도 남는 user 행에 provenance가 있어야 파기가 그 턴을 찾는다.
+  const [user] = seen.inserted[0] as SavedRow[];
+  expect(user!.subjectCustomerIds).toEqual(["c1"]);
+  expect(user!.turnId).toBeTruthy();
 });
