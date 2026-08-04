@@ -101,10 +101,17 @@ test("purgeAssistantMessagesOlderThan: 기한 경과분만 파기하고 기한 �
     db.transaction(async (tx) => {
       const [old, fresh] = await insertAssistantMessages(
         [
-          // 31일 전 = 경과(파기 대상) · 29일 전 = 기한 내(보존). 경계 하루 안팎을 함께 둬
-          // "30일"이 실제로 30일인지 잠근다(오프바이원이면 둘 중 하나가 뒤집힌다).
-          { staffUserId: staff, role: "user", content: "오래된 질문", sources: null, createdAt: daysAgo(31), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
-          { staffUserId: staff, role: "user", content: "최근 질문", sources: null, createdAt: daysAgo(29), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
+          // 경계 **바로 안팎**(±1시간)에 둔다 — 임계값이 정확히 30일일 때만 이 단언이 성립한다.
+          // ⚠️ 구 픽스처는 31일/29일이라 통과 범위가 (29일, 31일]로 벌어져 **경계를 하루 뒤로 미는
+          // 변이를 통과시켰다**(2026-08-04 파기 로직 감사 M1 실측: `days+1`은 green, `days+2`에야
+          // red). 31일 전 행은 임계값 31일에서도 앱 시계 스큐로 아슬아슬하게 파기 쪽에 걸려서다 —
+          // 하필 **덜 지우는 방향**(= 계약 위반 방향)만 새는 비대칭이었다. 실제 리팩토링 형태인
+          // `interval '1 month'` 치환도 typecheck·lint·이 테스트·계약값 tripwire를 전부 통과했다.
+          // 계약값 tripwire(assistant-retention-cron.test.ts)는 **상수만** 잠그므로 쿼리 안의 경계
+          // 이동은 여기서만 잡힌다. ±1시간은 앱↔DB 시계 스큐(실측 초 단위)보다 3자리수 큰 마진이라
+          // 플레이크 위험이 없다 — 이 간격을 다시 벌리지 말 것.
+          { staffUserId: staff, role: "user", content: "오래된 질문", sources: null, createdAt: hoursAgo(RETENTION_BOUNDARY_HOURS + 1), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
+          { staffUserId: staff, role: "user", content: "최근 질문", sources: null, createdAt: hoursAgo(RETENTION_BOUNDARY_HOURS - 1), turnId: crypto.randomUUID(), subjectCustomerIds: [] },
         ],
         tx,
       );
@@ -119,8 +126,13 @@ test("purgeAssistantMessagesOlderThan: 기한 경과분만 파기하고 기한 �
   ).rejects.toThrow(ROLLBACK);
 });
 
-function daysAgo(n: number): Date {
-  return new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+// 보존 기한 경계(시간 단위) — 위 테스트가 `purgeAssistantMessagesOlderThan(30, ...)`에 넘기는
+// 30일과 같은 값이다. 상수를 import하지 않는 이유: 상수와 쿼리가 함께 밀리는 변이를 잡으려면
+// 픽스처가 **독립적으로** 30일을 알고 있어야 한다(계약값 자체는 별도 tripwire가 잠근다).
+const RETENTION_BOUNDARY_HOURS = 30 * 24;
+
+function hoursAgo(n: number): Date {
+  return new Date(Date.now() - n * 60 * 60 * 1000);
 }
 
 test("purgeAssistantMessagesForCustomer: 그 고객이 걸린 턴만 파기한다(다른 고객·무관 턴은 보존)", async () => {
