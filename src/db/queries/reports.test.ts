@@ -26,7 +26,23 @@ test("getAdminReport: 데이터가 없는 미래 월은 기간 지표가 전부 
     prevLeaseAmount: 0,
     rentAmount: 0,
     prevRentAmount: 0,
+    countByMethod: [], // 0건이면 빈 배열 — 화면이 소계 줄 자체를 안 그린다
   });
+});
+
+// 구매방식별 대수(2026-08-04, 이사님 확정 — spec 2026-08-03 §1). 실 데이터가 아직 없어 값 자체는
+// 단언할 수 없고, **불변식**을 잠근다: 소계 합 == 전체 대수. 실적 금액은 화이트리스트
+// (REVENUE_BASIS_BY_PURCHASE_METHOD)로 걸러지지만 **대수는 전 구매방식 포함**이라, 화이트리스트를
+// 대수에도 잘못 적용하면 이 합이 어긋난다(할부·중고리스가 통째로 빠진다).
+test("getAdminReport: 구매방식별 대수의 합은 전체 대수와 같다(전 구매방식 포함)", async () => {
+  for (const month of ["2026-07", "2026-08"]) {
+    const { delivery } = await getAdminReport(month);
+    const sum = delivery.countByMethod.reduce((a, r) => a + r.count, 0);
+    expect(sum).toBe(delivery.count);
+    // 많은 순 정렬(동수는 이름 오름차순) — 순서가 흔들리면 새로고침마다 "숫자가 변한 것"으로 읽힌다.
+    const counts = delivery.countByMethod.map((r) => r.count);
+    expect([...counts].sort((a, b) => b - a)).toEqual(counts);
+  }
 });
 
 test("getAdminReport: 실적은 출고 달 기준 기간 지표 — 이번 달과 전월이 맞물린다", async () => {

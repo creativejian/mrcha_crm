@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { AdminHeroMetrics } from "@/components/AdminHeroMetrics";
 import { adminBriefs, advisors, brands } from "@/data/prototype";
+import { buildHeroPerformance } from "@/lib/admin-hero";
 import { bindSelect } from "@/lib/select-bind";
 import { fetchAdminReport, formatMonthLabel, recentMonthOptions, type AdminReport } from "@/lib/reports";
 
@@ -15,27 +17,6 @@ function BriefList({ items }: { items: readonly (readonly [string, string])[] })
 // 리포트 API를 그대로 쓸 수 없어 별도 슬라이스로 남긴다(2026-08-03 spec §5).
 
 // 히어로 3지표(2026-08-03 이사님 확정 — 출고 달 기준). 금액은 원 단위 정수로 받아 여기서 포맷한다.
-type HeroMetric = { label: string; value: string; unit: string; delta: string; up: boolean };
-
-function buildHeroPerformance(report: AdminReport): HeroMetric[] {
-  const { count, prevCount, leaseAmount, prevLeaseAmount, rentAmount, prevRentAmount } = report.delivery;
-  const won = (v: number) => v.toLocaleString("ko-KR");
-  const metric = (label: string, unit: string, cur: number, prev: number): HeroMetric => {
-    const diff = cur - prev;
-    return {
-      label,
-      value: won(cur),
-      unit,
-      delta: diff === 0 ? "±0" : `${diff > 0 ? "+" : ""}${won(diff)}`,
-      up: diff > 0,
-    };
-  };
-  return [
-    metric("전체 출고", "대", count, prevCount),
-    metric("리스 실적", "원", leaseAmount, prevLeaseAmount),
-    metric("렌트 실적", "원", rentAmount, prevRentAmount),
-  ];
-}
 
 const reportOptions = [
   "전체 운영",
@@ -365,15 +346,7 @@ export function AdminDashboardPage() {
           <span className="badge green">실데이터</span>
         </div>
         {hero ? (
-          <div className="advisor-performance-grid admin-performance-grid">
-            {hero.map((metric) => (
-              <div className="advisor-performance-item admin-performance-item" key={metric.label}>
-                <span>{metric.label}</span>
-                <strong><span className="num">{metric.value}</span>{metric.unit}</strong>
-                <em className={metric.up ? "up" : undefined}><span className="num">{metric.delta}</span> 전월 대비</em>
-              </div>
-            ))}
-          </div>
+          <AdminHeroMetrics metrics={hero} />
         ) : (
           <div className="report-empty">{heroNote}</div>
         )}
