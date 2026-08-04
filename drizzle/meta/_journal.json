@@ -365,6 +365,13 @@
       "when": 1785805401308,
       "tag": "0051_perpetual_supernaut",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1785843575219,
+      "tag": "0052_loving_caretaker",
+      "breakpoints": true
     }
   ]
 }

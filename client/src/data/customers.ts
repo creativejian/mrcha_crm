@@ -131,7 +131,40 @@ export type CustomerDeliveryInfo = {
 export type CustomerSettlement = {
   settledAt: string | null; // 입금일 YYYY-MM-DD
   feeAmount: number | null; // 실입금액(원) — 리스·렌트는 슬라이딩 수수료, 할부·중고리스는 입금액 자체
+  costs: SettlementCost[]; // 비용 항목(빈 배열 = 비용 없음, null 아님 — 아래 주석 참조)
+  status: SettlementStatus; // 진행 단계(기본 "미정산")
 };
+
+// 정산 비용 항목 종류(이사님 확정 2026-08-04). 처음 여쭀을 때의 "시공비"는 **썬팅·블랙박스로
+// 나눠 담는 것**으로 확정됐고, 광택·언더코팅·PPF처럼 덜 잦은 시공은 별도 칸을 만들지 않고
+// **"직접입력"**(항목명을 상담사가 직접 쓴다)으로 흡수한다.
+// ⚠️ 자주 나가는 시공이 새로 생기면 여기에 한 줄 추가하는 것이 의도된 유지 경로다 — 직접입력에
+// 계속 쌓으면 "광택에 얼마 썼나"를 집계할 수 없다(이사님께 그 트레이드오프를 설명하고 받은 결정).
+export const SETTLEMENT_COST_KINDS = ["썬팅", "블랙박스", "탁송", "페이백", "직접입력"] as const;
+export type SettlementCostKind = (typeof SETTLEMENT_COST_KINDS)[number];
+
+// 비용 1건. **jsonb 배열로 저장한다**(컬럼 분리 아님) — "직접입력"이 라벨+금액 쌍이라 개수가
+// 가변이고, 항목이 늘어날 때 마이그레이션이 필요 없다(위 상수 한 줄 + CHECK 갱신으로 끝난다).
+export type SettlementCost = {
+  kind: SettlementCostKind;
+  /** "직접입력"일 때 상담사가 쓴 항목명(광택·언더코팅 등). 고정 4종은 null. */
+  label: string | null;
+  /** 원 단위 양수. **페이백도 양수로 담는다** — 부호를 뒤집어 빼면 마진이 실제보다 커진다. */
+  amount: number;
+};
+
+// 정산 진행 단계(이사님 확정 2026-08-04) — **각 단계의 주체가 다르다**:
+// 미정산 → **정산요청**(담당자가 관리자에게) → **정산완료**(관리자가 입금 확인 후).
+// ⚠️ 정산 축은 admin 단독인데 요청은 담당자 행위라, 요청 전이만 별도 경로로 연다(spec §6).
+// 담당자에게 금액(수수료·비용·마진)은 계속 보이지 않는다.
+export const SETTLEMENT_STATUS_OPTIONS = ["미정산", "정산요청", "정산완료"] as const;
+export type SettlementStatus = (typeof SETTLEMENT_STATUS_OPTIONS)[number];
+
+// 저장용 부분 patch — **읽기 타입(CustomerSettlement)과 분리한다.** 정산 팝오버는 입금일·실입금액만
+// 보내고 비용·단계는 건드리지 않는 식으로 경로가 갈리는데, 전체 타입을 쓰면 안 보낸 필드가 빈 값으로
+// 실려 나가 기존 값을 덮는다(출고 팝오버가 정산 필드를 덮지 않는 것과 같은 사유).
+// 서버 upsert는 **전달된 키만 SET**한다.
+export type CustomerSettlementPatch = Partial<CustomerSettlement>;
 
 // 계약 진행(decision_status='contracting') 견적 요약 — 출고 정보 팝오버 프리필 소스(소프트 파이프, spec §4).
 export type ContractingQuoteSummary = {

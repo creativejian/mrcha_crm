@@ -31,7 +31,10 @@ import {
   ANNUAL_MILEAGE_OPTIONS,
   DELIVERY_METHOD_OPTIONS,
   PURCHASE_UNSET_SENTINEL,
+  SETTLEMENT_STATUS_OPTIONS,
   customerStatusGroups,
+  type SettlementCost,
+  type SettlementStatus,
 } from "../../client/src/data/customers";
 import { CHANGE_REQUEST_KINDS } from "../../client/src/lib/catalog-change-kinds";
 import { EMBEDDING_DIM } from "../lib/gemini-embed";
@@ -455,11 +458,24 @@ export const customerDeliveries = crm.table("customer_deliveries", {
   // 전용이라 별도 라우트(/settlement)로만 나간다. customers.settlement-exposure.test.ts가 잠근다.
   settledAt: date("settled_at"), // 입금일
   feeAmount: bigint("fee_amount", { mode: "number" }), // 실입금액(리스·렌트=슬라이딩 수수료 / 할부·중고리스=입금액)
+  // 비용 항목(2026-08-04 이사님 확정) — 썬팅·블랙박스·탁송·페이백·직접입력. **jsonb 배열**인 이유:
+  // "직접입력"이 라벨+금액 쌍이라 개수가 가변이고, 자주 쓰는 시공이 늘어날 때 컬럼 추가 마이그레이션
+  // 없이 어휘 상수(SETTLEMENT_COST_KINDS) 한 줄로 끝난다. 마진은 파생이라 저장하지 않는다
+  // (`client/src/lib/settlement.ts`의 settlementMargin 한 벌을 서버·화면이 공유한다).
+  // 빈 배열 기본값 = "비용 없음"과 "아직 입력 안 함"을 구분하지 않는다(둘 다 마진 계산에 0).
+  settlementCosts: jsonb("settlement_costs").$type<SettlementCost[]>().notNull().default([]),
+  // 진행 단계 — 미정산 → 정산요청(담당자) → 정산완료(관리자 입금 확인 후). 주체가 단계마다 다르다.
+  // ⚠️ 정산 축은 admin 단독인데 **요청만 담당자 행위**라 그 전이 하나만 별도 경로로 연다(spec §6).
+  settlementStatus: text("settlement_status").$type<SettlementStatus>().notNull().default("미정산"),
   // 프리필이 참조한 계약 진행 견적(provenance) — 견적 삭제 시 SET NULL. 파생 표시엔 안 쓴다(스냅샷이 진실).
   sourceQuoteId: uuid("source_quote_id").references(() => quotes.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  // 단계 어휘는 DB에서도 잠근다 — 화면·API가 오타를 보내면 조용히 저장되는 대신 거부된다.
+  // 비용 항목(jsonb)의 kind는 CHECK 대신 zod가 막는다(배열 원소 검증은 CHECK로 표현이 어렵다).
+  check("customer_deliveries_settlement_status_check", inListCheck(t.settlementStatus, SETTLEMENT_STATUS_OPTIONS)),
+]);
 
 // 딜러 프로필(2026-07-27) — 딜러 계정 1명당 1행.
 // **PK가 dealer_user_id 하나 = "한 딜러 = 한 브랜드"를 스키마가 강제**한다(이사님 요구: 한 브랜드에는
