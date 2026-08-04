@@ -20,23 +20,23 @@ main 전량 green(CI 8단계). unit **1350** · pure **281**. **회원탈퇴 CRM
   (Ladle에서 두 안 실물 비교 후 유슨생 선택 — 칩 안 소계 한 줄은 비율이 안 읽혔다). 곁가지로
   **Ladle dev 서버 복구**(아래 함정).
 - **`#439` mc-master 표적 정리**(행위 변경 0·CSS 무수정): 팝오버 좌표 2벌 → `lib/popover-pos` ·
-  변경 요청 행 카드/상태머신 **3벌** → `ChangeRequestRowCard`+`useChangeRequestRows` ·
-  MCMasterPage 863→**779**줄(훅 5개 분리).
-- **`customer_deletions` 익명화 backfill 완료**(1행 — 회신 §6). **`check:lenders` 실측 통과**
-  (제프 Workers 이전 후 첫 확인 — 8사·표시명 일치).
-- ⚠️ **팀 공통 함정 — `dev:ladle` 흰 화면**(`Missing field 'moduleType'`): 레포는 rolldown-vite인데
-  Ladle은 **일반 vite**를 번들해 앱 설정의 `@vitejs/plugin-react`가 깨진다 → Ladle 전용 최소
-  config(`.ladle/vite.config.ts`)로 분리해 해소. 프로덕션 빌드는 이 경로를 안 탄다.
+  행 카드/상태머신 **3벌** → `ChangeRequestRowCard`+`useChangeRequestRows` · MCMasterPage 863→**779**줄.
+- **`customer_deletions` 익명화 backfill**(1행 · 회신 §6) · **`check:lenders` 실측 통과**(8사 일치).
+- ⚠️ **팀 공통 — `dev:ladle` 흰 화면**(`Missing field 'moduleType'`): 레포는 rolldown-vite인데 Ladle은
+  **일반 vite**를 번들해 `@vitejs/plugin-react`가 깨진다 → `.ladle/vite.config.ts` 분리로 해소.
 
 ## 08-03 세션 (출고·실적·매출 축)
 
-경영 리포트 실데이터화(`#428`·`#432` 히어로) · 출고 2단계와 정산(`#431`·`#433` **admin 단독**) ·
-mc-master 승인 UX(`#434` 행 배지 diff·미리보기·이어서 수정 / `#435` / `#437`). ⚠️ **"출고"가 두
-사건을 가리킨다** — 실적 귀속은 **계약 확정일**(`#436` 정정). 설계 = `ref/specs/2026-08-03-*.md`.
+경영 리포트 실데이터화(`#428`·`#432`) · 출고 2단계와 정산(`#431`·`#433` **admin 단독**) ·
+mc-master 승인 UX(`#434`·`#435`·`#437`). ⚠️ **"출고"가 두 사건을 가리킨다** — 실적 귀속은
+**계약 확정일**(`#436` 정정). 설계 = `ref/specs/2026-08-03-*.md`.
 
 ## ▶ 다음
 
-- **앱 출시 게이트**: 업무 AI 일괄 정리 실행(⚠️ 안 해도 8월 말이면 rolling이 전량 치운다 — 최신 대화 07-28). 탈퇴 후속 잔여 **0**.
+- 🔴 **바로 착수 = 업무 AI 파기 로직 감사**(트리거 2개 — 실데이터 변형·외부 계약 · 경량 2앵글+렌즈 1).
+  계획·기준선·주의점 전부 `ref/plans/2026-08-04-crm-purge-logic-audit.md`(그 파일 하나로 시작 가능).
+- **앱 출시 게이트**: 업무 AI 일괄 정리 실행 — **감사 후에** 한다(되돌릴 수 없다).
+  ⚠️ 안 해도 8월 말이면 rolling이 전량 치운다(최신 대화 07-28). 탈퇴 후속 잔여 **0**.
 - **출고 축 미결정 2건**(답 선행): 정산 탭 비용 구조(시공비·탁송비 항목 결정 선행·중형) ·
   금융리스/일시불 실적 기준(견적 0건이라 실영향 없음). ⚠️ **실 DB 계약 확정일 0건**이라 히어로가
   0인 건 정상(상담사가 채워야 산다). 화면 확인은 Ladle `CRM/Admin Hero`.
