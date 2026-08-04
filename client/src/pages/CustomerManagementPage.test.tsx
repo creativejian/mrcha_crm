@@ -752,6 +752,47 @@ describe("출고 관리(delivery) 콘솔", () => {
     await waitFor(() => expect(reload).toHaveBeenCalled());
   });
 
+  // ── 정산 비용 UI(2026-08-04 이사님 확정 5종) ───────────────────────────────
+  // 비용은 admin에게만 보이지만 **정산 요청 버튼은 담당자에게도 보인다** — 정산 축이 admin
+  // 단독인데 요청만 담당자 행위라서다(spec §6a). 이 둘이 뒤집히면 금액이 새거나 요청이 막힌다.
+  it("출고 정보 팝오버: 정산 요청 버튼은 항상 있고, 비용 입력은 관리자에게만 열린다", () => {
+    // ⚠️ **실 고객(id 보유)이어야 한다** — 요청 버튼은 `customerId`가 있을 때만 뜬다(목업 행은
+    // 서버에 없어서 요청할 대상이 없다). 목업으로 쓰면 "버튼이 사라졌다"로 오해하게 된다.
+    const customers = [
+      {
+        ...initialCustomers[4],
+        id: "cid-settlement",
+        no: 90101,
+        customerId: "CU-2605-9101",
+        name: "정산요청검증",
+        statusGroup: "계약완료",
+        status: "배정완료",
+        nextDeliverySchedule: null,
+      },
+    ];
+    render(<CustomerManagementPage customers={customers} mode="delivery" onCustomersChange={() => {}} />);
+    fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:/ })[0]);
+    const dialog = screen.getByRole("dialog", { name: "출고 정보 편집" });
+    // 요청 버튼 — 담당자도 눌러야 하므로 admin 게이트 밖에 있다.
+    expect(within(dialog).getByRole("button", { name: "정산 요청" })).toBeTruthy();
+    // 기본 roleTab이 최고관리자라 비용 UI가 열려 있다.
+    expect(within(dialog).getByRole("button", { name: "+ 비용 추가" })).toBeTruthy();
+  });
+
+  it("비용 행: '직접입력'을 고를 때만 항목명 칸이 열린다(고정 항목엔 라벨을 붙이지 않는다)", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:/ })[0]);
+    const dialog = screen.getByRole("dialog", { name: "출고 정보 편집" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "+ 비용 추가" }));
+
+    // 기본값은 첫 항목(썬팅) — 항목명 칸이 없어야 한다. 고정 항목에 이름이 붙으면 집계 키가 갈린다.
+    expect(within(dialog).queryByLabelText("비용 1 항목명")).toBeNull();
+
+    // 종류를 직접입력으로 바꾸면 항목명 칸이 생긴다(광택·언더코팅 등을 여기 적는다).
+    fireEvent.change(within(dialog).getByLabelText("비용 1 종류"), { target: { value: "직접입력" } });
+    expect(within(dialog).getByLabelText("비용 1 항목명")).toBeTruthy();
+  });
+
   // ── 출고 정보 셀·팝오버(2026-07-20 출고 2단계 spec §5) ─────────────────────
   it("출고 정보 미입력 셀 = '+ 미입력' 버튼, 클릭 시 폼형 팝오버(저장·취소)", () => {
     render(<CustomerManagementPage mode="delivery" />);

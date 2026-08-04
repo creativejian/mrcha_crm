@@ -1140,6 +1140,88 @@
   padding: 0 6px;
   font-size: 10px;
 }
+/* 비용 항목(2026-08-04) — 행이 가변이라 grid로 세로 쌓고, 각 행은 [종류][항목명?][금액][삭제].
+   항목명 칸은 "직접입력"일 때만 생기므로 열 개수가 행마다 다르다 → 행 안에서 flex로 흐르게 둔다. */
+.settlement-costs {
+  display: grid;
+  gap: 6px;
+}
+.settlement-costs-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+.settlement-cost-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settlement-cost-row select {
+  flex: 0 0 auto;
+  min-width: 86px;
+}
+/* 금액은 남는 폭을 다 쓴다 — 항목명이 없는 행에서도 칸이 쪼그라들지 않게. */
+.settlement-cost-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.settlement-cost-row button {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line-soft, #eceae6);
+  border-radius: 6px;
+  background: #fff;
+  color: #8f969c;
+  font-size: 11px;
+  line-height: 1;
+}
+.settlement-cost-row button:hover {
+  border-color: #fecdca;
+  background: #fef3f2;
+  color: #b42318;
+}
+.settlement-cost-add {
+  justify-self: start;
+  min-height: 24px;
+  border: 1px dashed var(--line-soft, #d9d5cf);
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 11px;
+  padding: 0 8px;
+}
+.settlement-margin {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: #6b7280;
+}
+.settlement-margin strong {
+  color: #26313b;
+  font-variant-numeric: tabular-nums;
+}
+/* 담당자 정산 요청 — 정산 섹션(admin 전용) **밖**이다. 담당자에게도 보이는 유일한 정산 접점이라
+   구분선을 두어 위 출고 입력들과 시각적으로 분리한다. */
+.settlement-request {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--line-soft, #eceae6);
+  padding-top: 10px;
+}
+.settlement-request button {
+  justify-self: start;
+  min-height: 26px;
+  border: 1px solid var(--line-soft, #d9d5cf);
+  border-radius: 6px;
+  background: #fbfbfa;
+  color: #3f474f;
+  font-size: 11.5px;
+  padding: 0 10px;
+}
+.settlement-request button:disabled {
+  opacity: 0.55;
+}
+
 /* 금액 칸 — 단위를 칸 안 오른쪽에 붙인다(딜러 할인 입력칸과 같은 결). */
 .delivery-fee-input {
   position: relative;
