@@ -1,9 +1,15 @@
 import { test, expect, afterAll } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import { getDefaultDb } from "../client";
 import { assistantMessages } from "../schema";
-import { deleteAssistantMessage, insertAssistantMessages, listRecentMessages, updateAssistantMessage } from "./assistant-messages";
+import {
+  deleteAssistantMessage,
+  insertAssistantMessages,
+  listRecentMessages,
+  purgeAssistantMessagesOlderThan,
+  updateAssistantMessage,
+} from "./assistant-messages";
 
 const db = getDefaultDb();
 const STAFF = "cccccccc-cccc-cccc-cccc-cccccccccccc";
@@ -80,3 +86,38 @@ test("deleteAssistantMessage: 삽입한 placeholder가 삭제돼 조회되지 �
   const rows = await db.select().from(assistantMessages).where(eq(assistantMessages.id, saved.id));
   expect(rows).toHaveLength(0);
 });
+
+// 30일 rolling retention(2026-08-04, 회원탈퇴 계약 §7) — 경계가 DB 시계 기준으로 정확한지.
+// ⚠️ **반드시 트랜잭션 롤백 안에서** 돌린다: purge는 staff 필터가 없는 **전역 삭제**라(그게
+// 프로덕션에서 맞는 동작이다) 그냥 부르면 공유 master의 실제 직원 대화를 지운다.
+// 같은 이유로 "몇 행 지워졌나"는 단언하지 않는다 — 반환값에 남의 실 데이터가 섞인다.
+// 잠그는 것은 **내 픽스처 2행의 운명**(경계 밖은 사라지고 경계 안은 남는다)이다.
+const ROLLBACK = "__rollback__";
+
+test("purgeAssistantMessagesOlderThan: 기한 경과분만 파기하고 기한 내는 남긴다", async () => {
+  const staff = crypto.randomUUID();
+  await expect(
+    db.transaction(async (tx) => {
+      const [old, fresh] = await insertAssistantMessages(
+        [
+          // 31일 전 = 경과(파기 대상) · 29일 전 = 기한 내(보존). 경계 하루 안팎을 함께 둬
+          // "30일"이 실제로 30일인지 잠근다(오프바이원이면 둘 중 하나가 뒤집힌다).
+          { staffUserId: staff, role: "user", content: "오래된 질문", sources: null, createdAt: daysAgo(31) },
+          { staffUserId: staff, role: "user", content: "최근 질문", sources: null, createdAt: daysAgo(29) },
+        ],
+        tx,
+      );
+      await purgeAssistantMessagesOlderThan(30, tx);
+      const left = await tx
+        .select({ id: assistantMessages.id })
+        .from(assistantMessages)
+        .where(inArray(assistantMessages.id, [old!.id, fresh!.id]));
+      expect(left.map((r) => r.id)).toEqual([fresh!.id]);
+      throw new Error(ROLLBACK);
+    }),
+  ).rejects.toThrow(ROLLBACK);
+});
+
+function daysAgo(n: number): Date {
+  return new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+}

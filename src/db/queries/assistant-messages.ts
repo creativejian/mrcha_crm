@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import { assistantMessages } from "../schema";
@@ -77,6 +77,27 @@ export async function updateAssistantMessageContent(
     ))
     .returning();
   return row ?? null;
+}
+
+// 보존 기한 경과분 파기(회원탈퇴 계약 §7 "30일 rolling retention", 2026-08-04) — 업무 AI 대화는
+// 고객 FK가 없고 user 턴 자유 텍스트에 고객 정보가 섞여 들어갈 수 있어 **어느 행이 누구 것인지
+// 구조적으로 완전 추적이 불가능하다**. 앱 팀 회신에 명시했듯 이 일괄 파기가 그 한계의
+// **상한 방어선**이다(개별 turn 삭제는 provenance 계측 후에야 정확해진다).
+// ⚠️ 기준 시각은 반드시 **DB 시계**(`now()`) — 앱 시계로 계산해 넘기면 스큐만큼 경계가 흔들려
+// 어떤 날은 하루치를 덜 지운다(`updated_at` 규약과 같은 축, AGENTS.md).
+export async function purgeAssistantMessagesOlderThan(days: number, executor: Executor = getDefaultDb()): Promise<number> {
+  const rows = await executor
+    .delete(assistantMessages)
+    .where(lt(assistantMessages.createdAt, sql`now() - make_interval(days => ${days})`))
+    .returning({ id: assistantMessages.id });
+  return rows.length;
+}
+
+// 전량 파기(앱 출시 전 1회 — 회신 §7 "출시 전 기존 메시지 일괄 정리"). 스크립트 전용:
+// 되돌릴 수 없고 전 직원 대화가 사라지므로 실행 시점을 직원에게 사전 공지하는 것이 계약이다.
+export async function purgeAllAssistantMessages(executor: Executor = getDefaultDb()): Promise<number> {
+  const rows = await executor.delete(assistantMessages).returning({ id: assistantMessages.id });
+  return rows.length;
 }
 
 // 0자 중단/실패 시 빈 placeholder 제거(유령 빈 메시지 방지). user 질문 행은 남긴다.
