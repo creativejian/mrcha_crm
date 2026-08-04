@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AdminHeroMetrics } from "@/components/AdminHeroMetrics";
+import { AdminHeroMetrics, DeliveryMethodBars } from "@/components/AdminHeroMetrics";
 import { adminBriefs, advisors, brands } from "@/data/prototype";
 import { buildHeroPerformance } from "@/lib/admin-hero";
 import { bindSelect } from "@/lib/select-bind";
@@ -345,8 +345,12 @@ export function AdminDashboardPage() {
           </div>
           <span className="badge green">실데이터</span>
         </div>
-        {hero ? (
-          <AdminHeroMetrics metrics={hero} />
+        {hero && report ? (
+          <>
+            <AdminHeroMetrics metrics={hero} />
+            {/* 전체 출고의 구매방식별 내역 — 칩 바로 아래(그 숫자의 내역이라 같은 카드 안이다). */}
+            <DeliveryMethodBars rows={report.delivery.countByMethod} />
+          </>
         ) : (
           <div className="report-empty">{heroNote}</div>
         )}
