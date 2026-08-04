@@ -42,3 +42,7 @@ export const saveCustomerDelivery = (cid: string, v: CustomerDeliveryInfo) => do
 // 그래서 팝오버는 열릴 때 이걸 따로 조회해야 한다 — 목록 데이터에는 정산이 없다.
 export const fetchCustomerSettlement = (cid: string) => getJson<CustomerSettlement>(`/api/customers/${cid}/settlement`);
 export const saveCustomerSettlement = (cid: string, v: CustomerSettlementPatch) => done(cid, sendVoid(`/api/customers/${cid}/settlement`, "PUT", v));
+// 담당자 정산 요청(2026-08-04) — **미정산 → 정산요청 전이만** 한다. 정산 조회/저장과 달리 admin
+// 전용이 아니다(요청은 담당자 행위 — 이사님 확정). 금액은 응답에 없다.
+// 이미 요청됐거나 정산이 끝났으면 서버가 409로 답한다 — 화면은 그 문구를 그대로 보여준다.
+export const requestCustomerSettlement = (cid: string) => done(cid, sendVoid(`/api/customers/${cid}/settlement/request`, "POST", {}));

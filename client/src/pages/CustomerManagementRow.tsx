@@ -4,12 +4,14 @@
 import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
-import { CHANCE_OPTIONS, type Customer, type CustomerSettlementPatch, customerStatusGroups, type NextDeliverySchedule } from "@/data/customers";
+import { CHANCE_OPTIONS, type Customer, type CustomerSettlementPatch, customerStatusGroups, type NextDeliverySchedule, SETTLEMENT_COST_KINDS, type SettlementCostKind } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
 import { deliveryInfoSummary, resolveSettlementSubmit, seedDeliveryInfoDraft, unconfirmedDeliveryDays, type DeliveryInfoDraft, type SeedableDeliveryField } from "@/lib/delivery-info";
-import { fetchCustomerSettlement } from "@/lib/customer-children";
+import { fetchCustomerSettlement, requestCustomerSettlement } from "@/lib/customer-children";
+import { formatSettlementMargin, resolveSettlementCosts, type SettlementCostDraft } from "@/lib/settlement";
+import { bindSelect } from "@/lib/select-bind";
 import { SOLUTION_LENDERS } from "@/lib/solution-quote";
 import { useFixedPopoverPosition } from "@/lib/use-fixed-popover-position";
 
@@ -736,7 +738,13 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
   // 입금액은 문자열로 들고 있다가 저장 때 파싱한다(입력 중 콤마·빈 칸을 그대로 두기 위해).
   const [settledAt, setSettledAt] = useState("");
   const [feeText, setFeeText] = useState("");
+  // 비용 행은 **금액을 문자열로** 들고 있다가 저장 때 한 번 파싱한다(입력 중 콤마·빈 칸 허용).
+  const [costs, setCosts] = useState<SettlementCostDraft[]>([]);
   const [settlementError, setSettlementError] = useState<string | null>(null);
+  // 담당자 정산 요청 결과 — 상태를 미리 조회하지 않는다(담당자는 정산을 읽을 수 없다).
+  // 버튼은 항상 눌리고 **서버가 판단**한다: 이미 요청/완료면 409 문구가 그대로 여기에 담긴다.
+  const [requestNotice, setRequestNotice] = useState<string | null>(null);
+  const [requesting, setRequesting] = useState(false);
   useEffect(() => {
     if (!canEditSettlement || !customerId) return;
     let cancelled = false;
@@ -745,6 +753,7 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
         if (cancelled) return;
         setSettledAt(s.settledAt ?? "");
         setFeeText(s.feeAmount == null ? "" : String(s.feeAmount));
+        setCosts((s.costs ?? []).map((c) => ({ kind: c.kind, label: c.label, amountText: String(c.amount) })));
       })
       .catch(() => {
         if (!cancelled) setSettlementError("정산 정보를 불러오지 못했습니다.");
@@ -807,7 +816,75 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
               <em>원</em>
             </span>
           </label>
+          {/* 비용 항목(2026-08-04 이사님 확정 5종) — 마진은 저장하지 않고 여기서 파생 표시한다. */}
+          <div className="settlement-costs">
+            <span className="settlement-costs-label">비용</span>
+            {costs.map((c, i) => (
+              <div className="settlement-cost-row" key={i}>
+                {/* controlled select — Safari onInput 병행 바인딩 규칙(bindSelect). */}
+                <select
+                  aria-label={`비용 ${i + 1} 종류`}
+                  {...bindSelect(c.kind, (v) =>
+                    setCosts((rows) => rows.map((r, j) => (j === i ? { ...r, kind: v as SettlementCostKind } : r))),
+                  )}
+                >
+                  {SETTLEMENT_COST_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+                {/* 직접입력에만 항목명 칸이 열린다 — 고정 항목에 이름을 붙이면 집계 키가 갈린다. */}
+                {c.kind === "직접입력" && (
+                  <input
+                    aria-label={`비용 ${i + 1} 항목명`}
+                    onChange={(e) => setCosts((rows) => rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)))}
+                    placeholder="항목명"
+                    type="text"
+                    value={c.label ?? ""}
+                  />
+                )}
+                <input
+                  aria-label={`비용 ${i + 1} 금액`}
+                  inputMode="numeric"
+                  onChange={(e) => setCosts((rows) => rows.map((r, j) => (j === i ? { ...r, amountText: e.target.value } : r)))}
+                  type="text"
+                  value={c.amountText}
+                />
+                <button aria-label={`비용 ${i + 1} 삭제`} onClick={() => setCosts((rows) => rows.filter((_, j) => j !== i))} type="button">✕</button>
+              </div>
+            ))}
+            <button
+              className="settlement-cost-add"
+              onClick={() => setCosts((rows) => [...rows, { kind: SETTLEMENT_COST_KINDS[0], label: null, amountText: "" }])}
+              type="button"
+            >
+              + 비용 추가
+            </button>
+            {/* 마진 = 실입금액 − 비용합(파생·미저장). 실입금액이 비면 "—"로 둔다 — 0원과 "모른다"는 다르다. */}
+            <p className="settlement-margin">
+              마진 <strong>{formatSettlementMargin(feeText, costs)}</strong>
+            </p>
+          </div>
           {settlementError && <p className="delivery-schedule-notice" role="alert">{settlementError}</p>}
+        </div>
+      )}
+      {/* 담당자 정산 요청(2026-08-04 이사님 확정) — **admin이 아니어도 보인다**. 정산 금액은 계속
+          안 보이고, 이 버튼이 하는 일은 미정산 → 정산요청 전이 하나뿐이다. 상태를 미리 조회하지
+          않으므로(담당자는 정산을 읽을 수 없다) 항상 눌리고 결과는 서버가 알려준다. */}
+      {customerId && (
+        <div className="settlement-request">
+          <button
+            disabled={requesting || saving}
+            onClick={() => {
+              setRequesting(true);
+              setRequestNotice(null);
+              requestCustomerSettlement(customerId)
+                .then(() => setRequestNotice("정산을 요청했습니다."))
+                .catch((e: unknown) => setRequestNotice(e instanceof Error ? e.message : "정산 요청에 실패했습니다."))
+                .finally(() => setRequesting(false));
+            }}
+            type="button"
+          >
+            {requesting ? "요청 중…" : "정산 요청"}
+          </button>
+          {requestNotice && <p className="delivery-schedule-notice" role="status">{requestNotice}</p>}
         </div>
       )}
       {notice && <p className="delivery-schedule-notice" role="alert">{notice}</p>}
@@ -819,8 +896,11 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
             if (!canEditSettlement) return onSave(draft, null);
             const submit = resolveSettlementSubmit(settledAt, feeText);
             if (submit.kind === "invalid") return setSettlementError(submit.reason);
+            // 비용도 같은 저장에 실어 보낸다 — 따로 호출하면 한쪽만 성공하는 창이 생긴다.
+            const resolvedCosts = resolveSettlementCosts(costs);
+            if (resolvedCosts.kind === "invalid") return setSettlementError(resolvedCosts.reason);
             setSettlementError(null);
-            onSave(draft, submit.body);
+            onSave(draft, { ...submit.body, costs: resolvedCosts.costs });
           }}
           type="button"
         >
