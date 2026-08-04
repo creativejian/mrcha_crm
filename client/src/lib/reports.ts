@@ -22,6 +22,12 @@ export type AdminReport = {
     prevLeaseAmount: number;
     rentAmount: number;
     prevRentAmount: number;
+    /**
+     * 구매방식별 대수(이사님 확정 — spec 2026-08-03 §1). 많은 순·동수는 이름 오름차순.
+     * **전 구매방식**이 들어간다(실적 금액과 달리 대수는 할부·중고리스도 포함) — 그래서
+     * 이 배열의 합은 항상 `count`와 같다. 구매방식을 모르는 건은 `"미지정"`으로 묶인다.
+     */
+    countByMethod: Array<{ method: string; count: number }>;
   };
 };
 

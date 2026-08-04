@@ -40,6 +40,13 @@ export type AdminReport = {
     prevLeaseAmount: number;
     rentAmount: number;
     prevRentAmount: number;
+    /**
+     * 구매방식별 대수(2026-08-04 — spec §1 이사님 확정). 많은 순·동수는 이름 오름차순.
+     * **전 구매방식**이 들어가므로 합은 항상 `count`와 같다(실적 금액만 화이트리스트로 갈린다).
+     * ⚠️ 이 타입은 `client/src/lib/reports.ts`의 `AdminReport`와 **손으로 맞추는 이중 선언**이다 —
+     * 한쪽만 고치면 응답에는 있는데 화면 타입엔 없는 상태가 된다(컴파일은 통과한다).
+     */
+    countByMethod: Array<{ method: string; count: number }>;
   };
 };
 
@@ -179,7 +186,6 @@ async function selectDeliveryRevenue(ex: Executor, month: string, prevMonth: str
       ),
     );
 
-  const zero = { count: 0, leaseAmount: 0, rentAmount: 0 };
   const tally = (from: string, to: string) =>
     rows.reduce((acc, row) => {
       const date = row.confirmedDate;
@@ -187,11 +193,18 @@ async function selectDeliveryRevenue(ex: Executor, month: string, prevMonth: str
       // 대수는 **전 구매방식** 포함(금액만 갈린다 — spec §1a).
       acc.count += 1;
       const quote = row.contractingQuote;
+      // 구매방식별 대수(이사님 확정 §1 — "구매방식별로 표기하는 게 정확"): 총합 한 숫자로는
+      // 운용리스 20대와 할부 20대가 같아 보이는데 취급 규모가 전혀 다르다. 실적 금액과 달리
+      // **전 구매방식이 대수에 포함**되므로 REVENUE_BASIS 화이트리스트로 거르지 않는다.
+      // 계약 진행 견적이 없거나 대표 시나리오에 구매방식이 없으면 "미지정"으로 묶는다 —
+      // 조용히 빠뜨리면 소계 합이 전체 대수와 어긋나 화면이 스스로를 반박한다.
+      const method = quote?.purchaseMethod?.trim() || "미지정";
+      acc.byMethod.set(method, (acc.byMethod.get(method) ?? 0) + 1);
       const basis = quote?.purchaseMethod ? REVENUE_BASIS_BY_PURCHASE_METHOD[quote.purchaseMethod] : undefined;
       if (basis === "acquisitionCost") acc.leaseAmount += quote?.acquisitionCost ?? 0;
       if (basis === "finalVehiclePrice") acc.rentAmount += quote?.finalVehiclePrice ?? 0;
       return acc;
-    }, { ...zero });
+    }, { count: 0, leaseAmount: 0, rentAmount: 0, byMethod: new Map<string, number>() });
 
   const current = tally(cur.start, cur.end);
   const previous = tally(prev.start, prev.end);
@@ -202,6 +215,9 @@ async function selectDeliveryRevenue(ex: Executor, month: string, prevMonth: str
     prevLeaseAmount: previous.leaseAmount,
     rentAmount: current.rentAmount,
     prevRentAmount: previous.rentAmount,
+    // 많은 순 → 동수는 이름 오름차순(브랜드별 문의와 같은 타이브레이커 규약 — 동수 항목의
+    // 순서가 새로고침마다 뒤바뀌면 "숫자가 변한 것"으로 읽힌다).
+    countByMethod: [...current.byMethod].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko")).map(([method, count]) => ({ method, count })),
   };
 }
 
