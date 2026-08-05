@@ -131,6 +131,9 @@ let trimPatchResponse: { status: number; body: unknown } = { status: 200, body: 
 // 그룹 순서 이동 테스트가 다그룹 픽스처를 주입한다 — 기본은 기존 단일 트림(TRIMS).
 let trimsResponse: object[] = TRIMS;
 let fetchCalls: [string, RequestInit | undefined][] = [];
+// 전체 승인의 "한 건 실패해도 계속" 계약을 재현하려고 특정 요청 id의 승인만 500으로 떨군다
+// (실제로는 다른 관리자가 그새 대상을 고쳐 드리프트가 난 경우다).
+let approveFailIds: string[] = [];
 
 beforeEach(() => {
   // 모듈 스코프 화면 상태(마지막 브랜드·스크롤)는 라우트 언마운트를 넘겨 살아남는 게 목적이라
@@ -145,6 +148,7 @@ beforeEach(() => {
   trimPatchResponse = { status: 200, body: { id: 100 } };
   trimsResponse = TRIMS;
   fetchCalls = [];
+  approveFailIds = [];
   resetStaffDirectoryCache(); // 직원 디렉토리도 모듈 캐시 — 케이스 간 누수 차단(QuoteWorkbench.gate 관례).
   resetChangeRequestCachesForTest(); // 대기열·내 요청 (N) 즉시 표시용 모듈 캐시 — 같은 이유로 초기화.
   // 30s 모듈 캐시도 케이스 간 누수 — PR3에서 생긴 리셋 API로 초기화. ⚠️ brands·trimColors 캐시는
@@ -179,6 +183,8 @@ beforeEach(() => {
       if (url === "/api/staff") return new Response(JSON.stringify(STAFF), { status: 200 });
       if (url === "/api/dealer/me") return new Response("null", { status: 200 });
       // 승인/반려는 URL만으로 분기(성공만 검증 — 서버 응답 본문은 approve()가 쓰지 않는다).
+      if (url.endsWith("/approve") && approveFailIds.some((id) => url.includes(`/${id}/`)))
+        return new Response(JSON.stringify({ error: "대상이 변경되었습니다." }), { status: 409 });
       if (url.endsWith("/approve") || url.endsWith("/reject")) return new Response("{}", { status: 200 });
       if (url.startsWith("/api/catalog/change-requests")) {
         return new Response(JSON.stringify(changeRequestQueue), { status: 200 });
@@ -324,6 +330,64 @@ it("승인 클릭 시 approve API를 호출하고 행을 즉시 숨긴다", asyn
   await waitFor(() => {
     expect(screen.queryByRole("button", { name: "5 Series › 523d" })).toBeNull();
   });
+});
+
+// ── 전체 승인(2026-08-05) ─────────────────────────────────────────────────────
+// 대기 전량을 한 번에 승인하는 경로. 되돌릴 수 없는 대량 반영이라 확인창이 유일한 제동장치다.
+const SECOND_PENDING: ChangeRequestItem = { ...PENDING_ROW, id: "cr-2", targetTrimId: 301, targetLabel: "5 Series › 520i" };
+
+it("전체 승인: 확인창을 승인하면 대기 전량을 approve 한다", async () => {
+  changeRequestQueue = [PENDING_ROW, SECOND_PENDING];
+  const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await screen.findByText("그랜저");
+  await user.click(await screen.findByRole("button", { name: "승인 대기 (2)" }));
+  await screen.findByRole("button", { name: "5 Series › 523d" });
+
+  await user.click(screen.getByRole("button", { name: "전체 승인" }));
+
+  // 건별 순차 호출 — 일괄 엔드포인트가 아니라 기존 승인 경로를 그대로 쓴다.
+  await waitFor(() => {
+    expect(fetchCalls.filter(([url, init]) => url.endsWith("/approve") && init?.method === "POST")).toHaveLength(2);
+  });
+  // 확인 문구에 건수가 들어가야 한다 — "몇 건인지 모르고 누르는" 상황을 막는 게 이 창의 목적이다.
+  expect(confirmSpy.mock.calls[0]?.[0]).toContain("2건");
+  expect(await screen.findByText(/2건 승인/)).toBeInTheDocument();
+});
+
+it("전체 승인: 확인창을 취소하면 아무 것도 승인하지 않는다", async () => {
+  changeRequestQueue = [PENDING_ROW, SECOND_PENDING];
+  vi.spyOn(window, "confirm").mockReturnValue(false);
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await screen.findByText("그랜저");
+  await user.click(await screen.findByRole("button", { name: "승인 대기 (2)" }));
+  await screen.findByRole("button", { name: "5 Series › 523d" });
+
+  await user.click(screen.getByRole("button", { name: "전체 승인" }));
+
+  expect(fetchCalls.some(([url]) => url.endsWith("/approve"))).toBe(false);
+  expect(screen.getByRole("button", { name: "5 Series › 523d" })).toBeInTheDocument();
+});
+
+it("전체 승인: 한 건이 실패해도 멈추지 않고 나머지를 승인한다", async () => {
+  changeRequestQueue = [PENDING_ROW, SECOND_PENDING];
+  approveFailIds = ["cr-1"]; // 첫 건이 드리프트로 거절당한 상황
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await screen.findByText("그랜저");
+  await user.click(await screen.findByRole("button", { name: "승인 대기 (2)" }));
+  await screen.findByRole("button", { name: "5 Series › 523d" });
+
+  await user.click(screen.getByRole("button", { name: "전체 승인" }));
+
+  // 실패에서 멈췄다면 두 번째 호출이 아예 없다 — 그 회귀를 잠근다.
+  await waitFor(() => {
+    expect(fetchCalls.some(([url]) => url === "/api/catalog/change-requests/cr-2/approve")).toBe(true);
+  });
+  expect(await screen.findByText(/1건 승인 · 1건 실패/)).toBeInTheDocument();
 });
 
 // ── PR3: 팀장(canPropose) 개방 ────────────────────────────────────────────────
