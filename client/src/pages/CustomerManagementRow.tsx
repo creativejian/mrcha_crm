@@ -8,6 +8,10 @@ import { CHANCE_OPTIONS, type Customer, type CustomerSettlementPatch, customerSt
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
+// 금액 칸 입력 포맷 SSOT(구매조건 초기비용과 같은 한 벌) — 숫자 외 문자를 지우고 천단위 콤마를
+// 넣는다. 저장 파서(resolveSettlementSubmit·resolveSettlementCosts)가 콤마를 다시 벗기므로
+// 표시와 저장이 어긋나지 않는다.
+import { formatNumberWithCommas } from "@/lib/detail-utils";
 import { deliveryInfoSummary, resolveSettlementSubmit, seedDeliveryInfoDraft, unconfirmedDeliveryDays, type DeliveryInfoDraft, type SeedableDeliveryField } from "@/lib/delivery-info";
 import { fetchCustomerSettlement, requestCustomerSettlement } from "@/lib/customer-children";
 import { formatSettlementMargin, resolveSettlementCosts, type SettlementCostDraft } from "@/lib/settlement";
@@ -752,8 +756,9 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
       .then((s) => {
         if (cancelled) return;
         setSettledAt(s.settledAt ?? "");
-        setFeeText(s.feeAmount == null ? "" : String(s.feeAmount));
-        setCosts((s.costs ?? []).map((c) => ({ kind: c.kind, label: c.label, amountText: String(c.amount) })));
+        // 불러올 때도 같은 포맷으로 — 저장된 값만 콤마가 없으면 방금 입력한 값과 표기가 어긋난다.
+        setFeeText(s.feeAmount == null ? "" : formatNumberWithCommas(String(s.feeAmount)));
+        setCosts((s.costs ?? []).map((c) => ({ kind: c.kind, label: c.label, amountText: formatNumberWithCommas(String(c.amount)) })));
       })
       .catch(() => {
         if (!cancelled) setSettlementError("정산 정보를 불러오지 못했습니다.");
@@ -787,7 +792,10 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
       onKeyDown={(event) => { if (event.key === "Enter") event.stopPropagation(); }}
       ref={rootRef}
       role="dialog"
-      style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
+      // 내용이 가변이라(비용 행을 계속 추가할 수 있다) 위아래 어디에도 안 들어가는 길이가 될 수
+      // 있다 — 그때 배치 훅은 아래로 붙이고, maxHeight가 없으면 넘친 부분이 조용히 잘린다
+      // (2026-08-05 실화면: "실입금액" 아래가 통째로 안 보였다). 남는 공간만큼으로 제한하고 스크롤.
+      style={pos ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight } : { visibility: "hidden" }}
     >
       {/* 폼형 관례(담당자 변경·고객 삭제·고객 등록 전부 가시 타이틀) + fixed 분리 대비 고객명 병기(배치 11 C#1·spec §6) */}
       <strong className="delivery-info-title">출고 정보 — {customerName}</strong>
@@ -812,7 +820,7 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
           <label>
             <span>실입금액</span>
             <span className="delivery-fee-input">
-              <input inputMode="numeric" onChange={(e) => setFeeText(e.target.value)} type="text" value={feeText} />
+              <input inputMode="numeric" onChange={(e) => setFeeText(formatNumberWithCommas(e.target.value))} type="text" value={feeText} />
               <em>원</em>
             </span>
           </label>
@@ -840,13 +848,18 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
                     value={c.label ?? ""}
                   />
                 )}
-                <input
-                  aria-label={`비용 ${i + 1} 금액`}
-                  inputMode="numeric"
-                  onChange={(e) => setCosts((rows) => rows.map((r, j) => (j === i ? { ...r, amountText: e.target.value } : r)))}
-                  type="text"
-                  value={c.amountText}
-                />
+                {/* 단위는 실입금액 칸과 같은 패턴(.delivery-fee-input)으로 칸 안 오른쪽에 붙인다 —
+                    같은 섹션에서 한쪽만 "원"이 없으면 어느 단위인지 매번 확인하게 된다. */}
+                <span className="delivery-fee-input settlement-cost-amount">
+                  <input
+                    aria-label={`비용 ${i + 1} 금액`}
+                    inputMode="numeric"
+                    onChange={(e) => setCosts((rows) => rows.map((r, j) => (j === i ? { ...r, amountText: formatNumberWithCommas(e.target.value) } : r)))}
+                    type="text"
+                    value={c.amountText}
+                  />
+                  <em>원</em>
+                </span>
                 <button aria-label={`비용 ${i + 1} 삭제`} onClick={() => setCosts((rows) => rows.filter((_, j) => j !== i))} type="button">✕</button>
               </div>
             ))}

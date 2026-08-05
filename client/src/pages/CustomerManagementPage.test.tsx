@@ -779,6 +779,19 @@ describe("출고 관리(delivery) 콘솔", () => {
     expect(within(dialog).getByRole("button", { name: "+ 비용 추가" })).toBeTruthy();
   });
 
+  it("금액 칸: 입력 즉시 천단위 콤마가 붙고 숫자 외 문자는 지워진다", () => {
+    render(<CustomerManagementPage mode="delivery" />);
+    fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:/ })[0]);
+    const dialog = screen.getByRole("dialog", { name: "출고 정보 편집" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "+ 비용 추가" }));
+
+    const amount = within(dialog).getByLabelText("비용 1 금액");
+    // 문자가 섞여 들어와도 숫자만 남는다(붙여넣기·IME 오입력 방어) — 저장 파서가 400을 내기 전에
+    // 화면에서 먼저 정리한다.
+    fireEvent.change(amount, { target: { value: "3452abc34" } });
+    expect((amount as HTMLInputElement).value).toBe("345,234");
+  });
+
   it("비용 행: '직접입력'을 고를 때만 항목명 칸이 열린다(고정 항목엔 라벨을 붙이지 않는다)", () => {
     render(<CustomerManagementPage mode="delivery" />);
     fireEvent.click(screen.getAllByRole("button", { name: /^출고 정보 입력:/ })[0]);

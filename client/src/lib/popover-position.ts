@@ -7,11 +7,17 @@ export function resolveFixedPopoverPosition(
   anchor: { top: number; bottom: number; left: number },
   popover: { width: number; height: number },
   viewport: { width: number; height: number },
-): { top: number; left: number; openUp: boolean } {
+): { top: number; left: number; openUp: boolean; maxHeight: number } {
   const MARGIN = 8;
   const GAP = 6;
   const openUp = anchor.bottom + GAP + popover.height > viewport.height - MARGIN && anchor.top - GAP - popover.height >= MARGIN;
   const top = openUp ? anchor.top - GAP - popover.height : anchor.bottom + GAP;
   const left = Math.max(MARGIN, Math.min(anchor.left, viewport.width - popover.width - MARGIN));
-  return { top, left, openUp };
+  // 배치가 정해진 뒤 **남는 세로 공간**. 소비처가 max-height로 걸면 넘치는 대신 스크롤이 생긴다.
+  // ⚠️ 이게 없으면 **위아래 모두 부족할 때 조용히 잘린다** — 위 flip 조건은 "아래로 넘치고 && 위에
+  // 충분한 공간"이라 둘 다 부족하면 뒤집지 못하고 아래로 붙는데, 그때 넘친 부분이 화면 밖으로
+  // 사라진다(2026-08-05 실화면: 출고 정보 팝오버에 정산 비용 행이 붙으면서 "실입금액" 아래가
+  // 통째로 안 보였다). 팝오버 내용이 가변인 곳(행을 추가할 수 있는 폼)은 반드시 이걸 걸 것.
+  const maxHeight = openUp ? anchor.top - GAP - MARGIN : viewport.height - top - MARGIN;
+  return { top, left, openUp, maxHeight };
 }

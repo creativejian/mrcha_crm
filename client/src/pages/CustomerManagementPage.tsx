@@ -108,7 +108,10 @@ function useTablePopoverDismiss({ active, containerRef, onClose, suppressRef, cl
   }, [active, containerRef, onClose, suppressRef]);
 
   // 뷰포트 시프트 닫기는 공용 훅이 담당한다(드로어 확인 팝오버와 같은 한 벌 — 2026-07-31).
-  usePopoverViewportClose(active && closeOnViewportShift, onClose);
+  // ⚠️ containerRef를 넘기는 것이 필수다(2026-08-05) — 출고 정보 팝오버는 내용이 길어 **자체
+  // 스크롤 컨테이너**가 됐고, 안 넘기면 사용자가 팝오버 안을 굴리는 순간 자기 scroll 이벤트에
+  // 자기가 닫힌다(Safari "스크롤하면 닫힘" · Firefox "스크롤바 클릭하면 닫힘" — 원인은 하나).
+  usePopoverViewportClose(active && closeOnViewportShift, onClose, containerRef);
 }
 
 function modeFilter(mode: CustomerMode, customer: Customer) {

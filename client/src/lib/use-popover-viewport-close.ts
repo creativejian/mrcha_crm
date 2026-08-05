@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 // fixed 팝오버가 열려 있는 동안 뷰포트 시프트(스크롤·리사이즈)가 오면 닫는 공용 훅 —
 // `useFixedPopoverPosition`이 좌표를 useLayoutEffect로 **1회만** 계산하므로 팝오버는 스크롤을
@@ -11,7 +11,13 @@ import { useEffect, useRef } from "react";
 // 버블하지 않아 document 레벨 비캡처 리스너로는 잡히지 않는다.
 // onClose는 ref로 최신값을 잡아 deps에서 뺀다(호출부가 인라인 화살표를 넘겨도 열림 중 재구독이
 // 생기지 않는다).
-export function usePopoverViewportClose(active: boolean, onClose: () => void) {
+// ⚠️ **selfRef를 넘기면 그 서브트리 안에서 난 스크롤은 무시한다 — 팝오버 자신이 스크롤될 수 있게
+// 되면 반드시 넘겨야 한다**(2026-08-05 실화면 버그). capture로 듣는 것이 여기서 역효과를 낸다:
+// 팝오버 내용이 길어져 자체 스크롤 컨테이너가 되면, 사용자가 그 안을 굴리는 순간 자기 scroll
+// 이벤트가 이 리스너에 잡혀 **자기가 자기를 닫는다**. 증상이 브라우저마다 다르게 보여 오진하기 쉽다 —
+// Safari는 스크롤바가 숨겨져 있어 "스크롤하면 닫힌다", Firefox는 "스크롤바를 클릭하면 닫힌다"로
+// 나타났는데(클릭 → 스크롤 발생 → 같은 리스너) 원인은 하나다.
+export function usePopoverViewportClose(active: boolean, onClose: () => void, selfRef?: RefObject<HTMLElement | null>) {
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -20,7 +26,11 @@ export function usePopoverViewportClose(active: boolean, onClose: () => void) {
   useEffect(() => {
     if (!active) return;
 
-    function closeOnShift() {
+    function closeOnShift(event: Event) {
+      // 팝오버(또는 그 앵커 서브트리) 내부 스크롤은 **뷰포트 시프트가 아니다** — 팝오버는 앵커에서
+      // 떨어져 나가지 않으므로 닫을 이유가 없다. resize는 진짜 시프트라 그대로 닫는다.
+      const target = event.target;
+      if (event.type === "scroll" && selfRef?.current && target instanceof Node && selfRef.current.contains(target)) return;
       onCloseRef.current();
     }
 
@@ -30,5 +40,5 @@ export function usePopoverViewportClose(active: boolean, onClose: () => void) {
       document.removeEventListener("scroll", closeOnShift, true);
       window.removeEventListener("resize", closeOnShift);
     };
-  }, [active]);
+  }, [active, selfRef]);
 }
