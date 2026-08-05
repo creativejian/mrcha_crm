@@ -84,8 +84,8 @@ describe("Sidebar MC 마스터 메뉴 role 게이트 + 승인 대기 배지", ()
     );
     const button = screen.getByRole("button", { name: "MC 마스터" });
     expect(button).toHaveTextContent("148");
-    const badges = [...container.querySelectorAll(".nav-count, .nav-gap-count")];
-    expect(badges.map((b) => b.className.split(" ")[0])).toEqual(["nav-count", "nav-gap-count"]);
+    const badges = [...container.querySelectorAll(".count-badge")];
+    expect(badges.map((b) => (b.classList.contains("tone-pending") ? "pending" : "gap"))).toEqual(["pending", "gap"]);
   });
 
   it("미부여 0이면 파란 배지를 그리지 않는다", () => {

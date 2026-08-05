@@ -93,8 +93,8 @@ describe("ModelTable 행 클릭", () => {
     const { container } = renderTable({ pendingByModel: new Map([[MODEL.id, 2]]), gapsByModel: { [MODEL.id]: 5 } });
 
     expect(screen.getByLabelText("고유번호 미부여 5건")).toHaveTextContent("5");
-    const badges = [...container.querySelectorAll(".va-pending-count, .va-gap-count")];
-    expect(badges.map((b) => b.className.split(" ")[0])).toEqual(["va-pending-count", "va-gap-count"]);
+    const badges = [...container.querySelectorAll(".count-badge")];
+    expect(badges.map((b) => (b.classList.contains("tone-pending") ? "pending" : "gap"))).toEqual(["pending", "gap"]);
   });
 
   it("승인 대기 0건이면 배지를 그리지 않는다 — 모든 행에 0이 붙으면 신호가 죽는다", () => {

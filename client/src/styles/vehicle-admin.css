@@ -269,41 +269,21 @@
 .va-row-selected {
   background: #f1edff;
 }
-/* 카탈로그 배지 두 축(2026-08-05) — 브랜드 목록·모델 목록에 같은 규칙으로 붙는다.
-     빨강 `.va-pending-count` = 승인 대기(결재할 것)
-     파랑 `.va-gap-count`     = 고유번호 미부여(결재 뒤에 남는 마무리)
-   한 줄에 둘 다 뜰 수 있어 **순서를 빨강 → 파랑으로 고정**한다(순서가 흔들리면 색을 매번 다시
-   읽게 된다). 사이드바 `.nav-count`와 모양은 같지만 클래스를 따로 둔다 — 그쪽은
-   `margin-left: auto`로 메뉴 오른쪽 끝에 미는 게 본질이라 여기서 재사용하면 배치가 어긋난다. */
-.va-pending-count,
-.va-gap-count {
-  /* 크기는 theme.css의 --count-badge-* 가 SSOT — 사이드바 `.nav-count`와 같은 값을 공유한다. */
-  min-width: var(--count-badge-size);
-  height: var(--count-badge-size);
-  padding: var(--count-badge-pad);
-  margin-left: 6px;
-  border-radius: var(--count-badge-radius);
-  display: inline-grid;
-  place-items: center;
-  color: #fff;
-  font-size: var(--count-badge-font);
-  font-weight: 400;
-  line-height: 1;
-}
-.va-pending-count {
-  background: #ef4444;
-}
-.va-gap-count {
-  background: #3b82f6;
-}
-/* 브랜드 목록에서는 배지를 오른쪽 끝으로 민다 — 항목이 [로고][이름] flex라 이름 옆에 붙이면
-   브랜드마다 위치가 들쭉날쭉해진다. 빨강이 먼저이므로 그 하나만 auto를 받는다(파랑만 있을
-   때는 파랑이 받는다 — first-of-type이 아니라 이 두 선택자 조합이 그 역할을 한다). */
-.va-brand-item > .va-pending-count,
-.va-brand-item > .va-gap-count:first-of-type {
+/* 배지 형태·크기·톤은 `.count-badge`(controls.css)가 SSOT다 — 여기서는 **이 화면의 배치만** 정한다.
+   브랜드 목록: 오른쪽 끝으로 민다(항목이 [로고][이름] flex라 이름 옆에 붙이면 브랜드마다 위치가
+   들쭉날쭉해진다). 앞에 배지가 없으면 auto를 받으므로 빨강만/파랑만 있는 경우 모두 끝에 붙는다.
+   모델 목록: 이름 바로 옆(그쪽은 밀 필요가 없다 — 셀 폭이 이름에 맞춰져 있다).
+   한 줄에 둘 다 뜰 때의 순서는 **빨강 → 파랑 고정**이고 JSX 순서가 지킨다. */
+.va-brand-item > .count-badge {
   margin-left: auto;
 }
-.va-brand-item > .va-pending-count + .va-gap-count {
+.va-brand-item > .count-badge ~ .count-badge {
+  margin-left: 4px;
+}
+.va-model-name > .count-badge {
+  margin-left: 6px;
+}
+.va-model-name > .count-badge ~ .count-badge {
   margin-left: 4px;
 }
 /* 행 전체를 진입 버튼으로 쓰는 표(모델표 — 2026-08-05). 어휘는 고객 목록 `.customer-row`와

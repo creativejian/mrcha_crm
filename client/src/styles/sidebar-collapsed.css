@@ -20,7 +20,7 @@
 }
 
 .sidebar.collapsed .brand > div:not(.brand-mark),
-.sidebar.collapsed .nav button > span:not(.nav-count) {
+.sidebar.collapsed .nav button > span:not(.count-badge) {
   max-width: 0;
   opacity: 0;
   visibility: hidden;
@@ -124,7 +124,7 @@
   pointer-events: auto;
 }
 
-.sidebar.collapsed .nav button .nav-count {
+.sidebar.collapsed .nav button .count-badge {
   display: inline-grid;
 }
 
@@ -143,7 +143,7 @@
 .sidebar:not(.collapsed) .brand > div:not(.brand-mark),
 .sidebar:not(.collapsed) .sidebar-bottom,
 .sidebar:not(.collapsed) .subnav,
-.sidebar:not(.collapsed) .nav button > span:not(.nav-count) {
+.sidebar:not(.collapsed) .nav button > span:not(.count-badge) {
   animation: sidebar-content-in 0.1s ease-out 0.03s both;
 }
 
