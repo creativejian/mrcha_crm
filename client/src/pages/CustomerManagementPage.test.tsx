@@ -1346,6 +1346,33 @@ describe("정산(settlement) 콘솔 목록", () => {
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(3);
   });
 
+  // 정산을 아직 시작 안 한 건(2026-08-05 실화면 제임스) — 실입금액·마진이 "—"인 줄에서 비용만
+  // 0이면 "비용은 0원인데 나머지는 모른다"로 읽힌다. 빈 배열은 DB 기본값이라 "비용 없음"과
+  // "아직 입력 안 함"이 구분되지 않으므로, 0으로 단정하지 않는다(입력한 적 없는 값을 지어내지 않는다).
+  it("비용 항목이 하나도 없으면 비용도 '—'(0으로 단정하지 않는다)", () => {
+    const customers = [settled({ settlement: { settledAt: null, feeAmount: null, costs: [], status: "미정산" as const } })];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    const row = screen.getByText("정산목록검증").closest("tr") as HTMLTableRowElement;
+    expect(within(row).queryByText("0")).toBeNull();
+  });
+
+  // 반대 축: 사람이 실제로 넣은 항목이 있으면 그 합을 낸다(0원 항목만 있으면 0이 맞다).
+  it("비용 항목이 있으면 합계를 그린다", () => {
+    const customers = [
+      settled({
+        settlement: {
+          settledAt: null,
+          feeAmount: null,
+          costs: [{ kind: "페이백" as const, label: null, amount: 500_000 }],
+          status: "미정산" as const,
+        },
+      }),
+    ];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    const row = screen.getByText("정산목록검증").closest("tr") as HTMLTableRowElement;
+    expect(within(row).getByText("500,000")).toBeInTheDocument();
+  });
+
   // 담당자가 올린 "정산요청"이 admin 목록에서 눈에 띄어야 한다 — 처리 대기 건이기 때문이다.
   it("단계 배지는 정산요청만 강조 톤(yellow)을 쓴다", () => {
     const customers = [settled({ settlement: { settledAt: null, feeAmount: null, costs: [], status: "정산요청" as const } })];

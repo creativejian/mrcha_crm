@@ -959,7 +959,12 @@ export function CustomerManagementPage({
       // `settlement`을 null로 비우므로(lib/settlement-visibility) 여기선 그냥 "—"가 된다.
       // ⚠️ 마진은 저장하지 않는 파생이라 여기서 계산한다(`settlementMargin` 한 벌을 서버·팝오버와 공유).
       const settlement = customer.settlement ?? null;
-      const costTotal = settlement ? sumSettlementCosts(settlement.costs) : null;
+      // ⚠️ **비용 항목이 하나도 없으면 "—"**(0이 아니다). `settlement_costs`의 DB 기본값이 빈
+      // 배열이라 "비용이 실제로 0"과 "아직 입력 안 함"이 구조적으로 구분되지 않는데(schema.ts
+      // 주석), 그걸 0으로 단정하면 **입력한 적 없는 값을 화면이 지어내는** 셈이다. 실입금액·마진이
+      // "—"인 줄에서 비용만 0이면 "비용은 0원인데 나머지는 모른다"로 읽히기도 한다(2026-08-05 실화면).
+      // 항목이 하나라도 있으면 그 합을 낸다 — 그때는 사람이 실제로 넣은 값이다.
+      const costTotal = settlement && settlement.costs.length > 0 ? sumSettlementCosts(settlement.costs) : null;
       const margin = settlement ? settlementMargin(settlement.feeAmount, settlement.costs) : null;
       return (
         <tr key={customer.no} {...rowProps}>
