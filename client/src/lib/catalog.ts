@@ -1,5 +1,6 @@
 import type { VehicleStatus } from "@/data/vehicle-taxonomy";
 import { broadcastCatalogQueueChanged } from "./catalog-change-realtime";
+import { notifyCatalogWriteQueued } from "./catalog-queue-signals";
 import { getJson, sendJson, sendVoid } from "./http";
 
 // ── 변경 승인 큐 202 공통 감지(PR3, 2026-07-30) ────────────────────────────────
@@ -22,14 +23,6 @@ export function isCatalogWriteQueued(value: unknown): value is CatalogWriteQueue
   );
 }
 
-const writeQueuedListeners = new Set<() => void>();
-export function onCatalogWriteQueued(listener: () => void): () => void {
-  writeQueuedListeners.add(listener);
-  return () => {
-    writeQueuedListeners.delete(listener);
-  };
-}
-
 async function sendCatalogWrite<T>(
   url: string,
   method: "POST" | "PATCH" | "PUT" | "DELETE",
@@ -37,15 +30,9 @@ async function sendCatalogWrite<T>(
 ): Promise<T | CatalogWriteQueued> {
   const result = await sendJson<T | CatalogWriteQueued>(url, method, body);
   if (isCatalogWriteQueued(result)) {
-    // 리스너 예외를 격리한다 — 큐 행은 이미 커밋된 뒤라, 여기서 던지면 성공 저장이 호출부
-    // catch에서 거짓 실패(panelError)로 보이고 재시도는 409로 막히는 막다른 길이 된다.
-    for (const l of writeQueuedListeners) {
-      try {
-        l();
-      } catch {
-        // 알림은 부가 효과 — 실패해도 저장 결과에 영향을 주지 않는다.
-      }
-    }
+    // 알림 채널은 catalog-queue-signals가 소유한다(리스너 예외 격리도 그쪽 emit이 담당 —
+    // 큐 행은 이미 커밋된 뒤라 여기서 던지면 성공 저장이 거짓 실패로 보인다).
+    notifyCatalogWriteQueued();
     broadcastCatalogQueueChanged(); // 타 세션(admin 대기열·배지)도 리로딩 없이 따라오게(신호 전용).
   }
   return result;

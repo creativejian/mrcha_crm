@@ -16,7 +16,6 @@ import {
   deleteModel,
   deleteTrim,
   moveTrims,
-  onCatalogWriteQueued,
   reorderModels,
   reorderTrims,
   replaceTrimChangeRequest,
@@ -27,7 +26,8 @@ import { useAuth } from "@/auth/AuthProvider";
 import type { ChangeRequestKind } from "@/lib/catalog-change-kinds";
 import { useCatalogQueueApplied } from "@/lib/catalog-change-realtime";
 import { type ChangeRequestItem, pendingCountByBrand, pendingCountByModel, useChangeRequestQueue } from "@/lib/catalog-change-requests";
-import { notifyMcCodesAssigned, useMcCodeGaps } from "@/lib/mc-code-gaps";
+import { notifyMcCodesAssigned, onCatalogWriteQueued } from "@/lib/catalog-queue-signals";
+import { useMcCodeGaps } from "@/lib/mc-code-gaps";
 import { useDealerDiscounts } from "@/lib/dealer-discounts";
 import { useDealerMe } from "@/lib/dealer-profiles";
 import type { DiscountField } from "@/lib/discount-adoption";
