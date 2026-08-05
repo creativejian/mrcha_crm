@@ -15,9 +15,7 @@ import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
 import { customerCodeFromLocation, customerListPath, customerModeFromSearch } from "@/lib/customer-route";
 import { financeListPath, financeModeFromSearch, financeModeMeta } from "@/lib/finance-route";
-import { onCatalogWriteQueued } from "@/lib/catalog";
-import { onCatalogQueueRemoteChanged } from "@/lib/catalog-change-realtime";
-import { onChangeRequestQueueUpdated } from "@/lib/catalog-change-requests";
+import { useCatalogQueueTick } from "@/lib/catalog-queue-signals";
 import { useMcCodeGaps } from "@/lib/mc-code-gaps";
 import { getJson } from "@/lib/http";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
@@ -110,6 +108,7 @@ export function App() {
   // 사이드바 MC 마스터의 파란 배지 = 고유번호 미부여 총계(2026-08-05). 훅이 승인·할당 양쪽 신호를
   // 구독하므로 여기서 따로 폴링하지 않는다(빨간 배지는 그 위 60s 폴링을 계속 쓴다 — 그쪽은 훅이
   // 아니라 count만 세는 별도 경로다).
+  const queueTick = useCatalogQueueTick(auth.authed && isAdmin, { focus: true, pollMs: 60_000 });
   const mcCodeGaps = useMcCodeGaps(auth.authed && isAdmin);
   const mcCodeGapCount = Object.values<number>(mcCodeGaps.byBrand).reduce((sum, n) => sum + n, 0);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -215,39 +214,16 @@ export function App() {
     });
   }, [auth.authed, showToast]);
 
-  // MC 마스터 승인 대기 배지 — Realtime 구독까지는 과함(내부 승인 큐·소량). 60s 폴링 + 창 focus
-  // 재조회(관리자가 다른 탭에 가 있다 돌아오는 순간이 갱신 적기 — dealer-roster 선례) + 승인 대기열
-  // 팝오버가 직접 승인/반려하는 즉시성은 모듈 pub/sub(onChangeRequestQueueUpdated)으로 보강한다 —
-  // SPA 내 처리라 focus 이벤트가 안 오고, 60s를 기다리면 방금 처리한 배지가 그대로 남아 보인다.
+  // MC 마스터 승인 대기 배지 — 구독 목록은 catalog-queue-signals가 SSOT다(2026-08-05).
+  // 여기서 더하는 건 화면 사정 둘뿐: **focus 재검증**(관리자가 다른 탭에 갔다 돌아오는 순간이
+  // 갱신 적기 — dealer-roster 선례)과 **60s 폴링**(신호가 유실돼도 결국 맞춰지는 마지막 그물).
   // manager는 서버가 403이라 admin(isAdmin)만 조회.
   useEffect(() => {
     if (!auth.authed || !isAdmin) return;
-    const refresh = () => {
-      getJson<unknown[]>("/api/catalog/change-requests?status=pending")
-        .then((rows) => setPendingChangeRequestCount(rows.length))
-        .catch(() => {}); // 실패 무소음 — 배지는 최선 노력
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 60_000);
-    window.addEventListener("focus", refresh);
-    const offQueue = onChangeRequestQueueUpdated(refresh);
-    // ⚠️ 아래 둘이 없으면 **대기가 늘어나는 방향만 최대 60초 뒤처진다**(2026-08-05 유슨생 실기:
-    // 브랜드 배지는 3인데 사이드바는 1이었다). 위 onChangeRequestQueueUpdated는 승인·반려·취소,
-    // 즉 **줄어드는** 사건만 알린다 — 새 요청 적재는 다른 신호로 온다.
-    //   onCatalogWriteQueued        = 같은 탭에서 쓰기가 큐로 적재됨(202)
-    //   onCatalogQueueRemoteChanged = 다른 세션의 적재·처리(broadcast)
-    // `useChangeRequestQueue`(브랜드·모델 배지)는 셋 다 듣고 있어서 이 화면만 어긋나 있었다.
-    // 배지 3종은 **같은 신호 집합**을 들어야 한다 — 하나를 늘릴 땐 여기도 함께 볼 것.
-    const offWrite = onCatalogWriteQueued(refresh);
-    const offRemote = onCatalogQueueRemoteChanged(refresh);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refresh);
-      offQueue();
-      offWrite();
-      offRemote();
-    };
-  }, [auth.authed, isAdmin]);
+    getJson<unknown[]>("/api/catalog/change-requests?status=pending")
+      .then((rows) => setPendingChangeRequestCount(rows.length))
+      .catch(() => {}); // 실패 무소음 — 배지는 최선 노력
+  }, [auth.authed, isAdmin, queueTick]);
 
   useEffect(() => () => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);

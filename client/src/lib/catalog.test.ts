@@ -14,12 +14,13 @@ import {
   fetchModels,
   fetchTrims,
   isCatalogWriteQueued,
-  onCatalogWriteQueued,
   reorderModels,
   reorderTrims,
   updateModel,
   updateTrim,
 } from "./catalog";
+// 신호 pub/sub은 catalog-queue-signals가 소유한다(2026-08-05 SSOT) — 여기서는 적재 알림만 구독한다.
+import { onCatalogWriteQueued } from "./catalog-queue-signals";
 
 afterEach(() => vi.restoreAllMocks());
 

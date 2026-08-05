@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 
 import { mcMasterPath } from "@/pages/mc-master/mc-master-route";
 
-import { onCatalogWriteQueued } from "./catalog";
 import { CHANGE_FIELD_LABELS, OPTION_TYPE_VALUE_LABELS, type ChangeRequestKind } from "./catalog-change-kinds";
-import { broadcastCatalogQueueChanged, onCatalogQueueRemoteChanged } from "./catalog-change-realtime";
+import { broadcastCatalogQueueChanged } from "./catalog-change-realtime";
+import { notifyQueueUpdated, useCatalogQueueTick } from "./catalog-queue-signals";
 import { getJson, sendJson } from "./http";
 
 // MC 마스터 변경 승인 대기열 — admin 대기열 팝오버(ChangeRequestQueue) + manager 행 배지·내 요청
@@ -45,16 +45,7 @@ export function resetChangeRequestCachesForTest(): void {
   mineCache = null;
 }
 
-// 대기열 변동 알림(모듈 레벨 pub/sub) — 팝오버에서 승인/반려하면 사이드바 배지(App 폴링)가
-// 60s를 기다리지 않고 즉시 재조회한다(dealer-roster의 invalidate 선례와 같은 결).
-const queueListeners = new Set<() => void>();
-export function onChangeRequestQueueUpdated(listener: () => void): () => void {
-  queueListeners.add(listener);
-  return () => queueListeners.delete(listener);
-}
-function notifyQueueUpdated() {
-  for (const l of queueListeners) l();
-}
+// 대기열 변동 알림 채널은 catalog-queue-signals가 소유한다(2026-08-05 SSOT) — 여기서는 발신만 한다.
 
 export function useChangeRequestQueue(enabled: boolean): {
   rows: ChangeRequestItem[] | null; // null = 미로드/로딩
@@ -66,6 +57,11 @@ export function useChangeRequestQueue(enabled: boolean): {
   const [rows, setRows] = useState<ChangeRequestItem[] | null>(queueCache);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
+  // 큐가 움직였을 수 있는 모든 계기(적재·결정·타 세션) — 구독 목록은 catalog-queue-signals가 SSOT.
+  // ⚠️ 이 훅은 **인스턴스가 여럿**이다(헤더 팝오버 + 모델 목록 배지). 아래 approve/reject의 tick은
+  // 자기 인스턴스만 갱신하므로, 이 신호가 없으면 팝오버에서 승인해도 배지가 리로딩 전까지 그대로다
+  // (#454 도입 직후 실기 발견 — 그전까진 인스턴스가 하나뿐이라 드러나지 않았다).
+  const signalTick = useCatalogQueueTick(enabled);
 
   // ⚠️ setState는 **콜백 안에서** 부른다(react-hooks/set-state-in-effect 기준선 0 — discount-proposals.ts 관례).
   useEffect(() => {
@@ -85,19 +81,9 @@ export function useChangeRequestQueue(enabled: boolean): {
     return () => {
       alive = false;
     };
-  }, [enabled, tick]);
+  }, [enabled, tick, signalTick]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
-
-  // 같은 탭의 다른 소비자가 승인/반려했을 때도 따라간다(2026-08-05). 이 훅은 **인스턴스가 여럿**이다
-  // — 헤더 대기열 팝오버와 모델 목록 배지가 각자 부른다. 아래 approve/reject가 올리는 tick은 자기
-  // 인스턴스만 갱신하므로, 이 구독이 없으면 팝오버에서 승인해도 **배지는 리로딩 전까지 그대로**다
-  // (#454 도입 직후 실기 발견 — 그전까진 인스턴스가 하나뿐이라 드러나지 않았다).
-  // 자기 승인으로 난 알림도 받지만 같은 동기 블록의 setTick과 배칭돼 재조회가 늘지 않는다.
-  useEffect(() => (enabled ? onChangeRequestQueueUpdated(() => setTick((t) => t + 1)) : undefined), [enabled]);
-
-  // 다른 세션(팀장 적재/취소)의 변동을 리로딩 없이 반영한다(broadcast — catalog-change-realtime).
-  useEffect(() => (enabled ? onCatalogQueueRemoteChanged(() => setTick((t) => t + 1)) : undefined), [enabled]);
 
   // 성공 시에만 재조회 — 실패(409 드리프트 등)는 throw로 올라가 호출한 팝오버가 행별로 표시한다.
   // broadcast는 상대 세션(팀장 배지·내 요청) 몫 — 내 화면은 tick·notify가 즉시 갱신한다.
@@ -249,7 +235,11 @@ export function pendingCountByBrand(rows: ChangeRequestItem[] | null): Map<numbe
 // 모듈 채널) 즉시 재조회한다.
 export function useModelPendingRequests(modelId: number | null, enabled: boolean): ChangeRequestItem[] {
   const [data, setData] = useState<{ modelId: number; rows: ChangeRequestItem[] } | null>(null);
-  const [tick, setTick] = useState(0);
+  // 이 훅은 자체 재조회 트리거가 없다(reload 없음) — 신선도는 전적으로 아래 신호가 담당한다.
+  // focus 그물까지 켠다 — broadcast가 못 닿는 구간(채널 미가입 사이·전송 유실)을 탭 복귀로 메운다.
+  // 상시 interval은 두지 않는다: 최종 방어는 서버 부분 UNIQUE고, 배지는 409를 미리 보여주는
+  // 예방선이라 탭 복귀 신선도면 충분하다.
+  const signalTick = useCatalogQueueTick(enabled, { focus: true });
   useEffect(() => {
     if (!enabled || modelId == null) return;
     let alive = true;
@@ -261,20 +251,7 @@ export function useModelPendingRequests(modelId: number | null, enabled: boolean
     return () => {
       alive = false;
     };
-  }, [enabled, modelId, tick]);
-  useEffect(() => onCatalogWriteQueued(() => setTick((t) => t + 1)), []);
-  useEffect(() => onChangeRequestQueueUpdated(() => setTick((t) => t + 1)), []);
-  // 타 세션의 변동은 broadcast 신호로 즉시 따라온다(catalog-change-realtime — 2026-07-31).
-  useEffect(() => (enabled ? onCatalogQueueRemoteChanged(() => setTick((t) => t + 1)) : undefined), [enabled]);
-  // broadcast가 못 닿는 구간(채널 미가입 사이·전송 유실)의 그물 — 탭 복귀 시점에 재검증한다
-  // (사이드바 배지의 focus 재조회 선례). 상시 interval은 두지 않는다: 최종 방어는
-  // 서버 부분 UNIQUE고, 배지는 예방선이라 탭 복귀 신선도면 충분하다.
-  useEffect(() => {
-    if (!enabled) return;
-    const onFocus = () => setTick((t) => t + 1);
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [enabled]);
+  }, [enabled, modelId, signalTick]);
   return enabled && data != null && data.modelId === modelId ? data.rows : EMPTY_ROWS;
 }
 
@@ -290,6 +267,10 @@ export function useMyChangeRequests(enabled: boolean): {
   const [rows, setRows] = useState<ChangeRequestItem[] | null>(enabled ? mineCache : null);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
+  // ⚠️ **결정(승인·반려·취소)은 듣지 않는다**(decisions: false) — 같은 탭의 승인/반려는 admin 화면
+  // 이벤트라 이 훅과 세션이 겹치지 않고, 내 취소는 아래 cancel이 직접 tick을 올린다. **타 세션의**
+  // 결정은 broadcast가 실어 나른다(관리자가 처리하면 팀장 팝오버의 상태 칩이 리로딩 없이 뒤집힌다).
+  const signalTick = useCatalogQueueTick(enabled, { decisions: false });
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
@@ -306,13 +287,7 @@ export function useMyChangeRequests(enabled: boolean): {
     return () => {
       alive = false;
     };
-  }, [enabled, tick]);
-  useEffect(() => onCatalogWriteQueued(() => setTick((t) => t + 1)), []);
-  // onChangeRequestQueueUpdated는 구독하지 않는다 — 같은 탭의 승인/반려는 admin 화면 이벤트라
-  // 이 훅과 세션이 겹치지 않고, 내 취소는 cancel이 직접 tick을 올린다. **타 세션의** 승인/반려는
-  // 아래 broadcast 신호가 실어 나른다(catalog-change-realtime — 2026-07-31): 관리자가 처리하면
-  // 팀장 팝오버의 상태 칩이 리로딩 없이 뒤집힌다.
-  useEffect(() => (enabled ? onCatalogQueueRemoteChanged(() => setTick((t) => t + 1)) : undefined), [enabled]);
+  }, [enabled, tick, signalTick]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const cancel = useCallback(async (id: string) => {
     await sendJson(`/api/catalog/change-requests/${id}`, "DELETE");
