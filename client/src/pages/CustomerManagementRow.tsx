@@ -4,7 +4,7 @@
 import { Check, Eraser, FileText, MessageSquare, Pencil, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
-import { CHANCE_OPTIONS, type Customer, type CustomerSettlementPatch, customerStatusGroups, type NextDeliverySchedule, SETTLEMENT_COST_KINDS, type SettlementCostKind } from "@/data/customers";
+import { CHANCE_OPTIONS, type Customer, type CustomerSettlementPatch, customerStatusGroups, type NextDeliverySchedule, SETTLEMENT_COST_KINDS, SETTLEMENT_STATUS_OPTIONS, type SettlementCostKind, type SettlementStatus } from "@/data/customers";
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
@@ -744,6 +744,10 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
   const [feeText, setFeeText] = useState("");
   // 비용 행은 **금액을 문자열로** 들고 있다가 저장 때 한 번 파싱한다(입력 중 콤마·빈 칸 허용).
   const [costs, setCosts] = useState<SettlementCostDraft[]>([]);
+  // 정산 단계 — 담당자가 올린 "정산요청"을 admin이 여기서 보고 "정산완료"로 넘긴다(그 전이의 유일한
+  // 화면). **조회값을 따로 보관**해 저장 때 바뀐 경우에만 싣는다 — 아래 저장 핸들러 주석 참조.
+  const [status, setStatus] = useState<SettlementStatus>("미정산");
+  const [loadedStatus, setLoadedStatus] = useState<SettlementStatus>("미정산");
   const [settlementError, setSettlementError] = useState<string | null>(null);
   // 담당자 정산 요청 결과 — 상태를 미리 조회하지 않는다(담당자는 정산을 읽을 수 없다).
   // 버튼은 항상 눌리고 **서버가 판단**한다: 이미 요청/완료면 409 문구가 그대로 여기에 담긴다.
@@ -759,6 +763,12 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
         // 불러올 때도 같은 포맷으로 — 저장된 값만 콤마가 없으면 방금 입력한 값과 표기가 어긋난다.
         setFeeText(s.feeAmount == null ? "" : formatNumberWithCommas(String(s.feeAmount)));
         setCosts((s.costs ?? []).map((c) => ({ kind: c.kind, label: c.label, amountText: formatNumberWithCommas(String(c.amount)) })));
+        // 출고 행이 아직 없는 고객은 라우트가 status를 "미정산"으로 채워 주지만, 구 응답·부분
+        // 페이로드에도 select가 빈 값이 되지 않도록 여기서 한 번 더 받는다(controlled select라
+        // undefined면 uncontrolled로 떨어져 Safari 바인딩 규칙이 무의미해진다).
+        const next = s.status ?? "미정산";
+        setStatus(next);
+        setLoadedStatus(next);
       })
       .catch(() => {
         if (!cancelled) setSettlementError("정산 정보를 불러오지 못했습니다.");
@@ -816,6 +826,18 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
       {canEditSettlement && (
         <div className="delivery-settlement">
           <strong className="delivery-settlement-title">정산 <span className="badge">관리자</span></strong>
+          {/* 단계를 섹션 **맨 위**에 둔다 — 담당자가 올린 "정산요청"은 목록 어디에도 안 보이고(정산은
+              admin 전용 라우트로만 나간다) 이 팝오버가 유일한 접점이라, 열자마자 눈에 들어와야 한다.
+              controlled select라 bindSelect 필수(Safari onInput 병행 — 안 하면 선택이 통째로 유실된다). */}
+          <label>
+            <span>단계</span>
+            <select
+              className={status === "정산요청" ? "settlement-status-requested" : undefined}
+              {...bindSelect(status, (v) => setStatus(v as SettlementStatus))}
+            >
+              {SETTLEMENT_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
           <label><span>입금일</span><DateTextField onValueChange={setSettledAt} value={settledAt} /></label>
           <label>
             <span>실입금액</span>
@@ -913,7 +935,11 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
             const resolvedCosts = resolveSettlementCosts(costs);
             if (resolvedCosts.kind === "invalid") return setSettlementError(resolvedCosts.reason);
             setSettlementError(null);
-            onSave(draft, { ...submit.body, costs: resolvedCosts.costs });
+            // ⚠️ 단계는 **조회 이후 실제로 바뀐 경우에만** 싣는다(patch가 부분인 이유 그 자체).
+            // 항상 보내면, admin이 팝오버를 열어 둔 사이 담당자가 올린 "정산요청"을 저장 한 번으로
+            // 조용히 "미정산"으로 되돌린다 — 요청이 사라진 걸 양쪽 다 모른다.
+            const statusPatch = status === loadedStatus ? {} : { status };
+            onSave(draft, { ...submit.body, costs: resolvedCosts.costs, ...statusPatch });
           }}
           type="button"
         >
