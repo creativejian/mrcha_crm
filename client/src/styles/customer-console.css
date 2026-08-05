@@ -1097,12 +1097,28 @@
   /* maxHeight는 인라인(배치 계산 결과)으로 온다 — 여기서는 넘칠 때 스크롤만 켠다.
      ⚠️ overflow가 없으면 max-height가 걸려도 내용이 잘린 채 숨는다(스크롤 자체가 안 생긴다). */
   overflow-y: auto;
+  /* ⚠️ **스크롤바를 항상 보이게 한다.** macOS는 트랙패드 사용 시 스크롤바를 숨기는데, 그러면
+     내용이 넘쳐도 화면상으로는 "그냥 잘린 것"과 구분이 안 된다(2026-08-05 실화면에서 실제로
+     그렇게 읽혔다 — max-height는 걸려 있었는데 스크롤 가능함을 알 수 없었다).
+     팝오버는 열려 있는 동안만 보이는 임시 표면이라 상시 스크롤바의 시각적 비용이 작다. */
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
   position: fixed; z-index: 160;
   display: grid; gap: 8px; min-width: 260px; padding: 12px;
   background: #fff; border: 1px solid var(--line, #dededb); border-radius: 12px;
   box-shadow: 0 12px 28px rgba(15, 20, 25, 0.16);
 }
 .delivery-info-title { font-size: 12px; color: #26313b; }
+/* Safari는 `scrollbar-width`를 늦게 지원했고 트랙패드 사용 시 스크롤바를 자동으로 숨긴다 —
+   webkit 스타일로 **항상 보이는 얇은 막대**를 강제한다(실화면이 Safari였다). */
+.delivery-info-popover::-webkit-scrollbar { width: 10px; }
+.delivery-info-popover::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background: #cfd4d9;
+  background-clip: content-box;
+}
+.delivery-info-popover::-webkit-scrollbar-track { background: transparent; }
 .delivery-info-popover label { display: grid; gap: 4px; font-size: 11px; color: #6b7280; }
 .delivery-info-popover input { height: 28px; border: 1px solid #dededb; border-radius: 6px; padding: 0 8px; font-size: 12px; }
 /* font: inherit(축약형 — family 정규화: theme.css 컨트롤 규칙이 textarea 미포함)를 **먼저** 두고 크기를
