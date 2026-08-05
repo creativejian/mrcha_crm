@@ -16,6 +16,7 @@ import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-
 import { addSchedule, deleteSchedule, saveCustomerDelivery, saveCustomerSettlement, updateSchedule } from "@/lib/customer-children";
 import { compareDeliverySchedule, DELIVERY_PILL_IN_PROGRESS, DELIVERY_STAGE_PILLS, deliveryCountLabel, deliveryPillCounts, matchesDeliveryPill, resolveDeliveryScheduleSubmit } from "@/lib/delivery-console";
 import { resolveDeliveryInfoSubmit, type DeliveryInfoDraft } from "@/lib/delivery-info";
+import { formatDateDisplay } from "@/lib/datetime-text";
 import { formatSettlementAmount, settlementMargin, sumSettlementCosts } from "@/lib/settlement";
 import { prefetchCustomerConsultations } from "@/lib/consultations";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
@@ -973,7 +974,7 @@ export function CustomerManagementPage({
           {vehicleCell}
           {/* 출고일 = **계약 확정일**(실적 귀속 기준, 2026-08-03 이사님). 구 코드는 `customer.date`를
               썼는데 그건 어댑터에서 `lastActivityAt`(최근 활동)이라 정산과 무관한 값이었다. */}
-          <td>{customer.delivery?.contractConfirmedDate ?? "—"}</td>
+          <td>{formatDateDisplay(customer.delivery?.contractConfirmedDate) ?? "—"}</td>
           <td className="num">{formatSettlementAmount(settlement?.feeAmount ?? null)}</td>
           <td className="num">{formatSettlementAmount(costTotal)}</td>
           <td><strong className="num">{formatSettlementAmount(margin)}</strong></td>

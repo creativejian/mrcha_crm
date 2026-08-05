@@ -71,12 +71,17 @@ export function DateTextField({ ariaLabel, autoFocus, defaultValue, name, onValu
   }
 
   function handlePick(event: ChangeEvent<HTMLInputElement>) {
-    pickerOpenRef.current = false; // 선택·취소 어느 쪽이든 픽커는 닫힌 상태
+    pickerOpenRef.current = false;
     detachDismissListener();
     const iso = event.target.value;
     if (!iso) return;
     if (value === undefined && textRef.current) textRef.current.value = iso;
     onValueChange?.(iso);
+    // ⚠️ **선택해도 픽커가 열린 채 남는 브라우저가 있다**(2026-08-05 유슨생 실기). 구 코드는
+    // "선택·취소 어느 쪽이든 픽커는 닫힌 상태"로 단정하고 플래그만 내렸는데, 그러면 실제 상태와
+    // 어긋나 **다음 아이콘 클릭이 "열기"로 소비되고 한 번 더 눌러야 닫힌다**(총 2번 — 실기 증상).
+    // 위 토글-닫기와 같은 수단(리마운트)으로 확실히 닫아 플래그와 실제를 일치시킨다.
+    setPickerEpoch((epoch) => epoch + 1);
   }
 
   return (

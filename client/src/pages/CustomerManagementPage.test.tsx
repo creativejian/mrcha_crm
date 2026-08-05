@@ -1335,7 +1335,8 @@ describe("정산(settlement) 콘솔 목록", () => {
     expect(within(row).getByText("2,000,000")).toBeInTheDocument(); // 실입금액
     expect(within(row).getByText("420,000")).toBeInTheDocument(); // 비용합 = 300,000 + 120,000
     expect(within(row).getByText("1,580,000")).toBeInTheDocument(); // 마진 = 2,000,000 − 420,000
-    expect(within(row).getByText("2026-07-25")).toBeInTheDocument(); // 출고일 = 계약 확정일
+    // 출고일 = 계약 확정일. 표시는 **슬래시**(저장은 하이픈 — 두 축이 다르다, formatDateDisplay).
+    expect(within(row).getByText("2026/07/25")).toBeInTheDocument();
   });
 
   // 비admin은 서버가 `settlement`을 null로 비운다(lib/settlement-visibility) — 화면은 그 상태에서

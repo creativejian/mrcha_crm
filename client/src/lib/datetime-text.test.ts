@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeDateText, normalizeTimeText } from "./datetime-text";
+import { formatDateDisplay, normalizeDateText, normalizeTimeText } from "./datetime-text";
 
 describe("normalizeDateText", () => {
   it("하이픈 구분 정규 표기는 그대로 통과", () => {
@@ -72,5 +72,23 @@ describe("normalizeTimeText", () => {
   });
   it("무콜론은 정확히 4자리만 — 3자리(930)는 모호해서 거부(리뷰 잠금)", () => {
     expect(normalizeTimeText("930")).toEqual({ ok: false });
+  });
+});
+
+describe("formatDateDisplay — 화면 표시는 슬래시(저장은 하이픈)", () => {
+  it("ISO 저장값을 2026/08/05로 보여준다", () => {
+    expect(formatDateDisplay("2026-08-05")).toBe("2026/08/05");
+  });
+
+  it("null·빈 문자열·undefined는 null — 호출부가 '—' 같은 자리표시를 고르게 한다", () => {
+    expect(formatDateDisplay(null)).toBeNull();
+    expect(formatDateDisplay("")).toBeNull();
+    expect(formatDateDisplay(undefined)).toBeNull();
+  });
+
+  // ⚠️ 표시 함수가 값을 삼키면 화면에서 데이터가 조용히 사라진다 — 모르는 형식은 원문을 낸다.
+  it("형식 밖 값은 원문 그대로 낸다(삼키지 않는다)", () => {
+    expect(formatDateDisplay("2026년 8월 5일")).toBe("2026년 8월 5일");
+    expect(formatDateDisplay("2026-8-5")).toBe("2026-8-5");
   });
 });

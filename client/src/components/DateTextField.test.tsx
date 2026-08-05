@@ -141,13 +141,36 @@ describe("DateTextField — 달력 아이콘 재클릭 토글", () => {
     expect(showPicker).toHaveBeenCalledTimes(2);
   });
 
-  it("날짜를 고르면(픽커 자연 닫힘) 아이콘 클릭이 바로 다시 연다", async () => {
+  it("날짜를 고르면 아이콘 클릭이 바로 다시 연다", async () => {
     const { btn, container } = await setupWithPicker();
     fireEvent.click(btn);
     expect(showPicker).toHaveBeenCalledTimes(1);
     fireEvent.change(hiddenNativeInput(container), { target: { value: "2026-07-24" } });
     fireEvent.click(btn);
     expect(showPicker).toHaveBeenCalledTimes(2);
+  });
+
+  // ⚠️ 구 코드는 선택 시 **플래그만** 내리고 픽커를 실제로 닫지 않았다("선택하면 자연히 닫힌다"고
+  // 단정). 그런데 선택 후에도 열린 채 남는 브라우저가 있어(2026-08-05 유슨생 실기) 실제 상태와
+  // 어긋났고, **다음 아이콘 클릭이 "열기"로 소비돼 한 번 더 눌러야 닫혔다**(총 2번).
+  // 리마운트(= native input 노드 교체)가 그 어긋남을 없앤다. 노드 동일성으로 잠근다 —
+  // showPicker 호출 횟수로는 이 결함이 드러나지 않아 위 테스트가 통과하면서도 버그가 살아 있었다.
+  it("날짜를 고르면 숨긴 native input을 리마운트해 픽커를 확실히 닫는다", async () => {
+    const { btn, container } = await setupWithPicker();
+    fireEvent.click(btn);
+    const before = hiddenNativeInput(container);
+    fireEvent.change(before, { target: { value: "2026-07-24" } });
+    expect(hiddenNativeInput(container)).not.toBe(before);
+  });
+
+  // 취소(빈 값)에는 리마운트하지 않는다 — 취소는 브라우저가 실제로 닫은 것이고, 불필요한 노드
+  // 교체는 다음 열기에서 값 재설정을 늘릴 뿐이다.
+  it("취소(빈 값)면 리마운트하지 않는다", async () => {
+    const { btn, container } = await setupWithPicker();
+    fireEvent.click(btn);
+    const before = hiddenNativeInput(container);
+    fireEvent.change(before, { target: { value: "" } });
+    expect(hiddenNativeInput(container)).toBe(before);
   });
 
   it("픽커 열린 채 언마운트 = dismiss 리스너 해제(배치 12 B#6③ — 제거 변이가 green이던 누수 사각)", async () => {
