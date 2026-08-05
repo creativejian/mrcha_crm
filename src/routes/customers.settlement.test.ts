@@ -199,3 +199,45 @@ test("POST /settlement/request — 미정산 → 정산요청, 재요청은 409(
       .where(eq(customerDeliveries.customerId, existing.customerId));
   }
 });
+
+// ── admin 단계 전이(2026-08-05 정산 상태 편집 UI) ──────────────────────────
+// 담당자가 올린 "정산요청"을 admin이 "정산완료"로 넘기는 경로. zod enum·upsert 매핑은 진작
+// 있었지만 **저장하는 화면이 없어 한 번도 실사용된 적이 없었다** — 위 request 경로가 커버하는
+// 것은 미정산→정산요청 하나뿐이라, 이 왕복은 여기서 처음 검증된다.
+// ⚠️ status를 **단독으로** 보내는 케이스는 만들 수 없다 — `settlementBody`에서 settledAt·feeAmount는
+// 필수라(optional은 costs·status뿐) status만 담은 body는 400이다. 화면도 늘 셋을 함께 보낸다.
+test("PUT /settlement — admin은 단계를 정산완료로 넘길 수 있다(담당자 요청을 받는 쪽)", async () => {
+  const [existing] = await db
+    .select({
+      customerId: customerDeliveries.customerId,
+      status: customerDeliveries.settlementStatus,
+      feeAmount: customerDeliveries.feeAmount,
+      settledAt: customerDeliveries.settledAt,
+    })
+    .from(customerDeliveries)
+    .limit(1);
+  if (!existing) return; // 출고 행이 없는 환경에서는 검증 불가 — 조용히 통과(픽스처 생성 금지)
+
+  try {
+    await db
+      .update(customerDeliveries)
+      .set({ settlementStatus: "정산요청" })
+      .where(eq(customerDeliveries.customerId, existing.customerId));
+
+    const res = await reqFor("admin", `/api/customers/${existing.customerId}/settlement`, {
+      method: "PUT",
+      // 화면이 보내는 것과 같은 모양 — 단계를 바꾼 저장에는 입금일·실입금액도 함께 실린다.
+      body: JSON.stringify({ settledAt: "2026-09-10", feeAmount: 1180000, status: "정산완료" }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { status: string; feeAmount: number }).toMatchObject({
+      status: "정산완료",
+      feeAmount: 1180000,
+    });
+  } finally {
+    await db
+      .update(customerDeliveries)
+      .set({ settlementStatus: existing.status, feeAmount: existing.feeAmount, settledAt: existing.settledAt })
+      .where(eq(customerDeliveries.customerId, existing.customerId));
+  }
+});

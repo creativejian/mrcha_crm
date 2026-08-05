@@ -11,8 +11,12 @@ vi.mock("@/lib/customer-children", () => ({
   saveCustomerDelivery: vi.fn().mockResolvedValue(undefined),
   // 정산(2026-08-03) — 팝오버가 admin일 때 열리자마자 조회한다. 기본 roleTab이 "최고관리자"라
   // 기존 출고 테스트도 이 경로를 탄다(모킹이 없으면 전부 깨진다).
-  fetchCustomerSettlement: vi.fn().mockResolvedValue({ settledAt: null, feeAmount: null }),
+  // ⚠️ **서버 응답 전체 형태로 둔다**(costs·status 포함) — 라우트가 행 없는 고객에도 네 필드를
+  // 다 채워 응답하므로(customers.ts `?? { settledAt, feeAmount, costs, status }`), 부분 모킹은
+  // 실제로 올 수 없는 페이로드로 테스트를 통과시킨다.
+  fetchCustomerSettlement: vi.fn().mockResolvedValue({ settledAt: null, feeAmount: null, costs: [], status: "미정산" }),
   saveCustomerSettlement: vi.fn().mockResolvedValue(undefined),
+  requestCustomerSettlement: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("CustomerManagementPage", () => {
@@ -879,6 +883,76 @@ describe("출고 관리(delivery) 콘솔", () => {
     expect(within(dialog).getByLabelText(/실입금액/)).toBeInTheDocument();
   });
 
+  // ── 정산 단계 편집(2026-08-05) ─────────────────────────────────────────────
+  // 담당자 "정산요청" → admin "정산완료"로 넘기는 **유일한 화면**이다. 서버(PUT settlement의 zod
+  // status)는 진작 준비돼 있었는데 화면이 없어 워크플로가 끊겨 있었다 — 담당자가 요청을 올려도
+  // admin이 보지도 넘기지도 못했다.
+  const settlementRow = (id: string, no: number, name: string) => ({
+    ...initialCustomers[4],
+    id,
+    no,
+    customerId: `CU-2605-${no}`,
+    name,
+    statusGroup: "계약완료" as const,
+    status: "배정완료" as const,
+    nextDeliverySchedule: null,
+    delivery: null,
+    contractingQuote: null,
+  });
+
+  it("담당자가 올린 '정산요청'이 단계 select에 그대로 보인다(정산은 목록에 안 실려 여기가 유일한 접점)", async () => {
+    const { fetchCustomerSettlement } = await import("@/lib/customer-children");
+    vi.mocked(fetchCustomerSettlement).mockResolvedValueOnce({ settledAt: null, feeAmount: null, costs: [], status: "정산요청" });
+    render(
+      <CustomerManagementPage
+        customers={[settlementRow("cid-stage-1", 90201, "단계표시검증")]}
+        mode="delivery"
+        onCustomersChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 단계표시검증" }));
+    expect(await screen.findByLabelText("단계")).toHaveValue("정산요청");
+  });
+
+  it("단계를 바꿔 저장하면 status가 정산 body에 실린다", async () => {
+    const { fetchCustomerSettlement, saveCustomerSettlement } = await import("@/lib/customer-children");
+    vi.mocked(fetchCustomerSettlement).mockResolvedValueOnce({ settledAt: null, feeAmount: null, costs: [], status: "정산요청" });
+    vi.mocked(saveCustomerSettlement).mockClear();
+    render(
+      <CustomerManagementPage
+        customers={[settlementRow("cid-stage-2", 90202, "단계저장검증")]}
+        mode="delivery"
+        onCustomersChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 단계저장검증" }));
+    fireEvent.change(await screen.findByLabelText("단계"), { target: { value: "정산완료" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(saveCustomerSettlement).toHaveBeenCalled());
+    expect(vi.mocked(saveCustomerSettlement).mock.calls[0][1]).toMatchObject({ status: "정산완료" });
+  });
+
+  // 이 그물이 없으면 다음과 같이 조용히 깨진다: admin이 팝오버를 열어 둔 사이 담당자가 정산요청을
+  // 올리고, admin이 입금일만 고쳐 저장하면 그 요청이 "미정산"으로 되돌아간다(양쪽 다 모른다).
+  it("단계를 건드리지 않으면 status를 아예 보내지 않는다(담당자 요청 덮어쓰기 방지)", async () => {
+    const { fetchCustomerSettlement, saveCustomerSettlement } = await import("@/lib/customer-children");
+    vi.mocked(fetchCustomerSettlement).mockResolvedValueOnce({ settledAt: null, feeAmount: null, costs: [], status: "미정산" });
+    vi.mocked(saveCustomerSettlement).mockClear();
+    render(
+      <CustomerManagementPage
+        customers={[settlementRow("cid-stage-3", 90203, "단계미변경검증")]}
+        mode="delivery"
+        onCustomersChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 단계미변경검증" }));
+    await screen.findByLabelText("단계");
+    fireEvent.change(screen.getByLabelText("입금일"), { target: { value: "2026-08-05" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(saveCustomerSettlement).toHaveBeenCalled());
+    expect(vi.mocked(saveCustomerSettlement).mock.calls[0][1]).not.toHaveProperty("status");
+  });
+
   it("정산 칸은 팀장·상담사에게 보이지 않는다(출고 정보 칸은 그대로)", () => {
     for (const roleTab of ["팀장", "상담사"] as const) {
       const { unmount } = render(<CustomerManagementPage mode="delivery" roleTab={roleTab} />);
@@ -886,6 +960,8 @@ describe("출고 관리(delivery) 콘솔", () => {
       const dialog = screen.getByRole("dialog", { name: "출고 정보 편집" });
       expect(within(dialog).queryByLabelText(/입금일/)).toBeNull();
       expect(within(dialog).queryByLabelText(/실입금액/)).toBeNull();
+      // 단계도 같은 축 — 금액이 가려져도 단계가 보이면 담당자가 admin 전용 전이를 직접 할 수 있다.
+      expect(within(dialog).queryByLabelText("단계")).toBeNull();
       // 출고 정보 자체는 계속 편집 가능해야 한다 — 정산만 가리는 것이지 팝오버를 막는 게 아니다.
       expect(within(dialog).getByLabelText(/계약 차량/)).toBeInTheDocument();
       unmount();
