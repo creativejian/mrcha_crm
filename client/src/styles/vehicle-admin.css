@@ -996,6 +996,35 @@
   background: var(--surface);
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
 }
+/* 대기열 고정 헤더(2026-08-05) — 목록이 길어(실기 144건) 스크롤을 내리면 전체 승인 버튼이
+   화면 밖으로 사라진다. `.va-cr-pop` 자신이 스크롤 컨테이너라 여기 sticky가 그대로 먹는다.
+   ⚠️ 음수 마진 + top: -8px은 팝오버 padding(8px)을 상쇄해 헤더를 **전폭·최상단**에 붙이려는
+   것이다. 상쇄를 빼면 헤더 위·옆으로 8px 틈이 남아 그 사이로 아래 카드가 스쳐 지나간다.
+   ⚠️ 배경은 반드시 `.va-cr-pop`과 같은 불투명색 — 반투명이면 sticky 아래로 지나가는 카드가 비친다. */
+.va-cr-head {
+  position: sticky;
+  top: -8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -8px -8px 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 10px 10px 0 0;
+  background: var(--surface);
+}
+.va-cr-bulk-progress {
+  font-size: 13px;
+  color: var(--muted);
+}
+.va-cr-bulk-summary {
+  margin: 0 0 6px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
 .va-cr-note {
   padding: 6px 8px;
   font-size: 12px;
