@@ -1384,4 +1384,15 @@ describe("정산(settlement) 콘솔 목록", () => {
     expect(screen.getByRole("columnheader", { name: "실입금액" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "수수료" })).toBeNull();
   });
+
+  // ⚠️ 목업 행이 이 탭에 **실제로 뜨는지**를 잠근다. 목업에 정산만 넣고 `delivery`(계약 확정일)를
+  // 빠뜨리면 필터를 통과하지 못해 **넣은 목업이 화면에 영원히 안 보이는 죽은 데이터**가 된다
+  // (2026-08-05에 실제로 그 상태로 한 번 커밋됐고, 화면이 0건이라 유슨생이 발견했다).
+  // Storybook·목업 모드의 유일한 표본이라 여기가 비면 개발 중 이 화면을 아예 볼 수 없다.
+  it("목업 모드에서도 정산 행이 보인다(delivery 없이 settlement만 넣으면 필터에서 탈락한다)", () => {
+    render(<CustomerManagementPage mode="settlement" />);
+    expect(screen.getByText("이나경")).toBeInTheDocument();
+    expect(screen.getByText("1,180,000")).toBeInTheDocument(); // 실입금액
+    expect(screen.getByText("760,000")).toBeInTheDocument(); // 마진 = 1,180,000 − 420,000
+  });
 });
