@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { onCatalogQueueRemoteChanged } from "./catalog-change-realtime";
 import { onChangeRequestQueueUpdated } from "./catalog-change-requests";
 import { getJson } from "./http";
 
@@ -68,6 +69,9 @@ export function useMcCodeGaps(enabled: boolean): McCodeGaps {
   useEffect(() => (enabled ? onChangeRequestQueueUpdated(() => setTick((t) => t + 1)) : undefined), [enabled]);
   // ② 할당하면 준다.
   useEffect(() => (enabled ? onMcCodesAssigned(() => setTick((t) => t + 1)) : undefined), [enabled]);
+  // ③ **다른 관리자**가 승인해도 트림은 생긴다 — 그쪽 탭의 ①은 이 탭에 안 온다(모듈 pub/sub은
+  //    탭 안에서만 돈다). broadcast로 받는다. 배지 3종이 같은 신호 집합을 듣게 하는 축이다.
+  useEffect(() => (enabled ? onCatalogQueueRemoteChanged(() => setTick((t) => t + 1)) : undefined), [enabled]);
 
   return gaps;
 }

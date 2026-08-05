@@ -15,6 +15,8 @@ import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
 import { customerCodeFromLocation, customerListPath, customerModeFromSearch } from "@/lib/customer-route";
 import { financeListPath, financeModeFromSearch, financeModeMeta } from "@/lib/finance-route";
+import { onCatalogWriteQueued } from "@/lib/catalog";
+import { onCatalogQueueRemoteChanged } from "@/lib/catalog-change-realtime";
 import { onChangeRequestQueueUpdated } from "@/lib/catalog-change-requests";
 import { useMcCodeGaps } from "@/lib/mc-code-gaps";
 import { getJson } from "@/lib/http";
@@ -229,10 +231,21 @@ export function App() {
     const timer = window.setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
     const offQueue = onChangeRequestQueueUpdated(refresh);
+    // ⚠️ 아래 둘이 없으면 **대기가 늘어나는 방향만 최대 60초 뒤처진다**(2026-08-05 유슨생 실기:
+    // 브랜드 배지는 3인데 사이드바는 1이었다). 위 onChangeRequestQueueUpdated는 승인·반려·취소,
+    // 즉 **줄어드는** 사건만 알린다 — 새 요청 적재는 다른 신호로 온다.
+    //   onCatalogWriteQueued        = 같은 탭에서 쓰기가 큐로 적재됨(202)
+    //   onCatalogQueueRemoteChanged = 다른 세션의 적재·처리(broadcast)
+    // `useChangeRequestQueue`(브랜드·모델 배지)는 셋 다 듣고 있어서 이 화면만 어긋나 있었다.
+    // 배지 3종은 **같은 신호 집합**을 들어야 한다 — 하나를 늘릴 땐 여기도 함께 볼 것.
+    const offWrite = onCatalogWriteQueued(refresh);
+    const offRemote = onCatalogQueueRemoteChanged(refresh);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", refresh);
       offQueue();
+      offWrite();
+      offRemote();
     };
   }, [auth.authed, isAdmin]);
 
