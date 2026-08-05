@@ -89,6 +89,13 @@ export function useChangeRequestQueue(enabled: boolean): {
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
+  // 같은 탭의 다른 소비자가 승인/반려했을 때도 따라간다(2026-08-05). 이 훅은 **인스턴스가 여럿**이다
+  // — 헤더 대기열 팝오버와 모델 목록 배지가 각자 부른다. 아래 approve/reject가 올리는 tick은 자기
+  // 인스턴스만 갱신하므로, 이 구독이 없으면 팝오버에서 승인해도 **배지는 리로딩 전까지 그대로**다
+  // (#454 도입 직후 실기 발견 — 그전까진 인스턴스가 하나뿐이라 드러나지 않았다).
+  // 자기 승인으로 난 알림도 받지만 같은 동기 블록의 setTick과 배칭돼 재조회가 늘지 않는다.
+  useEffect(() => (enabled ? onChangeRequestQueueUpdated(() => setTick((t) => t + 1)) : undefined), [enabled]);
+
   // 다른 세션(팀장 적재/취소)의 변동을 리로딩 없이 반영한다(broadcast — catalog-change-realtime).
   useEffect(() => (enabled ? onCatalogQueueRemoteChanged(() => setTick((t) => t + 1)) : undefined), [enabled]);
 

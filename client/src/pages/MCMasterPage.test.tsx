@@ -185,7 +185,13 @@ beforeEach(() => {
       // 승인/반려는 URL만으로 분기(성공만 검증 — 서버 응답 본문은 approve()가 쓰지 않는다).
       if (url.endsWith("/approve") && approveFailIds.some((id) => url.includes(`/${id}/`)))
         return new Response(JSON.stringify({ error: "대상이 변경되었습니다." }), { status: 409 });
-      if (url.endsWith("/approve") || url.endsWith("/reject")) return new Response("{}", { status: 200 });
+      // 승인/반려 성공은 **큐에서 그 행을 실제로 뺀다** — 서버가 그렇게 동작하므로, 이후 재조회가
+      // 줄어든 목록을 받아야 "처리했는데 배지가 남아 있다" 같은 갱신 결함이 테스트에 드러난다.
+      if (url.endsWith("/approve") || url.endsWith("/reject")) {
+        const id = url.split("/").at(-2);
+        changeRequestQueue = changeRequestQueue.filter((r) => r.id !== id);
+        return new Response("{}", { status: 200 });
+      }
       if (url.startsWith("/api/catalog/change-requests")) {
         return new Response(JSON.stringify(changeRequestQueue), { status: 200 });
       }
@@ -343,6 +349,26 @@ it("모델 목록: 그 모델의 승인 대기 건수를 배지로 표시한다"
   renderPage("최고관리자");
 
   expect(await screen.findByLabelText("승인 대기 2건")).toBeInTheDocument();
+});
+
+// 회귀 그물(2026-08-05) — 배지용 큐 훅 인스턴스가 대기열 팝오버와 **별개**라, 팝오버에서 승인해도
+// 배지 쪽이 알림을 못 받으면 "리로딩해야 사라지는" 상태가 된다(실기 발견).
+it("모델 목록: 대기열에서 승인하면 배지가 리로딩 없이 줄어든다", async () => {
+  changeRequestQueue = [
+    { ...PENDING_ROW, id: "cr-a", targetModelId: 10 },
+    { ...PENDING_ROW, id: "cr-b", targetModelId: 10 },
+  ];
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await screen.findByLabelText("승인 대기 2건");
+
+  await user.click(await screen.findByRole("button", { name: "승인 대기 (2)" }));
+  await user.click(await screen.findByRole("button", { name: "전체 승인" }));
+
+  await waitFor(() => {
+    expect(screen.queryByLabelText(/승인 대기 \d+건/)).toBeNull();
+  });
 });
 
 it("모델 목록: 대기 0건이면 배지가 없다", async () => {
