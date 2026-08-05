@@ -787,7 +787,10 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
       onKeyDown={(event) => { if (event.key === "Enter") event.stopPropagation(); }}
       ref={rootRef}
       role="dialog"
-      style={pos ? { top: pos.top, left: pos.left } : { visibility: "hidden" }}
+      // 내용이 가변이라(비용 행을 계속 추가할 수 있다) 위아래 어디에도 안 들어가는 길이가 될 수
+      // 있다 — 그때 배치 훅은 아래로 붙이고, maxHeight가 없으면 넘친 부분이 조용히 잘린다
+      // (2026-08-05 실화면: "실입금액" 아래가 통째로 안 보였다). 남는 공간만큼으로 제한하고 스크롤.
+      style={pos ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight } : { visibility: "hidden" }}
     >
       {/* 폼형 관례(담당자 변경·고객 삭제·고객 등록 전부 가시 타이틀) + fixed 분리 대비 고객명 병기(배치 11 C#1·spec §6) */}
       <strong className="delivery-info-title">출고 정보 — {customerName}</strong>

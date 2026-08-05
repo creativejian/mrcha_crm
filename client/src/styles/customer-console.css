@@ -1094,6 +1094,9 @@
 .delivery-info-lines { display: grid; gap: 1px; line-height: 1.35; }
 /* fixed 배치 — 콘솔 래퍼 overflow:hidden 클리핑 탈출(delivery-schedule-popover와 동일 사유·기계장치) */
 .delivery-info-popover {
+  /* maxHeight는 인라인(배치 계산 결과)으로 온다 — 여기서는 넘칠 때 스크롤만 켠다.
+     ⚠️ overflow가 없으면 max-height가 걸려도 내용이 잘린 채 숨는다(스크롤 자체가 안 생긴다). */
+  overflow-y: auto;
   position: fixed; z-index: 160;
   display: grid; gap: 8px; min-width: 260px; padding: 12px;
   background: #fff; border: 1px solid var(--line, #dededb); border-radius: 12px;
