@@ -207,6 +207,20 @@ export function changeRequestDest(
 
 const EMPTY_ROWS: ChangeRequestItem[] = [];
 
+// 모델 목록 행 배지용 집계(2026-08-05) — 대기열 응답을 모델별로 센다.
+// **서버를 새로 두지 않은 이유**: 목록 응답이 이미 모든 kind에 대해 `targetModelId`를 채워
+// 준다(신규 트림은 payload.modelId에서 · 옵션은 옵션→트림→모델을 타고 — change-requests.ts의
+// 좌표 헬퍼). 모델마다 따로 조회하면 브랜드당 N+1이 되고, 목록과 배지가 서로 다른 시점을 보게 된다.
+// `targetModelId`가 null인 행(신규 모델 = 아직 목록에 없다, 대상이 삭제돼 좌표를 못 푼 행)은 뺀다.
+export function pendingCountByModel(rows: ChangeRequestItem[] | null): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const row of rows ?? []) {
+    if (row.targetModelId == null) continue;
+    counts.set(row.targetModelId, (counts.get(row.targetModelId) ?? 0) + 1);
+  }
+  return counts;
+}
+
 // 모델 단위 pending — 트림/옵션 행 "승인 대기" 배지(spec §7.2, admin·manager 공용). 조회 실패
 // 무소음: 배지는 409를 미리 보여주는 예방선일 뿐 최종 방어는 서버 부분 UNIQUE다(초기 실패 = EMPTY,
 // 재조회 실패 = 직전 rows 유지 — stale 배지가 없음보다 안전하다). modelId 전환 직후 이전 모델

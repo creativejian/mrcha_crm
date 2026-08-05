@@ -26,7 +26,7 @@ import {
 import { useAuth } from "@/auth/AuthProvider";
 import type { ChangeRequestKind } from "@/lib/catalog-change-kinds";
 import { useCatalogQueueApplied } from "@/lib/catalog-change-realtime";
-import type { ChangeRequestItem } from "@/lib/catalog-change-requests";
+import { type ChangeRequestItem, pendingCountByModel, useChangeRequestQueue } from "@/lib/catalog-change-requests";
 import { useDealerDiscounts } from "@/lib/dealer-discounts";
 import { useDealerMe } from "@/lib/dealer-profiles";
 import type { DiscountField } from "@/lib/discount-adoption";
@@ -84,6 +84,12 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   // 채택·승인 대기열 버튼(테스트 "팀장은 승인 대기 버튼을 렌더하지 않는다"가 잠금).
   const canPropose = roleTab === "팀장";
   const canWrite = canEdit || canPropose;
+  // 모델 목록 행의 승인 대기 배지(2026-08-05) — 대기열 목록은 admin만 받는다(manager는 서버 403).
+  // ⚠️ 같은 훅을 헤더의 승인 대기열 버튼도 쓴다 = 진입 시 요청 1개가 겹친다. 그럼에도 훅을 여기서
+  // 따로 부르는 이유: 버튼이 rows를 부모로 올리게 하면 승인/반려 tick까지 얽혀 결합이 커지고,
+  // 이 응답은 대기 건수만큼의 작은 JSON이며 모듈 캐시(queueCache)가 두 번째 마운트를 즉시 채운다.
+  const { rows: queueRows } = useChangeRequestQueue(canEdit);
+  const pendingByModel = useMemo(() => pendingCountByModel(queueRows), [queueRows]);
   const { userId } = useAuth(); // 프리필의 "내 요청" 판별용 — pendingRows는 모델 전체(타인 포함)라 requestedBy 대조가 필요하다.
   const navigate = useNavigate();
   const { modelId } = useParams();
@@ -695,6 +701,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
               <ModelTable
                 models={models}
                 canEdit={canWrite}
+                pendingByModel={pendingByModel}
                 selectMode={selectMode}
                 selected={selected}
                 draggingId={draggingId}

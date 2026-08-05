@@ -332,6 +332,26 @@ it("승인 클릭 시 approve API를 호출하고 행을 즉시 숨긴다", asyn
   });
 });
 
+// ── 모델 목록 승인 대기 배지(2026-08-05) ──────────────────────────────────────
+// 단위 테스트(ModelTable.test.tsx)는 prop만 본다 — 대기열 훅에서 목록까지의 **배선**은 여기서만 잡힌다.
+it("모델 목록: 그 모델의 승인 대기 건수를 배지로 표시한다", async () => {
+  changeRequestQueue = [
+    { ...PENDING_ROW, id: "cr-a", targetModelId: 10 },
+    { ...PENDING_ROW, id: "cr-b", targetModelId: 10 },
+    { ...PENDING_ROW, id: "cr-c", targetModelId: 999 }, // 다른 모델 — 이 행에 섞이면 안 된다
+  ];
+  renderPage("최고관리자");
+
+  expect(await screen.findByLabelText("승인 대기 2건")).toBeInTheDocument();
+});
+
+it("모델 목록: 대기 0건이면 배지가 없다", async () => {
+  renderPage("최고관리자");
+  await screen.findByText("그랜저");
+
+  expect(screen.queryByLabelText(/승인 대기 \d+건/)).toBeNull();
+});
+
 // ── 전체 승인(2026-08-05) ─────────────────────────────────────────────────────
 // 대기 전량을 한 번에 승인하는 경로. 되돌릴 수 없는 대량 반영이라 확인창이 유일한 제동장치다.
 const SECOND_PENDING: ChangeRequestItem = { ...PENDING_ROW, id: "cr-2", targetTrimId: 301, targetLabel: "5 Series › 520i" };
