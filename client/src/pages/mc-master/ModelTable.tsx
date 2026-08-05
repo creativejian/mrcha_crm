@@ -1,6 +1,7 @@
 import { Pencil } from "lucide-react";
 
 import { statusBadgeTone, statusLabel } from "@/data/vehicle-taxonomy";
+import { CountBadge } from "@/components/ui/CountBadge";
 import type { CatalogModel } from "@/lib/catalog";
 import { formatPriceRangeKorean } from "@/lib/price-format";
 import { SelectAllHeadCell, SelectCheckCell, SelectableRow } from "./table-select";
@@ -87,22 +88,12 @@ export function ModelTable({
               {/* 링크 색을 뺀 평문이다 — 행 전체가 눌리는데 이름만 브랜드 색이면 "여기만 눌러라"는
                   틀린 신호가 된다. 진입은 행이 담당하므로 여기엔 클릭 핸들러가 없다. */}
               <span>{m.name}</span>
-              {/* 승인 대기 건수 — 어느 모델에 처리할 게 있는지 목록에서 바로 보이게(사이드바
-                  `.nav-count`와 같은 어휘). 0이면 아예 안 그린다: 모든 행에 "0"이 붙으면 신호가
-                  죽는다. 세는 대상은 그 모델에 걸린 pending **전부**(모델 수정·트림·옵션·신규
-                  트림)로, 트림 화면 배지(useModelPendingRequests)와 같은 기준이다. */}
-              {pending > 0 && (
-                <span aria-label={`승인 대기 ${pending}건`} className="va-pending-count num">
-                  {pending}
-                </span>
-              )}
-              {/* 고유번호 미부여(파랑) — 승인 뒤에 남는 마무리다. 배지 순서는 **빨강 → 파랑** 고정
-                  (브랜드 목록과 같은 규칙). 이 모델에 들어가 "고유번호 할당"을 누르면 사라진다. */}
-              {gaps > 0 && (
-                <span aria-label={`고유번호 미부여 ${gaps}건`} className="va-gap-count num">
-                  {gaps}
-                </span>
-              )}
+              {/* 승인 대기(빨강) — 세는 대상은 그 모델에 걸린 pending **전부**(모델 수정·트림·
+                  옵션·신규 트림)로, 트림 화면 배지(useModelPendingRequests)와 같은 기준이다.
+                  뒤이어 고유번호 미부여(파랑) — 승인 뒤에 남는 마무리다. 순서는 **빨강 → 파랑**
+                  고정(브랜드 목록·사이드바와 같은 규칙). 0이면 안 그리는 규칙은 CountBadge 소유. */}
+              <CountBadge count={pending} tone="pending" label={`승인 대기 ${pending}건`} />
+              <CountBadge count={gaps} tone="gap" label={`고유번호 미부여 ${gaps}건`} />
             </td>
             <td>{m.category ?? "—"}</td>
             <td className="va-num va-mt-price">{formatPriceRangeKorean(m.minPrice, m.maxPrice)}</td>

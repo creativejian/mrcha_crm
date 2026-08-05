@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 
+import { CountBadge } from "@/components/ui/CountBadge";
 import type { CatalogBrand } from "@/lib/catalog";
 import { mcMasterViewState } from "./view-state";
 
@@ -54,17 +55,9 @@ export function BrandSidebar({
             <span className="va-brand-name">{b.name}</span>
             {/* 배지는 **빨강(승인 대기) → 파랑(고유번호 미부여)** 순으로 고정한다(2026-08-05 유슨생).
                 두 축이 한 줄에 같이 뜰 수 있어서(결재할 것 + 마무리할 것) 순서가 흔들리면 색을
-                매번 다시 읽게 된다. 0이면 그 배지를 아예 그리지 않는다. */}
-            {pending > 0 && (
-              <span aria-label={`${b.name} 승인 대기 ${pending}건`} className="va-pending-count num">
-                {pending}
-              </span>
-            )}
-            {gaps > 0 && (
-              <span aria-label={`${b.name} 고유번호 미부여 ${gaps}건`} className="va-gap-count num">
-                {gaps}
-              </span>
-            )}
+                매번 다시 읽게 된다. 0이면 안 그리는 규칙은 CountBadge가 소유한다. */}
+            <CountBadge count={pending} tone="pending" label={`${b.name} 승인 대기 ${pending}건`} />
+            <CountBadge count={gaps} tone="gap" label={`${b.name} 고유번호 미부여 ${gaps}건`} />
           </button>
         );
       })}

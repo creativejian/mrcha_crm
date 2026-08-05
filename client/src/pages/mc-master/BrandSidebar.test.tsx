@@ -22,8 +22,8 @@ describe("BrandSidebar 배지", () => {
   it("둘 다 있으면 빨강이 먼저다 — 순서가 흔들리면 색을 매번 다시 읽게 된다", () => {
     const { container } = renderSidebar({ pendingByBrand: new Map([[1, 2]]), gapsByBrand: { 1: 7 } });
 
-    const badges = [...container.querySelectorAll(".va-pending-count, .va-gap-count")];
-    expect(badges.map((b) => b.className.split(" ")[0])).toEqual(["va-pending-count", "va-gap-count"]);
+    const badges = [...container.querySelectorAll(".count-badge")];
+    expect(badges.map((b) => (b.classList.contains("tone-pending") ? "pending" : "gap"))).toEqual(["pending", "gap"]);
   });
 
   it("0이거나 데이터가 없으면 그 배지를 그리지 않는다", () => {

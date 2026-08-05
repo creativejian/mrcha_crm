@@ -1,5 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
+
+import { CountBadge } from "@/components/ui/CountBadge";
 import mrchaLogoColor from "@/assets/mrcha-logo-color.svg";
 import { customerModeMeta, type CustomerMode } from "@/data/customers";
 import type { FinanceMode } from "@/pages/FinancePage";
@@ -224,7 +226,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
           : (
             <>
               <button aria-label="대시보드" className={navButtonClass(visibleActiveView === "advisor-dashboard")} data-label="대시보드" onClick={() => navigate("advisor-dashboard")} type="button"><MenuIcon name="dashboard" /><span>대시보드</span></button>
-              <button aria-label="실시간 상담" className={navButtonClass(visibleActiveView === "chat")} data-label="실시간 상담" onClick={() => navigate("chat")} type="button"><MenuIcon name="chat" /><span>실시간 상담</span>{pendingChatCount > 0 ? <span className="nav-count num">{pendingChatCount}</span> : null}</button>
+              <button aria-label="실시간 상담" className={navButtonClass(visibleActiveView === "chat")} data-label="실시간 상담" onClick={() => navigate("chat")} type="button"><MenuIcon name="chat" /><span>실시간 상담</span><CountBadge count={pendingChatCount} tone="pending" label={`상담원 연결 대기 ${pendingChatCount}건`} /></button>
               <div className="nav-group">
                 <button aria-label="고객 관리" className={cn(navButtonClass(visibleActiveView === "customers"), collapsed && "has-flyout")} data-label="고객 관리" onClick={handleCustomersToggle} type="button"><MenuIcon name="users" /><span>고객 관리</span><ChevronDown className={`nav-chevron ${customersOpen ? "open" : ""}`} size={16} /></button>
                 {!collapsed && customersOpen && <div className="subnav">{customerModes.map(([mode, label]) => <button className={subnavButtonClass(visibleActiveView === "customers" && customerMode === mode)} key={mode} onClick={() => onCustomerModeChange(mode)} type="button">{label}</button>)}</div>}
@@ -232,7 +234,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
               </div>
               <button aria-label="고객 상세" className={navButtonClass(visibleActiveView === "customer-detail")} data-label="고객 상세" onClick={() => navigate("customer-detail")} type="button"><MenuIcon name="detail" /><span>고객 상세</span></button>
               {/* 인박스는 admin·manager 전용(2026-07-21 pending 항목 16) — 상담 신청 DB는 아래 canViewTeamMenu 구역에 이미 있고, 이 메뉴만 전 role에 열려 있었다. */}
-              {canViewTeamMenu && <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" onMouseEnter={() => prefetchAppQuoteRequests()} onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span>{newAppRequestCount > 0 ? <span className="nav-count num">{newAppRequestCount}</span> : null}</button>}
+              {canViewTeamMenu && <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" onMouseEnter={() => prefetchAppQuoteRequests()} onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span><CountBadge count={newAppRequestCount} tone="pending" label={`새 앱 견적요청 ${newAppRequestCount}건`} /></button>}
               <button aria-label="상담 파이프라인" className={navButtonClass(visibleActiveView === "pipeline")} data-label="상담 파이프라인" onClick={() => navigate("pipeline")} type="button"><MenuIcon name="pipeline" /><span>상담 파이프라인</span></button>
             </>
           )}
@@ -267,7 +269,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
                     폴링) — 딜러 할인 제안 합산은 후속(spec §7.5). */}
                 {/* MC 마스터는 인사이트류와 달리 사이드바 중복 진입을 예외 허용(2026-07-30) — 승인 대기
                     배지를 항상 보이게 하는 게 목적이고, 설정 팝오버 행에는 배지 선례/스타일이 없다. */}
-                <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span>{pendingChangeRequestCount > 0 ? <span className="nav-count num">{pendingChangeRequestCount}</span> : null}{mcCodeGapCount > 0 ? <span aria-label={`고유번호 미부여 ${mcCodeGapCount}건`} className="nav-gap-count num">{mcCodeGapCount}</span> : null}</button>
+                <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span><CountBadge count={pendingChangeRequestCount} tone="pending" label={`승인 대기 ${pendingChangeRequestCount}건`} /><CountBadge count={mcCodeGapCount} tone="gap" label={`고유번호 미부여 ${mcCodeGapCount}건`} /></button>
                 {/* 인사이트·지식베이스 진입은 프로필 팝오버 "차선생 앱 설정" 그룹만(프로토타입 원 설계).
                     #251이 덧붙인 사이드바 진입점은 중복이라 제거(2026-07-19 유슨생 — pending 항목 12). */}
               </>

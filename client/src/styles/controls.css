@@ -60,6 +60,30 @@
   font-weight: 700;
 }
 
+/* 카운트 배지 공용 형태(2026-08-05) — 사이드바 메뉴·브랜드 목록·모델 목록이 공유한다.
+   크기는 theme.css의 --count-badge-* 가 SSOT고, 여기서는 모양과 톤만 정한다.
+   ⚠️ **배치(margin)는 소비 컨텍스트가 정한다** — 사이드바는 오른쪽 끝으로 밀고(auto), 모델
+   목록은 이름 옆에 붙는다. 여기에 margin을 넣으면 두 배치가 서로를 덮어쓴다.
+   톤: pending(빨강) = 결재할 것 / gap(파랑) = 결재 뒤에 남는 마무리. */
+.count-badge {
+  min-width: var(--count-badge-size);
+  height: var(--count-badge-size);
+  padding: var(--count-badge-pad);
+  border-radius: var(--count-badge-radius);
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-size: var(--count-badge-font);
+  font-weight: 400;
+  line-height: 1;
+}
+.count-badge.tone-pending {
+  background: #ef4444;
+}
+.count-badge.tone-gap {
+  background: #3b82f6;
+}
+
 .btn {
   height: 36px;
   border: 1px solid var(--line);
