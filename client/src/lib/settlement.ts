@@ -24,6 +24,15 @@ export function settlementMargin(feeAmount: number | null, costs: SettlementCost
   return feeAmount - sumSettlementCosts(costs);
 }
 
+/**
+ * 목록 셀용 금액 표기(2026-08-05 정산 목록 컬럼). `null`이면 **"—"** — 0원과 "모른다"를 구분한다
+ * (팝오버 마진 표기와 같은 규칙). 단위는 붙이지 않는다: 목록은 열 머리에 이미 의미가 있고,
+ * 좁은 칸에 "원"까지 넣으면 자릿수가 밀린다.
+ */
+export function formatSettlementAmount(amount: number | null): string {
+  return amount == null ? "—" : amount.toLocaleString("ko-KR");
+}
+
 /** 화면에서 편집 중인 비용 행 — 금액이 **문자열**인 것이 차이다(입력 중 콤마·빈 칸 허용). */
 export type SettlementCostDraft = { kind: SettlementCostKind; label: string | null; amountText: string };
 

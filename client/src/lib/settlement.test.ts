@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SETTLEMENT_COST_KINDS, SETTLEMENT_STATUS_OPTIONS, type SettlementCost, type SettlementCostKind } from "@/data/customers";
-import { formatSettlementMargin, resolveSettlementCosts, settlementMargin, sumSettlementCosts } from "./settlement";
+import { formatSettlementMargin, resolveSettlementCosts, settlementMargin, sumSettlementCosts, formatSettlementAmount } from "./settlement";
 
 const cost = (kind: SettlementCostKind, amount: number, label: string | null = null): SettlementCost => ({ kind, label, amount });
 
@@ -106,5 +106,23 @@ describe("formatSettlementMargin", () => {
 
   it("역마진도 그대로 보여준다", () => {
     expect(formatSettlementMargin("300000", [{ kind: "페이백", label: null, amountText: "500000" }])).toBe("-200,000원");
+  });
+});
+
+describe("formatSettlementAmount", () => {
+  it("천단위 콤마를 넣되 단위는 붙이지 않는다(목록 칸이 좁다 — 열 머리에 의미가 있다)", () => {
+    expect(formatSettlementAmount(1_180_000)).toBe("1,180,000");
+  });
+
+  it("null이면 '—' — 0원과 '모른다'를 구분한다(마진 표기와 같은 규칙)", () => {
+    expect(formatSettlementAmount(null)).toBe("—");
+  });
+
+  it("0원은 '—'가 아니라 0으로 보여준다(비용이 실제로 0인 건과 미입력은 다르다)", () => {
+    expect(formatSettlementAmount(0)).toBe("0");
+  });
+
+  it("역마진(음수)도 그대로 낸다", () => {
+    expect(formatSettlementAmount(-200_000)).toBe("-200,000");
   });
 });

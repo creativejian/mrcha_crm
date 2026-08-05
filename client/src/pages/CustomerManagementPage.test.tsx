@@ -1289,3 +1289,99 @@ describe("콘솔 행 팝오버 fixed 배치(클리핑 확산 픽스)", () => {
     expect(screen.queryByRole("listbox", { name: "진행 1단계 선택" })).not.toBeInTheDocument();
   });
 });
+
+// ── 정산(settlement) 콘솔 목록 컬럼(2026-08-05) ──────────────────────────────
+// 이 탭은 도입 이래 **실 데이터에서 늘 빈 목록**이었다: 필터가 목업 전용 필드
+// (`customer.settlementStatus`)를 봐서 서버 행은 전부 탈락했고, 금액 3열도 목업의 자유 문자열
+// (`fee: "슬라이딩 118만원"`)을 그렸다. 확정 설계(금액=number·비용=배열·마진=파생)로 다시 지었다.
+describe("정산(settlement) 콘솔 목록", () => {
+  const settled = (over: Partial<(typeof initialCustomers)[number]> = {}) => ({
+    ...initialCustomers[4],
+    id: "cid-settle-list",
+    no: 90301,
+    customerId: "CU-2605-9301",
+    name: "정산목록검증",
+    statusGroup: "계약완료",
+    status: "출고완료",
+    nextDeliverySchedule: null,
+    delivery: {
+      contractVehicle: "BMW 520i",
+      contractDate: "2026-07-01",
+      lender: "iM캐피탈",
+      deliveredDate: "2026-07-20",
+      contractConfirmedDate: "2026-07-25", // 이게 있어야 정산 대상이다
+      deliveryMemo: null,
+      sourceQuoteId: null,
+    },
+    ...over,
+  });
+
+  it("실입금액·비용합·마진을 실 데이터에서 그린다(마진은 저장 안 하는 파생)", () => {
+    const customers = [
+      settled({
+        settlement: {
+          settledAt: "2026-08-01",
+          feeAmount: 2_000_000,
+          costs: [
+            { kind: "썬팅" as const, label: null, amount: 300_000 },
+            { kind: "탁송" as const, label: null, amount: 120_000 },
+          ],
+          status: "정산완료" as const,
+        },
+      }),
+    ];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    const row = screen.getByText("정산목록검증").closest("tr") as HTMLTableRowElement;
+    expect(within(row).getByText("2,000,000")).toBeInTheDocument(); // 실입금액
+    expect(within(row).getByText("420,000")).toBeInTheDocument(); // 비용합 = 300,000 + 120,000
+    expect(within(row).getByText("1,580,000")).toBeInTheDocument(); // 마진 = 2,000,000 − 420,000
+    expect(within(row).getByText("2026-07-25")).toBeInTheDocument(); // 출고일 = 계약 확정일
+  });
+
+  // 비admin은 서버가 `settlement`을 null로 비운다(lib/settlement-visibility) — 화면은 그 상태에서
+  // **깨지지 않고 "—"**로 떨어져야 한다. 여기가 무너지면 상담사 화면이 빈 칸이 아니라 에러가 된다.
+  it("정산이 null이면(비admin 응답) 금액 3열이 '—'로 떨어진다", () => {
+    render(<CustomerManagementPage customers={[settled({ settlement: null })]} mode="settlement" onCustomersChange={() => {}} />);
+    const row = screen.getByText("정산목록검증").closest("tr") as HTMLTableRowElement;
+    expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(3);
+  });
+
+  // 담당자가 올린 "정산요청"이 admin 목록에서 눈에 띄어야 한다 — 처리 대기 건이기 때문이다.
+  it("단계 배지는 정산요청만 강조 톤(yellow)을 쓴다", () => {
+    const customers = [settled({ settlement: { settledAt: null, feeAmount: null, costs: [], status: "정산요청" as const } })];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    const badge = screen.getByText("정산요청");
+    expect(badge.className).toContain("yellow");
+  });
+
+  // 필터 회귀 그물 — 이 조건이 목업 필드로 되돌아가면 탭이 다시 통째로 빈다(2년치 버그의 정체).
+  it("계약 확정일이 없는 고객은 정산 목록에 뜨지 않는다", () => {
+    const customers = [
+      settled({ name: "확정됨" }),
+      settled({
+        id: "cid-unconfirmed",
+        no: 90302,
+        customerId: "CU-2605-9302",
+        name: "미확정",
+        delivery: {
+          contractVehicle: "BMW 520i",
+          contractDate: "2026-07-01",
+          lender: null,
+          deliveredDate: "2026-07-20",
+          contractConfirmedDate: null,
+          deliveryMemo: null,
+          sourceQuoteId: null,
+        },
+      }),
+    ];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    expect(screen.getByText("확정됨")).toBeInTheDocument();
+    expect(screen.queryByText("미확정")).toBeNull();
+  });
+
+  it("목록 헤더는 팝오버와 같은 말을 쓴다 — '수수료'가 아니라 '실입금액'", () => {
+    render(<CustomerManagementPage mode="settlement" />);
+    expect(screen.getByRole("columnheader", { name: "실입금액" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "수수료" })).toBeNull();
+  });
+});

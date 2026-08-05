@@ -1,4 +1,4 @@
-import type { ContractingQuoteSummary, Customer, CustomerDeliveryInfo, NextDeliverySchedule } from "@/data/customers";
+import type { ContractingQuoteSummary, Customer, CustomerDeliveryInfo, CustomerSettlement, NextDeliverySchedule } from "@/data/customers";
 import { getJson, sendJson, sendVoid } from "./http";
 import { formatPhone } from "./phone-format";
 import type { CustomerDetailQuote } from "./quote-items";
@@ -28,6 +28,9 @@ export type CustomerRow = {
   nextDeliverySchedule: NextDeliverySchedule | null;
   delivery: CustomerDeliveryInfo | null;
   contractingQuote: ContractingQuoteSummary | null;
+  /** 정산 — **admin 응답에만 값이 있다**(그 외 역할은 서버가 null로 비운다,
+   * `src/lib/settlement-visibility.ts`). 키는 항상 존재하므로 파싱을 역할별로 가르지 않는다. */
+  settlement: CustomerSettlement | null;
   receivedAt: string | null;
   assignedAt: string | null;
   lastActivityAt: string | null;
@@ -72,6 +75,9 @@ export function toCustomer(row: CustomerRow): Customer {
     nextDeliverySchedule: row.nextDeliverySchedule ?? null,
     delivery: row.delivery ?? null,
     contractingQuote: row.contractingQuote ?? null,
+    // 비admin은 서버가 null로 비운 값을 그대로 받는다 — 화면은 "없음"과 "권한 없음"을 구분하지
+    // 않는다(둘 다 정산 셀이 비어 보인다). 구분이 필요해지면 그때 별도 플래그를 받는다.
+    settlement: row.settlement ?? null,
     advisor: row.advisorName ?? "미배정",
     statusGroup: row.statusGroup ?? "",
     status: row.status ?? "",

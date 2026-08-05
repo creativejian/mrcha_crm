@@ -6,7 +6,7 @@ import { staffActivityAt } from "./activity";
 import { listAdvisorViewedAt } from "./advisor-quotes";
 import { nextCustomerCode } from "./quote-requests";
 import { profiles } from "../public-app";
-import { DELIVERY_SCHEDULE_TYPE, type ContractingQuoteSummary, type CustomerDeliveryInfo, type NextDeliverySchedule } from "../../../client/src/data/customers";
+import { DELIVERY_SCHEDULE_TYPE, type ContractingQuoteSummary, type CustomerDeliveryInfo, type CustomerSettlement, type NextDeliverySchedule } from "../../../client/src/data/customers";
 import {
   consultations,
   customerDocuments,
@@ -18,12 +18,16 @@ import {
   quoteScenarios,
 } from "../schema";
 
-// 목록 행 = customers 전체 컬럼 + 상담메모용 최신 미완료 task 1건(id·body) + 출고 파생 3종.
+// 목록 행 = customers 전체 컬럼 + 상담메모용 최신 미완료 task 1건(id·body) + 출고 파생 3종 + 정산.
+// ⚠️ `settlement`은 **admin에게만 값이 있다** — 이 쿼리는 role을 모른 채 항상 뽑고,
+// 라우트가 `visibleSettlementFor`로 한 겹 비운다(층 분리: 필터=쿼리 WHERE / 가시성=lib).
+// 그래서 이 타입만 보고 "목록에 정산이 나간다"고 읽으면 안 된다 — 비admin 응답에서는 null이다.
 export type CustomerListRow = typeof customers.$inferSelect & {
   latestTask: { id: string; body: string | null } | null;
   nextDeliverySchedule: NextDeliverySchedule | null;
   delivery: CustomerDeliveryInfo | null;
   contractingQuote: ContractingQuoteSummary | null;
+  settlement: CustomerSettlement | null;
 };
 
 // 상담메모(목업 nextAction): customer_tasks 최신 미완료 1건 body를 상관 서브쿼리로.
@@ -65,6 +69,21 @@ const deliveryInfo = sql<CustomerDeliveryInfo | null>`(
     'contractConfirmedDate', d.contract_confirmed_date,
     'deliveryMemo', d.delivery_memo,
     'sourceQuoteId', d.source_quote_id)
+  from crm.customer_deliveries d
+  where d.customer_id = crm.customers.id
+)`;
+
+// 정산(2026-08-05 목록 컬럼) — 출고 정보와 **같은 행**이지만 서브쿼리를 나눈다. 합치면 비admin에게
+// 비울 때 출고 정보까지 함께 날아가고(둘은 다른 축·다른 권한), 마스킹이 필드 단위로 내려가야 한다.
+// ⚠️ **마진은 싣지 않는다** — 저장하지 않는 파생값이라 SQL로 재현하면 산식이 두 벌이 된다.
+// 화면이 `settlementMargin(feeAmount, costs)`(client/src/lib/settlement.ts) 한 벌로 계산한다.
+// 완전정규화(`crm.customers.id`) 주의는 위 서브쿼리들과 동일(#154 섀도잉 버그 클래스).
+const settlementInfo = sql<CustomerSettlement | null>`(
+  select json_build_object(
+    'settledAt', d.settled_at,
+    'feeAmount', d.fee_amount,
+    'costs', d.settlement_costs,
+    'status', d.settlement_status)
   from crm.customer_deliveries d
   where d.customer_id = crm.customers.id
 )`;
@@ -237,7 +256,7 @@ export async function getCustomerFeaturedRequestId(
 // 화면의 고객 집합이 같은 판정을 공유한다. 미배정(advisor_id NULL)은 매칭 불가 = 자동 제외(S-4).
 export async function listCustomers(executor: Executor = getDefaultDb(), scope: CustomerScope = "all"): Promise<CustomerListRow[]> {
   const query = executor
-    .select({ ...getTableColumns(customers), phone: composedPhone, latestTask: latestTaskBody, lastActivityAt: staffActivityAt, nextDeliverySchedule, delivery: deliveryInfo, contractingQuote: contractingQuoteSummary })
+    .select({ ...getTableColumns(customers), phone: composedPhone, latestTask: latestTaskBody, lastActivityAt: staffActivityAt, nextDeliverySchedule, delivery: deliveryInfo, contractingQuote: contractingQuoteSummary, settlement: settlementInfo })
     .from(customers)
     .leftJoin(profiles, eq(customers.appUserId, profiles.id));
   if (scope !== "all") return query.where(eq(customers.advisorId, scope.advisorId)).orderBy(desc(customers.receivedAt));

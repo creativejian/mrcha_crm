@@ -30,6 +30,7 @@ import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-
 import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
 import { createSignedUrl, removeObject, removeObjects, uploadObject, type StorageEnv } from "../lib/storage";
 import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
+import { visibleSettlementFor } from "../lib/settlement-visibility";
 import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
 import { requireRoles } from "../middleware/role-gate";
@@ -155,7 +156,12 @@ const CUSTOMER_PROFILE_EMBED_KEYS = [
 ] as const satisfies readonly (keyof z.infer<typeof customerWriteSchema>)[];
 
 // 목록도 같은 scope — staff는 본인 담당만(WHERE), admin·manager는 전체(role scope spec S-1).
-customers.get("/", async (c) => c.json(await listCustomers(c.var.db, resolveCustomerScope(c.var.user))));
+// 정산은 **가시성이 한 겹 더 좁다**(scope=전체인 manager도 못 본다) — 축이 다르므로 층도 나눈다:
+// 누구의 고객인가 = 쿼리 WHERE / 어떤 필드를 보는가 = `visibleSettlementFor`(catalog 트림 목록의
+// `visibleTrimsFor`와 동형). 쿼리는 role을 모른 채 항상 뽑고 여기서 비운다.
+customers.get("/", async (c) =>
+  c.json(visibleSettlementFor(c.var.user.role, await listCustomers(c.var.db, resolveCustomerScope(c.var.user)))),
+);
 
 // ── 고객 수기 등록(전화·소개 유입 — 앱 승격 외 유일한 생성 경로) ────
 // spec: ref/specs/2026-07-10-crm-customer-create-design.md
