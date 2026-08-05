@@ -8,6 +8,10 @@ import { CHANCE_OPTIONS, type Customer, type CustomerSettlementPatch, customerSt
 import { DateTextField } from "@/components/DateTextField";
 import { aiHintDisplay, assignedAtDisplay, type ChanceOption, chanceButtonClass, chanceOptionClass, customerMeta, deliveryMethodDisplay, deliveryVehicleDisplay, extraTooltipValue, type FinalUpdateInfo, type FinalUpdateStatus, primaryStageOptions, receivedAtDisplay, secondaryStageOptionsByGroup, type StagePickerLevel, statusButtonClass, vehicleDisplay } from "@/lib/customer-table";
 import { deliveryScheduleLabel } from "@/lib/delivery-console";
+// 금액 칸 입력 포맷 SSOT(구매조건 초기비용과 같은 한 벌) — 숫자 외 문자를 지우고 천단위 콤마를
+// 넣는다. 저장 파서(resolveSettlementSubmit·resolveSettlementCosts)가 콤마를 다시 벗기므로
+// 표시와 저장이 어긋나지 않는다.
+import { formatNumberWithCommas } from "@/lib/detail-utils";
 import { deliveryInfoSummary, resolveSettlementSubmit, seedDeliveryInfoDraft, unconfirmedDeliveryDays, type DeliveryInfoDraft, type SeedableDeliveryField } from "@/lib/delivery-info";
 import { fetchCustomerSettlement, requestCustomerSettlement } from "@/lib/customer-children";
 import { formatSettlementMargin, resolveSettlementCosts, type SettlementCostDraft } from "@/lib/settlement";
@@ -752,8 +756,9 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
       .then((s) => {
         if (cancelled) return;
         setSettledAt(s.settledAt ?? "");
-        setFeeText(s.feeAmount == null ? "" : String(s.feeAmount));
-        setCosts((s.costs ?? []).map((c) => ({ kind: c.kind, label: c.label, amountText: String(c.amount) })));
+        // 불러올 때도 같은 포맷으로 — 저장된 값만 콤마가 없으면 방금 입력한 값과 표기가 어긋난다.
+        setFeeText(s.feeAmount == null ? "" : formatNumberWithCommas(String(s.feeAmount)));
+        setCosts((s.costs ?? []).map((c) => ({ kind: c.kind, label: c.label, amountText: formatNumberWithCommas(String(c.amount)) })));
       })
       .catch(() => {
         if (!cancelled) setSettlementError("정산 정보를 불러오지 못했습니다.");
@@ -815,7 +820,7 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
           <label>
             <span>실입금액</span>
             <span className="delivery-fee-input">
-              <input inputMode="numeric" onChange={(e) => setFeeText(e.target.value)} type="text" value={feeText} />
+              <input inputMode="numeric" onChange={(e) => setFeeText(formatNumberWithCommas(e.target.value))} type="text" value={feeText} />
               <em>원</em>
             </span>
           </label>
@@ -846,7 +851,7 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
                 <input
                   aria-label={`비용 ${i + 1} 금액`}
                   inputMode="numeric"
-                  onChange={(e) => setCosts((rows) => rows.map((r, j) => (j === i ? { ...r, amountText: e.target.value } : r)))}
+                  onChange={(e) => setCosts((rows) => rows.map((r, j) => (j === i ? { ...r, amountText: formatNumberWithCommas(e.target.value) } : r)))}
                   type="text"
                   value={c.amountText}
                 />
