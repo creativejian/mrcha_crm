@@ -189,6 +189,13 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+// 모델 목록 → 트림 뷰 진입. **행 전체가 클릭 대상**이라(2026-08-05) 모델명은 버튼이 아니라
+// 평문이다 — role로는 잡히지 않으니 텍스트를 눌러 행까지 버블시킨다. 진입 수단이 또 바뀌면
+// 여기 한 줄만 고치면 된다(19개 호출부가 이 헬퍼를 공유).
+async function openModel(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(await screen.findByText(name));
+}
+
 it("브랜드·모델 렌더", async () => {
   renderPage("최고관리자");
   expect(await screen.findByText("그랜저")).toBeInTheDocument();
@@ -212,7 +219,7 @@ it("상담사는 편집 버튼 숨김", async () => {
 it("모델 클릭 시 트림 리스트로 드릴다운", async () => {
   const user = userEvent.setup();
   renderPage("최고관리자");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   expect(await screen.findByText("캐스퍼 1.0")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /트림 추가/ })).toBeInTheDocument();
 });
@@ -244,7 +251,7 @@ it("쿼리 없이 재진입해도 마지막 브랜드를 복원한다(Topbar 메
 it("트림 뷰로 들어가도 브랜드 쿼리를 물고 간다(트림 화면 새로고침 정합)", async () => {
   const user = userEvent.setup();
   renderPage("최고관리자");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   expect(screen.getByTestId("loc")).toHaveTextContent("/mc-master/10?brand=1");
 });
@@ -331,7 +338,7 @@ it("팀장: 모델 추가·수정 진입은 열리고 선택(일괄삭제·순�
 it("팀장 트림 뷰: 트림 추가·수정은 열리고 고유번호 할당은 없고 저장 버튼은 '승인 요청'", async () => {
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   expect(screen.getByRole("button", { name: /트림 추가/ })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /고유번호 할당/ })).toBeNull();
@@ -344,7 +351,7 @@ it("팀장 저장(202 queued): 토스트가 뜨고 패널이 닫힌다", async (
   const toasts: string[] = [];
   const user = userEvent.setup();
   renderPage("팀장", "/mc-master", (m) => toasts.push(m));
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
   await user.click(await screen.findByRole("button", { name: "승인 요청" }));
@@ -363,7 +370,7 @@ it("팀장 저장(409 타인 pending): 패널에 서버 메시지가 뜨고 열�
   trimPatchResponse = { status: 409, body: { error: "이미 승인 대기 중인 요청이 있습니다." } };
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
   await user.click(await screen.findByRole("button", { name: "승인 요청" }));
@@ -374,7 +381,7 @@ it("팀장 저장(409 타인 pending): 패널에 서버 메시지가 뜨고 열�
 it("팀장 옵션 패널: 추가·수정은 열리고 삭제는 없고 제출 라벨은 '승인 요청'", async () => {
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   await user.click(screen.getByRole("button", { name: "옵션 미입력" }));
   const editOption = await screen.findByRole("button", { name: "선루프 수정" });
@@ -409,7 +416,7 @@ it("행 배지 클릭 → 팝오버에 요청자·작업·전후 diff — 팀장
   ];
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   await user.click(await screen.findByRole("button", { name: "승인 대기" })); // 행 배지(팀장에겐 헤더 대기열 버튼이 없어 유일)
   expect(await screen.findAllByText("박서준")).toHaveLength(2); // 요청 2건이 행별로 쌓인다
@@ -424,7 +431,7 @@ it("admin: 행 배지 팝오버에서 승인 → approve API 발사 + 행 즉시
   modelPendingRows = [{ ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 }];
   const user = userEvent.setup();
   renderPage("최고관리자");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   // 헤더 대기열 버튼이 "(0)"까지 붙기를 기다린다 — 로딩 구간 텍스트가 행 배지와 같은 "승인 대기"라
   // 완전일치 매처가 두 요소를 물 수 있다(위 주석 참조).
@@ -455,7 +462,7 @@ it("trim.create pending은 미리보기 행으로 트림 테이블 안에 나타
   ];
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   // "새 트림"은 ' - ' 없는 이름 → '기타' 서브라인 = 기존 트림(캐스퍼 1.0)과 같은 첫 그룹(펼침 상태).
   expect(await screen.findByText("새 트림")).toBeInTheDocument();
   expect(screen.getByText("1,234,000원")).toBeInTheDocument(); // payload 값이 행 셀로 보인다
@@ -479,7 +486,7 @@ it("팀장: 미리보기 행 연필(이어서 수정) → 폼 프리필 + 저장
   ];
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await user.click(await screen.findByRole("button", { name: "새 트림 이어서 수정" }));
   expect(await screen.findByDisplayValue("새 트림")).toBeInTheDocument(); // payload 프리필
   expect(screen.getByDisplayValue("1,234,000")).toBeInTheDocument();
@@ -511,7 +518,7 @@ it("타인의 미리보기 행에는 이어서 수정 연필이 없다(승인 �
   ];
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   expect(await screen.findByText("새 트림")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "새 트림 이어서 수정" })).toBeNull();
 });
@@ -553,7 +560,7 @@ it("팀장 저장(202)이 큐에 쌓이면 행 배지가 즉시 나타난다(pub
   trimPatchResponse = { status: 202, body: { queued: true, requestId: "cr-9" } };
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   expect(screen.queryByText("승인 대기")).toBeNull(); // 저장 전엔 배지 없음
   await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
@@ -573,7 +580,7 @@ it("팀장 프리필: 내 pending payload가 편집 폼에 겹쳐지고 안내�
   ];
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   await screen.findByText("승인 대기"); // 행 배지 = pendingRows 도착 보장(프리필은 열기 전 로드 전제)
   await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
@@ -595,7 +602,7 @@ it("타인 pending은 프리필하지 않는다 — 폼은 카탈로그 값, 안
   ];
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   await screen.findByText("승인 대기");
   await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
@@ -609,7 +616,7 @@ it("팀장 폼엔 할인 정보가 없고 제출 payload에도 할인 키가 안
   trimPatchResponse = { status: 202, body: { queued: true, requestId: "cr-9" } };
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
   await screen.findByRole("button", { name: "승인 요청" });
@@ -628,7 +635,7 @@ it("팀장 폼엔 할인 정보가 없고 제출 payload에도 할인 키가 안
 it("admin 폼엔 할인 정보가 그대로 있다(채택 외 수동 조정 경로 유지)", async () => {
   const user = userEvent.setup();
   renderPage("최고관리자");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   await user.click(screen.getByRole("button", { name: "캐스퍼 1.0 수정" }));
   expect(await screen.findByText("자사 할인(원)")).toBeInTheDocument();
@@ -645,7 +652,7 @@ it("admin 목록 보기 선택: 그룹 헤더만 남고, 드래그 → 블록째
   trimsResponse = GROUP_TRIMS;
   const user = userEvent.setup();
   renderPage("최고관리자");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("스마트"); // 그룹 뷰 로드(첫 그룹 펼침 상태)
   await user.click(screen.getByRole("button", { name: "선택" }));
   // 그룹 순서 모드 — 트림 행·체크박스 없이 그룹 헤더만 남는다.
@@ -669,7 +676,7 @@ it("팀장에겐 목록 보기 선택 버튼이 없다(그룹 순서 = reorder a
   trimsResponse = GROUP_TRIMS;
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("스마트");
   expect(screen.queryByRole("button", { name: "선택" })).toBeNull();
 });
@@ -715,7 +722,7 @@ it("trim.update pending: 가격 셀 아래 앰버 '→ 새값'이 뜬다(팝오�
   modelPendingRows = [{ ...PENDING_ROW, targetId: 100, targetBrandId: 1, targetModelId: 10, targetTrimId: 100 }];
   const user = userEvent.setup();
   renderPage("팀장");
-  await user.click(await screen.findByRole("button", { name: "그랜저" }));
+  await openModel(user, "그랜저");
   await screen.findByText("캐스퍼 1.0");
   // payload {price: 50,000,000} vs snapshot {price: 45,000,000} — 가격 셀만 diff.
   expect(await screen.findByText("→ 50,000,000원")).toBeInTheDocument();

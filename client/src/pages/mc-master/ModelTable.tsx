@@ -61,6 +61,10 @@ export function ModelTable({
             onDragStart={onDragStart}
             onDragOver={onDragOver}
             onDrop={onDrop}
+            // 행 전체가 트림 뷰 진입 버튼이다(2026-08-05 유슨생) — 모델명 텍스트만 눌리던 때는
+            // "캐스퍼"처럼 짧은 이름의 클릭 폭이 행 높이에 견줘 지나치게 좁았다.
+            onActivate={() => onOpen(m)}
+            onHover={onPrefetch ? () => onPrefetch(m) : undefined}
           >
             <SelectCheckCell
               show={selectMode}
@@ -70,19 +74,9 @@ export function ModelTable({
             />
             <td className="va-model-name">
               {m.imageUrl && <img src={m.imageUrl} alt="" className="va-model-thumb" loading="lazy" decoding="async" />}
-              {selectMode ? (
-                <span>{m.name}</span>
-              ) : (
-                <button
-                  type="button"
-                  className="va-link"
-                  onClick={() => onOpen(m)}
-                  onMouseEnter={() => onPrefetch?.(m)}
-                  onFocus={() => onPrefetch?.(m)}
-                >
-                  {m.name}
-                </button>
-              )}
+              {/* 링크 색을 뺀 평문이다 — 행 전체가 눌리는데 이름만 브랜드 색이면 "여기만 눌러라"는
+                  틀린 신호가 된다. 진입은 행이 담당하므로 여기엔 클릭 핸들러가 없다. */}
+              <span>{m.name}</span>
             </td>
             <td>{m.category ?? "—"}</td>
             <td className="va-num va-mt-price">{formatPriceRangeKorean(m.minPrice, m.maxPrice)}</td>
@@ -92,7 +86,17 @@ export function ModelTable({
             <td className="va-col-center va-num">{m.trimCount}</td>
             {canEdit && !selectMode && (
               <td className="va-col-center">
-                <button type="button" className="tiny-btn" aria-label={`${m.name} 수정`} onClick={() => onEdit(m)}>
+                {/* ⚠️ stopPropagation 필수 — 없으면 수정 클릭이 행까지 버블돼 편집 패널을 열면서
+                    트림 뷰로도 함께 이동한다(행 진입과 한 클릭에 겹친다). */}
+                <button
+                  type="button"
+                  className="tiny-btn"
+                  aria-label={`${m.name} 수정`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(m);
+                  }}
+                >
                   <Pencil size={14} />
                 </button>
               </td>
