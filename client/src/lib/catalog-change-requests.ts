@@ -4,7 +4,7 @@ import { mcMasterPath } from "@/pages/mc-master/mc-master-route";
 
 import { CHANGE_FIELD_LABELS, OPTION_TYPE_VALUE_LABELS, type ChangeRequestKind } from "./catalog-change-kinds";
 import { broadcastCatalogQueueChanged } from "./catalog-change-realtime";
-import { notifyQueueUpdated, useCatalogQueueTick } from "./catalog-queue-signals";
+import { createQueueEpochFetch, notifyQueueUpdated, useCatalogQueueTick } from "./catalog-queue-signals";
 import { getJson, sendJson } from "./http";
 
 // MC 마스터 변경 승인 대기열 — admin 대기열 팝오버(ChangeRequestQueue) + manager 행 배지·내 요청
@@ -32,55 +32,100 @@ export type ChangeRequestItem = {
 
 const QUEUE_URL = "/api/catalog/change-requests?status=pending";
 
-// 마지막 응답의 모듈 캐시(dealer-roster getCachedMyProposalTrims 선례) — 헤더 버튼 (N)이
-// 재마운트 직후(메뉴 이동·모델 전환 재진입) 숫자 없는 라벨로 깜빡이지 않게 직전 값을 즉시
-// 보여주고, fetch가 도착하면 갱신한다. 브라우저 새로고침(F5)은 모듈이 초기화되므로 여전히
-// 첫 fetch 후에 뜬다 — 세션 스토리지 영속화는 stale 위험 대비 과함.
-let queueCache: ChangeRequestItem[] | null = null;
+// 대기열 응답은 **모듈 한 벌**이다(2026-08-05). 두 몫을 겸한다:
+//  ① 마지막 응답 캐시(dealer-roster getCachedMyProposalTrims 선례) — 헤더 버튼 (N)이 재마운트
+//     직후(메뉴 이동·모델 전환 재진입) 숫자 없는 라벨로 깜빡이지 않게 직전 값을 즉시 보여준다.
+//     브라우저 새로고침(F5)은 모듈이 초기화되므로 여전히 첫 fetch 후에 뜬다 — 세션 스토리지
+//     영속화는 stale 위험 대비 과함.
+//  ② 소비처 공통 상태 — 이 훅은 **인스턴스가 여럿**이다(사이드바 배지 · 모델/브랜드 목록 배지 ·
+//     헤더 대기열 팝오버). 인스턴스마다 자기 state를 들고 있으면 한쪽만 갱신되는 순간(폴링·마운트
+//     시점 차이)에 같은 화면의 배지가 서로 다른 숫자를 보인다 — 이 축에서 세 번 반복된 결함이다.
+//     이제 조회 결과는 여기 한 곳에 실리고, 훅은 그걸 구독만 한다.
+type QueueSnapshot = { rows: ChangeRequestItem[] | null; failed: boolean };
+let queueSnapshot: QueueSnapshot = { rows: null, failed: false };
+const queueSnapshotListeners = new Set<() => void>();
 let mineCache: ChangeRequestItem[] | null = null;
+
+function publishQueueSnapshot(next: QueueSnapshot): void {
+  queueSnapshot = next;
+  for (const listener of queueSnapshotListeners) {
+    try {
+      listener();
+    } catch {
+      // 구독자 예외 격리 — catalog-queue-signals emit과 같은 규약(한 화면의 렌더 실패가 다른
+      // 화면의 갱신을 막지 않는다).
+    }
+  }
+}
+
+// 조회는 이 함수 하나만 거친다 — 같은 계기로 출발한 소비처들이 한 요청으로 합쳐지고(중복 제거),
+// 도착한 응답은 **모두가 같은 값**으로 본다. 실패는 직전 rows를 유지한 채 failed만 세운다
+// (stale 숫자가 빈 화면보다 낫다 — useModelPendingRequests와 같은 판단).
+//
+// ⚠️ **최신 요청의 응답만 반영한다**(queueSeq). 요청이 둘 동시에 떠 있는 경우는 세대가 갈릴 때뿐인데
+// (같은 세대는 위에서 합쳐진다), 그게 하필 "승인 직전에 출발한 조회 + 승인 직후 재조회"다. 늦게
+// 도착한 옛 응답이 그대로 실리면 배지가 승인 전 숫자로 되돌아간다 — 인스턴스별 state 시절 effect
+// cleanup(alive=false)이 막던 몫이라, 상태를 모듈로 올리면서 함께 옮겨 온다.
+let queueSeq = 0;
+const revalidateQueue = createQueueEpochFetch(() => {
+  const seq = ++queueSeq;
+  return getJson<ChangeRequestItem[]>(QUEUE_URL).then(
+    (rows) => {
+      if (seq === queueSeq) publishQueueSnapshot({ rows, failed: false });
+    },
+    () => {
+      if (seq === queueSeq) publishQueueSnapshot({ rows: queueSnapshot.rows, failed: true });
+    },
+  );
+});
 
 // 테스트 전용 — 모듈 캐시 초기화(케이스 간 오염 방지, resetStaffDirectoryCache 관례).
 export function resetChangeRequestCachesForTest(): void {
-  queueCache = null;
+  queueSnapshot = { rows: null, failed: false };
   mineCache = null;
 }
 
 // 대기열 변동 알림 채널은 catalog-queue-signals가 소유한다(2026-08-05 SSOT) — 여기서는 발신만 한다.
 
-export function useChangeRequestQueue(enabled: boolean): {
+/**
+ * 관리자 승인 대기열 구독. `opts`는 **이 소비처만의 신선도 사정**을 넘기는 자리다 — 상시 마운트인
+ * 사이드바가 focus 재검증·주기 폴링을 소유하고(그 결과는 위 모듈 스냅샷을 통해 전 인스턴스에
+ * 퍼진다), 화면 안 배지는 신호만으로 충분해 옵션 없이 쓴다. 계기 목록 자체는 catalog-queue-signals가 SSOT.
+ */
+export function useChangeRequestQueue(
+  enabled: boolean,
+  opts: { focus?: boolean; pollMs?: number } = {},
+): {
   rows: ChangeRequestItem[] | null; // null = 미로드/로딩
   failed: boolean;
   reload: () => void;
   approve: (id: string) => Promise<void>;
   reject: (id: string, reason: string) => Promise<void>;
 } {
-  const [rows, setRows] = useState<ChangeRequestItem[] | null>(queueCache);
-  const [failed, setFailed] = useState(false);
+  const [snapshot, setSnapshot] = useState<QueueSnapshot>(queueSnapshot);
   const [tick, setTick] = useState(0);
   // 큐가 움직였을 수 있는 모든 계기(적재·결정·타 세션) — 구독 목록은 catalog-queue-signals가 SSOT.
-  // ⚠️ 이 훅은 **인스턴스가 여럿**이다(헤더 팝오버 + 모델 목록 배지). 아래 approve/reject의 tick은
-  // 자기 인스턴스만 갱신하므로, 이 신호가 없으면 팝오버에서 승인해도 배지가 리로딩 전까지 그대로다
-  // (#454 도입 직후 실기 발견 — 그전까진 인스턴스가 하나뿐이라 드러나지 않았다).
-  const signalTick = useCatalogQueueTick(enabled);
+  // ⚠️ 이 훅은 **인스턴스가 여럿**이다(사이드바 배지 · 헤더 팝오버 · 모델 목록 배지). 아래
+  // approve/reject의 tick은 자기 인스턴스만 갱신하므로, 이 신호가 없으면 팝오버에서 승인해도
+  // 배지가 리로딩 전까지 그대로다(#454 도입 직후 실기 발견 — 그전까진 인스턴스가 하나뿐이라
+  // 드러나지 않았다).
+  const signalTick = useCatalogQueueTick(enabled, opts);
 
-  // ⚠️ setState는 **콜백 안에서** 부른다(react-hooks/set-state-in-effect 기준선 0 — discount-proposals.ts 관례).
+  // 모듈 스냅샷 구독 — 어느 인스턴스가 받아온 응답이든 전원이 같은 값으로 따라간다.
   useEffect(() => {
     if (!enabled) return;
-    let alive = true;
-    getJson<ChangeRequestItem[]>(QUEUE_URL)
-      .then((list) => {
-        queueCache = list; // 다음 마운트의 (N) 즉시 표시용 — alive와 무관하게 최신값 보관.
-        if (!alive) return;
-        setRows(list);
-        setFailed(false);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setFailed(true);
-      });
+    const listener = () => setSnapshot(queueSnapshot);
+    queueSnapshotListeners.add(listener);
     return () => {
-      alive = false;
+      queueSnapshotListeners.delete(listener);
     };
+  }, [enabled]);
+
+  // ⚠️ setState는 **콜백 안에서** 부른다(react-hooks/set-state-in-effect 기준선 0 — discount-proposals.ts 관례).
+  // 여기서는 재조회를 걸기만 한다 — 결과 반영은 위 구독이 맡으므로 alive 가드가 필요 없다.
+  useEffect(() => {
+    if (!enabled) return;
+    void revalidateQueue();
   }, [enabled, tick, signalTick]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
@@ -97,7 +142,15 @@ export function useChangeRequestQueue(enabled: boolean): {
     setTick((t) => t + 1);
   }, []);
 
-  return { rows, failed, reload, approve, reject };
+  // enabled:false는 **조회를 안 하는 상태**이므로 캐시가 남아 있어도 미로드로 보인다 —
+  // 권한이 없어 못 받는 화면이 남은 숫자를 계속 말하면 안 된다(useMyChangeRequests와 같은 규칙).
+  return {
+    rows: enabled ? snapshot.rows : null,
+    failed: enabled ? snapshot.failed : false,
+    reload,
+    approve,
+    reject,
+  };
 }
 
 // 승인/반려 단독 헬퍼(2026-08-03) — 헤더 대기열 팝오버(위 훅)와 행 배지 팝오버

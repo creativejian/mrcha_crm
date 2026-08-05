@@ -309,6 +309,16 @@ it("최고관리자는 승인 대기 버튼을 렌더한다", async () => {
   expect(await screen.findByRole("button", { name: "승인 대기 (0)" })).toBeInTheDocument();
 });
 
+// 이 화면 안에만 대기열 훅이 둘이다(헤더 버튼 + 모델/브랜드 목록 배지). 예전엔 각자 왕복해
+// 같은 URL이 두 번 나갔고, 응답이 따로 도착하는 사이 버튼 (N)과 행 배지가 어긋났다 —
+// 조회 합치기(catalog-queue-signals)가 풀리면 여기서 2가 된다(2026-08-05).
+it("대기열 조회는 진입당 한 번 — 헤더 버튼과 목록 배지가 같은 응답을 본다", async () => {
+  renderPage("최고관리자");
+  await screen.findByRole("button", { name: "승인 대기 (0)" });
+  expect(fetchCalls.filter(([url]) => url === "/api/catalog/change-requests?status=pending")).toHaveLength(1);
+  expect(fetchCalls.filter(([url]) => url === "/api/catalog/models/mc-code-gaps")).toHaveLength(1);
+});
+
 it("상담사는 승인 대기 버튼을 렌더하지 않는다", async () => {
   renderPage("상담사");
   await screen.findByText("그랜저");
