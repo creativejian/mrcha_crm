@@ -26,7 +26,8 @@ import {
 import { useAuth } from "@/auth/AuthProvider";
 import type { ChangeRequestKind } from "@/lib/catalog-change-kinds";
 import { useCatalogQueueApplied } from "@/lib/catalog-change-realtime";
-import { type ChangeRequestItem, pendingCountByModel, useChangeRequestQueue } from "@/lib/catalog-change-requests";
+import { type ChangeRequestItem, pendingCountByBrand, pendingCountByModel, useChangeRequestQueue } from "@/lib/catalog-change-requests";
+import { notifyMcCodesAssigned, useMcCodeGaps } from "@/lib/mc-code-gaps";
 import { useDealerDiscounts } from "@/lib/dealer-discounts";
 import { useDealerMe } from "@/lib/dealer-profiles";
 import type { DiscountField } from "@/lib/discount-adoption";
@@ -90,6 +91,9 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   // 이 응답은 대기 건수만큼의 작은 JSON이며 모듈 캐시(queueCache)가 두 번째 마운트를 즉시 채운다.
   const { rows: queueRows } = useChangeRequestQueue(canEdit);
   const pendingByModel = useMemo(() => pendingCountByModel(queueRows), [queueRows]);
+  const pendingByBrand = useMemo(() => pendingCountByBrand(queueRows), [queueRows]);
+  // 파란 배지(고유번호 미부여) — 갱신 신호가 두 방향이라는 점은 mc-code-gaps.ts 주석 참조.
+  const gaps = useMcCodeGaps(canEdit);
   const { userId } = useAuth(); // 프리필의 "내 요청" 판별용 — pendingRows는 모델 전체(타인 포함)라 requestedBy 대조가 필요하다.
   const navigate = useNavigate();
   const { modelId } = useParams();
@@ -458,6 +462,9 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
     try {
       const r = await assignMcCodes(Number(modelId));
       reloadTrims();
+      // 브랜드·모델의 파란 배지가 리로딩 없이 줄어들게(2026-08-05). 발신을 여기서 하는 이유는
+      // mc-code-gaps.ts 주석 참조(lib/catalog이 그 모듈을 import하면 순환이 된다).
+      notifyMcCodesAssigned();
       window.alert(`${r.assigned}개 트림에 고유번호를 부여했습니다.`);
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "고유번호 부여 실패");
@@ -609,7 +616,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
             140px을 비우고 모델·트림 표를 전폭으로 쓴다. 관리자 화면은 그대로 2열이다. */}
         <div className={`va-layout${dealerMode ? " va-layout-full" : ""}`}>
           {!dealerMode && (
-            <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} onPrefetch={prefetchModels} />
+            <BrandSidebar brands={brands} selectedId={brandId} onSelect={selectBrand} onPrefetch={prefetchModels} pendingByBrand={pendingByBrand} gapsByBrand={gaps.byBrand} />
           )}
           <div className="table-scroll va-scroll" ref={scrollRef} onScroll={onScroll}>
             {inTrimView && isDomestic && (
@@ -702,6 +709,7 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
                 models={models}
                 canEdit={canWrite}
                 pendingByModel={pendingByModel}
+                gapsByModel={gaps.byModel}
                 selectMode={selectMode}
                 selected={selected}
                 draggingId={draggingId}

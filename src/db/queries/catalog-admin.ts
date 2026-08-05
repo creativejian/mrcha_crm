@@ -353,6 +353,30 @@ async function maxTrimCode(modelId: number, executor: Executor = getDefaultDb())
   return Math.max(Number(active?.m ?? 0), Number(histRows[0]?.m ?? 0));
 }
 
+// 고유번호(mc_code) 미부여 집계 — 브랜드 목록·모델 목록의 파란 배지 재료(2026-08-05).
+// **브랜드와 모델을 한 응답으로** 준다: 브랜드 배지는 화면 진입 즉시 전 브랜드분이 필요하고
+// (브랜드마다 조회하면 N+1), 모델 배지는 그 부분집합이라 같은 한 번의 스캔으로 둘 다 나온다.
+// mc_code는 INSERT로 생기지 않는다(auto_mc_code 트리거가 BEFORE UPDATE 전용) — 트림을 만들면
+// 반드시 여기 잡히고, '고유번호 할당'이 UPDATE를 돌려야 빠진다. 그 사정이 이 집계의 존재 이유다.
+export async function countMcCodeGaps(
+  executor: Executor = getDefaultDb(),
+): Promise<{ byBrand: Record<number, number>; byModel: Record<number, number> }> {
+  const rows = await executor
+    .select({ brandId: modelsInCatalog.brandId, modelId: trimsInCatalog.modelId, n: count() })
+    .from(trimsInCatalog)
+    .innerJoin(modelsInCatalog, eq(modelsInCatalog.id, trimsInCatalog.modelId))
+    .where(isNull(trimsInCatalog.mcCode))
+    .groupBy(modelsInCatalog.brandId, trimsInCatalog.modelId);
+  const byBrand: Record<number, number> = {};
+  const byModel: Record<number, number> = {};
+  for (const r of rows) {
+    const n = Number(r.n);
+    byModel[r.modelId] = n;
+    byBrand[r.brandId] = (byBrand[r.brandId] ?? 0) + n; // 브랜드는 자기 모델들의 합
+  }
+  return { byBrand, byModel };
+}
+
 // 모델의 mc_code 미부여 트림에 일괄 부여(앱 '고유번호 할당'). 라우트에서 tx로 감싼다.
 export async function assignMcCodes(modelId: number, executor: Executor = getDefaultDb()): Promise<{ assigned: number }> {
   if (!(await modelHasCodes(modelId, executor)))

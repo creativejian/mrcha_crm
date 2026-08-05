@@ -219,30 +219,49 @@
 }
 
 
-.nav-count {
-  min-width: 20px;
-  height: 20px;
+/* 크기는 theme.css의 --count-badge-* 가 SSOT(2026-08-05) — MC 마스터 브랜드·모델 배지와 같은 값을
+   공유한다. 여기서 직접 px를 쓰면 화면마다 크기가 갈린다. */
+.nav-count,
+.nav-gap-count {
+  min-width: var(--count-badge-size);
+  height: var(--count-badge-size);
   /* 좌우 여백 — 세 자리(100+)에서 숫자가 모서리에 닿아 좁아 보였다(2026-08-03 유슨생).
      내용 폭에 따라 자연히 넓어지고, 한 자리는 min-width가 정사각을 유지한다. */
-  padding: 0 5px;
-  margin-left: auto;
-  border-radius: 5px;
+  padding: var(--count-badge-pad);
+  border-radius: var(--count-badge-radius);
   display: inline-grid;
   place-items: center;
-  background: #ef4444;
   color: #fff;
-  font-size: 12px;
+  font-size: var(--count-badge-font);
   font-weight: 400;
   line-height: 1;
 }
+.nav-count {
+  margin-left: auto;
+  background: #ef4444;
+}
+/* 고유번호 미부여(파랑) — 빨강 뒤에 온다(브랜드·모델 목록과 같은 순서 규칙).
+   빨강이 없을 때는 이쪽이 오른쪽 끝으로 미는 역할을 이어받는다. */
+.nav-gap-count {
+  margin-left: 4px;
+  background: #3b82f6;
+}
+.nav-count + .nav-gap-count {
+  margin-left: 4px;
+}
+.nav button > .nav-gap-count:first-of-type {
+  margin-left: auto;
+}
 
+/* 접힌 사이드바에서는 아이콘 위에 겹쳐 띄운다 — **위치만** 바꾸고 크기는 건드리지 않는다
+   (구 19px/11px 오버라이드는 --count-badge-* SSOT 도입으로 제거, 2026-08-05).
+   ⚠️ 파란 배지(.nav-gap-count)는 접힘에서 **자동으로 숨는다** — sidebar-collapsed.css의
+   `span:not(.nav-count)` 규칙에 걸린다. 아이콘 하나에 배지 둘을 겹칠 자리가 없어 그대로 둔다
+   (빨강만 남는다 = 긴급한 쪽). 그 규칙을 고칠 땐 여기 의존을 함께 볼 것. */
 .sidebar.collapsed .nav-count {
   position: absolute;
   top: 5px;
   right: 7px;
-  min-width: 19px;
-  height: 19px;
-  font-size: 11px;
 }
 
 .sidebar.collapsed .nav button {

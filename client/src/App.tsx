@@ -15,7 +15,10 @@ import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
 import { customerCodeFromLocation, customerListPath, customerModeFromSearch } from "@/lib/customer-route";
 import { financeListPath, financeModeFromSearch, financeModeMeta } from "@/lib/finance-route";
+import { onCatalogWriteQueued } from "@/lib/catalog";
+import { onCatalogQueueRemoteChanged } from "@/lib/catalog-change-realtime";
 import { onChangeRequestQueueUpdated } from "@/lib/catalog-change-requests";
+import { useMcCodeGaps } from "@/lib/mc-code-gaps";
 import { getJson } from "@/lib/http";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
@@ -104,6 +107,11 @@ export function App() {
   // 항목 16). 서버 403이 진짜 게이트(requireRoles)·여기는 UX 보조(라우트 홈 폴백 + 배지 구독 생략).
   const canViewInbox = roleTab === "최고관리자" || roleTab === "팀장";
   const isAdmin = roleTab === "최고관리자";
+  // 사이드바 MC 마스터의 파란 배지 = 고유번호 미부여 총계(2026-08-05). 훅이 승인·할당 양쪽 신호를
+  // 구독하므로 여기서 따로 폴링하지 않는다(빨간 배지는 그 위 60s 폴링을 계속 쓴다 — 그쪽은 훅이
+  // 아니라 count만 세는 별도 경로다).
+  const mcCodeGaps = useMcCodeGaps(auth.authed && isAdmin);
+  const mcCodeGapCount = Object.values<number>(mcCodeGaps.byBrand).reduce((sum, n) => sum + n, 0);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersError, setCustomersError] = useState(false);
   const [customersLoaded, setCustomersLoaded] = useState(false);
@@ -223,10 +231,21 @@ export function App() {
     const timer = window.setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
     const offQueue = onChangeRequestQueueUpdated(refresh);
+    // ⚠️ 아래 둘이 없으면 **대기가 늘어나는 방향만 최대 60초 뒤처진다**(2026-08-05 유슨생 실기:
+    // 브랜드 배지는 3인데 사이드바는 1이었다). 위 onChangeRequestQueueUpdated는 승인·반려·취소,
+    // 즉 **줄어드는** 사건만 알린다 — 새 요청 적재는 다른 신호로 온다.
+    //   onCatalogWriteQueued        = 같은 탭에서 쓰기가 큐로 적재됨(202)
+    //   onCatalogQueueRemoteChanged = 다른 세션의 적재·처리(broadcast)
+    // `useChangeRequestQueue`(브랜드·모델 배지)는 셋 다 듣고 있어서 이 화면만 어긋나 있었다.
+    // 배지 3종은 **같은 신호 집합**을 들어야 한다 — 하나를 늘릴 땐 여기도 함께 볼 것.
+    const offWrite = onCatalogWriteQueued(refresh);
+    const offRemote = onCatalogQueueRemoteChanged(refresh);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", refresh);
       offQueue();
+      offWrite();
+      offRemote();
     };
   }, [auth.authed, isAdmin]);
 
@@ -486,7 +505,7 @@ export function App() {
 
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} pendingChangeRequestCount={pendingChangeRequestCount} onCustomerModeChange={handleCustomerModeChange} onFinanceModeChange={handleFinanceModeChange} onViewChange={handleViewChange} />
+      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} pendingChangeRequestCount={pendingChangeRequestCount} mcCodeGapCount={mcCodeGapCount} onCustomerModeChange={handleCustomerModeChange} onFinanceModeChange={handleFinanceModeChange} onViewChange={handleViewChange} />
       <main className="main">
         <Topbar
           sidebarCollapsed={sidebarCollapsed}

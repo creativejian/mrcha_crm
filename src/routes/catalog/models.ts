@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   assignMcCodes,
+  countMcCodeGaps,
   createModel,
   deleteModel,
   listModelOptionSummary,
@@ -58,6 +59,11 @@ export function registerModelRoutes(catalog: CatalogApp) {
   catalog.delete("/models/:id", requireRoles(["admin"]), zValidator("param", z.object({ id })), async (c) =>
     run(c, () => deleteModel(c.req.valid("param").id, c.var.db), "모델을 찾을 수 없습니다."),
   );
+
+  // 고유번호 미부여 집계(2026-08-05) — 브랜드·모델 배지 재료. **부여 권한과 같은 게이트(admin)**로
+  // 닫는다: 처리할 수 없는 역할에 "밀린 일" 숫자만 보이면 읽는 사람이 할 수 있는 게 없다.
+  // ⚠️ `/models/:id` 류보다 위에 둔다 — 아래 :id 라우트가 "mc-code-gaps"를 id로 먹지 않게.
+  catalog.get("/models/mc-code-gaps", requireRoles(["admin"]), async (c) => c.json(await countMcCodeGaps(c.var.db)));
 
   // mc_code = 고유번호 채번(전역 유일성 영향) — admin 전용(spec §3.2).
   // 모델의 mc_code 미부여 트림에 고유번호 일괄 부여(tx로 원자 처리).

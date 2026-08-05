@@ -134,6 +134,8 @@ let fetchCalls: [string, RequestInit | undefined][] = [];
 // 전체 승인의 "한 건 실패해도 계속" 계약을 재현하려고 특정 요청 id의 승인만 500으로 떨군다
 // (실제로는 다른 관리자가 그새 대상을 고쳐 드리프트가 난 경우다).
 let approveFailIds: string[] = [];
+// 고유번호 미부여 집계(파란 배지) — 승인/할당이 이 값을 바꾸는 것으로 "실시간 갱신"을 재현한다.
+let mcCodeGaps: { byBrand: Record<number, number>; byModel: Record<number, number> } = { byBrand: {}, byModel: {} };
 
 beforeEach(() => {
   // 모듈 스코프 화면 상태(마지막 브랜드·스크롤)는 라우트 언마운트를 넘겨 살아남는 게 목적이라
@@ -149,6 +151,7 @@ beforeEach(() => {
   trimsResponse = TRIMS;
   fetchCalls = [];
   approveFailIds = [];
+  mcCodeGaps = { byBrand: {}, byModel: {} };
   resetStaffDirectoryCache(); // 직원 디렉토리도 모듈 캐시 — 케이스 간 누수 차단(QuoteWorkbench.gate 관례).
   resetChangeRequestCachesForTest(); // 대기열·내 요청 (N) 즉시 표시용 모듈 캐시 — 같은 이유로 초기화.
   // 30s 모듈 캐시도 케이스 간 누수 — PR3에서 생긴 리셋 API로 초기화. ⚠️ brands·trimColors 캐시는
@@ -161,6 +164,9 @@ beforeEach(() => {
       if (url === "/api/catalog/brands") return new Response(JSON.stringify(BRANDS), { status: 200 });
       // ⚠️ 분기 순서: 아래 startsWith("/api/catalog/models")·("/api/catalog/trims")·
       // ("/api/catalog/change-requests")가 광범위 매칭이라, 구체 URL은 반드시 그 위에 둔다.
+      // ⚠️ 광범위 startsWith("/api/catalog/models") 분기보다 위 — 아래로 새면 MODELS 배열이
+      // 집계 응답 자리에 들어가 파란 배지가 조용히 안 뜬다(라우트 순서와 같은 함정).
+      if (url === "/api/catalog/models/mc-code-gaps") return new Response(JSON.stringify(mcCodeGaps), { status: 200 });
       if (url === "/api/catalog/models/10/change-requests") return new Response(JSON.stringify(modelPendingRows), { status: 200 });
       if (url === "/api/catalog/change-requests?mine=1") return new Response(JSON.stringify(myRequests), { status: 200 });
       if (init?.method === "DELETE" && url.startsWith("/api/catalog/change-requests/"))
@@ -179,6 +185,12 @@ beforeEach(() => {
       if (url === "/api/catalog/models/10/option-summary") return new Response("[]", { status: 200 });
       if (url.endsWith("/trim-colors")) return new Response("[]", { status: 200 });
       if (url.startsWith("/api/catalog/trims")) return new Response(JSON.stringify(trimsResponse), { status: 200 });
+      // 고유번호 할당은 그 모델의 미부여를 0으로 만든다(일괄 부여). ⚠️ 아래 광범위 models 분기보다
+      // **위**여야 한다 — 아래로 새면 POST 응답 자리에 MODELS 배열이 들어가 할당이 조용히 무효가 된다.
+      if (url.endsWith("/assign-codes")) {
+        mcCodeGaps = { byBrand: {}, byModel: {} };
+        return new Response(JSON.stringify({ assigned: 3 }), { status: 200 });
+      }
       if (url.startsWith("/api/catalog/models")) return new Response(JSON.stringify(MODELS), { status: 200 });
       if (url === "/api/staff") return new Response(JSON.stringify(STAFF), { status: 200 });
       if (url === "/api/dealer/me") return new Response("null", { status: 200 });
@@ -189,7 +201,19 @@ beforeEach(() => {
       // 줄어든 목록을 받아야 "처리했는데 배지가 남아 있다" 같은 갱신 결함이 테스트에 드러난다.
       if (url.endsWith("/approve") || url.endsWith("/reject")) {
         const id = url.split("/").at(-2);
+        const row = changeRequestQueue.find((r) => r.id === id);
         changeRequestQueue = changeRequestQueue.filter((r) => r.id !== id);
+        // 신규 트림 승인은 mc_code 없는 트림을 만든다(auto_mc_code가 BEFORE UPDATE 전용) —
+        // 즉 **미부여가 늘어난다**. 서버가 그렇게 동작하므로 스텁도 그래야 "승인했더니 파란
+        // 배지가 붙는다"를 검사할 수 있다.
+        if (url.endsWith("/approve") && row?.kind === "trim.create" && row.targetModelId != null) {
+          const m = row.targetModelId;
+          const b = row.targetBrandId ?? 0;
+          mcCodeGaps = {
+            byModel: { ...mcCodeGaps.byModel, [m]: (mcCodeGaps.byModel[m] ?? 0) + 1 },
+            byBrand: { ...mcCodeGaps.byBrand, [b]: (mcCodeGaps.byBrand[b] ?? 0) + 1 },
+          };
+        }
         return new Response("{}", { status: 200 });
       }
       if (url.startsWith("/api/catalog/change-requests")) {
@@ -376,6 +400,47 @@ it("모델 목록: 대기 0건이면 배지가 없다", async () => {
   await screen.findByText("그랜저");
 
   expect(screen.queryByLabelText(/승인 대기 \d+건/)).toBeNull();
+});
+
+// ── 고유번호 미부여 파란 배지(2026-08-05) ─────────────────────────────────────
+// 빨강(승인 대기)과 축이 다르다: 승인하면 빨강은 줄고 **파랑은 는다**(새 트림에 mc_code가 없다).
+// 그 반대 방향 두 개가 같은 순간에 보여야 한다는 게 이 배지의 요구다.
+it("파란 배지: 브랜드·모델에 고유번호 미부여 건수를 표시한다", async () => {
+  mcCodeGaps = { byBrand: { 1: 7 }, byModel: { 10: 3 } };
+  renderPage("최고관리자");
+
+  expect(await screen.findByLabelText("현대 고유번호 미부여 7건")).toBeInTheDocument();
+  expect(await screen.findByLabelText("고유번호 미부여 3건")).toBeInTheDocument();
+});
+
+it("파란 배지: 신규 트림을 승인하면 리로딩 없이 늘어난다(mc_code 없는 트림이 생기므로)", async () => {
+  changeRequestQueue = [{ ...PENDING_ROW, id: "cr-new", kind: "trim.create", targetId: null, targetModelId: 10, targetBrandId: 1 }];
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await screen.findByLabelText("승인 대기 1건");
+  expect(screen.queryByLabelText(/고유번호 미부여/)).toBeNull(); // 승인 전에는 없다
+
+  await user.click(await screen.findByRole("button", { name: "승인 대기 (1)" }));
+  await user.click(await screen.findByRole("button", { name: "전체 승인" }));
+
+  expect(await screen.findByLabelText("고유번호 미부여 1건")).toBeInTheDocument();
+  expect(await screen.findByLabelText("현대 고유번호 미부여 1건")).toBeInTheDocument();
+});
+
+it("파란 배지: 고유번호를 할당하면 리로딩 없이 사라진다", async () => {
+  mcCodeGaps = { byBrand: { 1: 3 }, byModel: { 10: 3 } };
+  vi.spyOn(window, "alert").mockImplementation(() => {});
+  const user = userEvent.setup();
+  renderPage("최고관리자");
+  await screen.findByLabelText("현대 고유번호 미부여 3건");
+  await openModel(user, "그랜저"); // 트림 화면에만 "고유번호 할당" 버튼이 있다
+
+  await user.click(await screen.findByRole("button", { name: /고유번호 할당/ }));
+
+  await waitFor(() => {
+    expect(screen.queryByLabelText(/고유번호 미부여/)).toBeNull();
+  });
 });
 
 // ── 전체 승인(2026-08-05) ─────────────────────────────────────────────────────
