@@ -258,10 +258,14 @@
 .va-row-selected {
   background: #f1edff;
 }
-/* 모델 행 승인 대기 배지(2026-08-05) — 사이드바 `.nav-count`와 같은 어휘(같은 빨강·크기·radius)를
-   쓰되 클래스를 따로 둔다: 그쪽은 `margin-left: auto`로 메뉴 오른쪽 끝에 미는 게 본질이라
-   테이블에서 재사용하면 이름도 배치도 어긋난다. 여기서는 모델명 바로 옆에 붙는다. */
-.va-pending-count {
+/* 카탈로그 배지 두 축(2026-08-05) — 브랜드 목록·모델 목록에 같은 규칙으로 붙는다.
+     빨강 `.va-pending-count` = 승인 대기(결재할 것)
+     파랑 `.va-gap-count`     = 고유번호 미부여(결재 뒤에 남는 마무리)
+   한 줄에 둘 다 뜰 수 있어 **순서를 빨강 → 파랑으로 고정**한다(순서가 흔들리면 색을 매번 다시
+   읽게 된다). 사이드바 `.nav-count`와 모양은 같지만 클래스를 따로 둔다 — 그쪽은
+   `margin-left: auto`로 메뉴 오른쪽 끝에 미는 게 본질이라 여기서 재사용하면 배치가 어긋난다. */
+.va-pending-count,
+.va-gap-count {
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
@@ -269,11 +273,26 @@
   border-radius: 5px;
   display: inline-grid;
   place-items: center;
-  background: #ef4444;
   color: #fff;
   font-size: 12px;
   font-weight: 400;
   line-height: 1;
+}
+.va-pending-count {
+  background: #ef4444;
+}
+.va-gap-count {
+  background: #3b82f6;
+}
+/* 브랜드 목록에서는 배지를 오른쪽 끝으로 민다 — 항목이 [로고][이름] flex라 이름 옆에 붙이면
+   브랜드마다 위치가 들쭉날쭉해진다. 빨강이 먼저이므로 그 하나만 auto를 받는다(파랑만 있을
+   때는 파랑이 받는다 — first-of-type이 아니라 이 두 선택자 조합이 그 역할을 한다). */
+.va-brand-item > .va-pending-count,
+.va-brand-item > .va-gap-count:first-of-type {
+  margin-left: auto;
+}
+.va-brand-item > .va-pending-count + .va-gap-count {
+  margin-left: 4px;
 }
 /* 행 전체를 진입 버튼으로 쓰는 표(모델표 — 2026-08-05). 어휘는 고객 목록 `.customer-row`와
    같은 한 벌이다: 포인터 커서 + 옅은 hover + focus-visible 아웃라인(키보드 진입이 보이게).

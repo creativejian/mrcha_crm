@@ -20,6 +20,7 @@ export function ModelTable({
   onDrop,
   onPrefetch,
   pendingByModel,
+  gapsByModel,
 }: {
   models: CatalogModel[];
   canEdit: boolean;
@@ -38,6 +39,8 @@ export function ModelTable({
   /** 모델별 승인 대기 건수(2026-08-05) — 없거나 0이면 배지를 그리지 않는다. 대기열을 볼 수 있는
    * 역할(admin)에만 채워 내려온다: 나머지 역할은 애초에 그 목록을 못 받아 셀 수가 없다. */
   pendingByModel?: Map<number, number>;
+  /** 모델별 고유번호 미부여 건수(파랑) — 부여 권한과 같은 축(admin)으로만 채워진다. */
+  gapsByModel?: Record<number, number>;
 }) {
   if (models.length === 0) return <div className="va-empty">브랜드를 선택하세요.</div>;
   const allChecked = models.length > 0 && models.every((m) => selected.has(m.id));
@@ -57,6 +60,7 @@ export function ModelTable({
       <tbody>
         {models.map((m) => {
           const pending = pendingByModel?.get(m.id) ?? 0;
+          const gaps = gapsByModel?.[m.id] ?? 0;
           return (
           <SelectableRow
             key={m.id}
@@ -90,6 +94,13 @@ export function ModelTable({
               {pending > 0 && (
                 <span aria-label={`승인 대기 ${pending}건`} className="va-pending-count num">
                   {pending}
+                </span>
+              )}
+              {/* 고유번호 미부여(파랑) — 승인 뒤에 남는 마무리다. 배지 순서는 **빨강 → 파랑** 고정
+                  (브랜드 목록과 같은 규칙). 이 모델에 들어가 "고유번호 할당"을 누르면 사라진다. */}
+              {gaps > 0 && (
+                <span aria-label={`고유번호 미부여 ${gaps}건`} className="va-gap-count num">
+                  {gaps}
                 </span>
               )}
             </td>

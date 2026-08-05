@@ -228,6 +228,19 @@ export function pendingCountByModel(rows: ChangeRequestItem[] | null): Map<numbe
   return counts;
 }
 
+// 브랜드 목록 배지용(2026-08-05) — 위와 같은 재료의 한 단계 위 집계.
+// ⚠️ 모델 집계와 **합이 다를 수 있다**: 신규 모델 요청(model.create)은 브랜드 좌표만 있고
+// targetModelId가 null이라 모델 배지엔 안 잡히지만 브랜드에는 잡힌다(그 브랜드에 결재할 게
+// 있다는 건 사실이다). 그래서 둘을 서로의 검산으로 쓰지 말 것.
+export function pendingCountByBrand(rows: ChangeRequestItem[] | null): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const row of rows ?? []) {
+    if (row.targetBrandId == null) continue;
+    counts.set(row.targetBrandId, (counts.get(row.targetBrandId) ?? 0) + 1);
+  }
+  return counts;
+}
+
 // 모델 단위 pending — 트림/옵션 행 "승인 대기" 배지(spec §7.2, admin·manager 공용). 조회 실패
 // 무소음: 배지는 409를 미리 보여주는 예방선일 뿐 최종 방어는 서버 부분 UNIQUE다(초기 실패 = EMPTY,
 // 재조회 실패 = 직전 rows 유지 — stale 배지가 없음보다 안전하다). modelId 전환 직후 이전 모델

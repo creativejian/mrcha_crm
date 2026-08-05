@@ -23,7 +23,7 @@ function renderTable(overrides: Partial<Parameters<typeof ModelTable>[0]> = {}) 
   const onOpen = vi.fn();
   const onEdit = vi.fn();
   const onPrefetch = vi.fn();
-  render(
+  const view = render(
     <ModelTable
       models={[MODEL]}
       canEdit
@@ -41,7 +41,7 @@ function renderTable(overrides: Partial<Parameters<typeof ModelTable>[0]> = {}) 
       {...overrides}
     />,
   );
-  return { onOpen, onEdit, onPrefetch };
+  return { ...view, onOpen, onEdit, onPrefetch };
 }
 
 describe("ModelTable 행 클릭", () => {
@@ -87,6 +87,14 @@ describe("ModelTable 행 클릭", () => {
     renderTable({ pendingByModel: new Map([[MODEL.id, 6]]) });
 
     expect(screen.getByLabelText("승인 대기 6건")).toHaveTextContent("6");
+  });
+
+  it("고유번호 미부여(파랑)도 표시하고, 빨강보다 뒤에 온다", () => {
+    const { container } = renderTable({ pendingByModel: new Map([[MODEL.id, 2]]), gapsByModel: { [MODEL.id]: 5 } });
+
+    expect(screen.getByLabelText("고유번호 미부여 5건")).toHaveTextContent("5");
+    const badges = [...container.querySelectorAll(".va-pending-count, .va-gap-count")];
+    expect(badges.map((b) => b.className.split(" ")[0])).toEqual(["va-pending-count", "va-gap-count"]);
   });
 
   it("승인 대기 0건이면 배지를 그리지 않는다 — 모든 행에 0이 붙으면 신호가 죽는다", () => {
