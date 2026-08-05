@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown, Minus, Plus, RefreshCcw, Search } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, type CustomerSettlementPatch, customerStatusGroups, initialCustomers, type NextDeliverySchedule } from "@/data/customers";
+import { CHANCE_OPTIONS, CUSTOMER_MANAGE_STATUSES, SOURCE_MANUAL_OPTIONS, type Customer, type CustomerChanceOption, type CustomerManageStatus, type CustomerMode, type CustomerSettlementPatch, customerStatusGroups, initialCustomers, type NextDeliverySchedule, type SettlementStatus } from "@/data/customers";
 import { aiHintPlainText, badgeClass, chanceBadgeClass, firstResponseDisplay, resolveChance, secondaryStageOptionsByGroup, type ChanceOption, type FinalUpdateInfo, type StagePickerLevel } from "@/lib/customer-table";
 import { findPhoneDuplicate, fullPhoneFromLocal } from "@/lib/customer-create";
 import { formatLocalPhone } from "@/lib/detail-utils";
@@ -16,6 +16,8 @@ import { deleteCustomersBulk, formatBulkTargetNames } from "@/lib/customer-bulk-
 import { addSchedule, deleteSchedule, saveCustomerDelivery, saveCustomerSettlement, updateSchedule } from "@/lib/customer-children";
 import { compareDeliverySchedule, DELIVERY_PILL_IN_PROGRESS, DELIVERY_STAGE_PILLS, deliveryCountLabel, deliveryPillCounts, matchesDeliveryPill, resolveDeliveryScheduleSubmit } from "@/lib/delivery-console";
 import { resolveDeliveryInfoSubmit, type DeliveryInfoDraft } from "@/lib/delivery-info";
+import { formatDateDisplay } from "@/lib/datetime-text";
+import { formatSettlementAmount, settlementMargin, sumSettlementCosts } from "@/lib/settlement";
 import { prefetchCustomerConsultations } from "@/lib/consultations";
 import { prefetchCustomerQuoteRequests } from "@/lib/quote-requests";
 import { CustomerActionsCell, CustomerChanceCell, CustomerDeliveryInfoCell, CustomerDeliveryScheduleCell, CustomerFinalUpdateCell, CustomerInfoCell, CustomerNextActionCell, CustomerOperationCell, CustomerSelectCell, CustomerStageCell, CustomerVehicleCell } from "@/pages/CustomerManagementRow";
@@ -120,9 +122,22 @@ function modeFilter(mode: CustomerMode, customer: Customer) {
   if (mode === "consulting") return (!customer.advisor || customer.advisor === "미배정") && ["신규", "상담중", "견적", "차량체크", "심사서류", "관리중"].includes(customer.statusGroup);
   if (mode === "contract") return ["심사서류", "계약완료"].includes(customer.statusGroup);
   if (mode === "delivery") return customer.statusGroup === "계약완료";
-  if (mode === "settlement") return customer.status === "출고완료" && customer.settlementStatus;
+  // 정산 대상 = **계약이 확정된 건**(2026-08-05). 확정일이 실적 귀속 기준이고(2026-08-03 이사님)
+  // 정산은 그 실적에 대해 도는 절차라, 확정 전 건은 아직 정산할 것이 없다.
+  // ⚠️ 구 조건은 `customer.status === "출고완료" && customer.settlementStatus`였는데 그 필드는
+  // 목업 전용이라 **실 데이터에서 항상 undefined → 탭이 늘 빈 목록**이었다(2026-08-05 실측).
+  // 🟡 이 기준은 이사님 확인 대기 항목이다(director-pending-confirmations).
+  if (mode === "settlement") return !!customer.delivery?.contractConfirmedDate;
   if (mode === "hold") return ["관리중", "상담완료", "불발"].includes(customer.statusGroup);
   return true;
+}
+
+// 정산 단계 배지 톤 — 팝오버 강조(정산요청=주황)와 같은 의미 축이다. "정산요청"만 눈에 띄어야
+// 하는 이유: admin이 처리해야 할 대기 건이고, 나머지 둘은 이미 끝났거나 아직 시작 전이다.
+function settlementBadgeTone(status: SettlementStatus): string {
+  if (status === "정산완료") return "green";
+  if (status === "정산요청") return "yellow";
+  return "gray";
 }
 
 const headsByMode: Record<CustomerMode, string[]> = {
@@ -130,7 +145,10 @@ const headsByMode: Record<CustomerMode, string[]> = {
   consulting: ["선택", "고객", "차종 · 구매방식", "상담 상태", "AI 요약", "상담 메모", "담당", "관리"],
   contract: ["선택", "고객", "고객유형", "차종 · 구매방식", "계약 / 심사", "계약 조건", "상담 메모", "담당", "관리"],
   delivery: ["선택", "고객", "차량", "출고 단계", "출고 예정", "출고 정보", "인도 방식", "담당", "관리"],
-  settlement: ["선택", "고객", "차종 · 구매방식", "출고일", "수수료", "비용", "마진", "정산 상태", "관리"],
+  // ⚠️ "실입금액"은 팝오버 라벨과 **같은 말**이어야 한다(2026-08-05) — 구 헤더는 "수수료"였는데
+  // 같은 값을 두 화면이 다른 이름으로 불렀다. 리스·렌트는 슬라이딩 수수료지만 할부·중고리스는
+  // 입금액 자체라(schema.ts 주석) "수수료"가 절반만 맞는 말이기도 하다. 🟡 이사님 확인 대기.
+  settlement: ["선택", "고객", "차종 · 구매방식", "출고일", "실입금액", "비용", "마진", "정산 상태", "관리"],
   hold: ["선택", "고객", "차종 · 구매방식", "상태", "이탈 / 보류 요약", "재컨택 액션", "담당", "관리"],
 };
 
@@ -938,16 +956,35 @@ export function CustomerManagementPage({
     }
 
     if (mode === "settlement") {
+      // 정산 실데이터(2026-08-05). 금액 3열은 **admin에게만 값이 온다** — 서버가 비admin 응답의
+      // `settlement`을 null로 비우므로(lib/settlement-visibility) 여기선 그냥 "—"가 된다.
+      // ⚠️ 마진은 저장하지 않는 파생이라 여기서 계산한다(`settlementMargin` 한 벌을 서버·팝오버와 공유).
+      const settlement = customer.settlement ?? null;
+      // ⚠️ **비용 항목이 하나도 없으면 "—"**(0이 아니다). `settlement_costs`의 DB 기본값이 빈
+      // 배열이라 "비용이 실제로 0"과 "아직 입력 안 함"이 구조적으로 구분되지 않는데(schema.ts
+      // 주석), 그걸 0으로 단정하면 **입력한 적 없는 값을 화면이 지어내는** 셈이다. 실입금액·마진이
+      // "—"인 줄에서 비용만 0이면 "비용은 0원인데 나머지는 모른다"로 읽히기도 한다(2026-08-05 실화면).
+      // 항목이 하나라도 있으면 그 합을 낸다 — 그때는 사람이 실제로 넣은 값이다.
+      const costTotal = settlement && settlement.costs.length > 0 ? sumSettlementCosts(settlement.costs) : null;
+      const margin = settlement ? settlementMargin(settlement.feeAmount, settlement.costs) : null;
       return (
         <tr key={customer.no} {...rowProps}>
           {check}
           {customerCell}
           {vehicleCell}
-          <td>{customer.date}</td>
-          <td className="num">{customer.fee}</td>
-          <td className="num">{customer.cost}</td>
-          <td><strong className="num">{customer.margin}</strong></td>
-          <td><span className="badge green">{customer.settlementStatus}</span></td>
+          {/* 출고일 = **계약 확정일**(실적 귀속 기준, 2026-08-03 이사님). 구 코드는 `customer.date`를
+              썼는데 그건 어댑터에서 `lastActivityAt`(최근 활동)이라 정산과 무관한 값이었다. */}
+          <td>{formatDateDisplay(customer.delivery?.contractConfirmedDate) ?? "—"}</td>
+          <td className="num">{formatSettlementAmount(settlement?.feeAmount ?? null)}</td>
+          <td className="num">{formatSettlementAmount(costTotal)}</td>
+          <td><strong className="num">{formatSettlementAmount(margin)}</strong></td>
+          <td>
+            {settlement ? (
+              <span className={`badge ${settlementBadgeTone(settlement.status)}`}>{settlement.status}</span>
+            ) : (
+              <span className="settlement-stage-empty">—</span>
+            )}
+          </td>
           {actions}
         </tr>
       );

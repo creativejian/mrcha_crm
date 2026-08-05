@@ -1289,3 +1289,138 @@ describe("콘솔 행 팝오버 fixed 배치(클리핑 확산 픽스)", () => {
     expect(screen.queryByRole("listbox", { name: "진행 1단계 선택" })).not.toBeInTheDocument();
   });
 });
+
+// ── 정산(settlement) 콘솔 목록 컬럼(2026-08-05) ──────────────────────────────
+// 이 탭은 도입 이래 **실 데이터에서 늘 빈 목록**이었다: 필터가 목업 전용 필드
+// (`customer.settlementStatus`)를 봐서 서버 행은 전부 탈락했고, 금액 3열도 목업의 자유 문자열
+// (`fee: "슬라이딩 118만원"`)을 그렸다. 확정 설계(금액=number·비용=배열·마진=파생)로 다시 지었다.
+describe("정산(settlement) 콘솔 목록", () => {
+  const settled = (over: Partial<(typeof initialCustomers)[number]> = {}) => ({
+    ...initialCustomers[4],
+    id: "cid-settle-list",
+    no: 90301,
+    customerId: "CU-2605-9301",
+    name: "정산목록검증",
+    statusGroup: "계약완료",
+    status: "출고완료",
+    nextDeliverySchedule: null,
+    delivery: {
+      contractVehicle: "BMW 520i",
+      contractDate: "2026-07-01",
+      lender: "iM캐피탈",
+      deliveredDate: "2026-07-20",
+      contractConfirmedDate: "2026-07-25", // 이게 있어야 정산 대상이다
+      deliveryMemo: null,
+      sourceQuoteId: null,
+    },
+    ...over,
+  });
+
+  it("실입금액·비용합·마진을 실 데이터에서 그린다(마진은 저장 안 하는 파생)", () => {
+    const customers = [
+      settled({
+        settlement: {
+          settledAt: "2026-08-01",
+          feeAmount: 2_000_000,
+          costs: [
+            { kind: "썬팅" as const, label: null, amount: 300_000 },
+            { kind: "탁송" as const, label: null, amount: 120_000 },
+          ],
+          status: "정산완료" as const,
+        },
+      }),
+    ];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    const row = screen.getByText("정산목록검증").closest("tr") as HTMLTableRowElement;
+    expect(within(row).getByText("2,000,000")).toBeInTheDocument(); // 실입금액
+    expect(within(row).getByText("420,000")).toBeInTheDocument(); // 비용합 = 300,000 + 120,000
+    expect(within(row).getByText("1,580,000")).toBeInTheDocument(); // 마진 = 2,000,000 − 420,000
+    // 출고일 = 계약 확정일. 표시는 **슬래시**(저장은 하이픈 — 두 축이 다르다, formatDateDisplay).
+    expect(within(row).getByText("2026/07/25")).toBeInTheDocument();
+  });
+
+  // 비admin은 서버가 `settlement`을 null로 비운다(lib/settlement-visibility) — 화면은 그 상태에서
+  // **깨지지 않고 "—"**로 떨어져야 한다. 여기가 무너지면 상담사 화면이 빈 칸이 아니라 에러가 된다.
+  it("정산이 null이면(비admin 응답) 금액 3열이 '—'로 떨어진다", () => {
+    render(<CustomerManagementPage customers={[settled({ settlement: null })]} mode="settlement" onCustomersChange={() => {}} />);
+    const row = screen.getByText("정산목록검증").closest("tr") as HTMLTableRowElement;
+    expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(3);
+  });
+
+  // 정산을 아직 시작 안 한 건(2026-08-05 실화면 제임스) — 실입금액·마진이 "—"인 줄에서 비용만
+  // 0이면 "비용은 0원인데 나머지는 모른다"로 읽힌다. 빈 배열은 DB 기본값이라 "비용 없음"과
+  // "아직 입력 안 함"이 구분되지 않으므로, 0으로 단정하지 않는다(입력한 적 없는 값을 지어내지 않는다).
+  it("비용 항목이 하나도 없으면 비용도 '—'(0으로 단정하지 않는다)", () => {
+    const customers = [settled({ settlement: { settledAt: null, feeAmount: null, costs: [], status: "미정산" as const } })];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    const row = screen.getByText("정산목록검증").closest("tr") as HTMLTableRowElement;
+    expect(within(row).queryByText("0")).toBeNull();
+  });
+
+  // 반대 축: 사람이 실제로 넣은 항목이 있으면 그 합을 낸다(0원 항목만 있으면 0이 맞다).
+  it("비용 항목이 있으면 합계를 그린다", () => {
+    const customers = [
+      settled({
+        settlement: {
+          settledAt: null,
+          feeAmount: null,
+          costs: [{ kind: "페이백" as const, label: null, amount: 500_000 }],
+          status: "미정산" as const,
+        },
+      }),
+    ];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    const row = screen.getByText("정산목록검증").closest("tr") as HTMLTableRowElement;
+    expect(within(row).getByText("500,000")).toBeInTheDocument();
+  });
+
+  // 담당자가 올린 "정산요청"이 admin 목록에서 눈에 띄어야 한다 — 처리 대기 건이기 때문이다.
+  it("단계 배지는 정산요청만 강조 톤(yellow)을 쓴다", () => {
+    const customers = [settled({ settlement: { settledAt: null, feeAmount: null, costs: [], status: "정산요청" as const } })];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    const badge = screen.getByText("정산요청");
+    expect(badge.className).toContain("yellow");
+  });
+
+  // 필터 회귀 그물 — 이 조건이 목업 필드로 되돌아가면 탭이 다시 통째로 빈다(2년치 버그의 정체).
+  it("계약 확정일이 없는 고객은 정산 목록에 뜨지 않는다", () => {
+    const customers = [
+      settled({ name: "확정됨" }),
+      settled({
+        id: "cid-unconfirmed",
+        no: 90302,
+        customerId: "CU-2605-9302",
+        name: "미확정",
+        delivery: {
+          contractVehicle: "BMW 520i",
+          contractDate: "2026-07-01",
+          lender: null,
+          deliveredDate: "2026-07-20",
+          contractConfirmedDate: null,
+          deliveryMemo: null,
+          sourceQuoteId: null,
+        },
+      }),
+    ];
+    render(<CustomerManagementPage customers={customers} mode="settlement" onCustomersChange={() => {}} />);
+    expect(screen.getByText("확정됨")).toBeInTheDocument();
+    expect(screen.queryByText("미확정")).toBeNull();
+  });
+
+  it("목록 헤더는 팝오버와 같은 말을 쓴다 — '수수료'가 아니라 '실입금액'", () => {
+    render(<CustomerManagementPage mode="settlement" />);
+    expect(screen.getByRole("columnheader", { name: "실입금액" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "수수료" })).toBeNull();
+  });
+
+  // ⚠️ 목업 행이 이 탭에 **실제로 뜨는지**를 잠근다. 목업에 정산만 넣고 `delivery`(계약 확정일)를
+  // 빠뜨리면 필터를 통과하지 못해 **넣은 목업이 화면에 영원히 안 보이는 죽은 데이터**가 된다
+  // (2026-08-05에 실제로 그 상태로 한 번 커밋됐고, 화면이 0건이라 유슨생이 발견했다).
+  // Storybook·목업 모드의 유일한 표본이라 여기가 비면 개발 중 이 화면을 아예 볼 수 없다.
+  it("목업 모드에서도 정산 행이 보인다(delivery 없이 settlement만 넣으면 필터에서 탈락한다)", () => {
+    render(<CustomerManagementPage mode="settlement" />);
+    expect(screen.getByText("이나경")).toBeInTheDocument();
+    expect(screen.getByText("1,180,000")).toBeInTheDocument(); // 실입금액
+    expect(screen.getByText("760,000")).toBeInTheDocument(); // 마진 = 1,180,000 − 420,000
+  });
+});
