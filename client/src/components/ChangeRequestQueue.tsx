@@ -138,8 +138,9 @@ export function ChangeRequestQueueButton({ onApplied }: { onApplied: () => void 
                 승인 중 {bulk.done + bulk.failed}/{bulk.total}…
               </span>
             ) : (
+              // 검정 배경(.primary) — 같은 화면 "모델 추가"와 같은 무게의 주 액션이다(2026-08-05 유슨생).
               <button
-                className="btn"
+                className="btn primary"
                 disabled={!visibleRows?.length}
                 onClick={() => void handleApproveAll()}
                 type="button"
