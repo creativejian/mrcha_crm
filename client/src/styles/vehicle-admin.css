@@ -48,7 +48,10 @@
 }
 .va-layout {
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
+  /* 브랜드 열 168px(구 140) — 배지가 붙으면서 이름이 밀려 "제네시스"가 두 줄로 깨졌다
+     (2026-08-05 실기). 빨강+파랑이 **둘 다** 붙는 경우까지 들어가야 해서 배지 2개분(18+4+18)과
+     그 앞 여백을 더한 값이다. 이름은 `.va-brand-name`이 nowrap+ellipsis로 한 줄을 보장한다. */
+  grid-template-columns: 168px minmax(0, 1fr);
   height: 100%;
   /* 구 min-height: 420px 폐기 — 뷰포트 맞춤에선 height 100%가 지배하고, 낮은 창에서 420 고정은
      main overflow:hidden에 잘려 스크롤 불능이 된다(내부 스크롤이 살아 있는 편이 낫다). */
@@ -84,6 +87,14 @@
   font-size: 13px;
   color: var(--text);
   cursor: pointer;
+}
+/* 브랜드명은 한 줄 고정 — 배지가 붙어 남는 폭이 줄어도 줄바꿈 대신 말줄임으로 흡수한다
+   (구 동작: "제네시스"가 두 줄로 깨져 행 높이가 흔들렸다). */
+.va-brand-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .va-brand-item:hover {
   background: #f3f3f2;
@@ -266,15 +277,16 @@
    `margin-left: auto`로 메뉴 오른쪽 끝에 미는 게 본질이라 여기서 재사용하면 배치가 어긋난다. */
 .va-pending-count,
 .va-gap-count {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
+  /* 크기는 theme.css의 --count-badge-* 가 SSOT — 사이드바 `.nav-count`와 같은 값을 공유한다. */
+  min-width: var(--count-badge-size);
+  height: var(--count-badge-size);
+  padding: var(--count-badge-pad);
   margin-left: 6px;
-  border-radius: 5px;
+  border-radius: var(--count-badge-radius);
   display: inline-grid;
   place-items: center;
   color: #fff;
-  font-size: 12px;
+  font-size: var(--count-badge-font);
   font-weight: 400;
   line-height: 1;
 }

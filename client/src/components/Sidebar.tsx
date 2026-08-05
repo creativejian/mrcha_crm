@@ -17,6 +17,8 @@ type SidebarProps = {
   newAppRequestCount?: number;
   pendingChatCount?: number;
   pendingChangeRequestCount?: number;
+  /** 고유번호 미부여 총계(파랑) — 승인 대기(빨강) 뒤에 온다. admin에만 채워진다. */
+  mcCodeGapCount?: number;
   onViewChange: (view: string) => void;
   onCustomerModeChange: (mode: CustomerMode) => void;
   onFinanceModeChange: (mode: FinanceMode) => void;
@@ -136,7 +138,7 @@ function SidebarFlyout({ items, title }: { items: FlyoutItem[]; title: string })
   );
 }
 
-export function Sidebar({ activeView, collapsed, customerMode, financeMode, roleTab, newAppRequestCount = 0, pendingChatCount = 0, pendingChangeRequestCount = 0, onViewChange, onCustomerModeChange, onFinanceModeChange }: SidebarProps) {
+export function Sidebar({ activeView, collapsed, customerMode, financeMode, roleTab, newAppRequestCount = 0, pendingChatCount = 0, pendingChangeRequestCount = 0, mcCodeGapCount = 0, onViewChange, onCustomerModeChange, onFinanceModeChange }: SidebarProps) {
   const canViewAdminMenu = roleTab === "최고관리자";
   const canViewTeamMenu = roleTab === "최고관리자" || roleTab === "팀장";
   const [customersOpen, setCustomersOpen] = useState(true);
@@ -265,7 +267,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
                     폴링) — 딜러 할인 제안 합산은 후속(spec §7.5). */}
                 {/* MC 마스터는 인사이트류와 달리 사이드바 중복 진입을 예외 허용(2026-07-30) — 승인 대기
                     배지를 항상 보이게 하는 게 목적이고, 설정 팝오버 행에는 배지 선례/스타일이 없다. */}
-                <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span>{pendingChangeRequestCount > 0 ? <span className="nav-count num">{pendingChangeRequestCount}</span> : null}</button>
+                <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span>{pendingChangeRequestCount > 0 ? <span className="nav-count num">{pendingChangeRequestCount}</span> : null}{mcCodeGapCount > 0 ? <span aria-label={`고유번호 미부여 ${mcCodeGapCount}건`} className="nav-gap-count num">{mcCodeGapCount}</span> : null}</button>
                 {/* 인사이트·지식베이스 진입은 프로필 팝오버 "차선생 앱 설정" 그룹만(프로토타입 원 설계).
                     #251이 덧붙인 사이드바 진입점은 중복이라 제거(2026-07-19 유슨생 — pending 항목 12). */}
               </>

@@ -76,4 +76,20 @@ describe("Sidebar MC 마스터 메뉴 role 게이트 + 승인 대기 배지", ()
     expect(button).toBeInTheDocument();
     expect(button.textContent).not.toContain("3");
   });
+
+  // 고유번호 미부여(파랑)도 같은 자리에 붙는다(2026-08-05) — 브랜드·모델 목록과 같은 순서 규칙.
+  it("고유번호 미부여(파랑)를 승인 대기(빨강) 뒤에 표시한다", () => {
+    const { container } = render(
+      <Sidebar {...baseProps} roleTab="최고관리자" pendingChangeRequestCount={3} mcCodeGapCount={148} onViewChange={vi.fn()} />,
+    );
+    const button = screen.getByRole("button", { name: "MC 마스터" });
+    expect(button).toHaveTextContent("148");
+    const badges = [...container.querySelectorAll(".nav-count, .nav-gap-count")];
+    expect(badges.map((b) => b.className.split(" ")[0])).toEqual(["nav-count", "nav-gap-count"]);
+  });
+
+  it("미부여 0이면 파란 배지를 그리지 않는다", () => {
+    render(<Sidebar {...baseProps} roleTab="최고관리자" pendingChangeRequestCount={3} mcCodeGapCount={0} onViewChange={vi.fn()} />);
+    expect(screen.queryByLabelText(/고유번호 미부여/)).toBeNull();
+  });
 });

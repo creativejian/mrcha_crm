@@ -16,6 +16,7 @@ import { subscribeChatSessions } from "@/lib/chat-realtime";
 import { customerCodeFromLocation, customerListPath, customerModeFromSearch } from "@/lib/customer-route";
 import { financeListPath, financeModeFromSearch, financeModeMeta } from "@/lib/finance-route";
 import { onChangeRequestQueueUpdated } from "@/lib/catalog-change-requests";
+import { useMcCodeGaps } from "@/lib/mc-code-gaps";
 import { getJson } from "@/lib/http";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
@@ -104,6 +105,11 @@ export function App() {
   // 항목 16). 서버 403이 진짜 게이트(requireRoles)·여기는 UX 보조(라우트 홈 폴백 + 배지 구독 생략).
   const canViewInbox = roleTab === "최고관리자" || roleTab === "팀장";
   const isAdmin = roleTab === "최고관리자";
+  // 사이드바 MC 마스터의 파란 배지 = 고유번호 미부여 총계(2026-08-05). 훅이 승인·할당 양쪽 신호를
+  // 구독하므로 여기서 따로 폴링하지 않는다(빨간 배지는 그 위 60s 폴링을 계속 쓴다 — 그쪽은 훅이
+  // 아니라 count만 세는 별도 경로다).
+  const mcCodeGaps = useMcCodeGaps(auth.authed && isAdmin);
+  const mcCodeGapCount = Object.values<number>(mcCodeGaps.byBrand).reduce((sum, n) => sum + n, 0);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersError, setCustomersError] = useState(false);
   const [customersLoaded, setCustomersLoaded] = useState(false);
@@ -486,7 +492,7 @@ export function App() {
 
   return (
     <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} pendingChangeRequestCount={pendingChangeRequestCount} onCustomerModeChange={handleCustomerModeChange} onFinanceModeChange={handleFinanceModeChange} onViewChange={handleViewChange} />
+      <Sidebar activeView={activeView} collapsed={sidebarCollapsed} customerMode={customerMode} financeMode={financeMode} roleTab={roleTab} newAppRequestCount={newAppRequestCount} pendingChatCount={pendingChatCount} pendingChangeRequestCount={pendingChangeRequestCount} mcCodeGapCount={mcCodeGapCount} onCustomerModeChange={handleCustomerModeChange} onFinanceModeChange={handleFinanceModeChange} onViewChange={handleViewChange} />
       <main className="main">
         <Topbar
           sidebarCollapsed={sidebarCollapsed}
