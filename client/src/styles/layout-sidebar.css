@@ -231,16 +231,25 @@
 }
 
 /* 접힌 사이드바 — 아이콘 위에 겹쳐 띄운다(위치만, 크기는 SSOT 그대로).
-   ⚠️ **파란 배지는 접힘에서 숨긴다**: 아이콘 하나에 배지 둘을 겹칠 자리가 없어 긴급한 쪽(빨강)만
-   남긴다. 구 코드는 sidebar-collapsed.css의 `span:not(.nav-count)`에 **우연히 걸려** 숨겨졌는데,
-   클래스를 통일하면서 그 우연이 사라져 여기서 명시한다. */
-.sidebar.collapsed .count-badge.tone-pending {
+   **둘 다 보인다**(2026-08-05 유슨생 실기 확정 — 처음엔 파랑을 숨겼다가 실화면을 보고 되돌렸다).
+   ⚠️ **가로가 아니라 세로로 겹치지 않게 나눈다**: 접힘 폭이 64px(안쪽 52px)이라 배지 둘을
+   나란히 두면 세 자릿수(148 등)에서 오른쪽이 잘린다. 세로면 자릿수가 늘어도 가로로만 커진다.
+   버튼 높이 38px = 배지 18px 둘 + 여백이라 딱 맞는다. */
+.sidebar.collapsed .count-badge {
   position: absolute;
-  top: 5px;
-  right: 7px;
+  right: 2px;
 }
+.sidebar.collapsed .count-badge.tone-pending {
+  top: 1px;
+}
+/* 파랑은 혼자면 위(빨강 자리), 빨강과 함께면 아래로 내려간다 — "미부여만 있는" 상태가 실제로
+   흔한데(승인 0 · 미부여 148) 그때 아래쪽에만 떠 있으면 붕 떠 보인다. */
 .sidebar.collapsed .count-badge.tone-gap {
-  display: none;
+  top: 1px;
+}
+.sidebar.collapsed .count-badge.tone-pending ~ .count-badge.tone-gap {
+  top: auto;
+  bottom: 1px;
 }
 
 .sidebar.collapsed .nav button {
