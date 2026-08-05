@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChangeRequestKind } from "./catalog-change-kinds";
-import { buildChangeDiff, changeRequestDest, filterMyRequestVisible } from "./catalog-change-requests";
+import {
+  buildChangeDiff,
+  type ChangeRequestItem,
+  changeRequestDest,
+  filterMyRequestVisible,
+  pendingCountByModel,
+} from "./catalog-change-requests";
 
 describe("buildChangeDiff", () => {
   it("trim.update — 변경 필드만 전→후 표시(천단위 콤마)", () => {
@@ -201,4 +207,26 @@ it("filterMyRequestVisible: create류 rejected(targetId null)는 재요청 매�
     myRow({ status: "rejected", kind: "trim.create" as ChangeRequestKind, targetId: null, decidedAt: hoursAgo(1) }),
   ];
   expect(filterMyRequestVisible(rows, NOW)).toHaveLength(2); // 새 create가 있어도 반려는 남는다
+});
+
+// 모델 목록 행 배지 집계(2026-08-05). 서버가 kind별로 좌표를 풀어 `targetModelId`를 채워 주므로
+// 여기서는 그 값만 센다 — 어떤 kind가 어느 모델에 속하는지는 서버가 이미 판정했다.
+describe("pendingCountByModel", () => {
+  const row = (targetModelId: number | null) => ({ targetModelId }) as ChangeRequestItem;
+
+  it("모델별로 센다 — kind가 섞여도 좌표가 같으면 한 모델로 모인다", () => {
+    const counts = pendingCountByModel([row(42), row(42), row(401), row(42)]);
+    expect(counts.get(42)).toBe(3);
+    expect(counts.get(401)).toBe(1);
+  });
+
+  it("좌표가 없는 행은 뺀다 — 신규 모델·대상 소실은 목록의 어느 행에도 속하지 않는다", () => {
+    const counts = pendingCountByModel([row(null), row(42), row(null)]);
+    expect(counts.get(42)).toBe(1);
+    expect(counts.size).toBe(1);
+  });
+
+  it("미로드(null)는 빈 맵 — 배지를 그리지 않는다(0으로 단정하지 않는다)", () => {
+    expect(pendingCountByModel(null).size).toBe(0);
+  });
 });

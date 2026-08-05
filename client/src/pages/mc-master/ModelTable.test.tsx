@@ -83,6 +83,24 @@ describe("ModelTable 행 클릭", () => {
     expect(onPrefetch).toHaveBeenCalledWith(MODEL);
   });
 
+  it("승인 대기 배지 — 건수가 있으면 모델명 옆에 표시한다", () => {
+    renderTable({ pendingByModel: new Map([[MODEL.id, 6]]) });
+
+    expect(screen.getByLabelText("승인 대기 6건")).toHaveTextContent("6");
+  });
+
+  it("승인 대기 0건이면 배지를 그리지 않는다 — 모든 행에 0이 붙으면 신호가 죽는다", () => {
+    renderTable({ pendingByModel: new Map([[MODEL.id, 0]]) });
+
+    expect(screen.queryByLabelText(/승인 대기/)).toBeNull();
+  });
+
+  it("배지 데이터가 없으면(대기열을 못 받는 역할) 아무 것도 그리지 않는다", () => {
+    renderTable();
+
+    expect(screen.queryByLabelText(/승인 대기/)).toBeNull();
+  });
+
   it("키보드 Enter로도 연다 — 링크 버튼을 없앤 만큼 행이 초점을 받아야 한다", async () => {
     const user = userEvent.setup();
     const { onOpen } = renderTable();

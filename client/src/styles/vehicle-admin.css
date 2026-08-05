@@ -258,6 +258,23 @@
 .va-row-selected {
   background: #f1edff;
 }
+/* 모델 행 승인 대기 배지(2026-08-05) — 사이드바 `.nav-count`와 같은 어휘(같은 빨강·크기·radius)를
+   쓰되 클래스를 따로 둔다: 그쪽은 `margin-left: auto`로 메뉴 오른쪽 끝에 미는 게 본질이라
+   테이블에서 재사용하면 이름도 배치도 어긋난다. 여기서는 모델명 바로 옆에 붙는다. */
+.va-pending-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 5px;
+  display: inline-grid;
+  place-items: center;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+}
 /* 행 전체를 진입 버튼으로 쓰는 표(모델표 — 2026-08-05). 어휘는 고객 목록 `.customer-row`와
    같은 한 벌이다: 포인터 커서 + 옅은 hover + focus-visible 아웃라인(키보드 진입이 보이게).
    ⚠️ 선택 모드에서는 이 클래스가 아예 안 붙는다 — 그때 행은 draggable이라 커서가 grab이고,

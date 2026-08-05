@@ -19,6 +19,7 @@ export function ModelTable({
   onDragOver,
   onDrop,
   onPrefetch,
+  pendingByModel,
 }: {
   models: CatalogModel[];
   canEdit: boolean;
@@ -34,6 +35,9 @@ export function ModelTable({
   onDrop: () => void;
   // hover/focus 시 해당 모델의 트림 뷰(트림·색상·옵션)를 미리 받아둬 클릭 즉시 진입.
   onPrefetch?: (model: CatalogModel) => void;
+  /** 모델별 승인 대기 건수(2026-08-05) — 없거나 0이면 배지를 그리지 않는다. 대기열을 볼 수 있는
+   * 역할(admin)에만 채워 내려온다: 나머지 역할은 애초에 그 목록을 못 받아 셀 수가 없다. */
+  pendingByModel?: Map<number, number>;
 }) {
   if (models.length === 0) return <div className="va-empty">브랜드를 선택하세요.</div>;
   const allChecked = models.length > 0 && models.every((m) => selected.has(m.id));
@@ -51,7 +55,9 @@ export function ModelTable({
         </tr>
       </thead>
       <tbody>
-        {models.map((m) => (
+        {models.map((m) => {
+          const pending = pendingByModel?.get(m.id) ?? 0;
+          return (
           <SelectableRow
             key={m.id}
             id={m.id}
@@ -77,6 +83,15 @@ export function ModelTable({
               {/* 링크 색을 뺀 평문이다 — 행 전체가 눌리는데 이름만 브랜드 색이면 "여기만 눌러라"는
                   틀린 신호가 된다. 진입은 행이 담당하므로 여기엔 클릭 핸들러가 없다. */}
               <span>{m.name}</span>
+              {/* 승인 대기 건수 — 어느 모델에 처리할 게 있는지 목록에서 바로 보이게(사이드바
+                  `.nav-count`와 같은 어휘). 0이면 아예 안 그린다: 모든 행에 "0"이 붙으면 신호가
+                  죽는다. 세는 대상은 그 모델에 걸린 pending **전부**(모델 수정·트림·옵션·신규
+                  트림)로, 트림 화면 배지(useModelPendingRequests)와 같은 기준이다. */}
+              {pending > 0 && (
+                <span aria-label={`승인 대기 ${pending}건`} className="va-pending-count num">
+                  {pending}
+                </span>
+              )}
             </td>
             <td>{m.category ?? "—"}</td>
             <td className="va-num va-mt-price">{formatPriceRangeKorean(m.minPrice, m.maxPrice)}</td>
@@ -102,7 +117,8 @@ export function ModelTable({
               </td>
             )}
           </SelectableRow>
-        ))}
+          );
+        })}
       </tbody>
     </table>
   );
