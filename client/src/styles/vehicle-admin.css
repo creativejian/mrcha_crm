@@ -177,17 +177,6 @@
   background: #ece8ff;
   color: var(--brand);
 }
-.va-link {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  color: var(--brand);
-  cursor: pointer;
-}
-.va-link:hover {
-  text-decoration: underline;
-}
 .va-head-back {
   display: flex;
   align-items: center;
@@ -268,6 +257,21 @@
 }
 .va-row-selected {
   background: #f1edff;
+}
+/* 행 전체를 진입 버튼으로 쓰는 표(모델표 — 2026-08-05). 어휘는 고객 목록 `.customer-row`와
+   같은 한 벌이다: 포인터 커서 + 옅은 hover + focus-visible 아웃라인(키보드 진입이 보이게).
+   ⚠️ 선택 모드에서는 이 클래스가 아예 안 붙는다 — 그때 행은 draggable이라 커서가 grab이고,
+   두 어휘가 겹치면 "끌 수 있는데 눌리기도 하는" 모호한 행이 된다(판정은 SelectableRow). */
+.va-row-click {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.va-row-click:hover {
+  background: #fafafa;
+}
+.va-row-click:focus-visible {
+  outline: 2px solid rgba(var(--brand-rgb), 0.22);
+  outline-offset: -2px;
 }
 .va-dragging {
   opacity: 0.45;
