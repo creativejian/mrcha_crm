@@ -15,9 +15,8 @@ import { subscribeNewQuoteRequests } from "@/lib/quote-requests-realtime";
 import { subscribeChatSessions } from "@/lib/chat-realtime";
 import { customerCodeFromLocation, customerListPath, customerModeFromSearch } from "@/lib/customer-route";
 import { financeListPath, financeModeFromSearch, financeModeMeta } from "@/lib/finance-route";
-import { useCatalogQueueTick } from "@/lib/catalog-queue-signals";
+import { useChangeRequestQueue } from "@/lib/catalog-change-requests";
 import { useMcCodeGaps } from "@/lib/mc-code-gaps";
-import { getJson } from "@/lib/http";
 import { prefetchCatalog } from "@/pages/mc-master/catalog-cache";
 import { useAuth } from "./auth/AuthProvider";
 import { AISettingsPage } from "@/pages/AISettingsPage";
@@ -105,10 +104,17 @@ export function App() {
   // 항목 16). 서버 403이 진짜 게이트(requireRoles)·여기는 UX 보조(라우트 홈 폴백 + 배지 구독 생략).
   const canViewInbox = roleTab === "최고관리자" || roleTab === "팀장";
   const isAdmin = roleTab === "최고관리자";
-  // 사이드바 MC 마스터의 파란 배지 = 고유번호 미부여 총계(2026-08-05). 훅이 승인·할당 양쪽 신호를
-  // 구독하므로 여기서 따로 폴링하지 않는다(빨간 배지는 그 위 60s 폴링을 계속 쓴다 — 그쪽은 훅이
-  // 아니라 count만 세는 별도 경로다).
-  const queueTick = useCatalogQueueTick(auth.authed && isAdmin, { focus: true, pollMs: 60_000 });
+  // 사이드바 MC 마스터 배지 둘. **빨강 = 승인 대기**: 조회를 MC 마스터 화면과 같은 훅으로 모았다
+  // (2026-08-05) — 이전엔 여기서 같은 URL을 직접 한 번 더 불러, admin이 MC 마스터에 있으면 응답
+  // 둘이 따로 도착하며 사이드바와 목록 배지가 1~2초 어긋났다. focus 재검증·60s 폴링은 상시 마운트인
+  // 여기가 소유하고(신호가 유실돼도 결국 맞춰지는 마지막 그물), 받아온 값은 모듈 스냅샷을 타고 화면
+  // 안 배지까지 함께 간다. manager는 서버가 403이라 admin만 조회한다.
+  // **파랑 = 고유번호 미부여 총계**: 훅이 승인·할당 양쪽 신호를 구독하므로 따로 폴링하지 않는다.
+  const { rows: pendingChangeRequests } = useChangeRequestQueue(auth.authed && isAdmin, {
+    focus: true,
+    pollMs: 60_000,
+  });
+  const pendingChangeRequestCount = pendingChangeRequests?.length ?? 0;
   const mcCodeGaps = useMcCodeGaps(auth.authed && isAdmin);
   const mcCodeGapCount = Object.values<number>(mcCodeGaps.byBrand).reduce((sum, n) => sum + n, 0);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -177,7 +183,6 @@ export function App() {
   const markAppRequestsRead = useCallback(() => setNewAppRequestCount(0), []);
   const [pendingChatCount, setPendingChatCount] = useState(0);
   const markChatRequestsRead = useCallback(() => setPendingChatCount(0), []);
-  const [pendingChangeRequestCount, setPendingChangeRequestCount] = useState(0);
 
   // 콜백이 항상 현재 경로를 읽도록 ref 동기화. useLayoutEffect라 paint 전(commit 단계)에 갱신돼
   // 내비 직후 race를 제거하면서 react-hooks/refs(렌더 중 ref 갱신 금지)도 위반하지 않는다.
@@ -213,17 +218,6 @@ export function App() {
       showToast("새 상담원 연결 요청이 도착했습니다");
     });
   }, [auth.authed, showToast]);
-
-  // MC 마스터 승인 대기 배지 — 구독 목록은 catalog-queue-signals가 SSOT다(2026-08-05).
-  // 여기서 더하는 건 화면 사정 둘뿐: **focus 재검증**(관리자가 다른 탭에 갔다 돌아오는 순간이
-  // 갱신 적기 — dealer-roster 선례)과 **60s 폴링**(신호가 유실돼도 결국 맞춰지는 마지막 그물).
-  // manager는 서버가 403이라 admin(isAdmin)만 조회.
-  useEffect(() => {
-    if (!auth.authed || !isAdmin) return;
-    getJson<unknown[]>("/api/catalog/change-requests?status=pending")
-      .then((rows) => setPendingChangeRequestCount(rows.length))
-      .catch(() => {}); // 실패 무소음 — 배지는 최선 노력
-  }, [auth.authed, isAdmin, queueTick]);
 
   useEffect(() => () => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);

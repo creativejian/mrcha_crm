@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { useCatalogQueueTick } from "./catalog-queue-signals";
+import { createQueueEpochFetch, useCatalogQueueTick } from "./catalog-queue-signals";
 import { getJson } from "./http";
 
 // 고유번호(mc_code) 미부여 집계 — 브랜드 목록·모델 목록의 **파란 배지** 재료(2026-08-05).
@@ -20,9 +20,12 @@ export type McCodeGaps = {
 
 const EMPTY: McCodeGaps = { byBrand: {}, byModel: {} };
 
-async function fetchMcCodeGaps(): Promise<McCodeGaps> {
-  return getJson<McCodeGaps>("/api/catalog/models/mc-code-gaps");
-}
+// 소비처가 둘이다(사이드바 총계 · MC 마스터 목록 배지). 둘 다 같은 신호에 반응하므로 재조회
+// 시점이 겹치는데, 각자 왕복하면 같은 URL이 두 번 나가고 두 응답 사이에 배지가 어긋난다 —
+// 계기 단위로 한 요청에 합친다(catalog-queue-signals). 여기는 대기열과 달리 스냅샷 방송이 없어도
+// 된다: 소비처 둘 다 폴링·focus 축이 없어 **갱신 계기가 항상 공유 신호**라, 합쳐진 한 응답을
+// 양쪽이 그대로 받는다. 폴링을 켜는 소비처가 생기면 그때는 대기열처럼 스냅샷을 공유해야 한다.
+const fetchMcCodeGaps = createQueueEpochFetch(() => getJson<McCodeGaps>("/api/catalog/models/mc-code-gaps"));
 
 /**
  * 미부여 집계 구독. `enabled`는 **부여 권한과 같은 축**(admin)이어야 한다 — 처리할 수 없는

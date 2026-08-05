@@ -24,10 +24,16 @@ import { onCatalogQueueRemoteChanged } from "./catalog-change-realtime";
 // 이 모듈을 쓰는데, 정의가 그쪽에 남아 있으면 서로를 import하게 된다. 발신자는 각자 여기서
 // notify만 가져다 쓴다.
 
+// 계기 카운터(= 조회 "세대"). 아래 createQueueEpochFetch가 이 값으로 **같은 계기에서 출발한
+// 조회끼리만** 합류시킨다. 밖으로 내보내지 않는다 — 노출하면 "지금 몇 세대냐"를 화면 로직이
+// 읽고 분기하기 시작하고, 그건 신선도 판단이 다시 소비처로 흩어지는 길이다(이 모듈이 생긴 이유).
+let queueEpoch = 0;
+
 // ⚠️ 발신은 **리스너 예외를 격리**한다 — 알림 시점엔 원 작업(적재·승인·할당)이 이미 커밋된
 // 뒤라, 여기서 던지면 성공한 작업이 호출부 catch에서 거짓 실패로 보이고 재시도는 409로 막히는
 // 막다른 길이 된다(구 sendCatalogWrite의 규약을 세 채널로 넓혔다).
 function emit(listeners: Set<() => void>) {
+  queueEpoch += 1; // 계기 1회 = 세대 1증가. focus·폴링은 여기를 거치지 않는다(아래 주석 참조).
   for (const listener of listeners) {
     try {
       listener();
@@ -76,6 +82,50 @@ export function notifyMcCodesAssigned() {
   emit(assignedListeners);
 }
 
+// ③ broadcast는 **이 모듈이 한 번만** 구독하고 여기서 되뿌린다(2026-08-05). 훅 인스턴스가 각자
+// 직접 구독하면 타 세션 신호 한 번에 emit이 인스턴스 수만큼 돌아 세대가 그만큼 뛰고, 같은 계기로
+// 출발한 조회들이 서로 다른 세대로 갈려 in-flight 공유가 깨진다(요청 수가 도로 원위치).
+// 부수 효과로 채널 구독도 1개로 고정된다 — realtime 매니저의 개설/해체 churn이 준다.
+const remoteListeners = new Set<() => void>();
+let remoteOff: (() => void) | null = null;
+function onQueueRemoteChanged(listener: () => void): () => void {
+  remoteListeners.add(listener);
+  remoteOff ??= onCatalogQueueRemoteChanged(() => emit(remoteListeners));
+  return () => {
+    remoteListeners.delete(listener);
+    if (remoteListeners.size > 0) return;
+    remoteOff?.();
+    remoteOff = null;
+  };
+}
+
+// ── 겹친 조회 합치기 ─────────────────────────────────────────────────────────
+
+/**
+ * 같은 계기로 출발한 조회를 **한 요청으로 합친다**(2026-08-05). 큐 신호는 전역 pub/sub이라
+ * 소비처 전원이 같은 순간 재조회에 들어가는데, 그때까지는 인스턴스마다 각자 왕복해 같은 URL이
+ * 두 번씩 나가고 **두 응답 사이의 순간 불일치**(숫자가 1~2초 어긋남)가 배지에 그대로 보였다.
+ *
+ * ⚠️ 무조건 합치지 않고 **세대(epoch)가 같을 때만** 합류시킨다 — 승인 왕복 직전에 출발한 조회에
+ * 승인 직후의 재조회가 올라타면 **승인 전 숫자**를 받아 배지가 조용히 stale이 된다(고치려는 결함의
+ * 새 변종). 계기(적재·결정·타 세션 broadcast)가 세대를 올리므로 그런 합류는 자동으로 막힌다.
+ * 반대로 focus 재검증·주기 폴링은 세대를 올리지 않는다 — "혹시 놓친 게 있나" 확인이라 진행 중인
+ * 조회에 올라타도 무해하고, 오히려 합쳐지는 편이 맞다.
+ */
+export function createQueueEpochFetch<T>(run: () => Promise<T>): () => Promise<T> {
+  let inflight: Promise<T> | null = null;
+  let inflightEpoch = -1;
+  return () => {
+    if (inflight != null && inflightEpoch === queueEpoch) return inflight;
+    const started: Promise<T> = run().finally(() => {
+      if (inflight === started) inflight = null;
+    });
+    inflight = started;
+    inflightEpoch = queueEpoch;
+    return started;
+  };
+}
+
 // ── 구독 SSOT ────────────────────────────────────────────────────────────────
 
 type QueueTickOptions = {
@@ -106,7 +156,7 @@ export function useCatalogQueueTick(enabled: boolean, opts: QueueTickOptions = {
   useEffect(() => {
     if (!enabled) return;
     const bump = () => setTick((t) => t + 1);
-    const offs = [onCatalogWriteQueued(bump), onCatalogQueueRemoteChanged(bump)];
+    const offs = [onCatalogWriteQueued(bump), onQueueRemoteChanged(bump)];
     if (decisions) offs.push(onChangeRequestQueueUpdated(bump));
     if (assigned) offs.push(onMcCodesAssigned(bump));
     if (focus) {
