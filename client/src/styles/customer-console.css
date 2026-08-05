@@ -1179,8 +1179,14 @@
   flex: 0 0 auto;
   min-width: 86px;
 }
-/* 금액은 남는 폭을 다 쓴다 — 항목명이 없는 행에서도 칸이 쪼그라들지 않게. */
-.settlement-cost-row input {
+/* 금액 칸은 "원" 단위를 품은 래퍼(.delivery-fee-input)로 감싸므로 **flex 아이템이 래퍼**다.
+   남는 폭을 다 쓰게 해서 항목명이 없는 행에서도 칸이 쪼그라들지 않게 한다. */
+.settlement-cost-amount {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* 항목명 input(직접입력일 때만 생긴다)은 행의 직접 자식이라 별도로 늘린다. */
+.settlement-cost-row > input {
   flex: 1 1 auto;
   min-width: 0;
 }

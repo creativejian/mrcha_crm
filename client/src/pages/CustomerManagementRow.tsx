@@ -848,13 +848,18 @@ function DeliveryInfoPopover({ canEditSettlement, customerId, customerName, draf
                     value={c.label ?? ""}
                   />
                 )}
-                <input
-                  aria-label={`비용 ${i + 1} 금액`}
-                  inputMode="numeric"
-                  onChange={(e) => setCosts((rows) => rows.map((r, j) => (j === i ? { ...r, amountText: formatNumberWithCommas(e.target.value) } : r)))}
-                  type="text"
-                  value={c.amountText}
-                />
+                {/* 단위는 실입금액 칸과 같은 패턴(.delivery-fee-input)으로 칸 안 오른쪽에 붙인다 —
+                    같은 섹션에서 한쪽만 "원"이 없으면 어느 단위인지 매번 확인하게 된다. */}
+                <span className="delivery-fee-input settlement-cost-amount">
+                  <input
+                    aria-label={`비용 ${i + 1} 금액`}
+                    inputMode="numeric"
+                    onChange={(e) => setCosts((rows) => rows.map((r, j) => (j === i ? { ...r, amountText: formatNumberWithCommas(e.target.value) } : r)))}
+                    type="text"
+                    value={c.amountText}
+                  />
+                  <em>원</em>
+                </span>
                 <button aria-label={`비용 ${i + 1} 삭제`} onClick={() => setCosts((rows) => rows.filter((_, j) => j !== i))} type="button">✕</button>
               </div>
             ))}
