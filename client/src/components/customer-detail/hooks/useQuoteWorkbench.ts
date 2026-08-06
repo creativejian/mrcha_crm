@@ -1036,6 +1036,8 @@ export function useQuoteWorkbench({
         vehicle: {
           brand: workbenchVehicle?.brand?.name ?? null,
           model: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
+          trimName: workbenchVehicle?.trim?.trimName ?? trimDetail?.trimName ?? null,
+          canonicalName: workbenchVehicle?.trim?.canonicalName ?? trimDetail?.canonicalName ?? null,
           mcCode: workbenchVehicle?.trim?.mcCode ?? trimDetail?.mcCode ?? null,
         },
         pricing: {
