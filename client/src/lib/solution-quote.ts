@@ -200,7 +200,14 @@ export type BuildArgs = {
   // 금융사에 귀속된 값이다 — 다른 금융사 요청에 실으면 견적이 무음으로 틀어진다(BNK 하드 폴백/메리츠 fee 0,
   // useMultiQuote DealerSelection 근거). 전사 프로브(랭킹 모달)는 buildCardSolutionBaseArgs가 null로 벗긴다.
   dealerName: string | null;
-  vehicle: { brand: string | null; model: string | null; mcCode: string | null };
+  // trimName·canonicalName은 파트너 modelName 해석 재료(아래 buildSolutionQuoteInput 주석 참조).
+  vehicle: {
+    brand: string | null;
+    model: string | null;
+    trimName: string | null;
+    canonicalName: string | null;
+    mcCode: string | null;
+  };
   pricing: {
     baseAndOption: number;
     discount: number;
@@ -265,7 +272,12 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
     lenderCode: lender.code,
     productType,
     brand: args.vehicle.brand,
-    modelName: args.vehicle.model,
+    // modelName 해석 = canonicalName ?? trimName ?? model — 계산기(build-payload.ts) 패리티.
+    // 파트너는 masterMcCode가 offering에 링크되면 modelName을 치환해 무시하지만, 링크가 없으면
+    // (brand, modelName) 폴백 매칭을 타는데 그 매처가 트림급 서술을 기대하고 일부는 prefix 매칭이라
+    // 맨 모델명("5 Series")은 임의 트림에 오매칭될 수 있다 — canonical은 정확히 맞거나 깨끗하게
+    // 실패한다. model 최종 폴백은 트림 미조회 상태(저장 견적 prefill 등)의 기존 동작 유지.
+    modelName: args.vehicle.canonicalName ?? args.vehicle.trimName ?? args.vehicle.model,
     masterMcCode: args.vehicle.mcCode,
     ownershipType: "company",
     leaseTermMonths: args.termMonths,
