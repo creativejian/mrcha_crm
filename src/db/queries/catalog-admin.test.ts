@@ -197,6 +197,70 @@ test("moveTrims: 다른 모델로 이동 + sort_order 재부여 (tx 롤백, prod
     });
 });
 
+test("updateTrim: trimName·연식·연료 변경 시 canonical_name 재계산 (tx 롤백, prod 무변경)", async () => {
+  await getDefaultDb()
+    .transaction(async (tx) => {
+      const [brand] = await tx
+        .select({ id: brandsInCatalog.id, name: brandsInCatalog.name })
+        .from(brandsInCatalog)
+        .where(eq(brandsInCatalog.isDomestic, false))
+        .limit(1);
+      const model = await createModel({ brandId: brand.id, name: "__CANON_UPD__", category: null, status: "판매중" }, tx);
+      const trim = await createTrim(
+        { modelId: model.id, trimName: "구트림", price: 1000, modelYear: 2026, fuelType: "가솔린" },
+        tx,
+      );
+      expect(trim.canonicalName).toBe(`${brand.name} __CANON_UPD__ 2026 가솔린 구트림`);
+
+      // 트림명 변경 → 트림명 부분 재계산
+      const renamed = await updateTrim(trim.id, { trimName: "신트림" }, tx);
+      expect(renamed?.canonicalName).toBe(`${brand.name} __CANON_UPD__ 2026 가솔린 신트림`);
+
+      // 연식·연료 변경 → 가운데 세그먼트 재계산
+      const retimed = await updateTrim(trim.id, { modelYear: 2027, fuelType: "디젤" }, tx);
+      expect(retimed?.canonicalName).toBe(`${brand.name} __CANON_UPD__ 2027 디젤 신트림`);
+
+      // canonical 입력과 무관한 변경(가격)은 canonical 불변
+      const priced = await updateTrim(trim.id, { price: 2000 }, tx);
+      expect(priced?.canonicalName).toBe(`${brand.name} __CANON_UPD__ 2027 디젤 신트림`);
+
+      throw new Rollback();
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Rollback)) throw e;
+    });
+});
+
+test("moveTrims: 이동 후 canonical의 모델명 부분 재계산 (tx 롤백, prod 무변경)", async () => {
+  await getDefaultDb()
+    .transaction(async (tx) => {
+      const [brand] = await tx
+        .select({ id: brandsInCatalog.id, name: brandsInCatalog.name })
+        .from(brandsInCatalog)
+        .where(eq(brandsInCatalog.isDomestic, false))
+        .limit(1);
+      const modelA = await createModel({ brandId: brand.id, name: "__CANON_MV_A__", category: null, status: "판매중" }, tx);
+      const modelB = await createModel({ brandId: brand.id, name: "__CANON_MV_B__", category: null, status: "판매중" }, tx);
+      const t = await createTrim(
+        { modelId: modelA.id, trimName: "이동트림", price: 1000, modelYear: 2026, fuelType: "가솔린" },
+        tx,
+      );
+      expect(t.canonicalName).toBe(`${brand.name} __CANON_MV_A__ 2026 가솔린 이동트림`);
+
+      await moveTrims([t.id], modelB.id, tx);
+      const [moved] = await tx
+        .select({ canonicalName: trimsInCatalog.canonicalName })
+        .from(trimsInCatalog)
+        .where(eq(trimsInCatalog.id, t.id));
+      expect(moved.canonicalName).toBe(`${brand.name} __CANON_MV_B__ 2026 가솔린 이동트림`);
+
+      throw new Rollback();
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Rollback)) throw e;
+    });
+});
+
 test("assignMcCodes: 미부여 트림에 trim_code 채번 → mc_code 자동 생성 (tx 롤백, prod 무변경)", async () => {
   await getDefaultDb()
     .transaction(async (tx) => {
