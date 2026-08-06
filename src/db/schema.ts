@@ -609,8 +609,15 @@ export const catalogChangeRequests = crm.table(
 // 감사 기록(요청·확인·실행 시각/주체). **PII를 담지 않는다** — 고객명·전화 금지, customer_code만.
 // customer_id에 FK를 걸지 않는다 — 실행(PURGE)이 그 행을 지운 뒤에도 잡은 남아야 한다
 // (customer_deletions.customer_id와 같은 사유).
-// app_user_id가 nullable인 이유: 실행 완료 30일 후 정리 잡이 NULL로 스크럽한다(앱 user ID 잔존
-// 최소화 — 회신 §2a. UNIQUE는 NULL 다중 허용이라 스크럽과 공존). 생성 시엔 항상 채운다.
+// app_user_id가 nullable인 이유: **실행 완료 30일 후 NULL로 스크럽하려던 계획**(앱 user ID 잔존
+// 최소화 — 구현 spec §2a. UNIQUE는 NULL 다중 허용이라 스크럽과 공존). 생성 시엔 항상 채운다.
+// 🟡 **그 스크럽은 아직 구현되지 않았다**(2026-08-06 배치 16 실측 — 레포에도 `cron.job`에도 없다).
+// 구 주석은 "스크럽한다"고 현재형으로 단언하면서 근거를 "회신 §2a"로 적었는데, **앱 팀 회신에는
+// §2a라는 절이 없고** 스크럽을 약속한 적도 요구받은 적도 없다(외부 계약 아님 = CRM 내부 자기 약속).
+// spec §2a가 편승 대상으로 지목한 "§6 정리 잡"도 실재하지 않아(그 §6은 "테스트 주의") 계획이 앵커째
+// 유실됐다. 되살릴 때는 `runAccountDeletionCron`에 한 문장(`executed_at <= now() - interval '30 days'`
+// → `app_user_id = NULL`)이면 된다 — 기능 영향은 0이고(앱은 200 수신 후 폴링을 끝낸다), 남는 건
+// 개인정보 최소화 약속의 미이행과 `customer_deletions`(같은 식별자를 지우기로 결정·구현)와의 비대칭이다.
 export const accountDeletionJobs = crm.table("account_deletion_jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   appUserId: uuid("app_user_id").unique(), // → public.profiles.id(loose id). 멱등 키

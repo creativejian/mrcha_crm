@@ -1147,6 +1147,17 @@
   border-top: 1px solid var(--line-soft, #eceae6);
   padding-top: 10px;
 }
+/* 정산 입력 묶음 — 조회가 도착하기 전 일괄 비활성(DeliveryInfoPopover의 settlementLoaded).
+   `display: contents`라 fieldset 자신은 레이아웃에서 사라지고 자식이 위 grid의 item이 된다 —
+   마크업을 감싸면서도 칸 배치·팝오버 높이가 그대로다(높이가 변하면 위치가 다시 잡혀 화면이 튄다).
+   fieldset 기본 테두리·여백도 함께 무력화된다. */
+.delivery-settlement-fields {
+  display: contents;
+}
+/* 값이 아직 진짜가 아니라는 신호. 입력 차단 자체는 fieldset disabled(브라우저 네이티브)가 한다. */
+.delivery-settlement-fields:disabled > * {
+  opacity: 0.5;
+}
 .delivery-settlement-title {
   display: flex;
   align-items: center;

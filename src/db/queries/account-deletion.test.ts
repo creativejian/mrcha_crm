@@ -268,9 +268,26 @@ test("보존 기한 도래 수렴: 선별 창 + 출고 완료 흔적 → 정산 
           retentionUntil: sql`now() + interval '30 days'`,
         })
         .returning({ id: customers.id });
+      // 🔴 기한이 지났어도 **앱에 (다시) 연결된 고객은 제외**된다(2026-08-06 배치 16 P1).
+      // 앱 회신 §8이 "B 보존 고객은 phone이 materialize돼 매칭 후보에 뜨고 직원이 수동 연결"을
+      // **정상 경로로 명시**하므로 이 상태는 실제로 생긴다. 그때 예약이 살아 있으면 일일 크론이
+      // **살아 있는 활성 고객을 통째로 파기**한다(재연결 후 쌓인 견적·서류까지, 앱 카드 회수까지).
+      // 유일한 신호가 파기 **후** 디스코드 알림이라 예방이 불가능했다.
+      const [relinked] = await tx
+        .insert(customers)
+        .values({
+          customerCode: code(),
+          name: "보존재연결테스트",
+          retentionBasis: "출고 연락·조율",
+          retentionUntil: sql`now() - interval '1 day'`,
+          appUserId: crypto.randomUUID(),
+        })
+        .returning({ id: customers.id });
+
       const dueIds = (await listRetentionDueCustomers(tx)).map((c) => c.id);
       expect(dueIds).toContain(due.id);
       expect(dueIds).not.toContain(notDue.id);
+      expect(dueIds).not.toContain(relinked.id);
 
       // 출고 완료 흔적 + 원 탈퇴 잡(역추적 대상) 픽스처.
       await tx.insert(customerDeliveries).values({ customerId: due.id, lender: "테스트캐피탈", deliveredDate: "2026-07-20" });

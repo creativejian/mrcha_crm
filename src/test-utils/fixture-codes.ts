@@ -27,6 +27,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
   "CU-EMBTEST-",    // db/queries/embeddings.test.ts
   "CU-MGST-",       // routes/customers.test.ts — 수동 관리 상태 영속(manage_status) 검증
   "CU-QRPF-",       // routes/quote-requests.test.ts — 프리필 단건 customers 라우터 이사(배치 12 K1)
+  "CU-REVBASIS-",   // db/queries/reports.revenue-basis.test.ts — 실적 귀속 기준일(#436) 잠금, 롤백
   "CU-QWACC-",      // routes/customers.quote-access.test.ts — 견적 쓰기 권한 게이트(담당자 스코프)
   "CU-ROUTE-",      // routes/customers.test.ts
   "CU-RSCOPE-",     // routes/customers.role-scope.test.ts — 목록/상세 화면 role scope 게이트

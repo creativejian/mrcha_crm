@@ -399,7 +399,13 @@ export async function assignMcCodes(modelId: number, executor: Executor = getDef
 
 // 트림을 다른 모델로 이동(앱 '모델 이동', 같은 브랜드 내). model_id 변경 + 대상 모델 기준
 // sort_order 재부여(max+1…) — 앱은 재부여를 안 해 UNIQUE(model_id, sort_order) 충돌 위험이
-// 있어 CRM은 보강한다. trim_code/mc_code/canonical_name은 트리거가 변경을 막아 유지(앱 동일, mc_code stale).
+// 있어 CRM은 보강한다. trim_code/mc_code는 트리거(`catalog.prevent_trim_code_change`)가 변경을
+// 막아 유지된다(앱 동일, mc_code stale).
+// ⚠️ **canonical_name은 그 트리거가 막지 않는다**(2026-08-06 배치 16 실측 — 함수 본문이 검사하는 건
+// trim_code·mc_code 둘뿐인데 구 주석은 셋이라고 적었다). 즉 모델 이동 후 canonical의 모델명 부분이
+// 그대로 남아 **거짓이 된다** — 실측 71건 불일치 중 34건이 이 경로와 모델 개명 기인이다.
+// 파생 재계산은 이 함수·`updateTrim`·`updateModel` 세 곳을 한 벌로 고쳐야 해서 후속으로 뺐다
+// (판정 SSOT `ref/plans/2026-08-06-crm-refactor-batch-16.md` "후속" 절).
 export async function moveTrims(
   trimIds: number[],
   targetModelId: number,

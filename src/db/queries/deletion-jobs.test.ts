@@ -347,19 +347,34 @@ test("D+3 재촉·D+5 자동 실행 창 판정(멤버십 단언 — 공유 DB라
           .returning({ id: accountDeletionJobs.id });
         return j.id;
       };
-      const fresh = await mk("1 day");
-      const remindDue = await mk("3 days 12 hours");
-      const autoDue = await mk("6 days");
+      // ⚠️ 픽스처는 **경계 ±1시간**이어야 한다(2026-08-06 배치 16 변이 실측).
+      // 구 픽스처(1일 · 3일12시간 · 6일)는 멤버십 3단언이 성립하는 임계값 범위가 넓었다 —
+      // D+5는 **(3.5일, 6일] 어디에 있어도 초록**이고 D+3 하한은 (1일, 3.5일]이었다.
+      // 즉 `interval '5 days'`를 `'4 days'`로 바꿔도 이 테스트가 통과했다(실제로 주입해 확인).
+      // D+5는 **앱 팀에 통보한 유예**이고 지나면 되돌릴 수 없는 파기가 자동 실행되므로, 하루가
+      // 조용히 밀리면 그 자체로 계약 위반이다. 게다가 보존 30일과 달리 **상수 tripwire가 없어**
+      // (인라인 SQL 리터럴) 이 픽스처가 유일한 그물이다 — `#442`가 보존 기한에서 한 처방과 같다.
+      const beforeRemind = await mk("2 days 23 hours"); // D+3 직전 — 재촉 아직
+      const afterRemind = await mk("3 days 1 hour"); // D+3 직후 — 재촉 창 진입
+      const beforeRemindEnd = await mk("3 days 23 hours"); // D+4 직전 — 아직 재촉 창
+      const afterRemindEnd = await mk("4 days 1 hour"); // D+4 직후 — 재촉 창 이탈
+      const beforeAuto = await mk("4 days 23 hours"); // D+5 직전 — 자동 실행 아직
+      const afterAuto = await mk("5 days 1 hour"); // D+5 직후 — 자동 실행 대상
 
       const remindIds = (await listRemindDueJobs(tx)).map((j) => j.id);
-      expect(remindIds).toContain(remindDue);
-      expect(remindIds).not.toContain(fresh);
-      expect(remindIds).not.toContain(autoDue); // 4일 초과는 재촉 창 밖(자동 실행 몫)
+      expect(remindIds).not.toContain(beforeRemind);
+      expect(remindIds).toContain(afterRemind);
+      expect(remindIds).toContain(beforeRemindEnd);
+      expect(remindIds).not.toContain(afterRemindEnd); // 4일 초과는 재촉 창 밖(자동 실행 몫)
 
       const autoIds = (await listAutoDueJobs(tx)).map((j) => j.id);
-      expect(autoIds).toContain(autoDue);
-      expect(autoIds).not.toContain(fresh);
-      expect(autoIds).not.toContain(remindDue);
+      expect(autoIds).not.toContain(beforeAuto);
+      expect(autoIds).toContain(afterAuto);
+
+      // D+4~D+5는 **어느 쪽에도 안 잡히는 게 의도**다(재촉은 이미 했고 자동 실행 대기).
+      // 두 창이 겹치거나 벌어지면 여기서 드러난다.
+      expect(remindIds).not.toContain(beforeAuto);
+      expect(autoIds).not.toContain(afterRemind);
       throw new Error(ROLLBACK);
     }),
   ).rejects.toThrow(ROLLBACK);

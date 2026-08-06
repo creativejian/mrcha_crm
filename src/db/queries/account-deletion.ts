@@ -4,7 +4,7 @@
 // 모든 실행 함수는 **트랜잭션 안에서, profiles가 살아 있는 동안** 호출된다(앱이 CRM 성공 응답
 // 전 profile을 지우지 않는 계약 — materialize의 번호 읽기와 dismissals의 원본 id 읽기가 여기 의존).
 // Storage 삭제는 커밋 후 호출자 몫(반환 storagePaths — customer-delete.ts와 동일 관례).
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { getDefaultDb, type Executor } from "../client";
 import { consultationRequests } from "../public-app";
@@ -163,13 +163,24 @@ export async function executeActiveFulfillment(
 }
 
 // ── 보존 기한 도래 수렴(회신 §2-B "도래 시 §4의 잡이 담당 — PURGE로 수렴") ──────────
-// B(한시 보존) 고객의 retention_until 경과 건 선별 — 이 컬럼은 B 실행만 기록하므로 값이
-// 있다 = 보존 고객이다(앱 연결은 이미 해제 상태).
+// B(한시 보존) 고객의 retention_until 경과 건 선별.
+//
+// ⚠️ **앱 미연결 조건을 함께 건다**(2026-08-06 배치 16 P1). 구 주석은 "이 컬럼에 값이 있다 =
+// 보존 고객이다(앱 연결은 이미 해제 상태)"라고 단정했는데, 괄호 안은 **B 실행 시점에만 참**인
+// 사실을 영구 불변식처럼 쓴 것이었다. 앱 팀 회신 §8이 "B 보존 고객은 phone이 materialize돼
+// 매칭 후보에 뜨고 직원이 본인·거래 확인 후 수동 연결"을 **정상 경로로 명시**하므로, 재연결된
+// 고객이 이 선별에 그대로 남는다 → 일일 크론이 살아 있는 활성 고객을 `purgeCustomerCore`로
+// 전량 파기한다(재연결 후 새로 쌓인 견적·서류까지, 앱 카드 회수까지). 유일한 신호가 **파기 후**
+// 디스코드 알림이라 예방이 불가능했다.
+//
+// 재연결 시 예약 자체를 지우는 쪽(`applyAppUserLink`에서 retention 2컬럼 클리어)은 "연결로
+// 보존 의무가 소멸하는가"라는 **정책 판단**이 섞여 보류했다 — 여기 필터는 그 판단과 무관한
+// 순수 안전장치라 둘은 배타가 아니다(정책이 정해지면 그때 추가한다).
 export async function listRetentionDueCustomers(ex: Executor = getDefaultDb()) {
   return ex
     .select({ id: customers.id, customerCode: customers.customerCode })
     .from(customers)
-    .where(sql`${customers.retentionUntil} <= now()`);
+    .where(and(sql`${customers.retentionUntil} <= now()`, isNull(customers.appUserId)));
 }
 
 // 도래 고객 1건 수렴 — 개인정보 전량 파기. 출고 완료 흔적(deliveredDate)이 있으면 정산

@@ -329,7 +329,7 @@ export function useMyChangeRequests(enabled: boolean): {
     let alive = true;
     getJson<ChangeRequestItem[]>("/api/catalog/change-requests?mine=1")
       .then((list) => {
-        mineCache = list; // 다음 마운트의 (N) 즉시 표시용(queueCache와 같은 결).
+        mineCache = list; // 다음 마운트의 (N) 즉시 표시용(위 대기열 스냅샷과 같은 결 — 이쪽은 소비처가 하나뿐이라 방송 없이 캐시만 둔다).
         if (!alive) return;
         setRows(list);
         setFailed(false);
