@@ -86,9 +86,11 @@ export function MCMasterPage({ roleTab, onToast }: { roleTab: RoleTab; onToast: 
   const canPropose = roleTab === "팀장";
   const canWrite = canEdit || canPropose;
   // 모델 목록 행의 승인 대기 배지(2026-08-05) — 대기열 목록은 admin만 받는다(manager는 서버 403).
-  // ⚠️ 같은 훅을 헤더의 승인 대기열 버튼도 쓴다 = 진입 시 요청 1개가 겹친다. 그럼에도 훅을 여기서
-  // 따로 부르는 이유: 버튼이 rows를 부모로 올리게 하면 승인/반려 tick까지 얽혀 결합이 커지고,
-  // 이 응답은 대기 건수만큼의 작은 JSON이며 모듈 캐시(queueCache)가 두 번째 마운트를 즉시 채운다.
+  // 같은 훅을 헤더의 승인 대기열 버튼·사이드바 배지도 쓴다. 그럼에도 훅을 여기서 따로 부르는
+  // 이유는 버튼이 rows를 부모로 올리게 하면 승인/반려 tick까지 얽혀 결합이 커지기 때문이다.
+  // (구 주석은 "진입 시 요청 1개가 겹친다"를 감수 사유로 들었는데 `#459` 이후 사실이 아니다 —
+  // 같은 계기로 출발한 조회는 `createQueueEpochFetch`가 한 요청으로 합치고, 응답은 모듈 스냅샷
+  // 한 벌을 통해 전 인스턴스가 같은 값으로 본다.)
   const { rows: queueRows } = useChangeRequestQueue(canEdit);
   const pendingByModel = useMemo(() => pendingCountByModel(queueRows), [queueRows]);
   const pendingByBrand = useMemo(() => pendingCountByBrand(queueRows), [queueRows]);

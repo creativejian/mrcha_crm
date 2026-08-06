@@ -188,19 +188,34 @@ broadcast 1건이 epoch를 1 올려 **메시지 간 합류가 원천 불가**).
 
 ---
 
-## 🔴 수정 계획 (유슨생 승인 2026-08-06 — 이번 배치에서 할 것)
+## ✅ 수정 이행 (유슨생 승인 2026-08-06 — 전 항목 완료, 변이로 검증)
 
-프로덕션 코드는 **최소로만** 건드린다.
+프로덕션 코드는 **최소로만** 건드렸다. 각 항목은 변이를 주입해 **그물이 실제로 빨개지는지** 확인했다.
 
-1. **P1 안전장치** — `listRetentionDueCustomers`에 `AND app_user_id IS NULL`(ⓐ만. ⓑ는 정책이라 제외)
-2. **WHERE 절 tripwire** — "파기 쿼리의 `.delete(...)`는 반드시 `.where(...)`를 동반한다" 소스 스캔.
-   `profiles-write-guard`·`updated-at-clock-guard` 선례. **상 3건이 CI pure에서 즉시 RED가 된다**
-3. **D+3/D+5 픽스처 조이기** — 경계 ±1시간으로(`#442`와 같은 처방, 프로덕션 코드 무변경)
-4. **`#436` 실적 귀속 테스트** — 컬럼을 인도일로 되돌리면 빨개지게
-5. **정산 `loaded` 게이트** — 로드 전/실패 시 정산 키를 빼거나 저장 차단(거울면도 함께 닫힘)
-6. **스테일 주석 정정** — `moveTrims`의 거짓 트리거 주석 · P2 주석(계획형+`spec §2a`로 교정) ·
-   `MCMasterPage`의 "요청 1개가 겹친다"(`#459`로 사실 아님) · `catalog-change-requests`의 사라진 `queueCache` 심볼 ·
-   `DeliveryInfoPopover`의 "목록 어디에도 안 보이고"(정산 목록 도입으로 스테일)
+1. ✅ **P1 안전장치** — `listRetentionDueCustomers`에 `AND app_user_id IS NULL`(ⓐ만. ⓑ는 정책이라 제외).
+   그물 = `account-deletion.test.ts`에 재연결 픽스처 추가(변이: 필터 제거 → RED 확인).
+2. ✅ **WHERE 절 tripwire** — `src/db/delete-where-guard.test.ts`(순수 소스 스캔 = **CI pure에서 돈다**).
+   변이 3종 확인: `purgeCustomerCore` WHERE 제거 → RED · `deleteDealerProposals` WHERE 제거 → RED ·
+   ALLOW 비우기 → 전량 삭제 1건(`purge:assistant` 실행부)이 잡힘.
+   ⚠️ **정정**: 상 3건 중 **2건**만 커버한다. `listRetentionDueCustomers`는 `.select().where()`라 이
+   tripwire 대상이 아니다(select의 WHERE 누락은 정당한 전체 조회가 많아 형태로 가를 수 없다) —
+   그건 위 ①이 코드를 고치고 DB-bound 테스트로 잠갔다.
+   ⚠️ 다른 tripwire들이 검사 대상 코드를 **문자열로 인용**해 오탐이 났다(도입 첫 실행 4건) → `SKIP_FILES` 명시.
+3. ✅ **D+3/D+5 픽스처 조이기** — 경계 ±1시간 6종으로 교체(프로덕션 코드 무변경).
+   변이 확인: `'5 days'`→`'4 days'` RED · D+3 하한 `'3 days'`→`'2 days'` RED(**전에는 둘 다 통과했다**).
+4. ✅ **`#436` 실적 귀속 테스트** — `reports.revenue-basis.test.ts` 신설(인도일≠확정일 픽스처, 증분 단언).
+   `reports.test.ts`의 "픽스처 0" 원칙을 지키려 파일을 갈랐다. 변이: 컬럼을 인도일로 되돌리면 RED.
+5. ✅ **정산 `loaded` 게이트** — 조회 도착 전/실패 시 ⓐ저장에서 정산 키 제외(출고 저장은 계속 허용)
+   ⓑ입력을 `fieldset disabled`로 차단(거울면). ⚠️ 처음엔 섹션을 통째로 조건부 렌더했는데 **팝오버
+   높이가 변해 위치가 튀고 기존 테스트 4건이 깨졌다** — `display: contents` fieldset으로 전환해
+   마크업·레이아웃을 보존했다. 그물 2종 추가, 변이 2종으로 각각 RED 확인.
+6. ✅ **스테일 주석 정정 5건** — `moveTrims`의 거짓 트리거 주석(canonical은 **안 막힌다**) ·
+   P2 주석(계획형 + 없는 절 인용 교정 + 미구현 명시) · `MCMasterPage`의 "요청 1개가 겹친다" ·
+   `catalog-change-requests`의 사라진 `queueCache` 심볼 · `DeliveryInfoPopover`의 "목록 어디에도 안 보이고".
+
+**검증**: typecheck · lint · knip · format · **unit 1439**(+2) · **pure 292**(+2) 전량 green.
+`test:server`는 **건드린 3파일만** 선별 실행(crm 스키마 전용 · 알림 트리거 4테이블 무접촉 · Gemini 0 ·
+전 케이스 트랜잭션 롤백), 실행 후 `check:residue` **잔재 0** 확인.
 
 ## 후속으로 뺀 것
 

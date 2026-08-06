@@ -42,6 +42,13 @@ export function DeliveryInfoPopover({ canEditSettlement, customerId, customerNam
   const [status, setStatus] = useState<SettlementStatus>("미정산");
   const [loadedStatus, setLoadedStatus] = useState<SettlementStatus>("미정산");
   const [settlementError, setSettlementError] = useState<string | null>(null);
+  // 정산 조회가 **실제로 도착했는지**. 이게 없으면 아래 두 결함이 동시에 산다(2026-08-06 배치 16):
+  //  ① 저장이 빈 state를 "빈 값"으로 단정해 `{settledAt:null, feeAmount:null, costs:[]}`를 보낸다 →
+  //     기존 실입금액·입금일·비용이 **지워진다**(이력 테이블·트리거가 없어 복구 불가).
+  //     서버의 부분 SET은 *팝오버(금액) ↔ 담당자 요청(status)* 축 분리라 이걸 막아주지 않는다.
+  //  ② 거울면 — 늦게 도착한 응답이 **admin이 입력 중이던 값을 덮는다**.
+  // 그래서 도착 전에는 **입력 자체를 렌더하지 않고**(②를 원천 차단) 저장에서도 정산을 뺀다(①).
+  const [settlementLoaded, setSettlementLoaded] = useState(false);
   // 담당자 정산 요청 결과 — 상태를 미리 조회하지 않는다(담당자는 정산을 읽을 수 없다).
   // 버튼은 항상 눌리고 **서버가 판단**한다: 이미 요청/완료면 409 문구가 그대로 여기에 담긴다.
   const [requestNotice, setRequestNotice] = useState<string | null>(null);
@@ -62,6 +69,7 @@ export function DeliveryInfoPopover({ canEditSettlement, customerId, customerNam
         const next = s.status ?? "미정산";
         setStatus(next);
         setLoadedStatus(next);
+        setSettlementLoaded(true);
       })
       .catch(() => {
         if (!cancelled) setSettlementError("정산 정보를 불러오지 못했습니다.");
@@ -119,8 +127,15 @@ export function DeliveryInfoPopover({ canEditSettlement, customerId, customerNam
       {canEditSettlement && (
         <div className="delivery-settlement">
           <strong className="delivery-settlement-title">정산 <span className="badge">관리자</span></strong>
-          {/* 단계를 섹션 **맨 위**에 둔다 — 담당자가 올린 "정산요청"은 목록 어디에도 안 보이고(정산은
-              admin 전용 라우트로만 나간다) 이 팝오버가 유일한 접점이라, 열자마자 눈에 들어와야 한다.
+          {/* 조회 도착 전에는 **입력을 비활성**으로 둔다 — 빈 입력에 손대는 순간 그 값이 저장 대상이
+              되고, 도착한 응답이 그 입력을 덮는다(위 settlementLoaded 주석의 ①②).
+              ⚠️ 섹션을 통째로 갈아끼우지 않는 이유: 팝오버 높이가 변하면 useFixedPopoverPosition이
+              위치를 다시 잡아 열자마자 화면이 튄다. fieldset은 하위 입력을 브라우저가 한 번에 막아
+              주므로 입력마다 disabled를 다는 것보다 누락 위험이 없다(CSS 리셋은 index.css). */}
+          <fieldset className="delivery-settlement-fields" disabled={!settlementLoaded}>
+          {/* 단계를 섹션 **맨 위**에 둔다 — 담당자가 올린 "정산요청"을 **바꿀 수 있는 유일한 접점**이라
+              열자마자 눈에 들어와야 한다(2026-08-05 정산 탭 목록에 단계 배지가 생겨 "어디에도 안
+              보인다"는 더는 사실이 아니다. 다만 그 탭은 조회 전용이고 편집 표면은 여기 하나다).
               controlled select라 bindSelect 필수(Safari onInput 병행 — 안 하면 선택이 통째로 유실된다). */}
           <label>
             <span>단계</span>
@@ -191,6 +206,7 @@ export function DeliveryInfoPopover({ canEditSettlement, customerId, customerNam
             </p>
           </div>
           {settlementError && <p className="delivery-schedule-notice" role="alert">{settlementError}</p>}
+          </fieldset>
         </div>
       )}
       {/* 담당자 정산 요청(2026-08-04 이사님 확정) — **admin이 아니어도 보인다**. 정산 금액은 계속
@@ -222,6 +238,9 @@ export function DeliveryInfoPopover({ canEditSettlement, customerId, customerNam
           disabled={saving}
           onClick={() => {
             if (!canEditSettlement) return onSave(draft, null);
+            // 조회가 아직 안 왔거나 실패했으면 **정산은 건드리지 않는다**(위 settlementLoaded 주석).
+            // 출고 정보 저장까지 막지는 않는다 — 정산 조회 실패가 다른 편집을 인질로 잡으면 안 된다.
+            if (!settlementLoaded) return onSave(draft, null);
             const submit = resolveSettlementSubmit(settledAt, feeText);
             if (submit.kind === "invalid") return setSettlementError(submit.reason);
             // 비용도 같은 저장에 실어 보낸다 — 따로 호출하면 한쪽만 성공하는 창이 생긴다.

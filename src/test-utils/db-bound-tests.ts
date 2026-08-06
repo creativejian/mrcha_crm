@@ -37,6 +37,7 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/db/queries/quote-requests.test.ts",
   "src/db/queries/quote-requests.confirm.test.ts",
   "src/db/queries/reports.test.ts", // 읽기 전용(픽스처 0)이지만 집계 대상이 실 master다
+  "src/db/queries/reports.revenue-basis.test.ts", // 실적 귀속 기준일(#436) — 인도일≠확정일 픽스처가 있어야 검증된다(롤백)
   "src/db/queries/staff.test.ts",
   "src/db/queries/vehicles.test.ts",
   "src/lib/promotion-embeds.test.ts",

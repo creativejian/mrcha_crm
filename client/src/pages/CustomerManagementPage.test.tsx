@@ -953,6 +953,49 @@ describe("출고 관리(delivery) 콘솔", () => {
     expect(vi.mocked(saveCustomerSettlement).mock.calls[0][1]).not.toHaveProperty("status");
   });
 
+  // ── 정산 조회 실패·미완료 보호(2026-08-06 배치 16 S1) ─────────────────────────
+  // 이 그물이 없으면 조용히 이렇게 깨진다: 정산 GET이 실패했거나 아직 안 왔는데 admin이 저장을
+  // 누르면, 빈 state가 "빈 값"으로 단정돼 `{settledAt:null, feeAmount:null, costs:[]}`가 나가
+  // **기존 실입금액·입금일·비용이 지워진다**. 이력 테이블·트리거가 없어 복구가 불가능하고,
+  // 화면은 "저장 실패"가 아니라 정상 저장으로 보인다.
+  it("정산 조회가 실패하면 저장이 정산을 건드리지 않는다(금액 null 덮어쓰기 방지)", async () => {
+    const { fetchCustomerSettlement, saveCustomerDelivery, saveCustomerSettlement } = await import("@/lib/customer-children");
+    vi.mocked(fetchCustomerSettlement).mockRejectedValueOnce(new Error("조회 실패"));
+    vi.mocked(saveCustomerSettlement).mockClear();
+    vi.mocked(saveCustomerDelivery).mockClear();
+    render(
+      <CustomerManagementPage
+        customers={[settlementRow("cid-stage-4", 90204, "정산조회실패검증")]}
+        mode="delivery"
+        onCustomersChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 정산조회실패검증" }));
+    await screen.findByText("정산 정보를 불러오지 못했습니다.");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    // 출고 정보 저장은 막지 않는다 — 정산 조회 실패가 다른 편집을 인질로 잡으면 안 된다.
+    await waitFor(() => expect(saveCustomerDelivery).toHaveBeenCalled());
+    expect(saveCustomerSettlement).not.toHaveBeenCalled();
+  });
+
+  // 거울면(같은 원인): 조회가 도착하기 전 입력할 수 있으면, 늦게 온 응답이 그 입력을 덮는다.
+  it("정산 조회가 도착하기 전에는 정산 입력이 비활성이다", async () => {
+    const { fetchCustomerSettlement } = await import("@/lib/customer-children");
+    vi.mocked(fetchCustomerSettlement).mockReturnValueOnce(new Promise(() => {})); // 영원히 미완료
+    render(
+      <CustomerManagementPage
+        customers={[settlementRow("cid-stage-5", 90205, "정산로딩중검증")]}
+        mode="delivery"
+        onCustomersChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "출고 정보 입력: 정산로딩중검증" }));
+    // 칸은 그대로 렌더된다(팝오버 높이가 변하면 위치가 다시 잡혀 화면이 튄다) — 비활성만 된다.
+    expect(await screen.findByLabelText("입금일")).toBeDisabled();
+    expect(screen.getByLabelText("단계")).toBeDisabled();
+  });
+
   it("정산 칸은 팀장·상담사에게 보이지 않는다(출고 정보 칸은 그대로)", () => {
     for (const roleTab of ["팀장", "상담사"] as const) {
       const { unmount } = render(<CustomerManagementPage mode="delivery" roleTab={roleTab} />);
