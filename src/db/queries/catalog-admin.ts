@@ -185,10 +185,36 @@ export type TrimPatch = Partial<{
 
 export async function updateTrim(id: number, input: TrimPatch, executor: Executor = getDefaultDb()) {
   const patch: Record<string, unknown> = {};
-  // trimName 변경 시 name도 동기화(앱과 동일). canonical_name은 생성 시에만 설정(Phase 1).
+  // trimName 변경 시 name도 동기화(구 앱과 동일).
   if (input.trimName !== undefined) {
     patch.trimName = input.trimName;
     patch.name = input.trimName;
+  }
+  // canonical_name은 trimName·modelYear·fuelType의 파생값 — 셋 중 하나라도 바뀌면 재계산한다.
+  // (모델 이동은 moveTrims가, 생성은 createTrim이 각각 재계산 — DB에 자동 계산 트리거가 없어
+  // 여기서 안 하면 영구 stale이 된다. 구 상태의 잔재 정리는 `bun run backfill:canonical`.)
+  if (input.trimName !== undefined || input.modelYear !== undefined || input.fuelType !== undefined) {
+    const [cur] = await executor
+      .select({
+        modelId: trimsInCatalog.modelId,
+        trimName: trimsInCatalog.trimName,
+        modelYear: trimsInCatalog.modelYear,
+        fuelType: trimsInCatalog.fuelType,
+      })
+      .from(trimsInCatalog)
+      .where(eq(trimsInCatalog.id, id));
+    if (cur) {
+      const ctx = await modelCanonicalContext(cur.modelId, executor);
+      if (!ctx) throw new Error("모델을 찾을 수 없습니다.");
+      patch.canonicalName = buildCanonicalName({
+        brand: ctx.brand,
+        model: ctx.model,
+        isDomestic: ctx.isDomestic,
+        modelYear: input.modelYear ?? cur.modelYear,
+        fuelType: input.fuelType ?? cur.fuelType,
+        trimName: input.trimName ?? cur.trimName ?? "",
+      });
+    }
   }
   if (input.price !== undefined) patch.price = input.price;
   if (input.modelYear !== undefined) patch.modelYear = input.modelYear;
@@ -400,18 +426,26 @@ export async function assignMcCodes(modelId: number, executor: Executor = getDef
 // 트림을 다른 모델로 이동(앱 '모델 이동', 같은 브랜드 내). model_id 변경 + 대상 모델 기준
 // sort_order 재부여(max+1…) — 앱은 재부여를 안 해 UNIQUE(model_id, sort_order) 충돌 위험이
 // 있어 CRM은 보강한다. trim_code/mc_code는 트리거(`catalog.prevent_trim_code_change`)가 변경을
-// 막아 유지된다(앱 동일, mc_code stale).
-// ⚠️ **canonical_name은 그 트리거가 막지 않는다**(2026-08-06 배치 16 실측 — 함수 본문이 검사하는 건
-// trim_code·mc_code 둘뿐인데 구 주석은 셋이라고 적었다). 즉 모델 이동 후 canonical의 모델명 부분이
-// 그대로 남아 **거짓이 된다** — 실측 71건 불일치 중 34건이 이 경로와 모델 개명 기인이다.
-// 파생 재계산은 이 함수·`updateTrim`·`updateModel` 세 곳을 한 벌로 고쳐야 해서 후속으로 뺐다
-// (판정 SSOT `ref/plans/2026-08-06-crm-refactor-batch-16.md` "후속" 절).
+// 막아 유지된다(앱 동일, mc_code stale). canonical_name은 그 트리거가 막지 않는 파생값이라
+// 대상 모델 기준으로 여기서 재계산한다(안 하면 모델명 부분이 영구 stale — 배치 16 C1).
 export async function moveTrims(
   trimIds: number[],
   targetModelId: number,
   executor: Executor = getDefaultDb(),
 ): Promise<{ moved: number }> {
   if (trimIds.length === 0) return { moved: 0 };
+  const ctx = await modelCanonicalContext(targetModelId, executor);
+  if (!ctx) throw new Error("모델을 찾을 수 없습니다.");
+  const movingRows = await executor
+    .select({
+      id: trimsInCatalog.id,
+      trimName: trimsInCatalog.trimName,
+      modelYear: trimsInCatalog.modelYear,
+      fuelType: trimsInCatalog.fuelType,
+    })
+    .from(trimsInCatalog)
+    .where(inArray(trimsInCatalog.id, trimIds));
+  const movingById = new Map(movingRows.map((r) => [r.id, r]));
   const [row] = await executor
     .select({ m: max(trimsInCatalog.sortOrder) })
     .from(trimsInCatalog)
@@ -419,10 +453,19 @@ export async function moveTrims(
   let order = Number(row?.m ?? 0);
   for (const id of trimIds) {
     order += 1;
-    await executor
-      .update(trimsInCatalog)
-      .set({ modelId: targetModelId, sortOrder: order })
-      .where(eq(trimsInCatalog.id, id));
+    const moving = movingById.get(id);
+    const set: Record<string, unknown> = { modelId: targetModelId, sortOrder: order };
+    if (moving) {
+      set.canonicalName = buildCanonicalName({
+        brand: ctx.brand,
+        model: ctx.model,
+        isDomestic: ctx.isDomestic,
+        modelYear: moving.modelYear,
+        fuelType: moving.fuelType,
+        trimName: moving.trimName ?? "",
+      });
+    }
+    await executor.update(trimsInCatalog).set(set).where(eq(trimsInCatalog.id, id));
   }
   return { moved: trimIds.length };
 }

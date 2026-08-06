@@ -99,6 +99,14 @@ L1은 전 쿼리 SELECT 전용, 알림 트리거 4테이블은 count 조회만.
 **남는 실해**: ⓐ MC 마스터 `TrimEditPanel`의 `정규화명 (자동 생성)` read-only 표시에 stale 문자열
 ⓑ **앱 검색 풀 오염**(앱이 `trim_name/canonical_name/name` 3열 OR 검색 — 옛 이름으로도 걸리는 오탐) ⓒ 공유 컬럼을 CRM이 썩히는 계약 문제.
 
+**후속 조사 정정(2026-08-06 오후 · 유슨생 세션 — 강등 자체는 유지)**: "앱 화면에 stale이 뜰 경로 없음"은
+**고객 화면 기준**으로만 정확하다 — 앱 관리자 `trim_options_panel.dart` 서브타이틀 1곳은 폴백이 **canonical
+1순위**라 stale이 보인다(관리자 전용이라 심각도 불변). 덧붙여 앱 Edge `search_trims`는 `.or()`에만 canonical을
+넣고 SELECT 상수(`TRIM_SELECT_WITH_MODEL_BRAND`)에서 빠져 **후필터에서 canonical 매칭분이 탈락**한다(앱 몫
+parity 구멍 — stale 노출과 반대 방향). 실측 71/68은 "올바른 국산/수입 분기 + 완전 공백 정규화" 판정으로 재현
+확정(원문 비교 103 · 후행 공백만 30 — 2025-12-25 벌크 임포트 잔재). **기원**: 앱은 read-only 전환(앱 #394,
+2026-06-18) 전까지 트림 수정 시 canonical을 재조립했다 — CRM 이관 때 그 재계산이 이식 누락된 것.
+
 **부수 발견**: `catalog-admin.ts:moveTrims` 주석이 "trim_code/mc_code/**canonical_name**은 트리거가 변경을 막아 유지"라는데,
 `catalog.prevent_trim_code_change()` 실체는 `trim_code`·`mc_code` **둘만** 검사한다 → **주석이 거짓**.
 
@@ -219,9 +227,12 @@ broadcast 1건이 epoch를 1 올려 **메시지 간 합류가 원천 불가**).
 
 ## 후속으로 뺀 것
 
-- **canonical 축** — `updateTrim`만으론 절반(32/71)이라 `updateModel`·`moveTrims` 재계산 + **backfill 71건** + 회귀 테스트를 한 벌로 묶어야 한다.
-  선택지 둘: ⓐ 3곳 재계산 ⓑ **DB 트리거 자동 재계산**(`auto_mc_code` 선례 — 단 catalog는 앱과 공유라 **앱 팀 협의 필요**).
-  겸사겸사 발견: **파트너 `modelName`을 두 빌더가 다르게 채운다**(계산기=canonical 폴백 / 워크벤치=모델명) — 이 불일치부터 정리할 가치.
+- **canonical 축** — ✅ **착수(2026-08-06 · 브랜치 `fix/canonical-name-recalc`)**: 선택지 ⓐ(코드 재계산)로
+  `updateTrim`·`moveTrims` 재계산 + **`bun run backfill:canonical`**(dry-run 기본·`--yes`에만 갱신, 원문 불일치
+  103행 대상) + 회귀 테스트 3종. **`updateModel`은 재계산 지점이 아니다** — CRM은 모델 개명 자체가 봉인
+  (스키마·UI)이라 모델 접두 27행은 앱 시절 유산 = 백필 담당. ⓑ(DB 트리거)는 앱 협의 필요라 미채택.
+  **남는 후속**: 파트너 `modelName` 두 빌더 불일치(계산기=canonical 폴백 / 워크벤치=모델명) 정리 ·
+  백필 실행(머지 후 별도 지시).
 - **C2 디바운스** — 수신 측 트레일링 디바운스(억제 방식 금지, 위 경고 참조)
 - **P1 ⓑ**(연결 시 retention 클리어) — **정책 판단**
 - 심각도 하 12건 — 기록만

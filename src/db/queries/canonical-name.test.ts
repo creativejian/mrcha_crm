@@ -40,3 +40,16 @@ test("앞뒤 공백 trim + 빈 brand/model 허용", () => {
     }),
   ).toBe("2026 가솔린 X");
 });
+
+test("수입: modelYear/fuelType null이면 그 부분 생략(구 앱 규칙 parity)", () => {
+  expect(
+    buildCanonicalName({
+      brand: "BMW",
+      model: "5 Series",
+      isDomestic: false,
+      modelYear: null,
+      fuelType: null,
+      trimName: "520i",
+    }),
+  ).toBe("BMW 5 Series 520i");
+});
