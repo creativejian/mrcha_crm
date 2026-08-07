@@ -7,7 +7,8 @@ import { sql } from "drizzle-orm";
 
 import type { Db } from "../db/client";
 import {
-  prefixRegex, TEST_CONSULTATION_NAMES, TEST_CUSTOMER_CODE_PREFIXES, TEST_CUSTOMER_NAMES, TEST_QUOTE_CODE_PREFIXES,
+  prefixRegex, TEST_APP_PROFILE_NAMES, TEST_CONSULTATION_NAMES, TEST_CUSTOMER_CODE_PREFIXES, TEST_CUSTOMER_NAMES,
+  TEST_QUOTE_CODE_PREFIXES,
 } from "./fixture-codes";
 
 export const CUSTOMER_CODE_REGEX = prefixRegex(TEST_CUSTOMER_CODE_PREFIXES);
@@ -36,6 +37,13 @@ export type FixtureResidue = {
    * 재료를 점유하므로 수동 psql DELETE로 정리한다(DELETE는 알림 트리거 무관 — INSERT만 발화).
    */
   consultations: { id: string; customerName: string; createdAt: string }[];
+  /**
+   * public.quote_requests 픽스처 잔재(2026-08-07) — **report-only**(앱 소유라 `--clean` 대상 아님).
+   * 진행 단계 전이 테스트가 전용 `상담사테스트` profile 앞으로 만드는 요청 행이다. 그 테이블엔 코드
+   * 컬럼이 없어 접두사 registry로는 못 잡고, `listQuoteRequests`는 **필터 없는 전역 인박스**라
+   * 잔재가 모든 스태프에게 유령 견적요청 카드로 뜬다(2026-07-09 `CU-EMBRT-…`와 같은 실패 방식).
+   */
+  quoteRequests: { id: string; status: string; createdAt: string }[];
   /** crm.customer_deletions 감사 잔재 — 고객 행이 이미 없어도 남는다. `--clean`이 같은 술어로 지운다. */
   deletionAudits: { customerCode: string; name: string }[];
   /**
@@ -86,7 +94,7 @@ const ADOPTION_FIELD_COLUMNS: Record<string, string> = {
 export function residueCount(r: FixtureResidue): number {
   return (
     r.customers.length + r.quotes.length + r.orphanEmbeddings + r.orphanAppCards +
-    r.consultations.length + r.deletionAudits.length +
+    r.consultations.length + r.quoteRequests.length + r.deletionAudits.length +
     r.deletionJobs.length + r.fixtureSettlements +
     r.orphanDealerProfiles.length + r.orphanDealerDiscounts.length + r.orphanAdoptions.length +
     r.orphanChangeRequests.length
@@ -111,6 +119,12 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
   const consultations = await asRows<{ id: string; customer_name: string; created_at: string }>(sql`
     select id::text, customer_name, created_at::text from public.consultations
     where created_at > now() or customer_name ~ ${CONSULTATION_NAME_REGEX} order by created_at`);
+  // 앱 소유 read-only 스캔 — 전용 테스트 profile 앞으로 만들어진 요청만 잔재로 본다(위 타입 주석 참조).
+  // registry가 비면 절을 통째로 생략한다(`in ()`은 SQL 문법 오류 — customerResidueWhere와 같은 방어).
+  const quoteRequests = TEST_APP_PROFILE_NAMES.length === 0 ? [] : await asRows<{ id: string; status: string; created_at: string }>(sql`
+    select id::text, status, created_at::text from public.quote_requests
+    where user_id in (select id from public.profiles where full_name in (${sql.join(TEST_APP_PROFILE_NAMES.map((n) => sql`${n}`), sql`, `)}))
+    order by created_at`);
   // 감사 행은 고객 행이 삭제된 뒤에도 남는다 — customer_deletions에 code·name이 스냅샷돼 있어
   // customerResidueWhere()(코드 정규식 + 이름 registry)를 그대로 재사용한다(--clean과 동일 술어).
   const deletionAudits = await asRows<{ customer_code: string; name: string }>(sql`
@@ -151,6 +165,8 @@ export async function scanFixtureResidue(db: Db): Promise<FixtureResidue> {
     orphanEmbeddings: Number(emb?.n ?? 0),
     orphanAppCards: Number(cards?.n ?? 0),
     consultations: consultations.map((c) => ({ id: c.id, customerName: c.customer_name, createdAt: c.created_at })),
+    // status는 nullable 컬럼이라 표시용 폴백을 둔다(보고 줄에서 undefined가 되지 않게).
+    quoteRequests: quoteRequests.map((q) => ({ id: q.id, status: q.status ?? "(null)", createdAt: q.created_at })),
     deletionAudits: deletionAudits.map((d) => ({ customerCode: d.customer_code, name: d.name })),
     deletionJobs: deletionJobs.map((j) => ({ customerCode: j.customer_code, status: j.status })),
     fixtureSettlements: Number(fixtureSettlements?.n ?? 0),
@@ -178,6 +194,9 @@ export function formatResidue(r: FixtureResidue): string {
   if (r.orphanAppCards > 0) lines.push(`고아 앱 카드 ${r.orphanAppCards}건 — 앱 화면의 유령 견적`);
   for (const c of r.consultations) {
     lines.push(`상담신청 ${c.customerName} · ${c.createdAt} — public 소유, --clean 미삭제(수동 psql DELETE)`);
+  }
+  for (const q of r.quoteRequests) {
+    lines.push(`견적요청 ${q.id} · ${q.status} · ${q.createdAt} — 전역 인박스 유령 카드, public 소유·--clean 미삭제(수동 psql DELETE)`);
   }
   for (const d of r.deletionAudits) lines.push(`삭제 감사 ${d.customerCode} · ${d.name} (crm.customer_deletions)`);
   for (const j of r.deletionJobs) {
