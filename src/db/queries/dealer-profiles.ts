@@ -1,7 +1,7 @@
 import { asc, eq, sql } from "drizzle-orm";
 
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../catalog";
-import { getDefaultDb, type Executor } from "../client";
+import { getDefaultDb, toRows, type Executor } from "../client";
 import { profiles } from "../public-app";
 import { dealerProfiles, dealerTrimDiscounts } from "../schema";
 
@@ -69,7 +69,7 @@ export async function listDealerRoster(executor: Executor = getDefaultDb()) {
     left join catalog.brands b on b.id = dp.brand_id
     where p.role = 'dealer' or dp.dealer_user_id is not null
     order by (p.role = 'dealer') desc, p.full_name`);
-  return (rows as unknown as Record<string, unknown>[]).map((r) => ({
+  return toRows(rows).map((r) => ({
     dealerUserId: String(r.dealer_user_id),
     name: r.name === null ? null : String(r.name),
     phone: r.phone === null ? null : String(r.phone),

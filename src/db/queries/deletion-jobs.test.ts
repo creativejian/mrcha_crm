@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 
 import { withNotifyGuard } from "../../test-utils/notify-gate";
-import { getDefaultDb } from "../client";
+import { getTestDb } from "../../test-utils/hermetic-db";
 import { accountDeletionJobs, customerDeletions, customerDeliveries, customers, settlementReferences } from "../schema";
 import {
   autoExecuteJob,
@@ -20,7 +20,8 @@ import {
 // 필요하고 그건 account-deletion.test.ts가 커버). 공유 master라 목록 단언은 멤버십으로만
 // (다른 세션·라우트 테스트의 커밋 잡이 섞일 수 있다 — 개수 단언 금지).
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
 const ROLLBACK = "__rollback__";
 const code = () => `CU-ACCDEL-${crypto.randomUUID().slice(0, 8)}`;
 

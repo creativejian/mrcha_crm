@@ -1,10 +1,11 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
-import { getDefaultDb } from "../db/client";
 import { customerMemos, customers } from "../db/schema";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
 
 // ── 고객 목록/상세 화면 role scope 게이트 ───────────────────────────
 // 2026-07-21 이사님 A-3 원칙의 나머지 반쪽(spec 2026-07-21-crm-customer-role-scope):
@@ -12,7 +13,10 @@ import { customerMemos, customers } from "../db/schema";
 // 차단은 403이 아니라 **404 + 미존재와 byte-동일 문구**(존재 비노출 — AI #176 "조회 결과 없음" 미러).
 // 목록은 listCustomers scope WHERE, 상세+자식은 /:id 하위 전 라우트를 미들웨어 한 겹이 커버한다.
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 
 const STAFF_A = "31111111-1111-4111-8111-111111111111"; // 담당 상담사
 const STAFF_B = "32222222-2222-4222-8222-222222222222"; // 타 상담사

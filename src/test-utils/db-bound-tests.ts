@@ -9,10 +9,15 @@
 // `bun test <파일>`이 도는가(2026-07-25 78파일 전수 실측). ⚠️ 레포 루트에서의 실행은 판별에
 // 못 쓴다 — bun이 `.env.local`을 자동 로드해 DB 의존이 가려진다(ci.yml 헤더의 "env -i로는
 // 부족" 경고와 같은 축). 재판별이 필요하면 `git worktree add <tmp> HEAD` + node_modules 심링크.
+//
+// 🟢 여기서 빠지는 새 경로(2026-08-07, CI 커버리지 seam — plan 2026-08-07-crm-ci-coverage-hermetic-db):
+// `test-utils/hermetic-db.ts`(dual-mode: 로컬 = 실 master / CI = in-memory PGlite)로 이관하면
+// env 없이 돌 수 있어 등록이 필요 없어진다. 권한·파기·돈·전이 축 12파일이 1단계로 이관됐다
+// (배치 16 "진짜 발견" 해소). 이관 절차 = 파일에서 getDefaultDb()→getTestDb() 교체(+라우트는
+// setTestDb 배선) 후 ①env 제거 실행 ②실 master 실행 양쪽 실측 — 실측 없이 여기서 빼지 말 것.
 
 export const DB_BOUND_TEST_FILES: readonly string[] = [
   // ── 쿼리 레이어 — getDefaultDb()가 실 master에 직결 ─────────────────────────
-  "src/db/queries/account-deletion.test.ts",
   "src/db/queries/advisor-quotes.test.ts",
   "src/db/queries/ai-hint-sources.test.ts",
   "src/db/queries/app-user-link.test.ts",
@@ -29,15 +34,12 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/db/queries/customers.next-delivery.test.ts",
   "src/db/queries/dealer-discounts.test.ts",
   "src/db/queries/dealer-profiles.test.ts",
-  "src/db/queries/deletion-jobs.test.ts",
   "src/db/queries/discount-adoptions.test.ts",
   "src/db/queries/embed-sources.test.ts",
   "src/db/queries/embeddings-meta.test.ts",
   "src/db/queries/embeddings.test.ts",
   "src/db/queries/quote-requests.test.ts",
-  "src/db/queries/quote-requests.confirm.test.ts",
   "src/db/queries/reports.test.ts", // 읽기 전용(픽스처 0)이지만 집계 대상이 실 master다
-  "src/db/queries/reports.revenue-basis.test.ts", // 실적 귀속 기준일(#436) — 인도일≠확정일 픽스처가 있어야 검증된다(롤백)
   "src/db/queries/staff.test.ts",
   "src/db/queries/vehicles.test.ts",
   "src/lib/promotion-embeds.test.ts",
@@ -49,7 +51,6 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   //    먼저 필요하다(미들웨어가 게이트보다 앞). assistant는 실 Gemini 라우팅 시도까지
   //    얹혀 있다(test:server 1회당 실 9콜 계측의 출처 — 배치 15 M7). ────────────
   "src/middleware/db.test.ts",
-  "src/middleware/role-gate.test.ts",
   "src/routes/account-deletions.test.ts",
   "src/routes/app-account-deletion.test.ts",
   "src/routes/assistant.test.ts",
@@ -60,19 +61,12 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/routes/content.test.ts",
   "src/routes/customers.ai-hint.test.ts",
   "src/routes/customers.create.test.ts",
-  "src/routes/customers.delete.test.ts",
   "src/routes/customers.delivery.test.ts",
-  "src/routes/customers.settlement.test.ts",
   "src/routes/customers.embed.test.ts",
   "src/routes/customers.phone.test.ts",
-  "src/routes/customers.push.test.ts",
-  "src/routes/customers.quote-access.test.ts",
-  "src/routes/customers.role-scope.test.ts",
   "src/routes/customers.send.test.ts",
   "src/routes/customers.test.ts",
   "src/routes/dealer.discounts.test.ts",
-  "src/routes/dealer.role-gate.test.ts",
-  "src/routes/inbox-role-gate.test.ts",
   "src/routes/me.test.ts",
   "src/routes/quote-requests.test.ts",
   "src/routes/reports.test.ts",

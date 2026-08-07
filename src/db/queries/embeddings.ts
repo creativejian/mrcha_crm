@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import type { CustomerScope } from "../../lib/assistant-scope";
 import { EMBEDDING_DIM } from "../../lib/gemini-embed";
-import { getDefaultDb, type Executor } from "../client";
+import { getDefaultDb, toRows, type Executor } from "../client";
 import { embeddings } from "../schema";
 
 export type UpsertEmbeddingInput = {
@@ -58,7 +58,7 @@ export async function searchEmbeddings(
     limit ${k}
   `);
   // raw SQL 결과는 단언하지 않고 행 단위로 좁힌다 — alias가 바뀌면 NaN/"undefined"로 즉시 드러난다.
-  return [...(rows as Iterable<Record<string, unknown>>)].map((r): SearchHit => ({
+  return toRows(rows).map((r): SearchHit => ({
     id: String(r.id),
     sourceType: String(r.sourceType),
     sourceId: String(r.sourceId),

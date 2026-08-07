@@ -29,3 +29,11 @@ export function getDefaultDb() {
 export type Db = ReturnType<typeof createDbClient>["db"];
 // 쓰기 함수는 db 또는 tx(transaction 콜백 인자)를 받는다.
 export type Executor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+// `executor.execute(sql...)`의 반환형은 드라이버마다 다르다 — postgres-js는 RowList(배열),
+// PGlite(hermetic 테스트 DB, test-utils/hermetic-db.ts)는 `{ rows }` 객체. 원시 SQL 결과를
+// 행 배열로 소비하는 곳은 반드시 이 정규화를 거친다(직접 배열 캐스트 금지 — PGlite에서
+// undefined.map으로 조용히 깨진다).
+export function toRows<T = Record<string, unknown>>(res: unknown): T[] {
+  return Array.isArray(res) ? (res as T[]) : (res as { rows: T[] }).rows;
+}

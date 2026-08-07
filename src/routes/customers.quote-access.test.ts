@@ -1,11 +1,12 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
-import { getDefaultDb } from "../db/client";
 import { createQuote } from "../db/queries/customer-quotes";
 import { customers, quotes } from "../db/schema";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
 
 // ── 견적 쓰기 권한 게이트(담당자 스코프) ─────────────────────────────
 // 2026-07-21 이사님 결정(D-1①/D-2①/D-3①/D-4②, spec 2026-07-21-crm-quote-write-access):
@@ -18,7 +19,10 @@ import { customers, quotes } from "../db/schema";
 // 그래서 아래 staff 거부 케이스의 기대는 403이 아니라 404다. quoteWriteGate의 403은 안쪽
 // 그물로 잔존 — 스코프 게이트가 회귀(제거)되면 응답이 403으로 바뀌어 이 테스트가 여전히 잡는다.
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 
 const STAFF_A = "11111111-1111-4111-8111-111111111111"; // 담당 상담사
 const STAFF_B = "22222222-2222-4222-8222-222222222222"; // 타 상담사

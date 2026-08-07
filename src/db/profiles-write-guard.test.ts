@@ -86,6 +86,11 @@ const ALLOW: { path: string; hit: string; why: string }[] = [
     hit: "drizzle: .delete(dealerProfiles)",
     why: "브랜드 소유권 테스트의 픽스처 정리(afterAll) — crm.dealer_profiles, public.profiles 무접촉. 2026-07-27 슬라이스 B1",
   },
+  {
+    path: "src/test-utils/hermetic-db.ts",
+    hit: "raw-sql: INSERT INTO public.profiles",
+    why: "hermetic PGlite 전용 시드(상담사테스트 profile) — DATABASE_URL 부재 모드에서만 실행돼 실 master profiles에 물리적으로 닿을 수 없다. 2026-08-07 CI 커버리지 seam",
+  },
 ];
 
 const isAllowed = (path: string, hit: string) => ALLOW.some((a) => a.path === path && hit.startsWith(a.hit));

@@ -1,7 +1,14 @@
-import { expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
+
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 
 // ── 인박스 role 게이트(상담 신청 DB·앱 견적요청 = admin·manager 전용) ─────────
 // 2026-07-21 유슨생 결정(이사님 사후 공유 — pending 항목 16, role scope spec §4 상호작용):

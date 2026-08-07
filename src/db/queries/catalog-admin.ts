@@ -9,7 +9,7 @@ import {
   trimOptionsInCatalog,
   trimsInCatalog,
 } from "../catalog";
-import { getDefaultDb, type Executor } from "../client";
+import { getDefaultDb, toRows, type Executor } from "../client";
 import { buildCanonicalName } from "./canonical-name";
 
 // 쓰기 함수는 기본 getDefaultDb()(로컬/테스트/fallback), 테스트·라우트에선 tx/요청 db를 넘긴다.
@@ -373,9 +373,11 @@ async function maxTrimCode(modelId: number, executor: Executor = getDefaultDb())
     .select({ m: max(trimsInCatalog.trimCode) })
     .from(trimsInCatalog)
     .where(eq(trimsInCatalog.modelId, modelId));
-  const histRows = (await executor.execute(
-    sql`select coalesce(max(trim_code), 0)::int as m from catalog.trim_code_history where model_id = ${modelId}`,
-  )) as unknown as Array<{ m: number }>;
+  const histRows = toRows<{ m: number }>(
+    await executor.execute(
+      sql`select coalesce(max(trim_code), 0)::int as m from catalog.trim_code_history where model_id = ${modelId}`,
+    ),
+  );
   return Math.max(Number(active?.m ?? 0), Number(histRows[0]?.m ?? 0));
 }
 

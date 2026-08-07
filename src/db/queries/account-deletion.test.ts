@@ -5,7 +5,7 @@ import { normalizePhoneDigits } from "../../lib/customer-phone";
 import { EMBEDDING_DIM } from "../../lib/gemini-embed";
 import { withNotifyGuard } from "../../test-utils/notify-gate";
 import { anyUnlinkedProfileId } from "../../test-utils/profiles-fixture";
-import { getDefaultDb } from "../client";
+import { getTestDb } from "../../test-utils/hermetic-db";
 import { advisorQuotes, consultationRequests, profiles } from "../public-app";
 import {
   accountDeletionJobs,
@@ -36,7 +36,8 @@ import {
 // (advisor_quotes INSERT = FCM · consultations INSERT = 디스코드)을 쓰므로 withNotifyGuard 필수
 // — 롤백이 pg_net을 취소하지만(실측) 가드까지 이중으로 건다.
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
 const ROLLBACK = "__rollback__";
 const code = () => `CU-ACCDEL-${crypto.randomUUID().slice(0, 8)}`;
 const qcode = () => `QT-ACCDEL-${crypto.randomUUID().slice(0, 8)}`;
@@ -242,7 +243,7 @@ test("proposeClassification: 출고 정보 없는 고객 → purge", async () =>
 });
 
 test("applyAppUserUnlink: 연결 고객 없는 유저 → null(멱등 no-op, 재시도 안전)", async () => {
-  const result = await applyAppUserUnlink(crypto.randomUUID(), "materialize");
+  const result = await applyAppUserUnlink(crypto.randomUUID(), "materialize", db);
   expect(result).toBeNull();
 });
 

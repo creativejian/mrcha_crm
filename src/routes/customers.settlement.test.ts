@@ -1,9 +1,10 @@
-import { expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
-import { getDefaultDb } from "../db/client";
 import { customerDeliveries } from "../db/schema";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
 import { eq } from "drizzle-orm";
 
 // ── 정산(입금일·실입금액) role 게이트 ────────────────────────────────────
@@ -11,7 +12,10 @@ import { eq } from "drizzle-orm";
 // 정산은 admin 단독이다 — manager(팀장)도 막는다(경영 리포트와 같은 축).
 // 게이트가 뚫리면 회사 수입이 전 직원에게 노출되므로 fail-closed가 맞다.
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 
 async function reqFor(
   role: "admin" | "manager" | "staff" | "dealer",

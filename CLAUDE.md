@@ -42,7 +42,7 @@ Codex 사용자는 `AGENTS.md`를 따른다. 이 문서는 그 내용을 그대�
 - 변경 후 검증: DOM/TS 변경은 `bun run typecheck`, 모든 변경은 `bun run lint`를 **0 problems**로 유지한다. 큰 변경은 `bun run build`, `bun run test:unit`까지 돌린다. **export를 추가/제거했으면 `bun run knip`**도 함께 돌린다(아래 CI 항목 참조).
 - **CI(2026-07-22 도입, `.github/workflows/ci.yml`)**: PR과 main push마다 **8단계**가 자동으로 돈다 — `typecheck` · `lint` · **`knip`** · **`format:check`** · `test:unit` · **`test:pure`** · `build` · **`test:edge`**(Deno). 로컬 검증을 건너뛰라는 뜻은 아니다(CI는 마지막 그물이지 1차 방어선이 아니다).
   - 잡 이름도 8단계를 그대로 적는다(`typecheck · lint · knip · format · unit · pure · build · edge`, 2026-07-25 pure 추가). **step을 추가·제거하면 이름도 함께 고칠 것** — `gh pr checks` 출력엔 이 문자열만 보여서, 실제보다 적게 적으면 그 검증을 로컬에서 건너뛰게 된다(#333에서 구 이름 `typecheck · lint · unit · build`가 knip을 가려 실제로 발생).
-  - **`test:pure`** = `test:server` 중 DB·시크릿 무관 부분집합(제외 registry `src/test-utils/db-bound-tests.ts`, fail-closed). **새 DB 의존 테스트는 그 registry에 등록**해야 CI가 초록이 된다 — 자세한 근거는 `AGENTS.md` CI 항목.
+  - **`test:pure`** = `test:server` 중 DB·시크릿 무관 부분집합(제외 registry `src/test-utils/db-bound-tests.ts`, fail-closed). **새 DB 의존 테스트는 그 registry에 등록**해야 CI가 초록이 된다 — 자세한 근거는 `AGENTS.md` CI 항목. 단 2026-08-07부터 **hermetic PGlite dual-mode**(`src/test-utils/hermetic-db.ts`)로 이관하면 등록 없이 CI에서 돌 수 있다(권한·파기·돈·전이 12파일 이관 완료) — 이관 절차·함정은 `ref/plans/2026-08-07-crm-ci-coverage-hermetic-db.md`.
   - **knip·format:check는 기준선 0**이다 — 미사용 export 하나, 포맷 어긋남 하나로 PR이 빨개진다. 정당한 예외는 `knip.json`에 사유와 함께 등록한다.
   - ⚠️ `test:server`는 공유 master DB에 붙어 운영 알림까지 발사하므로 **CI에 넣지 않는다** — 로컬 전용이다.
 - 변경은 가급적 브랜치 → PR → squash 머지 → 브랜치 삭제 흐름으로 올린다. 커밋/푸시는 사용자가 지시할 때 한다.
