@@ -310,3 +310,49 @@ test("assignMcCodes: 미부여 트림에 trim_code 채번 → mc_code 자동 생
       if (!(e instanceof Rollback)) throw e;
     });
 });
+
+// trim_name 빈 행 정책(2026-08-08 유슨생 결정 ⓐ) — 라이브 경로도 백필처럼 **손대지 않는다**.
+// 조립하면 등급이 빠진 canonical("BMW 5시리즈 2026 가솔린")이 되고, 백필이 같은 행을 계속
+// 건너뛰므로 한 번 덮으면 복구 경로가 없다. 정책 SSOT = canonical-name.ts canonicalTrimName.
+// (zod min(1)이 API 유입을 막으므로 여기서는 DB에 직접 빈 값을 심어 그 상황을 만든다 — 실제
+//  기원도 psql 직접 쓰기·벌크 임포트다.)
+test("updateTrim·moveTrims: trim_name이 비면 canonical을 재계산하지 않는다 (tx 롤백, prod 무변경)", async () => {
+  await getDefaultDb()
+    .transaction(async (tx) => {
+      const [brand] = await tx
+        .select({ id: brandsInCatalog.id, name: brandsInCatalog.name })
+        .from(brandsInCatalog)
+        .where(eq(brandsInCatalog.isDomestic, false))
+        .limit(1);
+      const model = await createModel({ brandId: brand.id, name: "__CANON_BLANK__", category: null, status: "판매중" }, tx);
+      const trim = await createTrim(
+        { modelId: model.id, trimName: "정상트림", price: 1000, modelYear: 2026, fuelType: "가솔린" },
+        tx,
+      );
+      const original = trim.canonicalName;
+      expect(original).toBe(`${brand.name} __CANON_BLANK__ 2026 가솔린 정상트림`);
+
+      // 벌크 임포트·psql 직접 쓰기로 trim_name만 공백이 된 상태를 재현.
+      await tx.update(trimsInCatalog).set({ trimName: "   " }).where(eq(trimsInCatalog.id, trim.id));
+
+      // 연식·연료를 바꿔도 canonical은 그대로 — 등급 없는 이름으로 덮지 않는다.
+      const retimed = await updateTrim(trim.id, { modelYear: 2027, fuelType: "디젤" }, tx);
+      expect(retimed?.canonicalName).toBe(original);
+      expect(retimed?.modelYear).toBe(2027); // 다른 컬럼은 정상 갱신(재계산만 건너뛴다)
+
+      // 모델 이동도 같은 정책.
+      const target = await createModel({ brandId: brand.id, name: "__CANON_BLANK_T__", category: null, status: "판매중" }, tx);
+      await moveTrims([trim.id], target.id, tx);
+      const [moved] = await tx
+        .select({ canonicalName: trimsInCatalog.canonicalName, modelId: trimsInCatalog.modelId })
+        .from(trimsInCatalog)
+        .where(eq(trimsInCatalog.id, trim.id));
+      expect(moved.canonicalName).toBe(original);
+      expect(moved.modelId).toBe(target.id); // 이동 자체는 수행
+
+      throw new Rollback();
+    })
+    .catch((e: unknown) => {
+      if (!(e instanceof Rollback)) throw e;
+    });
+});
