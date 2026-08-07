@@ -48,9 +48,16 @@ export const customers = new Hono<CustomersEnv>();
 function scheduleReadyForSendPush(
   c: Context<CustomersEnv>,
   result: QuoteRequestReadyForSendResult | null,
+  customerId: string,
 ): void {
   if (!result?.firstReadyForSend || !assignmentPushEnabled(c)) return;
-  holdWork(c, sendQuoteRequestReadyForSendPush(c, result.appUserId));
+  // 탈퇴 접수 고객에게는 보내지 않는다(회원탈퇴 spec §3e — 같은 핸들러가 appStatus="sent"를 409로 막는
+  // 것과 같은 축. 곧 파기될 유저에게 "곧 견적서를 보내드릴게요"가 가면 안 된다). 조회를 hold 안에서
+  // 하는 이유는 최초 전이에서만 도는 드문 경로라 저장 응답을 한 왕복만큼도 늦출 이유가 없어서다.
+  holdWork(c, (async () => {
+    if (await hasReceivedDeletionJob(customerId, c.var.db)) return;
+    await sendQuoteRequestReadyForSendPush(c, result.appUserId);
+  })());
 }
 
 // Storage 보상 삭제 — 실패해도 요청 흐름은 계속한다(고아 객체는 수동 정리 대상). 다만 조용히 삼키면
@@ -794,7 +801,7 @@ customers.post("/:id/quotes", zValidator("param", idParam), zValidator("json", q
   // 트랜잭션 resolve(=커밋) 후 스케줄 — 훅의 fresh read가 커밋 전 구값을 보는 것을 방지(스펙 함정).
   scheduleEmbedOnWrite(c, { sourceType: "quote", sourceId: row.id });
   scheduleAiHintRefresh(c, id);
-  scheduleReadyForSendPush(c, readyForSend);
+  scheduleReadyForSendPush(c, readyForSend, id);
   return c.json(row, 201);
 });
 
@@ -821,7 +828,7 @@ customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValida
     if (row) {
       scheduleEmbedOnWrite(c, { sourceType: "quote", sourceId: p.childId }); // 발송(appStatus sent) 포함 — 커밋 후
       scheduleAiHintRefresh(c, p.id);
-      scheduleReadyForSendPush(c, readyForSend);
+      scheduleReadyForSendPush(c, readyForSend, p.id);
     }
     return row;
   }, "견적을 찾을 수 없습니다.");

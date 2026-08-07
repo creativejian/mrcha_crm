@@ -99,6 +99,34 @@ test("검사기: 상담신청 잔재를 탐지한다 — 원미래 created_at·r
   expect(residueCount(restored)).toBe(baseline);
 });
 
+test("검사기: 견적요청 잔재를 탐지한다 — 전용 테스트 profile 소유 행(트랜잭션 롤백)", async () => {
+  const baseline = residueCount(await scanFixtureResidue(db));
+  const probeId = crypto.randomUUID();
+
+  // public.quote_requests엔 코드 컬럼이 없어 접두사 registry로는 못 잡는다 — 픽스처 요청이 전부
+  // 전용 profile 앞으로 만들어진다는 성질(TEST_APP_PROFILE_NAMES)이 유일한 열쇠다.
+  // ⚠️ 이 테이블은 알림 트리거가 0개라 withNotifyGuard가 필요 없다. BEFORE 트리거
+  // `reject_locked_account_mutation`은 `auth.uid()` 기반이라 postgres 롤에서는 통과한다(실측).
+  await db.transaction(async (tx) => {
+    // 프로필 조회를 서브쿼리로 둔다 — 그 계정이 없으면 0행이 들어가고 아래 단언이 실패해
+    // "전용 profile이 사라졌다"는 사실 자체가 드러난다(조용한 통과 방지).
+    await tx.execute(sql`
+      insert into public.quote_requests (id, user_id, status, created_at)
+      select ${probeId}, p.id, 'open', now() from public.profiles p
+      where p.full_name = '상담사테스트' limit 1`);
+    const after = await scanFixtureResidue(tx as unknown as typeof db);
+    expect(after.quoteRequests.map((q) => q.id)).toContain(probeId);
+    expect(residueCount(after)).toBe(baseline + 1);
+    throw new Error("rollback"); // 심은 행을 남기지 않는다 — 남으면 전역 인박스에 유령 카드가 뜬다
+  }).catch((e: unknown) => {
+    if (!(e instanceof Error) || e.message !== "rollback") throw e;
+  });
+
+  const restored = await scanFixtureResidue(db);
+  expect(restored.quoteRequests.map((q) => q.id)).not.toContain(probeId);
+  expect(residueCount(restored)).toBe(baseline);
+});
+
 test("검사기: customer_deletions 감사 잔재를 탐지한다 — 코드 접두사·이름 registry 양쪽(트랜잭션 롤백)", async () => {
   const baseline = residueCount(await scanFixtureResidue(db));
 

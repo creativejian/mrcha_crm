@@ -654,9 +654,10 @@ export async function confirmQuoteRequest(
 // 반쪽 상태가 생긴다. quoteId에서 source_quote_request_id를 다시 읽는 이유는 수정 재진입 시
 // 클라이언트가 출처 요청 id를 들고 있지 않아도 저장된 견적의 출처가 계속 SSOT여야 하기 때문이다.
 //
-// 멱등의 근거는 `ready_for_send_at IS NULL` 조건절이다. 최초 UPDATE 1행일 때만 라우트가
-// quote-request-ready-for-send tag를 앱 send-push consumer에 넘긴다. 앱이 표시 문구를 고정하므로
-// CRM은 이 결과에 고객·차량·구매방식·가격 같은 내용을 싣지 않는다.
+// 멱등의 근거는 `ready_for_send_at IS NULL` 조건절이다(행 잠금이 아니라 조건절 하나 — READ COMMITTED
+// 재평가로 동시 클릭이 직렬화된다. 이 술어를 지우거나 약화하면 중복 푸시가 나간다). 최초 UPDATE
+// 1행일 때만 라우트가 quote-request-ready-for-send tag를 앱 send-push consumer에 넘긴다. 앱이 표시
+// 문구를 고정하므로 CRM은 이 결과에 고객·차량·구매방식·가격 같은 내용을 싣지 않는다.
 export type QuoteRequestReadyForSendResult = {
   firstReadyForSend: boolean;
   appUserId: string;
@@ -667,7 +668,7 @@ export async function markQuoteRequestReadyForSend(
   customerId: string,
   ex: Executor = getDefaultDb(),
 ): Promise<QuoteRequestReadyForSendResult | null> {
-  // 견적과 고객의 결합을 먼저 잠근다. 다른 고객의 quoteId를 섞거나 출처 없는 CRM 견적이면 no-op.
+  // 견적과 고객의 결합을 먼저 확인한다. 다른 고객의 quoteId를 섞거나 출처 없는 CRM 견적이면 no-op.
   const [source] = await ex
     .select({ requestId: quotes.sourceQuoteRequestId })
     .from(quotes)
@@ -687,10 +688,19 @@ export async function markQuoteRequestReadyForSend(
     .where(eq(customers.id, customerId));
   if (!customer || customer.appUserId !== req.userId) return null;
 
+  // 이미 견적이 나간 요청(status='completed')은 3단계로 되돌리지 않는다. `작성 후 발송`(send:true)은
+  // command를 싣지 않아 ready_for_send_at이 NULL로 남는데, 그 견적을 나중에 고치려고 열어 `작성완료`를
+  // 누르면 IS NULL 술어만으로는 통과해 **4단계(견적 도착) 뒤에 3단계 스탬프가 찍히고** 이미 견적을 받은
+  // 고객에게 "곧 견적서를 보내드릴게요"가 나간다. 발송 후 수정은 실경로다(운영에 revision 2·3 견적 존재).
+  // 카드를 전량 회수해 status가 open으로 복원되면(advisor-quotes.ts 역연산) 다시 전이 대상이 된다.
   const changed = await ex
     .update(quoteRequests)
     .set({ readyForSendAt: sql`now()` })
-    .where(and(eq(quoteRequests.id, source.requestId), sql`${quoteRequests.readyForSendAt} is null`))
+    .where(and(
+      eq(quoteRequests.id, source.requestId),
+      sql`${quoteRequests.readyForSendAt} is null`,
+      sql`${quoteRequests.status} is distinct from 'completed'`,
+    ))
     .returning({ id: quoteRequests.id });
 
   return {

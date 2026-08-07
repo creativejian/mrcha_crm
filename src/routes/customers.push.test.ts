@@ -5,7 +5,7 @@ import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { getDefaultDb } from "../db/client";
 import { profiles, quoteRequests } from "../db/public-app";
-import { customers, quotes } from "../db/schema";
+import { accountDeletionJobs, customers, quotes } from "../db/schema";
 import { pushNotifyDeps } from "../lib/push-notify";
 
 // 이 스위트는 CRM 푸시 발송을 실제로 검증하므로 게이트를 명시적으로 연다(NODE_ENV=test 기본 off를 override).
@@ -29,12 +29,18 @@ const ORIGINAL_FETCH = pushNotifyDeps.fetchImpl;
 const createdCustomerIds: string[] = [];
 const createdQuoteIds: string[] = [];
 const createdQuoteRequestIds: string[] = [];
+// 탈퇴 잡은 실 크론(D+3/D+5)의 대상이라 반드시 회수한다. 남아도 requestedAt이 now라 즉시 처리되지는
+// 않지만, customer_code가 PUSH-TEST- 접두사라 check:residue의 deletionJobs 절이 잡는다(2중 안전).
+const createdDeletionJobIds: string[] = [];
 
 afterEach(async () => {
   pushNotifyDeps.fetchImpl = ORIGINAL_FETCH;
   const db = getDefaultDb();
   for (const id of createdQuoteIds.splice(0)) {
     await db.delete(quotes).where(eq(quotes.id, id));
+  }
+  for (const id of createdDeletionJobIds.splice(0)) {
+    await db.delete(accountDeletionJobs).where(eq(accountDeletionJobs.id, id));
   }
   for (const id of createdQuoteRequestIds.splice(0)) {
     await db.delete(quoteRequests).where(eq(quoteRequests.id, id));
@@ -209,4 +215,54 @@ test("배정 해제(advisorName null) → 미호출", async () => {
   });
   expect(res.status).toBe(200);
   expect(calls).toHaveLength(0);
+});
+
+// 회원탈퇴 spec §3e — 같은 핸들러가 appStatus="sent"를 409로 막는 것과 같은 축. 곧 파기될 유저에게
+// "곧 견적서를 보내드릴게요"가 가면 안 된다. 전이(내부 상태 기록)는 그대로 두고 외부 효과만 막는다.
+test("탈퇴 접수 고객은 작성 완료 사건 푸시를 받지 않는다(전이는 그대로)", async () => {
+  const { customerId, userId } = await linkedPair();
+  const requestId = crypto.randomUUID();
+  createdQuoteRequestIds.push(requestId);
+  await getDefaultDb().insert(quoteRequests).values({
+    id: requestId,
+    userId,
+    trimId: null,
+    status: "open",
+    createdAt: new Date().toISOString(),
+  });
+  const [job] = await getDefaultDb()
+    .insert(accountDeletionJobs)
+    .values({
+      appUserId: userId,
+      customerId,
+      customerCode: `PUSH-TEST-${crypto.randomUUID().slice(0, 12)}`,
+      proposedClassification: "purge",
+      status: "received",
+    })
+    .returning({ id: accountDeletionJobs.id });
+  createdDeletionJobIds.push(job.id);
+
+  const { token, keyResolver, issuer } = await makeTestAuth("manager", crypto.randomUUID());
+  const app = createApp({ keyResolver, issuer });
+  const { calls } = mockPush();
+
+  const created = await app.request(`/api/customers/${customerId}/quotes`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ sourceQuoteRequestId: requestId, status: "작성중", markReadyForSend: true }),
+  });
+  expect(created.status).toBe(201);
+  createdQuoteIds.push(((await created.json()) as { id: string }).id);
+
+  // ⚠️ 가드는 holdWork **안**에서 DB 1왕복 뒤 갈리므로 응답 직후 단언은 가드가 없어도 통과한다(위약).
+  //    그 왕복이 끝날 시간을 준 뒤에 본다 — 가드가 빠지면 이 사이에 mock이 호출을 기록한다.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(calls).toHaveLength(0);
+
+  // 막는 것은 푸시뿐이다. 스탬프는 찍혀야 재클릭이 no-op으로 수렴한다.
+  const [row] = await getDefaultDb()
+    .select({ readyForSendAt: quoteRequests.readyForSendAt })
+    .from(quoteRequests)
+    .where(eq(quoteRequests.id, requestId));
+  expect(row.readyForSendAt).not.toBeNull();
 });

@@ -65,6 +65,18 @@ export const TEST_CONSULTATION_NAMES: readonly string[] = [
   "도구테스트",        // db/queries/assistant-tools.test.ts
 ];
 
+// 실 DB 통합 테스트가 **읽기 전용으로** 빌려 쓰는 전용 앱 profile의 full_name registry.
+// (profiles는 앱 소유 read-only 계약 — 이 값으로 조회만 한다.)
+//
+// 왜 필요한가: 진행 단계 전이 테스트(2단계 confirmed_at·3단계 ready_for_send_at)는
+// `public.quote_requests`에 진짜 행을 만드는데, **그 테이블엔 코드 컬럼이 없어** 위 접두사
+// registry로는 잔재를 못 잡는다(딜러 3테이블과 같은 문제). 픽스처 요청은 전부 이 전용 계정
+// 앞으로 만들어지므로 user_id가 유일한 열쇠다. 잔재는 **전역 인박스**(`listQuoteRequests`는
+// 필터가 없다)에 유령 견적요청 카드로 뜬다 — 2026-07-09 `CU-EMBRT-…`와 같은 실패 방식.
+export const TEST_APP_PROFILE_NAMES: readonly string[] = [
+  "상담사테스트", // db/queries/quote-requests.confirm.test.ts · routes/customers.push.test.ts
+];
+
 export const TEST_QUOTE_CODE_PREFIXES = [
   "QT-ACCDEL-",     // db/queries/account-deletion.test.ts — 탈퇴 시 카드 회수 검증(트랜잭션 롤백)
   "QT-AIHINT-",     // db/queries/ai-hint-sources.test.ts
