@@ -7,9 +7,9 @@ Last updated: 2026-08-07
 
 ## 지금 상태
 
-Draft PR `#463`에 빠른견적 실제 사건 기반 4단계의 CRM producer가 있다. App 선행 운영 반영은 완료:
-migration `20260807140000`·`20260807141000` local/remote 일치, `ready_for_send_at` nullable
-`timestamptz`, `send-push` v35 ACTIVE를 CRM에서도 직접 확인했다. 최종 CI·merge·CRM 배포만 남았다.
+빠른견적 실제 사건 기반 4단계 CRM producer가 PR `#463`으로 main merge·운영 배포됐다(`eecbde2`).
+App migration `20260807140000`·`20260807141000`, `send-push` v35 선행 배포도 직접 대조 완료.
+Cloudflare Version `0eabe602-e5ac-4b5e-9152-290625ce1e0b`, 운영 health 200·Hyperdrive active다.
 
 ## 확정 계약 (이사님 08-07)
 
@@ -43,9 +43,8 @@ migration `20260807140000`·`20260807141000` local/remote 일치, `ready_for_sen
 
 ## ▶ 다음
 
-1. 전용 profile 안전성 보강과 운영 검증 기록을 `#463`에 push하고 최종 CI를 확인한다.
-2. Draft 해제 → main merge → CRM 배포 상태를 확인한다.
-3. 배포 뒤 지정 계정으로 2·3단계 최초 1회와 iOS 문구, 4단계 구매방식·차량 조각을 실기 확인한다.
+1. 지정 계정으로 2·3단계 최초 1회와 iOS 문구, 4단계 구매방식·차량 조각을 실기 확인한다.
+2. 이상이 있으면 DB timestamp → CRM tag 요청 → App consumer → iOS 표시 순서로 경계를 좁힌다.
 
 ## 기존 대기
 
