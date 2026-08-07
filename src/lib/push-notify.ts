@@ -1,15 +1,18 @@
 // 앱이 배포한 send-push Edge Function 호출 — device_tokens 조회·FCM v1 발송·만료 토큰 정리는
-// send-push가 담당한다(스펙 §5.3). CRM은 {user_id,title,body}만 전달(딥링크 없는 알림) +
+// send-push가 담당한다(스펙 §5.3). 기존 배정·담당자 확인은 {user_id,title,body,subtitle?}를,
+// 사건형 알림은 {user_id,tag}를 전달한다. tag 사건의 표시 문구는 앱 consumer가 고정한다.
 // 공유 시크릿 헤더 X-Push-Secret(있을 때만 — 아래 fail-open 주석).
 // best-effort: 어떤 경우에도 throw 하지 않는다(호출부의 저장 응답을 깨지 않기 위해). 실패는 로그만.
 //
-// ⚠️ CRM이 send-push를 부르는 유일한 지점이다(소비처 = routes/customers.ts 고객 담당자 배정 PATCH).
-// 견적 발송 알림은 public.advisor_quotes INSERT → on_advisor_quote_sent 트리거가 보내므로 CRM 코드 0줄.
+// ⚠️ 이 모듈이 CRM에서 send-push를 부르는 단일 접점이다. 담당자 배정·담당자 확인과
+// 빠른견적 발송 준비 사건이 여기로 모인다. 최종 견적 도착 알림은 public.advisor_quotes INSERT →
+// on_advisor_quote_sent 트리거가 보내므로 이 모듈의 책임이 아니다.
 
 // 테스트 주입점(embedOnWriteDeps 패턴 — mock.module 대신 전역 누출 없는 필드 교체).
 export const pushNotifyDeps = { fetchImpl: fetch };
 
-// 배정 알림 발송 게이트(embed-on-write의 EMBED_ON_WRITE 3규칙과 동일 원칙). 기본값으로 안전:
+// 푸시 발송 게이트(기존 export 이름은 호출부 호환을 위해 유지, embed-on-write의 3규칙과 동일 원칙).
+// 기본값으로 안전:
 // 테스트가 실 prod send-push에 실호출하는 사고(embed의 실 Gemini 호출+master 오염류) 구조적 방지.
 // ①명시 off는 항상 off ②NODE_ENV=test는 기본 off(명시 on만 허용 — 발송 검증 테스트가 여는 스위치)
 // ③그 외(로컬 dev·prod)는 on.
@@ -21,16 +24,24 @@ export function assignmentPushEnabled(c: { env: unknown }): boolean {
   return true;
 }
 
-export async function sendAssignmentPush(
+type PushPayload = {
+  userId: string;
+  title?: string;
+  body?: string;
+  subtitle?: string;
+  tag?: string;
+};
+
+async function sendPush(
   c: { env: unknown },
-  // subtitle은 iOS 2줄 알림용(앱 send-push가 이미 지원 — parse.ts `raw.subtitle ?? ""`). 생략 가능.
-  msg: { userId: string; title: string; body: string; subtitle?: string },
+  msg: PushPayload,
+  logLabel: string,
 ): Promise<void> {
   try {
     const env = (c.env ?? {}) as { SUPABASE_URL?: string; SEND_PUSH_SECRET?: string };
     const base = env.SUPABASE_URL ?? process.env.SUPABASE_URL;
     if (!base) {
-      console.error("[push] SUPABASE_URL 미설정 — 배정 알림 skip");
+      console.error(`[push] SUPABASE_URL 미설정 — ${logLabel} skip`);
       return;
     }
     // 공유 시크릿 헤더(앱 send-push 인증). 미설정이면 헤더를 생략하고 호출은 그대로 한다(fail-open):
@@ -52,18 +63,19 @@ export async function sendAssignmentPush(
       },
       body: JSON.stringify({
         user_id: msg.userId,
-        title: msg.title,
-        ...(msg.subtitle ? { subtitle: msg.subtitle } : {}),
-        body: msg.body,
+        ...(msg.title !== undefined ? { title: msg.title } : {}),
+        ...(msg.subtitle !== undefined ? { subtitle: msg.subtitle } : {}),
+        ...(msg.body !== undefined ? { body: msg.body } : {}),
+        ...(msg.tag !== undefined ? { tag: msg.tag } : {}),
       }),
     });
     if (!res.ok) {
       // 401은 네트워크·5xx와 섞이면 안 된다 — 시크릿 누락은 "실패해도 조용한" 부류라 tail에서
       // grep할 토큰(AUTH_FAILED)을 남긴다. 앱은 Sentry warning, CRM은 이 로그 — 이중 감시.
       if (res.status === 401) {
-        console.error(`[push] AUTH_FAILED(401) — SEND_PUSH_SECRET 확인 필요, 배정 알림 미발송 user=${msg.userId}`);
+        console.error(`[push] AUTH_FAILED(401) — SEND_PUSH_SECRET 확인 필요, ${logLabel} 미발송 user=${msg.userId}`);
       } else {
-        console.error(`[push] 배정 알림 발송 실패 user=${msg.userId} status=${res.status}`);
+        console.error(`[push] ${logLabel} 발송 실패 user=${msg.userId} status=${res.status}`);
       }
       return;
     }
@@ -73,11 +85,25 @@ export async function sendAssignmentPush(
     // 늦게 발견"이었다. 바디 파싱 실패는 무시한다(best-effort 계약 — 발송 동작은 이미 끝났다).
     const sent = await res.json().then((b) => (b as { sent?: number }).sent).catch(() => undefined);
     if (sent === 0) {
-      console.warn(`[push] 배정 알림 대상 기기 없음(sent=0) user=${msg.userId} — device_tokens 미등록`);
+      console.warn(`[push] ${logLabel} 대상 기기 없음(sent=0) user=${msg.userId} — device_tokens 미등록`);
     } else {
-      console.log(`[push] 배정 알림 → user=${msg.userId} "${msg.title}" sent=${sent ?? "?"}`);
+      console.log(`[push] ${logLabel} → user=${msg.userId} sent=${sent ?? "?"}`);
     }
   } catch (e) {
-    console.error(`[push] 배정 알림 예외 user=${msg.userId}:`, e);
+    console.error(`[push] ${logLabel} 예외 user=${msg.userId}:`, e);
   }
+}
+
+export function sendAssignmentPush(
+  c: { env: unknown },
+  // subtitle은 iOS 2줄 알림용(앱 send-push가 이미 지원 — parse.ts `raw.subtitle ?? ""`). 생략 가능.
+  msg: { userId: string; title: string; body: string; subtitle?: string },
+): Promise<void> {
+  return sendPush(c, msg, "배정 알림");
+}
+
+// 빠른견적 3단계 사건. CRM caller는 표시 문구를 정하지 않고 사건 tag만 보낸다.
+// 앱 send-push consumer가 `quote-request-ready-for-send`를 승인된 고정 문구로 변환한다.
+export function sendQuoteRequestReadyForSendPush(c: { env: unknown }, userId: string): Promise<void> {
+  return sendPush(c, { userId, tag: "quote-request-ready-for-send" }, "견적 발송 준비 알림");
 }

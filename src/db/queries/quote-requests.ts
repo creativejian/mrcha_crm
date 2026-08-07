@@ -647,6 +647,58 @@ export async function confirmQuoteRequest(
   };
 }
 
+// ── 발송 준비(3단계) 전이 ────────────────────────────────────────────────────
+//
+// 실제 워크벤치 "작성 완료" 저장과 **같은 트랜잭션**에서 호출한다. 별도 클라이언트 요청으로
+// 분리하면 견적 저장은 실패했는데 ready_for_send_at만 남거나, 저장 성공 뒤 전이 요청이 유실되는
+// 반쪽 상태가 생긴다. quoteId에서 source_quote_request_id를 다시 읽는 이유는 수정 재진입 시
+// 클라이언트가 출처 요청 id를 들고 있지 않아도 저장된 견적의 출처가 계속 SSOT여야 하기 때문이다.
+//
+// 멱등의 근거는 `ready_for_send_at IS NULL` 조건절이다. 최초 UPDATE 1행일 때만 라우트가
+// quote-request-ready-for-send tag를 앱 send-push consumer에 넘긴다. 앱이 표시 문구를 고정하므로
+// CRM은 이 결과에 고객·차량·구매방식·가격 같은 내용을 싣지 않는다.
+export type QuoteRequestReadyForSendResult = {
+  firstReadyForSend: boolean;
+  appUserId: string;
+};
+
+export async function markQuoteRequestReadyForSend(
+  quoteId: string,
+  customerId: string,
+  ex: Executor = getDefaultDb(),
+): Promise<QuoteRequestReadyForSendResult | null> {
+  // 견적과 고객의 결합을 먼저 잠근다. 다른 고객의 quoteId를 섞거나 출처 없는 CRM 견적이면 no-op.
+  const [source] = await ex
+    .select({ requestId: quotes.sourceQuoteRequestId })
+    .from(quotes)
+    .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)));
+  if (!source?.requestId) return null;
+
+  // loose source_quote_request_id가 가리키는 요청이 실제 이 고객의 앱 계정 소유인지 재검증한다.
+  // 기존 confirmQuoteRequest와 같은 소유권 경계로, 잘못 연결된 요청의 진행 상태를 올리지 않는다.
+  const [req] = await ex
+    .select({ userId: quoteRequests.userId })
+    .from(quoteRequests)
+    .where(eq(quoteRequests.id, source.requestId));
+  if (!req) return null;
+  const [customer] = await ex
+    .select({ appUserId: customers.appUserId })
+    .from(customers)
+    .where(eq(customers.id, customerId));
+  if (!customer || customer.appUserId !== req.userId) return null;
+
+  const changed = await ex
+    .update(quoteRequests)
+    .set({ readyForSendAt: sql`now()` })
+    .where(and(eq(quoteRequests.id, source.requestId), sql`${quoteRequests.readyForSendAt} is null`))
+    .returning({ id: quoteRequests.id });
+
+  return {
+    firstReadyForSend: changed.length > 0,
+    appUserId: req.userId,
+  };
+}
+
 // 푸시 body "<브랜드> · <모델 트림>". 트림명이 모델명을 접두로 포함하면 중복을 지운다(앱카드 어휘와 동일 규칙).
 // 차량을 못 찾으면 빈 문자열 — 호출부가 그때는 body 없이 보낸다(알림 자체를 막지는 않는다).
 async function vehicleLabelOfTrim(trimId: number | null, ex: Executor): Promise<string> {

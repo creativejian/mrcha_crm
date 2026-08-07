@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createCustomerManual, getCustomer, getCustomerAdvisorId, getCustomerAdvisorName, getCustomerAppUserId, getCustomerFeaturedRequestId, listCustomers, updateCustomer, type CustomerWritePatch } from "../db/queries/customers";
 import { DERIVED_NEED_KEYS } from "../../client/src/lib/quote-request-needs";
 import { dismissConsultation, linkedCustomerIdForConsultation, listConsultationsByUser } from "../db/queries/consultations";
-import { confirmQuoteRequest, getQuoteRequestDetail, listQuoteRequestsByUser, setFeaturedRequest } from "../db/queries/quote-requests";
+import { confirmQuoteRequest, getQuoteRequestDetail, listQuoteRequestsByUser, markQuoteRequestReadyForSend, setFeaturedRequest, type QuoteRequestReadyForSendResult } from "../db/queries/quote-requests";
 import {
   addMemo, updateMemo, deleteMemo,
   addTask, updateTask, deleteTask,
@@ -29,7 +29,7 @@ import { isAllowedMime, MAX_DOC_BYTES, safeFileName } from "../lib/document-vali
 import { cleanupEmbeddingOnDelete, scheduleEmbedOnWrite } from "../lib/embed-on-write";
 import { scheduleAiHintRefresh } from "../lib/ai-hint-on-write";
 import { createSignedUrl, removeObject, removeObjects, uploadObject, type StorageEnv } from "../lib/storage";
-import { assignmentPushEnabled, sendAssignmentPush } from "../lib/push-notify";
+import { assignmentPushEnabled, sendAssignmentPush, sendQuoteRequestReadyForSendPush } from "../lib/push-notify";
 import { visibleSettlementFor } from "../lib/settlement-visibility";
 import type { AuthVariables } from "../middleware/auth";
 import { holdWork, type DbVariables } from "../middleware/db";
@@ -40,7 +40,18 @@ import { canWriteQuote, QUOTE_WRITE_DENIED_MESSAGE } from "../../client/src/lib/
 import { canAssignAdvisor, ADVISOR_ASSIGN_DENIED_MESSAGE } from "../../client/src/lib/advisor-assign-access";
 
 // scopeChecked = customerScopeGate 멱등 플래그(A#3 — 게이트 주석 참조). 이 라우터 전용 요청-로컬 변수.
-export const customers = new Hono<{ Variables: AuthVariables & DbVariables & { scopeChecked?: true } }>();
+type CustomersEnv = { Variables: AuthVariables & DbVariables & { scopeChecked?: true } };
+export const customers = new Hono<CustomersEnv>();
+
+// ready_for_send_at 전이를 포함한 견적 저장 트랜잭션이 **커밋된 뒤** 최초 사건만 푸시한다.
+// DB 전이는 견적 저장과 원자적이지만 푸시는 best-effort 외부 효과라 트랜잭션 안에서 기다리지 않는다.
+function scheduleReadyForSendPush(
+  c: Context<CustomersEnv>,
+  result: QuoteRequestReadyForSendResult | null,
+): void {
+  if (!result?.firstReadyForSend || !assignmentPushEnabled(c)) return;
+  holdWork(c, sendQuoteRequestReadyForSendPush(c, result.appUserId));
+}
 
 // Storage 보상 삭제 — 실패해도 요청 흐름은 계속한다(고아 객체는 수동 정리 대상). 다만 조용히 삼키면
 // 고아 누적이 관측 불가능해지므로 동일 토큰으로 로그해 tail에서 한 번에 grep되게 한다. 같은 실패가
@@ -485,6 +496,9 @@ const quoteGuidanceSchema = z.object({
   services: z.array(z.string()),
 });
 const quoteCreateBody = z.object({
+  // 워크벤치 "작성 완료" command — 일반 견적 컬럼이 아니다. true면 서버가 견적 저장과
+  // ready_for_send_at 최초 전이를 같은 트랜잭션에 묶는다(출처 요청 없는 견적은 no-op).
+  markReadyForSend: z.literal(true).optional(),
   entryMode: z.enum(["manual", "solution", "original"]).nullable().optional(),
   status: z.string().nullable().optional(),
   quoteRound: z.string().nullable().optional(),
@@ -525,6 +539,9 @@ const quoteCreateBody = z.object({
   scenarios: z.array(quoteScenarioBody).max(3).optional(),
 });
 const quotePatchBody = z.object({
+  // quoteCreateBody와 같은 command. 수정 재진입은 클라가 요청 id를 잃으므로 서버가 저장된
+  // source_quote_request_id를 다시 읽는다.
+  markReadyForSend: z.literal(true).optional(),
   status: z.string().nullable().optional(),
   entryMode: z.enum(["manual", "solution", "original"]).nullable().optional(),
   quoteRound: z.string().nullable().optional(),
@@ -766,10 +783,18 @@ customers.post("/:id/quotes", zValidator("param", idParam), zValidator("json", q
   const denied = await quoteWriteGate(c, id);
   if (denied) return denied;
   const body = c.req.valid("json");
-  const row = await c.var.db.transaction((tx) => createQuote(id, body, tx));
+  const { markReadyForSend, ...quoteBody } = body;
+  const { row, readyForSend } = await c.var.db.transaction(async (tx) => {
+    const row = await createQuote(id, quoteBody, tx);
+    const readyForSend = markReadyForSend
+      ? await markQuoteRequestReadyForSend(row.id, id, tx)
+      : null;
+    return { row, readyForSend };
+  });
   // 트랜잭션 resolve(=커밋) 후 스케줄 — 훅의 fresh read가 커밋 전 구값을 보는 것을 방지(스펙 함정).
   scheduleEmbedOnWrite(c, { sourceType: "quote", sourceId: row.id });
   scheduleAiHintRefresh(c, id);
+  scheduleReadyForSendPush(c, readyForSend);
   return c.json(row, 201);
 });
 
@@ -784,11 +809,19 @@ customers.patch("/:id/quotes/:childId", zValidator("param", childParam), zValida
   if (body.appStatus === "sent" && (await hasReceivedDeletionJob(p.id, c.var.db))) {
     return c.json({ error: "회원탈퇴가 접수된 고객입니다. 앱 발송은 할 수 없습니다." }, 409);
   }
+  const { markReadyForSend, ...quoteBody } = body;
   return run(c, async () => {
-    const row = await c.var.db.transaction((tx) => updateQuote(p.id, p.childId, body, tx));
+    const { row, readyForSend } = await c.var.db.transaction(async (tx) => {
+      const row = await updateQuote(p.id, p.childId, quoteBody, tx);
+      const readyForSend = row && markReadyForSend
+        ? await markQuoteRequestReadyForSend(p.childId, p.id, tx)
+        : null;
+      return { row, readyForSend };
+    });
     if (row) {
       scheduleEmbedOnWrite(c, { sourceType: "quote", sourceId: p.childId }); // 발송(appStatus sent) 포함 — 커밋 후
       scheduleAiHintRefresh(c, p.id);
+      scheduleReadyForSendPush(c, readyForSend);
     }
     return row;
   }, "견적을 찾을 수 없습니다.");

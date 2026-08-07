@@ -1514,6 +1514,7 @@ export function useQuoteWorkbench({
       } : q)));
       if (customer.id && !targetId.startsWith("kim-")) {
         const patch: QuoteWritePatch = {
+          ...(!send ? { markReadyForSend: true } : {}),
           entryMode: source,
           ...snapshot,
           ...scenarioField,
@@ -1547,6 +1548,7 @@ export function useQuoteWorkbench({
       if (customer.id) {
         const cid = customer.id; // .then 콜백에서 narrow 유지용
         const payload: QuoteCreatePayload = {
+          ...(!send ? { markReadyForSend: true } : {}),
           entryMode: source,
           status: "작성중",
           quoteRound: "1차",

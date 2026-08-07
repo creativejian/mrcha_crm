@@ -9,7 +9,7 @@ import type { QuoteItem } from "@/lib/quote-items";
 import type { VehicleSelection } from "@/components/customer-detail/WorkbenchVehiclePickers";
 import { DEFAULT_QUOTE_GUIDANCE, regionFromResidence } from "@/data/quote-guidance";
 import { confirmQuoteRequest, fetchQuoteRequestDetail } from "@/lib/quote-requests";
-import { createQuote, requestSolutionQuote } from "@/lib/customer-quotes";
+import { createQuote, requestSolutionQuote, updateQuote } from "@/lib/customer-quotes";
 import { fetchSolutionDealers, type SolutionDealer } from "@/lib/solution-dealers";
 
 import { DEFAULT_CARD_UI } from "../quote-workbench-meta";
@@ -28,6 +28,7 @@ vi.mock("@/lib/customer-quotes", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/customer-quotes")>()),
   requestSolutionQuote: vi.fn(),
   createQuote: vi.fn(),
+  updateQuote: vi.fn(),
 }));
 
 // 판매사(딜러) 목록 릴레이(T2) — 기본 빈 목록(딜러 없음), 테스트별 mockResolvedValue로 채운다.
@@ -38,6 +39,7 @@ vi.mock("@/lib/solution-dealers", () => ({
 const fetchRequestDetail = vi.mocked(fetchQuoteRequestDetail);
 const requestSolution = vi.mocked(requestSolutionQuote);
 const createQuoteMock = vi.mocked(createQuote);
+const updateQuoteMock = vi.mocked(updateQuote);
 const fetchDealers = vi.mocked(fetchSolutionDealers);
 
 // 수정 진입 복원 검증용 견적(취득세 hybrid 저장본). 시나리오 없음 — 카드 복원은 빈 카드 폴백.
@@ -469,8 +471,30 @@ async function savedScenarios(result: ReturnType<typeof setup>["result"]) {
     result.current.handlers.saveQuoteDetailDraft();
   });
   expect(createQuoteMock).toHaveBeenCalledTimes(1);
+  // 실제 "작성 완료"만 서버 command를 싣는다. 서버가 견적 저장과 ready_for_send_at 전이를
+  // 같은 트랜잭션에 묶고, 출처 요청 없는 일반 견적은 no-op으로 처리한다.
+  expect(createQuoteMock.mock.calls[0][1].markReadyForSend).toBe(true);
   return createQuoteMock.mock.calls[0][1].scenarios ?? [];
 }
+
+it("고객 앱 발송은 작성 완료 사건 command를 싣지 않는다", async () => {
+  const { result } = setup();
+  const { pricingRoot, compareForm } = await setupSolutionDom(result);
+  createQuoteMock.mockClear();
+  updateQuoteMock.mockReset();
+  createQuoteMock.mockResolvedValue({ id: "srv-q-send", quoteCode: "QT-2608-0001", createdAt: "2026-08-07T00:00:00.000Z" });
+  updateQuoteMock.mockResolvedValue(undefined);
+
+  act(() => result.current.handlers.saveQuoteFromWorkbench());
+
+  expect(createQuoteMock).toHaveBeenCalledTimes(1);
+  expect(createQuoteMock.mock.calls[0][1].markReadyForSend).toBeUndefined();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  pricingRoot.remove();
+  compareForm.remove();
+});
 
 describe("useQuoteWorkbench — 솔루션 조회 결과 반영·늦은 응답 잔상 가드", () => {
   it("조회 성공: 월납입(표시 라운딩)·잔가 채움 + 결과 4필드는 리스계산기 파생 + 스냅샷이 저장 payload에 동봉된다(가드 대조군)", async () => {

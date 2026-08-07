@@ -34,7 +34,7 @@ export const TEST_CUSTOMER_CODE_PREFIXES = [
   "CU-RSEND-",      // routes/customers.send.test.ts
   "CU-SEND-",       // db/queries/customer-quotes.send.test.ts
   "CU-SMOKE",       // 사람이 손으로 만든 스모크 고객(브라우저 검증). 끝나면 지운다.
-  "PUSH-TEST-",     // routes/customers.push.test.ts — ⚠️ 유일하게 CU- 규칙을 안 따른다
+  "PUSH-TEST-",     // push route·quote-request 전이 테스트 — ⚠️ 유일하게 CU- 규칙을 안 따른다
 ] as const;
 
 // 실채번 픽스처의 **이름** registry — 서버가 코드를 채번해 접두사를 제어할 수 없는 테스트용.

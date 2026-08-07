@@ -31,6 +31,9 @@ export function parseInterestRate(raw: string): string | null {
 
 // PATCH 바디(서버 zod와 동형). 보낸 키만 갱신.
 export type QuoteWritePatch = {
+  // 실제 워크벤치 "작성 완료" command. 서버가 견적 저장과 ready_for_send_at 최초 전이를
+  // 같은 트랜잭션에 묶는다. 일반 PATCH 필드가 아니며 발송(send)에는 싣지 않는다.
+  markReadyForSend?: boolean;
   status?: string | null;
   entryMode?: "manual" | "solution" | "original" | null;
   quoteRound?: string | null;
@@ -92,6 +95,8 @@ export async function deleteQuote(customerId: string, quoteId: string): Promise<
 
 // POST 바디(서버 zod와 동형). 헤더 + 대표 시나리오 + #4c-2 가격/색상/옵션 스냅샷.
 export type QuoteCreatePayload = {
+  // QuoteWritePatch와 같은 command — 출처 견적요청이 있는 신규 작성 완료에서만 실제 전이한다.
+  markReadyForSend?: boolean;
   entryMode?: "manual" | "solution" | "original" | null;
   status?: string | null;
   quoteRound?: string | null;
