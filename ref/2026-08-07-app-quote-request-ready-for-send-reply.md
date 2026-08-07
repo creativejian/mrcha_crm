@@ -2,7 +2,7 @@
 
 작성 2026-08-07 · 요청자: 이사님 · CRM 담당: 영실
 
-> 상태: App 선행 운영 배포와 CRM 운영 DB 통합 검증 완료. CRM PR `#463` 최종 CI·merge·배포 대기.
+> 상태: App 선행 운영 배포, CRM 운영 DB 통합 검증, PR `#463` merge·CRM 운영 배포 완료.
 
 ## 확정 계약
 
@@ -69,3 +69,6 @@ CRM 저장소는 public schema migration을 만들거나 배포하지 않는다.
 - 전용 `상담사테스트` profile 기반 query 전이 4/4, 실제 CRM route 5/5 통과.
 - 재클릭 멱등·스탬프 보존·소유권 거부·transaction rollback·tag-only 호출을 운영 master에서 확인.
 - 종료 후 `PUSH-TEST-*` 고객·견적, 전용 profile의 최근 견적요청 모두 0이고 `check:residue` 통과.
+- CRM main `eecbde2`, Cloudflare Workers Version `0eabe602-e5ac-4b5e-9152-290625ce1e0b` 배포 성공.
+- PR·main CI 8단계 통과, 운영 `/api/health` 200·`hyperdrive: true` 확인.
+- 잔여는 지정 계정 iOS에서 2·3단계 최초 1회와 4단계 구매방식·차량 조각 표시 실기 확인뿐이다.
