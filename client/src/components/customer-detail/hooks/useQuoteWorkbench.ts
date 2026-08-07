@@ -1038,6 +1038,8 @@ export function useQuoteWorkbench({
           model: workbenchVehicle?.model?.name ?? trimDetail?.modelName ?? null,
           trimName: workbenchVehicle?.trim?.trimName ?? trimDetail?.trimName ?? null,
           canonicalName: workbenchVehicle?.trim?.canonicalName ?? trimDetail?.canonicalName ?? null,
+          // 계산기 체인의 최종 tier(name = notNull) — 두 이름이 다 NULL인 행에서 빌더가 갈리지 않게.
+          name: workbenchVehicle?.trim?.name ?? trimDetail?.name ?? null,
           mcCode: workbenchVehicle?.trim?.mcCode ?? trimDetail?.mcCode ?? null,
         },
         pricing: {

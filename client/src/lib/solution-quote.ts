@@ -200,12 +200,14 @@ export type BuildArgs = {
   // 금융사에 귀속된 값이다 — 다른 금융사 요청에 실으면 견적이 무음으로 틀어진다(BNK 하드 폴백/메리츠 fee 0,
   // useMultiQuote DealerSelection 근거). 전사 프로브(랭킹 모달)는 buildCardSolutionBaseArgs가 null로 벗긴다.
   dealerName: string | null;
-  // trimName·canonicalName은 파트너 modelName 해석 재료(아래 buildSolutionQuoteInput 주석 참조).
+  // trimName·canonicalName·name은 파트너 modelName 해석 재료(아래 buildSolutionQuoteInput 주석 참조).
   vehicle: {
     brand: string | null;
     model: string | null;
     trimName: string | null;
     canonicalName: string | null;
+    // catalog.trims.name — trim_name과 달리 notNull이라 계산기(build-payload)의 최종 tier다.
+    name: string | null;
     mcCode: string | null;
   };
   pricing: {
@@ -272,12 +274,20 @@ export function buildSolutionQuoteInput(args: BuildArgs): BuildResult {
     lenderCode: lender.code,
     productType,
     brand: args.vehicle.brand,
-    // modelName 해석 = canonicalName ?? trimName ?? model — 계산기(build-payload.ts) 패리티.
-    // 파트너는 masterMcCode가 offering에 링크되면 modelName을 치환해 무시하지만, 링크가 없으면
-    // (brand, modelName) 폴백 매칭을 타는데 그 매처가 트림급 서술을 기대하고 일부는 prefix 매칭이라
-    // 맨 모델명("5 Series")은 임의 트림에 오매칭될 수 있다 — canonical은 정확히 맞거나 깨끗하게
-    // 실패한다. model 최종 폴백은 트림 미조회 상태(저장 견적 prefill 등)의 기존 동작 유지.
-    modelName: args.vehicle.canonicalName ?? args.vehicle.trimName ?? args.vehicle.model,
+    // modelName 해석 = canonicalName ?? trimName ?? trim.name ?? model — 계산기(build-payload.ts)와
+    // **같은 체인**이다(뒤 두 tier까지 일치시켜야 두 빌더가 갈리지 않는다: trim_name은 nullable이고
+    // name은 notNull이라, 두 이름이 다 NULL인 행에서 계산기는 name을, 워크벤치는 맨 모델명을 보냈다).
+    // model 최종 폴백은 트림 미조회 상태(저장 견적 prefill 등)의 기존 동작 유지.
+    //
+    // ⚠️ 파트너 동작(2026-08-07 `dolim-solution` `routes/quote-core.ts` 실측 — 구 주석 정정):
+    // masterMcCode가 offering에 링크되면 파트너가 그 offering의 (브랜드, 모델명)으로 **치환**하고,
+    // 링크가 없으면 **폴백 매칭 없이 즉시 400 "미취급 차종"**이다(소스 주석 `vehicle_key 휴리스틱
+    // fallback 차단`). 구 주석이 근거로 든 "(brand, modelName) prefix 폴백 매칭"은 CRM이 호출하지
+    // 않는 cheapest 엔드포인트 소속이라 이 경로엔 없다 — 즉 canonical은 오매칭을 막는 안전장치가
+    // **아니고**, 그 없는 근거로 mcCode 없는 경로를 열면 그쪽에서 진짜 휴리스틱 임의 매칭을 만난다.
+    // 서버 zod가 masterMcCode를 min(1)로 강제하는 지금 이 체인의 실효는 두 빌더 일치 자체다.
+    modelName:
+      args.vehicle.canonicalName ?? args.vehicle.trimName ?? args.vehicle.name ?? args.vehicle.model,
     masterMcCode: args.vehicle.mcCode,
     ownershipType: "company",
     leaseTermMonths: args.termMonths,

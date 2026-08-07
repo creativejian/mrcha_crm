@@ -15,6 +15,7 @@ import {
   parseSolutionQuoteResult,
   solutionLenderOptions,
   solutionProductTypeOf,
+  type BuildArgs,
 } from "./solution-quote";
 
 const BASE_ARGS = {
@@ -33,7 +34,9 @@ const BASE_ARGS = {
   cmFeeRaw: "",
   agFeeRaw: "",
   dealerName: null,
-  vehicle: { brand: "BMW", model: "3 Series", trimName: null, canonicalName: null, mcCode: "MC-TEST-001" },
+  // name: null = 트림 미조회 상태(저장 견적 prefill 등). 실 카탈로그의 name은 notNull이라,
+  // 트림이 로드된 케이스는 각 테스트가 명시로 채운다.
+  vehicle: { brand: "BMW", model: "3 Series", trimName: null, canonicalName: null, name: null, mcCode: "MC-TEST-001" },
   pricing: {
     baseAndOption: 59_000_000,
     discount: 6_500_000,
@@ -67,28 +70,35 @@ describe("어휘 SSOT", () => {
 });
 
 describe("buildSolutionQuoteInput", () => {
-  test("modelName 해석은 canonicalName ?? trimName ?? model 순(계산기 build-payload 패리티)", () => {
-    const canonical = buildSolutionQuoteInput({
-      ...BASE_ARGS,
-      vehicle: { ...BASE_ARGS.vehicle, canonicalName: "BMW 3 Series 2026 가솔린 320i M Sport", trimName: "320i M Sport" },
-    });
-    if (!canonical.ok) throw new Error(canonical.reason);
-    expect(canonical.input.modelName).toBe("BMW 3 Series 2026 가솔린 320i M Sport");
+  test("modelName 해석은 canonicalName ?? trimName ?? name ?? model 순(계산기 build-payload 패리티)", () => {
+    const modelNameOf = (vehicle: Partial<BuildArgs["vehicle"]>) => {
+      const r = buildSolutionQuoteInput({ ...BASE_ARGS, vehicle: { ...BASE_ARGS.vehicle, ...vehicle } });
+      if (!r.ok) throw new Error(r.reason);
+      return r.input.modelName;
+    };
 
-    const trimOnly = buildSolutionQuoteInput({
-      ...BASE_ARGS,
-      vehicle: { ...BASE_ARGS.vehicle, canonicalName: null, trimName: "320i M Sport" },
-    });
-    if (!trimOnly.ok) throw new Error(trimOnly.reason);
-    expect(trimOnly.input.modelName).toBe("320i M Sport");
+    // 1순위 canonical — 아래 2·3순위 값이 함께 있어도 canonical이 이긴다.
+    expect(
+      modelNameOf({
+        canonicalName: "BMW 3 Series 2026 가솔린 320i M Sport",
+        trimName: "320i M Sport",
+        name: "320i M Sport",
+      }),
+    ).toBe("BMW 3 Series 2026 가솔린 320i M Sport");
+
+    // canonical만 있는 행(trim_name NULL) — "둘 다 있을 때만 canonical이 이긴다"는 변이를 잡는다.
+    expect(modelNameOf({ canonicalName: "BMW 3 Series 2026 가솔린 320i", trimName: null, name: null })).toBe(
+      "BMW 3 Series 2026 가솔린 320i",
+    );
+
+    expect(modelNameOf({ canonicalName: null, trimName: "320i M Sport", name: "320i" })).toBe("320i M Sport");
+
+    // 두 이름이 다 NULL이어도 트림이 로드됐으면 name(notNull) — 이 tier가 없으면 맨 모델명이 나가
+    // 계산기(build-payload: canonical ?? trimName ?? trim.name)와 두 빌더가 갈린다.
+    expect(modelNameOf({ canonicalName: null, trimName: null, name: "320i" })).toBe("320i");
 
     // 트림 정보가 전혀 없으면 기존 동작(모델명) 유지 — 저장 견적 prefill 등 트림 미조회 상태 방어
-    const modelOnly = buildSolutionQuoteInput({
-      ...BASE_ARGS,
-      vehicle: { ...BASE_ARGS.vehicle, canonicalName: null, trimName: null },
-    });
-    if (!modelOnly.ok) throw new Error(modelOnly.reason);
-    expect(modelOnly.input.modelName).toBe("3 Series");
+    expect(modelNameOf({ canonicalName: null, trimName: null, name: null })).toBe("3 Series");
   });
 
   test("기본 케이스(없음·최대·기본거리): 0원·high·20000km, ownershipType company 고정", () => {
@@ -192,7 +202,7 @@ describe("buildSolutionQuoteInput", () => {
     expect(
       buildSolutionQuoteInput({
         ...BASE_ARGS,
-        vehicle: { brand: null, model: null, trimName: null, canonicalName: null, mcCode: null },
+        vehicle: { brand: null, model: null, trimName: null, canonicalName: null, name: null, mcCode: null },
       }).ok,
     ).toBe(false);
     expect(buildSolutionQuoteInput({ ...BASE_ARGS, vehicle: { ...BASE_ARGS.vehicle, mcCode: null } }).ok).toBe(false);

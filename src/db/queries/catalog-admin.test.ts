@@ -224,6 +224,15 @@ test("updateTrim: trimName·연식·연료 변경 시 canonical_name 재계산 (
       const priced = await updateTrim(trim.id, { price: 2000 }, tx);
       expect(priced?.canonicalName).toBe(`${brand.name} __CANON_UPD__ 2027 디젤 신트림`);
 
+      // 빈 patch = no-op(현재 행 그대로). drizzle `.set({})`가 "No values to set"를 던져 500이 되던 자리다
+      // — `trimUpdateBody.partial()`이라 `{}`가 zod를 통과하고, manager의 할인 전용 편집도
+      // stripDiscountProposal 뒤 빈 payload가 되어 **승인 replay**로 여기 들어온다.
+      const untouched = await updateTrim(trim.id, {}, tx);
+      expect(untouched?.canonicalName).toBe(`${brand.name} __CANON_UPD__ 2027 디젤 신트림`);
+      expect(untouched?.price).toBe(2000);
+      // 없는 트림은 여전히 null(404) — 빈 patch가 존재 판정을 흐리지 않는다.
+      expect(await updateTrim(-1, {}, tx)).toBeNull();
+
       throw new Rollback();
     })
     .catch((e: unknown) => {
