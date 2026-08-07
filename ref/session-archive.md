@@ -7,6 +7,23 @@
 > 분리 사유: 이 내용이 142k자까지 자라 매 세션 컨텍스트의 14%를 차지했고,
 > AGENTS.md의 "60줄 이하 / 과거 로그 누적 금지" 규칙과도 어긋나 있었다(2026-07-21).
 
+## 2026-08-07 낮~오후 — 빠른견적 4단계 CRM producer (`#463`·`#464`, 이사님·영실)
+
+- **이사님이 4단계 체계 확정·직접 구현·운영 배포까지 완료**(구 5단계 안 폐기 — `preparing` 제거,
+  구 2·3 문구 병합). 배선: 3단계 `발송 준비 중` = 워크벤치 **작성 완료** 최초 성공 사건,
+  `public.quote_requests.ready_for_send_at`(nullable·단조)을 견적 저장과 **같은 트랜잭션**에서
+  `markReadyForSend` command로 전이, 최초 1회만 `{user_id, tag: quote-request-ready-for-send}` 푸시
+  (표시 문구는 앱 consumer 고정 — CRM은 내용을 싣지 않는다).
+- 서버 = `markQuoteRequestReadyForSend`(소유권 재검증 + `IS NULL` 조건부 UPDATE) · 라우트 command
+  분리(`markReadyForSend: z.literal(true).optional()`) · `push-notify.ts` 공용 `sendPush`로 리팩토링
+  (payload에 tag 추가). 클라 = `작성완료(send:false)`에만 command, `작성 후 발송(send:true)` 미탑재.
+- 검증(#463 본문): CI 8단계 + unit 1441 · pure 295 · 워크벤치 31 · 푸시 13 · 운영 master 통합
+  (query 전이 4/4 · route 5/5 · 전용 `상담사테스트` profile만 read · 종료 후 잔재 0) ·
+  기존 2단계 payload(차량명·subtitle)와 새 3단계 tag-only를 각각 exact assertion으로 잠금.
+- 배포 게이트 준수: 앱 migration(`20260807140000`·`141000`) + send-push 선행 배포 → CRM merge
+  `eecbde2` → CF Version `0eabe602…` health 200. `#464`로 배포 완료 상태 문서 박제.
+- (같은 날 저녁 앱 `#839`가 판정·realtime·consumer v39를 반영 — 다음 항목이 그 검토다.)
+
 ## 2026-08-05 밤2 — `#459` 배지 조회 합치기 (유슨생)
 
 - **`#459` 배지 조회 합치기(A+B)** — 배지 축의 마무리. **실기 육안 확인 완료**(승인 시 사이드바·브랜드·헤더가
