@@ -2,7 +2,7 @@
 
 작성 2026-08-07 · 요청자: 이사님 · CRM 담당: 영실
 
-> 상태: CRM 구현 후보 완료. **앱의 DB migration과 send-push consumer가 먼저 배포된 뒤에만 CRM을 배포한다.**
+> 상태: App 선행 운영 배포와 CRM 운영 DB 통합 검증 완료. CRM PR `#463` 최종 CI·merge·배포 대기.
 
 ## 확정 계약
 
@@ -60,3 +60,12 @@ CRM caller는 title/body/subtitle을 만들지 않는다. 앱 consumer가 사건
 
 CRM 저장소는 public schema migration을 만들거나 배포하지 않는다. 선행 배포 전에는 DB 의존 멱등·롤백
 통합 테스트와 CRM 운영 배포를 완료로 판정하지 않는다.
+
+## 운영 교차 검증 (2026-08-07)
+
+- Supabase migration `20260807140000`·`20260807141000` local/remote 일치.
+- `public.quote_requests.ready_for_send_at` = nullable `timestamp with time zone`.
+- Edge Function `send-push` = v35 `ACTIVE`.
+- 전용 `상담사테스트` profile 기반 query 전이 4/4, 실제 CRM route 5/5 통과.
+- 재클릭 멱등·스탬프 보존·소유권 거부·transaction rollback·tag-only 호출을 운영 master에서 확인.
+- 종료 후 `PUSH-TEST-*` 고객·견적, 전용 profile의 최근 견적요청 모두 0이고 `check:residue` 통과.

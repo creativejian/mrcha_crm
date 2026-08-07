@@ -7,9 +7,9 @@ Last updated: 2026-08-07
 
 ## 지금 상태
 
-`feat/quote-request-ready-for-send`에 빠른견적 실제 사건 기반 4단계의 CRM producer 구현 후보가 있다.
-앱 저장소 `feat/quick-quote-four-stage-progress`는 화면·DB 계약·consumer 구현과 로컬 검증을 마쳤지만
-운영 Supabase·Edge Function에는 미배포다. CRM PR은 이 선행 배포를 merge·배포 게이트로 명시한다.
+Draft PR `#463`에 빠른견적 실제 사건 기반 4단계의 CRM producer가 있다. App 선행 운영 반영은 완료:
+migration `20260807140000`·`20260807141000` local/remote 일치, `ready_for_send_at` nullable
+`timestamptz`, `send-push` v35 ACTIVE를 CRM에서도 직접 확인했다. 최종 CI·merge·CRM 배포만 남았다.
 
 ## 확정 계약 (이사님 08-07)
 
@@ -37,14 +37,15 @@ Last updated: 2026-08-07
 - ✅ `typecheck` · `lint` · `knip` · `format:check` · `build` · `git diff --check`
 - ✅ unit **1441/1441** · pure **295/295** · 워크벤치 집중 **31/31** · 푸시 집중 **13/13**
 - ✅ 기존 2단계 차량명+subtitle 보존 / 새 3단계 tag-only payload를 각각 exact assertion으로 잠금.
-- 🔴 DB 멱등·롤백·route 통합 테스트 3건은 app migration 선행 전이라 미실행. 공유 master에
-  `ready_for_send_at`이 확인된 뒤 선별 실행하고 `check:residue`까지 확인한다.
+- ✅ 운영 master: query 전이 **4/4** · 실제 CRM route **5/5**. 전용 `상담사테스트` profile만 읽고
+  임시 고객을 생성·삭제했다. 종료 후 fixture 고객·견적·최근 견적요청 **각 0**, `check:residue` 0.
+- ✅ 로컬 `.env.local`의 폐기 project ref `qtirm…`를 현재 master `wmkbm…`로 교정(비밀번호 불변).
 
 ## ▶ 다음
 
-1. 앱팀이 migration과 `send-push` consumer를 commit·merge·배포하고 운영 반영을 확인한다.
-2. CRM에서 `quote-requests.confirm.test.ts`와 `customers.push.test.ts`를 선별 실행한다.
-3. 잔재 0과 최종 diff를 확인해 PR 검증란을 갱신한 뒤 merge·배포한다. **CRM 배포는 앱 선행 배포 뒤에만**.
+1. 전용 profile 안전성 보강과 운영 검증 기록을 `#463`에 push하고 최종 CI를 확인한다.
+2. Draft 해제 → main merge → CRM 배포 상태를 확인한다.
+3. 배포 뒤 지정 계정으로 2·3단계 최초 1회와 iOS 문구, 4단계 구매방식·차량 조각을 실기 확인한다.
 
 ## 기존 대기
 

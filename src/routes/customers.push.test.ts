@@ -1,5 +1,5 @@
 import { test, expect, afterEach, beforeAll, afterAll } from "bun:test";
-import { eq, isNotNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
@@ -11,10 +11,18 @@ import { pushNotifyDeps } from "../lib/push-notify";
 // 이 스위트는 CRM 푸시 발송을 실제로 검증하므로 게이트를 명시적으로 연다(NODE_ENV=test 기본 off를 override).
 // 게이트를 열어도 아래 fetchImpl mock이 실 prod send-push 대신 가로챈다 — 실호출 없이 발송 경로만 검증.
 const ORIGINAL_PUSH_NOTIFY = process.env.PUSH_NOTIFY;
-beforeAll(() => { process.env.PUSH_NOTIFY = "on"; });
+const ORIGINAL_SUPABASE_URL = process.env.SUPABASE_URL;
+beforeAll(() => {
+  process.env.PUSH_NOTIFY = "on";
+  // sendAssignmentPush가 URL 조립 전에 skip하지 않도록 테스트 전용 base를 고정한다.
+  // 모든 발송 경로는 아래 fetchImpl mock이 가로채므로 네트워크 실호출은 없다.
+  process.env.SUPABASE_URL = "https://push.test";
+});
 afterAll(() => {
   if (ORIGINAL_PUSH_NOTIFY === undefined) delete process.env.PUSH_NOTIFY;
   else process.env.PUSH_NOTIFY = ORIGINAL_PUSH_NOTIFY;
+  if (ORIGINAL_SUPABASE_URL === undefined) delete process.env.SUPABASE_URL;
+  else process.env.SUPABASE_URL = ORIGINAL_SUPABASE_URL;
 });
 
 const ORIGINAL_FETCH = pushNotifyDeps.fetchImpl;
@@ -60,14 +68,19 @@ async function makeCustomer(fields: Partial<typeof customers.$inferInsert> = {})
 }
 
 async function linkedPair(): Promise<{ customerId: string; userId: string }> {
-  const [row] = await getDefaultDb()
-    .select({ customerId: customers.id, userId: profiles.id })
-    .from(customers)
-    .innerJoin(profiles, eq(profiles.id, customers.appUserId))
-    .where(isNotNull(customers.appUserId))
-    .limit(1);
-  if (!row) throw new Error("앱 연결 고객이 없어 ready_for_send 라우트 테스트 불가");
-  return row;
+  const rows = await getDefaultDb()
+    .select({ userId: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.fullName, "상담사테스트"))
+    .limit(2);
+  if (rows.length !== 1) {
+    throw new Error(`전용 상담사테스트 profile이 정확히 1개여야 함(현재 ${rows.length}개)`);
+  }
+  const customerId = await makeCustomer({
+    appUserId: rows[0].userId,
+    name: "발송준비라우트테스트",
+  });
+  return { customerId, userId: rows[0].userId };
 }
 
 test("작성 완료 저장 성공 → ready_for_send_at 최초 전이와 사건 tag 푸시가 정확히 1회 발생한다", async () => {
