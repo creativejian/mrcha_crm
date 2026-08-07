@@ -22,7 +22,7 @@ test("sendAssignmentPush: send-push URL로 {user_id,title,body} POST", async () 
   expect(calls[0].body).toEqual({ user_id: "U-1", title: "담당 고객으로 배정되었습니다", body: "홍길동" });
 });
 
-test("sendAssignmentPush: 기존 담당자 확인 payload의 차량명·subtitle을 그대로 유지한다", async () => {
+test("sendAssignmentPush: 담당자 확인 payload — 차량명·subtitle 유지 + 사건 tag 동반(2026-08-07)", async () => {
   const calls: Array<{ body: unknown }> = [];
   pushNotifyDeps.fetchImpl = (async (_url: string | URL, init?: { body?: string }) => {
     calls.push({ body: JSON.parse(init?.body ?? "{}") });
@@ -36,14 +36,17 @@ test("sendAssignmentPush: 기존 담당자 확인 payload의 차량명·subtitle
       title: "차선생",
       subtitle: "담당자가 요청하신 견적 조건을 확인했어요",
       body: "제네시스 · GV80 3.5T AWD",
+      tag: "quote-request-confirmed",
     },
   );
 
+  // 차량명·subtitle 축소 금지(이사님 확정 계약) + tag는 앱 consumer 분기 키(subtitle 결합 해소).
   expect(calls[0].body).toEqual({
     user_id: "U-CONFIRMED",
     title: "차선생",
     subtitle: "담당자가 요청하신 견적 조건을 확인했어요",
     body: "제네시스 · GV80 3.5T AWD",
+    tag: "quote-request-confirmed",
   });
 });
 

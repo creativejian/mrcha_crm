@@ -97,7 +97,9 @@ async function sendPush(
 export function sendAssignmentPush(
   c: { env: unknown },
   // subtitle은 iOS 2줄 알림용(앱 send-push가 이미 지원 — parse.ts `raw.subtitle ?? ""`). 생략 가능.
-  msg: { userId: string; title: string; body: string; subtitle?: string },
+  // tag는 앱 consumer(privacySafeNotification)의 사건 분기 키 — 담당자 확인(2단계)이 subtitle
+  // 문자열 정확 일치에만 기대던 결합을 푼다(2026-08-07, tag-first·문구 폴백은 앱에 잔존).
+  msg: { userId: string; title: string; body: string; subtitle?: string; tag?: string },
 ): Promise<void> {
   return sendPush(c, msg, "배정 알림");
 }
