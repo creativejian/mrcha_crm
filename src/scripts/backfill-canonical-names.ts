@@ -29,7 +29,6 @@ const rows = await db
     modelYear: trimsInCatalog.modelYear,
     fuelType: trimsInCatalog.fuelType,
     canonicalName: trimsInCatalog.canonicalName,
-    mcCode: trimsInCatalog.mcCode,
     model: modelsInCatalog.name,
     brand: brandsInCatalog.name,
     isDomestic: brandsInCatalog.isDomestic,
@@ -78,3 +77,7 @@ await db.transaction(async (tx) => {
   }
 });
 console.log(`[backfill:canonical] ✅ ${targets.length}행 갱신 완료`);
+// 위 조회 전용 두 분기와 같이 명시 종료한다 — `db/client.ts`의 postgres 클라이언트에 idle_timeout이
+// 없어 커넥션이 이벤트 루프를 잡고, 이 줄이 없으면 갱신을 마치고도 프로세스가 안 죽는다
+// (운영자에겐 "트랜잭션이 걸린 것"으로 보여 강제 kill을 부른다 — 실제로 일을 하는 유일한 분기다).
+process.exit(0);

@@ -54,6 +54,10 @@
 - `lenderCode`(8사), `productType`: `"operating_lease" | "long_term_rental"`(그 외 미구현)
 - `brand`·`modelName` **필수**, `masterMcCode` optional — mc_code가 오면 엔진이 금융사별 offering을
   해석해 brand/model을 덮어씀. 미취급이면 "미취급" 400
+  - ⚠️ **폴백 없음**(2026-08-07 파트너 레포 `routes/quote-core.ts` 실측): mc_code 링크가 없으면
+    `(brand, modelName)` 폴백 매칭 없이 곧장 400이다(소스 주석 `vehicle_key 휴리스틱 fallback 차단`).
+    prefix 매처는 CRM이 호출하지 않는 cheapest 엔드포인트 소속이다 — CRM 서버 zod가 `masterMcCode`를
+    `min(1)`로 강제하므로 실제로는 항상 치환 경로다.
 - `ownershipType` **필수**: `"company" | "customer"` — 제프 UI 고정 기본 `"company"` 미러
 - `leaseTermMonths`: 12|24|36|48|60 · `annualMileageKm`: 10000~40000(5000 단위)
 - `depositAmount`·`upfrontPayment`: 원 단위 정수(％ 수용 없음 — 클라 매퍼가 환산)
@@ -85,7 +89,9 @@
 - `solutionProductTypeOf(purchaseMethod)`: 운용리스→`operating_lease`, 장기렌트→`long_term_rental`,
   그 외 null(계산기 비활성 게이트 `solutionWorkbenchCanQuery`와 정합)
 - `buildSolutionQuoteInput(args)`: 카드 조건(CardUiState + 금융사·기간·보증금/선수금 모드·값) +
-  가격패널(할인 전 차량가·할인 총액) + 차종(mc_code·브랜드·모델 라벨) → `CanonicalQuoteInput` 서브셋.
+  가격패널(할인 전 차량가·할인 총액) + 차종(mc_code·브랜드·차량명) → `CanonicalQuoteInput` 서브셋.
+  ⚠️ `modelName`은 **모델 라벨이 아니다**(2026-08-07 `#462`·후속 정정): 해석 체인 =
+  `canonicalName ?? trimName ?? trim.name ?? model`로 **계산기 `build-payload.ts`와 동일**하다.
   ％→원 환산(기준 = 할인 전 차량가 — 파트너 입력이 할인 전 기준이므로), "없음"→0, 약정거리 문자열
   ("20,000km / 년")→enum 숫자, 잔존 3모드 매핑(§계약), `ownershipType:"company"` 고정
 - `parseSolutionQuoteResult(raw)`: 방어 파싱 — 필수(monthlyPayment·rates·residual·workbookImport)

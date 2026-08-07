@@ -229,6 +229,16 @@ export async function updateTrim(id: number, input: TrimPatch, executor: Executo
   if (input.financialDiscountAmount !== undefined) patch.financialDiscountAmount = input.financialDiscountAmount;
   if (input.partnerDiscountAmount !== undefined) patch.partnerDiscountAmount = input.partnerDiscountAmount;
   if (input.cashDiscountAmount !== undefined) patch.cashDiscountAmount = input.cashDiscountAmount;
+  // 빈 patch를 drizzle에 넘기면 `.set({})`이 "No values to set"를 던져 **500**이 된다
+  // (`trimUpdateBody = trimBody.partial()`이라 `{}`가 zod를 통과한다). 갱신할 게 없으면 UPDATE를
+  // 생략하고 현재 행을 그대로 돌려준다 — 없는 트림은 여전히 null(404)이라 존재 판정은 불변.
+  // ⚠️ 직접 PATCH `{}`뿐 아니라 **manager의 할인 전용 편집**도 이 경로에 온다: 라우트가
+  // stripDiscountProposal로 할인 3키를 걷어내면 변경 요청 payload가 비고, 그 요청을 승인할 때
+  // replay가 여기로 들어온다(그때는 승인자가 500을 본다). 그래서 라우트가 아니라 여기서 막는다.
+  if (Object.keys(patch).length === 0) {
+    const [cur] = await executor.select().from(trimsInCatalog).where(eq(trimsInCatalog.id, id));
+    return cur ?? null;
+  }
   const [row] = await executor.update(trimsInCatalog).set(patch).where(eq(trimsInCatalog.id, id)).returning();
   return row ?? null;
 }
@@ -456,18 +466,28 @@ export async function moveTrims(
   for (const id of trimIds) {
     order += 1;
     const moving = movingById.get(id);
-    const set: Record<string, unknown> = { modelId: targetModelId, sortOrder: order };
-    if (moving) {
-      set.canonicalName = buildCanonicalName({
-        brand: ctx.brand,
-        model: ctx.model,
-        isDomestic: ctx.isDomestic,
-        modelYear: moving.modelYear,
-        fuelType: moving.fuelType,
-        trimName: moving.trimName ?? "",
-      });
-    }
-    await executor.update(trimsInCatalog).set(set).where(eq(trimsInCatalog.id, id));
+    // 키 집합이 정적이라 drizzle 컬럼 타입을 유지한다(updateTrim의 동적 키 사정이 여기엔 없다).
+    // Record<string, unknown>이면 `canonicalname` 같은 오타·향후 프로퍼티 개명이 컴파일을 통과한 뒤
+    // canonical 갱신만 조용히 no-op이 된다 — 이 PR이 없애려던 stale canonical이 그대로 재발한다.
+    await executor
+      .update(trimsInCatalog)
+      .set({
+        modelId: targetModelId,
+        sortOrder: order,
+        ...(moving
+          ? {
+              canonicalName: buildCanonicalName({
+                brand: ctx.brand,
+                model: ctx.model,
+                isDomestic: ctx.isDomestic,
+                modelYear: moving.modelYear,
+                fuelType: moving.fuelType,
+                trimName: moving.trimName ?? "",
+              }),
+            }
+          : {}),
+      })
+      .where(eq(trimsInCatalog.id, id));
   }
   return { moved: trimIds.length };
 }
