@@ -1,8 +1,15 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
+import { getTestDb } from "../test-utils/hermetic-db";
+import { setTestDb } from "./db";
 import { isDealerWriteAllowed } from "./role-gate";
+
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 
 // dealer는 읽기 전용 역할이다. UI는 딜러에게 쓰기 버튼을 숨기지만 API 직접 호출은
 // 열려 있었다(2026-07-11 스캔: 쓰기 라우트 29개 중 role 게이트 2개). 전역 게이트로

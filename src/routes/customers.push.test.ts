@@ -3,10 +3,16 @@ import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
-import { getDefaultDb } from "../db/client";
 import { profiles, quoteRequests } from "../db/public-app";
 import { accountDeletionJobs, customers, quotes } from "../db/schema";
 import { pushNotifyDeps } from "../lib/push-notify";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
+
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 
 // 이 스위트는 CRM 푸시 발송을 실제로 검증하므로 게이트를 명시적으로 연다(NODE_ENV=test 기본 off를 override).
 // 게이트를 열어도 아래 fetchImpl mock이 실 prod send-push 대신 가로챈다 — 실호출 없이 발송 경로만 검증.
@@ -35,7 +41,6 @@ const createdDeletionJobIds: string[] = [];
 
 afterEach(async () => {
   pushNotifyDeps.fetchImpl = ORIGINAL_FETCH;
-  const db = getDefaultDb();
   for (const id of createdQuoteIds.splice(0)) {
     await db.delete(quotes).where(eq(quotes.id, id));
   }
@@ -64,7 +69,6 @@ function mockPush() {
 }
 
 async function makeCustomer(fields: Partial<typeof customers.$inferInsert> = {}): Promise<string> {
-  const db = getDefaultDb();
   const [row] = await db
     .insert(customers)
     .values({ customerCode: `PUSH-TEST-${crypto.randomUUID().slice(0, 12)}`, name: "푸시테스트고객", ...fields })
@@ -74,7 +78,7 @@ async function makeCustomer(fields: Partial<typeof customers.$inferInsert> = {})
 }
 
 async function linkedPair(): Promise<{ customerId: string; userId: string }> {
-  const rows = await getDefaultDb()
+  const rows = await db
     .select({ userId: profiles.id })
     .from(profiles)
     .where(eq(profiles.fullName, "상담사테스트"))
@@ -93,7 +97,7 @@ test("작성 완료 저장 성공 → ready_for_send_at 최초 전이와 사건 
   const { customerId, userId } = await linkedPair();
   const requestId = crypto.randomUUID();
   createdQuoteRequestIds.push(requestId);
-  await getDefaultDb().insert(quoteRequests).values({
+  await db.insert(quoteRequests).values({
     id: requestId,
     userId,
     trimId: null,
@@ -125,7 +129,7 @@ test("작성 완료 저장 성공 → ready_for_send_at 최초 전이와 사건 
     user_id: userId,
     tag: "quote-request-ready-for-send",
   });
-  const [firstState] = await getDefaultDb()
+  const [firstState] = await db
     .select({ readyForSendAt: quoteRequests.readyForSendAt })
     .from(quoteRequests)
     .where(eq(quoteRequests.id, requestId));
@@ -140,7 +144,7 @@ test("작성 완료 저장 성공 → ready_for_send_at 최초 전이와 사건 
   expect(retried.status).toBe(200);
   await Promise.resolve();
   expect(calls).toHaveLength(1);
-  const [secondState] = await getDefaultDb()
+  const [secondState] = await db
     .select({ readyForSendAt: quoteRequests.readyForSendAt })
     .from(quoteRequests)
     .where(eq(quoteRequests.id, requestId));
@@ -182,7 +186,7 @@ test("자기 배정(대상=배정자) → 알림 미호출 · 단 배정 저장�
     body: JSON.stringify({ advisorName: "본인관리자", advisorId: managerSub }),
   });
   expect(res.status).toBe(200);
-  const [saved] = await getDefaultDb().select({ advisorId: customers.advisorId }).from(customers).where(eq(customers.id, cid));
+  const [saved] = await db.select({ advisorId: customers.advisorId }).from(customers).where(eq(customers.id, cid));
   expect(saved.advisorId).toBe(managerSub);
   expect(calls).toHaveLength(0);
 });
@@ -223,14 +227,14 @@ test("탈퇴 접수 고객은 작성 완료 사건 푸시를 받지 않는다(�
   const { customerId, userId } = await linkedPair();
   const requestId = crypto.randomUUID();
   createdQuoteRequestIds.push(requestId);
-  await getDefaultDb().insert(quoteRequests).values({
+  await db.insert(quoteRequests).values({
     id: requestId,
     userId,
     trimId: null,
     status: "open",
     createdAt: new Date().toISOString(),
   });
-  const [job] = await getDefaultDb()
+  const [job] = await db
     .insert(accountDeletionJobs)
     .values({
       appUserId: userId,
@@ -260,7 +264,7 @@ test("탈퇴 접수 고객은 작성 완료 사건 푸시를 받지 않는다(�
   expect(calls).toHaveLength(0);
 
   // 막는 것은 푸시뿐이다. 스탬프는 찍혀야 재클릭이 no-op으로 수렴한다.
-  const [row] = await getDefaultDb()
+  const [row] = await db
     .select({ readyForSendAt: quoteRequests.readyForSendAt })
     .from(quoteRequests)
     .where(eq(quoteRequests.id, requestId));

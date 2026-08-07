@@ -7,3 +7,9 @@
 # (The old note here pointed at Playwright specs under tools/, deleted in #311.)
 [test]
 root = "src"
+# 전역 teardown — hermetic PGlite(test-utils/hermetic-db.ts)를 전체 런 마지막에 1회 close한다.
+# 닫지 않으면 남은 WASM 핸들 때문에 0 fail이어도 프로세스가 exit 99가 된다(2026-08-07 실측 —
+# bun run·bun test 동일). preload의 afterAll은 파일 단위가 아니라 **전체 런** 기준이라(실측:
+# 두 파일이 싱글톤을 공유해도 마지막에만 닫힘) 파일 경계를 넘는 싱글톤과 안전하게 공존한다.
+# 실 DB 모드(test:server)에선 hermetic이 생성되지 않아 no-op.
+preload = ["./src/test-utils/test-teardown.ts"]

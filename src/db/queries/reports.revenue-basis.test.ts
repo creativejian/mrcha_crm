@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { withNotifyGuard } from "../../test-utils/notify-gate";
-import { getDefaultDb } from "../client";
+import { getTestDb } from "../../test-utils/hermetic-db";
 import { customerDeliveries, customers } from "../schema";
 import { getAdminReport } from "./reports";
 
@@ -20,7 +20,8 @@ import { getAdminReport } from "./reports";
 //
 // ⚠️ 공유 master라 **개수 단언 금지**(다른 세션·테스트의 행이 섞인다). 픽스처 삽입 **전후의 증분**만
 // 본다 — 데이터가 얼마나 있든 성립하고, 기준일이 뒤집히면 증분이 반대 달에 나타난다.
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
 const ROLLBACK = "__rollback__";
 const code = () => `CU-REVBASIS-${crypto.randomUUID().slice(0, 8)}`;
 

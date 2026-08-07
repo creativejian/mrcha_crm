@@ -56,6 +56,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@electric-sql/pglite-pgvector": "^0.0.5",
     "@eslint/js": "^10.0.1",
     "@ladle/react": "^5.1.1",
     "@playwright/test": "^1.62.1",

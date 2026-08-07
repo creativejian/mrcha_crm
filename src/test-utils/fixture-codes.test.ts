@@ -22,8 +22,10 @@ const EXCLUDED = new Set([
 
 // 실 master DB에 쓰는 테스트만 대상 — 순수 유닛 테스트의 인메모리 객체(예: app-card-payload.test.ts의
 // quoteCode "QT-2607-0001")는 DB에 남지 않으므로 registry와 무관하다. `getDefaultDb` 참조가 그 판별자다.
+// `getTestDb`(hermetic-db dual-mode, 2026-08-07)도 판별자다 — CI에선 PGlite지만 **로컬 test:server에선
+// 실 master에 쓴다**. 이관 파일이 getDefaultDb 문자열을 잃으면서 스캔에서 빠지는 회귀를 막는다.
 function touchesRealDb(source: string): boolean {
-  return source.includes("getDefaultDb");
+  return source.includes("getDefaultDb") || source.includes("getTestDb");
 }
 
 // 코드 리터럴을 필드명이 아니라 **값의 모양**으로 뽑는다.
@@ -79,8 +81,9 @@ test("탐지기: 주석 속 코드는 위반이 아니다", () => {
   expect(extractCodeLiterals('const c = "CU-DEL-x"; // CU-2606-0001')).toEqual(["CU-DEL-x"]);
 });
 
-test("탐지기: 실 DB 사용 여부를 getDefaultDb로 판별한다", () => {
+test("탐지기: 실 DB 사용 여부를 getDefaultDb·getTestDb로 판별한다", () => {
   expect(touchesRealDb('const db = getDefaultDb();')).toBe(true);
+  expect(touchesRealDb('const db = await getTestDb();')).toBe(true); // dual-mode — 로컬은 실 master
   expect(touchesRealDb('const q = { quoteCode: "QT-2607-0001" };')).toBe(false);
 });
 

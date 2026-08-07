@@ -1,13 +1,17 @@
-import { expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { eq, isNotNull } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { trimsInCatalog } from "../db/catalog";
-import { getDefaultDb } from "../db/client";
 import { dealerProfiles } from "../db/schema";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 
 // ── /api/dealer/profiles role 게이트(admin 전용) ──────────────────────────────
 // 딜러 브랜드 매칭은 조직 운영 정보다 — 조직 화면(GET /api/staff/org)과 같은 게이트를 쓴다.

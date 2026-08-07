@@ -11,21 +11,25 @@ mock.module("../lib/storage", () => ({
   createSignedUrl: async (_env: unknown, path: string) => `https://example.test/${path}`,
 }));
 
-import { afterEach, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
-import { getDefaultDb } from "../db/client";
 import { createQuote, updateQuote } from "../db/queries/customer-quotes";
 import { advisorQuotes, profiles } from "../db/public-app";
 import {
   customerDeletions, customerDocuments, customerMemos, customerSchedules,
   customers, customerTasks, embeddings, quotes,
 } from "../db/schema";
+import { getTestDb } from "../test-utils/hermetic-db";
 import { withNotifyGuard } from "../test-utils/notify-gate";
+import { setTestDb } from "../middleware/db";
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 
 afterEach(() => { removedPaths.length = 0; });
 

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
-import { getDefaultDb } from "../client";
+import { getTestDb } from "../../test-utils/hermetic-db";
 import { profiles, quoteRequests } from "../public-app";
 import { customers, quotes } from "../schema";
 import { createQuote } from "./customer-quotes";
@@ -12,7 +12,8 @@ import { confirmQuoteRequest, markQuoteRequestReadyForSend } from "./quote-reque
 // 임시 CRM 고객·quote_requests를 만든 뒤 finally에서 전부 지운다.
 // ⚠️ quote_requests는 알림 트리거 4테이블(consultations·advisor_quotes·chat_messages·chat_sessions)에
 //    없어 withNotifyGuard가 필요 없다 — 이 INSERT/UPDATE는 어떤 알림도 발사하지 않는다.
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
 
 async function dedicatedTestProfileId(): Promise<string> {
   const rows = await db
