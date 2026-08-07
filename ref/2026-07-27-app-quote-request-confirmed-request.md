@@ -2,6 +2,17 @@
 
 작성 2026-07-27 · 요청자: 이사님 · CRM 담당: 유슨생
 
+> ⚠️ **SUPERSEDED (2026-08-07)** — 현행 계약은 `ref/2026-08-07-app-quote-request-ready-for-send-reply.md`다.
+> 이 문서와 상충하는 두 지점은 그쪽이 이긴다:
+> ① 아래 "3단계(견적 작성 중)·4단계(발송 준비 중)는 푸시하지 않습니다"는 폐기 — 새 체계의
+>   3단계(발송 준비 중)는 실제 `작성완료` 사건에서
+>   `tag: quote-request-ready-for-send` 푸시가 나간다(CRM `#463`·앱 `#839`).
+> ② 단계 번호 체계가 5단계(reviewing/preparing/finalReview 분리)에서 **4단계**로 바뀌었다 —
+>   이 문서의 "2단계"는 유지되나 3~5단계 서술은 구 체계다.
+> 2단계 자체(`confirmed_at` 최초 전이 + 푸시)는 현행과 일치하며, 2026-08-07 이후 푸시 payload에
+> `tag: quote-request-confirmed`가 추가됐다(표시 문구 불변 — 앱 consumer가 subtitle 문자열 일치와
+> OR로 같은 분기 처리, `_shared/fcm.ts` privacySafeNotification 실측).
+
 > **요청 요약**: `public.quote_requests`에 **`confirmed_at timestamptz NULL` 컬럼 1개 추가**(①) +
 > 앱 진행단계 판정이 그 값을 읽어 **`reviewing`(2단계)을 반환**(②).
 > 전이·푸시 발송은 **CRM이 합니다**(③④) — 앱 팀 작업은 ①②뿐입니다.

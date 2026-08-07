@@ -303,6 +303,10 @@ customers.post("/:id/quote-requests/:reqId/confirm", zValidator("param", z.objec
       title: "차선생",
       subtitle: "담당자가 요청하신 견적 조건을 확인했어요",
       body: result.vehicleLabel,
+      // 앱 consumer는 tag 분기가 subtitle 문자열 일치와 OR라 표시 문구는 그대로다(실측:
+      // 앱 _shared/fcm.ts privacySafeNotification). tag가 있으면 CRM이 subtitle 문구를 다듬어도
+      // 조용히 일반 폴백으로 새지 않는다 — 3단계 ready-for-send와 같은 사건 tag 축.
+      tag: "quote-request-confirmed",
     }));
   }
   return c.json({ firstConfirm: result.firstConfirm });

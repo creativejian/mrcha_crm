@@ -151,6 +151,54 @@ test("작성 완료 저장 성공 → ready_for_send_at 최초 전이와 사건 
   expect(secondState.readyForSendAt).toBe(firstState.readyForSendAt);
 });
 
+// 2단계(담당자 확인) 배선 — payload 형태는 push-notify.test.ts가 잠그지만, confirm 라우트가
+// 실제로 그 payload(차량명 subtitle + 사건 tag)를 싣는지는 여기서만 드러난다(배선 누락은
+// 순수 테스트로 잡히지 않는다 — dealer 마스킹 배선과 같은 축).
+test("담당자 확인 최초 전이 → 푸시 1건: subtitle 유지 + tag quote-request-confirmed (재클릭 무푸시)", async () => {
+  const { customerId, userId } = await linkedPair();
+  const requestId = crypto.randomUUID();
+  createdQuoteRequestIds.push(requestId);
+  await db.insert(quoteRequests).values({
+    id: requestId,
+    userId,
+    trimId: null, // vehicleLabel 폴백 "" — catalog 조인 없이 payload 형태만 잠근다
+    status: "open",
+    createdAt: new Date().toISOString(),
+  });
+
+  const { token, keyResolver, issuer } = await makeTestAuth("manager", crypto.randomUUID());
+  const app = createApp({ keyResolver, issuer });
+  const { calls, waitForCall } = mockPush();
+  const pushed = waitForCall();
+
+  const first = await app.request(`/api/customers/${customerId}/quote-requests/${requestId}/confirm`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(first.status).toBe(200);
+  expect(((await first.json()) as { firstConfirm: boolean }).firstConfirm).toBe(true);
+  await pushed;
+
+  expect(calls).toHaveLength(1);
+  expect(calls[0].body).toEqual({
+    user_id: userId,
+    title: "차선생",
+    subtitle: "담당자가 요청하신 견적 조건을 확인했어요",
+    body: "",
+    tag: "quote-request-confirmed",
+  });
+
+  // 재클릭(추가 작성·워크벤치 재진입) — firstConfirm=false, 푸시 불변.
+  const second = await app.request(`/api/customers/${customerId}/quote-requests/${requestId}/confirm`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(second.status).toBe(200);
+  expect(((await second.json()) as { firstConfirm: boolean }).firstConfirm).toBe(false);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(calls).toHaveLength(1);
+});
+
 test("배정(대상≠배정자) → send-push 1건, payload {user_id,title,body}", async () => {
   const managerSub = crypto.randomUUID();
   const targetAdvisor = crypto.randomUUID();
