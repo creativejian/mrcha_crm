@@ -444,7 +444,7 @@ const partnerResponse = {
 };
 
 // 가격패널·비교카드 폼 DOM을 문서에 붙이고(isConnected 판별 전제) 차량 상태를 시드한다.
-async function setupSolutionDom(result: ReturnType<typeof setup>["result"]) {
+async function setupSolutionDom(result: ReturnType<typeof setup>["result"], selection: VehicleSelection = vehicleSelection) {
   const pricingRoot = buildPricingDom();
   const compareForm = document.createElement("div");
   document.body.append(pricingRoot, compareForm);
@@ -457,7 +457,7 @@ async function setupSolutionDom(result: ReturnType<typeof setup>["result"]) {
     result.current.handlers.selectAcquisitionTaxMode("manual");
   });
   await act(async () => {
-    await result.current.handlers.applyTrimToPricing(vehicleSelection);
+    await result.current.handlers.applyTrimToPricing(selection);
   });
   return { pricingRoot, compareForm };
 }
@@ -1043,5 +1043,109 @@ describe("useQuoteWorkbench — N번 조건 복사(비교카드 헤더)", () => 
     // 딜러는 금융사 귀속 값 — 금융사가 복사에서 빠지면 딜러 재시드도 하지 않는다(타사 딜러 이식 방지).
     expect(result.current.manualQuoteCards.find((c) => c.id === "manual-condition-2")!.dealerName).toBe("");
     expect(onToast).toHaveBeenCalledWith('1번 조건을 복사했습니다. (금융사 "구캐피탈"은 지원 목록에 없어 제외)');
+  });
+});
+
+// ── 파트너 차량 배선 잠금(2026-08-08 — `#462` 리뷰 후속) ──────────────────────
+// 훅이 조립하는 `vehicle` 6필드는 각각 **2단 폴백**(workbenchVehicle.trim → trimDetail)이라 총 12개
+// 소스가 물려 있는데, 이 파일의 기존 픽스처는 관련 값이 전부 "520i"·"5시리즈"라 **두 줄을 맞바꾸거나
+// 소스를 잘못 집어도 최종 payload가 바이트 단위로 동일**했다(리뷰 지목 — 원리적 검출 불가).
+// 여기서는 **모든 소스에 서로 다른 값**을 주어 교차 배선·오타가 payload에 드러나게 한다.
+// 조립 규칙 자체(폴백 순서)는 lib/model-name-parity.test.ts가 계산기와 대조해 잠근다 — 이 파일의
+// 관심사는 "그 규칙에 **어떤 값이 들어가는가**"(= 배선)다.
+const distinctSelection = {
+  brand: { name: "브랜드소스" },
+  model: { name: "모델소스" },
+  trim: {
+    id: 1,
+    name: "픽커name",
+    trimName: "픽커trimName",
+    canonicalName: "픽커canonical",
+    mcCode: "MC-픽커",
+  },
+  trimDetail: {
+    id: 1,
+    name: "상세name",
+    trimName: "상세trimName",
+    canonicalName: "상세canonical",
+    modelName: "상세modelName",
+    mcCode: "MC-상세",
+    modelYear: 2026,
+    price: 50_000_000,
+    financialDiscountAmount: 0,
+    options: [],
+    optionRelations: [],
+    colors: [],
+  },
+} as unknown as VehicleSelection;
+
+// 픽커(workbenchVehicle) 쪽 이름 3종을 벗겨 trimDetail 폴백 단이 실제로 도는지 보는 변형.
+const detailFallbackSelection = {
+  ...distinctSelection,
+  trim: { id: 1, mcCode: "MC-픽커" },
+} as unknown as VehicleSelection;
+
+async function solutionVehicleArgs(selection: VehicleSelection) {
+  const { result } = setup();
+  const { pricingRoot, compareForm } = await setupSolutionDom(result, selection);
+  const card = buildCardDom("manual-condition-1", { lender: "iM캐피탈" });
+  compareForm.append(card);
+  requestSolution.mockClear();
+  requestSolution.mockResolvedValue(partnerResponse);
+  await act(async () => {
+    await result.current.handlers.queryCardSolution("manual-condition-1");
+  });
+  const sent = requestSolution.mock.calls[0][0];
+  pricingRoot.remove();
+  compareForm.remove();
+  return sent;
+}
+
+describe("useQuoteWorkbench — 파트너 요청 차량 필드 배선", () => {
+  it("픽커 선택이 있으면 그 값이 우선: modelName=canonical · brand · mcCode가 각각 제 소스에서 온다", async () => {
+    const sent = await solutionVehicleArgs(distinctSelection);
+    // canonical이 1순위 — 이 단언이 "픽커canonical"이 아닌 다른 값이 되면 tier 순서나 소스가 어긋난 것이다.
+    expect(sent.modelName).toBe("픽커canonical");
+    expect(sent.brand).toBe("브랜드소스");
+    expect(sent.masterMcCode).toBe("MC-픽커");
+  });
+
+  it("픽커에 이름이 없으면 trimDetail 폴백 단이 돈다(같은 tier의 2번째 소스)", async () => {
+    const sent = await solutionVehicleArgs(detailFallbackSelection);
+    expect(sent.modelName).toBe("상세canonical");
+    // mcCode는 픽커에 남아 있으므로 여전히 픽커 값 — 필드별로 독립 폴백임을 함께 잠근다.
+    expect(sent.masterMcCode).toBe("MC-픽커");
+  });
+
+  it("canonical이 양쪽 다 없으면 trimName 단으로 내려간다(name까지 가지 않는다)", async () => {
+    const noCanonical = {
+      ...distinctSelection,
+      trim: { id: 1, name: "픽커name", trimName: "픽커trimName", mcCode: "MC-픽커" },
+      trimDetail: { ...distinctSelection.trimDetail, canonicalName: null },
+    } as unknown as VehicleSelection;
+    const sent = await solutionVehicleArgs(noCanonical);
+    expect(sent.modelName).toBe("픽커trimName");
+  });
+
+  // ⚠️ 아래 두 케이스가 없으면 **trimDetail 쪽 폴백 소스가 결과에 한 번도 드러나지 않는다** —
+  // 위 3케이스는 전부 픽커 값이나 trimDetail.canonicalName이 이겨서, `trimDetail?.trimName`을
+  // `trimDetail?.name`으로 잘못 적어도 전부 초록이었다(실측: 그 변이가 34/34 통과). 리뷰가 지적한
+  // "픽스처가 같은 값이라 원리적으로 검출 불가"와 같은 부류의 공백이라 소스별로 한 줄씩 깐다.
+  it("픽커 이름 3종·상세 canonical이 모두 없으면 trimDetail.trimName 단", async () => {
+    const sent = await solutionVehicleArgs({
+      ...distinctSelection,
+      trim: { id: 1, mcCode: "MC-픽커" },
+      trimDetail: { ...distinctSelection.trimDetail, canonicalName: null },
+    } as unknown as VehicleSelection);
+    expect(sent.modelName).toBe("상세trimName");
+  });
+
+  it("이름 tier가 전부 비면 마지막 name 단(계산기 최종 tier와 같은 축)", async () => {
+    const sent = await solutionVehicleArgs({
+      ...distinctSelection,
+      trim: { id: 1, mcCode: "MC-픽커" },
+      trimDetail: { ...distinctSelection.trimDetail, canonicalName: null, trimName: null },
+    } as unknown as VehicleSelection);
+    expect(sent.modelName).toBe("상세name");
   });
 });
