@@ -17,7 +17,7 @@ import { eq } from "drizzle-orm";
 
 import { brandsInCatalog, modelsInCatalog, trimsInCatalog } from "../db/catalog";
 import { getDefaultDb } from "../db/client";
-import { buildCanonicalName } from "../db/queries/canonical-name";
+import { detectCanonicalDrift } from "../db/queries/canonical-name";
 
 const db = getDefaultDb();
 const confirmed = process.argv.includes("--yes");
@@ -37,23 +37,9 @@ const rows = await db
   .innerJoin(modelsInCatalog, eq(modelsInCatalog.id, trimsInCatalog.modelId))
   .innerJoin(brandsInCatalog, eq(brandsInCatalog.id, modelsInCatalog.brandId));
 
-const skipped: number[] = [];
-const targets: Array<{ id: number; from: string | null; to: string }> = [];
-for (const r of rows) {
-  if (!r.trimName?.trim()) {
-    skipped.push(r.id); // trim_name 없이 조립하면 트림 부분이 빠진 canonical이 된다 — 손대지 않고 보고만.
-    continue;
-  }
-  const expected = buildCanonicalName({
-    brand: r.brand,
-    model: r.model,
-    isDomestic: r.isDomestic,
-    modelYear: r.modelYear,
-    fuelType: r.fuelType,
-    trimName: r.trimName,
-  });
-  if (expected !== r.canonicalName) targets.push({ id: r.id, from: r.canonicalName, to: expected });
-}
+// 판정은 순수 함수 한 벌(canonical-name.ts) — 실 DB 트립와이어(canonical-drift.test.ts)와 공유한다.
+// trim_name 빈 행 스킵도 그 안의 정책(canonicalTrimName)이라 라이브 경로와 자동으로 같이 간다.
+const { mismatched: targets, skipped } = detectCanonicalDrift(rows);
 
 console.log(`[backfill:canonical] 전체 ${rows.length}행 중 불일치 ${targets.length}행`);
 if (skipped.length > 0) console.log(`[backfill:canonical] ⚠️ trim_name 빈 행 ${skipped.length}건 스킵: ${skipped.join(", ")}`);

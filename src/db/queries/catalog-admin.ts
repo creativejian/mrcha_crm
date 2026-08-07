@@ -10,7 +10,7 @@ import {
   trimsInCatalog,
 } from "../catalog";
 import { getDefaultDb, toRows, type Executor } from "../client";
-import { buildCanonicalName } from "./canonical-name";
+import { buildCanonicalName, canonicalTrimName } from "./canonical-name";
 
 // 쓰기 함수는 기본 getDefaultDb()(로컬/테스트/fallback), 테스트·라우트에선 tx/요청 db를 넘긴다.
 
@@ -203,7 +203,11 @@ export async function updateTrim(id: number, input: TrimPatch, executor: Executo
       })
       .from(trimsInCatalog)
       .where(eq(trimsInCatalog.id, id));
-    if (cur) {
+    // trim_name이 비면 재계산하지 않는다 — 정책·근거는 canonical-name.ts의 canonicalTrimName 주석
+    // (백필도 같은 함수로 같은 행을 스킵한다). 이 분기가 빠지면 등급 없는 canonical로 덮어쓰고
+    // 백필이 그 행을 계속 건너뛰어 **복구 경로가 사라진다**.
+    const trimName = cur && canonicalTrimName(input.trimName ?? cur.trimName);
+    if (cur && trimName) {
       const ctx = await modelCanonicalContext(cur.modelId, executor);
       if (!ctx) throw new Error("모델을 찾을 수 없습니다.");
       patch.canonicalName = buildCanonicalName({
@@ -212,7 +216,7 @@ export async function updateTrim(id: number, input: TrimPatch, executor: Executo
         isDomestic: ctx.isDomestic,
         modelYear: input.modelYear ?? cur.modelYear,
         fuelType: input.fuelType ?? cur.fuelType,
-        trimName: input.trimName ?? cur.trimName ?? "",
+        trimName,
       });
     }
   }
@@ -466,6 +470,8 @@ export async function moveTrims(
   for (const id of trimIds) {
     order += 1;
     const moving = movingById.get(id);
+    // trim_name 빈 행은 재계산하지 않는다(updateTrim과 같은 정책 — canonical-name.ts 주석).
+    const trimName = moving && canonicalTrimName(moving.trimName);
     // 키 집합이 정적이라 drizzle 컬럼 타입을 유지한다(updateTrim의 동적 키 사정이 여기엔 없다).
     // Record<string, unknown>이면 `canonicalname` 같은 오타·향후 프로퍼티 개명이 컴파일을 통과한 뒤
     // canonical 갱신만 조용히 no-op이 된다 — 이 PR이 없애려던 stale canonical이 그대로 재발한다.
@@ -474,7 +480,7 @@ export async function moveTrims(
       .set({
         modelId: targetModelId,
         sortOrder: order,
-        ...(moving
+        ...(moving && trimName
           ? {
               canonicalName: buildCanonicalName({
                 brand: ctx.brand,
@@ -482,7 +488,7 @@ export async function moveTrims(
                 isDomestic: ctx.isDomestic,
                 modelYear: moving.modelYear,
                 fuelType: moving.fuelType,
-                trimName: moving.trimName ?? "",
+                trimName,
               }),
             }
           : {}),

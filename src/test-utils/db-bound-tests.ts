@@ -23,6 +23,7 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/db/queries/app-user-link.test.ts",
   "src/db/queries/assistant-messages.test.ts",
   "src/db/queries/assistant-tools.test.ts",
+  "src/db/queries/canonical-drift.test.ts", // 실 catalog 전수 스캔이 목적(읽기 전용 · 픽스처 0)
   "src/db/queries/catalog-admin.test.ts",
   "src/db/queries/catalog-counts.test.ts",
   "src/db/queries/change-requests.test.ts",
