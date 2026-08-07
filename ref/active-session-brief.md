@@ -1,60 +1,57 @@
 # Mr. Cha CRM Active Session Brief
 
-> **자동 로드 · 60줄 이하 유지**(AGENTS.md). 과거 로그 = `ref/session-archive.md` · 지속 결정 = `AGENTS.md` · 설계 = `ref/specs/*` · 장기 상태 = `ref/current-working-state.md`.
+> **자동 로드 · 60줄 이하 유지**(AGENTS.md). 과거 로그 = `ref/session-archive.md` · 지속 결정 =
+> `AGENTS.md` · 설계 = `ref/specs/*` · 장기 상태 = `ref/current-working-state.md`.
 
-Last updated: 2026-08-05
+Last updated: 2026-08-07
 
 ## 지금 상태
 
-main 전량 green(CI 8단계). unit **1437** · pure **290**. 정산 축 종결 후 `#451`~`#459` 완료
-(팝오버 분리 · mc-master UX 2 · 배지 축 5 + 조회 합치기). ✅ **앱 팀 회신·제약 적용 완료** —
-`catalog.trims`가 `(model_id, name, model_year)` UNIQUE NULLS NOT DISTINCT다(막혀 있던 트림
-등록이 열렸다. 상세 = `ref/2026-08-05-app-trim-model-year-unique-request.md`).
+`feat/quote-request-ready-for-send`에 빠른견적 실제 사건 기반 4단계의 CRM producer 구현 후보가 있다.
+앱 저장소 `feat/quick-quote-four-stage-progress`는 화면·DB 계약·consumer 구현과 로컬 검증을 마쳤지만
+운영 Supabase·Edge Function에는 미배포다. CRM PR은 이 선행 배포를 merge·배포 게이트로 명시한다.
+
+## 확정 계약 (이사님 08-07)
+
+- 1 `견적 요청 완료` = 요청 생성, CRM 변경 없음.
+- 2 `담당자 확인 완료` = 기존 `견적 작성` 최초 클릭·`confirmed_at`·푸시 배선 **그대로 유지**.
+  기존 CRM payload의 차량명·subtitle도 축소하지 않는다.
+- 3 `발송 준비 중` = 실제 `작성완료` 최초 성공. nullable `ready_for_send_at`을 한 번만 기록하고
+  최초 `NULL → timestamp` 전이에서만 `{user_id, tag: quote-request-ready-for-send}` 내부 요청.
+- 4 `견적 도착` = 기존 상담사 견적 등록·발송(DB trigger) 배선 그대로 유지.
+- 차량명·구매방식·가격은 개인정보로 분류하지 않는다. 직접 식별정보는 FCM 표시/data payload에서
+  제외하고, 3단계 표시 문구는 앱 consumer가 승인된 고정 문구로 변환한다.
+
+## 구현
+
+- 클라 `useQuoteWorkbench`: `작성완료(send:false)`의 INSERT/PATCH에만 `markReadyForSend:true` command.
+  `작성 후 발송(send:true)`에는 싣지 않는다.
+- 서버 `customers` route + `markQuoteRequestReadyForSend`: 견적 저장과 조건부 UPDATE를 같은 DB
+  transaction에 묶고, 저장된 `source_quote_request_id`와 고객 앱계정 소유권을 서버에서 재검증한다.
+- 커밋 뒤 최초 전이만 앱 `send-push`에 사건 tag로 best-effort 전달. 재클릭·재시도·새로고침은 no-op.
+- CRM은 앱 소유 public migration을 만들지 않았다. 앱팀 회신 =
+  `ref/2026-08-07-app-quote-request-ready-for-send-reply.md`.
+
+## 검증
+
+- ✅ `typecheck` · `lint` · `knip` · `format:check` · `build` · `git diff --check`
+- ✅ unit **1441/1441** · pure **295/295** · 워크벤치 집중 **31/31** · 푸시 집중 **13/13**
+- ✅ 기존 2단계 차량명+subtitle 보존 / 새 3단계 tag-only payload를 각각 exact assertion으로 잠금.
+- 🔴 DB 멱등·롤백·route 통합 테스트 3건은 app migration 선행 전이라 미실행. 공유 master에
+  `ready_for_send_at`이 확인된 뒤 선별 실행하고 `check:residue`까지 확인한다.
 
 ## ▶ 다음
 
-- ⚠️ **새 CI 그물 = `delete-where-guard`**(`#460`) — 파기 쿼리 `.delete(테이블)`은 **`.where()` 필수**다.
-  정당한 전량 삭제는 그 파일 `ALLOW`에 사유와 함께 등록해야 CI pure가 초록이 된다(정규식·SKIP으로 우회 금지).
-- **잔여 2건(머지는 끝났다 — 실행·육안만)**: ⓐ**김지운(`jiandolce@gmail.com`) 탈퇴 테스트 미실행**
-  (견적 20·**앱카드 19** — 카드 회수 경로 검증) ⓑ`#445` 배너 **육안 미확인**. **ⓐ를 하면 ⓑ가 딸려 온다**.
-- **🔴 시범 고객·풀세트 시드 재지정**(상세 드로어 작업의 선행 — 김민준 삭제로 공백). **이사님 결정 영역**.
-- ⚠️ **트림 등록 후 "고유번호 할당" 실행**이 운영 절차다(INSERT만으론 mc_code가 NULL = 파트너 비교에서
-  빠진다). 미부여 **198/1869**(08-06 실측 · **차단 요인 0건** = 지금 실행하면 전부 부여된다).
-- 리팩토링 대기 후보 없음(`#451`로 소진). 다음 큰 파일은 트리거가 없어 착수하지 않는다.
-- 🟡 **보류 = 버전 표시·릴리스 체계**(2026-08-06 유슨생 "고민 좀 더"). **설계는 다 나와 있다** —
-  `ref/plans/2026-08-05-crm-versioning-release.md`(뒤집힌 경위·조사·대시보드 체크리스트). 재개 시
-  **처음부터 다시 논의하지 말 것.** 요지: 배포를 **태그**로 옮겨 prod 코드 = 화면 버전 일치 ·
-  Workers Builds는 태그 미지원이라 **Actions `wrangler deploy`** · 스테이징 없음(로컬 확인).
+1. 앱팀이 migration과 `send-push` consumer를 commit·merge·배포하고 운영 반영을 확인한다.
+2. CRM에서 `quote-requests.confirm.test.ts`와 `customers.push.test.ts`를 선별 실행한다.
+3. 잔재 0과 최종 diff를 확인해 PR 검증란을 갱신한 뒤 merge·배포한다. **CRM 배포는 앱 선행 배포 뒤에만**.
 
-## 직전 세션 (08-06 · 유슨생) — 배치 16 감사 + 수정 이행(`#460`)
+## 기존 대기
 
-- **배치 15 이후 239 PR**이 쌓였고 트리거 ⓐ실데이터 ⓑ외부계약 ⓒ무검증이 **셋 다** 걸려 착수.
-  경량 정책대로 **9에이전트**(정합성 3 · 변이 2 · 실측 1 · 적대 검증 3), 변이는 worktree 격리.
-  판정 = **CONFIRMED 1 · ADJUSTED 4 · REFUTED 1 · 하 12**. 메인 워킹트리 무손상(배치 14 오염 재발 0).
-- 🔴 **진짜 발견은 개별 결함이 아니라 CI 구조다** — 권한·파기·돈의 **서버 그물이 전부 `test:server` 전용**
-  (db-bound registry)이라 CI에서 안 돈다. **`WHERE` 절을 지운 변이 3건이 CI 8단계를 전량 통과**했다.
-- **적대 검증이 제 역할을 했다**: canonical_name **상→하~중 강등**(실증 피해 0·원인 귀속 71→32 과장) ·
-  정산 탭 지적 **REFUTED**(이사님 항목 31의 선택지와 동일) · app_user_id는 **앱 계약 아님**(인용 절 부존재).
-- 유일한 실동작 결함 = **B 보존 고객 재연결 시 파기**(CONFIRMED). 앱 회신 §8이 재연결을 **정상 경로로 명시**해
-  "도달 불가" 반박이 실패했다. 현재 노출 0(B 분류 미사용).
-- **`#460` 수정 6항목 이행 완료** — 항목마다 **변이를 주입해 그물이 실제로 빨개지는지** 확인했다(③④는
-  전에 통과하던 게 이제 RED). `test:server`는 건드린 3파일만 선별 실행 후 `check:residue` 잔재 0.
-  ⚠️ 작업 중 정정 둘: tripwire는 상 3건 중 **2건**만 커버(select 경로는 ①이 코드로 막음) · 정산 섹션을
-  통째로 조건부 렌더하면 **팝오버 높이가 변해 위치가 튄다**(→ `display:contents` fieldset). `#459`는 archive로.
-
-## 대기
-
-**이사님** = `ref/director-pending-confirmations.md` **18건**(항목 14·16~32 — **31·32 신설**:
-정산 목록 대상 기준=계약 확정일 / 열 이름 "실입금액". 같은 화면이라 **묶어서** 여쭐 것) + Supabase
-**"EXCEEDING USAGE LIMITS" 배지**(08-01) 플랜 + **D+5 최악 6일차** SLA 해석.
-💡 회신 때 **🟡 하드 삭제 확장(`#440`)을 항목 28**(AI 기록에 번호 잔존)**과 묶을 것** — 같은 축·미등재.
+- 김지운 탈퇴 테스트(견적 20·앱카드 19) + `#445` 배너 육안 확인, 시범 고객 재지정.
+- `director-pending-confirmations.md` 18건 + Supabase usage 배지 + D+5 SLA 해석.
+- 버전 표시·릴리스 체계 보류. 재개 시 `ref/plans/2026-08-05-crm-versioning-release.md`부터.
 
 ## Boot
 
-`AGENTS.md` → 이 파일 → `git status -sb` · `git log --oneline -5`. 상세: 정산 = spec §6a · 보존 계약 = AGENTS.md.
-
-## 세션 마무리 규칙
-
-**교체**(누적 금지 · 이전 요약은 `ref/session-archive.md` 맨 위로). 행위 변경은
-`ref/director-pending-confirmations.md` 등재(**유슨생 현장 승인은 등재 없이 박제** · 이사님 확정
-설계를 뒤집는 건만 등재 · 신설 시 그 파일 롤업 2곳도). 상세 규칙 = AGENTS.md "Handoff Documents".
+`AGENTS.md` → 이 파일 → `git status -sb` · `git log --oneline -5`.

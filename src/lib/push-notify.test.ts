@@ -1,6 +1,6 @@
 import { test, expect, afterEach } from "bun:test";
 
-import { pushNotifyDeps, sendAssignmentPush } from "./push-notify";
+import { pushNotifyDeps, sendAssignmentPush, sendQuoteRequestReadyForSendPush } from "./push-notify";
 
 const ORIGINAL_FETCH = pushNotifyDeps.fetchImpl;
 afterEach(() => { pushNotifyDeps.fetchImpl = ORIGINAL_FETCH; });
@@ -20,6 +20,51 @@ test("sendAssignmentPush: send-push URL로 {user_id,title,body} POST", async () 
   expect(calls).toHaveLength(1);
   expect(calls[0].url).toBe("https://proj.test/functions/v1/send-push");
   expect(calls[0].body).toEqual({ user_id: "U-1", title: "담당 고객으로 배정되었습니다", body: "홍길동" });
+});
+
+test("sendAssignmentPush: 기존 담당자 확인 payload의 차량명·subtitle을 그대로 유지한다", async () => {
+  const calls: Array<{ body: unknown }> = [];
+  pushNotifyDeps.fetchImpl = (async (_url: string | URL, init?: { body?: string }) => {
+    calls.push({ body: JSON.parse(init?.body ?? "{}") });
+    return new Response(JSON.stringify({ sent: 1 }), { status: 200 });
+  }) as typeof fetch;
+
+  await sendAssignmentPush(
+    { env: { SUPABASE_URL: "https://proj.test" } },
+    {
+      userId: "U-CONFIRMED",
+      title: "차선생",
+      subtitle: "담당자가 요청하신 견적 조건을 확인했어요",
+      body: "제네시스 · GV80 3.5T AWD",
+    },
+  );
+
+  expect(calls[0].body).toEqual({
+    user_id: "U-CONFIRMED",
+    title: "차선생",
+    subtitle: "담당자가 요청하신 견적 조건을 확인했어요",
+    body: "제네시스 · GV80 3.5T AWD",
+  });
+});
+
+test("sendQuoteRequestReadyForSendPush: 앱 consumer 사건 tag만 보내고 표시 문구를 결정하지 않는다", async () => {
+  const calls: Array<{ url: string; body: unknown }> = [];
+  pushNotifyDeps.fetchImpl = (async (url: string | URL, init?: { body?: string }) => {
+    calls.push({ url: String(url), body: JSON.parse(init?.body ?? "{}") });
+    return new Response(JSON.stringify({ message: "no tokens", sent: 0 }), { status: 200 });
+  }) as typeof fetch;
+
+  await sendQuoteRequestReadyForSendPush(
+    { env: { SUPABASE_URL: "https://proj.test" } },
+    "U-READY",
+  );
+
+  expect(calls).toHaveLength(1);
+  expect(calls[0].url).toBe("https://proj.test/functions/v1/send-push");
+  expect(calls[0].body).toEqual({
+    user_id: "U-READY",
+    tag: "quote-request-ready-for-send",
+  });
 });
 
 // 콘솔 캡처 — 이 구역의 두 사고(#199 오염·#202 두 달 무발송)가 전부 "실패가 조용해서 늦게 발견"이었다.

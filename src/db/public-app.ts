@@ -24,6 +24,11 @@ export const quoteRequests = pgTable("quote_requests", {
   // 2단계(reviewing "담당자 확인 완료") 표시와 confirmed 푸시 중복 방지가 이 한 값을 함께 쓴다.
   // 계약·근거: ref/2026-07-27-app-quote-request-confirmed-request.md
   confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: "string" }),
+  // 발송 준비 시각(앱 마이그 20260807140000, 이사님 요청 2026-08-07). NULL = 작성 완료 전.
+  // CRM의 실제 "작성 완료" 저장과 같은 트랜잭션에서 최초 1회만 채우며, 앱 진행 3단계
+  // ("발송 준비 중")와 quote_request.ready_for_send 푸시 중복 방지가 이 값을 함께 쓴다.
+  // public 스키마 구조 변경·운영 배포는 앱 저장소 소유이고, 이 정의는 CRM 소비 미러다.
+  readyForSendAt: timestamp("ready_for_send_at", { withTimezone: true, mode: "string" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   period: integer(),
   depositType: text("deposit_type"),

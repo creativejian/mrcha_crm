@@ -3,8 +3,9 @@ import { eq, isNotNull } from "drizzle-orm";
 
 import { getDefaultDb } from "../client";
 import { profiles, quoteRequests } from "../public-app";
-import { customers } from "../schema";
-import { confirmQuoteRequest } from "./quote-requests";
+import { customers, quotes } from "../schema";
+import { createQuote } from "./customer-quotes";
+import { confirmQuoteRequest, markQuoteRequestReadyForSend } from "./quote-requests";
 
 // 담당자 확인 전이(앱 진행 2단계) — 멱등의 근거가 SQL 조건절(`confirmed_at IS NULL`)이라
 // 실 DB로만 검증된다. 픽스처는 advisor-quotes.test.ts의 completeQuoteRequest 선례와 같은 축:
@@ -95,6 +96,72 @@ test("confirmQuoteRequest: 소유권 불일치·미존재는 null(전이도 푸�
 
     // 존재하지 않는 요청
     expect(await confirmQuoteRequest(crypto.randomUUID(), manual?.id ?? userId, db)).toBeNull();
+  } finally {
+    await db.delete(quoteRequests).where(eq(quoteRequests.id, requestId));
+  }
+});
+
+test("markQuoteRequestReadyForSend: 작성 완료 최초 1회만 전이하고 재시도는 스탬프를 보존한다", async () => {
+  const { customerId, userId } = await linkedPair();
+  const requestId = crypto.randomUUID();
+  let quoteId: string | null = null;
+  try {
+    await db.insert(quoteRequests).values({
+      id: requestId,
+      userId,
+      trimId: null,
+      status: "open",
+      createdAt: new Date().toISOString(),
+    });
+    const quote = await createQuote(customerId, { sourceQuoteRequestId: requestId, status: "작성중" }, db);
+    quoteId = quote.id;
+
+    const first = await markQuoteRequestReadyForSend(quote.id, customerId, db);
+    expect(first).toEqual({ firstReadyForSend: true, appUserId: userId });
+    const [after] = await db
+      .select({ readyForSendAt: quoteRequests.readyForSendAt })
+      .from(quoteRequests)
+      .where(eq(quoteRequests.id, requestId));
+    expect(after.readyForSendAt).not.toBeNull();
+
+    const second = await markQuoteRequestReadyForSend(quote.id, customerId, db);
+    expect(second).toEqual({ firstReadyForSend: false, appUserId: userId });
+    const [again] = await db
+      .select({ readyForSendAt: quoteRequests.readyForSendAt })
+      .from(quoteRequests)
+      .where(eq(quoteRequests.id, requestId));
+    expect(again.readyForSendAt).toBe(after.readyForSendAt);
+  } finally {
+    if (quoteId) await db.delete(quotes).where(eq(quotes.id, quoteId));
+    await db.delete(quoteRequests).where(eq(quoteRequests.id, requestId));
+  }
+});
+
+test("markQuoteRequestReadyForSend: 견적 저장 트랜잭션이 롤백되면 준비 전이도 함께 롤백된다", async () => {
+  const { customerId, userId } = await linkedPair();
+  const requestId = crypto.randomUUID();
+  try {
+    await db.insert(quoteRequests).values({
+      id: requestId,
+      userId,
+      trimId: null,
+      status: "open",
+      createdAt: new Date().toISOString(),
+    });
+
+    await expect(
+      db.transaction(async (tx) => {
+        const quote = await createQuote(customerId, { sourceQuoteRequestId: requestId, status: "작성중" }, tx);
+        expect((await markQuoteRequestReadyForSend(quote.id, customerId, tx))?.firstReadyForSend).toBe(true);
+        throw new Error("ROLLBACK_READY_FOR_SEND_TEST");
+      }),
+    ).rejects.toThrow("ROLLBACK_READY_FOR_SEND_TEST");
+
+    const [after] = await db
+      .select({ readyForSendAt: quoteRequests.readyForSendAt })
+      .from(quoteRequests)
+      .where(eq(quoteRequests.id, requestId));
+    expect(after.readyForSendAt).toBeNull();
   } finally {
     await db.delete(quoteRequests).where(eq(quoteRequests.id, requestId));
   }
