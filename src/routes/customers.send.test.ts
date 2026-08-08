@@ -3,10 +3,10 @@ import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
-import { getDefaultDb } from "../db/client";
 import { advisorQuotes, quoteRequests } from "../db/public-app";
 import { customers, quotes } from "../db/schema";
 import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
 import { guardedDb } from "../test-utils/notify-gate";
 import { anyUnlinkedProfileId } from "../test-utils/profiles-fixture";
 
@@ -20,7 +20,10 @@ import { anyUnlinkedProfileId } from "../test-utils/profiles-fixture";
 //   · setTestDb가 라우트 db를 바꾼다   → src/middleware/db.test.ts
 // 위 둘의 합성이 이 파일의 안전 근거다. 그래서 여기서는 업무 동작만 단언한다.
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+// hermetic에는 알림 트리거가 없어 guardedDb가 불필요하지만, 실 master 모드의 안전 근거를
+// 그대로 두려고 두 모드 모두 감싼다(PGlite에선 GUC 한 줄이 무해하게 실행될 뿐).
+const db = await getTestDb();
 
 beforeAll(() => setTestDb(guardedDb(db)));
 afterAll(() => setTestDb(null)); // 다른 테스트 파일로 새지 않게 반드시 원복
