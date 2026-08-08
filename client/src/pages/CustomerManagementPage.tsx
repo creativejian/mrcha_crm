@@ -119,7 +119,11 @@ function useTablePopoverDismiss({ active, containerRef, onClose, suppressRef, cl
 function modeFilter(mode: CustomerMode, customer: Customer) {
   // 상담필요 = 계약 전 단계의 "미배정" 고객 업무함(2026-07-16 확정) — 배정되면 이 목록에서 빠져
   // 담당자 관리 흐름으로 넘어간다. 미배정 판정은 목록 어댑터의 폴백 문자열(lib/customers.ts advisorName ?? "미배정")과 동일 문법.
-  if (mode === "consulting") return (!customer.advisor || customer.advisor === "미배정") && ["신규", "상담중", "견적", "차량체크", "심사서류", "관리중"].includes(customer.statusGroup);
+  // ⚠️ "관리중"은 여기 없다(2026-08-08 유슨생 결정) — 아래 hold 분기가 담당한다. #260이 배정 축만
+  // 고치면서 mock 시절 stage set을 그대로 물려받아 관리중이 남아 있었고, 미배정 관리중 고객이 두
+  // 업무함에 동시에 떠 어느 쪽에서도 소진되지 않았다. 같은 PR이 "불발→보류/이탈이 담당"으로 세운
+  // 배타 원칙을 관리중에 마저 적용한 것 — 새 상태 그룹을 넣을 땐 hold 분기와 겹치는지 먼저 볼 것.
+  if (mode === "consulting") return (!customer.advisor || customer.advisor === "미배정") && ["신규", "상담중", "견적", "차량체크", "심사서류"].includes(customer.statusGroup);
   if (mode === "contract") return ["심사서류", "계약완료"].includes(customer.statusGroup);
   if (mode === "delivery") return customer.statusGroup === "계약완료";
   // 정산 대상 = **계약이 확정된 건**(2026-08-05). 확정일이 실적 귀속 기준이고(2026-08-03 이사님)
