@@ -8,6 +8,7 @@ import { signOut } from "@/lib/auth";
 import { useDealerMe } from "@/lib/dealer-profiles";
 import { KeyboardShortcutsPanel } from "@/components/KeyboardShortcutsPanel";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { shortcutKeysForAction, shortcutKeysForLabel } from "@/lib/keyboard-shortcuts";
 import { filterGlobalCustomerSearch, globalSearchCountLabel, globalSearchEmptyState, normalizeSearchValue, resolveRecentSearchCustomers } from "@/lib/global-customer-search";
 import { fetchLiveConsulting, saveLiveConsulting } from "@/lib/live-consulting";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
@@ -369,6 +370,10 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
     };
   }, [notificationsOpen]);
 
+  // 아이콘 hover 버블용 표기 조회(2026-08-08 유슨생) — 아이콘만 있는 버튼이라 옆에 붙일 자리가
+  // 없어 버블로 띄운다(사이드바는 라벨 옆 인라인).
+  const actionHint = (action: string) => shortcutKeysForAction(action, roleTab) ?? undefined;
+
   // 키보드 단축키(2026-08-08) — 판정은 순수 모듈이 하고 여기서는 액션 해석만 한다.
   // 팝오버 4종이 서로를 닫는 기존 규칙을 그대로 따른다(openSettingsMenu 참조): 새 경로가 그 규칙을
   // 우회하면 두 팝오버가 동시에 열린다.
@@ -428,7 +433,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
             서버 몫이고 이건 UX 정리다. 딜러 상단바 = 사이드바 토글 + 계정 버튼. */}
         {!dealerMode && (<>
         <div className="global-search-wrap" ref={globalSearchRef}>
-          <button className={`global-search-trigger ${globalSearchOpen ? "active" : ""}`} onClick={openGlobalSearch} type="button" aria-label="고객 통합 검색" aria-expanded={globalSearchOpen}>
+          <button className={`global-search-trigger ${globalSearchOpen ? "active" : ""}`} onClick={openGlobalSearch} type="button" data-shortcut={actionHint("global-search")} aria-label="고객 통합 검색" aria-expanded={globalSearchOpen}>
             <GlobalSearchIcon />
           </button>
           {globalSearchOpen && (
@@ -487,7 +492,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
           )}
         </div>
         <div className="work-ai-wrap" ref={workAiRef}>
-          <button className={`icon-btn work-ai-btn ${workAiOpen ? "active" : ""}`} onClick={openWorkAi} type="button" aria-label="업무 AI" aria-expanded={workAiOpen}><WorkAiIcon /><span className="ai-status-dot" /></button>
+          <button className={`icon-btn work-ai-btn ${workAiOpen ? "active" : ""}`} onClick={openWorkAi} type="button" data-shortcut={actionHint("work-ai")} aria-label="업무 AI" aria-expanded={workAiOpen}><WorkAiIcon /><span className="ai-status-dot" /></button>
           {workAiOpen && (
             <>
               <div
@@ -513,7 +518,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
             </>
           )}
         </div>
-        <button className="icon-btn calculator-btn" onClick={() => { if (shouldIgnoreTopbarAction()) return; setCalculatorOpen(true); }} type="button" aria-label="계산기"><CalculatorIcon /></button>
+        <button className="icon-btn calculator-btn" onClick={() => { if (shouldIgnoreTopbarAction()) return; setCalculatorOpen(true); }} type="button" data-shortcut={actionHint("calculator")} aria-label="계산기"><CalculatorIcon /></button>
         {/* ⚠️body 직속 portal — 이 자리(.globalbar 안)에 그대로 두면 모달의 z-index 400이
             **globalbar가 만든 스태킹 컨텍스트 안에서만** 유효해 실효 레벨이 globalbar의 60이
             된다(.globalbar는 position:sticky + z-index:60이라 컨텍스트를 만든다).
@@ -535,9 +540,9 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
             </Suspense>,
             document.body,
           )}
-        <button className="icon-btn chat-queue-btn" onClick={() => navigateFromTopbar("chat")} type="button" aria-label="상담 대기"><ChatQueueIcon />{pendingChatCount > 0 && <span className="chat-queue-count num">{pendingChatCount}</span>}</button>
+        <button className="icon-btn chat-queue-btn" onClick={() => navigateFromTopbar("chat")} type="button" data-shortcut={shortcutKeysForLabel("실시간 상담", roleTab) ?? undefined} aria-label="상담 대기"><ChatQueueIcon />{pendingChatCount > 0 && <span className="chat-queue-count num">{pendingChatCount}</span>}</button>
         <div className="notifications-wrap" ref={notificationsRef}>
-          <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""}`} onClick={openNotifications} type="button" aria-label="업무 알림"><SolidBellIcon />{(newAppRequestCount + pendingChatCount) > 0 && <span className="notification-count num">{newAppRequestCount + pendingChatCount}</span>}</button>
+          <button className={`icon-btn notification-btn ${notificationsOpen ? "active" : ""}`} onClick={openNotifications} type="button" data-shortcut={actionHint("notifications")} aria-label="업무 알림"><SolidBellIcon />{(newAppRequestCount + pendingChatCount) > 0 && <span className="notification-count num">{newAppRequestCount + pendingChatCount}</span>}</button>
           {notificationsOpen && (
             <>
               <div

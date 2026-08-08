@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { RoleTab } from "@/data/roles";
-import { SHORTCUTS, shortcutKeyLabel, visibleShortcuts } from "@/lib/keyboard-shortcuts";
+import { SHORTCUTS, shortcutKeyLabel, shortcutKeysForAction, shortcutKeysForLabel, visibleShortcuts } from "@/lib/keyboard-shortcuts";
 
 // 배정표 SSOT = ref/specs/2026-08-08-crm-keyboard-shortcuts-design.md §2.
 // role별 노출은 **id 집합**으로 잠근다 — 개수만 세면 항목이 교체돼도 통과한다.
@@ -44,8 +44,8 @@ describe("keyboard-shortcuts 레지스트리", () => {
   it("role별 노출 수", () => {
     expect(ids("딜러")).toHaveLength(3);
     expect(ids("상담사")).toHaveLength(15);
-    expect(ids("팀장")).toHaveLength(20);
-    expect(ids("최고관리자")).toHaveLength(22);
+    expect(ids("팀장")).toHaveLength(19);
+    expect(ids("최고관리자")).toHaveLength(21);
   });
 
   // 같은 /mc-master인데 딜러 포털에서는 "할인 업데이트"로 부른다(dealerMenuItems).
@@ -76,5 +76,59 @@ describe("keyboard-shortcuts 레지스트리", () => {
     expect(shortcutKeyLabel(SHORTCUTS.find((s) => s.id === "global-search")!)).toBe("⌘K");
     expect(shortcutKeyLabel(SHORTCUTS.find((s) => s.id === "shortcuts-panel")!)).toBe("⇧?");
     expect(shortcutKeyLabel(SHORTCUTS.find((s) => s.id === "nav-customers-all")!)).toBe("G then C");
+  });
+});
+
+// 사이드바 hover 힌트 조회(2026-08-08) — 메뉴 라벨로 단축키 표기를 찾는다. 파리티 테스트와 같은
+// 어휘를 쓴다("고객 관리 · 전체 보기"). 매칭이 실패하면 힌트를 안 그릴 뿐 메뉴는 정상 동작한다.
+describe("shortcutKeysForLabel", () => {
+  it("최상위 메뉴는 라벨 그대로 찾는다", () => {
+    expect(shortcutKeysForLabel("대시보드", "최고관리자")).toBe("G then H");
+    expect(shortcutKeysForLabel("경영 리포트", "최고관리자")).toBe("G then R");
+  });
+
+  it("고객 관리 서브탭은 부모 · 자식 경로로 찾는다", () => {
+    expect(shortcutKeysForLabel("고객 관리 · 보류 / 이탈", "최고관리자")).toBe("G then B");
+    expect(shortcutKeysForLabel("고객 관리 · 상담 필요", "상담사")).toBe("G then N");
+    // 상담사 배정도 같은 어휘 — 부모는 토글이라 목적지가 서브탭이다.
+    expect(shortcutKeysForLabel("상담사 배정 · 상담 신청 DB", "팀장")).toBe("G then A");
+  });
+
+  // role 스코프가 힌트에도 걸린다 — 안 보이는 메뉴의 키를 알려주면 안 된다.
+  it("노출되지 않는 메뉴는 null", () => {
+    expect(shortcutKeysForLabel("경영 리포트", "상담사")).toBeNull();
+    expect(shortcutKeysForLabel("앱 견적요청", "상담사")).toBeNull();
+  });
+
+  it("딜러는 자기 어휘로 찾는다", () => {
+    expect(shortcutKeysForLabel("할인 업데이트", "딜러")).toBe("G then M");
+    // 딜러 포털에 "MC 마스터"라는 이름은 없다.
+    expect(shortcutKeysForLabel("MC 마스터", "딜러")).toBeNull();
+  });
+
+  it("단축키가 없는 메뉴는 null", () => {
+    expect(shortcutKeysForLabel("고객 상세", "최고관리자")).toBeNull();
+    expect(shortcutKeysForLabel("존재하지 않는 메뉴", "최고관리자")).toBeNull();
+  });
+});
+
+// Topbar 아이콘 hover 버블용 조회 — 아이콘은 라벨이 아니라 자기 action id를 안다.
+describe("shortcutKeysForAction", () => {
+  it("전역 액션을 id로 찾는다", () => {
+    expect(shortcutKeysForAction("global-search", "최고관리자")).toBe("⌘K");
+    expect(shortcutKeysForAction("work-ai", "상담사")).toBe("⌘I");
+    expect(shortcutKeysForAction("notifications", "최고관리자")).toBe("O then N");
+  });
+
+  // 딜러 상단바에는 내부 도구 5종이 아예 렌더되지 않는다(2026-08-02) — 조회도 null이어야 한다.
+  it("딜러에게는 내부 도구 액션이 없다", () => {
+    expect(shortcutKeysForAction("global-search", "딜러")).toBeNull();
+    expect(shortcutKeysForAction("calculator", "딜러")).toBeNull();
+    // 딜러도 갖는 것은 사이드바 토글뿐이다.
+    expect(shortcutKeysForAction("toggle-sidebar", "딜러")).toBe("⌘B");
+  });
+
+  it("없는 액션은 null", () => {
+    expect(shortcutKeysForAction("존재하지않음", "최고관리자")).toBeNull();
   });
 });

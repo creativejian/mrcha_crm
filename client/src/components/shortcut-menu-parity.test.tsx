@@ -47,10 +47,9 @@ const SIDEBAR_ONLY = new Set([
   // 대상 고객이 지정돼야 의미가 있는 화면이라 전역 키에 맞지 않다(스펙 §6 범위 밖).
   "고객 상세",
 ]);
-const SHORTCUT_ONLY = new Set([
-  // 사이드바에서는 "상담사 배정"의 서브메뉴(플라이아웃)라 최상위 data-label로 안 잡힌다.
-  "상담 신청 DB",
-]);
+// 단축키에만 있는 화면 — 지금은 없다. 고객 관리·상담사 배정 서브탭은 "부모 · 자식" 어휘를 써서
+// 정규화로 부모 메뉴와 매칭된다(예외가 필요 없다는 뜻이고, 생기면 여기 사유와 함께 등록한다).
+const SHORTCUT_ONLY = new Set<string>([]);
 
 const ROLES: RoleTab[] = ["최고관리자", "팀장", "상담사", "딜러"];
 
@@ -75,5 +74,52 @@ describe("사이드바 ↔ 단축키 파리티", () => {
       expect(shortcuts.has(label)).toBe(false);
     }
     expect(shortcuts).toEqual(new Set(["할인 업데이트"]));
+  });
+});
+
+// hover 힌트 배선(2026-08-08) — data-shortcut 속성이 실제로 붙는지. hover 표시 자체는 CSS라
+// 여기서는 "메뉴가 자기 단축키를 들고 있다"만 잠근다.
+describe("사이드바 hover 단축키 힌트", () => {
+  function hintOf(label: string, props: Partial<typeof baseProps> & { roleTab: RoleTab }): string | null {
+    const { unmount } = render(<Sidebar {...baseProps} {...props} />);
+    const button = screen.getAllByRole("button").find((node) => node.getAttribute("data-label") === label);
+    const hint = button?.getAttribute("data-shortcut") ?? null;
+    unmount();
+    return hint;
+  }
+
+  it("펼친 사이드바의 메뉴는 자기 단축키를 들고 있다", () => {
+    expect(hintOf("대시보드", { roleTab: "최고관리자" })).toBe("G then H");
+    expect(hintOf("경영 리포트", { roleTab: "최고관리자" })).toBe("G then R");
+  });
+
+  // 요구사항: 사이드바가 펼쳐졌을 때만 — 접히면 라벨 자체가 안 보이므로 힌트도 없다.
+  it("접힌 사이드바에는 힌트가 없다", () => {
+    expect(hintOf("대시보드", { collapsed: true, roleTab: "최고관리자" })).toBeNull();
+  });
+
+  it("단축키가 없는 메뉴엔 속성이 없다", () => {
+    expect(hintOf("고객 상세", { roleTab: "최고관리자" })).toBeNull();
+  });
+
+  it("딜러의 목적지 없는 메뉴엔 힌트가 없고, 할인 업데이트에만 붙는다", () => {
+    expect(hintOf("할인 업데이트", { roleTab: "딜러" })).toBe("G then M");
+    expect(hintOf("재고 업로드", { roleTab: "딜러" })).toBeNull();
+  });
+
+  // "실시간 상담 요청"은 전용 화면이 아니라 실시간 상담 콘솔로 리라우트되는 진입점이라(2026-07-20
+  // 결정 ①) 같은 화면의 키를 안내한다. 새 키를 주면 같은 목적지에 키가 둘이 된다.
+  it("상담사 배정 서브탭 — 리라우트 진입점은 목적지 화면의 키를 안내한다", () => {
+    const { unmount } = render(<Sidebar {...baseProps} roleTab="최고관리자" />);
+    expect(screen.getByRole("button", { name: "상담 신청 DB" }).getAttribute("data-shortcut")).toBe("G then A");
+    expect(screen.getByRole("button", { name: "실시간 상담 요청" }).getAttribute("data-shortcut")).toBe("G then T");
+    unmount();
+  });
+
+  it("고객 관리 서브탭도 힌트를 갖는다", () => {
+    const { unmount } = render(<Sidebar {...baseProps} roleTab="최고관리자" />);
+    const hold = screen.getByRole("button", { name: "보류 / 이탈" });
+    expect(hold.getAttribute("data-shortcut")).toBe("G then B");
+    unmount();
   });
 });
