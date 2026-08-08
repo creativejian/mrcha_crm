@@ -16,7 +16,7 @@ function rows(): string[] {
 describe("KeyboardShortcutsPanel", () => {
   it("딜러에게는 4건만 보인다", () => {
     render(<KeyboardShortcutsPanel onClose={() => {}} role="딜러" />);
-    expect(rows()).toEqual(["단축키 목록", "사이드바 접기/펴기", "프로필 · 설정", "할인 업데이트"]);
+    expect(rows()).toEqual(["단축키 목록", "사이드바 접기/펴기", "프로필 설정", "할인 업데이트"]);
   });
 
   // 설정 그룹은 계정 팝오버 블록과 같은 조건(admin) — 팀장 패널에도 그 섹션이 없다.

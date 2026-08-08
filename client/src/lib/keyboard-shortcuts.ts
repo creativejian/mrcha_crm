@@ -40,7 +40,7 @@ const GLOBAL_SHORTCUTS: Shortcut[] = [
   { id: "toggle-sidebar", keys: ["KeyB"], mod: "meta", group: "global", action: "toggle-sidebar", label: constant("사이드바 접기/펴기") },
   { id: "notifications", keys: ["KeyO", "KeyN"], group: "global", action: "notifications", label: constant("알림"), visibleFor: notDealer },
   // 계정 팝오버는 전 role이 연다(계정 정보·로그아웃) — 딜러도 포함.
-  { id: "profile", keys: ["KeyO", "KeyP"], group: "global", action: "profile", label: constant("프로필 · 설정") },
+  { id: "profile", keys: ["KeyO", "KeyP"], group: "global", action: "profile", label: constant("프로필 설정") }  // ⚠️ " · "는 부모·자식 구분자 전용이다(파리티 정규화가 그 규칙에 의존) — 단순 연결자로 쓰지 말 것,
 ];
 
 // ── 네비게이션 ───────────────────────────────────────────────────────────────
