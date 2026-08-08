@@ -7,40 +7,43 @@ Last updated: 2026-08-08
 
 ## 지금 상태
 
-main 전량 green(CI 8단계) = `02c542d`. 08-07 브리프의 **"잔여 구조 패키지" 4항목 전부 완료**
-(`#466`~`#470` 5 PR).
-빠른견적 4단계는 08-07 전 구간 배포 완결(계약 SSOT =
-`ref/2026-08-07-app-quote-request-ready-for-send-reply.md`) — 실기 확인만 이사님 대기다.
+main 전량 green(CI 8단계) = `3ecb5a8`. 08-07 브리프의 **"잔여 구조 패키지" 4항목 전부 완료** +
+hermetic 이관 2·3단계까지(`#466`~`#473` 8 PR). 빠른견적 4단계는 08-07 전 구간 배포 완결(계약 SSOT
+= `ref/2026-08-07-app-quote-request-ready-for-send-reply.md`) — 실기 확인만 이사님 대기다.
 
-## 직전 세션 (08-08 · 유슨생) — 구조 패키지 5 PR
+## 직전 세션 (08-08 · 유슨생) — 8 PR
 
-- **`#466` CI 커버리지(핵심)** — hermetic **PGlite** seam(`src/test-utils/hermetic-db.ts`): 기존
-  `setTestDb`에 실 master 대신 in-memory Postgres를 꽂는 **dual-mode**(로컬 test:server = 실 master
-  그대로 / CI test:pure = PGlite · 미러는 `pushSchema` · crm은 실 마이그 53개). 권한·파기·돈·전이
-  **12파일 이관**(pure 295→412) — 배치 16의 "WHERE를 지워도 CI 전량 통과"가 닫혔다.
-  ⚠️ PGlite 미종료 = **0 fail이어도 exit 99** → bunfig `[test].preload` 전역 teardown.
-  설계·함정·2단계 후보 = `ref/plans/2026-08-07-crm-ci-coverage-hermetic-db.md`.
+- **`#466`·`#472`·`#473` CI 커버리지(핵심)** — hermetic **PGlite** seam(`test-utils/hermetic-db.ts`):
+  기존 `setTestDb`에 실 master 대신 in-memory Postgres를 꽂는 **dual-mode**(로컬 test:server = 실
+  master 그대로 / CI test:pure = PGlite · 미러는 `pushSchema` · crm은 실 마이그 53개).
+  권한·파기·돈·전이 12 → 발송·탈퇴·`me` 4 → 카탈로그 승인 3. **registry 54→47 · pure 295→471.**
+  배치 16의 "WHERE를 지워도 CI 전량 통과"가 닫혔다. 설계·함정·시드 계약 =
+  `ref/plans/2026-08-07-crm-ci-coverage-hermetic-db.md`. 하네스 함정 3:
+  ⚠️ PGlite 미종료 = **0 fail이어도 exit 99**(bunfig `[test].preload` teardown) ·
+  `pushSchema`는 트리거를 못 만들어 `sort_order`가 겹친다(**충돌 회피용 더블**이라 순번 단언 테스트는
+  이관 금지) · `execute()` 반환형이 드라이버마다 다르다(`toRows`).
+  🔴 **`staff.test.ts` 이관 부적합** — 실 조직 데이터를 훑어 대조하므로 빈 DB에서 루프가 0회 돌아
+  **공허하게 통과**한다(초록 거짓말). 사유를 registry에 박아뒀다 — 같은 형태를 이관 판단 기준으로 쓸 것.
 - **`#467`** 2단계 푸시에 `tag: quote-request-confirmed` + 구 계약 문서 superseded 표시.
   앱 v39 `fcm.ts`가 tag 분기를 subtitle 일치와 **OR**로 이미 지원(실측) → 표시 문구 불변·앱 무변경.
 - **`#468`·`#469`·`#470`** = `#461`·`#462` 리뷰 이행. 판정 23건·보류 사유 SSOT =
-  `ref/plans/2026-08-07-crm-review-461-462-findings.md`.
+  `ref/plans/2026-08-07-crm-review-461-462-findings.md`. 다음 세션이 꼭 알아야 할 3가지만:
   - 🔴 **`#462`의 근거가 사실과 달랐다** — "mcCode 링크 없으면 modelName 폴백 매칭"이 CRM 도달
     경로에 **없다**(파트너 레포 실측: 폴백 없이 400). canonical은 오매칭 방지 장치가 **아니고**,
     그 없는 근거로 mcCode 없는 경로를 열면 오히려 진짜 휴리스틱 임의 매칭을 만난다. 주석·스펙 정정.
-  - 수정: `updateTrim` 빈 patch 500(**manager 할인 전용 편집 → 승인 replay** 경로 실재) · 백필
-    `--yes` 미종료 · `moveTrims` 타입 복원 · 워크벤치 modelName에 `trim.name` tier.
   - **`trim_name` 빈 행 정책 ⓐ 확정**(유슨생): 라이브 경로도 백필처럼 **재계산 안 함**(공유 순수
     함수 `canonicalTrimName`). ⚠️ `trims.name` 폴백은 **실측 기각** — 1902행 중 331행에서 name이
     트림명이 아니라 레거시 장문 라벨(`[2026년형 …] XLE(A/T) (2,487cc)`).
-  - 그물 4종: 드리프트 판정 순수(CI) · **실 catalog 전수 트립와이어**(db-bound · 첫 실행 0/0) ·
-    **두 빌더 modelName 양방향 패리티**(구 "패리티" 테스트는 제목뿐 상대 모듈 미import) · 훅 배선 5.
-- 변이 실증 누적 **13종** 전부 RED 후 원복 · 워킹트리 무손상. ⚠️ 교훈 2: ①변이 원복을
+  - 빈 patch 500은 **manager 할인 전용 편집 → 승인 replay** 경로가 실재해 라우트가 아니라 쿼리에서
+    막았다. 그 밖 수정·그물 4종(드리프트 트립와이어·두 빌더 양방향 패리티 등)은 판정 문서 참조.
+- 변이 실증 누적 **15종** 전부 RED 후 원복 · 워킹트리 무손상. ⚠️ 교훈 2: ①변이 원복을
   `git checkout`으로 하면 **같은 파일의 미커밋 원 수정까지 날아간다**(커밋 먼저) ②새 그물에도 같은
   공백이 생긴다(훅 배선 첫 3케이스가 오타 변이를 통과 → 소스별 최소 1회 드러나게 보강).
 
 ## ▶ 다음 (미확정 — 트리거 없음)
 
-hermetic **2단계 이관**(customers.send · app-account-deletion · catalog 승인 축) — plan 문서 참조.
+**hermetic 이관 후보는 소진**됐다. 남은 registry 47은 ⓐ실 데이터가 검증 대상(리포트 집계·임베딩
+코퍼스·잔재/드리프트 스캔) ⓑ실 Gemini 호출(업무 AI) ⓒ실 조직 데이터(staff) — 옮기면 의미를 잃는다.
 리뷰 보류분(무잠금 경합·TOCTOU·cross-brand)은 창이 좁아 기록만.
 
 ## 실기 대기 (이사님)
