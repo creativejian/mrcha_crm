@@ -14,9 +14,21 @@ function rows(): string[] {
 }
 
 describe("KeyboardShortcutsPanel", () => {
-  it("딜러에게는 3건만 보인다", () => {
+  it("딜러에게는 4건만 보인다", () => {
     render(<KeyboardShortcutsPanel onClose={() => {}} role="딜러" />);
-    expect(rows()).toEqual(["단축키 목록", "사이드바 접기/펴기", "할인 업데이트"]);
+    expect(rows()).toEqual(["단축키 목록", "사이드바 접기/펴기", "프로필 · 설정", "할인 업데이트"]);
+  });
+
+  // 설정 그룹은 계정 팝오버 블록과 같은 조건(admin) — 팀장 패널에도 그 섹션이 없다.
+  it("설정 섹션은 admin에게만 뜬다", () => {
+    const { unmount } = render(<KeyboardShortcutsPanel onClose={() => {}} role="최고관리자" />);
+    expect(screen.getByText("설정")).toBeInTheDocument();
+    expect(rows()).toContain("조직 / 구성원");
+    unmount();
+
+    render(<KeyboardShortcutsPanel onClose={() => {}} role="팀장" />);
+    expect(screen.queryByText("설정")).not.toBeInTheDocument();
+    expect(rows()).not.toContain("조직 / 구성원");
   });
 
   it("관리자에게는 관리자 전용 화면이 보인다", () => {

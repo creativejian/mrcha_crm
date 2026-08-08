@@ -8,13 +8,13 @@ import type { RoleTab } from "@/data/roles";
 // 전역 액션 식별자 — Topbar가 자기 상태 토글로 해석한다(네비게이션은 path로 간다).
 // export하지 않는다: 소비처는 `shortcut.action` 접근으로 타입이 추론되고, 밖에서 쓰지 않는 export는
 // knip 기준선 0을 깬다(#333 선례).
-type GlobalActionId = "shortcuts-panel" | "global-search" | "work-ai" | "calculator" | "notifications" | "toggle-sidebar";
+type GlobalActionId = "shortcuts-panel" | "global-search" | "work-ai" | "calculator" | "notifications" | "toggle-sidebar" | "profile";
 
 export type Shortcut = {
   id: string;
   /** KeyboardEvent.code 시퀀스. 길이 1 = 단발(수식키 포함), 2 = "X then Y". */
   keys: string[];
-  group: "global" | "navigation";
+  group: "global" | "navigation" | "settings";
   /** 단발 조합의 수식키 요구. 시퀀스에는 쓰지 않는다. */
   mod?: "meta" | "shift";
   /** 네비게이션 목적지(순수 데이터). */
@@ -39,6 +39,8 @@ const GLOBAL_SHORTCUTS: Shortcut[] = [
   { id: "calculator", keys: ["KeyE"], mod: "meta", group: "global", action: "calculator", label: constant("계산기"), visibleFor: notDealer },
   { id: "toggle-sidebar", keys: ["KeyB"], mod: "meta", group: "global", action: "toggle-sidebar", label: constant("사이드바 접기/펴기") },
   { id: "notifications", keys: ["KeyO", "KeyN"], group: "global", action: "notifications", label: constant("알림"), visibleFor: notDealer },
+  // 계정 팝오버는 전 role이 연다(계정 정보·로그아웃) — 딜러도 포함.
+  { id: "profile", keys: ["KeyO", "KeyP"], group: "global", action: "profile", label: constant("프로필 · 설정") },
 ];
 
 // ── 네비게이션 ───────────────────────────────────────────────────────────────
@@ -60,7 +62,6 @@ const NAV_SHORTCUTS: Shortcut[] = [
   // "부모 · 자식" 어휘를 쓴다 — 초안에서 G A(상담사 배정)와 G I(상담 신청 DB)가 같은 경로로
   // 가는 중복이었다(2026-08-08 유슨생 실기에서 드러남).
   { id: "nav-consultation-requests", keys: ["KeyG", "KeyA"], group: "navigation", path: "/consultation-requests", label: constant("상담사 배정 · 상담 신청 DB"), visibleFor: canViewTeamMenu },
-  { id: "nav-org-members", keys: ["KeyG", "KeyO"], group: "navigation", path: "/org-members", label: constant("팀원 관리"), visibleFor: canViewTeamMenu },
 
   // 딜러도 갖는 유일한 네비게이션 — dealerMenuItems에서 목적지가 있는 항목이 이것뿐이다.
   {
@@ -76,7 +77,22 @@ const NAV_SHORTCUTS: Shortcut[] = [
   { id: "nav-finance", keys: ["KeyG", "KeyF"], group: "navigation", path: "/finance", label: constant("재무 관리"), visibleFor: canViewAdminMenu },
 ];
 
-export const SHORTCUTS: Shortcut[] = [...GLOBAL_SHORTCUTS, ...NAV_SHORTCUTS];
+// ── 설정(계정 팝오버) ────────────────────────────────────────────────────────
+// 접두를 G와 나눈 이유는 알파벳 여유가 아니라 **이니셜**이다 — 조직 O·딜러 D·지식 K·AI A·
+// 상담운영 H가 G에서는 전부 점유돼 의미 없는 글자를 배정해야 했다. S(Settings) 아래에서는
+// 그대로 쓸 수 있다(2026-08-08 유슨생 결정).
+// ⚠️ 근태관리는 여기 없다 — onClick이 아예 없는 미구현 메뉴다(딜러 미구현 3종과 같은 근거).
+// ⚠️ MC 마스터도 없다 — 이미 G M이고, 같은 목적지에 키를 둘 주지 않는다.
+const SETTINGS_SHORTCUTS: Shortcut[] = [
+  { id: "set-org-members", keys: ["KeyS", "KeyO"], group: "settings", path: "/org-members", label: constant("조직 / 구성원"), visibleFor: canViewAdminMenu },
+  { id: "set-partners", keys: ["KeyS", "KeyD"], group: "settings", path: "/partners", label: constant("딜러 / 거래처"), visibleFor: canViewAdminMenu },
+  { id: "set-knowledge-base", keys: ["KeyS", "KeyK"], group: "settings", path: "/knowledge-base", label: constant("지식 베이스"), visibleFor: canViewAdminMenu },
+  { id: "set-insights", keys: ["KeyS", "KeyI"], group: "settings", path: "/insights", label: constant("인사이트"), visibleFor: canViewAdminMenu },
+  { id: "set-ai", keys: ["KeyS", "KeyA"], group: "settings", path: "/ai-settings", label: constant("AI 커스텀"), visibleFor: canViewAdminMenu },
+  { id: "set-handoff", keys: ["KeyS", "KeyH"], group: "settings", path: "/handoff-operation", label: constant("상담 운영"), visibleFor: canViewAdminMenu },
+];
+
+export const SHORTCUTS: Shortcut[] = [...GLOBAL_SHORTCUTS, ...NAV_SHORTCUTS, ...SETTINGS_SHORTCUTS];
 
 /** role이 실제로 쓸 수 있는 단축키만 — 사이드바 가시성과 같은 SSOT(nav-visibility)를 읽는다. */
 export function visibleShortcuts(role: RoleTab): Shortcut[] {

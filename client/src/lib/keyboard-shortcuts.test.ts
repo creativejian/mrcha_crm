@@ -17,8 +17,8 @@ describe("keyboard-shortcuts 레지스트리", () => {
 
   // 딜러 = 외부 사용자. 상단바 내부 도구 5종이 미표시고(2026-08-02), 사이드바 메뉴 4개 중
   // 목적지가 있는 건 "할인 업데이트" 하나뿐이다(나머지 3개는 화면 자체가 없어 disabled).
-  it("딜러는 패널·사이드바·할인 업데이트 3건뿐", () => {
-    expect(ids("딜러")).toEqual(["shortcuts-panel", "toggle-sidebar", "nav-mc-master"]);
+  it("딜러는 패널·사이드바·프로필·할인 업데이트 4건뿐", () => {
+    expect(ids("딜러")).toEqual(["shortcuts-panel", "toggle-sidebar", "profile", "nav-mc-master"]);
   });
 
   it("상담사는 관리자·팀 전용 항목을 못 본다", () => {
@@ -42,10 +42,10 @@ describe("keyboard-shortcuts 레지스트리", () => {
 
   // 노출 규모 회귀 — 집합 단언을 통과시키면서 항목을 통째로 빠뜨리는 변이를 잡는다.
   it("role별 노출 수", () => {
-    expect(ids("딜러")).toHaveLength(3);
-    expect(ids("상담사")).toHaveLength(15);
+    expect(ids("딜러")).toHaveLength(4);
+    expect(ids("상담사")).toHaveLength(16);
     expect(ids("팀장")).toHaveLength(19);
-    expect(ids("최고관리자")).toHaveLength(21);
+    expect(ids("최고관리자")).toHaveLength(27);
   });
 
   // 같은 /mc-master인데 딜러 포털에서는 "할인 업데이트"로 부른다(dealerMenuItems).
@@ -65,6 +65,23 @@ describe("keyboard-shortcuts 레지스트리", () => {
   it("KeyH는 대시보드", () => {
     const byKeys = SHORTCUTS.filter((s) => s.keys[0] === "KeyG" && s.keys[1] === "KeyH");
     expect(byKeys.map((s) => s.path)).toEqual(["/"]);
+  });
+
+  // 설정 6종은 계정 팝오버 블록과 같은 조건(isAdminRole)이다 — 팀장에게도 안 보인다.
+  it("설정 그룹은 admin 전용", () => {
+    expect(ids("팀장").filter((id) => id.startsWith("set-"))).toEqual([]);
+    expect(ids("최고관리자").filter((id) => id.startsWith("set-"))).toHaveLength(6);
+  });
+
+  // S 접두를 쓴 이유가 이니셜 재사용이다 — G에서 점유된 글자를 그대로 쓴다.
+  it("설정은 G에서 점유된 이니셜을 재사용한다", () => {
+    const setKeys = SHORTCUTS.filter((s) => s.group === "settings").map((s) => s.keys[1]);
+    expect(setKeys).toEqual(["KeyO", "KeyD", "KeyK", "KeyI", "KeyA", "KeyH"]);
+  });
+
+  it("프로필 팝오버는 전 role(딜러 포함)", () => {
+    expect(shortcutKeysForAction("profile", "딜러")).toBe("O then P");
+    expect(shortcutKeysForAction("profile", "상담사")).toBe("O then P");
   });
 
   it("시퀀스 조합에 중복이 없다", () => {
