@@ -4,15 +4,19 @@ import { eq, inArray, ne } from "drizzle-orm";
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
 import { modelsInCatalog, trimOptionsInCatalog, trimsInCatalog } from "../db/catalog";
-import { getDefaultDb } from "../db/client";
 import { catalogChangeRequests } from "../db/schema";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
 
 // ── 변경 승인 워크플로 라우트 게이트(spec §3.3 역할 매트릭스) ────────────────
 // 실제 catalog 변이는 하지 않는다(존재하지 않는 대상 → 404 fail-closed로 게이트 통과를 확인,
 // 큐 202 케이스는 승인하지 않아 catalog에 반영되지 않는다). 유일한 실 행 = pending 생성분
 // (취소 흐름 1건 + 큐 8종 순회 7건) — 전부 createdIds로 추적해 afterAll이 hard delete,
 // 잔재는 고아 판정 그물(fixture-residue)이 백스톱.
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 let modelId = 0;
 let modelCategory: string | null = null;
 let brandId = 0; // modelId가 속한 브랜드 — model.create 큐 케이스용

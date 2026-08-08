@@ -26,7 +26,6 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/db/queries/canonical-drift.test.ts", // 실 catalog 전수 스캔이 목적(읽기 전용 · 픽스처 0)
   "src/db/queries/catalog-admin.test.ts",
   "src/db/queries/catalog-counts.test.ts",
-  "src/db/queries/change-requests.test.ts",
   "src/db/queries/consultations.test.ts",
   "src/db/queries/customer-delivery.test.ts",
   "src/db/queries/customer-quotes.send.test.ts",
@@ -44,16 +43,12 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/db/queries/staff.test.ts",
   "src/db/queries/vehicles.test.ts",
   "src/lib/promotion-embeds.test.ts",
-  // routes/catalog/ 아래 있지만 app.request()가 아니라 레지스트리 함수를 tx로 직접 호출한다
-  // (쿼리 레이어와 같은 성격) — 아래 "라우트 통합" 그룹과 섞이지 않게 여기 둔다.
-  "src/routes/catalog/change-request-kinds.test.ts",
 
   // ── 라우트 통합 — app.request()가 dbMiddleware를 지나므로 403 전제 케이스조차 DB가
   //    먼저 필요하다(미들웨어가 게이트보다 앞). assistant는 실 Gemini 라우팅 시도까지
   //    얹혀 있다(test:server 1회당 실 9콜 계측의 출처 — 배치 15 M7). ────────────
   "src/middleware/db.test.ts",
   "src/routes/assistant.test.ts",
-  "src/routes/catalog.change-requests.test.ts",
   "src/routes/catalog.discount-adoptions.test.ts",
   "src/routes/catalog.test.ts",
   "src/routes/consultations.test.ts",
