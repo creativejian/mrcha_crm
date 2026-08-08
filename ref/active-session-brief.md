@@ -45,7 +45,7 @@ main 전량 green(CI 8단계) = `081e08f`. 08-08 오전 8 PR(hermetic 이관·�
 
 2·3단계 최초 1회 · iOS 문구 · 4단계 구매방식/차량 조각 + **v39 timing 실측**(`[send-push] timing`).
 이상 시 경계 좁히기: DB timestamp → CRM tag 요청 → App consumer → iOS 표시 순.
-🔵 **유슨생 몫**: 한글 입력 모드에서 `G H`·`?`·`⌘K`(Safari·Chrome) — 입력기 차이가 있어 미단정.
+✅ 단축키 한글 모드 실기는 **완료**(08-08 유슨생 — `G H`·`?`·`⌘K` 정상). `event.code` 판정 유지.
 
 ## 기존 대기
 
