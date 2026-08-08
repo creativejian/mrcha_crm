@@ -52,8 +52,6 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   //    먼저 필요하다(미들웨어가 게이트보다 앞). assistant는 실 Gemini 라우팅 시도까지
   //    얹혀 있다(test:server 1회당 실 9콜 계측의 출처 — 배치 15 M7). ────────────
   "src/middleware/db.test.ts",
-  "src/routes/account-deletions.test.ts",
-  "src/routes/app-account-deletion.test.ts",
   "src/routes/assistant.test.ts",
   "src/routes/catalog.change-requests.test.ts",
   "src/routes/catalog.discount-adoptions.test.ts",
@@ -65,13 +63,14 @@ export const DB_BOUND_TEST_FILES: readonly string[] = [
   "src/routes/customers.delivery.test.ts",
   "src/routes/customers.embed.test.ts",
   "src/routes/customers.phone.test.ts",
-  "src/routes/customers.send.test.ts",
   "src/routes/customers.test.ts",
   "src/routes/dealer.discounts.test.ts",
-  "src/routes/me.test.ts",
   "src/routes/quote-requests.test.ts",
   "src/routes/reports.test.ts",
   "src/routes/solution.test.ts",
+  // ⚠️ hermetic 이관 **부적합**(2026-08-08 판정): 실 조직 데이터(스태프 profile·담당 고객 수)를
+  // 전제로 목록을 훑어 대조하므로, 빈 hermetic DB에서는 루프가 0회 돌아 **공허하게 통과**한다
+  // (그물이 사라지는 게 아니라 초록 거짓말이 된다 — reports.test.ts와 같은 부류).
   "src/routes/staff.test.ts",
   "src/routes/vehicles.test.ts",
 

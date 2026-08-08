@@ -1,16 +1,20 @@
-import { expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
-import { getDefaultDb } from "../db/client";
 import { accountDeletionJobs, customerDeletions, customers, quotes } from "../db/schema";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
 
 // 탈퇴 인지 큐 스태프 라우트 통합 검증 — 권한(딜러 차단·담당자 스코프)과 확인 실행.
 // 라우트가 자기 트랜잭션을 커밋하므로 픽스처는 finally 정리(잡·감사행·고객 —
 // customer_deletions도 CU-ACCDEL- registry 스캔 대상이라 반드시 지운다).
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 const code = () => `CU-ACCDEL-${crypto.randomUUID().slice(0, 8)}`;
 
 async function seed(advisorId: string | null = null) {

@@ -1,14 +1,18 @@
-import { test, expect, afterAll, beforeEach } from "bun:test";
+import { test, expect, afterAll, beforeAll, beforeEach } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
 import { makeTestAuth } from "../auth/test-jwt";
-import { getDefaultDb } from "../db/client";
 import { staffSettings } from "../db/schema";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
 
 // 실 master DB 오염 방지용 고정 UUID(다른 테스트 sub와 겹치지 않는 값).
 const TEST_SUB = "cccccccc-cccc-cccc-cccc-cccccccccccc";
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 
 async function clean() {
   await db.delete(staffSettings).where(eq(staffSettings.staffUserId, TEST_SUB));

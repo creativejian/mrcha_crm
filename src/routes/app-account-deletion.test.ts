@@ -1,15 +1,19 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { createApp } from "../app";
-import { getDefaultDb } from "../db/client";
 import { accountDeletionJobs, customers } from "../db/schema";
+import { setTestDb } from "../middleware/db";
+import { getTestDb } from "../test-utils/hermetic-db";
 
 // 앱 탈퇴 엔드포인트(공유 시크릿 인증) 통합 검증. 라우트가 자기 트랜잭션을 열어 커밋하므로
 // 롤백 패턴을 못 쓴다 — 픽스처는 finally에서 직접 정리한다(customers.delete.test.ts 관례).
 // 알림 트리거 테이블은 건드리지 않는다(고객·잡 픽스처뿐, 견적 없음) — notify guard 불요.
 
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
+beforeAll(() => setTestDb(db));
+afterAll(() => setTestDb(null));
 const TEST_SECRET = `accdel-test-${crypto.randomUUID()}`;
 const originalSecret = process.env.APP_DELETION_SECRET;
 process.env.APP_DELETION_SECRET = TEST_SECRET;
