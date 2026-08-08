@@ -112,6 +112,40 @@ describe("CustomerManagementPage", () => {
     expect(screen.queryByText("박서연")).not.toBeInTheDocument();
   });
 
+  // 업무함 배타 — "관리중"은 미배정이어도 상담필요에 들어오지 않는다(2026-08-08 유슨생 결정 A안).
+  // #260이 배정 축만 고치면서 mock 시절 stage set을 그대로 물려받아 관리중이 남아 있었고, 그 결과
+  // 미배정 관리중 고객이 상담필요·보류/이탈 **두 업무함에 동시에** 떴다(실 DB 3명 = 상담필요 9명의 1/3).
+  // 같은 PR이 "불발→보류/이탈이 담당"으로 세운 원칙을 관리중에 마저 적용한 것.
+  it("excludes 관리중 from consulting mode — hold 업무함이 담당한다", () => {
+    const [base] = initialCustomers;
+    render(
+      <CustomerManagementPage
+        customers={[
+          { ...base, no: 9001, advisor: "미배정", name: "관리중미배정", status: "조건재확인", statusGroup: "관리중" },
+          { ...base, no: 9002, advisor: "미배정", name: "신규미배정", status: "상담접수", statusGroup: "신규" },
+        ]}
+        mode="consulting"
+      />,
+    );
+
+    expect(screen.getByText("신규미배정")).toBeInTheDocument();
+    expect(screen.queryByText("관리중미배정")).not.toBeInTheDocument();
+  });
+
+  // 위 배타의 반대편 — 상담필요에서 뺀 관리중이 보류/이탈에는 그대로 남아야 한다(어느 함에서도
+  // 안 보이면 미배정 관리중 고객이 통째로 실종된다). 회귀 가드.
+  it("keeps 관리중 in hold mode", () => {
+    const [base] = initialCustomers;
+    render(
+      <CustomerManagementPage
+        customers={[{ ...base, no: 9001, advisor: "미배정", name: "관리중미배정", status: "조건재확인", statusGroup: "관리중" }]}
+        mode="hold"
+      />,
+    );
+
+    expect(screen.getByText("관리중미배정")).toBeInTheDocument();
+  });
+
   // 상담 메모 칩 = 계약 가능성(0726 축 교체) — 구 priority(쓰기 경로 0인 시드 박제)가 아니라
   // 드로어·전체 보기와 같은 resolveChance 파생값을 그린다. mock 김민준은 priority "긴급"인데
   // chance 어휘에 긴급이 없어 파생 "높음"으로 흡수되는 것까지 잠근다(축 교체의 관측 가능한 차이).
