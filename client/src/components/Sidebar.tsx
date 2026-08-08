@@ -100,9 +100,12 @@ const financeModes: Array<[FinanceMode, string]> = [
 
 // "상담 신청 DB" = /consultation-requests(상담신청 인박스 #274), "실시간 상담 요청" = 실시간 상담
 // 콘솔(chat) 리라우트(2026-07-20 결정 ① — 마지막 스텁 소진, handleAdvisorAssignmentSelect 주석 참조).
+// 3번째 원소 = 단축키 조회용 라벨(레지스트리 어휘). "실시간 상담 요청"은 **전용 화면이 아니라**
+// 실시간 상담 콘솔로 리라우트되는 진입점이라(2026-07-20 결정 ①) 자기 키가 없다 — 같은 화면의
+// 키를 그대로 안내한다. 새 키를 주면 같은 목적지에 키가 둘이 되어 G A/G I 중복을 되풀이한다.
 const advisorAssignmentModes = [
-  ["consultation-requests", "상담 신청 DB"],
-  ["advisor-assignment-live", "실시간 상담 요청"],
+  ["consultation-requests", "상담 신청 DB", "상담사 배정 · 상담 신청 DB"],
+  ["advisor-assignment-live", "실시간 상담 요청", "실시간 상담"],
 ] as const;
 
 // 딜러 포털 메뉴. 3번째 원소 = 목적지 view(없으면 화면이 아직 없다는 뜻).
@@ -251,7 +254,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
           <nav className="nav admin-nav">
             <div className="nav-group">
               <button aria-label="상담사 배정" className={cn(navButtonClass(visibleActiveView.startsWith("advisor-assignment") || visibleActiveView === "consultation-requests"), collapsed && "has-flyout")} data-label="상담사 배정" data-shortcut={shortcutHint("상담사 배정")} onClick={handleAdvisorAssignmentToggle} type="button"><MenuIcon name="headphones" /><span>상담사 배정</span><ChevronDown className={`nav-chevron ${advisorAssignmentOpen ? "open" : ""}`} size={16} /></button>
-              {!collapsed && advisorAssignmentOpen && <div className="subnav">{advisorAssignmentModes.map(([view, label]) => <button className={subnavButtonClass(visibleActiveView === view)} data-shortcut={shortcutHint(`상담사 배정 · ${label}`)} key={view} onClick={() => handleAdvisorAssignmentSelect(view)} onMouseEnter={view === "consultation-requests" ? () => prefetchPendingConsultations() : undefined} type="button">{label}</button>)}</div>}
+              {!collapsed && advisorAssignmentOpen && <div className="subnav">{advisorAssignmentModes.map(([view, label, shortcutLabel]) => <button className={subnavButtonClass(visibleActiveView === view)} data-shortcut={shortcutHint(shortcutLabel)} key={view} onClick={() => handleAdvisorAssignmentSelect(view)} onMouseEnter={view === "consultation-requests" ? () => prefetchPendingConsultations() : undefined} type="button">{label}</button>)}</div>}
               {collapsed && <SidebarFlyout title="상담사 배정" items={advisorAssignmentModes.map(([view, label]) => ({ active: visibleActiveView === view, label, onClick: () => handleAdvisorAssignmentSelect(view) }))} />}
             </div>
             <button aria-label="팀원 관리" className={navButtonClass(visibleActiveView === "team-members")} data-label="팀원 관리" data-shortcut={shortcutHint("팀원 관리")} onClick={() => setSelectedDraftMenu("team-members")} type="button"><MenuIcon name="team" /><span>팀원 관리</span></button>

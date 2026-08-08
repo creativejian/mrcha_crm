@@ -107,6 +107,15 @@ describe("사이드바 hover 단축키 힌트", () => {
     expect(hintOf("재고 업로드", { roleTab: "딜러" })).toBeNull();
   });
 
+  // "실시간 상담 요청"은 전용 화면이 아니라 실시간 상담 콘솔로 리라우트되는 진입점이라(2026-07-20
+  // 결정 ①) 같은 화면의 키를 안내한다. 새 키를 주면 같은 목적지에 키가 둘이 된다.
+  it("상담사 배정 서브탭 — 리라우트 진입점은 목적지 화면의 키를 안내한다", () => {
+    const { unmount } = render(<Sidebar {...baseProps} roleTab="최고관리자" />);
+    expect(screen.getByRole("button", { name: "상담 신청 DB" }).getAttribute("data-shortcut")).toBe("G then A");
+    expect(screen.getByRole("button", { name: "실시간 상담 요청" }).getAttribute("data-shortcut")).toBe("G then T");
+    unmount();
+  });
+
   it("고객 관리 서브탭도 힌트를 갖는다", () => {
     const { unmount } = render(<Sidebar {...baseProps} roleTab="최고관리자" />);
     const hold = screen.getByRole("button", { name: "보류 / 이탈" });
