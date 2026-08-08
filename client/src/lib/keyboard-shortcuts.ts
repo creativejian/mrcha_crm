@@ -87,6 +87,17 @@ function keyText(code: string): string {
   return KEY_TEXT[code] ?? code.replace(/^Key/, "");
 }
 
+/**
+ * 사이드바 hover 힌트용 조회 — 메뉴 라벨로 표기를 찾는다(없으면 null이고 메뉴는 정상 동작).
+ * 라벨 어휘는 레지스트리가 소유하므로 사이드바가 "고객 관리 · 전체 보기"처럼 **부모 · 자식** 경로를
+ * 만들어 넘긴다(`shortcut-menu-parity.test.tsx`가 쓰는 정규화의 역방향).
+ * role을 받는 이유: 안 보이는 메뉴의 키를 알려주면 안 되고, 딜러는 같은 화면을 다른 이름으로 부른다.
+ */
+export function shortcutKeysForLabel(label: string, role: RoleTab): string | null {
+  const found = visibleShortcuts(role).find((shortcut) => shortcut.label(role) === label);
+  return found ? shortcutKeyLabel(found) : null;
+}
+
 /** 패널 표기 — "⌘K" · "⇧?" · "G then C". */
 export function shortcutKeyLabel(shortcut: Shortcut): string {
   if (shortcut.keys.length > 1) return shortcut.keys.map(keyText).join(" then ");

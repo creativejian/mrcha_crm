@@ -7,6 +7,7 @@ import { customerModeMeta, type CustomerMode } from "@/data/customers";
 import type { FinanceMode } from "@/pages/FinancePage";
 import type { RoleTab } from "@/data/roles";
 import { prefetchPendingConsultations } from "@/lib/consultations";
+import { shortcutKeysForLabel } from "@/lib/keyboard-shortcuts";
 import { canViewAdminMenu, canViewTeamMenu } from "@/lib/nav-visibility";
 import { prefetchAppQuoteRequests } from "@/lib/quote-requests";
 import { cn } from "@/lib/utils";
@@ -144,6 +145,9 @@ function SidebarFlyout({ items, title }: { items: FlyoutItem[]; title: string })
 export function Sidebar({ activeView, collapsed, customerMode, financeMode, roleTab, newAppRequestCount = 0, pendingChatCount = 0, pendingChangeRequestCount = 0, mcCodeGapCount = 0, onViewChange, onCustomerModeChange, onFinanceModeChange }: SidebarProps) {
   // 가시성 판정은 lib/nav-visibility 단일 소스 — 키보드 단축키 레지스트리가 같은 함수를 쓴다
   // (한쪽만 바뀌면 "화면엔 없는데 키로는 열리는" 뒷문이 된다).
+  // hover 단축키 힌트(2026-08-08 유슨생) — 접힌 사이드바에서는 라벨 자체가 없으므로 안 그린다.
+  // 레지스트리가 라벨 어휘를 소유하므로 서브탭은 "부모 · 자식" 경로로 조회한다.
+  const shortcutHint = (label: string) => (collapsed ? undefined : (shortcutKeysForLabel(label, roleTab) ?? undefined));
   const canViewAdmin = canViewAdminMenu(roleTab);
   const canViewTeam = canViewTeamMenu(roleTab);
   const [customersOpen, setCustomersOpen] = useState(true);
@@ -224,21 +228,21 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
       <nav className="nav">
         {roleTab === "딜러"
           ? dealerMenuItems.map(([icon, label, view]) => (
-            <button aria-label={label} className={navButtonClass(view != null && visibleActiveView === view)} data-label={label} disabled={view == null} key={label} onClick={view ? () => navigate(view) : undefined} title={view == null ? "준비 중입니다" : undefined} type="button"><MenuIcon name={icon} /><span>{label}</span></button>
+            <button aria-label={label} className={navButtonClass(view != null && visibleActiveView === view)} data-label={label} data-shortcut={view ? shortcutHint(label) : undefined} disabled={view == null} key={label} onClick={view ? () => navigate(view) : undefined} title={view == null ? "준비 중입니다" : undefined} type="button"><MenuIcon name={icon} /><span>{label}</span></button>
           ))
           : (
             <>
-              <button aria-label="대시보드" className={navButtonClass(visibleActiveView === "advisor-dashboard")} data-label="대시보드" onClick={() => navigate("advisor-dashboard")} type="button"><MenuIcon name="dashboard" /><span>대시보드</span></button>
-              <button aria-label="실시간 상담" className={navButtonClass(visibleActiveView === "chat")} data-label="실시간 상담" onClick={() => navigate("chat")} type="button"><MenuIcon name="chat" /><span>실시간 상담</span><CountBadge count={pendingChatCount} tone="pending" label={`상담원 연결 대기 ${pendingChatCount}건`} /></button>
+              <button aria-label="대시보드" className={navButtonClass(visibleActiveView === "advisor-dashboard")} data-label="대시보드" data-shortcut={shortcutHint("대시보드")} onClick={() => navigate("advisor-dashboard")} type="button"><MenuIcon name="dashboard" /><span>대시보드</span></button>
+              <button aria-label="실시간 상담" className={navButtonClass(visibleActiveView === "chat")} data-label="실시간 상담" data-shortcut={shortcutHint("실시간 상담")} onClick={() => navigate("chat")} type="button"><MenuIcon name="chat" /><span>실시간 상담</span><CountBadge count={pendingChatCount} tone="pending" label={`상담원 연결 대기 ${pendingChatCount}건`} /></button>
               <div className="nav-group">
-                <button aria-label="고객 관리" className={cn(navButtonClass(visibleActiveView === "customers"), collapsed && "has-flyout")} data-label="고객 관리" onClick={handleCustomersToggle} type="button"><MenuIcon name="users" /><span>고객 관리</span><ChevronDown className={`nav-chevron ${customersOpen ? "open" : ""}`} size={16} /></button>
-                {!collapsed && customersOpen && <div className="subnav">{customerModes.map(([mode, label]) => <button className={subnavButtonClass(visibleActiveView === "customers" && customerMode === mode)} key={mode} onClick={() => onCustomerModeChange(mode)} type="button">{label}</button>)}</div>}
+                <button aria-label="고객 관리" className={cn(navButtonClass(visibleActiveView === "customers"), collapsed && "has-flyout")} data-label="고객 관리" data-shortcut={shortcutHint("고객 관리")} onClick={handleCustomersToggle} type="button"><MenuIcon name="users" /><span>고객 관리</span><ChevronDown className={`nav-chevron ${customersOpen ? "open" : ""}`} size={16} /></button>
+                {!collapsed && customersOpen && <div className="subnav">{customerModes.map(([mode, label]) => <button className={subnavButtonClass(visibleActiveView === "customers" && customerMode === mode)} data-shortcut={shortcutHint(`고객 관리 · ${label}`)} key={mode} onClick={() => onCustomerModeChange(mode)} type="button">{label}</button>)}</div>}
                 {collapsed && <SidebarFlyout title="고객 관리" items={customerModes.map(([mode, label]) => ({ active: visibleActiveView === "customers" && customerMode === mode, label, onClick: () => { onCustomerModeChange(mode); navigate("customers"); } }))} />}
               </div>
-              <button aria-label="고객 상세" className={navButtonClass(visibleActiveView === "customer-detail")} data-label="고객 상세" onClick={() => navigate("customer-detail")} type="button"><MenuIcon name="detail" /><span>고객 상세</span></button>
+              <button aria-label="고객 상세" className={navButtonClass(visibleActiveView === "customer-detail")} data-label="고객 상세" data-shortcut={shortcutHint("고객 상세")} onClick={() => navigate("customer-detail")} type="button"><MenuIcon name="detail" /><span>고객 상세</span></button>
               {/* 인박스는 admin·manager 전용(2026-07-21 pending 항목 16) — 상담 신청 DB는 아래 canViewTeamMenu 구역에 이미 있고, 이 메뉴만 전 role에 열려 있었다. */}
-              {canViewTeam && <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" onMouseEnter={() => prefetchAppQuoteRequests()} onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span><CountBadge count={newAppRequestCount} tone="pending" label={`새 앱 견적요청 ${newAppRequestCount}건`} /></button>}
-              <button aria-label="상담 파이프라인" className={navButtonClass(visibleActiveView === "pipeline")} data-label="상담 파이프라인" onClick={() => navigate("pipeline")} type="button"><MenuIcon name="pipeline" /><span>상담 파이프라인</span></button>
+              {canViewTeam && <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" data-shortcut={shortcutHint("앱 견적요청")} onMouseEnter={() => prefetchAppQuoteRequests()} onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span><CountBadge count={newAppRequestCount} tone="pending" label={`새 앱 견적요청 ${newAppRequestCount}건`} /></button>}
+              <button aria-label="상담 파이프라인" className={navButtonClass(visibleActiveView === "pipeline")} data-label="상담 파이프라인" data-shortcut={shortcutHint("상담 파이프라인")} onClick={() => navigate("pipeline")} type="button"><MenuIcon name="pipeline" /><span>상담 파이프라인</span></button>
             </>
           )}
       </nav>
@@ -246,24 +250,24 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
         <div className="sidebar-admin-section">
           <nav className="nav admin-nav">
             <div className="nav-group">
-              <button aria-label="상담사 배정" className={cn(navButtonClass(visibleActiveView.startsWith("advisor-assignment") || visibleActiveView === "consultation-requests"), collapsed && "has-flyout")} data-label="상담사 배정" onClick={handleAdvisorAssignmentToggle} type="button"><MenuIcon name="headphones" /><span>상담사 배정</span><ChevronDown className={`nav-chevron ${advisorAssignmentOpen ? "open" : ""}`} size={16} /></button>
+              <button aria-label="상담사 배정" className={cn(navButtonClass(visibleActiveView.startsWith("advisor-assignment") || visibleActiveView === "consultation-requests"), collapsed && "has-flyout")} data-label="상담사 배정" data-shortcut={shortcutHint("상담사 배정")} onClick={handleAdvisorAssignmentToggle} type="button"><MenuIcon name="headphones" /><span>상담사 배정</span><ChevronDown className={`nav-chevron ${advisorAssignmentOpen ? "open" : ""}`} size={16} /></button>
               {!collapsed && advisorAssignmentOpen && <div className="subnav">{advisorAssignmentModes.map(([view, label]) => <button className={subnavButtonClass(visibleActiveView === view)} key={view} onClick={() => handleAdvisorAssignmentSelect(view)} onMouseEnter={view === "consultation-requests" ? () => prefetchPendingConsultations() : undefined} type="button">{label}</button>)}</div>}
               {collapsed && <SidebarFlyout title="상담사 배정" items={advisorAssignmentModes.map(([view, label]) => ({ active: visibleActiveView === view, label, onClick: () => handleAdvisorAssignmentSelect(view) }))} />}
             </div>
-            <button aria-label="팀원 관리" className={navButtonClass(visibleActiveView === "team-members")} data-label="팀원 관리" onClick={() => setSelectedDraftMenu("team-members")} type="button"><MenuIcon name="team" /><span>팀원 관리</span></button>
+            <button aria-label="팀원 관리" className={navButtonClass(visibleActiveView === "team-members")} data-label="팀원 관리" data-shortcut={shortcutHint("팀원 관리")} onClick={() => setSelectedDraftMenu("team-members")} type="button"><MenuIcon name="team" /><span>팀원 관리</span></button>
             {/* MC 마스터 팀장 진입점(PR3, 2026-07-30) — 편집 제안(canPropose)이 열리면서 필요해졌다
                 (종전 진입점은 admin 전용 2곳뿐). admin은 아래 관리 구역의 기존 항목(승인 대기 배지
                 포함)을 그대로 쓴다 — 배지는 admin의 일감 카운트라 팀장 항목에는 달지 않는다(팀장
                 셀프 현황은 MC 마스터 화면 안 "내 요청 (N)"이 담당). */}
             {roleTab === "팀장" && (
-              <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span></button>
+              <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" data-shortcut={shortcutHint("MC 마스터")} onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span></button>
             )}
             {canViewAdmin && (
               <>
                 <div className="admin-nav-separator" />
-                <button aria-label="경영 리포트" className={navButtonClass(visibleActiveView === "admin-dashboard")} data-label="경영 리포트" onClick={() => navigate("admin-dashboard")} type="button"><MenuIcon name="report" /><span>경영 리포트</span></button>
+                <button aria-label="경영 리포트" className={navButtonClass(visibleActiveView === "admin-dashboard")} data-label="경영 리포트" data-shortcut={shortcutHint("경영 리포트")} onClick={() => navigate("admin-dashboard")} type="button"><MenuIcon name="report" /><span>경영 리포트</span></button>
                 <div className="nav-group">
-                  <button aria-label="재무 관리" className={cn(navButtonClass(visibleActiveView === "finance"), collapsed && "has-flyout")} data-label="재무 관리" onClick={handleFinanceToggle} type="button"><MenuIcon name="finance" /><span>재무 관리</span><ChevronDown className={`nav-chevron ${financeOpen ? "open" : ""}`} size={16} /></button>
+                  <button aria-label="재무 관리" className={cn(navButtonClass(visibleActiveView === "finance"), collapsed && "has-flyout")} data-label="재무 관리" data-shortcut={shortcutHint("재무 관리")} onClick={handleFinanceToggle} type="button"><MenuIcon name="finance" /><span>재무 관리</span><ChevronDown className={`nav-chevron ${financeOpen ? "open" : ""}`} size={16} /></button>
                   {!collapsed && financeOpen && <div className="subnav">{financeModes.map(([mode, label]) => <button className={subnavButtonClass(visibleActiveView === "finance" && financeMode === mode)} key={mode} onClick={() => onFinanceModeChange(mode)} type="button">{label}</button>)}</div>}
                   {collapsed && <SidebarFlyout title="재무 관리" items={financeModes.map(([mode, label]) => ({ active: visibleActiveView === "finance" && financeMode === mode, label, onClick: () => { onFinanceModeChange(mode); navigate("finance"); } }))} />}
                 </div>
@@ -272,7 +276,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
                     폴링) — 딜러 할인 제안 합산은 후속(spec §7.5). */}
                 {/* MC 마스터는 인사이트류와 달리 사이드바 중복 진입을 예외 허용(2026-07-30) — 승인 대기
                     배지를 항상 보이게 하는 게 목적이고, 설정 팝오버 행에는 배지 선례/스타일이 없다. */}
-                <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span><CountBadge count={pendingChangeRequestCount} tone="pending" label={`승인 대기 ${pendingChangeRequestCount}건`} /><CountBadge count={mcCodeGapCount} tone="gap" label={`고유번호 미부여 ${mcCodeGapCount}건`} /></button>
+                <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" data-shortcut={shortcutHint("MC 마스터")} onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span><CountBadge count={pendingChangeRequestCount} tone="pending" label={`승인 대기 ${pendingChangeRequestCount}건`} /><CountBadge count={mcCodeGapCount} tone="gap" label={`고유번호 미부여 ${mcCodeGapCount}건`} /></button>
                 {/* 인사이트·지식베이스 진입은 프로필 팝오버 "차선생 앱 설정" 그룹만(프로토타입 원 설계).
                     #251이 덧붙인 사이드바 진입점은 중복이라 제거(2026-07-19 유슨생 — pending 항목 12). */}
               </>
