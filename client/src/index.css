@@ -32,3 +32,5 @@
 @import "./styles/work-ai-markdown.css";
 @import "./styles/handoff-operation.css";
 @import "./styles/calculator.css";
+/* 단축키 힌트 표시 스타일 SSOT — 맨 마지막(덮지도 덮이지도 않는 자리). */
+@import "./styles/shortcut-hint.css";

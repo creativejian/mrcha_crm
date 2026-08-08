@@ -406,6 +406,10 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
           closeAllPopovers();
           setNotificationsOpen((open) => !open);
           break;
+        case "profile":
+          if (settingsOpen) closeSettingsMenu();
+          else openSettingsMenu();
+          break;
         case "toggle-sidebar":
           onToggleSidebar();
           break;
@@ -598,7 +602,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
         </div>
         </>)}
         <div className="settings-wrap account-menu-wrap" ref={settingsMenuRef}>
-          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={canManageLiveConsulting ? `${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}` : `${displayName}, ${roleTab}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setFailedAvatarUrl(userAvatarUrl ?? null)} /> : <AccountDefaultIcon />}</span>{canManageLiveConsulting && <span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" />}</button>
+          <button data-shortcut={actionHint("profile")} className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={canManageLiveConsulting ? `${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}` : `${displayName}, ${roleTab}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setFailedAvatarUrl(userAvatarUrl ?? null)} /> : <AccountDefaultIcon />}</span>{canManageLiveConsulting && <span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" />}</button>
           {settingsOpen && (
             <>
               <div
@@ -648,8 +652,8 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
                     <div className="settings-menu-section">
                       {isAdminRole && <div className="settings-menu-label">운영 설정</div>}
                       {showAttendanceMenu && <button className="settings-menu-row" type="button"><span><SettingSolidIcon name="attendance" />근태관리</span></button>}
-                      {isAdminRole && <button className="settings-menu-row" onClick={() => navigateFromSettings("org-members")} type="button"><span><SettingSolidIcon name="org" />조직 / 구성원</span></button>}
-                      {isAdminRole && <button className="settings-menu-row" onClick={() => navigateFromSettings("partners")} type="button"><span><SettingSolidIcon name="partners" />딜러 / 거래처</span></button>}
+                      {isAdminRole && <button className="settings-menu-row" data-shortcut={shortcutKeysForLabel("조직 / 구성원", roleTab) ?? undefined} onClick={() => navigateFromSettings("org-members")} type="button"><span><SettingSolidIcon name="org" />조직 / 구성원</span></button>}
+                      {isAdminRole && <button className="settings-menu-row" data-shortcut={shortcutKeysForLabel("딜러 / 거래처", roleTab) ?? undefined} onClick={() => navigateFromSettings("partners")} type="button"><span><SettingSolidIcon name="partners" />딜러 / 거래처</span></button>}
                     </div>
                   </>
                 )}
@@ -658,11 +662,11 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
                     <div className="settings-menu-line section-line" />
                     <div className="settings-menu-section">
                       <div className="settings-menu-label">차선생 앱 설정</div>
-                      <button className="settings-menu-row" onClick={() => navigateFromSettings("mc-master")} type="button"><span><SettingSolidIcon name="mc-master" />MC 마스터</span></button>
-                      <button className="settings-menu-row" onClick={() => navigateFromSettings("knowledge-base")} type="button"><span><SettingSolidIcon name="knowledge" />지식 베이스</span></button>
-                      <button className="settings-menu-row" onClick={() => navigateFromSettings("insights")} type="button"><span><SettingSolidIcon name="insights" />인사이트</span></button>
-                      <button className="settings-menu-row" onClick={() => navigateFromSettings("ai-settings")} type="button"><span><SettingSolidIcon name="ai" />AI 커스텀</span></button>
-                      <button className="settings-menu-row" onClick={() => navigateFromSettings("handoff-operation")} type="button"><span><SettingSolidIcon name="handoff-op" />상담 운영</span></button>
+                      <button className="settings-menu-row" data-shortcut={shortcutKeysForLabel("MC 마스터", roleTab) ?? undefined} onClick={() => navigateFromSettings("mc-master")} type="button"><span><SettingSolidIcon name="mc-master" />MC 마스터</span></button>
+                      <button className="settings-menu-row" data-shortcut={shortcutKeysForLabel("지식 베이스", roleTab) ?? undefined} onClick={() => navigateFromSettings("knowledge-base")} type="button"><span><SettingSolidIcon name="knowledge" />지식 베이스</span></button>
+                      <button className="settings-menu-row" data-shortcut={shortcutKeysForLabel("인사이트", roleTab) ?? undefined} onClick={() => navigateFromSettings("insights")} type="button"><span><SettingSolidIcon name="insights" />인사이트</span></button>
+                      <button className="settings-menu-row" data-shortcut={shortcutKeysForLabel("AI 커스텀", roleTab) ?? undefined} onClick={() => navigateFromSettings("ai-settings")} type="button"><span><SettingSolidIcon name="ai" />AI 커스텀</span></button>
+                      <button className="settings-menu-row" data-shortcut={shortcutKeysForLabel("상담 운영", roleTab) ?? undefined} onClick={() => navigateFromSettings("handoff-operation")} type="button"><span><SettingSolidIcon name="handoff-op" />상담 운영</span></button>
                     </div>
                   </>
                 )}

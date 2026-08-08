@@ -524,18 +524,3 @@
 .top-actions {
   gap: 7px;
 }
-
-/* hover 단축키 힌트(2026-08-08) — 버블이 아니라 행 안 우측에 그냥 붙는다.
-   :hover에서만 content를 만들어 평소엔 공간조차 차지하지 않는다(배지가 있는 행에서
-   배지가 상시로 밀리지 않게). 접힌 사이드바에서는 속성 자체가 안 붙는다(Sidebar.shortcutHint). */
-.nav button[data-shortcut]:hover::after,
-.subnav button[data-shortcut]:hover::after {
-  content: attr(data-shortcut);
-  margin-left: auto;
-  padding-left: 10px;
-  color: #9aa0a6;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}

@@ -11,6 +11,7 @@ import { shortcutKeyLabel, visibleShortcuts, type Shortcut } from "@/lib/keyboar
 const GROUP_TITLE: Record<Shortcut["group"], string> = {
   global: "전역 액션",
   navigation: "화면 이동",
+  settings: "설정",
 };
 
 export function KeyboardShortcutsPanel({ role, onClose }: { role: RoleTab; onClose: () => void }) {
@@ -25,7 +26,7 @@ export function KeyboardShortcutsPanel({ role, onClose }: { role: RoleTab; onClo
       if (!keyword) return true;
       return `${shortcut.label(role)} ${shortcutKeyLabel(shortcut)}`.toLowerCase().includes(keyword);
     });
-    return (["global", "navigation"] as const)
+    return (["global", "navigation", "settings"] as const)
       .map((group) => ({ group, items: matched.filter((shortcut) => shortcut.group === group) }))
       .filter((entry) => entry.items.length > 0);
   }, [role, query]);
