@@ -7,9 +7,9 @@ Last updated: 2026-08-08
 
 ## 지금 상태
 
-main 전량 green(CI 8단계) = `081e08f`. 08-08 오전 8 PR(hermetic 이관·리뷰 이행)에 이어 오후 3 PR.
-빠른견적 4단계는 08-07 전 구간 배포 완결(계약 SSOT = `ref/2026-08-07-app-quote-request-ready-for-send-reply.md`)
-— 실기 확인만 이사님 대기다. 오전 세션 상세 = `ref/session-archive.md` 맨 위.
+main 전량 green(CI 8단계) = `081e08f`. 08-08 오전 8 PR(hermetic 이관·리뷰 이행) + 오후 3 PR.
+빠른견적 4단계는 08-07 전 구간 배포 완결(계약 = `ref/2026-08-07-app-quote-request-ready-for-send-reply.md`)
+— 실기만 이사님 대기. 오전 세션 상세 = `ref/session-archive.md` 맨 위.
 
 ## 직전 세션 (08-08 오후 · 유슨생) — 3 PR
 
@@ -36,18 +36,16 @@ main 전량 green(CI 8단계) = `081e08f`. 08-08 오전 8 PR(hermetic 이관·�
 
 ## ▶ 다음 (미확정 — 트리거 없음)
 
-**hermetic 이관 후보는 소진**됐다. 남은 registry 47은 ⓐ실 데이터가 검증 대상 ⓑ실 Gemini 호출
-ⓒ실 조직 데이터(staff) — 옮기면 의미를 잃는다. 리뷰 보류분(무잠금 경합·TOCTOU·cross-brand)은 기록만.
-후보 하나 발굴됨: **Topbar 실적 배지가 하드코딩 목업**(`Topbar.tsx` "2026년 5월 · 86대 · 48.7억")인데
-같은 3지표의 실데이터 조립기(`lib/admin-hero.ts`, `#428`)가 이미 있다 — 배선만 남았고, 당월 0건일 때
-표시 방식이 결정 사항이다.
+**hermetic 이관 후보 소진**(남은 registry 47은 실 데이터·실 Gemini·실 조직이 검증 대상이라 옮기면
+의미를 잃는다). 리뷰 보류분(무잠금 경합·TOCTOU·cross-brand)은 기록만. 후보 1: **Topbar 실적 배지가
+하드코딩 목업**(`Topbar.tsx` "2026년 5월 · 86대 · 48.7억")인데 같은 3지표 실데이터 조립기
+(`lib/admin-hero.ts`, `#428`)가 이미 있다 — 배선만 남았고 당월 0건 표시가 결정 사항이다.
 
 ## 실기 대기 (이사님)
 
 2·3단계 최초 1회 · iOS 문구 · 4단계 구매방식/차량 조각 + **v39 timing 실측**(`[send-push] timing`).
-🔵 유슨생 몫 1건: **한글 입력 모드에서 `G H`·`?`·`⌘K`**(Safari·Chrome) — macOS 한글 입력기는
-브라우저마다 미묘한 차이가 있어 코드 논리만으로 단정하지 않았다(스펙 §3.4).
 이상 시 경계 좁히기: DB timestamp → CRM tag 요청 → App consumer → iOS 표시 순.
+🔵 **유슨생 몫**: 한글 입력 모드에서 `G H`·`?`·`⌘K`(Safari·Chrome) — 입력기 차이가 있어 미단정.
 
 ## 기존 대기
 
@@ -60,6 +58,6 @@ main 전량 green(CI 8단계) = `081e08f`. 08-08 오전 8 PR(hermetic 이관·�
 ## Boot / 세션 마무리 규칙
 
 부팅: `AGENTS.md` → 이 파일 → `git status -sb` · `git log --oneline -5`.
-마무리: **교체**(누적 금지 · 이전 요약은 `ref/session-archive.md` 맨 위로). 행위 변경은
-`ref/director-pending-confirmations.md` 등재(유슨생 현장 승인은 등재 없이 박제 · 이사님 확정 설계를
-뒤집는 건만 등재). 상세 규칙 = AGENTS.md "Handoff Documents".
+마무리: **교체**(누적 금지 · 이전 요약은 `ref/session-archive.md` 맨 위로 · 60줄 이하). 행위 변경은
+`ref/director-pending-confirmations.md` 등재(유슨생 현장 승인은 박제만 · 이사님 확정 설계를 뒤집는
+건만 등재). 상세 = AGENTS.md "Handoff Documents".
