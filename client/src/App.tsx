@@ -488,6 +488,7 @@ export function App() {
           onNavigate={handleViewChange}
           onOpenCustomer={openCustomerDetailPanel}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+          onShortcutNavigate={(path) => { setCustomerDetailEditorOpen(false); navigate(path); }}
           newAppRequestCount={newAppRequestCount}
           pendingChatCount={pendingChatCount}
         />

@@ -6,6 +6,8 @@ import { type Customer } from "@/data/customers";
 import { type RoleTab } from "@/data/roles";
 import { signOut } from "@/lib/auth";
 import { useDealerMe } from "@/lib/dealer-profiles";
+import { KeyboardShortcutsPanel } from "@/components/KeyboardShortcutsPanel";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { filterGlobalCustomerSearch, globalSearchCountLabel, globalSearchEmptyState, normalizeSearchValue, resolveRecentSearchCustomers } from "@/lib/global-customer-search";
 import { fetchLiveConsulting, saveLiveConsulting } from "@/lib/live-consulting";
 import { usePopoverDismiss } from "@/lib/usePopoverDismiss";
@@ -110,6 +112,8 @@ type TopbarProps = {
   onNavigate: (view: string) => void;
   onOpenCustomer: (customer: Customer) => void;
   onToggleSidebar: () => void;
+  /** 단축키 네비게이션 — App이 라우팅을 소유하므로 경로만 넘겨 위임한다. */
+  onShortcutNavigate: (path: string) => void;
   newAppRequestCount: number;
   pendingChatCount: number;
 };
@@ -125,7 +129,7 @@ const notifications = [
   ["정산", "최민석 출고 건 입금 확인 필요", "금융사 수수료 입금 상태를 정산 관리에서 확인하세요.", "어제 17:20"],
 ] as const;
 
-export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, customers, customersLoaded, customersError, onNavigate, onOpenCustomer, onToggleSidebar, newAppRequestCount, pendingChatCount }: TopbarProps) {
+export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, customers, customersLoaded, customersError, onNavigate, onOpenCustomer, onToggleSidebar, onShortcutNavigate, newAppRequestCount, pendingChatCount }: TopbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -136,6 +140,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
   const [workAiExpanded, setWorkAiExpanded] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [shortcutsPanelOpen, setShortcutsPanelOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState<NotificationTab>("전체");
   // 업무 AI 대화 스레드 — 상태는 여기(Topbar) 소유라 팝오버를 닫아도 유지된다. 렌더는 AiAssistantPanel.
   const aiThread = useAssistantThread();
@@ -203,6 +208,15 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
     () => resolveRecentSearchCustomers(recentSearchClicks, customers),
     [recentSearchClicks, customers],
   );
+
+  // 단축키가 팝오버를 열기 전 나머지를 닫는다 — 클릭 경로(openSettingsMenu 등)가 이미 지키는
+  // 상호배타 규칙을 키 경로도 따라야 두 팝오버가 동시에 열리지 않는다.
+  function closeAllPopovers() {
+    setSettingsOpen(false);
+    setGlobalSearchOpen(false);
+    setNotificationsOpen(false);
+    closeWorkAi();
+  }
 
   function openSettingsMenu() {
     if (settingsCloseTimerRef.current) {
@@ -355,6 +369,45 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
     };
   }, [notificationsOpen]);
 
+  // 키보드 단축키(2026-08-08) — 판정은 순수 모듈이 하고 여기서는 액션 해석만 한다.
+  // 팝오버 4종이 서로를 닫는 기존 규칙을 그대로 따른다(openSettingsMenu 참조): 새 경로가 그 규칙을
+  // 우회하면 두 팝오버가 동시에 열린다.
+  useKeyboardShortcuts({
+    role: roleTab,
+    panelOpen: shortcutsPanelOpen,
+    onShortcut: (shortcut) => {
+      if (shortcut.path) {
+        onShortcutNavigate(shortcut.path);
+        return;
+      }
+      switch (shortcut.action) {
+        case "shortcuts-panel":
+          closeAllPopovers();
+          setShortcutsPanelOpen(true);
+          break;
+        case "global-search":
+          closeAllPopovers();
+          setGlobalSearchOpen((open) => !open);
+          break;
+        case "work-ai":
+          if (workAiOpen) closeWorkAi();
+          else openWorkAiMenu();
+          break;
+        case "calculator":
+          closeAllPopovers();
+          setCalculatorOpen(true);
+          break;
+        case "notifications":
+          closeAllPopovers();
+          setNotificationsOpen((open) => !open);
+          break;
+        case "toggle-sidebar":
+          onToggleSidebar();
+          break;
+      }
+    },
+  });
+
   const visibleNotifications = notifications.filter(([type]) => notificationTab === "전체" || type === notificationTab);
 
   return (
@@ -470,6 +523,11 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
             엔진 차이와 무관해지고, 앞으로 다른 z-index가 늘어도 안전하다.
             React 트리는 그대로라 onClose·상태는 이 컴포넌트가 계속 소유한다(이벤트도 React
             트리를 따라 버블링되므로 Topbar 쪽 핸들러 계약은 불변). */}
+        {shortcutsPanelOpen &&
+          createPortal(
+            <KeyboardShortcutsPanel onClose={() => setShortcutsPanelOpen(false)} role={roleTab} />,
+            document.body,
+          )}
         {calculatorOpen &&
           createPortal(
             <Suspense fallback={null}>

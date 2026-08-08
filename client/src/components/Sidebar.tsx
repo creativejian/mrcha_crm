@@ -7,6 +7,7 @@ import { customerModeMeta, type CustomerMode } from "@/data/customers";
 import type { FinanceMode } from "@/pages/FinancePage";
 import type { RoleTab } from "@/data/roles";
 import { prefetchPendingConsultations } from "@/lib/consultations";
+import { canViewAdminMenu, canViewTeamMenu } from "@/lib/nav-visibility";
 import { prefetchAppQuoteRequests } from "@/lib/quote-requests";
 import { cn } from "@/lib/utils";
 
@@ -141,8 +142,10 @@ function SidebarFlyout({ items, title }: { items: FlyoutItem[]; title: string })
 }
 
 export function Sidebar({ activeView, collapsed, customerMode, financeMode, roleTab, newAppRequestCount = 0, pendingChatCount = 0, pendingChangeRequestCount = 0, mcCodeGapCount = 0, onViewChange, onCustomerModeChange, onFinanceModeChange }: SidebarProps) {
-  const canViewAdminMenu = roleTab === "최고관리자";
-  const canViewTeamMenu = roleTab === "최고관리자" || roleTab === "팀장";
+  // 가시성 판정은 lib/nav-visibility 단일 소스 — 키보드 단축키 레지스트리가 같은 함수를 쓴다
+  // (한쪽만 바뀌면 "화면엔 없는데 키로는 열리는" 뒷문이 된다).
+  const canViewAdmin = canViewAdminMenu(roleTab);
+  const canViewTeam = canViewTeamMenu(roleTab);
   const [customersOpen, setCustomersOpen] = useState(true);
   const [advisorAssignmentOpen, setAdvisorAssignmentOpen] = useState(true);
   const [financeOpen, setFinanceOpen] = useState(false);
@@ -234,12 +237,12 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
               </div>
               <button aria-label="고객 상세" className={navButtonClass(visibleActiveView === "customer-detail")} data-label="고객 상세" onClick={() => navigate("customer-detail")} type="button"><MenuIcon name="detail" /><span>고객 상세</span></button>
               {/* 인박스는 admin·manager 전용(2026-07-21 pending 항목 16) — 상담 신청 DB는 아래 canViewTeamMenu 구역에 이미 있고, 이 메뉴만 전 role에 열려 있었다. */}
-              {canViewTeamMenu && <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" onMouseEnter={() => prefetchAppQuoteRequests()} onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span><CountBadge count={newAppRequestCount} tone="pending" label={`새 앱 견적요청 ${newAppRequestCount}건`} /></button>}
+              {canViewTeam && <button aria-label="앱 견적요청" className={navButtonClass(visibleActiveView === "app-requests")} data-label="앱 견적요청" onMouseEnter={() => prefetchAppQuoteRequests()} onClick={() => navigate("app-requests")} type="button"><MenuIcon name="quotes" /><span>앱 견적요청</span><CountBadge count={newAppRequestCount} tone="pending" label={`새 앱 견적요청 ${newAppRequestCount}건`} /></button>}
               <button aria-label="상담 파이프라인" className={navButtonClass(visibleActiveView === "pipeline")} data-label="상담 파이프라인" onClick={() => navigate("pipeline")} type="button"><MenuIcon name="pipeline" /><span>상담 파이프라인</span></button>
             </>
           )}
       </nav>
-      {canViewTeamMenu && (
+      {canViewTeam && (
         <div className="sidebar-admin-section">
           <nav className="nav admin-nav">
             <div className="nav-group">
@@ -255,7 +258,7 @@ export function Sidebar({ activeView, collapsed, customerMode, financeMode, role
             {roleTab === "팀장" && (
               <button aria-label="MC 마스터" className={navButtonClass(visibleActiveView === "mc-master")} data-label="MC 마스터" onClick={() => navigate("mc-master")} type="button"><MenuIcon name="mc-master" /><span>MC 마스터</span></button>
             )}
-            {canViewAdminMenu && (
+            {canViewAdmin && (
               <>
                 <div className="admin-nav-separator" />
                 <button aria-label="경영 리포트" className={navButtonClass(visibleActiveView === "admin-dashboard")} data-label="경영 리포트" onClick={() => navigate("admin-dashboard")} type="button"><MenuIcon name="report" /><span>경영 리포트</span></button>
