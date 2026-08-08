@@ -1,0 +1,55 @@
+/* 키보드 단축키 hover 힌트 — 표시 스타일 단일 소스(2026-08-08).
+   종전엔 인라인 규칙이 layout-sidebar.css와 settings.css에 **똑같이 두 벌** 있었다(한쪽만 고치면
+   두 표면이 갈린다). 표기 문자열의 SSOT가 레지스트리(lib/keyboard-shortcuts)인 것처럼, 표시
+   스타일의 SSOT는 이 파일이다. 새 표면이 생기면 아래 셀렉터 목록에 추가한다.
+
+   ⚠️ @import 순서상 **맨 마지막**이다(index.css) — 기존 룰을 덮지도, 덮이지도 않는 자리다.
+   ⚠️ 세 표면의 셀렉터는 서로 배타적이어야 한다. `.globalbar button`처럼 넓히면 계정 팝오버 행이
+   아이콘 버블 규칙에 함께 걸려 인라인이어야 할 힌트가 버블로 뜬다(2026-08-08 실기에서 발생). */
+
+/* ── 인라인: 라벨 옆 우측(사이드바 메뉴·서브탭 · 계정 팝오버 행) ──────────────────
+   :hover에서만 content를 만든다 — 평소 공간을 차지하면 카운트 배지가 있는 행에서 배지가
+   상시로 밀린다(실시간 상담·앱 견적요청·MC 마스터). */
+.nav button[data-shortcut]:hover::after,
+.subnav button[data-shortcut]:hover::after,
+.settings-menu-row[data-shortcut]:hover::after {
+  content: attr(data-shortcut);
+  margin-left: auto;
+  padding-left: 10px;
+  color: #9aa0a6;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* ── 버블: 상단바 아이콘(라벨이 없어 옆에 붙일 자리가 없다) ─────────────────────── */
+.globalbar .icon-btn[data-shortcut],
+.globalbar .global-search-trigger[data-shortcut] {
+  position: relative;
+}
+
+.globalbar .icon-btn[data-shortcut]:hover::after,
+.globalbar .global-search-trigger[data-shortcut]:hover::after {
+  content: attr(data-shortcut);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 80;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #2c2c2e;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* 팝오버가 열린 상태에서는 버블이 그 위를 가린다 — 이미 열어 본 기능이라 안내도 불필요하다. */
+.globalbar .icon-btn[data-shortcut].active:hover::after,
+.globalbar .global-search-trigger[data-shortcut].active:hover::after {
+  content: none;
+}

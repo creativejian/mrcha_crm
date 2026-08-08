@@ -423,16 +423,3 @@
   background: #dc2626;
   color: #fff;
 }
-
-/* 계정 팝오버 행의 hover 단축키(2026-08-08) — 사이드바와 같은 문법(버블 아님, 행 안 우측 인라인).
-   :hover에서만 content를 만들어 평소 레이아웃을 건드리지 않는다. */
-.settings-menu-row[data-shortcut]:hover::after {
-  content: attr(data-shortcut);
-  margin-left: auto;
-  padding-left: 10px;
-  color: #9aa0a6;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}

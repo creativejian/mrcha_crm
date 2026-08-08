@@ -678,37 +678,3 @@
   font-size: 13px;
   text-align: center;
 }
-
-/* 아이콘 hover 단축키 버블(2026-08-08) — 아이콘만 있는 버튼이라 옆에 붙일 자리가 없어 버블로
-   띄운다(사이드바는 라벨 옆 인라인). :hover에서만 content를 만들어 평소 DOM 영향이 없다. */
-.globalbar .icon-btn[data-shortcut],
-.globalbar .global-search-trigger[data-shortcut] {
-  position: relative;
-}
-
-/* ⚠️ 셀렉터를 `.globalbar button`으로 넓히지 말 것 — 계정 팝오버 행(.settings-menu-row)도
-   .globalbar 하위 button이라 함께 걸려 인라인이어야 할 힌트가 버블로 뜬다(2026-08-08 실기). */
-.globalbar .icon-btn[data-shortcut]:hover::after,
-.globalbar .global-search-trigger[data-shortcut]:hover::after {
-  content: attr(data-shortcut);
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  z-index: 80;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #2c2c2e;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
-/* 팝오버가 열린 상태에서는 버블이 그 위를 가린다 — 이미 열어 본 기능이라 안내도 불필요하다. */
-.globalbar .icon-btn[data-shortcut].active:hover::after,
-.globalbar .global-search-trigger[data-shortcut].active:hover::after {
-  content: none;
-}
