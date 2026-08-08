@@ -543,30 +543,55 @@
   inset: 0;
   z-index: 90;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 72px 16px 32px;
-  background: rgba(15, 23, 42, 0.32);
+  justify-content: flex-end;
+  background: rgba(17, 17, 17, 0.28);
+  /* 뒤 화면을 흐리게 — -webkit- 접두는 Safari용(우리 주 사용 브라우저)이라 함께 둔다. */
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: shortcuts-backdrop-in 0.16s ease-out;
 }
 
+/* 우측 시트 — 고객 상세 드로어(customer-detail-drawer)와 같은 문법: 전체 높이·좌측 경계선·
+   왼쪽으로 드리우는 그림자·슬라이드 인. 폭만 좁다(목록 한 열이라 넓을 이유가 없다). */
 .shortcuts-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 520px;
-  max-width: 100%;
-  max-height: calc(100vh - 120px);
+  max-width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border-left: 1px solid var(--line);
   background: #fff;
-  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.22);
+  box-shadow: -18px 0 48px rgba(15, 23, 42, 0.18);
+  animation: shortcuts-panel-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes shortcuts-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shortcuts-panel-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .shortcuts-panel > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -576,8 +601,8 @@
 }
 
 .shortcuts-search {
-  height: 44px;
-  padding: 0 16px;
+  height: 46px;
+  padding: 0 20px;
   border: 0;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
@@ -594,7 +619,7 @@
 }
 
 .shortcuts-body h3 {
-  padding: 14px 16px 6px;
+  padding: 16px 20px 6px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
@@ -607,12 +632,32 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 9px 16px;
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--line);
   font-size: 13px;
+}
+
+/* 그룹의 마지막 행은 구분선을 지운다 — 다음 그룹 제목의 여백과 겹쳐 이중선으로 보인다. */
+.shortcuts-row:last-child {
+  border-bottom: 0;
+}
+
+/* 키 묶음 — "G then C"를 배지·연결어로 쪼개 그린다. */
+.shortcuts-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .shortcuts-row:hover {
   background: var(--surface-2, #f7f7f9);
+}
+
+.shortcuts-keys em {
+  font-style: normal;
+  opacity: 0.7;
 }
 
 .shortcuts-row kbd {

@@ -44,11 +44,23 @@ describe("KeyboardShortcutsPanel", () => {
     expect(screen.getByText("일치하는 단축키가 없습니다.")).toBeInTheDocument();
   });
 
+  // 시퀀스는 배지·연결어로 쪼개 그린다(G / then / C) — 단일 문자열이 아니다.
   it("키 표기를 함께 보여준다", () => {
     render(<KeyboardShortcutsPanel onClose={() => {}} role="최고관리자" />);
+    const row = screen.getByText("고객 관리 · 전체 보기").closest<HTMLElement>(".shortcuts-row")!;
+    expect(within(row).getByText("G")).toBeInTheDocument();
+    expect(within(row).getByText("then")).toBeInTheDocument();
+    expect(within(row).getByText("C")).toBeInTheDocument();
+    // 단발 조합은 토큰이 하나라 그대로 한 배지다.
     expect(screen.getByText("⌘K")).toBeInTheDocument();
-    expect(screen.getByText("G then C")).toBeInTheDocument();
     expect(screen.getByText("⇧?")).toBeInTheDocument();
+  });
+
+  // 표기가 쪼개져도 검색은 문자열 소스(shortcutKeyLabel)를 보므로 "G then"으로 찾을 수 있다.
+  it("키 표기로도 검색된다", () => {
+    render(<KeyboardShortcutsPanel onClose={() => {}} role="최고관리자" />);
+    fireEvent.change(screen.getByLabelText("단축키 검색"), { target: { value: "⌘K" } });
+    expect(rows()).toEqual(["고객 통합 검색"]);
   });
 
   it("닫기 버튼", () => {

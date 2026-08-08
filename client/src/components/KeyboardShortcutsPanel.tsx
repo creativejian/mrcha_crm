@@ -56,7 +56,19 @@ export function KeyboardShortcutsPanel({ role, onClose }: { role: RoleTab; onClo
               {items.map((shortcut) => (
                 <div className="shortcuts-row" key={shortcut.id}>
                   <span>{shortcut.label(role)}</span>
-                  <kbd>{shortcutKeyLabel(shortcut)}</kbd>
+                  <span className="shortcuts-keys">
+                    {/* "G then C"를 배지·연결어로 쪼개 그린다 — 라벨 문자열(shortcutKeyLabel)은
+                        테스트·검색이 쓰는 단일 소스라 여기서 파생만 한다. */}
+                    {shortcutKeyLabel(shortcut)
+                      .split(" ")
+                      .map((token, index) =>
+                        token === "then" ? (
+                          <em key={`${shortcut.id}-then-${index}`}>then</em>
+                        ) : (
+                          <kbd key={`${shortcut.id}-key-${index}`}>{token}</kbd>
+                        ),
+                      )}
+                  </span>
                 </div>
               ))}
             </section>
