@@ -602,7 +602,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
         </div>
         </>)}
         <div className="settings-wrap account-menu-wrap" ref={settingsMenuRef}>
-          <button className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={canManageLiveConsulting ? `${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}` : `${displayName}, ${roleTab}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setFailedAvatarUrl(userAvatarUrl ?? null)} /> : <AccountDefaultIcon />}</span>{canManageLiveConsulting && <span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" />}</button>
+          <button data-shortcut={actionHint("profile")} className={`icon-btn account-btn ${settingsOpen ? "active" : ""}`} onClick={() => { if (shouldIgnoreTopbarAction()) return; if (settingsOpen) closeSettingsMenu(); else openSettingsMenu(); }} type="button" aria-label={canManageLiveConsulting ? `${displayName}, ${roleTab}, 실시간 상담 ${displayLiveConsulting ? "켜짐" : "꺼짐"}` : `${displayName}, ${roleTab}`} aria-expanded={settingsOpen}><span className={`account-avatar ${usesDefaultAvatar ? "default" : ""}`} aria-hidden="true">{showAvatar ? <img src={userAvatarUrl ?? ""} alt="" onError={() => setFailedAvatarUrl(userAvatarUrl ?? null)} /> : <AccountDefaultIcon />}</span>{canManageLiveConsulting && <span className={`settings-status-dot account-status-dot ${displayLiveConsulting ? "on" : "off"}`} aria-hidden="true" />}</button>
           {settingsOpen && (
             <>
               <div
@@ -618,7 +618,7 @@ export function Topbar({ sidebarCollapsed, roleTab, userName, userAvatarUrl, cus
                   if (!confirmMode) closeSettingsMenu();
                 }}
               />
-              <div className={`settings-menu ${settingsClosing ? "closing" : ""}`} role="dialog" data-shortcut={actionHint("profile")} aria-label="계정 설정">
+              <div className={`settings-menu ${settingsClosing ? "closing" : ""}`} role="dialog" aria-label="계정 설정">
                 <div className="account-menu-head">
                   <div className="account-menu-title">
                     <strong>{displayName}</strong>
