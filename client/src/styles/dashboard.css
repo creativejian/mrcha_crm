@@ -939,7 +939,10 @@
    표기 형태는 Ladle에서 칩 안 한 줄(A안)과 실물 비교 후 선택했다(유슨생 2026-08-04). */
 .admin-method-bars {
   margin-top: 16px;
-  padding-top: 16px;
+  /* ⚠️ 좌우·하단 여백이 필요하다 — 칩의 여백은 `.advisor-performance-item`의 padding: 16px에서
+     오므로(그리드 아이템 각자가 갖는다) 이 목록은 그것을 물려받지 못한다. 값을 16px로 맞춰야
+     라벨("운용리스")이 칩 라벨("전체 출고")과 같은 세로선에 선다. 하단이 없으면 카드 바닥에 붙는다. */
+  padding: 16px;
   border-top: 1px solid var(--line);
 }
 
