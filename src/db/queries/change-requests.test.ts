@@ -2,8 +2,9 @@ import { beforeAll, expect, test } from "bun:test";
 import { eq, ne, sql } from "drizzle-orm";
 
 import { modelsInCatalog, trimsInCatalog } from "../catalog";
-import { getDefaultDb, type Executor } from "../client";
+import { toRows, type Executor } from "../client";
 import { createOption, deleteOption } from "./catalog-admin";
+import { getTestDb } from "../../test-utils/hermetic-db";
 import {
   cancelOwnPending, claimPending, listChangeRequests, listModelPendingRequests, listMyChangeRequests,
   markRejected, upsertPendingRequest,
@@ -12,7 +13,8 @@ import {
 // ── 변경 요청 큐 CRUD — 전부 트랜잭션 롤백(discount-adoptions.test.ts와 같은 이유:
 // afterAll에 의존하면 실행이 끊길 때 공유 master에 잔재가 남는다). requestedBy는 랜덤
 // uuid를 쓴다 — 롤백이라 잔재 그물(고아 판정)에 걸릴 일도 없다.
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
 let trimId = 0;
 let modelId = 0;
 let otherModelTrimId = 0; // 다른 모델 소속 트림 — option.create 축 스코프 제외 검증용
@@ -87,11 +89,13 @@ test("본인 재제출은 같은 행을 갱신한다(payload 교체 + updated_at
     if (!first.ok || !second.ok) throw new Error("적재 실패");
     expect(second.id).toBe(first.id);
     // JS Date 비교 금지(#334 — ms 절삭 거짓 실패·스큐 은폐). timestamptz끼리 DB 안에서 비교.
-    const [row] = (await tx.execute(sql`
-      select (updated_at > created_at) as advanced, (payload->>'price')::int as price
-      from crm.catalog_change_requests where id = ${first.id}`)) as unknown as Array<{
-      advanced: boolean; price: number;
-    }>;
+    // toRows: 드라이버별 execute() 반환형 차이 정규화(postgres-js 배열 ↔ PGlite `{rows}`) —
+    // dual-mode 테스트에서 원시 SQL 결과를 배열로 쓰려면 필수다(client.ts 주석).
+    const [row] = toRows<{ advanced: boolean; price: number }>(
+      await tx.execute(sql`
+        select (updated_at > created_at) as advanced, (payload->>'price')::int as price
+        from crm.catalog_change_requests where id = ${first.id}`),
+    );
     expect(row!.advanced).toBe(true);
     expect(row!.price).toBe(200);
   });

@@ -2,15 +2,17 @@ import { beforeAll, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 
 import { modelsInCatalog, trimsInCatalog } from "../../db/catalog";
-import { getDefaultDb, type Executor } from "../../db/client";
+import { toRows, type Executor } from "../../db/client";
 import { catalogDiscountAdoptions, type ChangeRequestKind } from "../../db/schema";
 import { createOption, createTrim, deleteOption, updateTrim } from "../../db/queries/catalog-admin";
 import { upsertPendingRequest } from "../../db/queries/change-requests";
+import { getTestDb } from "../../test-utils/hermetic-db";
 import { ConflictError } from "../../lib/errors";
 import { approveChangeRequest, CHANGE_KINDS } from "./change-request-kinds";
 
 // ── kind 레지스트리 + 승인 replay — 전부 롤백(catalog를 실제로 바꾸는 테스트라 필수).
-const db = getDefaultDb();
+// dual-mode(hermetic-db.ts): 로컬 test:server = 실 master(기존 그대로), CI test:pure = PGlite.
+const db = await getTestDb();
 let trimId = 0;
 let modelId = 0;
 let brandId = 0;
@@ -90,9 +92,10 @@ test("submit 저장 payload는 파싱 출력이다 — model.create의 category 
       tx,
     );
     if (!r.ok) throw new Error("적재 실패");
-    const [row] = (await tx.execute(
-      sql`select payload from crm.catalog_change_requests where id = ${r.id}`,
-    )) as unknown as Array<{ payload: Record<string, unknown> }>;
+    // toRows: 드라이버별 execute() 반환형 차이 정규화(client.ts 주석 — dual-mode 필수).
+    const [row] = toRows<{ payload: Record<string, unknown> }>(
+      await tx.execute(sql`select payload from crm.catalog_change_requests where id = ${r.id}`),
+    );
     expect(row!.payload.category).toBeNull();
     expect(row!.payload.status).toBe("판매중");
   });

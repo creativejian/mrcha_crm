@@ -73,13 +73,49 @@ async function buildHermeticDb(): Promise<Db> {
   await client.exec(
     "INSERT INTO public.profiles (id, role, full_name) VALUES (gen_random_uuid(), 'user', '상담사테스트'), (gen_random_uuid(), 'user', '허메틱픽스처A'), (gen_random_uuid(), 'user', '허메틱픽스처B');",
   );
-  // 최소 catalog 시드 — 실 master에서 "아무 트림"을 읽던 테스트(딜러 마스킹 등)의 hermetic 대응.
-  // 확정 할인을 채워 두어 role 분기 대조(딜러 null ↔ admin 값)도 성립한다.
+  // master 트리거 스텁 — catalog.models·trims의 `sort_order`는 **실 DB에서 트리거가 자동 부여**한다
+  // (`createModel`/`createTrim`이 INSERT에서 생략하는 이유). pushSchema는 컬럼·제약만 만들고 트리거는
+  // 못 만들어서, 그대로 두면 두 번째 INSERT가 default 999로 겹쳐
+  // `models_brand_id_sort_order_unique`에 걸린다(실측). 형제 내 최대+1을 채우는 최소 동형 스텁이다.
+  // ⚠️ 실 트리거의 재현이 아니라 **충돌 회피용 테스트 더블**이다 — 순번 자체를 단언하는 테스트를
+  // 여기로 이관하면 안 된다(그런 건 registry에 남긴다).
+  await client.exec(`
+    CREATE OR REPLACE FUNCTION catalog.hermetic_fill_sort_order() RETURNS trigger AS $$
+    DECLARE next_order integer;
+    BEGIN
+      IF TG_TABLE_NAME = 'models' THEN
+        SELECT coalesce(max(sort_order), 0) + 1 INTO next_order FROM catalog.models WHERE brand_id = NEW.brand_id;
+      ELSE
+        SELECT coalesce(max(sort_order), 0) + 1 INTO next_order FROM catalog.trims WHERE model_id = NEW.model_id;
+      END IF;
+      NEW.sort_order := next_order;
+      RETURN NEW;
+    END $$ LANGUAGE plpgsql;
+    CREATE TRIGGER hermetic_models_sort_order BEFORE INSERT ON catalog.models
+      FOR EACH ROW EXECUTE FUNCTION catalog.hermetic_fill_sort_order();
+    CREATE TRIGGER hermetic_trims_sort_order BEFORE INSERT ON catalog.trims
+      FOR EACH ROW EXECUTE FUNCTION catalog.hermetic_fill_sort_order();
+  `);
+
+  // 최소 catalog 시드 — 실 master에서 "아무 트림/모델/옵션"을 `.limit(1)`로 빌려 쓰던 테스트들의
+  // hermetic 대응(딜러 마스킹·카탈로그 변경 요청 축). 각 행이 왜 필요한지가 곧 시드의 계약이다:
+  //  · 확정 할인 3종  → 딜러 마스킹 role 분기 대조(딜러 null ↔ admin 값)
+  //  · **모델 2개**   → change-requests.test.ts가 `ne(modelId)`로 "다른 모델 소속 트림"을 찾는다
+  //                     (스코프 제외 검증용 — 모델이 하나면 그 픽스처를 못 만든다)
+  //  · **트림 옵션**  → catalog.change-requests.test.ts의 option.update 큐 케이스 재료
+  // ⚠️ 여기 행을 지우면 그 테스트들이 `opt!.trimId` 류에서 죽는다(조용한 스킵이 아니라 시끄러운 실패).
   await client.exec(`
     INSERT INTO catalog.brands (name, is_domestic) VALUES ('허메틱브랜드', true);
-    INSERT INTO catalog.models (brand_id, name) SELECT id, '허메틱모델' FROM catalog.brands WHERE name = '허메틱브랜드';
-    INSERT INTO catalog.trims (model_id, name, price, trim_name, financial_discount_amount, partner_discount_amount, cash_discount_amount, discount_updated_at)
-      SELECT id, '허메틱트림', 50000000, '허메틱트림', 1000000, 500000, 300000, now() FROM catalog.models WHERE name = '허메틱모델';
+    INSERT INTO catalog.models (brand_id, name, category)
+      SELECT id, '허메틱모델', '세단' FROM catalog.brands WHERE name = '허메틱브랜드';
+    INSERT INTO catalog.models (brand_id, name, category)
+      SELECT id, '허메틱모델2', '세단' FROM catalog.brands WHERE name = '허메틱브랜드';
+    INSERT INTO catalog.trims (model_id, name, price, trim_name, model_year, fuel_type, financial_discount_amount, partner_discount_amount, cash_discount_amount, discount_updated_at)
+      SELECT id, '허메틱트림', 50000000, '허메틱트림', 2026, '가솔린', 1000000, 500000, 300000, now() FROM catalog.models WHERE name = '허메틱모델';
+    INSERT INTO catalog.trims (model_id, name, price, trim_name, model_year, fuel_type)
+      SELECT id, '허메틱트림2', 60000000, '허메틱트림2', 2026, '가솔린' FROM catalog.models WHERE name = '허메틱모델2';
+    INSERT INTO catalog.trim_options (trim_id, type, name, price)
+      SELECT id, 'basic', '허메틱옵션', 1000000 FROM catalog.trims WHERE name = '허메틱트림';
   `);
 
   // 스키마 구성은 프로덕션 client.ts(allSchema = schema + catalog)와 동일하게 맞춘다.
