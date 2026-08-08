@@ -56,8 +56,10 @@ const NAV_SHORTCUTS: Shortcut[] = [
   { id: "nav-pipeline", keys: ["KeyG", "KeyP"], group: "navigation", path: "/pipeline", label: constant("상담 파이프라인"), visibleFor: notDealer },
 
   { id: "nav-app-requests", keys: ["KeyG", "KeyQ"], group: "navigation", path: "/app-requests", label: constant("앱 견적요청"), visibleFor: canViewTeamMenu },
-  { id: "nav-advisor-assignment", keys: ["KeyG", "KeyA"], group: "navigation", path: "/consultation-requests", label: constant("상담사 배정"), visibleFor: canViewTeamMenu },
-  { id: "nav-consultation-requests", keys: ["KeyG", "KeyI"], group: "navigation", path: "/consultation-requests", label: constant("상담 신청 DB"), visibleFor: canViewTeamMenu },
+  // ⚠️ 상담사 배정은 사이드바에서 **토글**이고 실제 목적지는 서브탭이다. 그래서 고객 관리와 같은
+  // "부모 · 자식" 어휘를 쓴다 — 초안에서 G A(상담사 배정)와 G I(상담 신청 DB)가 같은 경로로
+  // 가는 중복이었다(2026-08-08 유슨생 실기에서 드러남).
+  { id: "nav-consultation-requests", keys: ["KeyG", "KeyA"], group: "navigation", path: "/consultation-requests", label: constant("상담사 배정 · 상담 신청 DB"), visibleFor: canViewTeamMenu },
   { id: "nav-org-members", keys: ["KeyG", "KeyO"], group: "navigation", path: "/org-members", label: constant("팀원 관리"), visibleFor: canViewTeamMenu },
 
   // 딜러도 갖는 유일한 네비게이션 — dealerMenuItems에서 목적지가 있는 항목이 이것뿐이다.
@@ -85,6 +87,12 @@ const KEY_TEXT: Record<string, string> = { Slash: "?", Comma: "," };
 
 function keyText(code: string): string {
   return KEY_TEXT[code] ?? code.replace(/^Key/, "");
+}
+
+/** Topbar 아이콘 hover 힌트용 조회 — 아이콘은 라벨이 아니라 자기 action id를 안다. */
+export function shortcutKeysForAction(action: string, role: RoleTab): string | null {
+  const found = visibleShortcuts(role).find((shortcut) => shortcut.action === action);
+  return found ? shortcutKeyLabel(found) : null;
 }
 
 /**
